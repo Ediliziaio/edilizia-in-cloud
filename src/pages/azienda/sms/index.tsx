@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { SmsCompose } from "./SmsCompose";
 import { SmsHistory } from "./SmsHistory";
 import { SmsAutomations } from "./SmsAutomations";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsHubPageProps {
   defaultTab?: string;
@@ -70,6 +71,7 @@ const TAB_ALIASES: Record<string, string> = {
 const SCHEDE_TELEFONO = ["panoramica", "invia", "storico"];
 
 export default function SmsPage({ defaultTab = "panoramica", platformMode = false }: SmsHubPageProps) {
+  const t = useT();
   const initial = TAB_ALIASES[defaultTab] ?? defaultTab;
   const [activeTab, setActiveTab] = useState(initial);
   const isMobile = useIsMobile();
@@ -109,19 +111,19 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
       </div>
 
       {esitoRicarica === "annullata" && (
-        <div role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">Pagamento annullato. Puoi avviare un’altra ricarica.</div>
+        <div role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{t("Pagamento annullato. Puoi avviare un’altra ricarica.")}</div>
       )}
       {sessioneValida && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
           {ricevuta.data ? (
-            <span><strong>Crediti accreditati.</strong> {formatCurrency(ricevuta.data.credit_cents / 100)} aggiunti al portafoglio SMS.</span>
+            <span><strong>{t("Crediti accreditati.")}</strong> {t("{importo} aggiunti al portafoglio SMS.", { importo: formatCurrency(ricevuta.data.credit_cents / 100) })}</span>
           ) : (
             <>
               <span>
-                {ricevuta.isError ? "Impossibile verificare l’accredito." : "Pagamento in verifica. L’accredito risulterà qui appena registrato."}
+                {ricevuta.isError ? t("Impossibile verificare l’accredito.") : t("Pagamento in verifica. L’accredito risulterà qui appena registrato.")}
               </span>
               <Button size="sm" variant="outline" disabled={ricevuta.isFetching} onClick={() => void ricevuta.refetch()}>
-                Verifica accredito
+                {t("Verifica accredito")}
               </Button>
             </>
           )}
@@ -133,7 +135,7 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
       {!onboardingOk ? (
         isMobile ? (
           // Telefono: il numero (acquisto e verifica) si attiva da computer o tablet.
-          <AvvisoSoloDaComputer titolo="Il numero SMS si attiva da computer o tablet" />
+          <AvvisoSoloDaComputer titolo={t("Il numero SMS si attiva da computer o tablet")} />
         ) : platformMode ? (
           <PlatformSmsActivationCard />
         ) : (
@@ -147,31 +149,31 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
           <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-7 md:inline-flex md:w-auto md:max-w-none max-md:h-auto max-md:p-1">
             <TabsTrigger value="panoramica" className="gap-1.5 max-md:text-[13px]">
               <BarChart3 className="hidden h-4 w-4 xl:block" />
-              <span className="hidden sm:inline max-md:inline">Panoramica</span>
+              <span className="hidden sm:inline max-md:inline">{t("Panoramica")}</span>
             </TabsTrigger>
             <TabsTrigger value="invia" className="gap-1.5 max-md:text-[13px]">
               <Send className="hidden h-4 w-4 xl:block" />
-              <span className="hidden sm:inline max-md:inline">Invia ora</span>
+              <span className="hidden sm:inline max-md:inline">{t("Invia ora")}</span>
             </TabsTrigger>
             <TabsTrigger value="campagne" className="gap-1.5 max-md:hidden">
               <Megaphone className="hidden h-4 w-4 xl:block" />
-              <span className="hidden sm:inline">Campagne</span>
+              <span className="hidden sm:inline">{t("Campagne")}</span>
             </TabsTrigger>
             <TabsTrigger value="automazioni" className="gap-1.5 max-md:hidden">
               <Zap className="hidden h-4 w-4 xl:block" />
-              <span className="hidden sm:inline">Automazioni</span>
+              <span className="hidden sm:inline">{t("Automazioni")}</span>
             </TabsTrigger>
             <TabsTrigger value="contatti" className="gap-1.5 max-md:hidden">
               <Users className="hidden h-4 w-4 xl:block" />
-              <span className="hidden sm:inline">Contatti</span>
+              <span className="hidden sm:inline">{t("Contatti")}</span>
             </TabsTrigger>
             <TabsTrigger value="template" className="gap-1.5 max-md:hidden">
               <FileText className="hidden h-4 w-4 xl:block" />
-              <span className="hidden sm:inline">Template</span>
+              <span className="hidden sm:inline">{t("Template")}</span>
             </TabsTrigger>
             <TabsTrigger value="storico" className="gap-1.5 max-md:text-[13px]">
               <History className="hidden h-4 w-4 xl:block" />
-              <span className="hidden sm:inline max-md:inline">Storico</span>
+              <span className="hidden sm:inline max-md:inline">{t("Storico")}</span>
             </TabsTrigger>
           </TabsList>
 

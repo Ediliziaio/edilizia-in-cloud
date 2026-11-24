@@ -41,6 +41,7 @@ import VoceRow from "./VoceRow";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
 import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Palette accent ciclica per i capitoli (bordo · pallino · pill subtotale). */
 const ACCENTS = [
@@ -73,6 +74,7 @@ export default function CapitoloSection({
   nome, voci, accentIndex, progettoId, companyId, showMargine, conCosti, confronti,
   onChange, onRename, onDeleteCapitolo,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Il nome si scrive qui e si applica all'uscita dal campo (o con Invio):
@@ -165,7 +167,7 @@ export default function CapitoloSection({
             <button
               type="button"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted"
-              aria-label={open ? "Comprimi capitolo" : "Espandi capitolo"}
+              aria-label={open ? t("Comprimi capitolo") : t("Espandi capitolo")}
             >
               <ChevronRight className={cn("h-4 w-4 transition-transform", open && "rotate-90")} />
             </button>
@@ -181,18 +183,18 @@ export default function CapitoloSection({
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
-            placeholder="Nome capitolo…"
+            placeholder={t("Nome capitolo…")}
             className="h-9 flex-1 border-transparent bg-transparent px-1.5 text-sm font-semibold text-slate-800 shadow-none hover:bg-muted/50 focus-visible:bg-background focus-visible:ring-1"
           />
 
           {/* Conteggio voci */}
           <Badge variant="outline" className="hidden shrink-0 text-[10px] font-normal text-muted-foreground sm:inline-flex">
-            {voci.length} {voci.length === 1 ? "voce" : "voci"}
+            {t(voci.length === 1 ? "{n} voce" : "{n} voci", { n: voci.length })}
           </Badge>
 
           {/* Subtotale live */}
           <Badge variant="outline" className={cn("mr-1 shrink-0 gap-1 tabular-nums", accent.pill)}>
-            <span className="hidden text-[10px] font-normal opacity-70 sm:inline">Subtotale</span>
+            <span className="hidden text-[10px] font-normal opacity-70 sm:inline">{t("Subtotale")}</span>
             <span className="text-xs font-semibold">{formatCurrency(subtotale)}</span>
           </Badge>
 
@@ -210,24 +212,24 @@ export default function CapitoloSection({
                   </Button>
                 </AlertDialogTrigger>
               </TooltipTrigger>
-              <TooltipContent side="left" className="text-xs">Elimina capitolo</TooltipContent>
+              <TooltipContent side="left" className="text-xs">{t("Elimina capitolo")}</TooltipContent>
             </Tooltip>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Eliminare il capitolo "{nome || "Senza nome"}"?</AlertDialogTitle>
+                <AlertDialogTitle>{t("Eliminare il capitolo \"{nome}\"?", { nome: nome || t("Senza nome") })}</AlertDialogTitle>
                 <AlertDialogDescription>
                   {voci.length > 0
-                    ? `Verranno rimosse anche le ${voci.length} voci contenute. Il computo si salva da solo: l'operazione non si può annullare.`
-                    : "Il capitolo è vuoto e verrà rimosso."}
+                    ? t("Verranno rimosse anche le {n} voci contenute. Il computo si salva da solo: l'operazione non si può annullare.", { n: voci.length })
+                    : t("Il capitolo è vuoto e verrà rimosso.")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={onDeleteCapitolo}
                   className="bg-rose-600 hover:bg-rose-700"
                 >
-                  Elimina
+                  {t("Elimina")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -243,8 +245,8 @@ export default function CapitoloSection({
                 className="flex w-full flex-col items-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/20 px-3 py-5 text-center text-muted-foreground transition-colors hover:border-orange-300 hover:bg-orange-50/40 hover:text-orange-700"
               >
                 <Layers className="h-5 w-5 opacity-60" />
-                <span className="text-xs font-medium">Capitolo vuoto — aggiungi la prima voce</span>
-                <span className="text-[10px]">Cerca nei listini o crea una voce libera</span>
+                <span className="text-xs font-medium">{t("Capitolo vuoto — aggiungi la prima voce")}</span>
+                <span className="text-[10px]">{t("Cerca nei listini o crea una voce libera")}</span>
               </button>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -275,7 +277,7 @@ export default function CapitoloSection({
                 onClick={() => setPickerOpen(true)}
                 className="w-full justify-center gap-1.5 border border-dashed border-transparent text-xs text-muted-foreground hover:border-orange-200 hover:bg-orange-50/40 hover:text-orange-700"
               >
-                <Plus className="h-3.5 w-3.5" /> Aggiungi voce
+                <Plus className="h-3.5 w-3.5" /> {t("Aggiungi voce")}
               </Button>
             )}
           </div>

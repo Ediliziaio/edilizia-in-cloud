@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { formatEuroBreve } from "@/lib/controlloGestione/indiciBanca";
 import { useId } from "react";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, testoLegenda, idSvg } from "@/components/charts/grafici/comune";
 
 interface PianoChartProps {
@@ -13,6 +14,7 @@ interface PianoChartProps {
 }
 
 export function PianoChart({ periodi }: PianoChartProps) {
+  const t = useT();
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
   const data = periodi.map((p) => ({
@@ -54,20 +56,20 @@ export function PianoChart({ periodi }: PianoChartProps) {
                 active={p.active}
                 payload={p.payload as never}
                 label={p.label}
-                formato={(v, nome) => (nome === "Rating (punti su 100)" ? `${Math.round(v)} su 100` : formatCurrency(v))}
+                formato={(v, nome) => (nome === t("Rating (punti su 100)") ? t("{n} su 100", { n: Math.round(v) }) : formatCurrency(v))}
               />
             )}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} formatter={testoLegenda} />
-          <Bar yAxisId="left" dataKey="ricavi" name="Ricavi" fill={`url(#${id}-barra-ricavi)`} radius={[6, 6, 2, 2]}
+          <Bar yAxisId="left" dataKey="ricavi" name={t("Ricavi")} fill={`url(#${id}-barra-ricavi)`} radius={[6, 6, 2, 2]}
             maxBarSize={48} isAnimationActive={!fermo} animationDuration={800} />
-          <Line yAxisId="left" type="monotone" dataKey="ebitda" name="Margine operativo lordo"
+          <Line yAxisId="left" type="monotone" dataKey="ebitda" name={t("Margine operativo lordo")}
             stroke={COLORI_GRAFICO.arancio} strokeWidth={2.5} filter={`url(#${id}-ombra)`}
             dot={{ r: 3, strokeWidth: 0, fill: COLORI_GRAFICO.arancio }} isAnimationActive={!fermo} animationDuration={900} animationBegin={150} />
-          <Line yAxisId="left" type="monotone" dataKey="utile" name="Utile netto"
+          <Line yAxisId="left" type="monotone" dataKey="utile" name={t("Utile netto")}
             stroke={COLORI_GRAFICO.verde} strokeWidth={2.5} filter={`url(#${id}-ombra)`}
             dot={{ r: 3, strokeWidth: 0, fill: COLORI_GRAFICO.verde }} isAnimationActive={!fermo} animationDuration={900} animationBegin={300} />
-          <Line yAxisId="right" type="monotone" dataKey="rating" name="Rating (punti su 100)"
+          <Line yAxisId="right" type="monotone" dataKey="rating" name={t("Rating (punti su 100)")}
             stroke={COLORI_GRAFICO.viola} strokeWidth={2} strokeDasharray="4 4"
             dot={{ r: 3, strokeWidth: 0, fill: COLORI_GRAFICO.viola }} isAnimationActive={!fermo} animationDuration={900} animationBegin={450} />
         </ComposedChart>

@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 // Lazy load: il SmartDocumentImportModal e il SilvioChatSheet sono pesanti
 // (chat ha 1k LOC + supabase realtime + framer-motion + audio recording).
 // Caricamento on-demand al primo open → boot iniziale del CompanyLayout
@@ -197,6 +198,7 @@ interface MorningBriefing {
 }
 
 export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: Props) {
+  const tr = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const pageContext = useSilvioPageContext();
@@ -411,7 +413,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
   const fabButton = (
 	          <motion.button
 	            type="button"
-	            aria-label="Apri assistente Silvio"
+	            aria-label={tr("Apri assistente Silvio")}
               aria-expanded={open}
 	            className={cn(
                 "fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-eic-amber text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex",
@@ -483,9 +485,9 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
           <div className="shrink-0 border-b border-orange-100 bg-gradient-to-br from-orange-50 via-white to-amber-50 px-3 py-2.5">
             <div className="flex items-center gap-2">
               <SilvioAvatar size={28} className="rounded-xl shadow shadow-orange-200" />
-              <p className="shrink-0 text-sm font-black leading-tight text-slate-950">Regia Silvio</p>
-              <p className="min-w-0 flex-1 truncate text-[11px] leading-tight text-slate-500" title="Contesto pagina">
-                · {pageContextLabel}
+              <p className="shrink-0 text-sm font-black leading-tight text-slate-950">{tr("Regia Silvio")}</p>
+              <p className="min-w-0 flex-1 truncate text-[11px] leading-tight text-slate-500" title={tr("Contesto pagina")}>
+                · {tr(pageContextLabel)}
               </p>
               {badge.conteggio > 0 && (
                 <span
@@ -497,7 +499,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                       : "border-orange-200 bg-white text-orange-700",
                   )}
                 >
-                  {badge.conteggio} priorità
+                  {tr("{n} priorità", { n: badge.conteggio })}
                 </span>
               )}
             </div>
@@ -507,15 +509,15 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                 <input
                   value={quickPrompt}
                   onChange={(event) => setQuickPrompt(event.target.value)}
-                  placeholder="Scrivi a Silvio..."
-                  aria-label="Scrivi a Silvio"
+                  placeholder={tr("Scrivi a Silvio...")}
+                  aria-label={tr("Scrivi a Silvio")}
                   className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
                   autoFocus
                 />
                 <button
                   type="submit"
                   className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500 text-white transition-colors hover:bg-orange-600 shrink-0"
-                  aria-label="Apri chat con Silvio"
+                  aria-label={tr("Apri chat con Silvio")}
                 >
                   <Send className="h-3.5 w-3.5" />
                 </button>
@@ -553,7 +555,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                   {morningBrief.severity === "urgent"
                     ? <AlertTriangle className="h-3 w-3 text-rose-600" />
                     : <Sparkles className="h-3 w-3 text-sky-600" />}
-                  Priorità di oggi · {new Date(morningBrief.brief_date).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
+                  {tr("Priorità di oggi · {data}", { data: new Date(morningBrief.brief_date).toLocaleDateString(intlCampo(), { day: "numeric", month: "short" }) })}
                 </p>
                 <div className="space-y-0.5">
                   {priorita.map((punto, index) => (
@@ -561,7 +563,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                       key={`${punto.text}-${index}`}
                       type="button"
                       onClick={() => openChat(punto.text)}
-                      title={punto.action_hint ?? "Chiedi a Silvio"}
+                      title={punto.action_hint ?? tr("Chiedi a Silvio")}
                       className="group flex w-full items-start gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-white/70"
                     >
                       <span className={cn(
@@ -597,13 +599,13 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
               <button
                 type="button"
                 onClick={() => handleAction("smart_doc")}
-                title={content.uploadCard.description}
+                title={tr(content.uploadCard.description)}
                 className="flex w-full items-center gap-2 rounded-lg border border-dashed border-orange-300 bg-orange-50/60 px-2.5 py-1.5 text-left transition-colors hover:bg-orange-50"
               >
                 <UploadCloud className="h-4 w-4 shrink-0 text-orange-600" />
-                <span className="shrink-0 text-[12px] font-black text-slate-900">{content.uploadCard.title}</span>
+                <span className="shrink-0 text-[12px] font-black text-slate-900">{tr(content.uploadCard.title)}</span>
                 <span className="min-w-0 flex-1 truncate text-right text-[10px] font-semibold text-slate-500">
-                  {content.uploadCard.chips.join(" · ")}
+                  {content.uploadCard.chips.map((c) => tr(c)).join(" · ")}
                 </span>
               </button>
             )}
@@ -613,22 +615,22 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                 <button
                   type="button"
                   onClick={() => { setOpen(false); setPdfToolsOpen(true); }}
-                  title="Immagini→PDF, unisci, ruota"
+                  title={tr("Immagini→PDF, unisci, ruota")}
                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50"
                 >
                   <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                  <span className="truncate text-xs text-slate-700">Strumenti PDF</span>
+                  <span className="truncate text-xs text-slate-700">{tr("Strumenti PDF")}</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => handleAction("command_palette")}
-                title={content.searchPlaceholder}
+                title={tr(content.searchPlaceholder)}
                 className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50"
               >
                 <Search className="h-3.5 w-3.5 shrink-0 text-slate-500" />
                 <span className="min-w-0 flex-1 truncate text-xs text-slate-700">
-                  {content.uploadCard.visible ? "Cerca" : content.searchPlaceholder}
+                  {content.uploadCard.visible ? tr("Cerca") : tr(content.searchPlaceholder)}
                 </span>
                 <kbd className="shrink-0 rounded border bg-white px-1.5 py-0.5 font-mono text-[9px]">⌘K</kbd>
               </button>
@@ -642,10 +644,8 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
               >
                 <span className="flex items-center gap-1.5">
                   <Lightbulb className="h-3 w-3 text-amber-500" />
-                  Cose da sapere
-                  <span className="text-[9px] font-normal text-slate-400 normal-case">
-                    ({KNOW_HOW_TIPS.length} suggerimenti)
-                  </span>
+                  {tr("Cose da sapere")}
+                  <span className="text-[9px] font-normal text-slate-400 normal-case">{tr("({n} suggerimenti)", { n: KNOW_HOW_TIPS.length })}</span>
                 </span>
                 <motion.span animate={{ rotate: tipsExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
                   <ArrowRight className="h-3 w-3" />
@@ -671,16 +671,16 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                           className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-lg p-3"
                         >
                           <p className="text-[12px] font-semibold text-slate-800 mb-1 leading-snug">
-                            {currentTip.title}
+                            {tr(currentTip.title)}
                           </p>
-                          <p className="text-[11px] leading-relaxed text-slate-600">{currentTip.body}</p>
+                          <p className="text-[11px] leading-relaxed text-slate-600">{tr(currentTip.body)}</p>
                           {currentTip.cta && (
                             <button
                               type="button"
                               className="text-orange-600 hover:text-orange-700 mt-1.5 text-[11px] font-semibold flex items-center gap-1"
                               onClick={() => handleAction(currentTip.cta!.action)}
                             >
-                              {currentTip.cta.label} <ArrowRight className="h-3 w-3" />
+                              {tr(currentTip.cta.label)} <ArrowRight className="h-3 w-3" />
                             </button>
                           )}
                         </motion.div>
@@ -690,8 +690,8 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                           type="button"
                           onClick={() => setTipIdx((i) => (i - 1 + KNOW_HOW_TIPS.length) % KNOW_HOW_TIPS.length)}
                           className="text-[10px] text-slate-400 hover:text-slate-700"
-                          aria-label="Tip precedente"
-                        >‹ prec</button>
+                          aria-label={tr("Tip precedente")}
+                        >{tr("‹ prec")}</button>
                         <div className="flex gap-1">
                           {KNOW_HOW_TIPS.map((_, i) => (
                             <button
@@ -701,7 +701,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                               className={`h-1 rounded-full transition-all ${
                                 i === tipIdx ? "bg-orange-500 w-3" : "bg-slate-300 w-1 hover:bg-slate-400"
                               }`}
-                              aria-label={`Tip ${i + 1}`}
+                              aria-label={tr("Tip {n}", { n: i + 1 })}
                             />
                           ))}
                         </div>
@@ -709,8 +709,8 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
                           type="button"
                           onClick={() => setTipIdx((i) => (i + 1) % KNOW_HOW_TIPS.length)}
                           className="text-[10px] text-slate-400 hover:text-slate-700"
-                          aria-label="Tip successivo"
-                        >succ ›</button>
+                          aria-label={tr("Tip successivo")}
+                        >{tr("succ ›")}</button>
                       </div>
                     </div>
                   </motion.div>

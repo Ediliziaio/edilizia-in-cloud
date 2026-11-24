@@ -12,6 +12,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type BagnoGalleryRow = {
   id: string;
@@ -28,6 +29,7 @@ type BagnoGalleryRow = {
 };
 
 export default function RenderBagnoGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -60,7 +62,7 @@ export default function RenderBagnoGallery() {
 
   const items = useMemo<UnifiedRenderGalleryItem[]>(() => gallery.map((item) => ({
     id: item.id,
-    title: item.galleria_titolo || "Render bagno",
+    title: item.galleria_titolo || t("Render bagno"),
     date: item.created_at,
     detailPath: `/azienda/render/bagno/gallery/${item.id}`,
     imageUrl: item.render_result_url,
@@ -78,10 +80,10 @@ export default function RenderBagnoGallery() {
 
   return (
     <RenderUnifiedGallery
-      moduleName="Bagno"
-      badgeLabel="Galleria bagno"
-      title="Render bagno salvati, ordinati per cliente e intervento."
-      description="Consulta velocemente i render bagno generati, filtra per autore, CRM o data e apri il dettaglio con prima/dopo e scelte tecniche applicate."
+      moduleName={t("Bagno")}
+      badgeLabel={t("Galleria bagno")}
+      title={t("Render bagno salvati, ordinati per cliente e intervento.")}
+      description={t("Consulta velocemente i render bagno generati, filtra per autore, CRM o data e apri il dettaglio con prima/dopo e scelte tecniche applicate.")}
       backPath="/azienda/render/bagno"
       newPath="/azienda/render/bagno/new"
       items={items}
@@ -89,9 +91,9 @@ export default function RenderBagnoGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render bagno completati appariranno qui."
-      searchPlaceholder="Cerca bagno, intervento, autore, contatto..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render bagno completati appariranno qui.")}
+      searchPlaceholder={t("Cerca bagno, intervento, autore, contatto...")}
       emptyIcon={Bath}
       accentClassName="text-cyan-600"
     />

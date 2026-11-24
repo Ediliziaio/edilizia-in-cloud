@@ -19,6 +19,7 @@ import {
   Cell, ComposedChart, Area, Line,
 } from "recharts";
 import type { StatusTabFilter } from "@/hooks/useCompanyCostsData";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface YearlyStats {
   total: number;
@@ -80,6 +81,7 @@ const PIE_COLORS = [
 ];
 
 export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza, rateFinanziamenti = 0, circolante = null, mediaUsciteMensili = 0 }: CostsStatsCardsProps) {
+  const t = useT();
   const idDist = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
   // Il budget in quattro righe: fissi annui + utile voluto → fatturato
@@ -110,8 +112,8 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 <Target className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Pianificazione</p>
-                <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Situazione {selectedYear}</h2>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">{t("Pianificazione")}</p>
+                <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">{t("Situazione {selectedYear}", { selectedYear: String(selectedYear ?? "") })}</h2>
               </div>
             </div>
             {availableYears.length > 2 ? (
@@ -148,14 +150,14 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
-              label={`Totale ${selectedYear}`}
+              label={t("Totale {selectedYear}", { selectedYear: String(selectedYear ?? "") })}
               value={formatCurrency(yearlyStats.total)}
               sub={`${yearlyStats.count} costi · senza IVA`}
               icon={WalletCards}
               tone="text-orange-100"
             />
             <NavyStatCard
-              label="Pagato"
+              label={t("Pagato")}
               value={formatCurrency(yearlyStats.totalPaid)}
               sub={`${yearlyStats.pctPaid}% del totale · ${yearlyStats.paidCount} pagati`}
               icon={CheckCircle2}
@@ -164,13 +166,13 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               active={activeStatusTab === "sostenuti"}
             />
             <NavyStatCard
-              label="Da pagare"
+              label={t("Da pagare")}
               value={formatCurrency(yearlyStats.totalUnpaid)}
               sub={`${100 - yearlyStats.pctPaid}% rimanente`}
               icon={Clock}
             />
             <NavyStatCard
-              label="Scaduti"
+              label={t("Scaduti")}
               value={formatCurrency(yearlyStats.totalOverdue)}
               sub={`${yearlyStats.overdueCount} da saldare`}
               icon={AlertTriangle}
@@ -193,10 +195,10 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
         >
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-medium">Previsti nel {selectedYear}</span>
+            <span className="text-xs font-medium">{t("Previsti nel {selectedYear}", { selectedYear: String(selectedYear ?? "") })}</span>
           </div>
           <p className="text-xl font-bold text-blue-600 tabular-nums">{formatCurrency(yearlyStats.totalPrevisti)}</p>
-          <p className="text-[10px] text-muted-foreground">{yearlyStats.previstiCount} da pagare, non scaduti</p>
+          <p className="text-[10px] text-muted-foreground">{t("{previstiCount} da pagare, non scaduti", { previstiCount: String(yearlyStats.previstiCount ?? "") })}</p>
         </button>
 
         <button
@@ -206,19 +208,19 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
         >
           <div className="flex items-center gap-2 mb-1">
             <Clock className="h-4 w-4 text-orange-600" />
-            <span className="text-xs font-medium">In scadenza (7gg)</span>
+            <span className="text-xs font-medium">{t("In scadenza (7gg)")}</span>
           </div>
           <p className="text-xl font-bold text-orange-600 tabular-nums">{formatCurrency(yearlyStats.totalExpiringSoon)}</p>
-          <p className="text-[10px] text-muted-foreground">{yearlyStats.expiringSoonCount} in scadenza</p>
+          <p className="text-[10px] text-muted-foreground">{t("{expiringSoonCount} in scadenza", { expiringSoonCount: String(yearlyStats.expiringSoonCount ?? "") })}</p>
         </button>
 
         <div className="p-4 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800">
           <div className="flex items-center gap-2 mb-1">
             <Calculator className="h-4 w-4 text-violet-600" />
-            <span className="text-xs font-medium">IVA detraibile {selectedYear}</span>
+            <span className="text-xs font-medium">{t("IVA detraibile {selectedYear}", { selectedYear: String(selectedYear ?? "") })}</span>
           </div>
           <p className="text-xl font-bold text-violet-600 tabular-nums">{formatCurrency(yearlyStats.vatYear)}</p>
-          <p className="text-[10px] text-muted-foreground">di cui da pagare: {formatCurrency(yearlyStats.vatYearUnpaid)}</p>
+          <p className="text-[10px] text-muted-foreground">{t("di cui da pagare: {vatYearUnpaid}", { vatYearUnpaid: formatCurrency(yearlyStats.vatYearUnpaid) })}</p>
         </div>
 
         {/* Al posto del vecchio "Scostamento" (previsti futuri − pagato storico:
@@ -231,10 +233,10 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
         >
           <div className="flex items-center gap-2 mb-1">
             <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-medium">Senza scadenza</span>
+            <span className="text-xs font-medium">{t("Senza scadenza")}</span>
           </div>
           <p className="text-xl font-bold text-muted-foreground dark:text-slate-200 tabular-nums">{formatCurrency(senzaScadenza?.totale ?? 0)}</p>
-          <p className="text-[10px] text-muted-foreground">{senzaScadenza?.count ?? 0} costi fuori dai totali di periodo · importo senza IVA</p>
+          <p className="text-[10px] text-muted-foreground">{t("{n} costi fuori dai totali di periodo · importo senza IVA", { n: senzaScadenza?.count ?? 0 })}</p>
         </button>
       </div>
 
@@ -243,11 +245,11 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <CardTitle className="text-base">Distribuzione Mensile Costi</CardTitle>
+              <CardTitle className="text-base">{t("Distribuzione Mensile Costi")}</CardTitle>
               <CardDescription>
                 {chartView === "current"
-                  ? "Previsto (per scadenza) vs Pagato effettivo (per data pagamento)"
-                  : "Confronto Previsto vs Sostenuto per mese"
+                  ? t("Previsto (per scadenza) vs Pagato effettivo (per data pagamento)")
+                  : t("Confronto Previsto vs Sostenuto per mese")
                 }
               </CardDescription>
             </div>
@@ -259,7 +261,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 onClick={() => setChartView("current")}
               >
                 <BarChart3 className="h-3.5 w-3.5" />
-                Dettaglio
+                {t("Dettaglio")}
               </Button>
               <Button
                 variant={chartView === "comparison" ? "default" : "outline"}
@@ -268,7 +270,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 onClick={() => setChartView("comparison")}
               >
                 <Eye className="h-3.5 w-3.5" />
-                Previsto vs Sostenuto
+                {t("Previsto vs Sostenuto")}
               </Button>
             </div>
           </div>
@@ -308,7 +310,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 />
                 <RechartsTooltip
                   cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                  formatter={(value: number, name: string) => [formatCurrency(value), t(name)]}
                   contentStyle={{
                     backgroundColor: "hsl(var(--popover))",
                     borderColor: "hsl(var(--border))",
@@ -325,22 +327,22 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                       <div className="rounded-lg border bg-card p-3 shadow-md text-xs space-y-1">
                         <p className="font-semibold text-foreground">{label}</p>
                         <div className="flex justify-between gap-4">
-                          <span className="text-blue-600">Previsto:</span>
+                          <span className="text-blue-600">{t("Previsto:")}</span>
                           <span className="font-medium">{formatCurrency(previsto)}</span>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-green-600">Sostenuto:</span>
+                          <span className="text-green-600">{t("Sostenuto:")}</span>
                           <span className="font-medium">{formatCurrency(sostenuto)}</span>
                         </div>
                         <div className={`flex justify-between gap-4 pt-1 border-t font-semibold ${delta >= 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                          <span>Delta:</span>
+                          <span>{t("Delta:")}</span>
                           <span>{delta >= 0 ? "+" : ""}{formatCurrency(delta)}</span>
                         </div>
                       </div>
                     );
                   } : undefined}
                 />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{t(v)}</span>} />
                 {chartView === "current" ? (
                   <>
                     <Bar dataKey="Fissi" fill={`url(#${idDist}-barra-fissi)`} radius={[4, 4, 0, 0]} maxBarSize={16} isAnimationActive={!fermo} animationDuration={700}>
@@ -396,14 +398,14 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
       {categoryDistribution.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Spese per Categoria</CardTitle>
-            <CardDescription>Distribuzione delle uscite per tipologia</CardDescription>
+            <CardTitle className="text-base">{t("Spese per Categoria")}</CardTitle>
+            <CardDescription>{t("Distribuzione delle uscite per tipologia")}</CardDescription>
           </CardHeader>
           <CardContent>
             {/* 14/11/2026: la ciambella condivisa, con la legenda in euro e percentuale
                 al posto delle etichette attorno alla torta che si accavallavano. */}
             <Ciambella
-              titolo="Spese per categoria"
+              titolo={t("Spese per categoria")}
               dimensione={170}
               fette={[...categoryDistribution].sort((x, y) => y.value - x.value).map((c, i) => ({ nome: c.name, valore: c.value, colore: PIE_COLORS[i % PIE_COLORS.length] }))}
               massimo={Math.min(PIE_COLORS.length, 7)}
@@ -424,34 +426,32 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Calculator className="h-4 w-4" />
-                <span className="text-sm font-semibold">Break-even mensile</span>
+                <span className="text-sm font-semibold">{t("Break-even mensile")}</span>
               </div>
               <Badge className={cn(
                 breakEvenData.status === "above" && "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
                 breakEvenData.status === "near"  && "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300",
                 breakEvenData.status === "below" && "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
               )}>
-                {breakEvenData.status === "above" ? "Coperto ✓" : breakEvenData.status === "near" ? "Quasi coperto" : "Sotto break-even"}
+                {breakEvenData.status === "above" ? t("Coperto ✓") : breakEvenData.status === "near" ? t("Quasi coperto") : t("Sotto break-even")}
               </Badge>
             </div>
             <div className="grid grid-cols-3 gap-4 mt-2">
               <div>
-                <p className="text-xs text-muted-foreground">Costi fissi mese</p>
+                <p className="text-xs text-muted-foreground">{t("Costi fissi mese")}</p>
                 <p className="text-lg font-bold">{formatCurrency(breakEvenData.monthlyFixedCosts)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Fatturato necessario</p>
+                <p className="text-xs text-muted-foreground">{t("Fatturato necessario")}</p>
                 <p className="text-lg font-bold">{formatCurrency(breakEvenData.breakEvenRevenue)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">N. commesse necessarie</p>
-                <p className="text-lg font-bold">{breakEvenData.breakEvenOrders} ordini</p>
+                <p className="text-xs text-muted-foreground">{t("N. commesse necessarie")}</p>
+                <p className="text-lg font-bold">{t("{breakEvenOrders} ordini", { breakEvenOrders: String(breakEvenData.breakEvenOrders ?? "") })}</p>
               </div>
             </div>
             <Progress value={breakEvenData.coveragePercent} className="mt-3 h-2" />
-            <p className="text-xs text-muted-foreground mt-1">
-              {breakEvenData.coveragePercent.toFixed(0)}% coperto dal fatturato del mese: {formatCurrency(breakEvenData.monthlyRevenue)}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">{t("{coveragePercent}% coperto dal fatturato del mese: {monthlyRevenue}", { coveragePercent: breakEvenData.coveragePercent.toFixed(0), monthlyRevenue: formatCurrency(breakEvenData.monthlyRevenue) })}</p>
             {/* Margine di sicurezza (cap. 4 del manuale): quanto puo' calare il
                 fatturato prima di finire sotto il pareggio. Sotto il 20% ogni
                 commessa rimandata e' un mese in perdita. */}
@@ -460,16 +460,14 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               return (
                 <p
                   className={cn("mt-1 text-xs", sicurezza < 20 ? "font-medium text-orange-700" : "text-muted-foreground")}
-                  title="Quanto può calare il fatturato del mese prima di andare in perdita. Sotto il 20% basta una commessa rimandata."
-                >
-                  Margine di sicurezza {sicurezza}% · {formatCurrency(breakEvenData.monthlyRevenue - breakEvenData.breakEvenRevenue)}
-                </p>
+                  title={t("Quanto può calare il fatturato del mese prima di andare in perdita. Sotto il 20% basta una commessa rimandata.")}
+                >{t("Margine di sicurezza {sicurezza}% · {valore}", { sicurezza: String(sicurezza ?? ""), valore: formatCurrency(breakEvenData.monthlyRevenue - breakEvenData.breakEvenRevenue) })}</p>
               );
             })()}
             <p className="text-[10px] text-muted-foreground mt-0.5">
               {breakEvenData.ipotesiDaDati
-                ? <>Margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)} (ultimi 12 mesi)</>
-                : <>Margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)} (ipotesi: nessuna commessa consuntivata)</>}
+                ? <>{t("Margine {averageOrderMargin}% · commessa media {averageOrderValue} (ultimi 12 mesi)", { averageOrderMargin: breakEvenData.averageOrderMargin.toLocaleString(intlCampo()), averageOrderValue: formatCurrency(breakEvenData.averageOrderValue) })}</>
+                : <>{t("Margine {averageOrderMargin}% · commessa media {averageOrderValue} (ipotesi: nessuna commessa consuntivata)", { averageOrderMargin: breakEvenData.averageOrderMargin.toLocaleString(intlCampo()), averageOrderValue: formatCurrency(breakEvenData.averageOrderValue) })}</>}
             </p>
 
             {/* Il secondo pareggio (cap. 31): dal conto corrente escono anche
@@ -481,10 +479,10 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               return (
                 <p
                   className="mt-1 text-xs text-muted-foreground"
-                  title={`Con le rate dei finanziamenti (${formatCurrency(rateFinanziamenti)}/mese). Imposte e sostituzione mezzi escluse.`}
+                  title={t("Con le rate dei finanziamenti ({rateFinanziamenti}/mese). Imposte e sostituzione mezzi escluse.", { rateFinanziamenti: formatCurrency(rateFinanziamenti) })}
                 >
-                  Pareggio con le rate: <strong className="text-foreground">{formatCurrency(beFinanziario)}/mese</strong>
-                  {breakEvenData.averageOrderValue > 0 && <> · {Math.ceil(beFinanziario / breakEvenData.averageOrderValue)} commesse</>}
+                  {t("Pareggio con le rate:")} <strong className="text-foreground">{t("{importo}/mese", { importo: formatCurrency(beFinanziario) })}</strong>
+                  {breakEvenData.averageOrderValue > 0 && <>{" "}{t("· {valore} commesse", { valore: Math.ceil(beFinanziario / breakEvenData.averageOrderValue) })}</>}
                 </p>
               );
             })()}
@@ -498,9 +496,9 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               return (
                 <p
                   className="mt-1 text-xs text-muted-foreground"
-                  title={`(${formatCurrency(mediaUsciteMensili)} di uscite − ${formatCurrency(circolante.accontiMese)} di acconti al mese) × ${circolante.mesiCiclo.toLocaleString("it-IT")} mesi di ciclo (da ${circolante.commesse} commesse incassate): il fido da dimensionare prima che serva.`}
+                  title={t("({mediaUsciteMensili} di uscite − {accontiMese} di acconti al mese) × {mesiCiclo} mesi di ciclo (da {commesse} commesse incassate): il fido da dimensionare prima che serva.", { mediaUsciteMensili: formatCurrency(mediaUsciteMensili), accontiMese: formatCurrency(circolante.accontiMese), mesiCiclo: circolante.mesiCiclo.toLocaleString(intlCampo()), commesse: String(circolante.commesse ?? "") })}
                 >
-                  Capitale circolante a regime ≈ <strong className="text-foreground">{formatCurrency(capitale)}</strong>
+                  {t("Capitale circolante a regime ≈")} <strong className="text-foreground">{formatCurrency(capitale)}</strong>
                 </p>
               );
             })()}
@@ -510,12 +508,12 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             <div className="mt-3 border-t border-border/70 pt-3">
               <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor="utile-voluto" className="text-xs font-medium">
-                  Il pareggio non basta: quanto utile vuoi quest'anno?
+                  {t("Il pareggio non basta: quanto utile vuoi quest'anno?")}
                 </label>
                 <Input
                   id="utile-voluto"
                   inputMode="decimal"
-                  placeholder="es. 100.000"
+                  placeholder={t("es. 100.000")}
                   value={utileVolutoRaw}
                   onChange={(e) => setUtileVolutoRaw(e.target.value)}
                   className="h-8 w-32 bg-card"
@@ -523,25 +521,29 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               </div>
               {utileVoluto > 0 && breakEvenData.averageOrderMargin > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Servono{" "}
-                  <strong>
-                    {formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100))}
-                  </strong>{" "}
-                  all'anno ({formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100) / 12)} al mese)
+                  {(() => {
+                    const [servonoPrima, servonoDopo = ""] = t("Servono {annuo} all'anno ({mensile} al mese)", { mensile: formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100) / 12) }).split("{annuo}");
+                    return (
+                      <>
+                        {servonoPrima}
+                        <strong>
+                          {formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100))}
+                        </strong>
+                        {servonoDopo}
+                      </>
+                    );
+                  })()}
                   {breakEvenData.averageOrderValue > 0 && (
                     <>
                       {" "}
                       →{" "}
-                      <strong>
-                        {(
+                      <strong>{t("{valore} commesse al mese", { valore: (
                           (breakEvenData.monthlyFixedCosts * 12 + utileVoluto) /
                           (breakEvenData.averageOrderMargin / 100) /
                           12 /
                           breakEvenData.averageOrderValue
-                        ).toLocaleString("it-IT", { maximumFractionDigits: 1 })}{" "}
-                        commesse al mese
-                      </strong>
-                      . Il numero da dire alla squadra il lunedì.
+                        ).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}</strong>
+                      {t(". Il numero da dire alla squadra il lunedì.")}
                     </>
                   )}
                   {breakEvenData.averageOrderValue <= 0 && "."}
@@ -549,8 +551,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               )}
               {utileVoluto > 0 && breakEvenData.averageOrderMargin <= 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Serve il margine medio delle commesse per fare la divisione: chiudi qualche commessa
-                  con costi registrati e il numero appare da solo.
+                  {t("Serve il margine medio delle commesse per fare la divisione: chiudi qualche commessa con costi registrati e il numero appare da solo.")}
                 </p>
               )}
             </div>
@@ -562,8 +563,8 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
       {fixedCostsTrend.length > 1 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Tendenza Costi Fissi %</CardTitle>
-            <CardDescription>Percentuale costi fissi sul totale (ultimi 12 mesi)</CardDescription>
+            <CardTitle className="text-base">{t("Tendenza Costi Fissi %")}</CardTitle>
+            <CardDescription>{t("Percentuale costi fissi sul totale (ultimi 12 mesi)")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[200px]">
@@ -574,7 +575,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                   <XAxis dataKey="month" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                   <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
                   <RechartsTooltip
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, "Costi Fissi"]}
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, t("Costi Fissi")]}
                     contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: "12px", fontSize: 12 }}
                   />
                   <Area type="monotone" dataKey="pctFixed" stroke="none" fill={`url(#${idDist}f-sfuma-fissi)`} isAnimationActive={!fermo} animationDuration={900} tooltipType="none" activeDot={false} />

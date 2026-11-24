@@ -28,6 +28,7 @@ import { ORIGINE_VOCE, creaRegolaCassa, useAggiornaDopoCategoria, useCatalogoCas
 import { etichettaVoce } from "@/lib/controlloGestione/rendicontoCassa";
 import { ScegliVoceCassa } from "@/components/tesoreria/ScegliVoceCassa";
 import { euroIntero } from "@/lib/controlloGestione/formatoCG";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface MovimentoDaClassificare {
   id: string;
@@ -55,7 +56,7 @@ const VISTE: { key: Vista; label: string }[] = [
 ];
 const A_VISTA = 300;
 const euro = (cents: number) => euroIntero(cents / 100);
-const giorno = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("it-IT");
+const giorno = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(intlCampo());
 
 /** Il filtro della vista, uguale per lista e conteggi. */
 function nellaVista(m: MovimentoDaClassificare, vista: Vista): boolean {
@@ -86,6 +87,7 @@ export function ClassificaMovimentiDialog({
   anno: number;
   puoModificare: boolean;
 }) {
+  const t = useT();
   const [dal, setDal] = useState(`${anno}-01-01`);
   const [al, setAl] = useState(`${anno}-12-31`);
   const [verso, setVerso] = useState<"out" | "in">("out");
@@ -174,15 +176,15 @@ export function ClassificaMovimentiDialog({
       const controparti = new Set(selezionati.map((m) => (m.controparte ?? "").trim()).filter(Boolean));
       const unica = controparti.size === 1 && selezionati.every((m) => (m.controparte ?? "").trim()) ? [...controparti][0] : null;
       const versoRegola = verso === "in" ? "entrata" : "uscita";
-      toast.success(`${r.aggiornati} ${r.aggiornati === 1 ? "movimento" : "movimenti"} in «${voce.nome}»`, {
-        description: r.saltati ? `${r.saltati} già confermati in un'altra voce non sono stati toccati.` : unica ? `Vuoi che i prossimi di «${unica}» vadano qui da soli?` : undefined,
+      toast.success((r.aggiornati === 1 ? t("{n} movimento in «{voce}»", { n: r.aggiornati, voce: voce.nome }) : t("{n} movimenti in «{voce}»", { n: r.aggiornati, voce: voce.nome })), {
+        description: r.saltati ? t("{saltati} già confermati in un'altra voce non sono stati toccati.", { saltati: String(r.saltati ?? "") }) : unica ? t("Vuoi che i prossimi di «{unica}» vadano qui da soli?", { unica: String(unica ?? "") }) : undefined,
         action: unica
           ? {
-              label: "Crea una regola",
+              label: t("Crea una regola"),
               onClick: () =>
                 void creaRegolaCassa({ company, testo: unica, voce: { id: voce.id, nome: voce.nome }, verso: versoRegola })
-                  .then(() => toast.success(`Regola creata: «${unica}» → ${voce.nome}`, { description: "La trovi in Tesoreria → Impostazioni." }))
-                  .catch((e: unknown) => toast.error("Regola non creata", { description: e instanceof Error ? e.message : String(e) })),
+                  .then(() => toast.success(t("Regola creata: «{unica}» → {nome}", { unica: String(unica ?? ""), nome: String(voce.nome ?? "") }), { description: t("La trovi in Tesoreria → Impostazioni.") }))
+                  .catch((e: unknown) => toast.error(t("Regola non creata"), { description: e instanceof Error ? e.message : String(e) })),
             }
           : undefined,
       });
@@ -190,7 +192,7 @@ export function ClassificaMovimentiDialog({
       aggiorna();
       void lista.refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Classificazione non riuscita");
+      toast.error(e instanceof Error ? e.message : t("Classificazione non riuscita"));
     } finally {
       setOccupato(false);
     }
@@ -220,12 +222,12 @@ export function ClassificaMovimentiDialog({
         });
         fatti += r.aggiornati;
       }
-      toast.success(`${fatti} proposte accettate`);
+      toast.success(t("{fatti} proposte accettate", { fatti: String(fatti ?? "") }));
       setScelti(new Set());
       aggiorna();
       void lista.refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Proposte non accettate", { description: fatti ? `${fatti} erano già state salvate.` : undefined });
+      toast.error(e instanceof Error ? e.message : t("Proposte non accettate"), { description: fatti ? t("{fatti} erano già state salvate.", { fatti: String(fatti ?? "") }) : undefined });
       void lista.refetch();
     } finally {
       setOccupato(false);
@@ -245,40 +247,39 @@ export function ClassificaMovimentiDialog({
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="shrink-0 border-b bg-background px-5 pb-4 pt-5 pr-12 max-sm:max-h-[36dvh] max-sm:overflow-y-auto">
-          <DialogTitle className="text-xl">Classifica i movimenti nelle categorie</DialogTitle>
+          <DialogTitle className="text-xl">{t("Classifica i movimenti nelle categorie")}</DialogTitle>
           <DialogDescription>
-            Scegli uno o più movimenti a sinistra e la voce a destra. I movimenti senza categoria contano già nel saldo e nei
-            totali del cash flow; classificandoli passano da «Da classificare» alla riga giusta.
+            {t("Scegli uno o più movimenti a sinistra e la voce a destra. I movimenti senza categoria contano già nel saldo e nei totali del cash flow; classificandoli passano da «Da classificare» alla riga giusta.")}
           </DialogDescription>
           <div className="mt-3 flex min-w-0 flex-wrap items-end gap-3">
-            <div className="flex rounded-lg border p-1" role="group" aria-label="Verso dei movimenti">
+            <div className="flex rounded-lg border p-1" role="group" aria-label={t("Verso dei movimenti")}>
               <Button size="sm" variant={verso === "out" ? "default" : "ghost"} onClick={() => cambiaVerso("out")}>
-                <ArrowUpRight className="mr-1 h-4 w-4" /> Uscite
+                <ArrowUpRight className="mr-1 h-4 w-4" /> {t("Uscite")}
               </Button>
               <Button size="sm" variant={verso === "in" ? "default" : "ghost"} onClick={() => cambiaVerso("in")}>
-                <ArrowDownLeft className="mr-1 h-4 w-4" /> Entrate
+                <ArrowDownLeft className="mr-1 h-4 w-4" /> {t("Entrate")}
               </Button>
             </div>
             <label className="text-xs">
-              Dal
-              <Input type="date" value={dal} onChange={(e) => setDal(e.target.value)} className="mt-1 h-9 w-36" aria-label="Dal" />
+              {t("Dal")}
+              <Input type="date" value={dal} onChange={(e) => setDal(e.target.value)} className="mt-1 h-9 w-36" aria-label={t("Dal")} />
             </label>
             <label className="text-xs">
-              Al
-              <Input type="date" value={al} onChange={(e) => setAl(e.target.value)} className="mt-1 h-9 w-36" aria-label="Al" />
+              {t("Al")}
+              <Input type="date" value={al} onChange={(e) => setAl(e.target.value)} className="mt-1 h-9 w-36" aria-label={t("Al")} />
             </label>
             <Input
-              placeholder="Cerca controparte, causale, importo…"
+              placeholder={t("Cerca controparte, causale, importo…")}
               className="h-9 min-w-48 flex-1"
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
-              aria-label="Cerca movimenti"
+              aria-label={t("Cerca movimenti")}
             />
             <label className="flex h-9 items-center gap-2 text-sm">
-              <Checkbox checked={perControparte} onCheckedChange={(v) => setPerControparte(!!v)} /> Raggruppa per controparte
+              <Checkbox checked={perControparte} onCheckedChange={(v) => setPerControparte(!!v)} /> {t("Raggruppa per controparte")}
             </label>
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Quali movimenti">
+          <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label={t("Quali movimenti")}>
             {VISTE.map((v) => (
               <button
                 key={v.key}
@@ -292,7 +293,7 @@ export function ClassificaMovimentiDialog({
                   v.key === "da-classificare" && vista !== v.key && conteggi[v.key].n > 0 && "border-amber-300 text-amber-900 dark:text-amber-200",
                 )}
               >
-                {v.label} · {conteggi[v.key].n} · {euro(conteggi[v.key].cents)}
+                {t(v.label)} · {conteggi[v.key].n} · {euro(conteggi[v.key].cents)}
               </button>
             ))}
           </div>
@@ -305,30 +306,28 @@ export function ClassificaMovimentiDialog({
         )}
 
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-[58%_42%] lg:overflow-hidden">
-          <section aria-label="Movimenti" className="flex min-h-0 flex-col border-r max-lg:max-h-[50dvh]">
+          <section aria-label={t("Movimenti")} className="flex min-h-0 flex-col border-r max-lg:max-h-[50dvh]">
             <div className="flex items-center justify-between gap-2 border-b bg-muted/50 px-4 py-2.5 text-sm">
               <span className="font-semibold">
-                Movimenti <span className="font-normal text-muted-foreground">{righe.length}</span>
+                {t("Movimenti")} <span className="font-normal text-muted-foreground">{righe.length}</span>
               </span>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="ghost" disabled={!righe.length} onClick={() => cambia(righe.map((r) => r.id), true)}>
-                  Seleziona tutti
+                  {t("Seleziona tutti")}
                 </Button>
                 {scelti.size > 0 && (
-                  <Button size="sm" variant="ghost" onClick={() => setScelti(new Set())}>
-                    Deseleziona ({scelti.size})
-                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setScelti(new Set())}>{t("Deseleziona ({n})", { n: scelti.size })}</Button>
                 )}
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {lista.isPending ? (
                 <p className="flex items-center gap-2 p-6 text-sm text-muted-foreground" role="status">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Caricamento movimenti…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento movimenti…")}
                 </p>
               ) : righe.length === 0 ? (
                 <p className="p-6 text-sm text-muted-foreground">
-                  {vista === "da-classificare" ? "Nessun movimento da classificare in questo periodo: ottimo." : "Nessun movimento con questi filtri."}
+                  {vista === "da-classificare" ? t("Nessun movimento da classificare in questo periodo: ottimo.") : t("Nessun movimento con questi filtri.")}
                 </p>
               ) : (
                 gruppi.map((g) => {
@@ -341,9 +340,9 @@ export function ClassificaMovimentiDialog({
                           <Checkbox
                             checked={nGruppo === tuttiGruppo.length ? true : nGruppo ? "indeterminate" : false}
                             onCheckedChange={(v) => cambia(tuttiGruppo.map((r) => r.id), !!v)}
-                            aria-label={`Seleziona tutti i movimenti di ${g.titolo}`}
+                            aria-label={t("Seleziona tutti i movimenti di {titolo}", { titolo: t(g.titolo) })}
                           />
-                          <span className="min-w-0 flex-1 truncate font-semibold">{g.titolo}</span>
+                          <span className="min-w-0 flex-1 truncate font-semibold">{t(g.titolo)}</span>
                           <span className="shrink-0 text-xs text-muted-foreground">
                             {tuttiGruppo.length} · {euro(tuttiGruppo.reduce((s, r) => s + r.cents, 0))}
                           </span>
@@ -353,27 +352,27 @@ export function ClassificaMovimentiDialog({
                         {g.righe.map((m) => (
                           <li key={m.id}>
                             <label className={cn("flex cursor-pointer items-start gap-3 px-4 py-2.5 text-sm hover:bg-accent/50", scelti.has(m.id) && "bg-primary/5")}>
-                              <Checkbox className="mt-0.5" checked={scelti.has(m.id)} onCheckedChange={(v) => cambia([m.id], !!v)} aria-label={`Seleziona ${m.descrizione ?? "movimento"} del ${giorno(m.data)}`} />
+                              <Checkbox className="mt-0.5" checked={scelti.has(m.id)} onCheckedChange={(v) => cambia([m.id], !!v)} aria-label={t("Seleziona {movimento} del {data}", { movimento: m.descrizione ?? t("movimento"), data: giorno(m.data) })} />
                               <span className="w-20 shrink-0 tabular-nums text-muted-foreground">{giorno(m.data)}</span>
                               <span className="min-w-0 flex-1">
                                 {!perControparte && m.controparte && <span className="block truncate font-medium">{m.controparte}</span>}
-                                <span className="block truncate text-muted-foreground" title={m.descrizione ?? undefined}>{m.descrizione || "Causale non fornita"}</span>
+                                <span className="block truncate text-muted-foreground" title={m.descrizione ?? undefined}>{m.descrizione || t("Causale non fornita")}</span>
                                 <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                                   {m.voce ? (
-                                    <Badge variant="outline" className={cn("h-5 px-1.5 text-[11px] font-normal", m.voce.confermata ? "border-emerald-300 text-emerald-800 dark:text-emerald-300" : "border-amber-300 text-amber-900 dark:text-amber-200")} title={ORIGINE_VOCE[m.voce.origine] ?? m.voce.origine}>
-                                      {m.voce.confermata ? "" : "Proposta: "}
-                                      {m.voce.quote && m.voce.quote.length > 1 ? `Ripartito: ${m.voce.quote.map((q) => q.nome).join(" + ")}` : m.voce.nome}
+                                    <Badge variant="outline" className={cn("h-5 px-1.5 text-[11px] font-normal", m.voce.confermata ? "border-emerald-300 text-emerald-800 dark:text-emerald-300" : "border-amber-300 text-amber-900 dark:text-amber-200")} title={ORIGINE_VOCE[m.voce.origine] ? t(ORIGINE_VOCE[m.voce.origine]) : m.voce.origine}>
+                                      {m.voce.confermata ? "" : `${t("Proposta:")} `}
+                                      {m.voce.quote && m.voce.quote.length > 1 ? t("Ripartito: {voci}", { voci: m.voce.quote.map((q) => q.nome).join(" + ") }) : m.voce.nome}
                                     </Badge>
                                   ) : (
-                                    <span className="text-amber-800 dark:text-amber-300">Senza categoria</span>
+                                    <span className="text-amber-800 dark:text-amber-300">{t("Senza categoria")}</span>
                                   )}
-                                  {!m.voce?.confermata && m.voce?.origine === "controparte" && <span className="text-muted-foreground">come l'ultima volta</span>}
-                                  {!m.voce?.confermata && m.voce?.origine === "regola" && <span className="text-muted-foreground">da una vostra regola</span>}
-                                  {!m.voce?.confermata && m.voce?.origine === "giroconto" && <span className="text-muted-foreground">c'è il movimento opposto su un altro vostro conto</span>}
+                                  {!m.voce?.confermata && m.voce?.origine === "controparte" && <span className="text-muted-foreground">{t("come l'ultima volta")}</span>}
+                                  {!m.voce?.confermata && m.voce?.origine === "regola" && <span className="text-muted-foreground">{t("da una vostra regola")}</span>}
+                                  {!m.voce?.confermata && m.voce?.origine === "giroconto" && <span className="text-muted-foreground">{t("c'è il movimento opposto su un altro vostro conto")}</span>}
                                   {!m.voce?.confermata && m.voce?.origine === "documento" && (
                                     <span className="text-muted-foreground">
-                                      dalla fattura collegata
-                                      {m.voce.proposta_quote && m.voce.proposta_quote.length > 1 && `, che copre ${m.voce.proposta_quote.length} voci: ${m.voce.proposta_quote.map((q) => `${q.nome} ${euro(q.cents)}`).join(", ")}`}
+                                      {t("dalla fattura collegata")}
+                                      {m.voce.proposta_quote && m.voce.proposta_quote.length > 1 && t(", che copre {n} voci: {voci}", { n: m.voce.proposta_quote.length, voci: m.voce.proposta_quote.map((q) => `${q.nome} ${euro(q.cents)}`).join(", ") })}
                                     </span>
                                   )}
                                 </span>
@@ -389,37 +388,35 @@ export function ClassificaMovimentiDialog({
               )}
               {righe.length > quanti && (
                 <div className="p-3 text-center">
-                  <Button variant="outline" size="sm" onClick={() => setQuanti((q) => q + A_VISTA)}>
-                    Mostra altri {Math.min(A_VISTA, righe.length - quanti)} di {righe.length - quanti}
-                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setQuanti((q) => q + A_VISTA)}>{t("Mostra altri {altri} di {n}", { altri: Math.min(A_VISTA, righe.length - quanti), n: righe.length - quanti })}</Button>
                 </div>
               )}
             </div>
           </section>
 
-          <section aria-label="Categoria da assegnare" className="flex min-h-0 flex-col">
+          <section aria-label={t("Categoria da assegnare")} className="flex min-h-0 flex-col">
             <div className="border-b bg-muted/50 px-4 py-2.5 text-sm font-semibold">
               {selezionati.length
-                ? `Assegna a ${selezionati.length} ${selezionati.length === 1 ? "movimento" : "movimenti"} · ${euro(totaleScelti)}`
-                : "Scegli i movimenti a sinistra"}
+                ? (selezionati.length === 1 ? t("Assegna a {n} movimento · {totale}", { n: selezionati.length, totale: euro(totaleScelti) }) : t("Assegna a {n} movimenti · {totale}", { n: selezionati.length, totale: euro(totaleScelti) }))
+                : t("Scegli i movimenti a sinistra")}
             </div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {!puoModificare && (
                 <p className="rounded-md border p-3 text-sm text-muted-foreground">
-                  Puoi consultare le categorie; per assegnarle serve il permesso di riconciliare i movimenti bancari.
+                  {t("Puoi consultare le categorie; per assegnarle serve il permesso di riconciliare i movimenti bancari.")}
                 </p>
               )}
               {puoModificare && proposteScelte.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
                   <p className="flex items-center gap-1.5 font-medium">
-                    <Sparkles className="h-4 w-4" /> {proposteScelte.length} dei selezionati hanno una proposta
+                    <Sparkles className="h-4 w-4" /> {t("{n} dei selezionati hanno una proposta", { n: proposteScelte.length })}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Dalla controparte o dalla vecchia categoria. Accettarle salva ognuno nella sua voce proposta.
+                    {t("Dalla controparte o dalla vecchia categoria. Accettarle salva ognuno nella sua voce proposta.")}
                   </p>
                   <Button size="sm" className="mt-2" disabled={occupato} onClick={() => void accettaProposte()}>
                     {occupato ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4" />}
-                    Accetta le proposte
+                    {t("Accetta le proposte")}
                   </Button>
                 </div>
               )}
@@ -434,14 +431,11 @@ export function ClassificaMovimentiDialog({
                     autoFocus={false}
                   />
                   {catalogo.isError && <p role="alert" className="text-xs text-destructive">{(catalogo.error as Error).message}</p>}
-                  <Input placeholder="Motivo (facoltativo, resta nello storico)" value={motivo} onChange={(e) => setMotivo(e.target.value)} aria-label="Motivo" />
+                  <Input placeholder={t("Motivo (facoltativo, resta nello storico)")} value={motivo} onChange={(e) => setMotivo(e.target.value)} aria-label={t("Motivo")} />
                   {giaConfermati > 0 && (
                     <label className="flex items-start gap-2 rounded-md border p-2.5 text-xs">
                       <Checkbox checked={ancheConfermati} onCheckedChange={(v) => setAncheConfermati(!!v)} className="mt-0.5" />
-                      <span>
-                        {giaConfermati} dei selezionati hanno già una categoria confermata da una persona.
-                        Spunta qui per cambiarla anche a loro; altrimenti restano come sono.
-                      </span>
+                      <span>{t("{giaConfermati} dei selezionati hanno già una categoria confermata da una persona. Spunta qui per cambiarla anche a loro; altrimenti restano come sono.", { giaConfermati: String(giaConfermati ?? "") })}</span>
                     </label>
                   )}
                 </>
@@ -451,9 +445,9 @@ export function ClassificaMovimentiDialog({
                   {selezionati.map((m) => (
                     <li key={m.id} className="flex items-center gap-2">
                       <Link to={`/azienda/tesoreria?tab=transazioni&movimento=${m.id}`} className="inline-flex items-center gap-1 underline">
-                        Apri il movimento del {giorno(m.data)} <ExternalLink className="h-3 w-3" />
+                        {t("Apri il movimento del {data}", { data: giorno(m.data) })} <ExternalLink className="h-3 w-3" />
                       </Link>
-                      {m.voce && rigaVoceCassa(m.voce.codice) && <span>· nel cash flow: {rigaVoceCassa(m.voce.codice)}</span>}
+                      {m.voce && rigaVoceCassa(m.voce.codice) && <span>{t("· nel cash flow: {codice}", { codice: String(rigaVoceCassa(m.voce.codice) ?? "") })}</span>}
                     </li>
                   ))}
                 </ul>

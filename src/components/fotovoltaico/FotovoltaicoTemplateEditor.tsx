@@ -99,6 +99,7 @@ import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types locali (no dipendenza forte da fv types globali) ─────────────────
 
@@ -516,6 +517,7 @@ function sanitizeTemplatePayload(value: FvTemplate): Record<string, unknown> {
 }
 
 function FvTemplateQualityPanel({ items, local = false }: { items: FvTemplateQualityItem[]; local?: boolean }) {
+  const t = useT();
   const critical = items.filter((item) => item.level === "critical").length;
   const warnings = items.filter((item) => item.level === "warning").length;
   const ok = critical === 0 && warnings === 0;
@@ -531,18 +533,18 @@ function FvTemplateQualityPanel({ items, local = false }: { items: FvTemplateQua
           )}
           <div>
             <p className={`font-semibold text-sm ${ok ? "text-emerald-900" : "text-amber-950"}`}>
-              {local ? "Prima di utilizzare questo modulo" : ok ? "Template fotovoltaico pronto alla vendita" : "Checklist advertiser e venditore"}
+              {local ? t("Prima di utilizzare questo modulo") : ok ? t("Template fotovoltaico pronto alla vendita") : t("Checklist advertiser e venditore")}
             </p>
             <p className={`text-xs mt-0.5 ${ok ? "text-emerald-800" : "text-amber-900"}`}>
-              {local ? "Controlla contenuti aziendali, condizioni e configurazione effettiva. L'anteprima usa dati dimostrativi." : ok
-                ? "Contenuti, garanzie, FAQ e default economici sono coerenti."
-                : `${critical} blocchi critici e ${warnings} warning da sistemare prima di scalare campagne o inviare offerte.`}
+              {local ? t("Controlla contenuti aziendali, condizioni e configurazione effettiva. L'anteprima usa dati dimostrativi.") : ok
+                ? t("Contenuti, garanzie, FAQ e default economici sono coerenti.")
+                : t("{critical} blocchi critici e {warnings} warning da sistemare prima di scalare campagne o inviare offerte.", { critical: String(critical ?? ""), warnings: String(warnings ?? "") })}
             </p>
           </div>
         </div>
         <div className="flex gap-2 text-[11px] font-semibold">
-          <span className="rounded-full bg-white/80 px-2 py-1 text-rose-700">Critici {critical}</span>
-          <span className="rounded-full bg-white/80 px-2 py-1 text-amber-700">Warning {warnings}</span>
+          <span className="rounded-full bg-white/80 px-2 py-1 text-rose-700">{t("Critici {critical}", { critical: String(critical ?? "") })}</span>
+          <span className="rounded-full bg-white/80 px-2 py-1 text-amber-700">{t("Warning {warnings}", { warnings: String(warnings ?? "") })}</span>
         </div>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -558,10 +560,10 @@ function FvTemplateQualityPanel({ items, local = false }: { items: FvTemplateQua
                       : "bg-emerald-500"
                 }`}
               />
-              {item.section && <span className="text-slate-500">{item.section}</span>}
-              <span>{item.title}</span>
+              {item.section && <span className="text-slate-500">{t(item.section)}</span>}
+              <span>{t(item.title)}</span>
             </div>
-            <p className="text-[11px] text-slate-600 mt-1">{item.detail}</p>
+            <p className="text-[11px] text-slate-600 mt-1">{t(item.detail)}</p>
           </div>
         ))}
       </div>
@@ -667,6 +669,7 @@ function CopyPresetRow({
   onPick: (html: string) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   if (disabled) return null;
   const presets = FV_COPY_PRESETS[field] ?? [];
   if (presets.length === 0) return null;
@@ -674,20 +677,20 @@ function CopyPresetRow({
   return (
     <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
-        <Wand2 className="h-3 w-3" /> Testi pronti:
+        <Wand2 className="h-3 w-3" /> {t("Testi pronti:")}
       </span>
       {presets.map((p) => (
         <button
           key={p.id}
           type="button"
-          title={p.descr}
+          title={t(p.descr)}
           onClick={() => {
-            if (hasContent && !window.confirm("Sostituire il testo attuale con questo preset?")) return;
+            if (hasContent && !window.confirm(t("Sostituire il testo attuale con questo preset?"))) return;
             onPick(p.html);
           }}
           className="px-2 py-0.5 text-[11px] font-semibold rounded-md border border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700 transition-colors"
         >
-          {p.label}
+          {t(p.label)}
         </button>
       ))}
     </div>
@@ -695,6 +698,7 @@ function CopyPresetRow({
 }
 
 export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localModule }: Props) {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: template, isLoading } = useFvTemplatePdf();
   const {
@@ -827,17 +831,17 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
         localModule.save({ ...localModule.template, ...form });
         setLocalSaved(true);
         setDirty(false);
-        toast.success("Modello salvato", { description: localModule.soloLocale?"Salvato soltanto in questo browser. L’ambiente online non è stato modificato.":"Salvato per l’azienda. Il modello di base non è stato modificato." });
-      } catch (error) { toast.error("Salvataggio non riuscito", { description: String(error) }); }
+        toast.success(t("Modello salvato"), { description: localModule.soloLocale?t("Salvato soltanto in questo browser. L’ambiente online non è stato modificato."):t("Salvato per l’azienda. Il modello di base non è stato modificato.") });
+      } catch (error) { toast.error(t("Salvataggio non riuscito"), { description: String(error) }); }
       return;
     }
     // Cast a Record perché upsert FV accetta Record<string, unknown>
     upsertMut.mutate(sanitizeTemplatePayload(form), {
       onSuccess: () => {
         setDirty(false);
-        toast.success("Template Fotovoltaico salvato");
+        toast.success(t("Template Fotovoltaico salvato"));
       },
-      onError: (e) => toast.error("Salvataggio fallito", { description: String(e) }),
+      onError: (e) => toast.error(t("Salvataggio fallito"), { description: String(e) }),
     });
   };
 
@@ -854,11 +858,11 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Carica un file immagine");
+      toast.error(t("Carica un file immagine"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File troppo grande (max 5 MB)");
+      toast.error(t("File troppo grande (max 5 MB)"));
       return;
     }
     setUploadingLogo(true);
@@ -874,10 +878,10 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
       update("logo_url", riferimentoImmagine("fv-progetti", storagePath));
-      toast.success("Logo caricato. Salva per applicare.");
+      toast.success(t("Logo caricato. Salva per applicare."));
     } catch (e) {
       console.error("[fv-template] logo upload", e);
-      toast.error("Errore upload logo", { description: String(e) });
+      toast.error(t("Errore upload logo"), { description: String(e) });
     } finally {
       setUploadingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = "";
@@ -891,11 +895,11 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Carica un file immagine");
+      toast.error(t("Carica un file immagine"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File troppo grande (max 5 MB)");
+      toast.error(t("File troppo grande (max 5 MB)"));
       return;
     }
     setUploadingCoverLogo(true);
@@ -908,10 +912,10 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
       update("pdf_cover_logo_url", riferimentoImmagine("fv-progetti", storagePath));
-      toast.success("Logo copertina caricato. Salva per applicare.");
+      toast.success(t("Logo copertina caricato. Salva per applicare."));
     } catch (e) {
       console.error("[fv-template] cover logo upload", e);
-      toast.error("Errore upload logo copertina", { description: String(e) });
+      toast.error(t("Errore upload logo copertina"), { description: String(e) });
     } finally {
       setUploadingCoverLogo(false);
       if (coverLogoInputRef.current) coverLogoInputRef.current.value = "";
@@ -925,11 +929,11 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Carica un file immagine");
+      toast.error(t("Carica un file immagine"));
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      toast.error("File troppo grande (max 8 MB)");
+      toast.error(t("File troppo grande (max 8 MB)"));
       return;
     }
     setUploadingCover(true);
@@ -944,10 +948,10 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
       update("pdf_cover_image_url", riferimentoImmagine("fv-progetti", storagePath));
-      toast.success("Copertina caricata. Salva per applicare.");
+      toast.success(t("Copertina caricata. Salva per applicare."));
     } catch (e) {
       console.error("[fv-template] cover upload", e);
-      toast.error("Errore upload copertina", { description: String(e) });
+      toast.error(t("Errore upload copertina"), { description: String(e) });
     } finally {
       setUploadingCover(false);
       if (coverInputRef.current) coverInputRef.current.value = "";
@@ -961,9 +965,9 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   const qualityItems = useMemo(
     () =>
       localModule ? [
-        { level: "warning", section: "Intervento", title: "Configurazione da confermare", detail: "Modello, compatibilità, capacità utile, potenza e dotazioni devono corrispondere alla fornitura reale." },
-        ...(!form.condizioni_legali_attivo || !String(form.condizioni_legali_testo ?? "").trim() ? [{ level: "critical", section: "Condizioni", title: "Condizioni da aggiungere", detail: "Inserisci e verifica i testi approvati dell'azienda prima di utilizzare il modulo per un'offerta." }] : []),
-        { level: "warning", section: "Azienda", title: "Verifica i contenuti ereditati", detail: "La presentazione proviene dal modello aziendale. Conferma che sia corretta; aggiungi solo referenze e certificazioni reali." },
+        { level: "warning", section: "Intervento", title: t("Configurazione da confermare"), detail: t("Modello, compatibilità, capacità utile, potenza e dotazioni devono corrispondere alla fornitura reale.") },
+        ...(!form.condizioni_legali_attivo || !String(form.condizioni_legali_testo ?? "").trim() ? [{ level: "critical", section: "Condizioni", title: t("Condizioni da aggiungere"), detail: t("Inserisci e verifica i testi approvati dell'azienda prima di utilizzare il modulo per un'offerta.") }] : []),
+        { level: "warning", section: "Azienda", title: t("Verifica i contenuti ereditati"), detail: t("La presentazione proviene dal modello aziendale. Conferma che sia corretta; aggiungi solo referenze e certificazioni reali.") },
       ] as FvTemplateQualityItem[] : buildFvTemplateQualityItems({
         ...form,
         recensioni: form.recensioni?.map(r => ({ ...r })),
@@ -1021,14 +1025,14 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   };
 
   const handleFotoTeamUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
-    if (file.size > 8 * 1024 * 1024) return toast.error("File troppo grande (max 8 MB)");
+    if (!file.type.startsWith("image/")) return toast.error(t("Carica un file immagine"));
+    if (file.size > 8 * 1024 * 1024) return toast.error(t("File troppo grande (max 8 MB)"));
     setUploadingFotoTeam(true);
     try {
       update("foto_team_url", await uploadTemplateImage(file, "template-team"));
-      toast.success("Foto azienda caricata. Salva per applicare.");
+      toast.success(t("Foto azienda caricata. Salva per applicare."));
     } catch (e) {
-      toast.error("Errore upload foto", { description: String(e) });
+      toast.error(t("Errore upload foto"), { description: String(e) });
     } finally {
       setUploadingFotoTeam(false);
       if (fotoTeamInputRef.current) fotoTeamInputRef.current.value = "";
@@ -1036,14 +1040,14 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   };
 
   const handleRecensioneFotoUpload = async (idx: number, file: File) => {
-    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
-    if (file.size > 8 * 1024 * 1024) return toast.error("File troppo grande (max 8 MB)");
+    if (!file.type.startsWith("image/")) return toast.error(t("Carica un file immagine"));
+    if (file.size > 8 * 1024 * 1024) return toast.error(t("File troppo grande (max 8 MB)"));
     setUploadingRecIdx(idx);
     try {
       updateRecensione(idx, "foto_url", await uploadTemplateImage(file, "template-recensioni"));
-      toast.success("Foto impianto caricata. Salva per applicare.");
+      toast.success(t("Foto impianto caricata. Salva per applicare."));
     } catch (e) {
-      toast.error("Errore upload foto", { description: String(e) });
+      toast.error(t("Errore upload foto"), { description: String(e) });
     } finally {
       setUploadingRecIdx(null);
     }
@@ -1155,38 +1159,36 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
     recensioni: (
       <>
         <FvSettingsCard
-          title="Recensioni e testimonianze clienti"
-          description="Escono nella pagina «Dicono di noi» del PDF, sotto il voto su Google o Trustpilot."
+          title={t("Recensioni e testimonianze clienti")}
+          description={t("Escono nella pagina «Dicono di noi» del PDF, sotto il voto su Google o Trustpilot.")}
           icon={<Quote className="h-4 w-4" />}
         >
           <div className="space-y-3">
             {recensioni.length === 0 && (
               <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
-                Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti.
+                {t("Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti.")}
               </div>
             )}
             {recensioni.map((r, idx) => (
               <Card key={idx} className="bg-sky-50/30 border-sky-200">
                 <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                  <CardTitle className="text-xs uppercase tracking-wide text-sky-700">
-                    Recensione {idx + 1}
-                  </CardTitle>
+                  <CardTitle className="text-xs uppercase tracking-wide text-sky-700">{t("Recensione {idx}", { idx: idx + 1 })}</CardTitle>
                   <Button size="sm" variant="ghost" onClick={() => setDelRecIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
-                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("Rimuovi")}
                   </Button>
                 </CardHeader>
                 <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
                   <div className="col-span-12">
-                    <Label className="text-xs">Citazione</Label>
+                    <Label className="text-xs">{t("Citazione")}</Label>
                     <Textarea
                       value={r.quote}
                       onChange={(e) => updateRecensione(idx, "quote", e.target.value)}
-                      placeholder='"Il nostro impianto produce esattamente come avevano stimato..."'
+                      placeholder={t("\"Il nostro impianto produce esattamente come avevano stimato...\"")}
                       rows={3}
                     />
                   </div>
                   <div className="col-span-12 md:col-span-4">
-                    <Label className="text-xs">Autore</Label>
+                    <Label className="text-xs">{t("Autore")}</Label>
                     <Input
                       value={r.autore}
                       onChange={(e) => updateRecensione(idx, "autore", e.target.value)}
@@ -1195,7 +1197,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
                     />
                   </div>
                   <div className="col-span-6 md:col-span-3">
-                    <Label className="text-xs">Città</Label>
+                    <Label className="text-xs">{t("Città")}</Label>
                     <Input
                       value={r.citta ?? ""}
                       onChange={(e) => updateRecensione(idx, "citta", e.target.value)}
@@ -1204,21 +1206,21 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
                     />
                   </div>
                   <div className="col-span-6 md:col-span-5">
-                    <Label className="text-xs">Tipo impianto</Label>
+                    <Label className="text-xs">{t("Tipo impianto")}</Label>
                     <Input
                       value={r.intervento ?? ""}
                       onChange={(e) => updateRecensione(idx, "intervento", e.target.value)}
-                      placeholder="6 kWp + accumulo 10 kWh"
+                      placeholder={t("6 kWp + accumulo 10 kWh")}
                       className="h-9 text-xs"
                     />
                   </div>
                   <div className="col-span-12">
-                    <Label className="text-xs">Foto impianto installato (opzionale)</Label>
+                    <Label className="text-xs">{t("Foto impianto installato (opzionale)")}</Label>
                     <div className="flex items-center gap-3 mt-1">
                       {r.foto_url ? (
                         <ImgRiservata
                           src={r.foto_url}
-                          alt="Impianto installato"
+                          alt={t("Impianto installato")}
                           className="h-12 w-16 rounded object-cover border border-slate-200"
                         />
                       ) : (
@@ -1230,10 +1232,10 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
                         }`}
                       >
                         {uploadingRecIdx === idx
-                          ? "Caricamento…"
+                          ? t("Caricamento…")
                           : r.foto_url
-                            ? "Cambia foto"
-                            : "Carica foto impianto"}
+                            ? t("Cambia foto")
+                            : t("Carica foto impianto")}
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
@@ -1253,7 +1255,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
                           className="text-red-500 hover:text-red-600"
                           onClick={() => updateRecensione(idx, "foto_url", "")}
                         >
-                          Rimuovi
+                          {t("Rimuovi")}
                         </Button>
                       )}
                     </div>
@@ -1266,14 +1268,14 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
               variant="outline"
               className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
             >
-              <Plus className="h-4 w-4" /> Aggiungi recensione
+              <Plus className="h-4 w-4" /> {t("Aggiungi recensione")}
             </Button>
           </div>
         </FvSettingsCard>
 
         <FvSettingsCard
-          title="Foto dei vostri impianti"
-          description="Le prime tre escono nella pagina «Dicono di noi», sotto le recensioni."
+          title={t("Foto dei vostri impianti")}
+          description={t("Le prime tre escono nella pagina «Dicono di noi», sotto le recensioni.")}
           icon={<ImageIcon className="h-4 w-4" />}
         >
           <GalleryLavoriEditor
@@ -1290,7 +1292,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       <>
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-xs">Garanzie commerciali e operative</Label>
+            <Label className="text-xs">{t("Garanzie commerciali e operative")}</Label>
             <Button
               type="button"
               size="sm"
@@ -1298,13 +1300,13 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
               onClick={() => update("garanzie_conversione", moduleDefaults?.garanzie_conversione ?? DEFAULT_FV_GARANZIE)}
               className="h-7 text-[11px]"
             >
-              Ripristina default
+              {t("Ripristina default")}
             </Button>
           </div>
           {garanzie.map((garanzia, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
               <div className="col-span-12 md:col-span-2">
-                <Label className="text-xs">Icona</Label>
+                <Label className="text-xs">{t("Icona")}</Label>
                 <UniformSelect
                   value={garanzia.icona ?? "shield"}
                   onChange={(e) =>
@@ -1313,25 +1315,25 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
                   className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
                 >
                   {ICONE_EDITORIALI_FV.map(icona=><option key={icona.id} value={icona.id}>{icona.nome}</option>)}
-                  <option value="custom">Personalizzata</option>
+                  <option value="custom">{t("Personalizzata")}</option>
                 </UniformSelect>
-                <div className="mt-2 flex items-center gap-2 text-xs text-slate-500"><span className="inline-flex" dangerouslySetInnerHTML={{__html:svgIconaEditorialeFv(garanzia.icona,{colore:form.colore_accento,dimensione:24})}}/>Anteprima icona</div>
+                <div className="mt-2 flex items-center gap-2 text-xs text-slate-500"><span className="inline-flex" dangerouslySetInnerHTML={{__html:svgIconaEditorialeFv(garanzia.icona,{colore:form.colore_accento,dimensione:24})}}/>{t("Anteprima icona")}</div>
               </div>
               <div className="col-span-12 md:col-span-4">
-                <Label className="text-xs">Titolo</Label>
+                <Label className="text-xs">{t("Titolo")}</Label>
                 <Input
                   value={garanzia.titolo}
                   onChange={(e) => updateGaranzia(idx, "titolo", e.target.value)}
-                  placeholder="Sopralluogo tecnico incluso"
+                  placeholder={t("Sopralluogo tecnico incluso")}
                   className="h-9 text-xs"
                 />
               </div>
               <div className="col-span-10 md:col-span-5">
-                <Label className="text-xs">Descrizione</Label>
+                <Label className="text-xs">{t("Descrizione")}</Label>
                 <Input
                   value={garanzia.descrizione}
                   onChange={(e) => updateGaranzia(idx, "descrizione", e.target.value)}
-                  placeholder="Cosa viene verificato prima della conferma ordine"
+                  placeholder={t("Cosa viene verificato prima della conferma ordine")}
                   className="h-9 text-xs"
                 />
               </div>
@@ -1354,13 +1356,13 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             variant="outline"
             className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
           >
-            <Plus className="h-4 w-4" /> Aggiungi garanzia
+            <Plus className="h-4 w-4" /> {t("Aggiungi garanzia")}
           </Button>
         </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-xs">USP — Perché scegliere noi (pagina garanzie)</Label>
+            <Label className="text-xs">{t("USP — Perché scegliere noi (pagina garanzie)")}</Label>
             <Button
               type="button"
               size="sm"
@@ -1368,26 +1370,26 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
               onClick={() => update("usp", moduleDefaults?.usp ?? DEFAULT_FV_USP)}
               className="h-7 text-[11px]"
             >
-              Ripristina default
+              {t("Ripristina default")}
             </Button>
           </div>
           {uspItems.map((usp, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
               <div className="col-span-12 md:col-span-4">
-                <Label className="text-xs">Punto di forza</Label>
+                <Label className="text-xs">{t("Punto di forza")}</Label>
                 <Input
                   value={usp.titolo}
                   onChange={(e) => updateUsp(idx, "titolo", e.target.value)}
-                  placeholder="Squadra interna certificata FER"
+                  placeholder={t("Squadra interna certificata FER")}
                   className="h-9 text-xs"
                 />
               </div>
               <div className="col-span-10 md:col-span-7">
-                <Label className="text-xs">Descrizione</Label>
+                <Label className="text-xs">{t("Descrizione")}</Label>
                 <Input
                   value={usp.descrizione}
                   onChange={(e) => updateUsp(idx, "descrizione", e.target.value)}
-                  placeholder="Perché fa la differenza per il cliente"
+                  placeholder={t("Perché fa la differenza per il cliente")}
                   className="h-9 text-xs"
                 />
               </div>
@@ -1410,30 +1412,30 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             variant="outline"
             className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
           >
-            <Plus className="h-4 w-4" /> Aggiungi punto di forza
+            <Plus className="h-4 w-4" /> {t("Aggiungi punto di forza")}
           </Button>
         </div>
 
         {/* Certificazioni */}
         <FvSettingsCard
-          title="Certificazioni e qualifiche"
-          description="Escono nella pagina «Chi siamo e garanzie», sotto i punti di forza. Es. Certificazione installatore PV, UNI EN ISO 9001."
+          title={t("Certificazioni e qualifiche")}
+          description={t("Escono nella pagina «Chi siamo e garanzie», sotto i punti di forza. Es. Certificazione installatore PV, UNI EN ISO 9001.")}
           icon={<BadgeCheck className="h-4 w-4" />}
         >
           <div className="space-y-2">
             {certificazioni.map((c, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-end border-l-4 border-sky-200 pl-3 py-1">
                 <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">Nome certificazione</Label>
+                  <Label className="text-xs">{t("Nome certificazione")}</Label>
                   <Input
                     value={c.nome}
                     onChange={(e) => updateCertificazione(idx, "nome", e.target.value)}
-                    placeholder="Es. Installatore PV qualificato"
+                    placeholder={t("Es. Installatore PV qualificato")}
                     className="h-9 text-xs"
                   />
                 </div>
                 <div className="col-span-10 md:col-span-5">
-                  <Label className="text-xs">Ente certificatore</Label>
+                  <Label className="text-xs">{t("Ente certificatore")}</Label>
                   <Input
                     value={c.ente ?? ""}
                     onChange={(e) => updateCertificazione(idx, "ente", e.target.value)}
@@ -1453,7 +1455,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
               variant="outline"
               className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
             >
-              <Plus className="h-4 w-4" /> Aggiungi certificazione
+              <Plus className="h-4 w-4" /> {t("Aggiungi certificazione")}
             </Button>
           </div>
         </FvSettingsCard>
@@ -1462,7 +1464,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
     domande: (
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <Label className="text-xs">FAQ e obiezioni frequenti</Label>
+          <Label className="text-xs">{t("FAQ e obiezioni frequenti")}</Label>
           <Button
             type="button"
             size="sm"
@@ -1470,26 +1472,26 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             onClick={() => update("faq_items", moduleDefaults?.faq_items ?? DEFAULT_FV_FAQ)}
             className="h-7 text-[11px]"
           >
-            Ripristina default
+            {t("Ripristina default")}
           </Button>
         </div>
         {faqItems.map((faq, idx) => (
           <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-white p-3">
             <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Domanda</Label>
+              <Label className="text-xs">{t("Domanda")}</Label>
               <Input
                 value={faq.domanda}
                 onChange={(e) => updateFaq(idx, "domanda", e.target.value)}
-                placeholder="Conviene sempre l'accumulo?"
+                placeholder={t("Conviene sempre l'accumulo?")}
                 className="h-9 text-xs"
               />
             </div>
             <div className="col-span-10 md:col-span-7">
-              <Label className="text-xs">Risposta</Label>
+              <Label className="text-xs">{t("Risposta")}</Label>
               <Input
                 value={faq.risposta}
                 onChange={(e) => updateFaq(idx, "risposta", e.target.value)}
-                placeholder="Dipende da profilo, consumi serali e budget."
+                placeholder={t("Dipende da profilo, consumi serali e budget.")}
                 className="h-9 text-xs"
               />
             </div>
@@ -1512,7 +1514,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
           variant="outline"
           className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
         >
-          <Plus className="h-4 w-4" /> Aggiungi FAQ
+          <Plus className="h-4 w-4" /> {t("Aggiungi FAQ")}
         </Button>
       </div>
     ),
@@ -1524,17 +1526,17 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       <div data-template-topbar className="-mx-1 flex items-center justify-between gap-3 border-b border-slate-100 bg-background/95 px-1 py-2.5 backdrop-blur">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="hidden items-center gap-1.5 text-xs sm:flex">
-            <span className="text-muted-foreground">Template PDF Fotovoltaico</span>
+            <span className="text-muted-foreground">{t("Template PDF Fotovoltaico")}</span>
             <span className="text-muted-foreground/40">/</span>
-            <span className="truncate font-semibold text-sky-700">{activeMeta.label}</span>
+            <span className="truncate font-semibold text-sky-700">{t(activeMeta.label)}</span>
           </div>
           {dirty ? (
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-              ● Modifiche non salvate
+              {t("● Modifiche non salvate")}
             </span>
           ) : (
             <span className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 sm:inline-block">
-              {localSaved ? "✓ Salvato" : "Modello pronto · non ancora salvato"}
+              {localSaved ? t("✓ Salvato") : t("Modello pronto · non ancora salvato")}
             </span>
           )}
           <span
@@ -1548,11 +1550,11 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             }
           >
             {qualityCriticalCount > 0 ? "!" : qualityWarningCount > 0 ? "!" : "✓"}
-            Qualità: {qualityCriticalCount > 0 ? `${qualityCriticalCount} critici` : qualityWarningCount > 0 ? `${qualityWarningCount} avvisi` : "pronto"}
+            {t("Qualità:")} {qualityCriticalCount > 0 ? t("{qualityCriticalCount} critici", { qualityCriticalCount: String(qualityCriticalCount ?? "") }) : qualityWarningCount > 0 ? t("{qualityWarningCount} avvisi", { qualityWarningCount: String(qualityWarningCount ?? "") }) : t("pronto")}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {localModule && moduleDefaults && <InterventionTextPicker title={localModule.id === "accumulo" ? "Accumulo fotovoltaico" : moduleDefaults.pdf_cover_eyebrow || "Fotovoltaico"} choices={accumuloCopyChoices(moduleDefaults)} onApply={patch => { setForm(prev => ({ ...prev, ...patch })); setDirty(true); }} />}
+          {localModule && moduleDefaults && <InterventionTextPicker title={localModule.id === "accumulo" ? t("Accumulo fotovoltaico") : moduleDefaults.pdf_cover_eyebrow || t("Fotovoltaico")} choices={accumuloCopyChoices(moduleDefaults)} onApply={patch => { setForm(prev => ({ ...prev, ...patch })); setDirty(true); }} />}
           {!localModule && <AiTemplateGenerator
             settoreFn="ai-genera-template-fotovoltaico"
             onApply={applyGeneratedFv}
@@ -1570,11 +1572,11 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             size="sm"
             className="gap-1"
             onClick={() => setPreviewOpen(true)}
-            aria-label="Anteprima PDF"
+            aria-label={t("Anteprima PDF")}
           >
             <Eye className="h-4 w-4" />
-            <span className="hidden sm:inline">Anteprima PDF</span>
-            <span className="sm:hidden">Anteprima</span>
+            <span className="hidden sm:inline">{t("Anteprima PDF")}</span>
+            <span className="sm:hidden">{t("Anteprima")}</span>
           </Button>
           <Button
             onClick={handleSave}
@@ -1583,7 +1585,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             size="sm"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva
+            {t("Salva")}
           </Button>
         </div>
       </div>
@@ -1594,10 +1596,10 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
         <TemplateEditorNavigation>
           <nav className={templateEditorLayout.navigationPanel}>
             <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Modulo fotovoltaico
+              {t("Modulo fotovoltaico")}
             </div>
             <div className="space-y-3">
-              <TemplateSectionNavigation groups={FV_EDITOR_SECTION_GROUPS.map(group => ({ label: group.title, items: group.sections.flatMap(id => { const item = editorSections.find(section => section.id === id); return item ? [{ id: item.id, label: item.label, emoji: item.icon, descr: item.description }] : []; }) }))} activeSection={activeSection} onSelect={selectSection} isExcluded={id => orderedSectionExcluded("fotovoltaico", ordinePagineFv, id)} />
+              <TemplateSectionNavigation groups={FV_EDITOR_SECTION_GROUPS.map(group => ({ label: t(group.title), items: group.sections.flatMap(id => { const item = editorSections.find(section => section.id === id); return item ? [{ id: item.id, label: t(item.label), emoji: item.icon, descr: t(item.description) }] : []; }) }))} activeSection={activeSection} onSelect={selectSection} isExcluded={id => orderedSectionExcluded("fotovoltaico", ordinePagineFv, id)} />
             </div>
           </nav>
         </TemplateEditorNavigation>
@@ -1607,8 +1609,8 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
       {activeSection === "page_cover" && (
         <>
           <FvSectionHeader
-            title="Copertina"
-            description="Come nel serramento: puoi controllare immagine, titolo, sottotitolo dinamico, colori e card cliente della prima pagina."
+            title={t("Copertina")}
+            description={t("Come nel serramento: puoi controllare immagine, titolo, sottotitolo dinamico, colori e card cliente della prima pagina.")}
             number={1}
           />
           {/* ─── Preset stili cover 1-click (parità Serramenti) ───────────── */}
@@ -1619,7 +1621,7 @@ if (field === "subtitle") { update("pdf_cover_subhero", (value ?? "") || null); 
 if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?? "") || null); } }} dynamicSubtitle  placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange} accumulo={localModule?.id==="accumulo"} />} /></div>
           {/* Colonna singola: l'anteprima è ora nel pannello live globale a destra. */}
           <div className="grid gap-4">
-            {aziendale&&<div className="space-y-2 rounded-lg border p-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={usaCopertinaIndustriale} onChange={e=>update("pdf_blocchi",{...form.pdf_blocchi,copertina_industriale:{...(form.pdf_blocchi?.copertina_industriale as Record<string,unknown>|undefined??{}),attiva:e.target.checked}})}/>Copertina industriale editoriale</label>{usaCopertinaIndustriale&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={fotoCopertinaDiSerie} checked={fotoCopertinaDiSerie||(form.pdf_blocchi?.copertina_industriale as {foto_illustrativa?:boolean})?.foto_illustrativa===true} onChange={e=>update("pdf_blocchi",{...form.pdf_blocchi,copertina_industriale:{...(form.pdf_blocchi?.copertina_industriale as Record<string,unknown>|undefined??{}),foto_illustrativa:e.target.checked}})}/>Indica la foto come immagine illustrativa</label>}{usaCopertinaIndustriale&&<Button type="button" variant="outline" size="sm" onClick={()=>update("pdf_cover_image_url",IMMAGINE_COPERTINA_INDUSTRIALE)}>Usa immagine industriale standard</Button>}</div>}
+            {aziendale&&<div className="space-y-2 rounded-lg border p-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={usaCopertinaIndustriale} onChange={e=>update("pdf_blocchi",{...form.pdf_blocchi,copertina_industriale:{...(form.pdf_blocchi?.copertina_industriale as Record<string,unknown>|undefined??{}),attiva:e.target.checked}})}/>{t("Copertina industriale editoriale")}</label>{usaCopertinaIndustriale&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={fotoCopertinaDiSerie} checked={fotoCopertinaDiSerie||(form.pdf_blocchi?.copertina_industriale as {foto_illustrativa?:boolean})?.foto_illustrativa===true} onChange={e=>update("pdf_blocchi",{...form.pdf_blocchi,copertina_industriale:{...(form.pdf_blocchi?.copertina_industriale as Record<string,unknown>|undefined??{}),foto_illustrativa:e.target.checked}})}/>{t("Indica la foto come immagine illustrativa")}</label>}{usaCopertinaIndustriale&&<Button type="button" variant="outline" size="sm" onClick={()=>update("pdf_cover_image_url",IMMAGINE_COPERTINA_INDUSTRIALE)}>{t("Usa immagine industriale standard")}</Button>}</div>}
             <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} photoHint={usaCopertinaIndustriale?"Foto e testi hanno aree separate. Colori, dimensioni, logo e scheda cliente restano personalizzabili.":undefined} fields={([
 {id:"eyebrowSize",kind:"range",value:form.pdf_cover_eyebrow_size ?? 11,min:8,max:14,step:1,unit:"pt",onChange:value=>update("pdf_cover_eyebrow_size", value)},
 {id:"titleSize",kind:"range",value:usaCopertinaIndustriale?Math.min(44,form.pdf_cover_title_size??40):form.pdf_cover_title_size??40,hint:usaCopertinaIndustriale?"Dimensione massima: il titolo si adatta se il testo è lungo.":undefined,min:28,max:usaCopertinaIndustriale?44:64,step:1,unit:"pt",onChange:value=>update("pdf_cover_title_size", value)},
@@ -1635,7 +1637,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
 {id:"showDecoration",kind:"toggle",value:form.pdf_cover_show_decoration !== false,onChange:value=>update("pdf_cover_show_decoration", value)},
 {id:"showClientCard",kind:"toggle",value:form.pdf_cover_show_client_card !== false,onChange:value=>update("pdf_cover_show_client_card", value)}
 ] satisfies CoverDesignField[]).filter(f=>!usaCopertinaIndustriale||!["textVertical","overlayOpacity","overlayStyle","decorationStyle","showDecoration"].includes(f.id))}><div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">URL immagine cover</Label>
+                  <Label className="text-xs">{t("URL immagine cover")}</Label>
                   <Input
                     value={form.pdf_cover_image_url ?? ""}
                     onChange={(e) => update("pdf_cover_image_url", e.target.value || null)}
@@ -1644,7 +1646,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   />
                 </div></TemplateCoverDesignControls>
 
-            <FvSettingsCard title="Immagine copertina"><TemplateImageFieldView imageComponent={ImgRiservata} label="Immagine copertina" value={form.pdf_cover_image_url ?? null} busy={uploadingCover} localOnly={!!localModule} inputRef={coverInputRef} onFile={file => { if (file) return handleCoverUpload(file); }} onRemove={() => update("pdf_cover_image_url", null)} /><Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>Scegli dalla libreria</Button></FvSettingsCard>
+            <FvSettingsCard title={t("Immagine copertina")}><TemplateImageFieldView imageComponent={ImgRiservata} label={t("Immagine copertina")} value={form.pdf_cover_image_url ?? null} busy={uploadingCover} localOnly={!!localModule} inputRef={coverInputRef} onFile={file => { if (file) return handleCoverUpload(file); }} onRemove={() => update("pdf_cover_image_url", null)} /><Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>{t("Scegli dalla libreria")}</Button></FvSettingsCard>
           </div>
         </>
       )}
@@ -1653,18 +1655,18 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "brand" && (
         <>
       <FvSectionHeader
-        title="Azienda e stile"
-        description="Questa sezione allinea il modulo FV alla struttura serramenti: identità, contatti e dati usati nel PDF."
+        title={t("Azienda e stile")}
+        description={t("Questa sezione allinea il modulo FV alla struttura serramenti: identità, contatti e dati usati nel PDF.")}
         number={1}
       />
       <FvSettingsCard
-        title="Anagrafica e branding azienda"
-        description="Logo, colori e contatti che compaiono nel PDF Fotovoltaico configurabile."
+        title={t("Anagrafica e branding azienda")}
+        description={t("Logo, colori e contatti che compaiono nel PDF Fotovoltaico configurabile.")}
         icon={<Building2 className="h-4 w-4" />}
       >
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-3">
-            <Label className="text-xs mb-1 block">Logo PDF</Label>
+            <Label className="text-xs mb-1 block">{t("Logo PDF")}</Label>
             <input
               ref={logoInputRef}
               type="file"
@@ -1677,11 +1679,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
-                <ImgRiservata loading="lazy" src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
+                <ImgRiservata loading="lazy" src={form.logo_url} alt={t("Logo azienda")} className="w-full h-full object-contain p-2" />
               ) : (
                 <div className="text-center p-3">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                  <p className="text-[10px] text-muted-foreground">{t("Clicca per caricare")}</p>
                 </div>
               )}
               {uploadingLogo && (
@@ -1698,7 +1700,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 className="flex-1 h-7 text-[11px]"
               >
                 <Upload className="h-3 w-3 mr-1" />
-                {form.logo_url ? "Cambia" : "Carica"}
+                {form.logo_url ? t("Cambia") : t("Carica")}
               </Button>
               {form.logo_url && (
                 <Button
@@ -1710,13 +1712,13 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 </Button>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">PNG/JPG, max 5 MB. Sfondo trasparente consigliato.</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{t("PNG/JPG, max 5 MB. Sfondo trasparente consigliato.")}</p>
           </div>
 
           {/* Logo copertina: UNIFORMATO — la copertina usa automaticamente il logo
               principale (il PDF FV usa sempre logo_url). Niente secondo upload. */}
           <div className="col-span-12 md:col-span-3">
-            <Label className="text-xs mb-1 block">Logo copertina</Label>
+            <Label className="text-xs mb-1 block">{t("Logo copertina")}</Label>
             <div className="rounded-md border border-sky-200 bg-sky-50/50 p-2.5 flex items-center gap-2 dark:border-sky-900/40 dark:bg-sky-950/30">
               <div className="h-10 w-10 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0 p-1">
                 {form.logo_url ? (
@@ -1726,14 +1728,14 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 )}
               </div>
               <p className="text-[10px] text-sky-900 dark:text-sky-200 leading-snug">
-                Usa automaticamente il <strong>logo principale</strong>. Nessun secondo logo da caricare.
+                {(() => { const [logoPrima, logoDopo = ""] = t("Usa automaticamente il {logo}. Nessun secondo logo da caricare.").split("{logo}"); return <>{logoPrima}<strong>{t("logo principale")}</strong>{logoDopo}</>; })()}
               </p>
             </div>
           </div>
 
           <div className="col-span-12 md:col-span-6 grid grid-cols-12 gap-3">
             <div className="col-span-12 md:col-span-6">
-              <Label className="text-xs">Colore primario</Label>
+              <Label className="text-xs">{t("Colore primario")}</Label>
               <div className="flex gap-2">
                 <Input
                   type="color"
@@ -1749,7 +1751,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               </div>
             </div>
             <div className="col-span-12 md:col-span-6">
-              <Label className="text-xs">Colore accento</Label>
+              <Label className="text-xs">{t("Colore accento")}</Label>
               <div className="flex gap-2">
                 <Input
                   type="color"
@@ -1765,7 +1767,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               </div>
             </div>
             <div className="col-span-12 md:col-span-6">
-              <Label className="text-xs">Telefono</Label>
+              <Label className="text-xs">{t("Telefono")}</Label>
               <Input
                 value={form.contatto_telefono ?? ""}
                 onChange={(e) => update("contatto_telefono", e.target.value)}
@@ -1793,7 +1795,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               />
             </div>
             <div className="col-span-12 md:col-span-6">
-              <Label className="text-xs">Sito web</Label>
+              <Label className="text-xs">{t("Sito web")}</Label>
               <Input
                 value={form.url_sito ?? ""}
                 onChange={(e) => update("url_sito", e.target.value)}
@@ -1809,11 +1811,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       )}
 
       {activeSection === "page_testi_immagini" && (<>
-        <FvSectionHeader title="Testi e immagini di tutte le pagine" description="Personalizza titoli, testi, etichette e immagini. I dati del preventivo rimangono automatici."/>
-        <Suspense fallback={<p>Caricamento dei contenuti del modello…</p>}><FvPersonalizzazionePagine form={form as unknown as Record<string,unknown>} onBlocchi={b=>update("pdf_blocchi",b)} campoFoto={campoFotoFv} renderCampione={localModule?.renderCampione} onPagina={setPaginaPersonalizzata}/></Suspense>
+        <FvSectionHeader title={t("Testi e immagini di tutte le pagine")} description={t("Personalizza titoli, testi, etichette e immagini. I dati del preventivo rimangono automatici.")}/>
+        <Suspense fallback={<p>{t("Caricamento dei contenuti del modello…")}</p>}><FvPersonalizzazionePagine form={form as unknown as Record<string,unknown>} onBlocchi={b=>update("pdf_blocchi",b)} campoFoto={campoFotoFv} renderCampione={localModule?.renderCampione} onPagina={setPaginaPersonalizzata}/></Suspense>
       </>)}
       {activeSection === "page_monitoraggio" && (<>
-        <FvSectionHeader title="App e monitoraggio" description="Condizioni personalizzabili per questa azienda: app, immagine e servizi facoltativi."/>
+        <FvSectionHeader title={t("App e monitoraggio")} description={t("Condizioni personalizzabili per questa azienda: app, immagine e servizi facoltativi.")}/>
         <FvMonitoraggioSettings value={leggiMonitoraggioFv(form.pdf_blocchi)} onChange={monitoraggio=>{
           update("pdf_blocchi",{...form.pdf_blocchi,monitoraggio});
           update("pdf_pages_order",normalizeFvPdfPagesOrder(form.pdf_pages_order).map(p=>p.id==="monitoraggio"?{...p,visible:monitoraggio.attivo}:p));
@@ -1823,33 +1825,33 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "page_chi_siamo" && (
         <>
           <FvSectionHeader
-            title="Chi siamo e garanzie"
-            description="La pagina dopo la copertina: chi siete, poi le garanzie, perché scegliervi e le certificazioni (più sotto)."
+            title={t("Chi siamo e garanzie")}
+            description={t("La pagina dopo la copertina: chi siete, poi le garanzie, perché scegliervi e le certificazioni (più sotto).")}
             number={2}
           />
           <FvSettingsCard
-            title="Presentazione azienda"
-            description="Racconta specializzazione FV, metodo, squadra e affidabilita operativa."
+            title={t("Presentazione azienda")}
+            description={t("Racconta specializzazione FV, metodo, squadra e affidabilita operativa.")}
             icon={<Building2 className="h-4 w-4" />}
           >
-            <label className="mb-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={normalizeFvPdfPagesOrder(form.pdf_pages_order).some(p=>p.id==="chi_siamo"&&p.visible)} onChange={e=>update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,"chi_siamo",e.target.checked))}/>Presentazione Chi siamo su una pagina dedicata</label>
+            <label className="mb-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={normalizeFvPdfPagesOrder(form.pdf_pages_order).some(p=>p.id==="chi_siamo"&&p.visible)} onChange={e=>update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,"chi_siamo",e.target.checked))}/>{t("Presentazione Chi siamo su una pagina dedicata")}</label>
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-12 md:col-span-5">
-                <Label className="text-xs">Titolo pagina</Label>
+                <Label className="text-xs">{t("Titolo pagina")}</Label>
                 <Input
                   value={form.chi_siamo_titolo ?? ""}
                   onChange={(e) => update("chi_siamo_titolo", e.target.value || null)}
-                  placeholder="L'azienda dietro al tuo impianto"
+                  placeholder={t("L'azienda dietro al tuo impianto")}
                   className="h-9 text-xs"
                 />
               </div>
               <div className="col-span-12 md:col-span-7">
-                <Label className="text-xs">Foto team / azienda</Label>
+                <Label className="text-xs">{t("Foto team / azienda")}</Label>
                 <div className="flex items-center gap-3 mt-1">
                   {form.foto_team_url ? (
                     <ImgRiservata
                       src={form.foto_team_url}
-                      alt="Foto azienda"
+                      alt={t("Foto azienda")}
                       className="h-12 w-16 rounded object-cover border border-slate-200"
                     />
                   ) : (
@@ -1873,10 +1875,10 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                     onClick={() => fotoTeamInputRef.current?.click()}
                   >
                     {uploadingFotoTeam
-                      ? "Caricamento…"
+                      ? t("Caricamento…")
                       : form.foto_team_url
-                        ? "Cambia"
-                        : "Carica foto"}
+                        ? t("Cambia")
+                        : t("Carica foto")}
                   </Button>
                   {form.foto_team_url && (
                     <Button
@@ -1886,13 +1888,13 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                       className="text-red-500 hover:text-red-600"
                       onClick={() => update("foto_team_url", null)}
                     >
-                      Rimuovi
+                      {t("Rimuovi")}
                     </Button>
                   )}
                 </div>
               </div>
               <div className="col-span-12">
-                <Label className="text-xs">Testo Chi siamo</Label>
+                <Label className="text-xs">{t("Testo Chi siamo")}</Label>
                 <CopyPresetRow
                   disabled={!!localModule}
                   field="presentazione_impresa_html"
@@ -1902,7 +1904,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 <RichTextEditor
                   value={form.presentazione_impresa_html ?? ""}
                   onChange={(html) => update("presentazione_impresa_html", html)}
-                  placeholder="Siamo specializzati in fotovoltaico chiavi in mano, pratiche e assistenza post-installazione…"
+                  placeholder={t("Siamo specializzati in fotovoltaico chiavi in mano, pratiche e assistenza post-installazione…")}
                   minHeight={180}
                 />
               </div>
@@ -1914,12 +1916,12 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "page_percorso" && (
         <>
           <FvSectionHeader
-            title="Come lavoriamo"
-            description="Copy introduttivo della pagina iter: chiarisce tempi, responsabilita e prossime azioni."
+            title={t("Come lavoriamo")}
+            description={t("Copy introduttivo della pagina iter: chiarisce tempi, responsabilita e prossime azioni.")}
             number={3}
           />
           <FvSettingsCard
-            title="Introduzione percorso cliente"
+            title={t("Introduzione percorso cliente")}
             icon={<FileText className="h-4 w-4" />}
           >
             <CopyPresetRow
@@ -1932,23 +1934,23 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               value={form.percorso_cliente_intro ?? ""}
               onChange={(html) => update("percorso_cliente_intro", html)}
               minHeight={140}
-              placeholder="Dal sopralluogo alla connessione, ti accompagniamo in ogni fase…"
+              placeholder={t("Dal sopralluogo alla connessione, ti accompagniamo in ogni fase…")}
             />
           </FvSettingsCard>
-          <FvSettingsCard title="Inclusioni, esclusioni e verifiche" description="Perimetro della proposta, modificabile per questo modello.">
+          <FvSettingsCard title={t("Inclusioni, esclusioni e verifiche")} description={t("Perimetro della proposta, modificabile per questo modello.")}>
             <FvAmbitoOffertaSettings value={leggiAmbitoOffertaFv(form.pdf_blocchi)} onChange={ambito=>{
               update("pdf_blocchi",{...form.pdf_blocchi,ambito_offerta:ambito});
               update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,"ambito_offerta",ambito.attivo));
             }}/>
           </FvSettingsCard>
           <FvSettingsCard
-            title="Cronoprogramma lavori"
+            title={t("Cronoprogramma lavori")}
             icon={<Clock className="h-4 w-4" />}
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs">
-                  Fasi della timeline mostrata nella pagina iter del PDF
+                  {t("Fasi della timeline mostrata nella pagina iter del PDF")}
                 </Label>
                 <Button
                   type="button"
@@ -1957,35 +1959,35 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   onClick={() => update("cronoprogramma", moduleDefaults?.cronoprogramma ?? DEFAULT_FV_CRONOPROGRAMMA)}
                   className="h-7 text-[11px]"
                 >
-                  Ripristina default
+                  {t("Ripristina default")}
                 </Button>
               </div>
               {cronoFasi.map((fase, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
                   <div className="col-span-12 md:col-span-2">
-                    <Label className="text-xs">Durata</Label>
+                    <Label className="text-xs">{t("Durata")}</Label>
                     <Input
                       value={fase.durata}
                       onChange={(e) => updateCronoFase(idx, "durata", e.target.value)}
-                      placeholder="Settimana 1"
+                      placeholder={t("Settimana 1")}
                       className="h-9 text-xs"
                     />
                   </div>
                   <div className="col-span-12 md:col-span-4">
-                    <Label className="text-xs">Fase</Label>
+                    <Label className="text-xs">{t("Fase")}</Label>
                     <Input
                       value={fase.fase}
                       onChange={(e) => updateCronoFase(idx, "fase", e.target.value)}
-                      placeholder="Firma contratto + pratiche"
+                      placeholder={t("Firma contratto + pratiche")}
                       className="h-9 text-xs"
                     />
                   </div>
                   <div className="col-span-10 md:col-span-5">
-                    <Label className="text-xs">Descrizione</Label>
+                    <Label className="text-xs">{t("Descrizione")}</Label>
                     <Input
                       value={fase.descrizione}
                       onChange={(e) => updateCronoFase(idx, "descrizione", e.target.value)}
-                      placeholder="Cosa succede in questa fase e chi se ne occupa"
+                      placeholder={t("Cosa succede in questa fase e chi se ne occupa")}
                       className="h-9 text-xs"
                     />
                   </div>
@@ -2008,7 +2010,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 variant="outline"
                 className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
               >
-                <Plus className="h-4 w-4" /> Aggiungi fase
+                <Plus className="h-4 w-4" /> {t("Aggiungi fase")}
               </Button>
             </div>
           </FvSettingsCard>
@@ -2018,12 +2020,12 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "page_consulente" && (
         <>
           <FvSectionHeader
-            title="Pagina Consulente"
-            description="Messaggio del referente commerciale nella pagina finale, utile per dare continuita tra preventivo e follow-up."
+            title={t("Pagina Consulente")}
+            description={t("Messaggio del referente commerciale nella pagina finale, utile per dare continuita tra preventivo e follow-up.")}
             number={4}
           />
           <FvSettingsCard
-            title="Descrizione consulente"
+            title={t("Descrizione consulente")}
             icon={<Quote className="h-4 w-4" />}
           >
             <CopyPresetRow
@@ -2036,7 +2038,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               value={form.consulente_descrizione_default ?? ""}
               onChange={(html) => update("consulente_descrizione_default", html || null)}
               minHeight={120}
-              placeholder="Il consulente resta il riferimento unico per firma, pratiche, finanziamento e installazione."
+              placeholder={t("Il consulente resta il riferimento unico per firma, pratiche, finanziamento e installazione.")}
             />
           </FvSettingsCard>
         </>
@@ -2045,19 +2047,19 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "page_render" && (
         <>
           <FvSectionHeader
-            title="Pagina Render AI / anteprima impianto"
-            description="Nota di qualita per evitare promesse sbagliate: il layout e' commerciale finche non viene confermato dal sopralluogo."
+            title={t("Pagina Render AI / anteprima impianto")}
+            description={t("Nota di qualita per evitare promesse sbagliate: il layout e' commerciale finche non viene confermato dal sopralluogo.")}
             number={5}
           />
           <FvSettingsCard
-            title="Disclaimer anteprima tetto"
+            title={t("Disclaimer anteprima tetto")}
             icon={<AlertTriangle className="h-4 w-4" />}
           >
             <Textarea
               value={form.render_disclaimer ?? ""}
               onChange={(e) => update("render_disclaimer", e.target.value || null)}
               rows={5}
-              placeholder="L'anteprima del tetto e' una simulazione commerciale: layout definitivo, ombre e passaggi cavi vengono confermati con sopralluogo tecnico."
+              placeholder={t("L'anteprima del tetto e' una simulazione commerciale: layout definitivo, ombre e passaggi cavi vengono confermati con sopralluogo tecnico.")}
             />
           </FvSettingsCard>
         </>
@@ -2066,17 +2068,17 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "page_cta" && (
         <>
           <FvSectionHeader
-            title="I prossimi passi"
-            description="Titolo e testo prima della firma: deve trasformare il preventivo in prossima azione."
+            title={t("I prossimi passi")}
+            description={t("Titolo e testo prima della firma: deve trasformare il preventivo in prossima azione.")}
             number={6}
           />
           <FvSettingsCard
-            title="Call to action e firma"
+            title={t("Call to action e firma")}
             icon={<CheckCircle2 className="h-4 w-4" />}
           >
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-12 md:col-span-5">
-                <Label className="text-xs">Titolo CTA</Label>
+                <Label className="text-xs">{t("Titolo CTA")}</Label>
                 <Textarea
                   value={form.pdf_cta_finale_titolo ?? ""}
                   onChange={(e) => update("pdf_cta_finale_titolo", e.target.value || null)}
@@ -2085,12 +2087,12 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 />
               </div>
               <div className="col-span-12 md:col-span-7">
-                <Label className="text-xs">Testo CTA</Label>
+                <Label className="text-xs">{t("Testo CTA")}</Label>
                 <Textarea
                   value={form.pdf_cta_finale_testo ?? ""}
                   onChange={(e) => update("pdf_cta_finale_testo", e.target.value || null)}
                   rows={3}
-                  placeholder="<p>Conferma la proposta o prenota un confronto con il consulente per bloccare condizioni e componenti.</p>"
+                  placeholder={t("<p>Conferma la proposta o prenota un confronto con il consulente per bloccare condizioni e componenti.</p>")}
                 />
               </div>
             </div>
@@ -2101,11 +2103,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "page_ordine" && (
         <>
           <FvSectionHeader
-            title="Ordine e visibilità delle pagine"
-            description="Da qui decidi l'ORDINE e quali pagine mostrare nel PDF: trascina per riordinare, usa l'occhio per nascondere le opzionali. La cover è sempre la prima. Di default 'Chi siamo e garanzie' e 'Percorso cliente' vengono subito dopo la cover."
+            title={t("Ordine e visibilità delle pagine")}
+            description={t("Da qui decidi l'ORDINE e quali pagine mostrare nel PDF: trascina per riordinare, usa l'occhio per nascondere le opzionali. La cover è sempre la prima. Di default 'Chi siamo e garanzie' e 'Percorso cliente' vengono subito dopo la cover.")}
           />
           <FvSettingsCard
-            title="Tutte le pagine del preventivo"
+            title={t("Tutte le pagine del preventivo")}
             icon={<FileText className="h-4 w-4" />}
           >
             <FvPagesOrderEditor
@@ -2128,27 +2130,27 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "prodotti" && (
         <>
       <FvSectionHeader
-        title="Macro-categorie dal listino prodotti"
-        description="Il PDF FV usa la stessa logica dei serramenti: foto, nomi e descrizioni arrivano dal listino prodotti aziendale."
+        title={t("Macro-categorie dal listino prodotti")}
+        description={t("Il PDF FV usa la stessa logica dei serramenti: foto, nomi e descrizioni arrivano dal listino prodotti aziendale.")}
         number={2}
       />
       <FvSettingsCard
-        title="Sorgente immagini e testi"
-        description="Qui controlli lo stato della sorgente. La modifica delle macro-categorie resta centralizzata nel listino prodotti."
+        title={t("Sorgente immagini e testi")}
+        description={t("Qui controlli lo stato della sorgente. La modifica delle macro-categorie resta centralizzata nel listino prodotti.")}
         icon={<ImageIcon className="h-4 w-4" />}
       >
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-sky-100 bg-sky-50/70 p-3">
             <div>
-              <p className="text-sm font-semibold text-slate-950">Listino prodotti aziendale</p>
+              <p className="text-sm font-semibold text-slate-950">{t("Listino prodotti aziendale")}</p>
               <p className="mt-0.5 text-xs text-slate-600">
-                Abilita le macro-categorie per il verticale Fotovoltaico e completa immagine, descrizione e pagina PDF dal listino.
+                {t("Abilita le macro-categorie per il verticale Fotovoltaico e completa immagine, descrizione e pagina PDF dal listino.")}
               </p>
             </div>
             <Button variant="outline" size="sm" className="h-8 gap-1" asChild>
               <a href="/azienda/impostazioni/listino">
                 <ExternalLink className="h-3.5 w-3.5" />
-                Apri il listino
+                {t("Apri il listino")}
               </a>
             </Button>
           </div>
@@ -2165,10 +2167,10 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
                 <div>
                   <p className="text-sm font-semibold text-amber-950">
-                    Nessuna macro-categoria FV trovata nel listino
+                    {t("Nessuna macro-categoria FV trovata nel listino")}
                   </p>
                   <p className="mt-1 text-xs text-amber-900">
-                    Crea o abilita macro-categorie come pannelli, inverter, accumulo e strutture con verticale "Fotovoltaico". Il PDF userà quelle immagini senza duplicarle nel template.
+                    {t("Crea o abilita macro-categorie come pannelli, inverter, accumulo e strutture con verticale \"Fotovoltaico\". Il PDF userà quelle immagini senza duplicarle nel template.")}
                   </p>
                 </div>
               </div>
@@ -2204,19 +2206,19 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                           </span>
                         </div>
                         <p className="mt-1 line-clamp-3 text-xs text-slate-600">
-                          {description || "Descrizione non compilata nel listino."}
+                          {description || t("Descrizione non compilata nel listino.")}
                         </p>
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium">
                       <span className={`rounded-full px-2 py-1 ${hasImage ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                        {hasImage ? "Foto presente" : "Manca foto"}
+                        {hasImage ? t("Foto presente") : t("Manca foto")}
                       </span>
                       <span className={`rounded-full px-2 py-1 ${hasDescription ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                        {hasDescription ? "Testo pronto" : "Testo breve"}
+                        {hasDescription ? t("Testo pronto") : t("Testo breve")}
                       </span>
                       <span className={`rounded-full px-2 py-1 ${macro.mostra_pagina_dedicata_pdf ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                        {macro.mostra_pagina_dedicata_pdf ? "Pagina PDF attiva" : "Pagina PDF off"}
+                        {macro.mostra_pagina_dedicata_pdf ? t("Pagina PDF attiva") : t("Pagina PDF off")}
                       </span>
                     </div>
                   </div>
@@ -2228,11 +2230,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       </FvSettingsCard>
 
       <FvSettingsCard
-        title="Pagine dedicate macrocategoria"
-        description="Attiva le pagine PDF storytelling direttamente dal listino prodotti, come nei serramenti."
+        title={t("Pagine dedicate macrocategoria")}
+        description={t("Attiva le pagine PDF storytelling direttamente dal listino prodotti, come nei serramenti.")}
         icon={<FileText className="h-4 w-4" />}
       >
-        {localModule ? <p className="rounded-lg border p-4 text-sm">Le schede prodotto provengono dal listino. In questo modello non vengono modificati i dati condivisi.</p> : <MacroPagineDedicateManager vertical="fotovoltaico" />}
+        {localModule ? <p className="rounded-lg border p-4 text-sm">{t("Le schede prodotto provengono dal listino. In questo modello non vengono modificati i dati condivisi.")}</p> : <MacroPagineDedicateManager vertical="fotovoltaico" />}
       </FvSettingsCard>
         </>
       )}
@@ -2240,19 +2242,19 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "strategia" && (
         <>
       <FvSectionHeader
-        title="Default tecnici e noleggio"
-        description="Costi base €/kWp, default di preventivo e noleggio operativo B2B usati per il calcolo dell'offerta."
+        title={t("Default tecnici e noleggio")}
+        description={t("Costi base €/kWp, default di preventivo e noleggio operativo B2B usati per il calcolo dell'offerta.")}
         number={3}
       />
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <FvSettingsCard
-          title="Default tecnici Fotovoltaico"
-          description="Valori di controllo per preventivi rapidi, margine e confronto con listini reali."
+          title={t("Default tecnici Fotovoltaico")}
+          description={t("Valori di controllo per preventivi rapidi, margine e confronto con listini reali.")}
           icon={<Sun className="h-4 w-4" />}
         >
           <div className="grid grid-cols-12 gap-3">
             <div className="col-span-6">
-              <Label className="text-xs">Costo base €/kWp</Label>
+              <Label className="text-xs">{t("Costo base €/kWp")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -2263,7 +2265,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               />
             </div>
             <div className="col-span-6">
-              <Label className="text-xs">Costo accumulo €/kWh</Label>
+              <Label className="text-xs">{t("Costo accumulo €/kWh")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -2274,7 +2276,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               />
             </div>
             <div className="col-span-6">
-              <Label className="text-xs">Costo pratiche default</Label>
+              <Label className="text-xs">{t("Costo pratiche default")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -2285,7 +2287,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               />
             </div>
             <div className="col-span-6">
-              <Label className="text-xs">Manutenzione annua</Label>
+              <Label className="text-xs">{t("Manutenzione annua")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -2300,16 +2302,16 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       </div>
 
       <FvSettingsCard
-        title="Noleggio operativo FV per aziende"
-        description="Parametri usati dal preventivatore quando proponi l'alternativa B2B zero anticipo."
+        title={t("Noleggio operativo FV per aziende")}
+        description={t("Parametri usati dal preventivatore quando proponi l'alternativa B2B zero anticipo.")}
         icon={<Settings2 className="h-4 w-4" />}
       >
         <div className="space-y-4">
           <label className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             <span>
-              <span className="block font-medium text-slate-900">Mostra noleggio operativo nel wizard</span>
+              <span className="block font-medium text-slate-900">{t("Mostra noleggio operativo nel wizard")}</span>
               <span className="block text-[11px] text-slate-600">
-                Pensato per PMI, industriali, condomini e CER. I privati restano su cash, rate o tasso zero.
+                {t("Pensato per PMI, industriali, condomini e CER. I privati restano su cash, rate o tasso zero.")}
               </span>
             </span>
             <input
@@ -2321,7 +2323,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           </label>
           <div className="grid grid-cols-12 gap-3">
             <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Durata default (mesi)</Label>
+              <Label className="text-xs">{t("Durata default (mesi)")}</Label>
               <Input
                 type="number"
                 min={36}
@@ -2334,7 +2336,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               />
             </div>
             <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Fattore canone totale %</Label>
+              <Label className="text-xs">{t("Fattore canone totale %")}</Label>
               <Input
                 type="number"
                 min={100}
@@ -2345,10 +2347,10 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 className="h-9 text-xs"
                 disabled={form.noleggio_operativo_attivo === false}
               />
-              <p className="mt-0.5 text-[10px] text-muted-foreground">118% = capitale + servizio/costo finanziario stimato.</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">{t("118% = capitale + servizio/costo finanziario stimato.")}</p>
             </div>
             <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Beneficio fiscale stimato %</Label>
+              <Label className="text-xs">{t("Beneficio fiscale stimato %")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -2361,13 +2363,13 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               />
             </div>
             <div className="col-span-12">
-              <Label className="text-xs">Nota legale/fiscale per proposta e PDF</Label>
+              <Label className="text-xs">{t("Nota legale/fiscale per proposta e PDF")}</Label>
               <Textarea
                 value={form.noleggio_note_legali ?? ""}
                 onChange={(e) => update("noleggio_note_legali", e.target.value)}
                 rows={3}
                 disabled={form.noleggio_operativo_attivo === false}
-                placeholder="Il noleggio operativo e il trattamento fiscale vanno confermati con partner finanziario e consulente fiscale."
+                placeholder={t("Il noleggio operativo e il trattamento fiscale vanno confermati con partner finanziario e consulente fiscale.")}
               />
             </div>
           </div>
@@ -2380,34 +2382,34 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {(activeSection === "contenuti" || activeSection === "page_conversione") && (
         <>
       <FvSectionHeader
-        title="Contenuti commerciali PDF"
-        description="Pagina chi siamo, proposta di valore, garanzie, FAQ e condizioni: è la parte che trasforma il calcolo in offerta vendibile."
+        title={t("Contenuti commerciali PDF")}
+        description={t("Pagina chi siamo, proposta di valore, garanzie, FAQ e condizioni: è la parte che trasforma il calcolo in offerta vendibile.")}
         number={4}
       />
       <FvSettingsCard
-        title="Presentazione dell'impresa"
-        description="Testo che compare nella sezione 'Chi siamo' del PDF. Formatta con la toolbar (grassetto, liste, allineamento)."
+        title={t("Presentazione dell'impresa")}
+        description={t("Testo che compare nella sezione 'Chi siamo' del PDF. Formatta con la toolbar (grassetto, liste, allineamento).")}
         icon={<Sparkles className="h-4 w-4" />}
       >
         <RichTextEditor
           value={form.presentazione_impresa_html ?? ""}
           onChange={(html) => update("presentazione_impresa_html", html)}
-          placeholder="Siamo un'azienda specializzata in impianti fotovoltaici chiavi in mano dal 2015…"
+          placeholder={t("Siamo un'azienda specializzata in impianti fotovoltaici chiavi in mano dal 2015…")}
           minHeight={160}
         />
         <p className="text-[10px] text-muted-foreground mt-1">
-          Usa la toolbar per formattare (grassetto, corsivo, liste, allineamento).
+          {t("Usa la toolbar per formattare (grassetto, corsivo, liste, allineamento).")}
         </p>
       </FvSettingsCard>
 
       <FvSettingsCard
-        title="Proposta commerciale e condizioni"
-        description="La proposta di valore e le condizioni di vendita. Garanzie e domande frequenti hanno la loro pagina, in «Pagine del PDF»."
+        title={t("Proposta commerciale e condizioni")}
+        description={t("La proposta di valore e le condizioni di vendita. Garanzie e domande frequenti hanno la loro pagina, in «Pagine del PDF».")}
         icon={<ShieldCheck className="h-4 w-4" />}
       >
         <div className="space-y-5">
           <div>
-            <Label className="text-xs">Proposta di valore FV</Label>
+            <Label className="text-xs">{t("Proposta di valore FV")}</Label>
             <CopyPresetRow
               field="valore_proposta_html"
               disabled={!!localModule}
@@ -2417,7 +2419,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             <RichTextEditor
               value={form.valore_proposta_html ?? ""}
               onChange={(html) => update("valore_proposta_html", html)}
-              placeholder="Analizziamo consumi, tetto, incentivi, accumulo e ritorno economico prima di proporre l'impianto."
+              placeholder={t("Analizziamo consumi, tetto, incentivi, accumulo e ritorno economico prima di proporre l'impianto.")}
               minHeight={120}
             />
           </div>
@@ -2446,10 +2448,10 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 onChange={(e) => update("urgenza_attiva", e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
               />
-              <span>Mostra nota urgenza su validita offerta e disponibilita componenti</span>
+              <span>{t("Mostra nota urgenza su validita offerta e disponibilita componenti")}</span>
             </label>
             <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Titolo urgenza</Label>
+              <Label className="text-xs">{t("Titolo urgenza")}</Label>
               <Input
                 value={form.urgenza_titolo ?? ""}
                 onChange={(e) => update("urgenza_titolo", e.target.value)}
@@ -2458,7 +2460,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               />
             </div>
             <div className="col-span-12 md:col-span-8">
-              <Label className="text-xs">Descrizione urgenza</Label>
+              <Label className="text-xs">{t("Descrizione urgenza")}</Label>
               <Input
                 value={form.urgenza_descrizione ?? ""}
                 onChange={(e) => update("urgenza_descrizione", e.target.value)}
@@ -2476,17 +2478,17 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {activeSection === "default" && (
         <>
       <FvSectionHeader
-        title="Default economici e condizioni"
-        description="Valori di partenza usati nei nuovi preventivi: validità, recesso, acconto e regole economiche standard."
+        title={t("Default economici e condizioni")}
+        description={t("Valori di partenza usati nei nuovi preventivi: validità, recesso, acconto e regole economiche standard.")}
         number={6}
       />
       <FvSettingsCard
-        title="Default economia preventivo"
+        title={t("Default economia preventivo")}
         icon={<FileText className="h-4 w-4" />}
       >
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-6 md:col-span-4">
-            <Label className="text-xs">Validità preventivo (giorni)</Label>
+            <Label className="text-xs">{t("Validità preventivo (giorni)")}</Label>
             <Input
               type="number"
               value={form.scadenza_validita_preventivo_giorni ?? 30}
@@ -2495,7 +2497,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             />
           </div>
           <div className="col-span-6 md:col-span-4">
-            <Label className="text-xs">Recesso (giorni)</Label>
+            <Label className="text-xs">{t("Recesso (giorni)")}</Label>
             <Input
               type="number"
               value={form.recesso_giorni ?? 14}
@@ -2504,7 +2506,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             />
           </div>
           <div className="col-span-6 md:col-span-4">
-            <Label className="text-xs">Acconto %</Label>
+            <Label className="text-xs">{t("Acconto %")}</Label>
             <Input
               type="number"
               min={0} max={100} step={5}
@@ -2521,14 +2523,14 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {aziendale&&paginaFv?.pagina&&isFvPaginaAzienda(paginaFv.pagina)&&(()=>{
         const id=paginaFv.pagina,testi=testiPaginaAzienda(form.pdf_blocchi,id);
         const cambia=(campo:keyof TestiPaginaAzienda,valore:string)=>{const pagine=(form.pdf_blocchi?.azienda_pagine??{}) as Record<string,TestiPaginaAzienda>;update("pdf_blocchi",{...form.pdf_blocchi,azienda_pagine:{...pagine,[id]:{...testi,[campo]:valore}}});};
-        return <><FvSectionHeader title={paginaFv.voce} description={paginaFv.descrizione}/><FvSettingsCard title="Testi della pagina"><p className="mb-4 text-sm text-muted-foreground">Personalizza la presentazione. Importi, grafici, scadenze e avvertenze vengono calcolati dal preventivo; le tabelle del noleggio restano in Impostazioni → Finanziamenti.</p><div className="space-y-4"><div><Label>Occhiello</Label><Input aria-label="Occhiello pagina aziendale" maxLength={160} value={testi.occhiello} onChange={e=>cambia("occhiello",e.target.value)}/></div><div><Label>Titolo</Label><Textarea aria-label="Titolo pagina aziendale" maxLength={160} value={testi.titolo} onChange={e=>cambia("titolo",e.target.value)}/></div><div><Label>Introduzione</Label><Textarea aria-label="Introduzione pagina aziendale" maxLength={600} value={testi.intro} onChange={e=>cambia("intro",e.target.value)}/></div><label className="flex items-center gap-2"><input type="checkbox" disabled={FV_AZIENDA_PAGINE_OBBLIGATORIE.has(id)} checked={paginaFvVisibile} onChange={e=>update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,id,e.target.checked))}/>Mostra questa pagina nel PDF</label></div></FvSettingsCard></>;
+        return <><FvSectionHeader title={t(paginaFv.voce)} description={t(paginaFv.descrizione)}/><FvSettingsCard title={t("Testi della pagina")}><p className="mb-4 text-sm text-muted-foreground">{t("Personalizza la presentazione. Importi, grafici, scadenze e avvertenze vengono calcolati dal preventivo; le tabelle del noleggio restano in Impostazioni → Finanziamenti.")}</p><div className="space-y-4"><div><Label>{t("Occhiello")}</Label><Input aria-label={t("Occhiello pagina aziendale")} maxLength={160} value={testi.occhiello} onChange={e=>cambia("occhiello",e.target.value)}/></div><div><Label>{t("Titolo")}</Label><Textarea aria-label={t("Titolo pagina aziendale")} maxLength={160} value={testi.titolo} onChange={e=>cambia("titolo",e.target.value)}/></div><div><Label>{t("Introduzione")}</Label><Textarea aria-label={t("Introduzione pagina aziendale")} maxLength={600} value={testi.intro} onChange={e=>cambia("intro",e.target.value)}/></div><label className="flex items-center gap-2"><input type="checkbox" disabled={FV_AZIENDA_PAGINE_OBBLIGATORIE.has(id)} checked={paginaFvVisibile} onChange={e=>update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,id,e.target.checked))}/>{t("Mostra questa pagina nel PDF")}</label></div></FvSettingsCard></>;
       })()}
       {/* Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts); per
           «Chi siamo e garanzie» e la pagina finale, quello che alla loro sezione mancava. */}
       {paginaFv && !paginaFv.esistente && (
         <>
-          <FvSectionHeader title={paginaFv.voce} description={paginaFv.descrizione} />
-          <FvSettingsCard title={paginaFv.voce} icon={<IconaPaginaFv className="h-4 w-4" />}>
+          <FvSectionHeader title={t(paginaFv.voce)} description={t(paginaFv.descrizione)} />
+          <FvSettingsCard title={t(paginaFv.voce)} icon={<IconaPaginaFv className="h-4 w-4" />}>
             <ContenutoPagina
               pagina={paginaFv}
               motore="fotovoltaico"
@@ -2547,7 +2549,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       )}
       {paginaFv?.esistente && (paginaFv.testata || paginaFv.foto) ? (
         <FvSettingsCard
-          title={paginaFv.testata ? "Garanzie, perché sceglierci e certificazioni" : "Foto della pagina"}
+          title={paginaFv.testata ? t("Garanzie, perché sceglierci e certificazioni") : t("Foto della pagina")}
           icon={<IconaPaginaFv className="h-4 w-4" />}
         >
           <ContenutoPagina
@@ -2569,7 +2571,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             su tablet. HTML vero completo, scrollabile, si aggiorna mentre editi. ── */}
         <aside data-template-preview className={templateEditorLayout.preview}>
           <div className={templateEditorLayout.previewPanel}>
-            <Suspense fallback={<div className="h-full rounded-lg border bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">Carico anteprima…</div>}>
+            <Suspense fallback={<div className="h-full rounded-lg border bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">{t("Carico anteprima…")}</div>}>
               <FvLivePreviewPanel
                 form={form as unknown as Record<string, unknown>}
                 companyName={form.ragione_sociale || companyAnagrafica?.ragione_sociale || null}
@@ -2586,10 +2588,9 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-4 pb-3 border-b">
-            <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
+            <DialogTitle className="text-base">{t("📷 Galleria immagini stock")}</DialogTitle>
             <DialogDescription className="text-xs">
-              Click su un'immagine per usarla come sfondo cover. Sono immagini
-              curate e incluse nella libreria locale del modulo.
+              {t("Click su un'immagine per usarla come sfondo cover. Sono immagini curate e incluse nella libreria locale del modulo.")}
             </DialogDescription>
             <div className="flex flex-wrap gap-1 pt-2">
               {COVER_STOCK_CATEGORIE.map((cat) => {
@@ -2639,7 +2640,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               })}
             </div>
             {stockFiltered.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-8">Nessuna immagine in questa categoria.</p>
+              <p className="text-center text-sm text-muted-foreground py-8">{t("Nessuna immagine in questa categoria.")}</p>
             )}
           </div>
         </DialogContent>
@@ -2649,18 +2650,18 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       <AlertDialog open={delRecIdx !== null} onOpenChange={(o) => !o && setDelRecIdx(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere la recensione?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Rimuovere la recensione?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Non comparirà più nei nuovi preventivi. I PDF già generati non verranno modificati.
+              {t("Non comparirà più nei nuovi preventivi. I PDF già generati non verranno modificati.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
               onClick={() => delRecIdx !== null && removeRecensione(delRecIdx)}
             >
-              Rimuovi
+              {t("Rimuovi")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2670,16 +2671,16 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       <AlertDialog open={delCertIdx !== null} onOpenChange={(o) => !o && setDelCertIdx(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere la certificazione?</AlertDialogTitle>
-            <AlertDialogDescription>Non comparirà più nei nuovi preventivi.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Rimuovere la certificazione?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Non comparirà più nei nuovi preventivi.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
               onClick={() => delCertIdx !== null && removeCertificazione(delCertIdx)}
             >
-              Rimuovi
+              {t("Rimuovi")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

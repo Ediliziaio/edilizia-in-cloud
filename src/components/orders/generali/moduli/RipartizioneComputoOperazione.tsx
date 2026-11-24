@@ -13,6 +13,7 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cercaNellOperazione } from "@/lib/orders/generali/registroOperazione";
 import { parseDecimalITStrict } from "@/lib/parseDecimalIT";
 import { AmbitoOperazione } from "./AmbitoOperazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 type Ripartizione = Record<string, { assegnato: number; destinazioni: Record<string, { quantita: number; computo_id: string }> }>;
@@ -22,6 +23,7 @@ const righePerPagina = 25;
 export function RipartizioneComputoOperazione({ riepilogo, edifici, chiudi, genera }: {
   riepilogo: RiepilogoGenerale; edifici: ReadonlyMap<string, string>; chiudi: () => void; genera: (id: string, computoId?: string) => void;
 }) {
+  const t = useT();
   const { generale, figlie } = riepilogo;
   const companyId = useEffectiveCompanyId();
   const permessi = usePermissions();
@@ -50,7 +52,7 @@ export function RipartizioneComputoOperazione({ riepilogo, edifici, chiudi, gene
   });
   const destinazioni = edificio ? figlie.filter(f => edifici.get(f.id) === edificio) : figlie;
   const nomiDestinazioni = new Map(figlie.map(f => [f.id, [f.codice, f.nome].filter(Boolean).join(" · ")]));
-  nomiDestinazioni.set(generale.id, "Parti comuni");
+  nomiDestinazioni.set(generale.id, t("Parti comuni"));
   const nomiEdifici = [...new Set(edifici.values())].sort((a, b) => a.localeCompare(b, "it", { numeric: true }));
   const vociRipartibili = useMemo(() => (voci.data ?? []).filter(v => Number(v.quantita) > 0 && !v.is_detrazione
     && v.is_included !== false && v.quadro_voce !== "somme_a_disposizione"), [voci.data]);
@@ -96,49 +98,49 @@ export function RipartizioneComputoOperazione({ riepilogo, edifici, chiudi, gene
   return <Dialog open onOpenChange={open => { if (!open) cambiaConferma(chiudi); }}>
     <DialogContent className="max-h-[92dvh] max-w-5xl gap-3 overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Ripartisci il computo</DialogTitle>
-        <DialogDescription>Assegna le quantità della generale alle parti comuni o alle unità. Ogni quota conserva il riferimento alla voce originale.</DialogDescription>
+        <DialogTitle>{t("Ripartisci il computo")}</DialogTitle>
+        <DialogDescription>{t("Assegna le quantità della generale alle parti comuni o alle unità. Ogni quota conserva il riferimento alla voce originale.")}</DialogDescription>
       </DialogHeader>
-      {computi.isPending ? <p role="status" className="text-sm">Carico i computi…</p>
-        : computi.isError || quote.isError || voci.isError ? <p role="status" className="text-sm">Ripartizione non disponibile.{" "}
-          <Button size="sm" variant="link" onClick={() => void (computi.isError ? computi.refetch() : quote.isError ? quote.refetch() : voci.refetch())}>Riprova</Button></p>
-        : !scelto ? <p className="rounded-md border p-3 text-sm text-muted-foreground">Carica e completa la lettura di un computo nella commessa generale.</p>
+      {computi.isPending ? <p role="status" className="text-sm">{t("Carico i computi…")}</p>
+        : computi.isError || quote.isError || voci.isError ? <p role="status" className="text-sm">{t("Ripartizione non disponibile.")}{" "}
+          <Button size="sm" variant="link" onClick={() => void (computi.isError ? computi.refetch() : quote.isError ? quote.refetch() : voci.refetch())}>{t("Riprova")}</Button></p>
+        : !scelto ? <p className="rounded-md border p-3 text-sm text-muted-foreground">{t("Carica e completa la lettura di un computo nella commessa generale.")}</p>
         : <>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-medium">Computo originale
+            <label className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-medium">{t("Computo originale")}
               <UniformSelect className="h-8 max-w-[min(22rem,76vw)]" value={scelto.id} disabled={salva.isPending}
                 onChange={e => { const id = e.target.value; cambiaConferma(() => { setComputo(id); setPagina(1); }); }}>
                 {letti.map(c => <option key={c.id} value={c.id}>{c.titolo || c.file_name}</option>)}
               </UniformSelect>
             </label>
-            {nomiEdifici.length > 0 && <UniformSelect className="h-8" aria-label="Filtra destinazioni per edificio" value={edificio} disabled={salva.isPending}
+            {nomiEdifici.length > 0 && <UniformSelect className="h-8" aria-label={t("Filtra destinazioni per edificio")} value={edificio} disabled={salva.isPending}
               onChange={e => {
                 const nuovo = e.target.value;
                 if (nuovo && dest !== generale.id && edifici.get(dest) !== nuovo) {
                   cambiaConferma(() => { setEdificio(nuovo); setDest(generale.id); });
                 } else setEdificio(nuovo);
               }}>
-              <option value="">Tutti gli edifici</option>
+              <option value="">{t("Tutti gli edifici")}</option>
               {nomiEdifici.map(nome => <option key={nome} value={nome}>{nome}</option>)}
             </UniformSelect>}
-            <AmbitoOperazione fissi={[{ id: generale.id, nome: "Parti comuni · generale", codice: generale.codice }]}
-              figlie={destinazioni} etichetta="Destinazione della quota" valore={dest} onChange={id => cambiaConferma(() => setDest(id))} />
-            <Button size="sm" variant="outline" className="h-8" onClick={() => setOriginale(true)}>Apri originale</Button>
+            <AmbitoOperazione fissi={[{ id: generale.id, nome: t("Parti comuni · generale"), codice: generale.codice }]}
+              figlie={destinazioni} etichetta={t("Destinazione della quota")} valore={dest} onChange={id => cambiaConferma(() => setDest(id))} />
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setOriginale(true)}>{t("Apri originale")}</Button>
           </div>
-          {!pronto ? <p role="status" className="text-sm">Carico quantità e quote…</p> : <>
+          {!pronto ? <p role="status" className="text-sm">{t("Carico quantità e quote…")}</p> : <>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Input type="search" value={cerca} onChange={e => { setCerca(e.target.value); setPagina(1); }}
-                aria-label="Cerca voce del computo" placeholder="Cerca voce, codice o capitolo…" className="h-8 max-w-72 text-sm" />
-              <span className="text-xs text-muted-foreground">{righe.length} {righe.length === 1 ? "voce ripartibile" : "voci ripartibili"}</span>
+                aria-label={t("Cerca voce del computo")} placeholder={t("Cerca voce, codice o capitolo…")} className="h-8 max-w-72 text-sm" />
+              <span className="text-xs text-muted-foreground">{t(righe.length === 1 ? "{n} voce ripartibile" : "{n} voci ripartibili", { n: righe.length })}</span>
             </div>
             {righe.length ? <div className="overflow-x-auto rounded-md border">
-              <table aria-label="Quote del computo" className="w-full min-w-[36rem] text-left text-xs">
+              <table aria-label={t("Quote del computo")} className="w-full min-w-[36rem] text-left text-xs">
                 <thead className="bg-muted/50 text-muted-foreground"><tr>
-                  <th scope="col" className="px-2 py-2">Voce originale</th>
-                  <th scope="col" className="px-2 py-2 text-right">Totale</th>
-                  <th scope="col" className="px-2 py-2 text-right">Assegnato</th>
-                  <th scope="col" className="px-2 py-2 text-right">Residuo</th>
-                  <th scope="col" className="px-2 py-2">Quota nella destinazione</th>
+                  <th scope="col" className="px-2 py-2">{t("Voce originale")}</th>
+                  <th scope="col" className="px-2 py-2 text-right">{t("Totale")}</th>
+                  <th scope="col" className="px-2 py-2 text-right">{t("Assegnato")}</th>
+                  <th scope="col" className="px-2 py-2 text-right">{t("Residuo")}</th>
+                  <th scope="col" className="px-2 py-2">{t("Quota nella destinazione")}</th>
                 </tr></thead>
                 <tbody className="divide-y">{righe.slice((pagina - 1) * righePerPagina, pagina * righePerPagina).map(v => {
                   const r = quote.data?.[v.id];
@@ -157,11 +159,11 @@ export function RipartizioneComputoOperazione({ riepilogo, edifici, chiudi, gene
                       {ripartite.length ? <Popover>
                         <PopoverTrigger asChild>
                           <Button size="sm" variant="link" className="h-auto px-0 text-xs tabular-nums"
-                            aria-label={`Vedi destinazioni di ${v.descrizione_breve}`}>{formato.format(assegnato)}</Button>
+                            aria-label={t("Vedi destinazioni di {voce}", { voce: String(v.descrizione_breve ?? "") })}>{formato.format(assegnato)}</Button>
                         </PopoverTrigger>
                         <PopoverContent align="end" className="w-64 max-w-[80vw] p-2">
                           <ul className="max-h-48 divide-y overflow-auto text-xs">{ripartite.map(([id, quota]) => <li key={id} className="flex justify-between gap-2 py-1.5">
-                            <span>{nomiDestinazioni.get(id) ?? "Commessa"}</span>
+                            <span>{nomiDestinazioni.get(id) ?? t("Commessa")}</span>
                             <span className="shrink-0 tabular-nums">{formato.format(quota.quantita)} {v.unita_misura}</span>
                           </li>)}</ul>
                         </PopoverContent>
@@ -170,43 +172,43 @@ export function RipartizioneComputoOperazione({ riepilogo, edifici, chiudi, gene
                     <td className="px-2 py-1.5 text-right font-medium tabular-nums">{formato.format(residuo)}</td>
                     <td className="px-2 py-1.5">
                       <Input inputMode="decimal" disabled={salva.isPending} className="h-7 w-24 text-xs md:text-xs"
-                        aria-label={`Quota di ${v.descrizione_breve}`}
+                        aria-label={t("Quota di {voce}", { voce: String(v.descrizione_breve ?? "") })}
                         value={modifiche[v.id] ?? (attuale ? String(attuale).replace(".", ",") : "")} placeholder="0"
                         onChange={e => { const valore = e.target.value; setModifiche(s => ({ ...s, [v.id]: valore || "0" })); }} />
                     </td>
                   </tr>;
                 })}</tbody>
               </table>
-            </div> : <p className="rounded-md border p-3 text-sm text-muted-foreground">Nessuna voce ripartibile per la ricerca attuale.</p>}
-            {righe.length > righePerPagina && <nav aria-label="Pagine delle quote" className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Pagina {pagina} di {Math.ceil(righe.length / righePerPagina)}</span>
+            </div> : <p className="rounded-md border p-3 text-sm text-muted-foreground">{t("Nessuna voce ripartibile per la ricerca attuale.")}</p>}
+            {righe.length > righePerPagina && <nav aria-label={t("Pagine delle quote")} className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{t("Pagina {pagina} di {pagine}", { pagina, pagine: Math.ceil(righe.length / righePerPagina) })}</span>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Indietro</Button>
-                <Button variant="outline" size="sm" disabled={pagina * righePerPagina >= righe.length} onClick={() => setPagina(p => p + 1)}>Avanti</Button>
+                <Button variant="outline" size="sm" disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>{t("Indietro")}</Button>
+                <Button variant="outline" size="sm" disabled={pagina * righePerPagina >= righe.length} onClick={() => setPagina(p => p + 1)}>{t("Avanti")}</Button>
               </div>
             </nav>}
           </>}
         </>}
-      {erroreQuota && <p role="alert" className="text-sm text-destructive">Controlla i residui e usa al massimo quattro decimali. Assegna le voci a corpo per intero.</p>}
+      {erroreQuota && <p role="alert" className="text-sm text-destructive">{t("Controlla i residui e usa al massimo quattro decimali. Assegna le voci a corpo per intero.")}</p>}
       {erroreSalvataggio && <p role="alert" className="text-sm text-destructive">{erroreSalvataggio}</p>}
-      {salva.isSuccess && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">Quote salvate.</p>}
+      {salva.isSuccess && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">{t("Quote salvate.")}</p>}
       <DialogFooter>
-        <Button variant="outline" disabled={salva.isPending} onClick={() => cambiaConferma(chiudi)}>Chiudi</Button>
+        <Button variant="outline" disabled={salva.isPending} onClick={() => cambiaConferma(chiudi)}>{t("Chiudi")}</Button>
         {computoDestinazione && <Button variant="outline" disabled={salva.isPending || !!daSalvare.length} onClick={() => {
           chiudi();
           genera(dest, computoDestinazione);
-        }}>Genera dalla quota</Button>}
+        }}>{t("Genera dalla quota")}</Button>}
         <Button disabled={!pronto || salva.isPending || erroreQuota || !daSalvare.length || daSalvare.length > 500}
-          onClick={() => salva.mutate()}>{salva.isPending ? "Salvo…" : `Salva quote${daSalvare.length ? ` (${daSalvare.length})` : ""}`}</Button>
+          onClick={() => salva.mutate()}>{salva.isPending ? t("Salvo…") : daSalvare.length ? t("Salva quote ({n})", { n: daSalvare.length }) : t("Salva quote")}</Button>
       </DialogFooter>
     </DialogContent>
     {originale && scelto && companyId && <Dialog open onOpenChange={setOriginale}>
       <DialogContent className="max-h-[92dvh] max-w-6xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Computo originale</DialogTitle>
+          <DialogTitle>{t("Computo originale")}</DialogTitle>
           <DialogDescription>{scelto.titolo || scelto.file_name}</DialogDescription>
         </DialogHeader>
-        <Suspense fallback={<p className="text-sm">Carico il computo…</p>}>
+        <Suspense fallback={<p className="text-sm">{t("Carico il computo…")}</p>}>
           <OrderComputoTab orderId={generale.id} companyId={companyId} orderLabel={generale.codice}
             canEdit={false} canViewAmounts={permessi.canViewOrderAmounts} computoInizialeId={scelto.id} soloEsistenti />
         </Suspense>
@@ -215,12 +217,12 @@ export function RipartizioneComputoOperazione({ riepilogo, edifici, chiudi, gene
     {confermaCambio && <Dialog open onOpenChange={open => { if (!open) setConfermaCambio(null); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Quote da salvare</DialogTitle>
-          <DialogDescription>Vuoi lasciare questa vista e scartare le modifiche non salvate?</DialogDescription>
+          <DialogTitle>{t("Quote da salvare")}</DialogTitle>
+          <DialogDescription>{t("Vuoi lasciare questa vista e scartare le modifiche non salvate?")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setConfermaCambio(null)}>Torna alle quote</Button>
-          <Button onClick={() => { setModifiche({}); setConfermaCambio(null); salva.reset(); confermaCambio(); }}>Scarta modifiche</Button>
+          <Button variant="outline" onClick={() => setConfermaCambio(null)}>{t("Torna alle quote")}</Button>
+          <Button onClick={() => { setModifiche({}); setConfermaCambio(null); salva.reset(); confermaCambio(); }}>{t("Scarta modifiche")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>}

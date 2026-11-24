@@ -9,6 +9,7 @@ import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { COMPANY_APP_HOME, destinazioneAppLavori, getRoleHomePath } from "@/lib/auth/appHome";
 import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback";
 import { resolveRouteAccessRole } from "@/lib/auth/multiCompany";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function LoadingSpinner({ text }: { text: string }) {
   return (
@@ -22,6 +23,7 @@ function LoadingSpinner({ text }: { text: string }) {
 }
 
 export function RoleBasedRedirect({ campoDestinazione }: { campoDestinazione?: string } = {}) {
+  const t = useT();
   const { user, role, isLoading, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, isImpersonating } = useAuth();
   const ruoloArea = resolveRouteAccessRole({ globalRole: role, accesses: multiCompanyAccesses, selectedCompanyId: selectedMultiCompanyId });
   const controllaPassword = ["company_staff", "salesperson", "call_center", "employee", "subcontractor", "multi_company_user"].includes(role || "");
@@ -106,8 +108,8 @@ export function RoleBasedRedirect({ campoDestinazione }: { campoDestinazione?: s
     if (loadingTimedOut) {
       return (
         <LoadingTimeoutFallback
-          title="Accesso ancora in verifica"
-          description="La sessione è valida ma i dati del tuo accesso non arrivano: può succedere con rete instabile o database lento. Riprova tra qualche secondo."
+          title={t("Accesso ancora in verifica")}
+          description={t("La sessione è valida ma i dati del tuo accesso non arrivano: può succedere con rete instabile o database lento. Riprova tra qualche secondo.")}
           detail="Verifica dell'accesso oltre 25 secondi"
           homePath="/login"
         />

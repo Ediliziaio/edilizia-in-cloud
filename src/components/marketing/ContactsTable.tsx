@@ -14,6 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { getInitials, getAvatarColor, formatContactDate, type CustomFieldDef } from "@/lib/contactUtils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface MarketingContact {
   id: string;
@@ -274,6 +275,7 @@ export const ContactsTable = memo(function ContactsTable({
   visibleColumns,
   customFields = [], customFieldValues = {}, canEdit = true, onOpenPreview,
 }: ContactsTableProps) {
+  const t = useT();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -311,7 +313,7 @@ export const ContactsTable = memo(function ContactsTable({
     <div className="space-y-3">
       {selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
-          <span className="font-medium tabular-nums">{selectedIds.size.toLocaleString("it-IT")} selezionati</span>
+          <span className="font-medium tabular-nums">{t("{size} selezionati", { size: selectedIds.size.toLocaleString(intlCampo()) })}</span>
           {/* La casella in testa alla tabella prende solo la pagina: qui si
               prendono tutti i contatti che passano i filtri, anche quelli
               delle altre pagine. */}
@@ -326,19 +328,19 @@ export const ContactsTable = memo(function ContactsTable({
               {selezionandoTutti
                 ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                 : <ListChecks className="mr-1 h-3.5 w-3.5" />}
-              Seleziona tutti i {totalCount.toLocaleString("it-IT")}
+              {t("Seleziona tutti i {n}", { n: totalCount.toLocaleString(intlCampo()) })}
             </Button>
           )}
           {onAnnullaSelezione && (
             <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={onAnnullaSelezione}>
-              Annulla
+              {t("Annulla")}
             </Button>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {bulkActions}
             {canEdit && (
               <Button size="sm" variant="destructive" onClick={() => onDelete(Array.from(selectedIds))}>
-                <Trash2 className="h-4 w-4 mr-1" /> Elimina
+                <Trash2 className="h-4 w-4 mr-1" /> {t("Elimina")}
               </Button>
             )}
           </div>
@@ -350,7 +352,7 @@ export const ContactsTable = memo(function ContactsTable({
           <TableHeader>
             <TableRow>
               <TableHead className={`w-[40px] ${borderClass}`}>
-                <Checkbox aria-label="Seleziona i contatti di questa pagina" checked={allSelected} onCheckedChange={onToggleAll} />
+                <Checkbox aria-label={t("Seleziona i contatti di questa pagina")} checked={allSelected} onCheckedChange={onToggleAll} />
               </TableHead>
               {visibleCols.map((col, i) => {
                 const isLast = i === visibleCols.length - 1;
@@ -362,10 +364,10 @@ export const ContactsTable = memo(function ContactsTable({
                     aria-sort={col.sortField === sortField ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}
                   >
                     {sortable ? <button type="button" onClick={() => handleSort(col)} className="flex w-full items-center text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {col.label}
+                      {col.key.startsWith("cf_") ? col.label : t(col.label)}
                       {col.sortField && <SortIcon field={col.sortField} currentField={sortField} direction={sortDirection} />}
                     </button> : <div className="flex items-center text-xs">
-                      {col.label}
+                      {col.key.startsWith("cf_") ? col.label : t(col.label)}
                     </div>}
                   </TableHead>
                 );
@@ -377,7 +379,7 @@ export const ContactsTable = memo(function ContactsTable({
             {contacts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={visibleCols.length + 2} className="text-center py-12 text-muted-foreground">
-                  Nessun contatto trovato
+                  {t("Nessun contatto trovato")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -392,7 +394,7 @@ export const ContactsTable = memo(function ContactsTable({
                 >
                   <TableCell className={`py-1.5 ${borderClass}`}>
                     <Checkbox
-                      aria-label={`Seleziona ${`${c.first_name} ${c.last_name || ""}`.trim()}`}
+                      aria-label={t("Seleziona {valore}", { valore: `${c.first_name} ${c.last_name || ""}`.trim() })}
                       checked={selectedIds.has(c.id)}
                       onClick={(event) => event.stopPropagation()}
                       onCheckedChange={() => onToggleSelect(c.id)}
@@ -417,7 +419,7 @@ export const ContactsTable = memo(function ContactsTable({
                       size="icon"
                       variant="ghost"
                       className="h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                      aria-label={`Modifica contatto: ${`${c.first_name} ${c.last_name || ""}`.trim()}`}
+                      aria-label={t("Modifica contatto: {valore}", { valore: `${c.first_name} ${c.last_name || ""}`.trim() })}
                       onClick={(event) => {
                         event.stopPropagation();
                         onEdit(c);
@@ -437,9 +439,9 @@ export const ContactsTable = memo(function ContactsTable({
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2 text-muted-foreground">
-          <span>Righe per pagina</span>
+          <span>{t("Righe per pagina")}</span>
           <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
-            <SelectTrigger aria-label="Contatti per pagina" className="w-[70px] h-8">
+            <SelectTrigger aria-label={t("Contatti per pagina")} className="w-[70px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -450,9 +452,9 @@ export const ContactsTable = memo(function ContactsTable({
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Pagina {page} di {totalPages}</span>
-          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Precedenti</Button>
-          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Successive</Button>
+          <span className="text-muted-foreground">{t("Pagina {page} di {totalPages}", { page: String(page ?? ""), totalPages: String(totalPages ?? "") })}</span>
+          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>{t("Precedenti")}</Button>
+          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>{t("Successive")}</Button>
         </div>
       </div>
     </div>

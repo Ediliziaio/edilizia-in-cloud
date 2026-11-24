@@ -6,6 +6,7 @@ import { RenderCreditsWidget } from "./RenderCreditsWidget";
 import { RenderArchivePanel } from "./RenderArchivePanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRenderHistory } from "@/lib/render/renderHistory";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type RenderModuleHubStep = {
   icon: LucideIcon;
@@ -47,10 +48,12 @@ export function RenderModuleHubPage({
   icon: Icon,
   iconBgClassName,
   newPath,
-  newButtonLabel = "Nuovo render",
+  newButtonLabel: newButtonLabelProp,
   workflow,
   qualityCards,
 }: RenderModuleHubConfig) {
+  const t = useT();
+  const newButtonLabel = newButtonLabelProp ?? t("Nuovo render");
   const { effectiveCompany } = useAuth();
   const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
@@ -61,7 +64,7 @@ export function RenderModuleHubPage({
       <Button asChild variant="ghost" size="sm" className="-ml-3">
         <Link to="/azienda/render">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Tutti i render
+          {t("Tutti i render")}
         </Link>
       </Button>
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -90,7 +93,7 @@ export function RenderModuleHubPage({
       </header>
       <RenderArchivePanel
         key={`${companyId}:${moduleId}`}
-        title={`Archivio ${moduleName.toLowerCase()}`}
+        title={t("Archivio {moduleName}", { moduleName: moduleName.toLowerCase() })}
         modules={[{ id: moduleId, title: moduleName }]}
         items={history.items}
         companyId={companyId}
@@ -113,7 +116,7 @@ export function RenderModuleHubPage({
       />
       <details className="rounded-xl border p-4">
         <summary className="cursor-pointer text-sm font-medium">
-          Come ottenere un buon risultato
+          {t("Come ottenere un buon risultato")}
         </summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[...workflow, ...qualityCards].map((step, index) => (

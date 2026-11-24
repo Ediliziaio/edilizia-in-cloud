@@ -4,16 +4,18 @@
  * dimenticato si vede MENTRE si compila e non alla pubblicazione.
  */
 import type { ReactNode } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const campoVuoto = (v: unknown): boolean =>
   Array.isArray(v) ? v.length === 0 : v == null || (typeof v === "string" && v.trim() === "");
 
 export function EvidenzaObbligatoria({ mostra, children }: { mostra: boolean; children: ReactNode }) {
+  const t = useT();
   if (!mostra) return <>{children}</>;
   return (
     <div className="-mx-2 rounded-lg bg-destructive/5 p-2 ring-1 ring-destructive/40">
       {children}
-      <p className="mt-1 text-[11px] font-medium text-destructive">Campo obbligatorio: da compilare prima di pubblicare.</p>
+      <p className="mt-1 text-[11px] font-medium text-destructive">{t("Campo obbligatorio: da compilare prima di pubblicare.")}</p>
     </div>
   );
 }

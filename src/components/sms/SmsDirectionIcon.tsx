@@ -8,6 +8,7 @@
 import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import type { SmsDirection } from "@/types/sms";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsDirectionIconProps {
   direction: SmsDirection;
@@ -16,21 +17,22 @@ interface SmsDirectionIconProps {
 }
 
 export function SmsDirectionIcon({ direction, className = "", showLabel = false }: SmsDirectionIconProps) {
+  const t = useT();
   const isOutbound = direction === "outbound";
 
   return (
     <span
       className={cn("inline-flex items-center gap-1 text-xs font-medium", className)}
-      title={isOutbound ? "Inviato" : "Ricevuto"}
+      title={isOutbound ? t("Inviato") : t("Ricevuto")}
     >
       {isOutbound ? (
-        <ArrowUpRight className="h-4 w-4 text-blue-600" aria-label="Uscita" />
+        <ArrowUpRight className="h-4 w-4 text-blue-600" aria-label={t("Uscita")} />
       ) : (
-        <ArrowDownLeft className="h-4 w-4 text-purple-600" aria-label="Entrata" />
+        <ArrowDownLeft className="h-4 w-4 text-purple-600" aria-label={t("Entrata")} />
       )}
       {showLabel && (
         <span className={isOutbound ? "text-blue-600" : "text-purple-600"}>
-          {isOutbound ? "Uscita" : "Entrata"}
+          {isOutbound ? t("Uscita") : t("Entrata")}
         </span>
       )}
     </span>

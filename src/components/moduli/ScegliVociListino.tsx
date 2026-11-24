@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { insiemeVoci, prezzoInCampo, rigaVoceLibera, totaleScelte, UNITA_A_MANO, voceGiaPresente, type RigaScelta, type VoceScelta } from "@/lib/moduli/scegliVoci";
 import { fraseDiMisura } from "../../../supabase/functions/_shared/prezzarioUnita";
 import { leggiVociRecenti, registraVociRecenti, type VoceRecente } from "@/lib/moduli/vociRecenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type { VoceScelta } from "@/lib/moduli/scegliVoci";
 
@@ -102,6 +103,7 @@ function Voce({ riga, scelta, presente, conFocus, mostraCampi, onFocusPreso, onC
   mostraCampi: boolean;
   onCambia: () => void; onQuantita: (q: string) => void; onPrezzo: (p: string) => void; onUnita: (u: string) => void; onConferma: () => void;
 }) {
+  const tr = useT();
   const [aperta, setAperta] = useState(false);
   // Telefono: il prezzo si tocca solo se serve.
   const [conPrezzo, setConPrezzo] = useState(false);
@@ -109,7 +111,7 @@ function Voce({ riga, scelta, presente, conFocus, mostraCampi, onFocusPreso, onC
   const haAltro = riga.descrizione.length > 100 || (!!estesa && estesa !== riga.descrizione);
   return (
     <li className={cn("flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-3 py-2 hover:bg-muted/50", scelta && "bg-orange-50/70 hover:bg-orange-50")}>
-      <Checkbox disabled={!!riga.blocco} checked={!!scelta} onCheckedChange={onCambia} aria-label={`Scegli: ${riga.descrizione}`} />
+      <Checkbox disabled={!!riga.blocco} checked={!!scelta} onCheckedChange={onCambia} aria-label={tr("Scegli: {descrizione}", { descrizione: String(riga.descrizione ?? "") })} />
       <button type="button" disabled={!!riga.blocco} tabIndex={-1} onClick={onCambia} className="flex min-w-0 flex-1 basis-40 items-center gap-3 text-left">
         {riga.immagine && <MiniaturaProdotto src={riga.immagine} className="h-9 w-9" />}
         <span className="min-w-0 flex-1">
@@ -117,14 +119,14 @@ function Voce({ riga, scelta, presente, conFocus, mostraCampi, onFocusPreso, onC
           <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
             {riga.meta && <span className="truncate">{riga.meta}</span>}
             {riga.blocco && <span className="text-amber-700">{riga.blocco}</span>}
-            {presente && <span className="inline-flex items-center gap-0.5 font-medium text-emerald-700"><Check className="h-3 w-3" />Già nel computo</span>}
+            {presente && <span className="inline-flex items-center gap-0.5 font-medium text-emerald-700"><Check className="h-3 w-3" />{tr("Già nel computo")}</span>}
           </span>
         </span>
       </button>
       {haAltro && (
         <button
-          type="button" aria-expanded={aperta} aria-label={aperta ? "Riduci la descrizione" : "Leggi tutta la descrizione"}
-          title={aperta ? "Riduci la descrizione" : "Leggi tutta la descrizione"} onClick={() => setAperta(!aperta)}
+          type="button" aria-expanded={aperta} aria-label={aperta ? tr("Riduci la descrizione") : tr("Leggi tutta la descrizione")}
+          title={aperta ? tr("Riduci la descrizione") : tr("Leggi tutta la descrizione")} onClick={() => setAperta(!aperta)}
           className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
         >
           <ChevronDown className={cn("h-4 w-4 transition-transform", aperta && "rotate-180")} />
@@ -137,21 +139,21 @@ function Voce({ riga, scelta, presente, conFocus, mostraCampi, onFocusPreso, onC
       {scelta && mostraCampi && (
         <span className="flex w-full items-center justify-end gap-3 text-xs text-muted-foreground sm:w-auto">
           <label className="flex items-center gap-1.5">
-            <span className="sm:hidden">Quantità</span>
+            <span className="sm:hidden">{tr("Quantità")}</span>
             <Input
-              aria-label={`Quantità: ${riga.descrizione}`} className="h-8 w-20 text-right tabular-nums" inputMode="decimal"
-              value={scelta.quantita} placeholder={riga.chiedeQuantita ? "Quanti?" : "1"} autoFocus={conFocus} onFocus={onFocusPreso}
+              aria-label={tr("Quantità: {descrizione}", { descrizione: String(riga.descrizione ?? "") })} className="h-8 w-20 text-right tabular-nums" inputMode="decimal"
+              value={scelta.quantita} placeholder={riga.chiedeQuantita ? tr("Quanti?") : "1"} autoFocus={conFocus} onFocus={onFocusPreso}
               onChange={(e) => onQuantita(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onConferma(); } }}
             />
           </label>
           {!conPrezzo && (
-            <button type="button" className="text-primary underline sm:hidden" onClick={() => setConPrezzo(true)}>Cambia prezzo</button>
+            <button type="button" className="text-primary underline sm:hidden" onClick={() => setConPrezzo(true)}>{tr("Cambia prezzo")}</button>
           )}
           <label className={cn("flex items-center gap-1.5", !conPrezzo && "max-sm:hidden")}>
             <span>€</span>
             <Input
-              aria-label={`Prezzo: ${riga.descrizione}`} className="h-8 w-24 text-right tabular-nums" inputMode="decimal"
+              aria-label={tr("Prezzo: {origine}", { origine: String(riga.descrizione ?? "") })} className="h-8 w-24 text-right tabular-nums" inputMode="decimal"
               value={scelta.prezzo} onChange={(e) => onPrezzo(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onConferma(); } }}
             />
@@ -161,12 +163,12 @@ function Voce({ riga, scelta, presente, conFocus, mostraCampi, onFocusPreso, onC
       {/* Il prezzario non dice l'unità: si sceglie leggendo come la misura il prezzario. */}
       {scelta && riga.unitaDaScegliere && (
         <span className="flex w-full flex-wrap items-center justify-end gap-2 text-xs">
-          {riga.comeSiMisura && <span className="min-w-0 flex-1 basis-60 text-amber-700 dark:text-amber-400">Come si misura: «{riga.comeSiMisura}»</span>}
+          {riga.comeSiMisura && <span className="min-w-0 flex-1 basis-60 text-amber-700 dark:text-amber-400">{tr("Come si misura: «{comeSiMisura}»", { comeSiMisura: String(riga.comeSiMisura ?? "") })}</span>}
           <UniformSelect
-            aria-label={`Unità: ${riga.descrizione}`} value={scelta.unita ?? ""} onChange={(e) => onUnita(e.target.value)}
+            aria-label={tr("Unità: {unita}", { unita: String(riga.descrizione ?? "") })} value={scelta.unita ?? ""} onChange={(e) => onUnita(e.target.value)}
             className={cn("h-8 rounded-md border bg-background px-2", !scelta.unita && "border-amber-400")}
           >
-            <option value="" disabled>Scegli l&apos;unità</option>
+            <option value="" disabled>{tr("Scegli l'unità")}</option>
             {UNITA_A_MANO.map((u) => <option key={u} value={u}>{u}</option>)}
           </UniformSelect>
         </span>
@@ -212,6 +214,7 @@ function muoviTraSpunte(e: KeyboardEvent<HTMLElement>, contenitore: HTMLElement 
 }
 
 export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, vociPresenti = [], capitoliComputo = [], fonti, unitaPrezzo }: Props) {
+  const tr = useT();
   const isMobile = useIsMobile();
   const [termine, setTermine] = useState("");
   const [fonte, setFonte] = useState<"listino" | "prezzario">("listino");
@@ -271,9 +274,9 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         const costoMano = Math.round(prezzo * quota * 100) / 100;
         const senzaUnita = !v.unita_misura?.trim();
         return {
-          chiave: `prezzario-${v.id}`, descrizione: v.descrizione, prezzo, unitaLabel: senzaUnita ? "unità non indicata" : `/ ${v.unita_misura}`,
+          chiave: `prezzario-${v.id}`, descrizione: v.descrizione, prezzo, unitaLabel: senzaUnita ? tr("unità non indicata") : `/ ${v.unita_misura}`,
           ...(senzaUnita ? { unitaDaScegliere: true, comeSiMisura: fraseDiMisura(v.descrizione) } : {}),
-          meta: [v.codice, v.fonteLabel, quota > 0 ? `manodopera ${Math.round(quota * 100)}%` : null].filter(Boolean).join(" · "),
+          meta: [v.codice, v.fonteLabel, quota > 0 ? tr("manodopera {n}%", { n: Math.round(quota * 100) }) : null].filter(Boolean).join(" · "),
           voce: { descrizione: v.descrizione, unita_misura: mapUnita(v.unita_misura), unita_originale: v.unita_misura, prezzo_unitario: prezzo, costo_materiali: Math.round((prezzo - costoMano) * 100) / 100, costo_manodopera: costoMano, capitolo_nome: targetCapitolo, fonte: v.fonteLabel, codice_tariffa: v.codice, sourceUnit: v.unita_misura },
         };
       });
@@ -282,7 +285,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
     if (tutteLeFonti || schedaVista.tipo === "capitolo") {
       for (const v of lavorazioni.data ?? []) {
         voci.push({
-          chiave: `lavorazione-${v.id}`, sezione: v.capitolo_nome?.trim() || "Lavorazioni", descrizione: v.descrizione, meta: v.codice ?? undefined, prezzo: v.prezzo_unitario, unitaLabel: `/ ${v.unita_misura}`,
+          chiave: `lavorazione-${v.id}`, sezione: v.capitolo_nome?.trim() || tr("Lavorazioni"), descrizione: v.descrizione, meta: v.codice ?? undefined, prezzo: v.prezzo_unitario, unitaLabel: `/ ${v.unita_misura}`,
           voce: { descrizione: v.descrizione, unita_misura: v.unita_misura, unita_originale: v.unita_misura, prezzo_unitario: v.prezzo_unitario, costo_materiali: v.costo_materiali, costo_manodopera: v.costo_manodopera, capitolo_nome: v.capitolo_nome ?? targetCapitolo, listino_voce_id: v.id, codice_tariffa: v.codice, fonte: v.fonte, sourceUnit: v.unita_misura },
         });
       }
@@ -291,14 +294,14 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
       for (const p of prodotti.data ?? []) {
         const inRiga = prodottoInRiga(p);
         voci.push({
-          chiave: `prodotto-${p.id}`, sezione: "Prodotti", descrizione: p.nome, meta: dettaglioNelPicker(p, verticale) || undefined, immagine: p.immagine_url, prezzo: inRiga.prezzo_unitario,
+          chiave: `prodotto-${p.id}`, sezione: tr("Prodotti"), descrizione: p.nome, meta: dettaglioNelPicker(p, verticale) || undefined, immagine: p.immagine_url, prezzo: inRiga.prezzo_unitario,
           unitaLabel: p.modo === "mq" ? "/ mq" : p.unita ? `/ ${p.unita}` : "/ pz", chiedeQuantita: chiedeQuantita(p),
           voce: { descrizione: p.nome, unita_misura: mapUnita(p.unita), unita_originale: p.unita, ...inRiga, capitolo_nome: targetCapitolo, famiglia_id: p.id, immagine_url: p.immagine_url, descrizione_estesa: p.descrizione, codice_tariffa: p.codice, sourceUnit: p.modo === "mq" ? "mq" : p.unita },
         });
       }
       for (const a of articoli.data ?? []) {
         voci.push({
-          chiave: `articolo-${a.id}`, sezione: "Prodotti", descrizione: a.name, meta: [a.marca, a.sku].filter(Boolean).join(" · ") || undefined, prezzo: a.prezzo_vendita || a.costo, unitaLabel: a.unita ? `/ ${a.unita}` : "",
+          chiave: `articolo-${a.id}`, sezione: tr("Prodotti"), descrizione: a.name, meta: [a.marca, a.sku].filter(Boolean).join(" · ") || undefined, prezzo: a.prezzo_vendita || a.costo, unitaLabel: a.unita ? `/ ${a.unita}` : "",
           voce: { descrizione: a.name, unita_misura: mapUnita(a.unita), unita_originale: a.unita, prezzo_unitario: a.prezzo_vendita || a.costo, costo_materiali: a.costo, costo_manodopera: 0, capitolo_nome: targetCapitolo, codice_tariffa: a.sku, sourceUnit: a.unita },
         });
       }
@@ -387,9 +390,9 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         onOpenAutoFocus={(e) => { if (isMobile) e.preventDefault(); }}
       >
         <DialogHeader className="shrink-0 space-y-0 border-b px-4 py-3 pr-12 text-left">
-          <DialogTitle className="text-base">{unitaPrezzo ? "Scegli il prezzo unitario" : "Aggiungi voci al computo"}</DialogTitle>
+          <DialogTitle className="text-base">{unitaPrezzo ? tr("Scegli il prezzo unitario") : tr("Aggiungi voci al computo")}</DialogTitle>
           <DialogDescription className="text-xs max-sm:hidden">
-            {unitaPrezzo ? `Voci quotate in €/${unitaPrezzo}.` : <>{targetCapitolo ? <>Vanno nel capitolo <strong>{targetCapitolo}</strong>. </> : null}Spunta quelle che ti servono e scrivi la quantità.</>}
+            {unitaPrezzo ? tr("Voci quotate in €/{unitaPrezzo}.", { unitaPrezzo: String(unitaPrezzo ?? "") }) : <>{targetCapitolo ? <>{tr("Vanno nel capitolo")} <strong>{targetCapitolo}</strong>. </> : null}{tr("Spunta quelle che ti servono e scrivi la quantità.")}</>}
           </DialogDescription>
         </DialogHeader>
 
@@ -397,28 +400,28 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
           <div className="relative min-w-[12rem] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label="Cerca una voce" className="h-9 pl-8" value={termine} onChange={(e) => setTermine(e.target.value)}
+              aria-label={tr("Cerca una voce")} className="h-9 pl-8" value={termine} onChange={(e) => setTermine(e.target.value)}
               onKeyDown={(e) => muoviTraSpunte(e, elencoRef.current)}
-              placeholder={fonte === "listino" ? "Cerca nel tuo listino…" : "Cerca nel prezzario regionale (almeno 2 lettere)…"}
+              placeholder={fonte === "listino" ? tr("Cerca nel tuo listino…") : tr("Cerca nel prezzario regionale (almeno 2 lettere)…")}
             />
           </div>
-          {caricamento && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Sto cercando" />}
+          {caricamento && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label={tr("Sto cercando")} />}
           <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => setFonte(fonte === "listino" ? "prezzario" : "listino")}>
-            <Library className="h-3.5 w-3.5" /><span className="max-sm:hidden">{fonte === "listino" ? "Cerca nel prezzario regionale" : "Torna al tuo listino"}</span><span className="sm:hidden">{fonte === "listino" ? "Prezzario" : "Listino"}</span>
+            <Library className="h-3.5 w-3.5" /><span className="max-sm:hidden">{fonte === "listino" ? tr("Cerca nel prezzario regionale") : tr("Torna al tuo listino")}</span><span className="sm:hidden">{fonte === "listino" ? tr("Prezzario") : tr("Listino")}</span>
           </Button>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           {fonte === "listino" && (
-            <nav aria-label="Gruppi del listino" className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 md:w-56 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r">
-              {nav({ tipo: "tutto" }, "Tutte le voci")}
-              {nScelte > 0 && <VoceNav nome="Le tue scelte" voci={nScelte} evidenza attiva={schedaVista.tipo === "scelte"} onClick={() => setScheda({ tipo: "scelte" })} />}
-              {recenti.length > 0 && nav({ tipo: "recenti" }, "Usate di recente")}
-              {!!capitoli.data?.length && <TitoloNav testo="Capitoli" />}
+            <nav aria-label={tr("Gruppi del listino")} className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 md:w-56 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r">
+              {nav({ tipo: "tutto" }, tr("Tutte le voci"))}
+              {nScelte > 0 && <VoceNav nome={tr("Le tue scelte")} voci={nScelte} evidenza attiva={schedaVista.tipo === "scelte"} onClick={() => setScheda({ tipo: "scelte" })} />}
+              {recenti.length > 0 && nav({ tipo: "recenti" }, tr("Usate di recente"))}
+              {!!capitoli.data?.length && <TitoloNav testo={tr("Capitoli")} />}
               {(capitoli.data ?? []).map((c) => nav({ tipo: "capitolo", id: c.id }, c.nome))}
-              {!!gruppiConVoci.length && <TitoloNav testo="Listino azienda" />}
+              {!!gruppiConVoci.length && <TitoloNav testo={tr("Listino azienda")} />}
               {gruppiConVoci.map((g) => nav({ tipo: "gruppo", id: g.id }, g.nome, g.voci))}
-              {nav({ tipo: "prodotti" }, "Prodotti")}
+              {nav({ tipo: "prodotti" }, tr("Prodotti"))}
             </nav>
           )}
           <div ref={elencoRef} className="min-h-0 flex-1 overflow-y-auto" onKeyDown={(e) => { if (!(e.target instanceof HTMLInputElement)) muoviTraSpunte(e, elencoRef.current); }}>
@@ -439,41 +442,39 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
               </ul>
             ) : !caricamento && (
               <p className="p-8 text-center text-sm text-muted-foreground">
-                {schedaVista.tipo === "scelte" ? "Non hai ancora scelto nessuna voce." : fonte === "prezzario" && cercato.trim().length < 2 ? "Scrivi almeno 2 lettere per cercare nel prezzario." : unitaPrezzo ? `Nessuna voce con prezzo in €/${unitaPrezzo}. Prova un’altra ricerca.` : "Nessuna voce trovata. Prova un'altra parola, o aggiungi una voce libera."}
+                {schedaVista.tipo === "scelte" ? tr("Non hai ancora scelto nessuna voce.") : fonte === "prezzario" && cercato.trim().length < 2 ? tr("Scrivi almeno 2 lettere per cercare nel prezzario.") : unitaPrezzo ? tr("Nessuna voce con prezzo in €/{unitaPrezzo}. Prova un’altra ricerca.", { unitaPrezzo: String(unitaPrezzo ?? "") }) : tr("Nessuna voce trovata. Prova un'altra parola, o aggiungi una voce libera.")}
               </p>
             )}
             {ammesse.length > elenco.length && (
               <div className="p-3 text-center">
-                <Button type="button" variant="outline" size="sm" onClick={() => setFiltroMostrate({ elenco: chiaveElenco, quante: quanteMostrate + RIGHE_MOSTRATE })}>
-                  Mostra altre voci ({ammesse.length - elenco.length})
-                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setFiltroMostrate({ elenco: chiaveElenco, quante: quanteMostrate + RIGHE_MOSTRATE })}>{tr("Mostra altre voci ({n})", { n: ammesse.length - elenco.length })}</Button>
               </div>
             )}
-            {elencoParziale && <p className="p-3 text-center text-xs text-muted-foreground">Qui vedi solo una parte delle voci: scegli un gruppo o scrivi cosa cerchi.</p>}
+            {elencoParziale && <p className="p-3 text-center text-xs text-muted-foreground">{tr("Qui vedi solo una parte delle voci: scegli un gruppo o scrivi cosa cerchi.")}</p>}
           </div>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3 border-t bg-muted/30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {!unitaPrezzo && <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={voceLibera} disabled={conto.mancanti > 0}>
-            <PlusCircle className="h-4 w-4" />{termine.trim() ? `Voce libera: «${termine.trim().slice(0, 30)}»` : "Voce libera"}
+            <PlusCircle className="h-4 w-4" />{termine.trim() ? tr("Voce libera: «{valore}»", { valore: termine.trim().slice(0, 30) }) : tr("Voce libera")}
           </Button>}
           {capitoliDestinazione.length > 0 && (
             <UniformSelect
-              aria-label="Capitolo in cui mettere le voci" value={capitoloScelto} onChange={(e) => setCapitoloScelto(e.target.value)}
+              aria-label={tr("Capitolo in cui mettere le voci")} value={capitoloScelto} onChange={(e) => setCapitoloScelto(e.target.value)}
               className="h-9 max-w-56 rounded-md border bg-background px-2 text-sm max-sm:w-full max-sm:max-w-none"
             >
-              <option value="">Capitolo: come nel listino</option>
+              <option value="">{tr("Capitolo: come nel listino")}</option>
               {capitoliDestinazione.map((c) => <option key={c} value={c}>{c}</option>)}
             </UniformSelect>
           )}
           <div className="ml-auto flex items-center gap-3">
             {nScelte > 0 && (
-              <button type="button" className="text-left text-sm hover:underline" title="Vedi le voci che hai scelto" onClick={() => { setFonte("listino"); setTermine(""); setScheda({ tipo: "scelte" }); }}>
-                <strong>{nScelte} {nScelte === 1 ? "voce" : "voci"}</strong> · {formatCurrency(conto.totale)}
-                {conto.mancanti > 0 && <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">{conto.unitaDaScegliere > 0 ? "scegli l'unità" : conto.prezziDaCorreggere > 0 ? "controlla il prezzo" : "scrivi la quantità"}</Badge>}
+              <button type="button" className="text-left text-sm hover:underline" title={tr("Vedi le voci che hai scelto")} onClick={() => { setFonte("listino"); setTermine(""); setScheda({ tipo: "scelte" }); }}>
+                <strong>{nScelte} {nScelte === 1 ? tr("voce") : tr("voci")}</strong> · {formatCurrency(conto.totale)}
+                {conto.mancanti > 0 && <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">{conto.unitaDaScegliere > 0 ? tr("scegli l'unità") : conto.prezziDaCorreggere > 0 ? tr("controlla il prezzo") : tr("scrivi la quantità")}</Badge>}
               </button>
             )}
-            <Button type="button" onClick={conferma} disabled={!conto.voci.length || conto.mancanti > 0}>{unitaPrezzo ? "Usa questo prezzo" : "Aggiungi al computo"}</Button>
+            <Button type="button" onClick={conferma} disabled={!conto.voci.length || conto.mancanti > 0}>{unitaPrezzo ? tr("Usa questo prezzo") : tr("Aggiungi al computo")}</Button>
           </div>
         </div>
       </DialogContent>

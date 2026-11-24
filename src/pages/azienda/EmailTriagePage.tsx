@@ -18,6 +18,7 @@ import {
   Inbox, Mail, AlertCircle, Briefcase, Receipt, ShieldAlert, FileText, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface EmailRow {
   id: string;
@@ -53,6 +54,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 type FilterTab = "all" | "lead" | "cliente_esistente" | "fattura" | "pending" | "alta_priorita";
 
 export default function EmailTriagePage() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const [tab, setTab] = useState<FilterTab>("all");
 
@@ -84,9 +86,9 @@ export default function EmailTriagePage() {
           <Inbox className="h-5 w-5 text-violet-600 dark:text-violet-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Email Triage AI</h1>
+          <h1 className="text-2xl font-bold">{t("Email Triage AI")}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            AI legge le email in ingresso, le classifica (lead/cliente/fattura/spam) e suggerisce l'azione.
+            {t("AI legge le email in ingresso, le classifica (lead/cliente/fattura/spam) e suggerisce l'azione.")}
           </p>
         </div>
       </div>
@@ -95,17 +97,15 @@ export default function EmailTriagePage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-violet-600" />
-            Setup webhook (one-time)
+            {t("Setup webhook (one-time)")}
           </CardTitle>
           <CardDescription className="text-xs space-y-1">
             <p>
-              Per attivare l'ingest automatico, configura un servizio inbound email (Resend/Mailgun/Postmark)
-              con webhook su <code className="bg-muted px-1 rounded">POST /functions/v1/email-triage-ai</code>{" "}
-              + header <code className="bg-muted px-1 rounded">x-inbound-secret: $INBOUND_EMAIL_SECRET</code>.
+              {t("Per attivare l'ingest automatico, configura un servizio inbound email (Resend/Mailgun/Postmark) con webhook su")} <code className="bg-muted px-1 rounded">POST /functions/v1/email-triage-ai</code>{" "}
+              {t("+ header")} <code className="bg-muted px-1 rounded">x-inbound-secret: $INBOUND_EMAIL_SECRET</code>.
             </p>
             <p>
-              Aggiungi <code className="bg-muted px-1 rounded">inbound_email_address</code> in companies con
-              l'indirizzo a cui forwardare le email aziendali. Tu fai forward da Gmail/Outlook a quell'address.
+              {t("Aggiungi")} <code className="bg-muted px-1 rounded">inbound_email_address</code> {t("in companies con l'indirizzo a cui forwardare le email aziendali. Tu fai forward da Gmail/Outlook a quell'address.")}
             </p>
           </CardDescription>
         </CardHeader>
@@ -113,12 +113,12 @@ export default function EmailTriagePage() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as FilterTab)}>
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="all">Tutte ({emails.length})</TabsTrigger>
-          <TabsTrigger value="alta_priorita">⚠️ Alta priorità</TabsTrigger>
+          <TabsTrigger value="all">{t("Tutte ({n})", { n: emails.length })}</TabsTrigger>
+          <TabsTrigger value="alta_priorita">{t("⚠️ Alta priorità")}</TabsTrigger>
           <TabsTrigger value="lead">Lead</TabsTrigger>
-          <TabsTrigger value="cliente_esistente">Clienti</TabsTrigger>
-          <TabsTrigger value="fattura">Fatture</TabsTrigger>
-          <TabsTrigger value="pending">Da triagiare</TabsTrigger>
+          <TabsTrigger value="cliente_esistente">{t("Clienti")}</TabsTrigger>
+          <TabsTrigger value="fattura">{t("Fatture")}</TabsTrigger>
+          <TabsTrigger value="pending">{t("Da triagiare")}</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -133,9 +133,9 @@ export default function EmailTriagePage() {
           ) : emails.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground text-sm">
               <Inbox className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p>Nessuna email per questo filtro.</p>
+              <p>{t("Nessuna email per questo filtro.")}</p>
               <p className="text-xs mt-1">
-                Le email arrivano qui solo se hai configurato il webhook inbound (vedi sopra).
+                {t("Le email arrivano qui solo se hai configurato il webhook inbound (vedi sopra).")}
               </p>
             </div>
           ) : (
@@ -159,7 +159,7 @@ export default function EmailTriagePage() {
                           </p>
                           <span className="text-xs text-muted-foreground">·</span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(email.received_at).toLocaleString("it-IT", {
+                            {new Date(email.received_at).toLocaleString(intlCampo(), {
                               day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                             })}
                           </span>
@@ -169,7 +169,7 @@ export default function EmailTriagePage() {
                             </Badge>
                           )}
                           <Badge variant="outline" className={cn("text-[10px] h-4 px-1.5", cat.color)}>
-                            {cat.label}
+                            {t(cat.label)}
                           </Badge>
                         </div>
                         <p className="text-sm font-medium truncate mb-0.5">
@@ -183,7 +183,7 @@ export default function EmailTriagePage() {
                         )}
                         {email.ai_suggested_action && (
                           <p className="text-[10px] text-muted-foreground mt-1">
-                            Azione suggerita: <code className="bg-muted px-1 rounded">{email.ai_suggested_action}</code>
+                            {t("Azione suggerita:")} <code className="bg-muted px-1 rounded">{email.ai_suggested_action}</code>
                           </p>
                         )}
                       </div>

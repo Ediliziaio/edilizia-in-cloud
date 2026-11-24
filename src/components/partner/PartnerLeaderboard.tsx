@@ -3,8 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trophy, Medal } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PartnerLeaderboard() {
+  const t = useT();
   const { data: leaderboard = [] } = useQuery({
     queryKey: ['leaderboard-public'],
     queryFn: async () => {
@@ -28,7 +30,7 @@ export function PartnerLeaderboard() {
       <CardHeader>
         <CardTitle className='text-base flex items-center gap-2'>
           <Trophy className='h-4 w-4 text-yellow-500' />
-          Top Partner del Mese
+          {t("Top Partner del Mese")}
         </CardTitle>
       </CardHeader>
       <CardContent className='p-0'>
@@ -43,21 +45,19 @@ export function PartnerLeaderboard() {
                     <span className='text-xs'>{entry.tier_icon} {entry.tier_name}</span>
                   )}
                 </div>
-                <span className='text-xs text-muted-foreground'>
-                  {entry.active_companies} aziende attive
-                </span>
+                <span className='text-xs text-muted-foreground'>{t("{n} aziende attive", { n: entry.active_companies })}</span>
               </div>
               <div className='text-right'>
                 <div className='text-sm font-semibold text-green-600'>
                   {formatCurrency(entry.current_month_commission)}
                 </div>
-                <div className='text-xs text-muted-foreground'>questo mese</div>
+                <div className='text-xs text-muted-foreground'>{t("questo mese")}</div>
               </div>
             </div>
           ))}
           {leaderboard.length === 0 && (
             <div className='text-center py-8 text-muted-foreground text-sm'>
-              Nessun dato disponibile
+              {t("Nessun dato disponibile")}
             </div>
           )}
         </div>

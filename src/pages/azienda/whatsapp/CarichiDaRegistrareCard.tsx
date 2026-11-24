@@ -10,7 +10,6 @@
  */
 
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import { Loader2, PackageCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,13 +20,14 @@ import {
   type DdtCarico,
   type DdtCaricoRiga,
 } from "@/lib/email-ai/hooks";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-function relativeDate(value: string | null | undefined) {
-  if (!value) return "data non disponibile";
+function relativeDate(value: string | null | undefined, t: ReturnType<typeof useT>) {
+  if (!value) return t("data non disponibile");
   try {
-    return formatDistanceToNow(new Date(value), { addSuffix: true, locale: it });
+    return formatDistanceToNow(new Date(value), { addSuffix: true, locale: dateFnsCampo() });
   } catch {
-    return "data non disponibile";
+    return t("data non disponibile");
   }
 }
 
@@ -39,6 +39,7 @@ function scostamentoLabel(riga: DdtCaricoRiga) {
 }
 
 function RigaRow({ riga }: { riga: DdtCaricoRiga }) {
+  const t = useT();
   const sc = scostamentoLabel(riga);
   const toneClass =
     sc.tone === "warn"
@@ -50,17 +51,19 @@ function RigaRow({ riga }: { riga: DdtCaricoRiga }) {
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-t py-2 first:border-t-0">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-foreground">
-          {riga.descrizione || "Articolo senza descrizione"}
+          {riga.descrizione || t("Articolo senza descrizione")}
         </p>
         <p className="text-xs text-muted-foreground">
-          {riga.codice ? `cod. ${riga.codice} · ` : ""}
-          bolla {riga.qta_bolla}
-          {riga.qta_residua != null ? ` · da ricevere ${riga.qta_residua}`
-            : riga.qta_ordine != null ? ` · ordine ${riga.qta_ordine}` : ""}
+          {[
+            riga.codice ? t("cod. {codice}", { codice: riga.codice }) : null,
+            t("bolla {n}", { n: riga.qta_bolla }),
+            riga.qta_residua != null ? t("da ricevere {n}", { n: riga.qta_residua })
+              : riga.qta_ordine != null ? t("ordine {n}", { n: riga.qta_ordine }) : null,
+          ].filter(Boolean).join(" · ")}
         </p>
         {riga.note ? <p className="mt-0.5 text-[11px] text-muted-foreground">{riga.note}</p> : null}
       </div>
-      <span className={`shrink-0 text-sm font-semibold tabular-nums ${toneClass}`}>{sc.text}</span>
+      <span className={`shrink-0 text-sm font-semibold tabular-nums ${toneClass}`}>{sc.tone === "muted" ? t("non a ordine") : sc.text}</span>
     </div>
   );
 }
@@ -76,6 +79,7 @@ function CaricoRow({
   onConferma: () => void;
   onScarta: () => void;
 }) {
+  const t = useT();
   const righe = Array.isArray(carico.righe) ? carico.righe : [];
   return (
     <div className="rounded-xl border bg-background p-3">
@@ -84,28 +88,26 @@ function CaricoRow({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">DDT {carico.ddt_numero ?? "s/n"}</Badge>
             {carico.senza_ordine ? (
-              <Badge variant="outline">Senza ordine collegato</Badge>
+              <Badge variant="outline">{t("Senza ordine collegato")}</Badge>
             ) : (
-              <Badge variant="outline">Ordine {carico.purchase_order_numero ?? "collegato"}</Badge>
+              <Badge variant="outline">{carico.purchase_order_numero ? t("Ordine {numero}", { numero: carico.purchase_order_numero }) : t("Ordine collegato")}</Badge>
             )}
             {carico.scostamenti_totali > 0 ? (
-              <Badge variant="default" className="bg-amber-500 hover:bg-amber-500">
-                {carico.scostamenti_totali} scostamenti
-              </Badge>
+              <Badge variant="default" className="bg-amber-500 hover:bg-amber-500">{t("{n} scostamenti", { n: carico.scostamenti_totali })}</Badge>
             ) : !carico.senza_ordine ? (
-              <Badge variant="outline" className="text-emerald-700">Quantità coerenti</Badge>
+              <Badge variant="outline" className="text-emerald-700">{t("Quantità coerenti")}</Badge>
             ) : null}
-            <span className="text-xs text-muted-foreground">{relativeDate(carico.created_at)}</span>
+            <span className="text-xs text-muted-foreground">{relativeDate(carico.created_at, t)}</span>
           </div>
           {carico.avviso_ordine && <p className="mt-1 text-xs text-amber-800">{carico.avviso_ordine}</p>}
         </div>
         <div className="flex shrink-0 gap-2">
           <Button size="sm" variant="ghost" onClick={onScarta} disabled={busy}>
-            Scarta
+            {t("Scarta")}
           </Button>
           <Button size="sm" onClick={onConferma} disabled={busy}>
             {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-            Registra carico
+            {t("Registra carico")}
           </Button>
         </div>
       </div>
@@ -121,6 +123,7 @@ function CaricoRow({
 }
 
 export default function CarichiDaRegistrareCard({ companyId }: { companyId: string | null | undefined }) {
+  const t = useT();
   const { data, isLoading } = useCarichiDaRegistrare(companyId);
   const aggiorna = useAggiornaStatoCaricoDdt();
   const list = data ?? [];
@@ -131,15 +134,14 @@ export default function CarichiDaRegistrareCard({ companyId }: { companyId: stri
         <CardTitle className="flex items-center justify-between gap-3 text-base">
           <span className="flex items-center gap-2">
             <PackageCheck className="h-4 w-4 text-emerald-600" />
-            DDT da registrare a magazzino
+            {t("DDT da registrare a magazzino")}
           </span>
-          <Badge variant={list.length > 0 ? "default" : "outline"}>{list.length} da confermare</Badge>
+          <Badge variant={list.length > 0 ? "default" : "outline"}>{t("{n} da confermare", { n: list.length })}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Bolle fotografate dagli operai in cantiere. Silvio ha confrontato le quantità con l'ordine:
-          controlla gli scostamenti evidenziati e conferma per registrare il carico (la giacenza si aggiorna solo dopo la conferma).
+          {t("Bolle fotografate dagli operai in cantiere. Silvio ha confrontato le quantità con l'ordine: controlla gli scostamenti evidenziati e conferma per registrare il carico (la giacenza si aggiorna solo dopo la conferma).")}
         </p>
         {isLoading ? (
           <div className="space-y-2">
@@ -150,7 +152,7 @@ export default function CarichiDaRegistrareCard({ companyId }: { companyId: stri
         ) : null}
         {!isLoading && list.length === 0 ? (
           <div className="rounded-xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-            Nessun DDT da cantiere in attesa di registrazione.
+            {t("Nessun DDT da cantiere in attesa di registrazione.")}
           </div>
         ) : null}
         {list.map((carico) => (

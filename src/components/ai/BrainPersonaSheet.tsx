@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Link2, Sparkles, Activity } from "lucide-react";
 import { BrainPersonaStats } from "./BrainPersonaStats";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MemoryRow {
   id: string;
@@ -62,6 +63,7 @@ export function BrainPersonaSheet({
   typeColors,
   typeLabels,
 }: Props) {
+  const t = useT();
   const [filterType, setFilterType] = useState<string | null>(null);
 
   const personaMemories = useMemo(
@@ -121,9 +123,7 @@ export function BrainPersonaSheet({
               </div>
               <div className="flex-1 min-w-0">
                 <SheetTitle className="text-xl font-bold text-white">{persona.display_name}</SheetTitle>
-                <p className="text-xs text-white/80 mt-0.5 capitalize">
-                  {persona.category} · {personaMemories.length} memorie · {connections.length} connessioni
-                </p>
+                <p className="text-xs text-white/80 mt-0.5 capitalize">{t("{category} · {n} memorie · {n2} connessioni", { category: String(persona.category ?? ""), n: personaMemories.length, n2: connections.length })}</p>
               </div>
             </div>
           </SheetHeader>
@@ -134,15 +134,15 @@ export function BrainPersonaSheet({
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="memorie" className="gap-1.5 text-xs">
               <Sparkles className="h-3.5 w-3.5" />
-              Memorie ({personaMemories.length})
+              {t("Memorie ({n})", { n: personaMemories.length })}
             </TabsTrigger>
             <TabsTrigger value="connessioni" className="gap-1.5 text-xs">
               <Link2 className="h-3.5 w-3.5" />
-              Connessioni ({connections.length})
+              {t("Connessioni ({n})", { n: connections.length })}
             </TabsTrigger>
             <TabsTrigger value="stats" className="gap-1.5 text-xs">
               <Activity className="h-3.5 w-3.5" />
-              Statistiche
+              {t("Statistiche")}
             </TabsTrigger>
           </TabsList>
 
@@ -158,9 +158,7 @@ export function BrainPersonaSheet({
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100",
                 )}
-              >
-                Tutti ({personaMemories.length})
-              </button>
+              >{t("Tutti ({n})", { n: personaMemories.length })}</button>
               {Object.entries(byType).map(([type, count]) => {
                 const c = typeColors[type] ?? "#94a3b8";
                 const active = filterType === type;
@@ -188,7 +186,7 @@ export function BrainPersonaSheet({
 
             {/* Lista memorie */}
             {filteredMems.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-6">Nessuna memoria per questo filtro.</p>
+              <p className="text-xs text-slate-500 text-center py-6">{t("Nessuna memoria per questo filtro.")}</p>
             ) : (
               filteredMems
                 .sort((a, b) => (b.hits_count ?? 0) - (a.hits_count ?? 0))
@@ -209,11 +207,11 @@ export function BrainPersonaSheet({
                           {typeLabels[m.memory_type] ?? m.memory_type}
                         </Badge>
                         <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
-                          <span>{m.hits_count ?? 0} hits</span>
+                          <span>{m.hits_count ?? 0} {t("hits")}</span>
                           <span className="text-slate-300">·</span>
-                          <span>Conf {((m.confidence ?? 1) * 100).toFixed(0)}%</span>
+                          <span>{t("Conf {valore}%", { valore: ((m.confidence ?? 1) * 100).toFixed(0) })}</span>
                           <span className="text-slate-300">·</span>
-                          <span>{new Date(m.created_at).toLocaleDateString("it-IT")}</span>
+                          <span>{new Date(m.created_at).toLocaleDateString(intlCampo())}</span>
                         </div>
                       </div>
                       <p className="text-xs text-slate-700 leading-relaxed">{m.content}</p>
@@ -228,15 +226,13 @@ export function BrainPersonaSheet({
             {connections.length === 0 ? (
               <div className="text-center py-10">
                 <Link2 className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-                <p className="text-sm text-slate-600 font-medium">Nessuna connessione cross-persona</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {persona.display_name} non condivide memorie con altre personas.
-                </p>
+                <p className="text-sm text-slate-600 font-medium">{t("Nessuna connessione cross-persona")}</p>
+                <p className="text-xs text-slate-400 mt-1">{t("{display_name} non condivide memorie con altre personas.", { display_name: String(persona.display_name ?? "") })}</p>
               </div>
             ) : (
               <div className="space-y-1.5">
                 <p className="text-[11px] text-slate-500 mb-2">
-                  Personas che condividono memorie con <strong className="text-slate-700">{persona.display_name}</strong>:
+                  {t("Personas che condividono memorie con")} <strong className="text-slate-700">{persona.display_name}</strong>:
                 </p>
                 {connections.map((c) => (
                   <div key={c.name} className="bg-white rounded-lg border border-slate-200 p-3 flex items-center justify-between">
@@ -247,7 +243,7 @@ export function BrainPersonaSheet({
                     <div className="text-right">
                       <p className="text-lg font-bold text-orange-600 tabular-nums leading-tight">{c.count}</p>
                       <p className="text-[9px] text-slate-500 uppercase tracking-wider">
-                        {c.count === 1 ? "memoria comune" : "memorie comuni"}
+                        {c.count === 1 ? t("memoria comune") : t("memorie comuni")}
                       </p>
                     </div>
                   </div>

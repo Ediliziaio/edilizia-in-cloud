@@ -1,8 +1,10 @@
 import { usePermissions } from "@/hooks/usePermissions";
 import { useFishAssistanceActivities } from "@/lib/fishAssistanceActivities";
 import { SilvioAssistanceActivitiesView } from "./SilvioAssistanceActivitiesView";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export { SilvioAssistanceActivitiesView } from "./SilvioAssistanceActivitiesView";
 export function SilvioAssistanceActivities() {
+  const t = useT();
   const permissions = usePermissions();
   const { isAdmin } = permissions;
   const allowed = permissions?.canViewTickets === true;
@@ -10,8 +12,7 @@ export function SilvioAssistanceActivities() {
   if (!allowed)
     return (
       <p className="rounded-xl border p-4 text-sm text-muted-foreground">
-        Per vedere le pratiche di assistenza serve il permesso di lettura dei
-        ticket.
+        {t("Per vedere le pratiche di assistenza serve il permesso di lettura dei ticket.")}
       </p>
     );
   return (

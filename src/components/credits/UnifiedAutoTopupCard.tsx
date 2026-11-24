@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Wallet coperti dalla regola unica (render usa pacchetti, escluso). */
 // Dal 07/09/2026 il credito e' UNO SOLO (company_credit_pool): basta una riga
@@ -55,6 +56,7 @@ interface Props {
 }
 
 export function UnifiedAutoTopupCard({ onRecharge }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -101,9 +103,9 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       if (enabled && !hasCard) {
-        throw new MessaggioPerUtente("Aggiungi prima una carta (con una ricarica o l'abbonamento): senza carta l'auto-ricarica non può partire.");
+        throw new MessaggioPerUtente(t("Aggiungi prima una carta (con una ricarica o l'abbonamento): senza carta l'auto-ricarica non può partire."));
       }
       const base = {
         company_id: companyId,
@@ -122,11 +124,11 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Ricarica automatica salvata");
+      toast.success(t("Ricarica automatica salvata"));
       setDirty(false);
       queryClient.invalidateQueries({ queryKey: ["auto-topup-unified", companyId] });
     },
-    onError: (e: Error) => toast.error("Ricarica automatica non salvata", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
+    onError: (e: Error) => toast.error(t("Ricarica automatica non salvata"), { description: motivoDelRifiuto(e, t("Riprova tra poco.")) }),
   });
 
   // Soglia e importo scritti e non salvati non si perdono uscendo dalla pagina senza accorgersene.
@@ -147,14 +149,14 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
             <Zap className={cn("h-5 w-5", enabled ? "text-emerald-600" : "text-muted-foreground")} aria-hidden="true" />
-            Ricarica automatica
+            {t("Ricarica automatica")}
           </h2>
           <div className="flex items-center gap-2">
             <Badge variant={canonical?.enabled ? "default" : "outline"}>
-              {canonical?.enabled ? "Attiva" : "Disattivata"}
+              {canonical?.enabled ? t("Attiva") : t("Disattivata")}
             </Badge>
             <Switch
-              aria-label="Ricarica automatica"
+              aria-label={t("Ricarica automatica")}
               checked={enabled}
               onCheckedChange={(v) => { setEnabled(v); setDirty(true); }}
               disabled={isLoading}
@@ -162,8 +164,7 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Una sola regola per tutti i servizi: Email, AI e WhatsApp. Niente più servizi
-          bloccati per saldo esaurito.
+          {t("Una sola regola per tutti i servizi: Email, AI e WhatsApp. Niente più servizi bloccati per saldo esaurito.")}
         </p>
       </CardHeader>
 
@@ -172,16 +173,13 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
           <>
             {/* Frase naturale */}
             <div className="rounded-lg bg-muted/50 p-3 text-sm">
-              Quando il saldo di un servizio scende sotto{" "}
-              <strong className="text-foreground">{formatEur(thr)}</strong>, ricarico
-              automaticamente <strong className="text-emerald-700">{formatEur(amt)}</strong>{" "}
-              su quel servizio dalla carta salvata.
+              {t("Quando il saldo di un servizio scende sotto {soglia}, ricarico automaticamente {importo} su quel servizio dalla carta salvata.", { soglia: formatEur(thr), importo: formatEur(amt) })}
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Soglia */}
               <div>
-                <Label htmlFor="auto-topup-soglia" className="text-xs">Ricarica quando il saldo è sotto (€)</Label>
+                <Label htmlFor="auto-topup-soglia" className="text-xs">{t("Ricarica quando il saldo è sotto (€)")}</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <Input
                     id="auto-topup-soglia"
@@ -198,7 +196,7 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
                       <button
                         key={p}
                         type="button"
-                        aria-label={`€${p} di soglia`}
+                        aria-label={t("€{p} di soglia", { p: String(p ?? "") })}
                         aria-pressed={thr === p}
                         onClick={() => onField(setThreshold)(String(p))}
                         className={cn(
@@ -217,7 +215,7 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
 
               {/* Importo */}
               <div>
-                <Label htmlFor="auto-topup-importo" className="text-xs">Importo da ricaricare (€)</Label>
+                <Label htmlFor="auto-topup-importo" className="text-xs">{t("Importo da ricaricare (€)")}</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <Input
                     id="auto-topup-importo"
@@ -234,7 +232,7 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
                       <button
                         key={p}
                         type="button"
-                        aria-label={`€${p} da ricaricare`}
+                        aria-label={t("€{p} da ricaricare", { p: String(p ?? "") })}
                         aria-pressed={amt === p}
                         onClick={() => onField(setAmount)(String(p))}
                         className={cn(
@@ -256,12 +254,11 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
             {hasCard ? (
               <div className="flex items-center gap-2 rounded-md bg-emerald-50 p-2 text-xs text-emerald-800">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                <span>Carta collegata — le ricariche partono in automatico.</span>
+                <span>{t("Carta collegata — le ricariche partono in automatico.")}</span>
                 {lastTopup && (
                   <span className="ml-auto flex items-center gap-1 text-emerald-700">
                     <Clock className="h-3 w-3" />
-                    Ultima:{" "}
-                    {new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(lastTopup))}
+                    {t("Ultima: {data}", { data: new Intl.DateTimeFormat(intlCampo(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(lastTopup)) })}
                   </span>
                 )}
               </div>
@@ -270,12 +267,11 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <div className="space-y-1.5">
                   <p>
-                    <strong>Nessuna carta salvata.</strong> Fai una ricarica manuale una
-                    volta: la carta viene memorizzata e riusata per le ricariche automatiche.
+                    <strong>{t("Nessuna carta salvata.")}</strong> {t("Fai una ricarica manuale una volta: la carta viene memorizzata e riusata per le ricariche automatiche.")}
                   </p>
                   {onRecharge && (
                     <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={onRecharge}>
-                      <CreditCard className="h-3 w-3" /> Ricarica e salva carta
+                      <CreditCard className="h-3 w-3" /> {t("Ricarica e salva carta")}
                     </Button>
                   )}
                 </div>
@@ -286,13 +282,13 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
 
         {!enabled && (
           <p className="text-sm text-amber-700">
-            ⚠️ Con l'auto-ricarica spenta i servizi si fermano quando il saldo arriva a zero.
+            {t("⚠️ Con l'auto-ricarica spenta i servizi si fermano quando il saldo arriva a zero.")}
           </p>
         )}
 
         <Button onClick={() => save.mutate()} disabled={save.isPending || !dirty} size="sm">
           {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {dirty ? "Salva per tutti i servizi" : "Configurazione salvata"}
+          {dirty ? t("Salva per tutti i servizi") : t("Configurazione salvata")}
         </Button>
       </CardContent>
     </Card>

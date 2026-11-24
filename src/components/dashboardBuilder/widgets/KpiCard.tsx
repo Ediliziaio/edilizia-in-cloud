@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import type { DashboardWidget, ResolvedWidget } from "@/lib/dashboardBuilder/types";
 import { formatValue } from "../formatValue";
 import { widgetLabel } from "@/lib/dashboardBuilder/widgetLabels";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   widget: DashboardWidget;
@@ -34,6 +35,7 @@ function displayTitle(widget: DashboardWidget): string {
 }
 
 export function KpiCard({ widget, resolved }: Props) {
+  const t = useT();
   const cfg = widget.config ?? {};
   const title = displayTitle(widget);
   const value = resolved?.status === "ok" ? resolved.value ?? null : null;
@@ -57,7 +59,7 @@ export function KpiCard({ widget, resolved }: Props) {
     deltaPct == null ? null : deltaPct > 0.5 ? "up" : deltaPct < -0.5 ? "down" : "flat";
   const DeltaIcon =
     deltaDir === "up" ? ArrowUpRight : deltaDir === "down" ? ArrowDownRight : Minus;
-  const deltaLabel = cfg.compareTo === "prev_year" ? "vs anno" : "vs periodo";
+  const deltaLabel = cfg.compareTo === "prev_year" ? t("vs anno") : t("vs periodo");
 
   return (
     <Card className="h-full flex flex-col shadow-sm overflow-hidden relative">

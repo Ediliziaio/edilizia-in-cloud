@@ -7,6 +7,7 @@ import type { FamilyWithAxes } from "@/types/articleFamily";
 import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { DisegnoSerramentoSvg } from "./DisegnoSerramentoSvg";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ETICHETTA = { interna: "Da dentro", esterna: "Da fuori" } as const;
 const ETICHETTA_PERSIANA = { interna: "Da dentro (si spinge per aprire)", esterna: "Da fuori" } as const;
@@ -17,6 +18,7 @@ const ETICHETTA_PERSIANA = { interna: "Da dentro (si spinge per aprire)", estern
  * didascalie su una riga. Senza, resta com'era per gli altri (editor del listino, preventivatore generico).
  */
 export function AnteprimaDisegnoFamiglia({ disegno, altezza = "h-56", colonna = false, compatto = false }: { disegno: DisegnoFamiglia; altezza?: string; colonna?: boolean; compatto?: boolean }) {
+  const t = useT();
   const griglia = compatto
     ? `grid ${colonna ? "grid-cols-1" : "grid-cols-2"} gap-1 rounded-md border bg-white p-1`
     : colonna ? "grid grid-cols-1 gap-2 rounded-md border bg-white p-2" : "grid grid-cols-2 gap-2 rounded-md border bg-white p-3";
@@ -32,8 +34,8 @@ export function AnteprimaDisegnoFamiglia({ disegno, altezza = "h-56", colonna = 
           <figure key={vista} className={figura}>
             {inRiquadro(<DisegnoSerramentoSvg scena={scena} vista={vista} finituraInterna={disegno.finituraEsterna} finituraEsterna={disegno.finituraEsterna} compatto={compatto} className={classeSvg} />)}
             <figcaption className={compatto ? didascalia : "text-center text-xs text-muted-foreground"}>{vista === "interna" && disegno.apertura
-                ? `Da dentro, apertura a ${disegno.apertura === "dx" ? "destra" : "sinistra"} (si spinge per aprire)`
-                : ETICHETTA_PERSIANA[vista]}</figcaption>
+                ? (disegno.apertura === "dx" ? t("Da dentro, apertura a destra (si spinge per aprire)") : t("Da dentro, apertura a sinistra (si spinge per aprire)"))
+                : t(ETICHETTA_PERSIANA[vista])}</figcaption>
           </figure>
         ))}
       </div>
@@ -55,7 +57,7 @@ export function AnteprimaDisegnoFamiglia({ disegno, altezza = "h-56", colonna = 
             />,
           )}
           <figcaption className={didascalia}>
-            {vista === "interna" && disegno.aperturaNome ? `Da dentro · ${disegno.aperturaNome}` : vista === "interna" && disegno.apertura ? `Da dentro, apertura a ${disegno.apertura === "dx" ? "destra" : "sinistra"}` : ETICHETTA[vista]}
+            {vista === "interna" && disegno.aperturaNome ? t("Da dentro · {apertura}", { apertura: String(disegno.aperturaNome) }) : vista === "interna" && disegno.apertura ? (disegno.apertura === "dx" ? t("Da dentro, apertura a destra") : t("Da dentro, apertura a sinistra")) : t(ETICHETTA[vista])}
           </figcaption>
         </figure>
       ))}
@@ -85,6 +87,7 @@ export function MiniaturaDisegnoFamiglia({ family, className }: { family: Family
  * Aperto o chiuso resta per la prossima volta (solo in questo browser).
  */
 export function DisegnoDellaRiga({ disegno, colonna = false }: { disegno: DisegnoFamiglia; colonna?: boolean }) {
+  const t = useT();
   const [aperto, setAperto] = useState<boolean>(() => {
     try { return localStorage.getItem("sr_disegno_riga_aperto") !== "0"; } catch { return true; }
   });
@@ -103,7 +106,7 @@ export function DisegnoDellaRiga({ disegno, colonna = false }: { disegno: Disegn
         className="mb-1 inline-flex items-center gap-1 rounded-t-md border border-b-0 border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100"
       >
         {aperto ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        Disegno
+        {t("Disegno")}
       </button>
       {aperto && (
         <div className={`${colonna ? "" : "mx-auto max-w-sm "}rounded-md bg-slate-50 p-1 ring-1 ring-slate-200`}>

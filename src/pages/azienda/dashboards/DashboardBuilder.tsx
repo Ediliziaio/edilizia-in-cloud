@@ -68,6 +68,7 @@ import { ConfigPanel } from "@/components/dashboardBuilder/builder/ConfigPanel";
 import { BuilderGrid } from "@/components/dashboardBuilder/builder/BuilderGrid";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─────────────────────────────────────────────────────────────────
 // Helpers
@@ -212,6 +213,7 @@ function BuilderSkeleton() {
 // ─────────────────────────────────────────────────────────────────
 
 export default function DashboardBuilder() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id && id !== "nuova";
   const navigate = useNavigate();
@@ -391,14 +393,14 @@ export default function DashboardBuilder() {
         // In autosave non mostriamo il toast: il badge "Salvato" nell'header
         // è già feedback sufficiente e il toast interrompeva il flusso.
         if (!opts?.silent) {
-          toast({ title: "Dashboard salvata", description: `Versione v${result.version}` });
+          toast({ title: t("Dashboard salvata"), description: t("Versione v{version}", { version: String(result.version ?? "") }) });
         }
         if (!isEdit) {
           navigate(`/azienda/dashboards/${result.dashboard_id}/modifica`, { replace: true });
         }
       } catch (e) {
         toast({
-          title: "Errore nel salvataggio",
+          title: t("Errore nel salvataggio"),
           description: (e as Error).message,
           variant: "destructive",
         });
@@ -503,10 +505,10 @@ export default function DashboardBuilder() {
       <div className="p-6 max-w-3xl mx-auto space-y-3">
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5" />
-          <span>Errore: {(dash.error as Error).message}</span>
+          <span>{t("Errore: {messaggio}", { messaggio: String((dash.error as Error).message ?? "") })}</span>
         </div>
         <Button asChild variant="outline">
-          <Link to="/azienda/dashboards">Torna</Link>
+          <Link to="/azienda/dashboards">{t("Torna")}</Link>
         </Button>
       </div>
     );
@@ -535,7 +537,7 @@ export default function DashboardBuilder() {
         >
           <Link to={isEdit ? `/azienda/dashboards/${id}` : "/azienda/dashboards"}>
             <ArrowLeft className="h-4 w-4" />
-            Esci
+            {t("Esci")}
           </Link>
         </Button>
 
@@ -544,7 +546,7 @@ export default function DashboardBuilder() {
         {/* Dashboard name — inline editable */}
         <div className="flex items-center gap-1.5 min-w-0">
           <Input
-            aria-label="Nome dashboard"
+            aria-label={t("Nome dashboard")}
             disabled={!canSave}
             value={name}
             onChange={(e) => {
@@ -552,17 +554,17 @@ export default function DashboardBuilder() {
               setDirty(true);
             }}
             className="h-8 font-semibold text-sm border-transparent bg-transparent px-1.5 hover:border-border focus-visible:border-border focus-visible:ring-0 max-w-xs min-w-[160px]"
-            placeholder="Nome dashboard"
+            placeholder={t("Nome dashboard")}
           />
           {dirty ? (
             <span
               className="w-2 h-2 rounded-full bg-amber-400 shrink-0 ring-2 ring-amber-400/30"
-              title={isEdit ? "Salvataggio automatico in corso…" : "Modifiche non salvate"}
+              title={isEdit ? t("Salvataggio automatico in corso…") : t("Modifiche non salvate")}
             />
           ) : isEdit ? (
             <span
               className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-500/20"
-              title="Salvato"
+              title={t("Salvato")}
             />
           ) : null}
         </div>
@@ -577,7 +579,7 @@ export default function DashboardBuilder() {
             className="h-8 w-8 p-0"
             onClick={undo}
             disabled={!canUndo}
-            title="Annulla (⌘Z)"
+            title={t("Annulla (⌘Z)")}
           >
             <Undo2 className="h-4 w-4" />
           </Button>
@@ -587,7 +589,7 @@ export default function DashboardBuilder() {
             className="h-8 w-8 p-0"
             onClick={redo}
             disabled={!canRedo}
-            title="Ripristina (⌘⇧Z)"
+            title={t("Ripristina (⌘⇧Z)")}
           >
             <Redo2 className="h-4 w-4" />
           </Button>
@@ -597,7 +599,7 @@ export default function DashboardBuilder() {
             className="h-8 w-8 p-0"
             onClick={duplicateSelected}
             disabled={!selectedId || !canSave}
-            title="Duplica widget (⌘D)"
+            title={t("Duplica widget (⌘D)")}
           >
             <Copy className="h-4 w-4" />
           </Button>
@@ -609,13 +611,13 @@ export default function DashboardBuilder() {
         <div className="flex items-center gap-1.5 shrink-0">
           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
           <Select value={globalPeriod} onValueChange={(v) => setGlobalPeriod(v as PeriodPreset)}>
-            <SelectTrigger aria-label="Periodo della dashboard" className="h-8 text-xs w-[160px] border-dashed">
+            <SelectTrigger aria-label={t("Periodo della dashboard")} className="h-8 text-xs w-[160px] border-dashed">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {PERIOD_OPTS.map((p) => (
                 <SelectItem key={p.value} value={p.value} className="text-xs">
-                  {p.label}
+                  {t(p.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -635,7 +637,7 @@ export default function DashboardBuilder() {
               "h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors",
               previewMode === "desktop" && "bg-background text-foreground shadow-sm",
             )}
-            title="Desktop"
+            title={t("Desktop")}
           >
             <Monitor className="h-3.5 w-3.5" />
           </button>
@@ -647,7 +649,7 @@ export default function DashboardBuilder() {
               "h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors",
               previewMode === "tablet" && "bg-background text-foreground shadow-sm",
             )}
-            title="Tablet"
+            title={t("Tablet")}
           >
             <Tablet className="h-3.5 w-3.5" />
           </button>
@@ -659,7 +661,7 @@ export default function DashboardBuilder() {
               "h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors",
               previewMode === "mobile" && "bg-background text-foreground shadow-sm",
             )}
-            title="Mobile"
+            title={t("Mobile")}
           >
             <Smartphone className="h-3.5 w-3.5" />
           </button>
@@ -672,10 +674,10 @@ export default function DashboardBuilder() {
           onClick={() => setViewerPreview((v) => !v)}
           aria-pressed={viewerPreview}
           className="h-8 gap-1.5 shrink-0"
-          title="Anteprima utente"
+          title={t("Anteprima utente")}
         >
           <Eye className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Anteprima</span>
+          <span className="hidden sm:inline">{t("Anteprima")}</span>
         </Button>
 
         {/* Save */}
@@ -690,7 +692,7 @@ export default function DashboardBuilder() {
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
-          Salva
+          {t("Salva")}
         </Button>
       </header>
 
@@ -722,14 +724,13 @@ export default function DashboardBuilder() {
                     <LayoutGrid className="h-7 w-7 text-primary/60" />
                   </div>
                   <div className="max-w-sm">
-                    <p className="text-sm font-medium text-foreground/70">Canvas vuoto</p>
+                    <p className="text-sm font-medium text-foreground/70">{t("Canvas vuoto")}</p>
                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      Scegli un widget dal pannello degli strumenti. Puoi trascinare, ridimensionare e
-                      configurare ogni elemento — le modifiche si vedono in tempo reale.
+                      {t("Scegli un widget dal pannello degli strumenti. Puoi trascinare, ridimensionare e configurare ogni elemento — le modifiche si vedono in tempo reale.")}
                     </p>
                     <p className="text-[11px] text-muted-foreground/70 mt-3 inline-flex items-center gap-1.5">
                       <Sparkles className="h-3 w-3" />
-                      Scorciatoie: ⌘Z annulla · ⌘D duplica · Canc elimina · ⌘S salva
+                      {t("Scorciatoie: ⌘Z annulla · ⌘D duplica · Canc elimina · ⌘S salva")}
                     </p>
                   </div>
                 </div>
@@ -777,7 +778,7 @@ export default function DashboardBuilder() {
                     >
                       <span className="flex items-center gap-1.5">
                         <Settings2 className="h-3.5 w-3.5" />
-                        Impostazioni dashboard
+                        {t("Impostazioni dashboard")}
                       </span>
                       <ChevronDown
                         className={`h-3.5 w-3.5 transition-transform ${settingsOpen ? "rotate-180" : ""}`}
@@ -787,7 +788,7 @@ export default function DashboardBuilder() {
                   <CollapsibleContent>
                     <div className="p-4 space-y-3 border-b bg-muted/5">
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Visibilità</Label>
+                        <Label className="text-xs font-medium">{t("Visibilità")}</Label>
                         <Select
                           value={scope}
                           onValueChange={(v) => {
@@ -795,46 +796,46 @@ export default function DashboardBuilder() {
                             setDirty(true);
                           }}
                         >
-                          <SelectTrigger aria-label="Visibilità della dashboard" className="h-8 text-sm">
+                          <SelectTrigger aria-label={t("Visibilità della dashboard")} className="h-8 text-sm">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="personal">Personale</SelectItem>
+                            <SelectItem value="personal">{t("Personale")}</SelectItem>
                             <SelectItem value="company">
-                              Condivisa (tutta l'azienda)
+                              {t("Condivisa (tutta l'azienda)")}
                             </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Descrizione</Label>
+                        <Label className="text-xs font-medium">{t("Descrizione")}</Label>
                         <Textarea
-                          aria-label="Descrizione della dashboard"
+                          aria-label={t("Descrizione della dashboard")}
                           value={description}
                           onChange={(e) => {
                             setDescription(e.target.value);
                             setDirty(true);
                           }}
                           rows={2}
-                          placeholder="Descrizione opzionale"
+                          placeholder={t("Descrizione opzionale")}
                           className="text-sm resize-none"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Nota versione</Label>
+                        <Label className="text-xs font-medium">{t("Nota versione")}</Label>
                         <Input
-                          aria-label="Nota versione"
+                          aria-label={t("Nota versione")}
                           value={note}
                           onChange={(e) => setNote(e.target.value)}
-                          placeholder="Opzionale (es. v1.2 — aggiunto KPI vendite)"
+                          placeholder={t("Opzionale (es. v1.2 — aggiunto KPI vendite)")}
                           className="h-8 text-sm"
                         />
                       </div>
                       <div className="text-[11px] text-muted-foreground pt-1 flex items-center justify-between">
-                        <span>Widget: <strong>{widgetsCount}</strong></span>
+                        <span>{t("Widget:")} <strong>{widgetsCount}</strong></span>
                         {live.isFetching && (
                           <span className="inline-flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin" /> aggiornamento…
+                            <Loader2 className="h-3 w-3 animate-spin" /> {t("aggiornamento…")}
                           </span>
                         )}
                       </div>

@@ -4,6 +4,7 @@ import { KPICard, type ColorKey } from "@/components/reporting/shared/KPICard";
 import { variazionePercento, variazionePunti } from "@/lib/reporting/variazioneKpi";
 import type { VendorKPI } from "@/hooks/useVendorReport";
 import { semaforoVenditori, tassoTesto, giorniTesto, type CampoConSoglia } from "@/lib/reporting/venditoriRegole";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORE: Record<"buono" | "medio" | "critico", ColorKey> = { buono: "green", medio: "yellow", critico: "red" };
 
@@ -25,11 +26,12 @@ interface Props {
 }
 
 export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: Props) {
+  const t = useT();
   if (!kpi && !isLoading) {
     return (
       <div className="text-center py-10 max-sm:py-4">
-        <p className="text-muted-foreground">Nessun dato disponibile per il periodo selezionato.</p>
-        <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">Verifica che le Opportunità abbiano l'agente assegnato.</p>
+        <p className="text-muted-foreground">{t("Nessun dato disponibile per il periodo selezionato.")}</p>
+        <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">{t("Verifica che le Opportunità abbiano l'agente assegnato.")}</p>
       </div>
     );
   }
@@ -43,37 +45,37 @@ export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: 
 
   const cards = [
     {
-      title: "Tasso di Chiusura",
+      title: t("Tasso di Chiusura"),
       value: tassoTesto(kpi?.tasso_chiusura),
-      subtitle: `${kpi?.opp_vinte ?? 0} vinte su ${(kpi?.opp_vinte ?? 0) + (kpi?.opp_perse ?? 0)} chiuse (le scartate non contano)`,
+      subtitle: t("{vinte} vinte su {chiuse} chiuse (le scartate non contano)", { vinte: kpi?.opp_vinte ?? 0, chiuse: (kpi?.opp_vinte ?? 0) + (kpi?.opp_perse ?? 0) }),
       icon: Target,
       colorKey: colore("tasso_chiusura", kpi?.tasso_chiusura),
-      benchmark: "25–45% settore edile",
+      benchmark: t("25–45% settore edile"),
       variazione: variazionePunti(kpi?.tasso_chiusura, p?.tasso_chiusura),
     },
     {
-      title: "Show-Up Rate",
+      title: t("Show-Up Rate"),
       value: tassoTesto(kpi?.tasso_show_up),
-      subtitle: `${effettuati} effettuati, ${noShow} no-show su ${fissati} fissati`,
+      subtitle: t("{effettuati} effettuati, {noShow} no-show su {fissati} fissati", { effettuati, noShow, fissati }),
       icon: Users,
       colorKey: colore("tasso_show_up", kpi?.tasso_show_up),
-      benchmark: fissati > 0 ? ">70% ottimo · conta solo gli appuntamenti con un esito" : "Nessun appuntamento nel periodo",
+      benchmark: fissati > 0 ? t(">70% ottimo · conta solo gli appuntamenti con un esito") : t("Nessun appuntamento nel periodo"),
       variazione: variazionePunti(kpi?.tasso_show_up, p?.tasso_show_up),
     },
     {
-      title: "Fatturato Generato",
+      title: t("Fatturato Generato"),
       // 15/11/2026: senza vendite vinte «—», come il tasso di chiusura accanto (0,00 € sembrava un dato).
       value: (kpi?.opp_vinte ?? 0) > 0 ? formatCurrency(kpi?.fatturato_generato ?? 0) : "—",
       // Non è il «Ricavo firmato» di Sales OS, che conta i preventivi firmati.
-      subtitle: `Valore delle opportunità vinte · pipeline aperta oggi ${formatCurrency(kpi?.pipeline_valore ?? 0)}`,
+      subtitle: t("Valore delle opportunità vinte · pipeline aperta oggi {valore}", { valore: formatCurrency(kpi?.pipeline_valore ?? 0) }),
       icon: Euro,
       colorKey: "blue" as ColorKey,
       variazione: variazionePercento(kpi?.fatturato_generato, p?.fatturato_generato),
     },
     {
-      title: "Importo Medio Chiusura",
+      title: t("Importo Medio Chiusura"),
       value: (kpi?.opp_vinte ?? 0) > 0 ? formatCurrency(kpi?.importo_medio_chiusura ?? 0) : "—",
-      subtitle: `Su ${kpi?.opp_vinte ?? 0} opportunità vinte`,
+      subtitle: t("Su {n} opportunità vinte", { n: kpi?.opp_vinte ?? 0 }),
       icon: TrendingUp,
       colorKey: "blue" as ColorKey,
       variazione: (kpi?.opp_vinte ?? 0) > 0 && (p?.opp_vinte ?? 0) > 0
@@ -81,25 +83,25 @@ export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: 
         : null,
     },
     {
-      title: "App → Chiusura",
+      title: t("App → Chiusura"),
       value: tassoTesto(kpi?.tasso_app_to_close),
       subtitle: effettuati > 0
-        ? `Degli appuntamenti effettuati, ${tassoTesto(kpi?.tasso_app_to_close)} ha un'opportunità vinta`
-        : "Nessun appuntamento effettuato",
+        ? t("Degli appuntamenti effettuati, {tasso_app_to_close} ha un'opportunità vinta", { tasso_app_to_close: tassoTesto(kpi?.tasso_app_to_close) })
+        : t("Nessun appuntamento effettuato"),
       icon: Percent,
       colorKey: colore("tasso_app_to_close", kpi?.tasso_app_to_close),
-      benchmark: effettuati > 0 ? ">25% eccellente" : undefined,
+      benchmark: effettuati > 0 ? t(">25% eccellente") : undefined,
       variazione: variazionePunti(kpi?.tasso_app_to_close, p?.tasso_app_to_close),
     },
     {
-      title: "Ciclo Vendita Medio",
+      title: t("Ciclo Vendita Medio"),
       value: giorniTesto(ciclo, vinte > 0),
       subtitle: vinte > 0
-        ? `Min ${giorniTesto(kpi?.min_giorni_chiusura, true)} — Max ${giorniTesto(kpi?.max_giorni_chiusura, true)}, dalla creazione alla vittoria`
-        : "Nessuna vendita nel periodo",
+        ? t("Min {min_giorni_chiusura} — Max {max_giorni_chiusura}, dalla creazione alla vittoria", { min_giorni_chiusura: giorniTesto(kpi?.min_giorni_chiusura, true), max_giorni_chiusura: giorniTesto(kpi?.max_giorni_chiusura, true) })
+        : t("Nessuna vendita nel periodo"),
       icon: Timer,
       colorKey: vinte > 0 ? colore("avg_giorni_chiusura", Math.max(ciclo, 0.1)) : "blue" as ColorKey,
-      benchmark: "<30gg ottimo, <60gg ok",
+      benchmark: t("<30gg ottimo, <60gg ok"),
       variazione: vinte > 0 && (p?.opp_vinte ?? 0) > 0
         ? variazionePercento(ciclo, p?.avg_giorni_chiusura, true)
         : null,
@@ -114,9 +116,7 @@ export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: 
         ))}
       </div>
       {p && etichettaPrecedente && !isLoading && (
-        <p className="text-xs text-muted-foreground max-sm:hidden">
-          Le frecce confrontano con {etichettaPrecedente}.
-        </p>
+        <p className="text-xs text-muted-foreground max-sm:hidden">{t("Le frecce confrontano con {etichettaPrecedente}.", { etichettaPrecedente })}</p>
       )}
     </div>
   );

@@ -36,12 +36,14 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
 }
 
 export function TabPFNDebiti({ anno }: Props) {
+  const t = useT();
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
@@ -57,6 +59,7 @@ export function TabPFNDebiti({ anno }: Props) {
 // ── A. PFN Section ──────────────────────────────────────────────────────────
 
 function PFNSection({ anno }: { anno: number }) {
+  const t = useT();
   const q = usePFN(anno);
   const conti = useContiPFN();
 
@@ -78,53 +81,53 @@ function PFNSection({ anno }: { anno: number }) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Posizione finanziaria netta (PFN)</CardTitle>
+        <CardTitle className="text-base">{t("Posizione finanziaria netta (PFN)")}</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Debiti finanziari meno liquidità, al {dataRif}. Negativa: hai più liquidità che debiti.
-          {q.data.meta?.mutui_di_oggi && " I mutui sono al capitale residuo di oggi."}
+          {t("Debiti finanziari meno liquidità, al {data}. Negativa: hai più liquidità che debiti.", { data: dataRif })}
+          {q.data.meta?.mutui_di_oggi && ` ${t("I mutui sono al capitale residuo di oggi.")}`}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
-            <p className="text-xs text-muted-foreground">PFN al {dataRif}</p>
+            <p className="text-xs text-muted-foreground">{t("PFN al {dataRif}", { dataRif: String(dataRif ?? "") })}</p>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-2xl font-bold tabular-nums">
               {pfn > 0 ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
               {formatCurrency(pfn)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {pfn > 0 ? "Indebitamento netto" : "Cassa netta"}
+              {pfn > 0 ? t("Indebitamento netto") : t("Cassa netta")}
             </p>
           </div>
           <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
-            <p className="text-xs text-muted-foreground">Debiti finanziari</p>
+            <p className="text-xs text-muted-foreground">{t("Debiti finanziari")}</p>
             <p className="mt-1 text-xl font-bold tabular-nums">
               {formatCurrency(indebitamento)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {componenti.mutui_breve != null
-                ? <>Mutui entro 12 mesi {formatCurrency(componenti.mutui_breve)}, oltre {formatCurrency(componenti.mutui_oltre ?? componenti.mutui_mlt - componenti.mutui_breve)}</>
-                : <>Mutui {formatCurrency(componenti.mutui_mlt)}</>}
-              {componenti.banche_negative > 0 && <>, conti in rosso {formatCurrency(componenti.banche_negative)}</>}
+                ? <>{t("Mutui entro 12 mesi {mutui_breve}, oltre {valore}", { mutui_breve: formatCurrency(componenti.mutui_breve), valore: formatCurrency(componenti.mutui_oltre ?? componenti.mutui_mlt - componenti.mutui_breve) })}</>
+                : <>{t("Mutui {mutui_mlt}", { mutui_mlt: formatCurrency(componenti.mutui_mlt) })}</>}
+              {componenti.banche_negative > 0 && <>{t(", conti in rosso {banche_negative}", { banche_negative: formatCurrency(componenti.banche_negative) })}</>}
             </p>
           </div>
           <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
-            <p className="text-xs text-muted-foreground">Liquidità</p>
+            <p className="text-xs text-muted-foreground">{t("Liquidità")}</p>
             <p className="mt-1 text-xl font-bold tabular-nums">
               {formatCurrency(liquidita)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Conti in attivo {formatCurrency(componenti.banche_positive)}
-              {componenti.cassa !== 0 && ` + cassa ${formatCurrency(componenti.cassa)}`}
+              {t("Conti in attivo {importo}", { importo: formatCurrency(componenti.banche_positive) })}
+              {componenti.cassa !== 0 && ` ${t("+ cassa {cassa}", { cassa: formatCurrency(componenti.cassa) })}`}
             </p>
           </div>
           <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
-            <p className="text-xs text-muted-foreground">Copertura dei debiti</p>
+            <p className="text-xs text-muted-foreground">{t("Copertura dei debiti")}</p>
             <p className="mt-1 text-xl font-bold tabular-nums">
               {indebitamento > 0 ? percIt((liquidita / indebitamento) * 100) : "—"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Liquidità ÷ debiti finanziari.
+              {t("Liquidità ÷ debiti finanziari.")}
             </p>
           </div>
         </div>
@@ -132,15 +135,15 @@ function PFNSection({ anno }: { anno: number }) {
         {/* I saldi dei singoli conti sono quelli di oggi: per un anno chiuso non si mostrano. */}
         {anno === annoCorrente && conti.data && conti.data.length > 0 && (
           <details className="rounded-xl border p-3 text-sm">
-            <summary className="cursor-pointer font-medium">Da quali conti viene (saldo contabile e disponibile)</summary>
+            <summary className="cursor-pointer font-medium">{t("Da quali conti viene (saldo contabile e disponibile)")}</summary>
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-sm">
-                <caption className="sr-only">Conti attivi con saldo contabile e disponibile</caption>
+                <caption className="sr-only">{t("Conti attivi con saldo contabile e disponibile")}</caption>
                 <thead className="text-xs text-muted-foreground">
                   <tr>
-                    <th scope="col" className="py-1.5 pr-3 text-left font-medium">Conto</th>
-                    <th scope="col" className="py-1.5 pr-3 text-right font-medium">Saldo contabile (PFN)</th>
-                    <th scope="col" className="py-1.5 text-right font-medium">Disponibile (Previsionale)</th>
+                    <th scope="col" className="py-1.5 pr-3 text-left font-medium">{t("Conto")}</th>
+                    <th scope="col" className="py-1.5 pr-3 text-right font-medium">{t("Saldo contabile (PFN)")}</th>
+                    <th scope="col" className="py-1.5 text-right font-medium">{t("Disponibile (Previsionale)")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -149,12 +152,12 @@ function PFNSection({ anno }: { anno: number }) {
                       <td className="py-1.5 pr-3">{c.nome}</td>
                       <td className={cn("whitespace-nowrap py-1.5 pr-3 text-right tabular-nums", c.saldo < 0 && "font-medium")}>{formatCurrency(c.saldo)}</td>
                       <td className="whitespace-nowrap py-1.5 text-right tabular-nums text-muted-foreground">
-                        {c.disponibile == null ? <span title="La banca non dichiara un disponibile: si usa il saldo">{formatCurrency(c.saldo)}*</span> : formatCurrency(c.disponibile)}
+                        {c.disponibile == null ? <span title={t("La banca non dichiara un disponibile: si usa il saldo")}>{formatCurrency(c.saldo)}*</span> : formatCurrency(c.disponibile)}
                       </td>
                     </tr>
                   ))}
                   <tr className="border-t font-semibold">
-                    <td className="py-1.5 pr-3">Totale</td>
+                    <td className="py-1.5 pr-3">{t("Totale")}</td>
                     <td className="whitespace-nowrap py-1.5 pr-3 text-right tabular-nums">{formatCurrency(saldoContabile)}</td>
                     <td className="whitespace-nowrap py-1.5 text-right tabular-nums">{disponibileTotale == null ? "—" : formatCurrency(disponibileTotale)}</td>
                   </tr>
@@ -162,8 +165,8 @@ function PFNSection({ anno }: { anno: number }) {
               </table>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Saldi da aggiornare? <Link to="/azienda/tesoreria" className="font-medium text-primary underline">Tesoreria</Link>.
-              {conti.data.some((c) => c.disponibile == null) && " * conto senza disponibile: vale il saldo."}
+              {t("Saldi da aggiornare?")} <Link to="/azienda/tesoreria" className="font-medium text-primary underline">{t("Tesoreria")}</Link>.
+              {conti.data.some((c) => c.disponibile == null) && ` ${t("* conto senza disponibile: vale il saldo.")}`}
             </p>
           </details>
         )}
@@ -202,6 +205,7 @@ function messaggioErrore(e: unknown): string {
 }
 
 function LoansSection() {
+  const t = useT();
   const q = useLoans();
   const upsert = useUpsertLoan();
   const del = useDeleteLoan();
@@ -227,17 +231,17 @@ function LoansSection() {
 
   const handleDelete = async (loan: Loan) => {
     const ok = await confirm({
-      title: `Eliminare il finanziamento «${loan.banca}»?`,
-      description: "Esce da PFN, Stato patrimoniale e indici. L'operazione non si annulla.",
-      confirmLabel: "Elimina",
+      title: t("Eliminare il finanziamento «{banca}»?", { banca: String(loan.banca ?? "") }),
+      description: t("Esce da PFN, Stato patrimoniale e indici. L'operazione non si annulla."),
+      confirmLabel: t("Elimina"),
       variant: "destructive",
     });
     if (!ok) return;
     try {
       await del.mutateAsync(loan.id);
-      toast({ title: "Finanziamento eliminato" });
+      toast({ title: t("Finanziamento eliminato") });
     } catch (e) {
-      toast({ title: "Finanziamento non eliminato", description: messaggioErrore(e), variant: "destructive" });
+      toast({ title: t("Finanziamento non eliminato"), description: t(messaggioErrore(e)), variant: "destructive" });
     }
   };
 
@@ -245,12 +249,12 @@ function LoansSection() {
     <Card className="rounded-2xl">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
         <div>
-          <CardTitle className="text-base">Mutui & Finanziamenti MLT</CardTitle>
-          <p className="text-xs text-muted-foreground">Capitale ancora da restituire e rata di ogni finanziamento.</p>
+          <CardTitle className="text-base">{t("Mutui & Finanziamenti MLT")}</CardTitle>
+          <p className="text-xs text-muted-foreground">{t("Capitale ancora da restituire e rata di ogni finanziamento.")}</p>
         </div>
         <Button size="sm" onClick={handleNew} className="shrink-0">
           <Plus className="mr-2 h-4 w-4" />
-          Nuovo finanziamento
+          {t("Nuovo finanziamento")}
         </Button>
       </CardHeader>
       <CardContent>
@@ -258,8 +262,8 @@ function LoansSection() {
         {q.isError && <ErrorBlock onRetry={() => q.refetch()} />}
         {q.data && q.data.length === 0 && (
           <EmptyState
-            title="Nessun finanziamento registrato"
-            description="Aggiungi mutui e finanziamenti a medio-lungo termine: senza, la PFN considera solo i conti correnti."
+            title={t("Nessun finanziamento registrato")}
+            description={t("Aggiungi mutui e finanziamenti a medio-lungo termine: senza, la PFN considera solo i conti correnti.")}
           />
         )}
         {q.data && q.data.length > 0 && (
@@ -267,13 +271,13 @@ function LoansSection() {
             <table className="w-full text-sm">
               <thead className="bg-muted/40">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Banca / descrizione</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Cap. residuo</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Rata</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Tasso</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Rate residue</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Fine</th>
-                  <th className="w-20 px-3 py-2 text-right text-xs font-medium text-muted-foreground">Azioni</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t("Banca / descrizione")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Cap. residuo")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Rata")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Tasso")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Rate residue")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Fine")}</th>
+                  <th className="w-20 px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Azioni")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -315,14 +319,14 @@ function LoansSection() {
                             className="h-7"
                             onClick={() => handleEdit(l)}
                           >
-                            Modifica
+                            {t("Modifica")}
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
                             onClick={() => handleDelete(l)}
-                            aria-label="Elimina finanziamento"
+                            aria-label={t("Elimina finanziamento")}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -346,15 +350,15 @@ function LoansSection() {
         onSubmit={async (input) => {
           const problema = erroreFinanziamento(input);
           if (problema) {
-            toast({ title: "Controlla i dati", description: problema, variant: "destructive" });
+            toast({ title: t("Controlla i dati"), description: problema, variant: "destructive" });
             return;
           }
           try {
             await upsert.mutateAsync(editing ? { ...input, id: editing.id } : input);
-            toast({ title: editing ? "Finanziamento aggiornato" : "Finanziamento aggiunto" });
+            toast({ title: editing ? t("Finanziamento aggiornato") : t("Finanziamento aggiunto") });
             setEditorOpen(false);
           } catch (e) {
-            toast({ title: "Finanziamento non salvato", description: messaggioErrore(e), variant: "destructive" });
+            toast({ title: t("Finanziamento non salvato"), description: t(messaggioErrore(e)), variant: "destructive" });
           }
         }}
       />
@@ -371,6 +375,7 @@ function LoanEditor({
   saving: boolean;
   onSubmit: (input: LoanForm) => Promise<void>;
 }) {
+  const t = useT();
   // Il componente si rimonta a ogni apertura (key nel genitore): lo stato parte sempre giusto.
   const [form, setForm] = useState<LoanForm>(() => {
     if (!loan) return loanVuoto();
@@ -385,28 +390,28 @@ function LoanEditor({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
-          <SheetTitle>{loan ? "Modifica finanziamento" : "Nuovo finanziamento"}</SheetTitle>
+          <SheetTitle>{loan ? t("Modifica finanziamento") : t("Nuovo finanziamento")}</SheetTitle>
         </SheetHeader>
         <div className="mt-4 space-y-3">
           <div>
-            <Label className="text-xs">Banca *</Label>
+            <Label className="text-xs">{t("Banca *")}</Label>
             <Input
               value={form.banca}
               onChange={(e) => handle("banca", e.target.value)}
-              placeholder="es. Banca Intesa"
+              placeholder={t("es. Banca Intesa")}
             />
           </div>
           <div>
-            <Label className="text-xs">Descrizione</Label>
+            <Label className="text-xs">{t("Descrizione")}</Label>
             <Input
               value={form.descrizione ?? ""}
               onChange={(e) => handle("descrizione", e.target.value)}
-              placeholder="es. Mutuo capannone Via Verdi"
+              placeholder={t("es. Mutuo capannone Via Verdi")}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs">Capitale iniziale (€) *</Label>
+              <Label className="text-xs">{t("Capitale iniziale (€) *")}</Label>
               <Input
                 type="number"
                 value={form.capitale_iniziale}
@@ -414,7 +419,7 @@ function LoanEditor({
               />
             </div>
             <div>
-              <Label className="text-xs">Capitale residuo (€) *</Label>
+              <Label className="text-xs">{t("Capitale residuo (€) *")}</Label>
               <Input
                 type="number"
                 value={form.capitale_residuo}
@@ -422,7 +427,7 @@ function LoanEditor({
               />
             </div>
             <div>
-              <Label className="text-xs">Tasso annuo (%)</Label>
+              <Label className="text-xs">{t("Tasso annuo (%)")}</Label>
               <Input
                 type="number"
                 step="0.001"
@@ -431,7 +436,7 @@ function LoanEditor({
               />
             </div>
             <div>
-              <Label className="text-xs">Rata mensile (€) *</Label>
+              <Label className="text-xs">{t("Rata mensile (€) *")}</Label>
               <Input
                 type="number"
                 value={form.rata_mensile}
@@ -439,7 +444,7 @@ function LoanEditor({
               />
             </div>
             <div>
-              <Label className="text-xs">Durata totale (mesi)</Label>
+              <Label className="text-xs">{t("Durata totale (mesi)")}</Label>
               <Input
                 type="number"
                 value={form.durata_mesi}
@@ -447,7 +452,7 @@ function LoanEditor({
               />
             </div>
             <div>
-              <Label className="text-xs">Rate già pagate</Label>
+              <Label className="text-xs">{t("Rate già pagate")}</Label>
               <Input
                 type="number"
                 value={form.rate_pagate}
@@ -455,7 +460,7 @@ function LoanEditor({
               />
             </div>
             <div>
-              <Label className="text-xs">Data inizio</Label>
+              <Label className="text-xs">{t("Data inizio")}</Label>
               <Input
                 type="date"
                 value={form.data_inizio}
@@ -463,7 +468,7 @@ function LoanEditor({
               />
             </div>
             <div>
-              <Label className="text-xs">Data fine</Label>
+              <Label className="text-xs">{t("Data fine")}</Label>
               <Input
                 type="date"
                 value={form.data_fine}
@@ -476,7 +481,7 @@ function LoanEditor({
             disabled={saving}
             onClick={() => onSubmit(form)}
           >
-            {loan ? "Salva le modifiche" : "Aggiungi finanziamento"}
+            {loan ? t("Salva le modifiche") : t("Aggiungi finanziamento")}
           </Button>
         </div>
       </SheetContent>
@@ -505,6 +510,7 @@ const FASCE_COLORS: Record<keyof AgingFasce, string> = {
 };
 
 function AgingSection() {
+  const t = useT();
   const [direction, setDirection] = useState<"out" | "in">("out");
   const q = useAging(direction);
 
@@ -513,12 +519,12 @@ function AgingSection() {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-base">Scadenze aperte per anzianità</CardTitle>
+            <CardTitle className="text-base">{t("Scadenze aperte per anzianità")}</CardTitle>
             <p className="text-xs text-muted-foreground">
               {direction === "out"
-                ? "Pagamenti aperti nello scadenzario, per ritardo."
-                : "Incassi aperti nello scadenzario, per ritardo."}
-              {q.data && ` Totale aperto ${formatCurrency(q.data.totale)} su ${q.data.n_aperte} posizioni.`}
+                ? t("Pagamenti aperti nello scadenzario, per ritardo.")
+                : t("Incassi aperti nello scadenzario, per ritardo.")}
+              {q.data && ` ${t("Totale aperto {totale} su {n_aperte} posizioni.", { totale: formatCurrency(q.data.totale), n_aperte: q.data.n_aperte })}`}
             </p>
           </div>
           <ToggleGroup
@@ -527,10 +533,10 @@ function AgingSection() {
             onValueChange={(v) => v && setDirection(v as "out" | "in")}
           >
             <ToggleGroupItem value="out" variant="outline" size="sm">
-              Debiti
+              {t("Debiti")}
             </ToggleGroupItem>
             <ToggleGroupItem value="in" variant="outline" size="sm">
-              Crediti
+              {t("Crediti")}
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -550,7 +556,7 @@ function AgingSection() {
                     FASCE_COLORS[k],
                   )}
                 >
-                  <p className="text-[10px] uppercase">{FASCE_LABELS[k]}</p>
+                  <p className="text-[10px] uppercase">{t(FASCE_LABELS[k])}</p>
                   <p className="mt-0.5 text-base font-bold tabular-nums">
                     {formatCurrency(q.data.fasce[k] ?? 0)}
                   </p>
@@ -560,25 +566,25 @@ function AgingSection() {
 
             {q.data.totale_scaduto > 0 && (
               <p className="mt-3 text-sm text-muted-foreground">
-                Scaduto: <strong className="tabular-nums text-foreground">{formatCurrency(q.data.totale_scaduto)}</strong> su {q.data.n_scadute} posizioni.
+                {t("Scaduto:")} <strong className="tabular-nums text-foreground">{formatCurrency(q.data.totale_scaduto)}</strong> {t("su {n} posizioni.", { n: q.data.n_scadute })}
               </p>
             )}
 
             {/* Lista righe */}
             {q.data.righe.length === 0 ? (
               <p className="mt-4 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Nessuna scadenza aperta.
+                {t("Nessuna scadenza aperta.")}
               </p>
             ) : (
               <div className="mt-4 overflow-x-auto rounded-xl border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Descrizione</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Controparte</th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Scadenza</th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Residuo</th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Fascia</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t("Descrizione")}</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t("Controparte")}</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Scadenza")}</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Residuo")}</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Fascia")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -586,21 +592,21 @@ function AgingSection() {
                       <tr key={r.id} className="border-t">
                         <td className="px-3 py-2 text-sm">
                           <Link to="/azienda/scadenzario" className="hover:text-primary hover:underline">
-                            {r.descrizione || "Scadenza senza descrizione"}
+                            {r.descrizione || t("Scadenza senza descrizione")}
                           </Link>
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">
                           {r.controparte ?? "—"}
                         </td>
                         <td className="px-3 py-2 text-right text-xs tabular-nums">
-                          {r.due_date ? formatDate(r.due_date) : "Da pianificare"}
+                          {r.due_date ? formatDate(r.due_date) : t("Da pianificare")}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums font-medium">
                           {formatCurrency(r.residuo)}
                         </td>
                         <td className="px-3 py-2 text-right">
                           <Badge variant="outline" className={cn("text-[10px]", FASCE_COLORS[r.fascia])}>
-                            {FASCE_LABELS[r.fascia]}
+                            {t(FASCE_LABELS[r.fascia])}
                           </Badge>
                         </td>
                       </tr>
@@ -608,8 +614,8 @@ function AgingSection() {
                   </tbody>
                 </table>
                 <p className="border-t bg-muted/20 p-2 text-center text-xs text-muted-foreground">
-                  {q.data.righe.length > 50 ? `Le prime 50 di ${q.data.righe.length}, dalla più vecchia. ` : ""}
-                  <Link to="/azienda/scadenzario" className="font-medium text-primary underline">Apri lo scadenzario</Link> per segnarle pagate o cambiarne la data.
+                  {q.data.righe.length > 50 ? `${t("Le prime 50 di {n}, dalla più vecchia.", { n: q.data.righe.length })} ` : ""}
+                  <Link to="/azienda/scadenzario" className="font-medium text-primary underline">{t("Apri lo scadenzario")}</Link> {t("per segnarle pagate o cambiarne la data.")}
                 </p>
               </div>
             )}

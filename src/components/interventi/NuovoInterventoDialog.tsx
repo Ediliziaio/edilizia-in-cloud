@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useTipiImpianto, useTipiIntervento } from "@/lib/manutenzione/tipiManutenzione";
 import { usePrezzoIntervento } from "@/lib/manutenzione/prezzoIntervento";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -57,6 +58,7 @@ export function NuovoInterventoDialog({
   onSuccess,
   noNavigate,
 }: Props) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
 
@@ -167,14 +169,14 @@ export function NuovoInterventoDialog({
       return ticket.id;
     },
     onSuccess: (ticketId) => {
-      toast.success("Intervento creato con successo");
+      toast.success(tr("Intervento creato con successo"));
       onSuccess?.();
       handleClose();
       if (!noNavigate) {
         navigate(`/azienda/assistenza/${ticketId}`);
       }
     },
-    onError: (err: Error) => toast.error(err.message || "Errore nella creazione dell'intervento"),
+    onError: (err: Error) => toast.error(err.message || tr("Errore nella creazione dell'intervento")),
   });
 
   const handleClose = () => {
@@ -202,25 +204,25 @@ export function NuovoInterventoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wrench className="h-5 w-5 text-orange-500 max-sm:hidden" />
-            Nuovo Intervento
+            {tr("Nuovo Intervento")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 max-sm:space-y-3">
           {/* Cliente */}
           <div className="space-y-1.5">
-            <Label>Cliente *</Label>
+            <Label>{tr("Cliente *")}</Label>
             <Select
               value={customerId}
               onValueChange={(v) => { setCustomerId(v); setOrderId(""); setImpiantoId(defaultImpiantoId ?? ""); }}
               disabled={!!defaultCustomerId}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleziona cliente..." />
+                <SelectValue placeholder={tr("Seleziona cliente...")} />
               </SelectTrigger>
               <SelectContent>
                 {defaultCustomerId && !clienti.some((c) => c.id === defaultCustomerId) && (
-                  <SelectItem value={defaultCustomerId}>{defaultCustomerLabel || "Cliente dell'impianto"}</SelectItem>
+                  <SelectItem value={defaultCustomerId}>{defaultCustomerLabel || tr("Cliente dell'impianto")}</SelectItem>
                 )}
                 {clienti.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
@@ -234,11 +236,11 @@ export function NuovoInterventoDialog({
 
           {/* Oggetto */}
           <div className="space-y-1.5">
-            <Label>Oggetto *</Label>
+            <Label>{tr("Oggetto *")}</Label>
             <Input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Descrivi brevemente l'intervento..."
+              placeholder={tr("Descrivi brevemente l'intervento...")}
               disabled={mutation.isPending}
             />
           </div>
@@ -246,28 +248,28 @@ export function NuovoInterventoDialog({
           {/* Tipo + Priorità */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Tipo</Label>
+              <Label>{tr("Tipo")}</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v as "intervento" | "emergenza")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="intervento">Intervento tecnico</SelectItem>
-                  <SelectItem value="emergenza">Emergenza</SelectItem>
+                  <SelectItem value="intervento">{tr("Intervento tecnico")}</SelectItem>
+                  <SelectItem value="emergenza">{tr("Emergenza")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Priorità</Label>
+              <Label>{tr("Priorità")}</Label>
               <Select value={priority} onValueChange={value => { if (value === "bassa" || value === "normale" || value === "alta" || value === "urgente") setPriority(value); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bassa">Bassa</SelectItem>
-                  <SelectItem value="normale">Normale</SelectItem>
-                  <SelectItem value="alta">Alta</SelectItem>
-                  <SelectItem value="urgente">Urgente</SelectItem>
+                  <SelectItem value="bassa">{tr("Bassa")}</SelectItem>
+                  <SelectItem value="normale">{tr("Normale")}</SelectItem>
+                  <SelectItem value="alta">{tr("Alta")}</SelectItem>
+                  <SelectItem value="urgente">{tr("Urgente")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -275,13 +277,13 @@ export function NuovoInterventoDialog({
 
           {/* Tecnico */}
           <div className="space-y-1.5">
-            <Label>Tecnico assegnato</Label>
+            <Label>{tr("Tecnico assegnato")}</Label>
             <Select value={tecnicoId || "none"} onValueChange={(v) => setTecnicoId(v === "none" ? "" : v)}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleziona tecnico..." />
+                <SelectValue placeholder={tr("Seleziona tecnico...")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Nessuno</SelectItem>
+                <SelectItem value="none">{tr("Nessuno")}</SelectItem>
                 {tecnici.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {[t.first_name, t.last_name].filter(Boolean).join(" ")}
@@ -293,12 +295,12 @@ export function NuovoInterventoDialog({
 
           {/* Indirizzo */}
           <div className="space-y-1.5">
-            <Label htmlFor="nuovo-intervento-indirizzo">Indirizzo intervento</Label>
+            <Label htmlFor="nuovo-intervento-indirizzo">{tr("Indirizzo intervento")}</Label>
             <CampoIndirizzo
               id="nuovo-intervento-indirizzo"
               value={indirizzo}
               onChange={setIndirizzo}
-              placeholder="Via, città..."
+              placeholder={tr("Via, città...")}
               disabled={mutation.isPending}
             />
           </div>
@@ -306,7 +308,7 @@ export function NuovoInterventoDialog({
           {/* Data + Durata. Mobile: la durata stimata la mette chi pianifica al computer. */}
           <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
             <div className="space-y-1.5">
-              <Label>Data e ora prevista</Label>
+              <Label>{tr("Data e ora prevista")}</Label>
               <Input
                 type="datetime-local"
                 value={dataOra}
@@ -315,14 +317,14 @@ export function NuovoInterventoDialog({
               />
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Durata stimata (ore)</Label>
+              <Label>{tr("Durata stimata (ore)")}</Label>
               <Input
                 type="number"
                 min="0.5"
                 step="0.5"
                 value={durataOre}
                 onChange={(e) => setDurataOre(e.target.value)}
-                placeholder="Es. 2"
+                placeholder={tr("Es. 2")}
                 disabled={mutation.isPending}
               />
             </div>
@@ -332,17 +334,17 @@ export function NuovoInterventoDialog({
           {customerId && (impianti.length > 0 || defaultImpiantoId) && (
             // Mobile: se si parte dall'impianto, è già il contesto della pagina.
             <div className={`space-y-1.5 ${defaultImpiantoId ? "max-sm:hidden" : ""}`}>
-              <Label>Impianto collegato</Label>
+              <Label>{tr("Impianto collegato")}</Label>
               <Select
                 value={impiantoId || "none"}
                 onValueChange={(v) => setImpiantoId(v === "none" ? "" : v)}
                 disabled={!!defaultImpiantoId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleziona impianto..." />
+                  <SelectValue placeholder={tr("Seleziona impianto...")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nessun impianto</SelectItem>
+                  <SelectItem value="none">{tr("Nessun impianto")}</SelectItem>
                   {impianti.map((im) => (
                     <SelectItem key={im.id} value={im.id}>
                       {im.tipo_impianto?.replace("_", " ")}
@@ -362,13 +364,13 @@ export function NuovoInterventoDialog({
             <div className="space-y-3 rounded-lg border bg-muted/20 p-3 max-sm:hidden">
               <div className="flex items-center gap-2">
                 <Tag className="h-4 w-4 text-teal-600" />
-                <Label className="font-medium">Tariffa di manutenzione (opzionale)</Label>
+                <Label className="font-medium">{tr("Tariffa di manutenzione (opzionale)")}</Label>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Tipo impianto (listino)</Label>
+                  <Label className="text-xs text-muted-foreground">{tr("Tipo impianto (listino)")}</Label>
                   <Select value={tipoImpiantoListinoId || "none"} onValueChange={(v) => setTipoImpiantoListinoId(v === "none" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={tr("Seleziona...")} /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">—</SelectItem>
                       {tipiImpianto.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
@@ -376,9 +378,9 @@ export function NuovoInterventoDialog({
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Tipo intervento (listino)</Label>
+                  <Label className="text-xs text-muted-foreground">{tr("Tipo intervento (listino)")}</Label>
                   <Select value={tipoInterventoListinoId || "none"} onValueChange={(v) => setTipoInterventoListinoId(v === "none" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={tr("Seleziona...")} /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">—</SelectItem>
                       {tipiIntervento.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
@@ -390,13 +392,13 @@ export function NuovoInterventoDialog({
                 <div className="text-sm">
                   {prezzoLoading ? (
                     <span className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calcolo prezzo da listino…
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> {tr("Calcolo prezzo da listino…")}
                     </span>
                   ) : prezzoListino ? (
                     <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                       <div className="flex flex-col">
                         <span className="font-medium">
-                          {prezzoListino.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}
+                          {prezzoListino.prezzo.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" })}
                           {prezzoListino.unita ? <span className="font-normal text-muted-foreground"> / {prezzoListino.unita}</span> : null}
                         </span>
                         {prezzoListino.iva != null && (
@@ -404,12 +406,12 @@ export function NuovoInterventoDialog({
                         )}
                       </div>
                       {prezzoListino.da_override && (
-                        <Badge variant="secondary" className="shrink-0">Prezzo personalizzato cliente</Badge>
+                        <Badge variant="secondary" className="shrink-0">{tr("Prezzo personalizzato cliente")}</Badge>
                       )}
                     </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">
-                      Nessuna tariffa a listino per questa combinazione.
+                      {tr("Nessuna tariffa a listino per questa combinazione.")}
                     </span>
                   )}
                 </div>
@@ -420,13 +422,13 @@ export function NuovoInterventoDialog({
           {/* Ordine */}
           {customerId && ordini.length > 0 && (
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Ordine collegato (opzionale)</Label>
+              <Label>{tr("Ordine collegato (opzionale)")}</Label>
               <Select value={orderId || "none"} onValueChange={(v) => setOrderId(v === "none" ? "" : v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Nessun ordine" />
+                  <SelectValue placeholder={tr("Nessun ordine")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nessun ordine</SelectItem>
+                  <SelectItem value="none">{tr("Nessun ordine")}</SelectItem>
                   {ordini.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.order_code ? `${o.order_code} — ` : ""}
@@ -440,11 +442,11 @@ export function NuovoInterventoDialog({
 
           {/* Note */}
           <div className="space-y-1.5">
-            <Label>Note iniziali (opzionale)</Label>
+            <Label>{tr("Note iniziali (opzionale)")}</Label>
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Descrivi il problema o istruzioni per il tecnico..."
+              placeholder={tr("Descrivi il problema o istruzioni per il tecnico...")}
               rows={3}
               className="max-sm:min-h-[60px]"
               disabled={mutation.isPending}
@@ -454,7 +456,7 @@ export function NuovoInterventoDialog({
 
         <DialogFooter className="flex justify-end gap-3 pt-2 border-t max-sm:border-t-0 max-sm:pt-0">
           <Button variant="outline" className="max-sm:hidden" onClick={handleClose} disabled={mutation.isPending}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button
             onClick={() => mutation.mutate()}
@@ -462,7 +464,7 @@ export function NuovoInterventoDialog({
             className="gap-2"
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Crea Intervento
+            {tr("Crea Intervento")}
           </Button>
         </DialogFooter>
       </DialogContent>

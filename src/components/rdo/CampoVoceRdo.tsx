@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { opzioniUnita, unitaNormalizzata } from "@/lib/orders/rigaAcquisto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Props = {
   campo: "descrizione" | "quantita" | "unita_misura";
@@ -17,10 +18,11 @@ export function CampoVoceRdo(props: Props) {
   return <Cella key={String(props.valore)} {...props} />;
 }
 function Cella({ campo, valore, disabled, onSave }: Props) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const numerico = campo === "quantita";
-  const label = numerico ? "Quantità richiesta" : campo === "descrizione" ? "Descrizione voce richiesta" : "Unità di misura richiesta";
+  const label = numerico ? t("Quantità richiesta") : campo === "descrizione" ? t("Descrizione voce richiesta") : t("Unità di misura richiesta");
 
   // L'unità si sceglie, non si scrive: a mano erano usciti «ml» e «ML» nello
   // stesso archivio, e il fornitore legge due cose diverse (09/11/2026).
@@ -42,7 +44,7 @@ function Cella({ campo, valore, disabled, onSave }: Props) {
         try {
           await onSave(v);
         } catch {
-          toast.error("Voce non salvata. Ho ripristinato il valore precedente: riprova.");
+          toast.error(t("Voce non salvata. Ho ripristinato il valore precedente: riprova."));
         } finally {
           saving.current = false;
           setBusy(false);
@@ -67,7 +69,7 @@ function Cella({ campo, valore, disabled, onSave }: Props) {
       const next = numerico ? Number(raw) : raw;
       if ((numerico && (!raw || !Number.isFinite(next) || Number(next) <= 0)) || (!numerico && !raw)) {
         input.value = String(valore);
-        toast.error(numerico ? "Indica una quantità maggiore di zero." : campo === "descrizione" ? "Inserisci la descrizione dell’articolo." : "Inserisci l’unità di misura.");
+        toast.error(numerico ? t("Indica una quantità maggiore di zero.") : campo === "descrizione" ? t("Inserisci la descrizione dell’articolo.") : t("Inserisci l’unità di misura."));
         return;
       }
       if (String(next) === String(valore)) { input.value = String(valore); return; }
@@ -78,7 +80,7 @@ function Cella({ campo, valore, disabled, onSave }: Props) {
         input.value = String(next);
       } catch {
         input.value = String(valore);
-        toast.error("Voce non salvata. Ho ripristinato il valore precedente: riprova.");
+        toast.error(t("Voce non salvata. Ho ripristinato il valore precedente: riprova."));
       } finally {
         saving.current = false;
         setBusy(false);

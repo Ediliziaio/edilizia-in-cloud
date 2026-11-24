@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, ChevronLeft, ChevronRight, ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { FotoCantiere } from '@/hooks/useFotoCantiere';
 import { formatDateTime } from '@/lib/formatters';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FotoCard } from './FotoCard';
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   foto: FotoCantiere[];
@@ -31,6 +31,7 @@ function FotoInGrande({
   onElimina: (foto: FotoCantiere) => void;
   getSignedUrl: (path: string) => Promise<string | null>;
 }) {
+  const t = useT();
   const corrente = foto[indice];
   const [url, setUrl] = useState<string | null>(null);
   const [carica, setCarica] = useState(true);
@@ -58,23 +59,23 @@ function FotoInGrande({
         }}
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>Foto cantiere</DialogTitle>
-          <DialogDescription>Foto {indice + 1} di {foto.length}. Usa le frecce per scorrere.</DialogDescription>
+          <DialogTitle>{t("Foto cantiere")}</DialogTitle>
+          <DialogDescription>{t("Foto {indice} di {n}. Usa le frecce per scorrere.", { indice: indice + 1, n: foto.length })}</DialogDescription>
         </DialogHeader>
 
         <div className="relative flex min-h-[240px] max-h-[70vh] items-center justify-center bg-black">
           {carica ? (
-            <Loader2 className="h-6 w-6 animate-spin text-white/70" aria-label="Caricamento foto" />
+            <Loader2 className="h-6 w-6 animate-spin text-white/70" aria-label={t("Caricamento foto")} />
           ) : url ? (
-            <img src={url} alt={corrente.descrizione ?? 'Foto cantiere'} className="max-h-[70vh] w-auto max-w-full object-contain" />
+            <img src={url} alt={corrente.descrizione ?? t("Foto cantiere")} className="max-h-[70vh] w-auto max-w-full object-contain" />
           ) : (
-            <p className="text-sm text-white/70">Immagine non disponibile</p>
+            <p className="text-sm text-white/70">{t("Immagine non disponibile")}</p>
           )}
           {prima && (
             <button
               type="button"
               onClick={() => onVai(indice - 1)}
-              aria-label="Foto precedente"
+              aria-label={t("Foto precedente")}
               className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -84,7 +85,7 @@ function FotoInGrande({
             <button
               type="button"
               onClick={() => onVai(indice + 1)}
-              aria-label="Foto successiva"
+              aria-label={t("Foto successiva")}
               className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             >
               <ChevronRight className="h-5 w-5" />
@@ -104,13 +105,13 @@ function FotoInGrande({
                 className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:underline"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                Apri la posizione sulla mappa
+                {t("Apri la posizione sulla mappa")}
                 {corrente.accuracy_meters != null && <span className="font-normal text-muted-foreground">(± {Math.round(corrente.accuracy_meters)} m)</span>}
               </a>
             ) : (
-              <span>Senza posizione GPS</span>
+              <span>{t("Senza posizione GPS")}</span>
             )}
-            <span className="ml-auto tabular-nums">{indice + 1} di {foto.length}</span>
+            <span className="ml-auto tabular-nums">{t("{indice} di {n}", { indice: indice + 1, n: foto.length })}</span>
           </div>
           <div className="flex justify-end">
             <Button
@@ -119,13 +120,13 @@ function FotoInGrande({
               size="sm"
               className="text-red-600 hover:bg-red-50 hover:text-red-700"
               onClick={() => {
-                if (window.confirm('Eliminare questa foto? L\'operazione non è reversibile.')) {
+                if (window.confirm(t("Eliminare questa foto? L'operazione non è reversibile."))) {
                   onElimina(corrente);
                   onChiudi();
                 }
               }}
             >
-              <Trash2 className="mr-1.5 h-4 w-4" />Elimina
+              <Trash2 className="mr-1.5 h-4 w-4" />{t("Elimina")}
             </Button>
           </div>
         </div>
@@ -135,6 +136,7 @@ function FotoInGrande({
 }
 
 export function FotoGrid({ foto, isLoading, onElimina, getSignedUrl }: Props) {
+  const t = useT();
   const [aperta, setAperta] = useState<number | null>(null);
 
   // Dalla più recente. Con poche foto una griglia sola (ogni scheda ha già la
@@ -153,7 +155,7 @@ export function FotoGrid({ foto, isLoading, onElimina, getSignedUrl }: Props) {
       if (!g || g.giorno !== giorno) {
         g = {
           giorno,
-          etichetta: raggruppa ? (valida ? format(d, 'd MMMM yyyy', { locale: it }) : 'Senza data') : null,
+          etichetta: raggruppa ? (valida ? format(d, 'd MMMM yyyy', { locale: dateFnsCampo() }) : t("Senza data")) : null,
           righe: [],
         };
         gruppi.push(g);
@@ -177,8 +179,8 @@ export function FotoGrid({ foto, isLoading, onElimina, getSignedUrl }: Props) {
     return (
       <div className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed py-8 text-center text-slate-500">
         <Camera className="h-6 w-6" aria-hidden="true" />
-        <p className="text-sm font-medium">Nessuna foto caricata</p>
-        <p className="text-xs">Le foto scattate dal campo arrivano qui con data e posizione.</p>
+        <p className="text-sm font-medium">{t("Nessuna foto caricata")}</p>
+        <p className="text-xs">{t("Le foto scattate dal campo arrivano qui con data e posizione.")}</p>
       </div>
     );
   }
@@ -186,11 +188,11 @@ export function FotoGrid({ foto, isLoading, onElimina, getSignedUrl }: Props) {
   return (
     <div className="space-y-4">
       {gruppi.map((g) => (
-        <section key={g.giorno} aria-label={g.etichetta ?? 'Foto del cantiere'} className="space-y-2">
+        <section key={g.giorno} aria-label={g.etichetta ?? t("Foto del cantiere")} className="space-y-2">
           {g.etichetta && (
             <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-600">
               {g.etichetta}
-              <span className="ml-2 font-normal normal-case tracking-normal text-slate-500">{g.righe.length} foto</span>
+              <span className="ml-2 font-normal normal-case tracking-normal text-slate-500">{t("{n} foto", { n: g.righe.length })}</span>
             </h4>
           )}
           <div className={GRIGLIA}>

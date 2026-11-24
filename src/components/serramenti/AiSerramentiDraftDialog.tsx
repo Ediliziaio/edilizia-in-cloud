@@ -24,6 +24,7 @@ import {
 } from "@/lib/serramenti/aiDraft";
 import { formatEuro } from "@/lib/serramenti/format";
 import { serramentiAiIssues, verifiedSerramentiAiItem } from "@/lib/serramenti/aiDraftValidation";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -65,6 +66,7 @@ export function AiSerramentiDraftDialog({
   onApproveItem,
   approving,
 }: Props) {
+  const t = useT();
   const [prompt, setPrompt] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -88,12 +90,12 @@ export function AiSerramentiDraftDialog({
     if (!selected) return;
     const imageFiles = Array.from(selected).filter((file) => file.type.startsWith("image/"));
     if (imageFiles.length !== selected.length) {
-      toast.warning("Ho ignorato i file non immagine");
+      toast.warning(t("Ho ignorato i file non immagine"));
     }
     const accepted = imageFiles.filter((file) => file.size <= MAX_IMAGE_SIZE_BYTES);
     if (accepted.length !== imageFiles.length) {
-      toast.warning("Ho ignorato le immagini sopra 8 MB", {
-        description: "Comprimi la foto o carica uno screenshot piu' leggero.",
+      toast.warning(t("Ho ignorato le immagini sopra 8 MB"), {
+        description: t("Comprimi la foto o carica uno screenshot piu' leggero."),
       });
     }
     setFiles((prev) => [...prev, ...accepted].slice(0, MAX_IMAGES));
@@ -102,7 +104,7 @@ export function AiSerramentiDraftDialog({
   const runDraft = async () => {
     if (loadingRef.current || approvalRef.current) return;
     if (!hasInput) {
-      toast.warning("Inserisci una richiesta o almeno una foto del rilievo");
+      toast.warning(t("Inserisci una richiesta o almeno una foto del rilievo"));
       return;
     }
     if (listening) stopDictation();
@@ -122,18 +124,18 @@ export function AiSerramentiDraftDialog({
         source: images.length > 0 && prompt.trim() ? "mixed" : images.length > 0 ? "foto" : "testo",
       });
       if (run !== generation.current) return;
-      if (new Set(draft.items.map(item => item.id)).size !== draft.items.length) throw new Error('Identità duplicate nella risposta AI: riprova senza inserire righe.');
+      if (new Set(draft.items.map(item => item.id)).size !== draft.items.length) throw new Error(t("Identità duplicate nella risposta AI: riprova senza inserire righe."));
       setResult(draft);
       if (draft.items.length === 0) {
-        toast.warning("L'AI non ha riconosciuto righe utilizzabili", {
-          description: "Aggiungi dettagli o correggi manualmente.",
+        toast.warning(t("L'AI non ha riconosciuto righe utilizzabili"), {
+          description: t("Aggiungi dettagli o correggi manualmente."),
         });
       } else {
-        toast.success(`Bozza pronta: ${draft.items.length} ${draft.items.length === 1 ? "riga" : "righe"} da verificare`);
+        toast.success(t(draft.items.length === 1 ? "Bozza pronta: {n} riga da verificare" : "Bozza pronta: {n} righe da verificare", { n: draft.items.length }));
       }
     } catch (error) {
       if (run !== generation.current) return;
-      toast.error("Bozza AI non disponibile", {
+      toast.error(t("Bozza AI non disponibile"), {
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -144,8 +146,8 @@ export function AiSerramentiDraftDialog({
   const startDictation = () => {
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
-      toast.warning("Dettatura non supportata da questo browser", {
-        description: "Puoi usare la dettatura del sistema operativo o scrivere nel campo testo.",
+      toast.warning(t("Dettatura non supportata da questo browser"), {
+        description: t("Puoi usare la dettatura del sistema operativo o scrivere nel campo testo."),
       });
       return;
     }
@@ -164,7 +166,7 @@ export function AiSerramentiDraftDialog({
         }
       };
       recognition.onerror = () => {
-        toast.error("Non riesco ad ascoltare l'audio");
+        toast.error(t("Non riesco ad ascoltare l'audio"));
         setListening(false);
       };
       recognition.onend = () => setListening(false);
@@ -173,7 +175,7 @@ export function AiSerramentiDraftDialog({
       recognition.start();
     } catch {
       setListening(false);
-      toast.error("Dettatura non avviata");
+      toast.error(t("Dettatura non avviata"));
     }
   };
 
@@ -186,18 +188,18 @@ export function AiSerramentiDraftDialog({
   const insertItem = async (item: SrAiDraftItem) => {
     if (approvedRef.current.has(item.id)) return true;
     if (serramentiAiIssues(item).length > 0) {
-      toast.warning("Completa i campi mancanti prima di approvare questa riga");
+      toast.warning(t("Completa i campi mancanti prima di approvare questa riga"));
       return false;
     }
     try {
       await onApproveItem(verifiedSerramentiAiItem(item));
       approvedRef.current.add(item.id);
       setApprovedIds((prev) => new Set(prev).add(item.id));
-      toast.success("Riga inserita nel preventivo");
+      toast.success(t("Riga inserita nel preventivo"));
       return true;
     } catch (error) {
-      toast.error("Non sono riuscito a inserire la riga", {
-        description: error instanceof Error ? error.message : "Riprova tra qualche secondo.",
+      toast.error(t("Non sono riuscito a inserire la riga"), {
+        description: error instanceof Error ? error.message : t("Riprova tra qualche secondo."),
       });
       return false;
     }
@@ -244,11 +246,11 @@ export function AiSerramentiDraftDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-orange-500" />
-            Crea bozza serramenti con AI
+            {t("Crea bozza serramenti con AI")}
           </DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            L'AI prepara righe da controllare. Nulla viene salvato nel preventivo finché non approvi.
-            {cliente ? ` Cliente: ${cliente}.` : ""}
+            {t("L'AI prepara righe da controllare. Nulla viene salvato nel preventivo finché non approvi.")}
+            {cliente ? ` ${t("Cliente: {cliente}.", { cliente: String(cliente) })}` : ""}
           </DialogDescription>
         </DialogHeader>
 
@@ -257,13 +259,13 @@ export function AiSerramentiDraftDialog({
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
             <div className="space-y-2">
-              <Label className="max-sm:hidden">Richiesta testo o audio</Label>
+              <Label className="max-sm:hidden">{t("Richiesta testo o audio")}</Label>
               <Textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 rows={7}
                 className="max-sm:h-28 max-sm:min-h-0 max-sm:placeholder:text-[13px]"
-                placeholder="Esempio: prepara offerta per 3 finestre PVC bianco 1200x1400, 1 porta finestra 900x2200, doppio vetro, posa inclusa, zanzariere su tutte..."
+                placeholder={t("Esempio: prepara offerta per 3 finestre PVC bianco 1200x1400, 1 porta finestra 900x2200, doppio vetro, posa inclusa, zanzariere su tutte...")}
               />
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -273,7 +275,7 @@ export function AiSerramentiDraftDialog({
                   onClick={listening ? stopDictation : startDictation}
                 >
                   <Mic className="mr-1.5 h-4 w-4" />
-                  {listening ? "Ferma dettatura" : "Detta richiesta"}
+                  {listening ? t("Ferma dettatura") : t("Detta richiesta")}
                 </Button>
                 <Button
                   type="button"
@@ -289,7 +291,7 @@ export function AiSerramentiDraftDialog({
                   }}
                   disabled={loading || inserting || approving}
                 >
-                  Pulisci
+                  {t("Pulisci")}
                 </Button>
               </div>
             </div>
@@ -297,7 +299,7 @@ export function AiSerramentiDraftDialog({
             <div className="rounded-md border border-dashed border-orange-200 bg-orange-50/30 p-3 max-sm:order-first max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
               <Label className="mb-2 flex items-center gap-2 max-sm:hidden">
                 <ImagePlus className="h-4 w-4 text-orange-500" />
-                Foto rilievo, appunti o vecchi infissi
+                {t("Foto rilievo, appunti o vecchi infissi")}
               </Label>
               <input
                 type="file"
@@ -308,7 +310,7 @@ export function AiSerramentiDraftDialog({
               />
               <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-orange-200 bg-orange-50/40 text-orange-700 sm:hidden">
                 <Camera className="h-6 w-6" />
-                <span className="text-[13px] font-medium">Scatta o scegli le foto del rilievo</span>
+                <span className="text-[13px] font-medium">{t("Scatta o scegli le foto del rilievo")}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -324,7 +326,7 @@ export function AiSerramentiDraftDialog({
                       {file.name}
                       <button
                         type="button"
-                        aria-label={`Rimuovi ${file.name}`}
+                        aria-label={t("Rimuovi {nome}", { nome: String(file.name ?? "") })}
                         onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
                         className="ml-1 rounded-full hover:bg-slate-200"
                       >
@@ -335,23 +337,21 @@ export function AiSerramentiDraftDialog({
                 </div>
               )}
               <p className="mt-2 text-xs text-slate-500 max-sm:hidden">
-                Le foto aiutano a riconoscere tipologia e appunti. Le misure vengono usate solo se sono scritte o chiaramente leggibili.
+                {t("Le foto aiutano a riconoscere tipologia e appunti. Le misure vengono usate solo se sono scritte o chiaramente leggibili.")}
               </p>
             </div>
           </div>
 
           <div className="rounded-md border bg-slate-50 p-3 text-sm max-sm:hidden">
-            <p className="font-semibold text-slate-900">Regole di sicurezza</p>
+            <p className="font-semibold text-slate-900">{t("Regole di sicurezza")}</p>
             <ul className="mt-2 space-y-2 text-xs text-slate-600">
-              <li>Non inventa misure: se mancano, le segnala.</li>
-              <li>Non salva righe senza approvazione.</li>
-              <li>Il prezzo viene proposto solo se trova un listino compatibile.</li>
-              <li>Le righe con campi mancanti restano bloccate finché non sono complete.</li>
+              <li>{t("Non inventa misure: se mancano, le segnala.")}</li>
+              <li>{t("Non salva righe senza approvazione.")}</li>
+              <li>{t("Il prezzo viene proposto solo se trova un listino compatibile.")}</li>
+              <li>{t("Le righe con campi mancanti restano bloccate finché non sono complete.")}</li>
             </ul>
             {result?.model_used && (
-              <p className="mt-4 text-[11px] text-slate-500">
-                Modello usato: {result.model_used}
-              </p>
+              <p className="mt-4 text-[11px] text-slate-500">{t("Modello usato: {model_used}", { model_used: String(result.model_used ?? "") })}</p>
             )}
           </div>
         </div>
@@ -360,19 +360,19 @@ export function AiSerramentiDraftDialog({
           <div className="space-y-3 border-t pt-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold">Bozza da verificare</p>
+                <p className="text-sm font-semibold">{t("Bozza da verificare")}</p>
                 {result.summary && <p className="text-xs text-slate-500">{result.summary}</p>}
               </div>
               {validItems.length > 1 && (
                 <Button size="sm" onClick={approveAll} disabled={loading || inserting || approving || validItems.every((i) => approvedIds.has(i.id))}>
-                  Approva tutte le righe complete
+                  {t("Approva tutte le righe complete")}
                 </Button>
               )}
             </div>
 
             {(result.warnings.length > 0 || result.questions.length > 0) && (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                <p className="font-semibold">Da verificare</p>
+                <p className="font-semibold">{t("Da verificare")}</p>
                 <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
                   {[...result.warnings, ...result.questions].map((warning, index) => (
                     <li key={`${warning}-${index}`}>{warning}</li>
@@ -398,7 +398,7 @@ export function AiSerramentiDraftDialog({
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-950">{item.tipologia_label}</p>
                           <p className="text-xs text-slate-500">
-                            {[item.ambiente, item.materiale, item.serie].filter(Boolean).join(" · ") || "Dettagli da confermare"}
+                            {[item.ambiente, item.materiale, item.serie].filter(Boolean).join(" · ") || t("Dettagli da confermare")}
                           </p>
                         </div>
                         <Badge variant="outline" className={confidenceTone}>
@@ -407,23 +407,23 @@ export function AiSerramentiDraftDialog({
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <Info label="Quantità" value={`x${item.quantita}`} />
+                        <Info label={t("Quantità")} value={`x${item.quantita}`} />
                         <Info
-                          label="Misure"
-                          value={item.larghezza_mm && item.altezza_mm ? `${item.larghezza_mm} x ${item.altezza_mm} mm` : "mancanti"}
+                          label={t("Misure")}
+                          value={item.larghezza_mm && item.altezza_mm ? `${item.larghezza_mm} x ${item.altezza_mm} mm` : t("mancanti")}
                         />
-                        <Info label="Listino" value={item.family_nome ?? "da confermare"} />
+                        <Info label={t("Listino")} value={item.family_nome ?? t("da confermare")} />
                         <Info
-                          label="Prezzo"
-                          value={isComplete ? formatEuro(verifiedSerramentiAiItem(item).prezzo_totale!) : "da verificare"}
+                          label={t("Prezzo")}
+                          value={isComplete ? formatEuro(verifiedSerramentiAiItem(item).prezzo_totale!) : t("da verificare")}
                         />
                       </div>
 
                       {(issues.length > 0 || item.warnings.length > 0) && (
                         <div className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
-                          <p className="font-semibold">Controllo richiesto</p>
+                          <p className="font-semibold">{t("Controllo richiesto")}</p>
                           <ul className="mt-1 list-disc pl-4">
-                            {[...issues.map((f) => `Da completare: ${f}`), ...item.warnings].map((msg, index) => (
+                            {[...issues.map((f) => t("Da completare: {campo}", { campo: String(f) })), ...item.warnings].map((msg, index) => (
                               <li key={`${item.id}-${index}`}>{msg}</li>
                             ))}
                           </ul>
@@ -443,7 +443,7 @@ export function AiSerramentiDraftDialog({
                         ) : !isComplete ? (
                           <AlertCircle className="mr-1.5 h-4 w-4" />
                         ) : null}
-                        {isApproved ? "Inserita nel preventivo" : isComplete ? "Approva e inserisci" : "Completa prima di inserire"}
+                        {isApproved ? t("Inserita nel preventivo") : isComplete ? t("Approva e inserisci") : t("Completa prima di inserire")}
                       </Button>
                     </CardContent>
                   </Card>
@@ -455,11 +455,11 @@ export function AiSerramentiDraftDialog({
 
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="max-sm:hidden">
-            Chiudi
+            {t("Chiudi")}
           </Button>
           <Button type="button" onClick={() => void runDraft()} disabled={!hasInput || loading || inserting || approving}>
             {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-            Analizza e prepara bozza
+            {t("Analizza e prepara bozza")}
           </Button>
         </DialogFooter>
       </DialogContent>

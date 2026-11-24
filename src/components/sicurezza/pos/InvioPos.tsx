@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { chiamaServerPos } from "@/hooks/usePos";
 import { supabase } from "@/integrations/supabase/client";
 import { oggiRoma } from "../../../../supabase/functions/_shared/posData";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type DestinatarioPos = "cse" | "affidataria";
 
@@ -80,37 +81,38 @@ interface Props {
  * conto dei 15 giorni, con un promemoria nelle attività. Nulla parte senza che l'utente prema «Invia» nel compositore.
  */
 export function InvioPos({ tipo, companyId, orderId, emissioneId, codice, revisione, impresa, cantiere, nomeIniziale, emailIniziale, disabilitato, onInviato }: Props) {
+  const t = useT();
   const { user } = useAuth();
   const [destinatario, setDestinatario] = useState(false);
   const [nome, setNome] = useState(nomeIniziale);
   const [email, setEmail] = useState(emailIniziale);
   const [inCorso, setInCorso] = useState(false);
   const [compositore, setCompositore] = useState<null | { allegato: { name: string; size: number; mime: string; storage_path: string } }>(null);
-  const etichetta = tipo === "cse" ? "Invia al CSE" : "Invia all’impresa affidataria";
-  const motivo = !emissioneId ? "Approva il POS: l’invio parte dal PDF approvato" : disabilitato ? "Salva prima le modifiche" : undefined;
+  const etichetta = tipo === "cse" ? t("Invia al CSE") : t("Invia all’impresa affidataria");
+  const motivo = !emissioneId ? t("Approva il POS: l’invio parte dal PDF approvato") : disabilitato ? t("Salva prima le modifiche") : undefined;
 
   const apri = () => { setNome(nomeIniziale); setEmail(emailIniziale); setDestinatario(true); };
 
   const preparaAllegato = async () => {
     if (!user?.id || !emissioneId) return;
-    if (!EMAIL.test(email.trim())) { toast.error("Scrivi un indirizzo e-mail valido"); return; }
+    if (!EMAIL.test(email.trim())) { toast.error(t("Scrivi un indirizzo e-mail valido")); return; }
     setInCorso(true);
     try {
       const { url } = await chiamaServerPos<{ url: string }>({ azione: "scarica_emissione", company_id: companyId, emissione_id: emissioneId, tipo: "pdf" });
       const risposta = await fetch(url);
-      if (!risposta.ok) throw new Error("Il PDF approvato non è scaricabile in questo momento");
+      if (!risposta.ok) throw new Error(t("Il PDF approvato non è scaricabile in questo momento"));
       const blob = await risposta.blob();
-      if (blob.size === 0 || blob.size > LIMITE_ALLEGATO) throw new Error("Il PDF approvato è troppo grande per l’e-mail: scaricalo e invialo a mano");
+      if (blob.size === 0 || blob.size > LIMITE_ALLEGATO) throw new Error(t("Il PDF approvato è troppo grande per l’e-mail: scaricalo e invialo a mano"));
       const intestazione = new TextDecoder().decode(new Uint8Array(await blob.slice(0, 5).arrayBuffer()));
-      if (intestazione !== "%PDF-") throw new Error("Il file scaricato non è un PDF");
+      if (intestazione !== "%PDF-") throw new Error(t("Il file scaricato non è un PDF"));
       const nomeFile = `POS-${nomeSicuro(codice)}-rev${revisione}.pdf`;
       const percorso = `${user.id}/pos/${crypto.randomUUID()}-${nomeFile}`;
       const { error } = await supabase.storage.from("email-attachments").upload(percorso, blob, { contentType: "application/pdf", upsert: false });
-      if (error) throw new Error("Caricamento del PDF fallito");
+      if (error) throw new Error(t("Caricamento del PDF fallito"));
       setDestinatario(false);
       setCompositore({ allegato: { name: nomeFile, size: blob.size, mime: "application/pdf", storage_path: percorso } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Non riesco a preparare l’e-mail");
+      toast.error(e instanceof Error ? e.message : t("Non riesco a preparare l’e-mail"));
     } finally { setInCorso(false); }
   };
 
@@ -125,7 +127,7 @@ export function InvioPos({ tipo, companyId, orderId, emissioneId, codice, revisi
         notes: `POS ${codice}, revisione ${revisione}, inviato il ${oggi.split("-").reverse().join("/")} a ${nome.trim() || email.trim()}. Registra la ricezione effettiva: da quella data decorrono i ${GIORNI_VERIFICA_POS} giorni per la verifica (art. 101, comma 3, D.Lgs 81/2008).`,
         due_date: piuGiorni(oggi, GIORNI_VERIFICA_POS - GIORNI_ANTICIPO_PROMEMORIA),
       } as never);
-      if (error) toast.warning("Invio registrato, ma il promemoria non è stato creato: segnati tu la scadenza dei 15 giorni");
+      if (error) toast.warning(t("Invio registrato, ma il promemoria non è stato creato: segnati tu la scadenza dei 15 giorni"));
     }
     setCompositore(null);
   };
@@ -140,23 +142,23 @@ export function InvioPos({ tipo, companyId, orderId, emissioneId, codice, revisi
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{etichetta}</DialogTitle>
-            <DialogDescription>Il PDF approvato (revisione {revisione}) parte dalla tua casella e-mail. Nel passo dopo puoi rivedere il testo: l’e-mail parte solo quando premi «Invia».</DialogDescription>
+            <DialogDescription>{t("Il PDF approvato (revisione {revisione}) parte dalla tua casella e-mail. Nel passo dopo puoi rivedere il testo: l’e-mail parte solo quando premi «Invia».", { revisione: String(revisione ?? "") })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor={`invio-pos-nome-${tipo}`} className="text-xs font-medium text-slate-700">Nome del destinatario</Label>
-              <Input id={`invio-pos-nome-${tipo}`} value={nome} onChange={(e) => setNome(e.target.value)} placeholder={tipo === "cse" ? "Coordinatore per l’esecuzione" : "Impresa affidataria"} />
+              <Label htmlFor={`invio-pos-nome-${tipo}`} className="text-xs font-medium text-slate-700">{t("Nome del destinatario")}</Label>
+              <Input id={`invio-pos-nome-${tipo}`} value={nome} onChange={(e) => setNome(e.target.value)} placeholder={tipo === "cse" ? t("Coordinatore per l’esecuzione") : t("Impresa affidataria")} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`invio-pos-email-${tipo}`} className="text-xs font-medium text-slate-700">E-mail del destinatario</Label>
+              <Label htmlFor={`invio-pos-email-${tipo}`} className="text-xs font-medium text-slate-700">{t("E-mail del destinatario")}</Label>
               <Input id={`invio-pos-email-${tipo}`} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@esempio.it" />
-              {tipo === "cse" && !emailIniziale && <p className="text-[11px] text-muted-foreground">Il CSE della commessa non ha un’e-mail registrata: scrivila qui.</p>}
+              {tipo === "cse" && !emailIniziale && <p className="text-[11px] text-muted-foreground">{t("Il CSE della commessa non ha un’e-mail registrata: scrivila qui.")}</p>}
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" disabled={inCorso} onClick={() => setDestinatario(false)}>Annulla</Button>
+            <Button type="button" variant="outline" disabled={inCorso} onClick={() => setDestinatario(false)}>{t("Annulla")}</Button>
             <Button type="button" disabled={inCorso || !EMAIL.test(email.trim())} onClick={() => void preparaAllegato()}>
-              {inCorso ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : null}Prepara l’e-mail
+              {inCorso ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : null}{t("Prepara l’e-mail")}
             </Button>
           </DialogFooter>
         </DialogContent>

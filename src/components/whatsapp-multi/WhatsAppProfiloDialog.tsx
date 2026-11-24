@@ -40,6 +40,7 @@ import {
 } from "@/hooks/whatsapp/useProfiloWhatsApp";
 import { preparaFotoProfilo } from "@/lib/whatsapp/fotoProfiloWhatsApp";
 import type { WANumber } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   number: WANumber;
@@ -92,6 +93,7 @@ function Errore({ testo }: { testo?: string }) {
 }
 
 export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
+  const t = useT();
   const companyId = number.company_id ?? null;
   const lettura = useProfiloWhatsApp(companyId, number.id, open);
   const salva = useSalvaProfiloWhatsApp(companyId, number.id);
@@ -140,13 +142,13 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
     salva.mutate(proposto, {
       onSuccess: () => {
         setBozza(null);
-        toast.success("Profilo aggiornato su WhatsApp", {
-          description: "I clienti lo vedono aggiornato entro pochi minuti.",
+        toast.success(t("Profilo aggiornato su WhatsApp"), {
+          description: t("I clienti lo vedono aggiornato entro pochi minuti."),
         });
       },
       onError: (err) => {
         if (err instanceof ErroreProfiloWhatsApp) setErroriServer(err.errori);
-        toast.error("Profilo non salvato", { description: err.message });
+        toast.error(t("Profilo non salvato"), { description: err.message });
       },
     });
   };
@@ -156,11 +158,11 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
     try {
       const pronta = await preparaFotoProfilo(file);
       foto.mutate(pronta, {
-        onSuccess: () => toast.success("Foto aggiornata su WhatsApp"),
-        onError: (err) => toast.error("Foto non aggiornata", { description: err.message }),
+        onSuccess: () => toast.success(t("Foto aggiornata su WhatsApp")),
+        onError: (err) => toast.error(t("Foto non aggiornata"), { description: err.message }),
       });
     } catch (err) {
-      toast.error("Foto non valida", { description: err instanceof Error ? err.message : String(err) });
+      toast.error(t("Foto non valida"), { description: err instanceof Error ? err.message : String(err) });
     } finally {
       if (inputFoto.current) inputFoto.current.value = "";
     }
@@ -175,15 +177,14 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={cambiaApertura}>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Profilo WhatsApp</DialogTitle>
+          <DialogTitle>{t("Profilo WhatsApp")}</DialogTitle>
           <DialogDescription>
-            Quello che i clienti vedono aprendo la chat con {number.numero || "questo numero"}.
-            Le modifiche vanno direttamente su WhatsApp.
+            {t("Quello che i clienti vedono aprendo la chat con {numero}. Le modifiche vanno direttamente su WhatsApp.", { numero: number.numero || t("questo numero") })}
           </DialogDescription>
         </DialogHeader>
 
         {lettura.isLoading && (
-          <div className="space-y-3" aria-label="Leggo il profilo da WhatsApp">
+          <div className="space-y-3" aria-label={t("Leggo il profilo da WhatsApp")}>
             <Skeleton className="h-16 w-16 rounded-full" />
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-20 w-full" />
@@ -195,9 +196,9 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="space-y-2">
-              <p>Non riesco a leggere il profilo da WhatsApp: {lettura.error?.message}</p>
+              <p>{t("Non riesco a leggere il profilo da WhatsApp: {message}", { message: String(lettura.error?.message ?? "") })}</p>
               <Button variant="outline" size="sm" onClick={() => lettura.refetch()}>
-                <RefreshCw className="mr-1 h-4 w-4" /> Riprova
+                <RefreshCw className="mr-1 h-4 w-4" /> {t("Riprova")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -208,7 +209,7 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
             <div className="flex items-center gap-4">
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border bg-muted">
                 {originale.fotoUrl ? (
-                  <img src={originale.fotoUrl} alt="Foto del profilo WhatsApp" className="h-full w-full object-cover" />
+                  <img src={originale.fotoUrl} alt={t("Foto del profilo WhatsApp")} className="h-full w-full object-cover" />
                 ) : (
                   <Camera className="absolute inset-0 m-auto h-6 w-6 text-muted-foreground" />
                 )}
@@ -226,48 +227,48 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
                   disabled={foto.isPending}
                 >
                   <Camera className="mr-1 h-4 w-4" />
-                  {foto.isPending ? "Carico la foto…" : originale.fotoUrl ? "Cambia foto" : "Aggiungi foto"}
+                  {foto.isPending ? t("Carico la foto…") : originale.fotoUrl ? t("Cambia foto") : t("Aggiungi foto")}
                 </Button>
-                <p className="text-xs text-muted-foreground">JPG o PNG: la ritagliamo quadrata.</p>
+                <p className="text-xs text-muted-foreground">{t("JPG o PNG: la ritagliamo quadrata.")}</p>
                 <input
                   ref={inputFoto}
                   type="file"
                   accept="image/jpeg,image/png"
                   className="hidden"
-                  aria-label="Scegli la foto del profilo"
+                  aria-label={t("Scegli la foto del profilo")}
                   onChange={(e) => scegliFoto(e.target.files?.[0])}
                 />
               </div>
             </div>
 
             <div className="rounded-lg bg-muted/50 p-3 text-sm">
-              <span className="text-muted-foreground">Nome visualizzato: </span>
+              <span className="text-muted-foreground">{t("Nome visualizzato:")} </span>
               <span className="font-medium">{nome?.verificato || number.display_name || "—"}</span>
               {nome?.stato && STATO_NOME[nome.stato] && (
-                <span className="text-muted-foreground"> · {STATO_NOME[nome.stato]}</span>
+                <span className="text-muted-foreground"> · {t(STATO_NOME[nome.stato])}</span>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
-                Il nome si cambia da Meta (WhatsApp Manager), perché passa da una loro revisione.
+                {t("Il nome si cambia da Meta (WhatsApp Manager), perché passa da una loro revisione.")}
               </p>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label htmlFor={idCampo("info")}>Info</Label>
+                <Label htmlFor={idCampo("info")}>{t("Info")}</Label>
                 <Contatore valore={modulo.info} massimo={LIMITI_PROFILO.info} />
               </div>
               <Input
                 id={idCampo("info")}
                 value={modulo.info}
                 onChange={(e) => cambia("info", e.target.value)}
-                placeholder="Es. Impianti fotovoltaici chiavi in mano"
+                placeholder={t("Es. Impianti fotovoltaici chiavi in mano")}
               />
               <Errore testo={errori.info} />
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label htmlFor={idCampo("descrizione")}>Descrizione</Label>
+                <Label htmlFor={idCampo("descrizione")}>{t("Descrizione")}</Label>
                 <Contatore valore={modulo.descrizione} massimo={LIMITI_PROFILO.descrizione} />
               </div>
               <Textarea
@@ -275,21 +276,21 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
                 value={modulo.descrizione}
                 onChange={(e) => cambia("descrizione", e.target.value)}
                 rows={3}
-                placeholder="Chi siete e cosa fate"
+                placeholder={t("Chi siete e cosa fate")}
               />
               <Errore testo={errori.descrizione} />
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label htmlFor={idCampo("indirizzo")}>Indirizzo</Label>
+                <Label htmlFor={idCampo("indirizzo")}>{t("Indirizzo")}</Label>
                 <Contatore valore={modulo.indirizzo} massimo={LIMITI_PROFILO.indirizzo} />
               </div>
               <CampoIndirizzo
                 id={idCampo("indirizzo")}
                 value={modulo.indirizzo}
                 onChange={(v) => cambia("indirizzo", v)}
-                placeholder="Via, numero, città"
+                placeholder={t("Via, numero, città")}
               />
               <Errore testo={errori.indirizzo} />
             </div>
@@ -307,7 +308,7 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor={idCampo("sito1")}>Siti web (al massimo 2)</Label>
+              <Label htmlFor={idCampo("sito1")}>{t("Siti web (al massimo 2)")}</Label>
               <Input
                 id={idCampo("sito1")}
                 value={modulo.sito1}
@@ -315,24 +316,24 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
                 placeholder="www.azienda.it"
               />
               <Input
-                aria-label="Secondo sito web"
+                aria-label={t("Secondo sito web")}
                 value={modulo.sito2}
                 onChange={(e) => cambia("sito2", e.target.value)}
-                placeholder="Secondo sito (facoltativo)"
+                placeholder={t("Secondo sito (facoltativo)")}
               />
               <Errore testo={errori.siti} />
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor={idCampo("categoria")}>Categoria</Label>
+              <Label htmlFor={idCampo("categoria")}>{t("Categoria")}</Label>
               <Select value={modulo.categoria || undefined} onValueChange={(v) => cambia("categoria", v)}>
                 <SelectTrigger id={idCampo("categoria")}>
-                  <SelectValue placeholder="Scegli la categoria" />
+                  <SelectValue placeholder={t("Scegli la categoria")} />
                 </SelectTrigger>
                 <SelectContent>
                   {categorie.map((c) => (
                     <SelectItem key={c.valore} value={c.valore}>
-                      {c.etichetta}
+                      {t(c.etichetta)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -344,11 +345,11 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
           <Button variant="outline" onClick={() => cambiaApertura(false)}>
-            Chiudi
+            {t("Chiudi")}
           </Button>
           <Button onClick={salvaProfilo} disabled={!puoSalvare}>
             {salva.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salva su WhatsApp
+            {t("Salva su WhatsApp")}
           </Button>
         </DialogFooter>
       </DialogContent>

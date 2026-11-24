@@ -12,6 +12,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type DbError = { message?: string } | null;
 type DbQuery = {
@@ -49,6 +50,7 @@ const compact = (values: Array<string | null | undefined>) =>
   values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
 
 export default function RenderPergoleGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const db = supabase as unknown as DynamicSupabase;
@@ -85,7 +87,7 @@ export default function RenderPergoleGallery() {
     ]);
     return {
       id: item.id,
-      title: item.config?.struttura?.tipo ? `Pergola ${item.config.struttura.tipo.replace(/_/g, " ")}` : "Render pergola",
+      title: item.config?.struttura?.tipo ? t("Pergola {tipo}", { tipo: item.config.struttura.tipo.replace(/_/g, " ") }) : t("Render pergola"),
       date: item.created_at,
       detailPath: `/azienda/render/pergole/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -106,14 +108,14 @@ export default function RenderPergoleGallery() {
       opportunityId: item.opportunity_id,
       opportunityName: item.meta.opportunityName,
     };
-  }), [sessions]);
+  }), [sessions, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Pergole"
-      badgeLabel="Galleria pergole"
-      title="Render pergole salvati, organizzati per sistema e CRM."
-      description="Vedi subito tipologia, copertura, chiusure, autore e collegamenti commerciali di ogni proposta outdoor."
+      moduleName={t("Pergole")}
+      badgeLabel={t("Galleria pergole")}
+      title={t("Render pergole salvati, organizzati per sistema e CRM.")}
+      description={t("Vedi subito tipologia, copertura, chiusure, autore e collegamenti commerciali di ogni proposta outdoor.")}
       backPath="/azienda/render/pergole"
       newPath="/azienda/render/pergole/new"
       items={items}
@@ -121,9 +123,9 @@ export default function RenderPergoleGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render pergola completati appariranno qui."
-      searchPlaceholder="Cerca pergola, copertura, zona, autore..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render pergola completati appariranno qui.")}
+      searchPlaceholder={t("Cerca pergola, copertura, zona, autore...")}
       emptyIcon={Sun}
       accentClassName="text-emerald-600"
     />

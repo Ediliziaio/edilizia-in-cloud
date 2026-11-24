@@ -37,6 +37,7 @@ import {
   SCALE_STANDARD, numeraLocali, pianificaPdf, vistaDaPlanimetria, type DatiCartiglio, type FormatoFoglio, type ModoVista, type Orientamento,
 } from "@/lib/planimetrie/esporta";
 import type { Planimetria, StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** I disegni della tavola completa: i quattro prospetti e una sezione a metà, sulla parte lunga. */
 export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?: Tetto | null, piani?: PianoProspetto[]): Disegno2D[] {
@@ -98,18 +99,19 @@ interface FascicoloPronto {
 }
 
 function AnteprimaFascicolo({ fascicolo, onSfoglia, bottone }: { fascicolo: FascicoloPronto; onSfoglia: () => void; bottone: Ref<HTMLButtonElement> }) {
+  const t = useT();
   return <div className="overflow-hidden rounded-xl border bg-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">
     <div className="flex items-start gap-2.5 border-b bg-emerald-50/80 px-3 py-3 text-emerald-900 dark:bg-emerald-950/35 dark:text-emerald-100">
       <Check aria-hidden className="mt-0.5 size-4 shrink-0"/>
       <div role="status">
-        <p className="text-sm font-semibold">Fascicolo pronto</p>
-        <p className="text-xs">{fascicolo.pagine} {fascicolo.pagine === 1 ? "pagina" : "pagine"} · {fascicolo.immaginiRender} render · {(fascicolo.file.size / 1_000_000).toLocaleString("it-IT",{maximumFractionDigits:2})} MB</p>
+        <p className="text-sm font-semibold">{t("Fascicolo pronto")}</p>
+        <p className="text-xs">{t(fascicolo.pagine === 1 ? "{n} pagina" : "{n} pagine", { n: fascicolo.pagine })} · {t("{n} render", { n: fascicolo.immaginiRender })} · {(fascicolo.file.size / 1_000_000).toLocaleString(intlCampo(),{maximumFractionDigits:2})} MB</p>
       </div>
     </div>
     <PaginaPdfProgetto file={fascicolo.file} pagina={1} copertina/>
     <div className="space-y-2 border-t p-3">
-      {fascicolo.avvisi > 0 && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">Gli allegati da recuperare sono indicati nel PDF.</p>}
-      <Button ref={bottone} type="button" size="sm" variant="outline" className="w-full gap-1.5" onClick={onSfoglia}><BookOpen className="size-4"/>Sfoglia il PDF</Button>
+      {fascicolo.avvisi > 0 && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">{t("Gli allegati da recuperare sono indicati nel PDF.")}</p>}
+      <Button ref={bottone} type="button" size="sm" variant="outline" className="w-full gap-1.5" onClick={onSfoglia}><BookOpen className="size-4"/>{t("Sfoglia il PDF")}</Button>
     </div>
   </div>;
 }
@@ -134,6 +136,7 @@ export function EsportaPiantaDialog({
   formatoIniziale?: Formato;
   modifiche3DNonSalvate?: boolean;
 }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const permessi = usePermissions();
   const { branding } = useBranding();
@@ -263,7 +266,7 @@ export function EsportaPiantaDialog({
   const preparaFascicolo = async (cartiglio: DatiCartiglio) => {
     const { renderPerFascicolo, sorgentePerFascicolo, campioniPersonaliPerFascicolo, documentoOriginalePerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
     const { esportaFascicolo } = await import("@/lib/planimetrie/fascicoloPdf");
-    setFaseFascicolo("Leggo i render del progetto");
+    setFaseFascicolo(tr("Leggo i render del progetto"));
     const proposta = propostaId ?? documento.livelli.flatMap((l) => l.proposte)[0]?.id;
     const ambito = modo !== "fatto" && proposta ? `progetto:${proposta}` : "fatto";
     const [renders, renderVisita] = await Promise.allSettled([
@@ -334,28 +337,28 @@ export function EsportaPiantaDialog({
 
   /** La pianta in A4 come scheda del preventivo: si accoda al PDF che parte al cliente. */
   const allega = async () => {
-    if (!controlloPrimaDellUso(documento, "pdf").ok) { toast.error("Verifica il documento prima di allegare il PDF."); return; }
+    if (!controlloPrimaDellUso(documento, "pdf").ok) { toast.error(tr("Verifica il documento prima di allegare il PDF.")); return; }
     if (!vista || !planimetriaId || !preventivoId || !effectiveCompany?.id) return;
     setAllegando(true);
     try {
       const cartiglio = await cartiglioPerOra();
-      if (!cartiglio) throw new Error("La pianta non ha niente da disegnare.");
+      if (!cartiglio) throw new Error(tr("La pianta non ha niente da disegnare."));
       const a = formato === "fascicolo" ? await preparaFascicolo(cartiglio) : tavoleComparabili ? await preparaPdf(cartiglio) : await allegatoPreventivo(vista, cartiglio, { stile });
       const percorso = `${effectiveCompany.id}/planimetrie/${planimetriaId}-v${versione}-${Date.now()}.pdf`;
       const corpo = new Uint8Array(a.dati).buffer as ArrayBuffer;
       const { error: errFile } = await supabase.storage.from("quote-materials").upload(percorso, new Blob([corpo], { type: "application/pdf" }), { contentType: "application/pdf" });
-      if (errFile) throw new Error("Il file della pianta non si è caricato: controlla di poter modificare i preventivi.");
+      if (errFile) throw new Error(tr("Il file della pianta non si è caricato: controlla di poter modificare i preventivi."));
       const { data: utente } = await supabase.auth.getUser();
       const { data: scheda, error: errScheda } = await supabase.from("quote_pdf_materials")
         .insert({ company_id: effectiveCompany.id, created_by: utente.user!.id, name: `${formato === "fascicolo" ? "Fascicolo completo" : "Pianta"} — ${titolo} (v${versione})`, storage_path: percorso, category: "planimetria", file_size_bytes: a.dati.byteLength })
         .select("id").single();
-      if (errScheda || !scheda) throw new Error("La scheda della pianta non si è creata.");
+      if (errScheda || !scheda) throw new Error(tr("La scheda della pianta non si è creata."));
       const nonAllegate = await allegaSchedeTecniche(preventivoId, [{ material_id: scheda.id, sort_order: 0, nome: titolo }]);
-      if (nonAllegate.length) throw new Error("La pianta non si è allegata al preventivo.");
+      if (nonAllegate.length) throw new Error(tr("La pianta non si è allegata al preventivo."));
       const q = preventivi.data?.find((x) => x.id === preventivoId);
-      toast.success(formato === "fascicolo" ? "Fascicolo completo allegato al preventivo" : "Pianta allegata al preventivo", { description: `${q?.quote_number ?? ""} — esce in fondo al PDF del preventivo (se «schede tecniche» è acceso).` });
+      toast.success(formato === "fascicolo" ? tr("Fascicolo completo allegato al preventivo") : tr("Pianta allegata al preventivo"), { description: tr("{numero} — esce in fondo al PDF del preventivo (se «schede tecniche» è acceso).", { numero: q?.quote_number ?? "" }) });
     } catch (e) {
-      toast.error("Allegato non riuscito", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Allegato non riuscito"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setAllegando(false);
       setFaseFascicolo("");
@@ -363,8 +366,8 @@ export function EsportaPiantaDialog({
   };
 
   const esporta = async () => {
-    if (!controlloPrimaDellUso(documento, "pdf").ok) { toast.error("Verifica il documento prima di esportare la pianta."); return; }
-    if (!vista) { toast.error("La pianta non ha niente da disegnare in questo stato."); return; }
+    if (!controlloPrimaDellUso(documento, "pdf").ok) { toast.error(tr("Verifica il documento prima di esportare la pianta.")); return; }
+    if (!vista) { toast.error(tr("La pianta non ha niente da disegnare in questo stato.")); return; }
     if (pronto) { scarica(pronto.nome, pronto.file, "application/pdf"); return; }
     setErroreEsportazione("");
     setInCorso(true);
@@ -388,22 +391,22 @@ export function EsportaPiantaDialog({
         const nome = tavoleComparabili ? `${nomePdf}-${foglio}`
           : conProspetti ? `${nomePdf}-tavola-${foglio}` : `${nomePdf}${piuPiani && tuttiIPiani ? "-tutti-i-piani" : ""}-${foglio}-1-${r.scala}`;
         scarica(`${nome}.pdf`,r.dati,"application/pdf");
-        toast.success(r.fogli>1 ? `PDF pronto · ${r.fogli} fogli` : `PDF pronto in scala 1:${r.scala}`);
+        toast.success(r.fogli>1 ? tr("PDF pronto · {n} fogli", { n: r.fogli }) : tr("PDF pronto in scala 1:{scala}", { scala: String(r.scala ?? "") }));
       } else if (formato === "dxf") {
         const r = await esportaDxfMigliore(vista, { unita: "cm", scala: 50, stile });
         scarica(`${base}.dxf`, r.dati, "application/dxf");
-        toast.success("DXF pronto", { description: "Unità: centimetri. Layer MURI, DEMOLIZIONI, NUOVO, APERTURE, QUOTE, TESTI, ARREDI, LOCALI." });
+        toast.success(tr("DXF pronto"), { description: tr("Unità: centimetri. Layer MURI, DEMOLIZIONI, NUOVO, APERTURE, QUOTE, TESTI, ARREDI, LOCALI.") });
       } else if (formato === "svg") {
         const r = esportaSvg(vista, { scala: 50, stile, sfondo: "bianco" });
         scarica(`${base}.svg`, r.svg, "image/svg+xml");
-        toast.success("SVG pronto in scala 1:50");
+        toast.success(tr("SVG pronto in scala 1:50"));
       } else {
         const r = await esportaPng(vista, { scala: 50, stile, sfondo: "bianco", dpi: 200 });
         scarica(`${base}.png`, r.blob, "image/png");
-        toast.success("Immagine pronta");
+        toast.success(tr("Immagine pronta"));
       }
     } catch (e) {
-      const messaggio = e instanceof ErroreImpaginazione || e instanceof Error ? e.message : "Esportazione non riuscita.";
+      const messaggio = e instanceof ErroreImpaginazione || e instanceof Error ? e.message : tr("Esportazione non riuscita.");
       setErroreEsportazione(messaggio);
     } finally {
       setInCorso(false);
@@ -416,19 +419,17 @@ export function EsportaPiantaDialog({
       <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
         onEscapeKeyDown={e => { if (sfogliando) { e.preventDefault(); tornaAlleOpzioni(); } }}>
         <DialogHeader className="shrink-0 border-b px-4 py-4 pr-12 text-left sm:px-6">
-          <DialogTitle>Esporta il progetto</DialogTitle>
-          <DialogDescription>Un fascicolo completo con disegni, informazioni e immagini, oppure una singola tavola in scala.</DialogDescription>
+          <DialogTitle>{tr("Esporta il progetto")}</DialogTitle>
+          <DialogDescription>{tr("Un fascicolo completo con disegni, informazioni e immagini, oppure una singola tavola in scala.")}</DialogDescription>
         </DialogHeader>
         <div key={sfogliando ? "fascicolo" : "opzioni"} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
         {sfogliando ? <SfogliaPdfProgetto file={pronto.file} pagine={pronto.pagine} torna={tornaAlleOpzioni}/> : <>
-        {modifiche3DNonSalvate && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/35 dark:text-amber-100">
-          Il PDF usa la versione {versione} salvata. Per includere le modifiche 3D in corso, salvale dal visore.
-        </p>}
+        {modifiche3DNonSalvate && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/35 dark:text-amber-100">{tr("Il PDF usa la versione {versione} salvata. Per includere le modifiche 3D in corso, salvale dal visore.", { versione: String(versione ?? "") })}</p>}
 
         <fieldset disabled={inCorso || allegando} className="grid gap-5 md:grid-cols-[1fr_1.1fr]">
           <div className="space-y-4">
             <div className="space-y-2">
-            <ToggleGroup type="single" value={formato} aria-label="Formato" aria-describedby={notaFormatoId} className="grid grid-cols-2 gap-1.5"
+            <ToggleGroup type="single" value={formato} aria-label={tr("Formato")} aria-describedby={notaFormatoId} className="grid grid-cols-2 gap-1.5"
               onValueChange={v => {
                 if (!v) return;
                 setFormato(v as Formato); setErroreEsportazione("");
@@ -438,77 +439,77 @@ export function EsportaPiantaDialog({
                 <ToggleGroupItem key={f.id} value={f.id} className="h-auto min-h-10 justify-start gap-1.5 rounded-lg border px-2.5 py-2 text-left text-xs leading-snug
                   data-[state=on]:border-primary/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary motion-safe:active:scale-[.98]">
                   <f.icona className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                  <span>{f.nome}</span>
+                  <span>{tr(f.nome)}</span>
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-            <p id={notaFormatoId} className="min-h-8 text-xs leading-snug text-muted-foreground">{formatoCorrente.nota}</p>
+            <p id={notaFormatoId} className="min-h-8 text-xs leading-snug text-muted-foreground">{tr(formatoCorrente.nota)}</p>
             </div>
 
             {haProgetto && !tavoleComparabili && (
               <div className="space-y-1.5">
-                <Label className="text-xs">Cosa disegnare</Label>
+                <Label className="text-xs">{tr("Cosa disegnare")}</Label>
                 <ToggleGroup type="single" value={modo} onValueChange={(v) => v && setModo(v as ModoVista)} variant="outline" size="sm" className="justify-start">
-                  <ToggleGroupItem value="fatto">Com'è oggi</ToggleGroupItem>
-                  <ToggleGroupItem value="progetto">Progetto</ToggleGroupItem>
-                  {formato !== "fascicolo" && <ToggleGroupItem value="confronto">Confronto</ToggleGroupItem>}
+                  <ToggleGroupItem value="fatto">{tr("Com'è oggi")}</ToggleGroupItem>
+                  <ToggleGroupItem value="progetto">{tr("Progetto")}</ToggleGroupItem>
+                  {formato !== "fascicolo" && <ToggleGroupItem value="confronto">{tr("Confronto")}</ToggleGroupItem>}
                 </ToggleGroup>
-                {modo === "confronto" && <p className="text-[11px] text-muted-foreground">Giallo = da demolire, rosso = nuovo.</p>}
+                {modo === "confronto" && <p className="text-[11px] text-muted-foreground">{tr("Giallo = da demolire, rosso = nuovo.")}</p>}
               </div>
             )}
 
             {formato !== "fascicolo" && !tavoleComparabili && <div className="space-y-1.5">
-              <Label className="text-xs">Stile</Label>
+              <Label className="text-xs">{tr("Stile")}</Label>
               <ToggleGroup type="single" value={stile} onValueChange={(v) => v && setStile(v as Stile)} variant="outline" size="sm" className="justify-start">
-                <ToggleGroupItem value="tecnico">Tecnico</ToggleGroupItem>
-                <ToggleGroupItem value="presentazione">Presentazione</ToggleGroupItem>
+                <ToggleGroupItem value="tecnico">{tr("Tecnico")}</ToggleGroupItem>
+                <ToggleGroupItem value="presentazione">{tr("Presentazione")}</ToggleGroupItem>
               </ToggleGroup>
-              {stile === "presentazione" && <p className="text-[11px] text-muted-foreground">Pavimenti e arredi colorati: per il cliente.</p>}
+              {stile === "presentazione" && <p className="text-[11px] text-muted-foreground">{tr("Pavimenti e arredi colorati: per il cliente.")}</p>}
             </div>}
 
             {(formato === "pdf" || formato === "fascicolo") && (
               <div className="space-y-3 rounded-lg border p-3">
                 {formato === "fascicolo" && <>
-                  <p className="text-xs font-medium">Versione {versione} salvata · Indice cliccabile</p>
-                  {fotorealisticoDisponibile() && <p className="text-xs text-muted-foreground">Le inquadrature contrassegnate con «Includi nel PDF» vengono aggiunte da questo browser.</p>}
+                  <p className="text-xs font-medium">{tr("Versione {versione} salvata · Indice cliccabile", { versione: String(versione ?? "") })}</p>
+                  {fotorealisticoDisponibile() && <p className="text-xs text-muted-foreground">{tr("Le inquadrature contrassegnate con «Includi nel PDF» vengono aggiunte da questo browser.")}</p>}
                   <div className="space-y-1.5">
-                    <Label htmlFor="fascicolo-render" className="text-xs">Render da includere</Label>
+                    <Label htmlFor="fascicolo-render" className="text-xs">{tr("Render da includere")}</Label>
                     <Select value={renderDaIncludere} onValueChange={(v) => setRenderDaIncludere(v as "ultimi" | "tutti")}>
                       <SelectTrigger id="fascicolo-render" className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="ultimi">Ultimo render per stanza</SelectItem><SelectItem value="tutti">Tutte le varianti</SelectItem></SelectContent>
+                      <SelectContent><SelectItem value="ultimi">{tr("Ultimo render per stanza")}</SelectItem><SelectItem value="tutti">{tr("Tutte le varianti")}</SelectItem></SelectContent>
                     </Select>
-                    <p className="text-[11px] text-muted-foreground">{renderDaIncludere === "ultimi" ? "Solo il render completato più recente di ogni stanza. Le altre varianti restano nello storico." : "Tutti i render completati per ogni stanza, della versione e dello stato selezionati."}</p>
+                    <p className="text-[11px] text-muted-foreground">{renderDaIncludere === "ultimi" ? tr("Solo il render completato più recente di ogni stanza. Le altre varianti restano nello storico.") : tr("Tutti i render completati per ogni stanza, della versione e dello stato selezionati.")}</p>
                   </div>
                 </>}
                 {formato === "pdf" && <>
                 {puoTavoleComparabili && <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div>
-                    <Label htmlFor="tavole-comparabili" className="text-xs">Fatto, progetto e comparativa</Label>
-                    <p className="text-[11px] text-muted-foreground">Tavole tecniche alla stessa scala, con quote d’ingombro, quote inserite a mano, cartiglio e legenda delle opere.</p>
+                    <Label htmlFor="tavole-comparabili" className="text-xs">{tr("Fatto, progetto e comparativa")}</Label>
+                    <p className="text-[11px] text-muted-foreground">{tr("Tavole tecniche alla stessa scala, con quote d’ingombro, quote inserite a mano, cartiglio e legenda delle opere.")}</p>
                   </div>
                   <Switch id="tavole-comparabili" checked={tripla} onCheckedChange={setTripla}/>
                 </div>}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Foglio</Label>
+                    <Label className="text-xs">{tr("Foglio")}</Label>
                     <Select value={foglio} onValueChange={(v) => setFoglio(v as FormatoFoglio)}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                       <SelectContent><SelectItem value="A4">A4</SelectItem><SelectItem value="A3">A3</SelectItem></SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Verso</Label>
+                    <Label className="text-xs">{tr("Verso")}</Label>
                     <Select value={orientamento} onValueChange={(v) => setOrientamento(v as Orientamento)}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="orizzontale">Orizzontale</SelectItem><SelectItem value="verticale">Verticale</SelectItem></SelectContent>
+                      <SelectContent><SelectItem value="orizzontale">{tr("Orizzontale")}</SelectItem><SelectItem value="verticale">{tr("Verticale")}</SelectItem></SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Scala</Label>
+                    <Label className="text-xs">{tr("Scala")}</Label>
                     <Select value={scala} onValueChange={setScala}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="auto">Automatica</SelectItem>
+                        <SelectItem value="auto">{tr("Automatica")}</SelectItem>
                         {SCALE_STANDARD.map((s) => <SelectItem key={s} value={String(s)}>1:{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -517,36 +518,36 @@ export function EsportaPiantaDialog({
                 </>}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs" htmlFor="cartiglio-cliente">Committente (facoltativo)</Label>
+                    <Label className="text-xs" htmlFor="cartiglio-cliente">{tr("Committente (facoltativo)")}</Label>
                     <Input id="cartiglio-cliente" className="h-9" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Mario Rossi" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs" htmlFor="cartiglio-cantiere">Indirizzo del cantiere</Label>
+                    <Label className="text-xs" htmlFor="cartiglio-cantiere">{tr("Indirizzo del cantiere")}</Label>
                     <CampoIndirizzo id="cartiglio-cantiere" className="h-9" value={cantiere} onChange={setCantiere} placeholder="Via Roma 12, Torino" />
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Nel cartiglio: nome, recapiti e logo della tua azienda, data e versione {versione}.</p>
+                <p className="text-[11px] text-muted-foreground">{tr("Nel cartiglio: nome, recapiti e logo della tua azienda, data e versione {versione}.", { versione: String(versione ?? "") })}</p>
                 {formato === "pdf" && <>
                 <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div>
-                    <Label htmlFor="numera-locali" className="text-xs">Numera i locali</Label>
-                    <p className="text-[11px] text-muted-foreground">«1. Soggiorno», «2. Cucina»… nella pianta e nella tabella, per i rimandi nel capitolato.</p>
+                    <Label htmlFor="numera-locali" className="text-xs">{tr("Numera i locali")}</Label>
+                    <p className="text-[11px] text-muted-foreground">{tr("«1. Soggiorno», «2. Cucina»… nella pianta e nella tabella, per i rimandi nel capitolato.")}</p>
                   </div>
                   <Switch id="numera-locali" checked={numera} onCheckedChange={setNumera} />
                 </div>
                 {piuPiani && (
                   <div className="flex items-start justify-between gap-3 border-t pt-3">
                     <div>
-                      <Label htmlFor="tutti-i-piani" className="text-xs">Tutti i piani ({documento.livelli.length})</Label>
-                      <p className="text-[11px] text-muted-foreground">Un foglio per piano, dal più basso al più alto, nello stesso PDF.</p>
+                      <Label htmlFor="tutti-i-piani" className="text-xs">{tr("Tutti i piani ({n})", { n: documento.livelli.length })}</Label>
+                      <p className="text-[11px] text-muted-foreground">{tr("Un foglio per piano, dal più basso al più alto, nello stesso PDF.")}</p>
                     </div>
                     <Switch id="tutti-i-piani" checked={tuttiIPiani} onCheckedChange={setTuttiIPiani} />
                   </div>
                 )}
                 <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div>
-                    <Label htmlFor="tavola-completa" className="text-xs">Tavola completa</Label>
-                    <p className="text-[11px] text-muted-foreground">Dopo la pianta, i quattro prospetti e una sezione, in scala, nello stesso PDF; se ci sono impianti, anche il foglio con punti e linee.</p>
+                    <Label htmlFor="tavola-completa" className="text-xs">{tr("Tavola completa")}</Label>
+                    <p className="text-[11px] text-muted-foreground">{tr("Dopo la pianta, i quattro prospetti e una sezione, in scala, nello stesso PDF; se ci sono impianti, anche il foglio con punti e linee.")}</p>
                   </div>
                   <Switch id="tavola-completa" checked={conProspetti} onCheckedChange={setConProspetti} />
                 </div>
@@ -557,18 +558,18 @@ export function EsportaPiantaDialog({
 
           <div className="space-y-3">
             {pronto ? <AnteprimaFascicolo key={pronto.chiave} fascicolo={pronto} onSfoglia={() => setLeggiFascicolo(true)} bottone={apriLettura}/> : <figure className="space-y-1.5">
-              <figcaption className="text-xs font-medium">Anteprima della tavola</figcaption>
+              <figcaption className="text-xs font-medium">{tr("Anteprima della tavola")}</figcaption>
               <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border bg-white">
-                {anteprima ? <img src={anteprima} alt="Anteprima della pianta da esportare" className="h-full w-full object-contain" />
-                  : <p className="p-4 text-center text-sm text-muted-foreground">Niente da disegnare in questo stato.</p>}
+                {anteprima ? <img src={anteprima} alt={tr("Anteprima della pianta da esportare")} className="h-full w-full object-contain" />
+                  : <p className="p-4 text-center text-sm text-muted-foreground">{tr("Niente da disegnare in questo stato.")}</p>}
               </div>
             </figure>}
             {planimetriaId && (formato === "fascicolo" || formato === "pdf") && (
               <div className="space-y-2 rounded-lg border p-3">
-                <Label className="text-xs">Allega a un preventivo</Label>
+                <Label className="text-xs">{tr("Allega a un preventivo")}</Label>
                 <div className="flex gap-2">
                   <Select value={preventivoId} onValueChange={setPreventivoId}>
-                    <SelectTrigger className="h-9 flex-1" aria-label="Preventivo"><SelectValue placeholder={preventivi.isLoading ? "Caricamento…" : "Scegli il preventivo"} /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label={tr("Preventivo")}><SelectValue placeholder={preventivi.isLoading ? tr("Caricamento…") : tr("Scegli il preventivo")} /></SelectTrigger>
                     <SelectContent>
                       {(preventivi.data ?? []).map((q) => (
                         <SelectItem key={q.id} value={q.id}>{[q.quote_number, q.client_name || q.title].filter(Boolean).join(" — ")}</SelectItem>
@@ -576,10 +577,10 @@ export function EsportaPiantaDialog({
                     </SelectContent>
                   </Select>
                   <Button size="sm" variant="outline" className="h-9" disabled={!preventivoId || allegando || !vista || !controlloPrimaDellUso(documento, "pdf").ok} onClick={() => void allega()}>
-                    {allegando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1 h-4 w-4" />}Allega
+                    {allegando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1 h-4 w-4" />}{tr("Allega")}
                   </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground">{formato === "fascicolo" ? "Il fascicolo completo, con tutte le pagine e immagini, in fondo al PDF del preventivo." : "Un foglio A4 in scala con il cartiglio, in fondo al PDF del preventivo."} Per i preventivi standard; non firmati.</p>
+                <p className="text-[11px] text-muted-foreground">{formato === "fascicolo" ? tr("Il fascicolo completo, con tutte le pagine e immagini, in fondo al PDF del preventivo.") : tr("Un foglio A4 in scala con il cartiglio, in fondo al PDF del preventivo.")} {tr("Per i preventivi standard; non firmati.")}</p>
               </div>
             )}
           </div>
@@ -594,10 +595,10 @@ export function EsportaPiantaDialog({
         </p>}
         {erroreEsportazione && <p role="alert" className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{erroreEsportazione}</p>}
         <DialogFooter className="flex-row flex-wrap justify-end gap-2 sm:space-x-0">
-          <Button variant="outline" onClick={chiudi} disabled={inCorso || allegando}>Chiudi</Button>
+          <Button variant="outline" onClick={chiudi} disabled={inCorso || allegando}>{tr("Chiudi")}</Button>
           <Button onClick={() => void esporta()} disabled={inCorso || allegando || !vista || !controlloPrimaDellUso(documento, "pdf").ok}>
             {inCorso ? <Loader2 className="mr-1.5 h-4 w-4 motion-safe:animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-            {inCorso ? "Esportazione in corso…" : `Scarica ${formatoCorrente.nome}`}
+            {inCorso ? tr("Esportazione in corso…") : tr("Scarica {nome}", { nome: tr(formatoCorrente.nome) })}
           </Button>
         </DialogFooter>
         </div>

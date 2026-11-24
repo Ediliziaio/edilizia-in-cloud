@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, FileText, Search } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Ordina un documento ufficiale openapi (DocuEngine o Visengine/Visure Camerali)
@@ -53,6 +54,7 @@ export function OpenapiDocRequestDialog({
   companyId: string;
   defaultVat?: string;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [provider, setProvider] = useState<Provider>("visengine");
   const [loadingCat, setLoadingCat] = useState(false);
@@ -106,9 +108,9 @@ export function OpenapiDocRequestDialog({
   useEffect(() => { if (open) setVat(defaultVat ?? ""); }, [open, defaultVat]);
 
   async function order() {
-    if (!selected) { toast.error("Seleziona un documento"); return; }
+    if (!selected) { toast.error(t("Seleziona un documento")); return; }
     setOrdering(true);
-    setPhase("Invio ordine…");
+    setPhase(t("Invio ordine…"));
     try {
       let requestId: string | null = null;
       if (provider === "docuengine") {
@@ -116,7 +118,7 @@ export function OpenapiDocRequestDialog({
         const search: Record<string, string> = {};
         for (const f of selectedDocu?.fields ?? []) {
           const val = (fieldVals[f.key] ?? "").trim();
-          if (f.required && !val) { toast.error(`Compila "${f.nameIT ?? f.name}"`); setOrdering(false); setPhase(null); return; }
+          if (f.required && !val) { toast.error(t("Compila \"{campo}\"", { campo: f.nameIT ?? f.name })); setOrdering(false); setPhase(null); return; }
           if (val) search[f.key] = val;
         }
         const r = await invoke<{ request_id: string }>("docuengine_request", {
@@ -128,7 +130,7 @@ export function OpenapiDocRequestDialog({
         requestId = r.request_id;
       } else {
         const idc = vat.replace(/\s/g, "");
-        if (!idc) { toast.error("Inserisci P.IVA o Codice Fiscale"); setOrdering(false); setPhase(null); return; }
+        if (!idc) { toast.error(t("Inserisci P.IVA o Codice Fiscale")); setOrdering(false); setPhase(null); return; }
         const v = visure.find((x) => x.hash_visura === selected);
         const r = await invoke<{ request_id: string }>("visengine_request", {
           hash: selected, documentName: v?.nome_visura,
@@ -142,23 +144,23 @@ export function OpenapiDocRequestDialog({
       // Polling stato (max ~2 min)
       const statusAction = provider === "docuengine" ? "docuengine_status" : "visengine_status";
       for (let i = 0; i < 30; i++) {
-        setPhase(`Elaborazione documento… (${i * 4}s)`);
+        setPhase(t("Elaborazione documento… ({n}s)", { n: i * 4 }));
         await new Promise((res) => setTimeout(res, 4000));
         const s = await invoke<{ done: boolean; state: string; marketing_document_id: string | null }>(statusAction, { request_id: requestId });
         if (s.done) {
           setPhase(null);
           qc.invalidateQueries({ queryKey: ["marketing_documents"] });
-          toast.success("Documento pronto e allegato al contatto/opportunità");
+          toast.success(t("Documento pronto e allegato al contatto/opportunità"));
           onOpenChange(false);
           return;
         }
       }
       // Non pronto entro il timeout: resta in coda lato openapi, comparirà dopo
       qc.invalidateQueries({ queryKey: ["openapi_document_requests"] });
-      toast.info("Ordine inviato. Il documento arriverà a breve — comparirà nei documenti appena pronto.");
+      toast.info(t("Ordine inviato. Il documento arriverà a breve — comparirà nei documenti appena pronto."));
       onOpenChange(false);
     } catch (e) {
-      toast.error("Errore ordine", { description: (e as Error).message });
+      toast.error(t("Errore ordine"), { description: (e as Error).message });
     } finally {
       setOrdering(false);
       setPhase(null);
@@ -172,22 +174,21 @@ export function OpenapiDocRequestDialog({
     <Dialog open={open} onOpenChange={(v) => !ordering && onOpenChange(v)}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Richiedi documento ufficiale</DialogTitle>
+          <DialogTitle>{t("Richiedi documento ufficiale")}</DialogTitle>
           <DialogDescription>
-            Visure camerali e documenti ufficiali (Registro Imprese, AdE, INPS) via openapi.
-            Il file viene allegato al contatto{opportunityId ? " e all'opportunità" : ""}.
+            {opportunityId ? t("Visure camerali e documenti ufficiali (Registro Imprese, AdE, INPS) via openapi. Il file viene allegato al contatto e all'opportunità.") : t("Visure camerali e documenti ufficiali (Registro Imprese, AdE, INPS) via openapi. Il file viene allegato al contatto.")}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={provider} onValueChange={(v) => { setProvider(v as Provider); setFilter(""); setSelected(null); }}>
           <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="visengine">Visure Camerali</TabsTrigger>
-            <TabsTrigger value="docuengine">Documenti ufficiali</TabsTrigger>
+            <TabsTrigger value="visengine">{t("Visure Camerali")}</TabsTrigger>
+            <TabsTrigger value="docuengine">{t("Documenti ufficiali")}</TabsTrigger>
           </TabsList>
 
           <div className="mt-3 relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input className="pl-7 h-8 text-sm" placeholder="Cerca…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <Input className="pl-7 h-8 text-sm" placeholder={t("Cerca…")} value={filter} onChange={(e) => setFilter(e.target.value)} />
           </div>
 
           <div className="mt-2 border rounded-lg overflow-y-auto" style={{ maxHeight: "34vh" }}>
@@ -205,7 +206,7 @@ export function OpenapiDocRequestDialog({
                     {typeof d.price === "number" && <span className="text-[11px] text-muted-foreground">€{d.price.toFixed(2)}</span>}
                   </button>
                 ))}
-                {!docuFiltered.length && <p className="text-xs text-muted-foreground p-3 text-center">Nessun documento</p>}
+                {!docuFiltered.length && <p className="text-xs text-muted-foreground p-3 text-center">{t("Nessun documento")}</p>}
               </TabsContent>
             )}
             {!loadingCat && !catErr && (
@@ -218,7 +219,7 @@ export function OpenapiDocRequestDialog({
                     {v.nome_categoria && <span className="text-[10px] text-muted-foreground">{v.nome_categoria}</span>}
                   </button>
                 ))}
-                {!visFiltered.length && <p className="text-xs text-muted-foreground p-3 text-center">Nessuna visura</p>}
+                {!visFiltered.length && <p className="text-xs text-muted-foreground p-3 text-center">{t("Nessuna visura")}</p>}
               </TabsContent>
             )}
           </div>
@@ -228,7 +229,7 @@ export function OpenapiDocRequestDialog({
           selectedDocu ? (
             <div className="mt-1 space-y-2">
               {selectedDocu.fields.length === 0 && (
-                <p className="text-xs text-muted-foreground">Questo documento non richiede parametri.</p>
+                <p className="text-xs text-muted-foreground">{t("Questo documento non richiede parametri.")}</p>
               )}
               {selectedDocu.fields.map((f) => (
                 <div key={f.key}>
@@ -243,12 +244,12 @@ export function OpenapiDocRequestDialog({
               ))}
             </div>
           ) : (
-            <p className="mt-1 text-xs text-muted-foreground">Seleziona un documento per compilare i dati richiesti.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("Seleziona un documento per compilare i dati richiesti.")}</p>
           )
         ) : (
           <div className="mt-1">
-            <Label className="text-xs">P.IVA / Codice Fiscale dell'azienda *</Label>
-            <Input value={vat} onChange={(e) => setVat(e.target.value)} placeholder="es. 12345678901" inputMode="numeric" />
+            <Label className="text-xs">{t("P.IVA / Codice Fiscale dell'azienda *")}</Label>
+            <Input value={vat} onChange={(e) => setVat(e.target.value)} placeholder={t("es. 12345678901")} inputMode="numeric" />
           </div>
         )}
 
@@ -259,10 +260,10 @@ export function OpenapiDocRequestDialog({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={ordering}>Annulla</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={ordering}>{t("Annulla")}</Button>
           <Button onClick={order} disabled={ordering || !selected}>
             {ordering ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-            Richiedi documento
+            {t("Richiedi documento")}
           </Button>
         </DialogFooter>
       </DialogContent>

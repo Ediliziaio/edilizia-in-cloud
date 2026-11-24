@@ -22,6 +22,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { useSmsTemplates } from "@/hooks/useSmsTemplates";
 import { SmsTemplateForm } from "./SmsTemplateForm";
 import type { SmsTemplate } from "@/types/sms-marketing";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CATEGORIA_LABEL: Record<string, string> = {
   generico: "Generico",
@@ -32,6 +33,7 @@ const CATEGORIA_LABEL: Record<string, string> = {
 };
 
 export function SmsTemplateList() {
+  const tr = useT();
   const { templates, isLoading, remove, isRemoving } = useSmsTemplates();
   const [editTemplate, setEditTemplate] = useState<SmsTemplate | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -50,12 +52,12 @@ export function SmsTemplateList() {
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
             <Button size="sm" onClick={() => setEditTemplate(null)}>
-              <Plus className="h-4 w-4 mr-1" /> Nuovo template
+              <Plus className="h-4 w-4 mr-1" /> {tr("Nuovo template")}
             </Button>
           </SheetTrigger>
           <SheetContent>
             <SheetHeader>
-              <SheetTitle>{editTemplate ? "Modifica template" : "Nuovo template"}</SheetTitle>
+              <SheetTitle>{editTemplate ? tr("Modifica template") : tr("Nuovo template")}</SheetTitle>
             </SheetHeader>
             <div className="mt-4">
               <SmsTemplateForm
@@ -72,7 +74,7 @@ export function SmsTemplateList() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-center">
             <FileText className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Nessun template SMS. Crea il primo.</p>
+            <p className="text-sm text-muted-foreground">{tr("Nessun template SMS. Crea il primo.")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -85,7 +87,7 @@ export function SmsTemplateList() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-sm">{t.nome}</span>
                       <Badge variant="secondary" className="text-xs">{CATEGORIA_LABEL[t.categoria] ?? t.categoria}</Badge>
-                      {!t.attivo && <Badge variant="outline" className="text-xs text-muted-foreground">Disattivo</Badge>}
+                      {!t.attivo && <Badge variant="outline" className="text-xs text-muted-foreground">{tr("Disattivo")}</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground truncate">{t.messaggio}</p>
                     {t.variabili.length > 0 && (
@@ -117,16 +119,16 @@ export function SmsTemplateList() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Eliminare il template?</AlertDialogTitle>
-                          <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
+                          <AlertDialogTitle>{tr("Eliminare il template?")}</AlertDialogTitle>
+                          <AlertDialogDescription>{tr("Questa azione è irreversibile.")}</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
                           <AlertDialogAction
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={() => remove(t.id)}
                           >
-                            Elimina
+                            {tr("Elimina")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>

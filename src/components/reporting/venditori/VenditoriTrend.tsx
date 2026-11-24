@@ -12,6 +12,7 @@ import {
 import { TrendingUp } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import type { VendorTrend } from "@/hooks/useVendorReport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type MetricaVisibile = "fatturato" | "tassi" | "volumi" | "contatti";
 
@@ -45,6 +46,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agentId: string }) {
+  const tr = useT();
   const [metrica, setMetrica] = useState<MetricaVisibile>("fatturato");
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
@@ -67,7 +69,7 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-16 text-center">
           <TrendingUp className="h-12 w-12 text-muted-foreground/40 mb-4" />
-          <p className="text-sm text-muted-foreground">Nessun dato trend disponibile per l'anno corrente.</p>
+          <p className="text-sm text-muted-foreground">{tr("Nessun dato trend disponibile per l'anno corrente.")}</p>
         </CardContent>
       </Card>
     );
@@ -87,7 +89,7 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
                 : "bg-muted text-muted-foreground hover:bg-accent"
             }`}
           >
-            {m.label}
+            {tr(m.label)}
           </button>
         ))}
       </div>
@@ -97,23 +99,23 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            {agentId === "tutti" ? "Trend Team" : "Trend Agente"} — Anno {new Date().getFullYear()}
+            {tr(agentId === "tutti" ? "Trend Team — Anno {anno}" : "Trend Agente — Anno {anno}", { anno: new Date().getFullYear() })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {statMesi && (
             <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-              <StatGrafico etichetta="Mese migliore" valore={formatCurrencyCompact(Number(statMesi.migliore.fatturato) || 0)} nota={statMesi.migliore.mese_label} />
-              <StatGrafico etichetta="Media al mese" valore={formatCurrencyCompact(statMesi.media)} nota="mesi con fatturato" />
+              <StatGrafico etichetta={tr("Mese migliore")} valore={formatCurrencyCompact(Number(statMesi.migliore.fatturato) || 0)} nota={statMesi.migliore.mese_label} />
+              <StatGrafico etichetta={tr("Media al mese")} valore={formatCurrencyCompact(statMesi.media)} nota={tr("mesi con fatturato")} />
               <StatGrafico
-                etichetta="Mese scorso"
+                etichetta={tr("Mese scorso")}
                 valore={
                   <span className="inline-flex flex-wrap items-center gap-1.5">
                     {formatCurrencyCompact(Number(statMesi.ultimo.fatturato) || 0)}
-                    <PillolaVariazione pct={statMesi.media > 0 ? (((Number(statMesi.ultimo.fatturato) || 0) - statMesi.media) / statMesi.media) * 100 : null} titolo="Rispetto alla media dei mesi con fatturato" />
+                    <PillolaVariazione pct={statMesi.media > 0 ? (((Number(statMesi.ultimo.fatturato) || 0) - statMesi.media) / statMesi.media) * 100 : null} titolo={tr("Rispetto alla media dei mesi con fatturato")} />
                   </span>
                 }
-                nota={`${statMesi.ultimo.mese_label}, contro la media`}
+                nota={tr("{mese_label}, contro la media", { mese_label: String(statMesi.ultimo.mese_label ?? "") })}
               />
             </div>
           )}
@@ -127,9 +129,9 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
                 <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
-                <Bar yAxisId="left" dataKey="fatturato" name="Fatturato" fill={`url(#${id}-barra-primario)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
-                <Line yAxisId="right" type="monotone" dataKey="tasso_chiusura" name="Chiusura %" stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
-                <Line yAxisId="right" type="monotone" dataKey="tasso_show_up" name="Show-Up %" stroke="hsl(45 93% 47%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Bar yAxisId="left" dataKey="fatturato" name={tr("Fatturato")} fill={`url(#${id}-barra-primario)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Line yAxisId="right" type="monotone" dataKey="tasso_chiusura" name={tr("Chiusura %")} stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Line yAxisId="right" type="monotone" dataKey="tasso_show_up" name={tr("Show-Up %")} stroke="hsl(45 93% 47%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             ) : metrica === "tassi" ? (
               <ComposedChart data={trend}>
@@ -139,8 +141,8 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
                 <YAxis tickFormatter={(v) => `${v}%`} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
-                <Line type="monotone" dataKey="tasso_chiusura" name="Chiusura %" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
-                <Line type="monotone" dataKey="tasso_show_up" name="Show-Up %" stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Line type="monotone" dataKey="tasso_chiusura" name={tr("Chiusura %")} stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Line type="monotone" dataKey="tasso_show_up" name={tr("Show-Up %")} stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             ) : metrica === "volumi" ? (
               <ComposedChart data={trend}>
@@ -150,9 +152,9 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
                 <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
-                <Bar dataKey="opp_vinte" name="Opp. Vinte" fill={`url(#${id}-barra-verde)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
-                <Bar dataKey="opp_perse" name="Opp. Perse" fill={`url(#${id}-barra-rosso)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
-                <Line type="monotone" dataKey="appuntamenti_effettuati" name="App. Effettuati" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Bar dataKey="opp_vinte" name={tr("Opp. Vinte")} fill={`url(#${id}-barra-verde)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Bar dataKey="opp_perse" name={tr("Opp. Perse")} fill={`url(#${id}-barra-rosso)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Line type="monotone" dataKey="appuntamenti_effettuati" name={tr("App. Effettuati")} stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             ) : (
               <ComposedChart data={trend}>
@@ -162,9 +164,9 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
                 <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
-                <Bar dataKey="nuovi_contatti" name="Nuovi Contatti" fill={`url(#${id}-barra-primario)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
-                <Bar dataKey="appuntamenti_fissati" name="App. Fissati" fill={`url(#${id}-barra-blu)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
-                <Line type="monotone" dataKey="appuntamenti_effettuati" name="App. Effettuati" stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Bar dataKey="nuovi_contatti" name={tr("Nuovi Contatti")} fill={`url(#${id}-barra-primario)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Bar dataKey="appuntamenti_fissati" name={tr("App. Fissati")} fill={`url(#${id}-barra-blu)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Line type="monotone" dataKey="appuntamenti_effettuati" name={tr("App. Effettuati")} stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             )}
           </ResponsiveContainer>
@@ -177,14 +179,14 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Mese</TableHead>
-                <TableHead className="text-right">Fatturato</TableHead>
-                <TableHead className="text-right">Chiusura%</TableHead>
-                <TableHead className="text-right">Show-Up%</TableHead>
-                <TableHead className="text-right">Vinte</TableHead>
-                <TableHead className="text-right">Perse</TableHead>
-                <TableHead className="text-right">App.</TableHead>
-                <TableHead className="text-right">Contatti</TableHead>
+                <TableHead>{tr("Mese")}</TableHead>
+                <TableHead className="text-right">{tr("Fatturato")}</TableHead>
+                <TableHead className="text-right">{tr("Chiusura%")}</TableHead>
+                <TableHead className="text-right">{tr("Show-Up%")}</TableHead>
+                <TableHead className="text-right">{tr("Vinte")}</TableHead>
+                <TableHead className="text-right">{tr("Perse")}</TableHead>
+                <TableHead className="text-right">{tr("App.")}</TableHead>
+                <TableHead className="text-right">{tr("Contatti")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -195,7 +197,7 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
                     <TableCell>
                       {t.mese_label}
                       {isCurrent && (
-                        <span className="ml-1.5 text-xs text-primary">← ora</span>
+                        <span className="ml-1.5 text-xs text-primary">{tr("← ora")}</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">{formatCurrency(t.fatturato)}</TableCell>

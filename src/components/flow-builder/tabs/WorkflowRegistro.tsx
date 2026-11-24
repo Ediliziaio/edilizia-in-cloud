@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { statoRegistro } from "@/lib/automazioniRegistro";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   flowId?: string;
@@ -49,6 +49,7 @@ const NODE_TYPE_COLOR: Record<string, string> = {
 };
 
 function FunnelTab({ flowId }: { flowId: string }) {
+  const t = useT();
   const { data: funnel = [], isLoading } = useQuery({
     queryKey: ["flow-funnel-nodes", flowId],
     queryFn: async () => {
@@ -98,15 +99,15 @@ function FunnelTab({ flowId }: { flowId: string }) {
   });
 
   if (isLoading) {
-    return <div className="py-12 text-center text-muted-foreground text-sm">Caricamento funnel...</div>;
+    return <div className="py-12 text-center text-muted-foreground text-sm">{t("Caricamento funnel...")}</div>;
   }
 
   if (funnel.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <BarChart2 className="h-10 w-10 mb-3 opacity-30" />
-        <p className="text-sm font-medium">Nessun dato disponibile</p>
-        <p className="text-xs mt-1">Il funnel apparirà dopo le prime esecuzioni.</p>
+        <p className="text-sm font-medium">{t("Nessun dato disponibile")}</p>
+        <p className="text-xs mt-1">{t("Il funnel apparirà dopo le prime esecuzioni.")}</p>
       </div>
     );
   }
@@ -116,10 +117,10 @@ function FunnelTab({ flowId }: { flowId: string }) {
       <div>
         <h3 className="text-sm font-semibold flex items-center gap-2">
           <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          Funnel di esecuzione per nodo
+          {t("Funnel di esecuzione per nodo")}
         </h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Passaggi completati vs. falliti per ogni nodo del flusso, in ordine di esecuzione.
+          {t("Passaggi completati vs. falliti per ogni nodo del flusso, in ordine di esecuzione.")}
         </p>
       </div>
 
@@ -127,12 +128,12 @@ function FunnelTab({ flowId }: { flowId: string }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nodo</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-right">Totale</TableHead>
-              <TableHead className="text-right">Successo</TableHead>
-              <TableHead className="text-right">Errori</TableHead>
-              <TableHead className="w-36">Completamento</TableHead>
+              <TableHead>{t("Nodo")}</TableHead>
+              <TableHead>{t("Tipo")}</TableHead>
+              <TableHead className="text-right">{t("Totale")}</TableHead>
+              <TableHead className="text-right">{t("Successo")}</TableHead>
+              <TableHead className="text-right">{t("Errori")}</TableHead>
+              <TableHead className="w-36">{t("Completamento")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -177,6 +178,7 @@ function FunnelTab({ flowId }: { flowId: string }) {
 }
 
 function ConversionSummary({ flowId }: { flowId: string }) {
+  const t = useT();
   const { data } = useQuery({
     queryKey: ["flow-conversion", flowId],
     queryFn: async () => {
@@ -211,25 +213,26 @@ function ConversionSummary({ flowId }: { flowId: string }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
       <div className="border rounded-lg p-3 bg-muted/20">
-        <p className="text-[11px] text-muted-foreground">Tasso completamento</p>
+        <p className="text-[11px] text-muted-foreground">{t("Tasso completamento")}</p>
         <p className="text-xl font-bold text-green-600">{completionRate}%</p>
-        <p className="text-[10px] text-muted-foreground">{data.completed} / {data.total} flussi</p>
+        <p className="text-[10px] text-muted-foreground">{t("{completed} / {total} flussi", { completed: String(data.completed ?? ""), total: String(data.total ?? "") })}</p>
       </div>
       <div className="border rounded-lg p-3 bg-muted/20">
-        <p className="text-[11px] text-muted-foreground">Goal raggiunti</p>
+        <p className="text-[11px] text-muted-foreground">{t("Goal raggiunti")}</p>
         <p className="text-xl font-bold text-primary">{data.goalHits}</p>
-        <p className="text-[10px] text-muted-foreground">{goalRate}% dei contatti</p>
+        <p className="text-[10px] text-muted-foreground">{t("{goalRate}% dei contatti", { goalRate: String(goalRate ?? "") })}</p>
       </div>
       <div className="border rounded-lg p-3 bg-muted/20">
-        <p className="text-[11px] text-muted-foreground">Totale esecuzioni</p>
+        <p className="text-[11px] text-muted-foreground">{t("Totale esecuzioni")}</p>
         <p className="text-xl font-bold">{data.total}</p>
-        <p className="text-[10px] text-muted-foreground">contatti totali</p>
+        <p className="text-[10px] text-muted-foreground">{t("contatti totali")}</p>
       </div>
     </div>
   );
 }
 
 export function WorkflowRegistro({ flowId }: Props) {
+  const t = useT();
   const [filtroStato, setFiltroStato] = useState("all");
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -276,7 +279,7 @@ export function WorkflowRegistro({ flowId }: Props) {
   if (!flowId) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-        Salva il flusso per visualizzare il registro.
+        {t("Salva il flusso per visualizzare il registro.")}
       </div>
     );
   }
@@ -290,19 +293,19 @@ export function WorkflowRegistro({ flowId }: Props) {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Registro & Analytics</h2>
+        <h2 className="text-lg font-semibold">{t("Registro & Analytics")}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Monitoraggio delle esecuzioni e analisi delle performance del flusso.
+          {t("Monitoraggio delle esecuzioni e analisi delle performance del flusso.")}
         </p>
       </div>
 
       <Tabs defaultValue="log">
         <TabsList className="h-8">
           <TabsTrigger value="log" className="text-xs gap-1.5">
-            <Activity className="h-3.5 w-3.5" /> Log esecuzioni
+            <Activity className="h-3.5 w-3.5" /> {t("Log esecuzioni")}
           </TabsTrigger>
           <TabsTrigger value="funnel" className="text-xs gap-1.5">
-            <TrendingDown className="h-3.5 w-3.5" /> Funnel & Analytics
+            <TrendingDown className="h-3.5 w-3.5" /> {t("Funnel & Analytics")}
           </TabsTrigger>
         </TabsList>
 
@@ -311,11 +314,11 @@ export function WorkflowRegistro({ flowId }: Props) {
           {/* Summary cards */}
           {runs.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <SummaryCard label="Esecuzioni (ultime 100)" value={runs.length} />
-              <SummaryCard label="Completate" value={runs.filter((r: any) => r.status === "completed").length} />
-              <SummaryCard label="Errori" value={runs.filter((r: any) => r.status === "error").length} />
+              <SummaryCard label={t("Esecuzioni (ultime 100)")} value={runs.length} />
+              <SummaryCard label={t("Completate")} value={runs.filter((r: any) => r.status === "completed").length} />
+              <SummaryCard label={t("Errori")} value={runs.filter((r: any) => r.status === "error").length} />
               <SummaryCard
-                label="Durata media"
+                label={t("Durata media")}
                 value={
                   runs.filter((r: any) => r.duration_ms).length > 0
                     ? `${Math.round(
@@ -335,18 +338,18 @@ export function WorkflowRegistro({ flowId }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Ogni stato</SelectItem>
-                <SelectItem value="success">Successo</SelectItem>
-                <SelectItem value="error">Errore</SelectItem>
-                <SelectItem value="running">In corso</SelectItem>
-                <SelectItem value="skipped">Rinviato</SelectItem>
+                <SelectItem value="all">{t("Ogni stato")}</SelectItem>
+                <SelectItem value="success">{t("Successo")}</SelectItem>
+                <SelectItem value="error">{t("Errore")}</SelectItem>
+                <SelectItem value="running">{t("In corso")}</SelectItem>
+                <SelectItem value="skipped">{t("Rinviato")}</SelectItem>
               </SelectContent>
             </Select>
 
             <div className="relative">
               <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Cerca per tipo nodo..."
+                placeholder={t("Cerca per tipo nodo...")}
                 className="w-[200px] h-8 text-sm pl-8"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -361,7 +364,7 @@ export function WorkflowRegistro({ flowId }: Props) {
                 className="w-[130px] h-8 text-xs"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                title="Da"
+                title={t("Da")}
               />
               <span className="text-xs text-muted-foreground">—</span>
               <Input
@@ -377,7 +380,7 @@ export function WorkflowRegistro({ flowId }: Props) {
                   size="icon"
                   className="h-7 w-7"
                   onClick={() => { setDateFrom(""); setDateTo(""); }}
-                  title="Rimuovi filtro date"
+                  title={t("Rimuovi filtro date")}
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -394,18 +397,18 @@ export function WorkflowRegistro({ flowId }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tipo nodo</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead>Eseguito il</TableHead>
-                  <TableHead>Dettaglio azione</TableHead>
-                  <TableHead>Errore</TableHead>
+                  <TableHead>{t("Tipo nodo")}</TableHead>
+                  <TableHead>{t("Stato")}</TableHead>
+                  <TableHead>{t("Eseguito il")}</TableHead>
+                  <TableHead>{t("Dettaglio azione")}</TableHead>
+                  <TableHead>{t("Errore")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-48 text-center text-muted-foreground">
-                      Caricamento...
+                      {t("Caricamento...")}
                     </TableCell>
                   </TableRow>
                 ) : filteredLogs.length === 0 ? (
@@ -413,8 +416,8 @@ export function WorkflowRegistro({ flowId }: Props) {
                     <TableCell colSpan={5} className="h-48">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
                         <FileText className="h-10 w-10 mb-3 opacity-30" />
-                        <p className="text-sm font-medium">Nessun registro trovato</p>
-                        <p className="text-xs mt-1">I log appariranno dopo la prima esecuzione.</p>
+                        <p className="text-sm font-medium">{t("Nessun registro trovato")}</p>
+                        <p className="text-xs mt-1">{t("I log appariranno dopo la prima esecuzione.")}</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -427,11 +430,11 @@ export function WorkflowRegistro({ flowId }: Props) {
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           {STATO_ICON[log.status] ?? null}
-                          <span className="text-xs">{statoRegistro(log.status).etichetta}</span>
+                          <span className="text-xs">{t(statoRegistro(log.status).etichetta)}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {format(new Date(log.created_at), "dd/MM/yy HH:mm:ss", { locale: it })}
+                        {format(new Date(log.created_at), "dd/MM/yy HH:mm:ss", { locale: dateFnsCampo() })}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                         {log.output_json?.action ?? log.output_json?.branch ?? "—"}

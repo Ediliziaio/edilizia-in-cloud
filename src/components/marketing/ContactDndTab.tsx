@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertCircle, Mail, MessageSquare, Phone, ShieldCheck, ShieldX, Smartphone } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactDndTabProps {
   contact: any;
@@ -21,11 +21,12 @@ const DND_CHANNELS = [
 ] as const;
 
 export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(function ContactDndTab({ contact, onUpdate }, ref) {
+  const t = useT();
   const anyOptout = DND_CHANNELS.some(ch => contact?.[ch.field]);
   const [motivoBozza, setMotivoBozza] = useState<string | null>(null);
 
   const dataIt = (iso: string | null | undefined) =>
-    iso ? format(new Date(iso), "dd/MM/yyyy HH:mm", { locale: it }) : null;
+    iso ? format(new Date(iso), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() }) : null;
 
   // Consenso a tre stati: null = mai registrato, true = dato, false = negato.
   const consenso: boolean | null = contact?.marketing_consent ?? null;
@@ -41,43 +42,43 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
           e nessun posto dove dimostrare che il contatto aveva DETTO SÌ. */}
       <div className="rounded-md border p-2.5 space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold">Consenso marketing</Label>
+          <Label className="text-xs font-semibold">{t("Consenso marketing")}</Label>
           {consenso === true ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 max-md:text-[11px]">
-              <ShieldCheck className="h-3 w-3" /> Dato
+              <ShieldCheck className="h-3 w-3" /> {t("Dato")}
             </span>
           ) : consenso === false ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive max-md:text-[11px]">
-              <ShieldX className="h-3 w-3" /> Negato
+              <ShieldX className="h-3 w-3" /> {t("Negato")}
             </span>
           ) : (
-            <span className="text-[10px] text-muted-foreground max-md:text-[11px]">Mai registrato</span>
+            <span className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Mai registrato")}</span>
           )}
         </div>
         {consenso !== null && contact?.marketing_consent_at && (
           <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-            Registrato il {dataIt(contact.marketing_consent_at)}
+            {t("Registrato il {data}", { data: dataIt(contact.marketing_consent_at) ?? "" })}
             {contact.marketing_consent_source ? ` · ${contact.marketing_consent_source}` : ""}
           </p>
         )}
         <div className="flex gap-1.5">
           {consenso !== true && (
             <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 max-md:text-[11px]" onClick={() => registraConsenso(true)}>
-              Registra consenso
+              {t("Registra consenso")}
             </Button>
           )}
           {consenso !== false && (
             <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 text-destructive max-md:text-[11px]" onClick={() => registraConsenso(false)}>
-              {consenso === true ? "Revoca" : "Segna negato"}
+              {consenso === true ? t("Revoca") : t("Segna negato")}
             </Button>
           )}
         </div>
       </div>
 
       <div>
-        <Label className="text-xs font-semibold">Do Not Disturb</Label>
+        <Label className="text-xs font-semibold">{t("Do Not Disturb")}</Label>
         <p className="text-[10px] text-muted-foreground mt-0.5 max-md:text-[11px]">
-          Disattiva i canali di comunicazione per questo contatto.
+          {t("Disattiva i canali di comunicazione per questo contatto.")}
         </p>
       </div>
 
@@ -86,7 +87,7 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
           <div key={field} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Icon className={`h-3.5 w-3.5 ${color}`} />
-              <span className="text-[11px]">{label}</span>
+              <span className="text-[11px]">{t(label)}</span>
             </div>
             <Switch
               checked={contact?.[field] || false}
@@ -103,22 +104,21 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
       {contact?.unsubscribed && (
         <div className="text-[10px] text-destructive flex items-center gap-1 pt-2 border-t max-md:text-[11px]">
           <AlertCircle className="h-3 w-3" />
-          Disiscritto il{" "}
-          {contact.unsubscribed_at
-            ? format(new Date(contact.unsubscribed_at), "dd/MM/yyyy", { locale: it })
-            : "data sconosciuta"}
+          {t("Disiscritto il {data}", { data: contact.unsubscribed_at
+            ? format(new Date(contact.unsubscribed_at), "dd/MM/yyyy", { locale: dateFnsCampo() })
+            : t("data sconosciuta") })}
         </div>
       )}
 
       {anyOptout && (
         <div className="rounded-md bg-muted/50 p-2 mt-2 space-y-1.5">
           <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-            I canali disattivati non verranno usati nelle automazioni e campagne.
-            {contact?.optout_at ? ` Ultimo opt-out: ${dataIt(contact.optout_at)}.` : ""}
+            {t("I canali disattivati non verranno usati nelle automazioni e campagne.")}
+            {contact?.optout_at ? ` ${t("Ultimo opt-out: {optout_at}.", { optout_at: String(dataIt(contact.optout_at) ?? "") })}` : ""}
           </p>
           <div className="flex gap-1.5">
             <Input
-              placeholder="Motivo opt-out (opzionale)…"
+              placeholder={t("Motivo opt-out (opzionale)…")}
               value={motivoBozza ?? contact?.optout_reason ?? ""}
               onChange={(e) => setMotivoBozza(e.target.value)}
               className="h-6 text-[10px] max-md:text-[11px]"
@@ -130,7 +130,7 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
                 className="h-6 text-[10px] px-2 max-md:text-[11px]"
                 onClick={() => { onUpdate("optout_reason", motivoBozza.trim() || null); setMotivoBozza(null); }}
               >
-                Salva
+                {t("Salva")}
               </Button>
             )}
           </div>

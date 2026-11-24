@@ -27,6 +27,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { calcolaIncidenze } from "@/lib/simulatore/calcoli";
 import type { VoceSim, SimulazioneRisultato } from "@/lib/simulatore/tipi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SimIncidenzaCostiProps {
   voci: VoceSim[];
@@ -49,7 +50,7 @@ interface Slice {
 
 /** "12,3%" — percentuale arrotondata a 1 decimale, locale IT. */
 function fmtPct(pct: number): string {
-  return `${(Math.round(pct * 10) / 10).toLocaleString("it-IT")}%`;
+  return `${(Math.round(pct * 10) / 10).toLocaleString(intlCampo())}%`;
 }
 
 /**
@@ -59,6 +60,7 @@ function fmtPct(pct: number): string {
  * quota ≤ 0 sono omesse dalla barra (ma restano in legenda).
  */
 function StackedBar({ slices }: { slices: Slice[] }) {
+  const t = useT();
   const positive = slices.filter((s) => s.pct > 0);
   const total = positive.reduce((acc, s) => acc + s.pct, 0);
 
@@ -85,7 +87,7 @@ function StackedBar({ slices }: { slices: Slice[] }) {
         })
       ) : (
         <div className="flex w-full items-center justify-center text-[11px] text-muted-foreground">
-          Nessun ricavo da ripartire
+          {t("Nessun ricavo da ripartire")}
         </div>
       )}
     </div>
@@ -146,6 +148,7 @@ function SectionHeader({
 }
 
 export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
+  const t = useT();
   const inc = calcolaIncidenze(voci, risultato);
 
   // Empty-state: nessuna voce → niente da analizzare.
@@ -156,13 +159,13 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
           <SectionHeader
             icon={<PieChart className="h-4 w-4" />}
             chip="bg-primary/10 text-primary"
-            title="Incidenza &amp; composizione costi"
+            title={t("Incidenza & composizione costi")}
           />
           <EmptyState
             icon={PieChart}
             size="sm"
-            title="Nessun dato da analizzare"
-            description="Aggiungi voci alla simulazione per vedere dove va il ricavo e la composizione del costo (manodopera vs materiali)."
+            title={t("Nessun dato da analizzare")}
+            description={t("Aggiungi voci alla simulazione per vedere dove va il ricavo e la composizione del costo (manodopera vs materiali).")}
           />
         </CardContent>
       </Card>
@@ -175,28 +178,28 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
   const ricavoSlices: Slice[] = [
     {
       key: "costo_diretto",
-      label: "Costo diretto",
+      label: t("Costo diretto"),
       pct: inc.costo_diretto_pct,
       valore: risultato.costo_diretto,
       color: "hsl(var(--chart-1))",
     },
     {
       key: "spese_generali",
-      label: "Spese generali",
+      label: t("Spese generali"),
       pct: inc.spese_generali_pct,
       valore: risultato.spese_generali,
       color: "hsl(var(--chart-3))",
     },
     {
       key: "provvigioni",
-      label: "Provvigioni",
+      label: t("Provvigioni"),
       pct: inc.provvigioni_pct,
       valore: risultato.provvigioni_totale,
       color: "hsl(var(--chart-4))",
     },
     {
       key: "margine",
-      label: "Margine",
+      label: t("Margine"),
       pct: inc.margine_pct,
       valore: risultato.margine_valore,
       // Margine: verde chart-2 se ≥0, rosso chart-5 se in perdita (segno semantico).
@@ -208,14 +211,14 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
   const costoSlices: Slice[] = [
     {
       key: "manodopera",
-      label: "Manodopera",
+      label: t("Manodopera"),
       pct: inc.manodopera_pct_costo,
       valore: inc.manodopera_costo,
       color: "hsl(var(--chart-1))",
     },
     {
       key: "materiali",
-      label: "Materiali",
+      label: t("Materiali"),
       pct: inc.materiali_pct_costo,
       valore: inc.materiali_costo,
       color: "hsl(var(--chart-3))",
@@ -230,8 +233,8 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
           <SectionHeader
             icon={<PieChart className="h-4 w-4" />}
             chip="bg-primary/10 text-primary"
-            title="Dove va il ricavo"
-            subtitle={`Ripartizione del ricavo imponibile · ${formatCurrency(risultato.ricavo_netto)}`}
+            title={t("Dove va il ricavo")}
+            subtitle={t("Ripartizione del ricavo imponibile · {ricavo_netto}", { ricavo_netto: formatCurrency(risultato.ricavo_netto) })}
           />
           <StackedBar slices={ricavoSlices} />
           <Legend slices={ricavoSlices} />
@@ -243,8 +246,8 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
           <SectionHeader
             icon={<Layers className="h-4 w-4" />}
             chip="bg-primary/10 text-primary"
-            title="Composizione del costo"
-            subtitle={`Costo diretto · ${formatCurrency(risultato.costo_diretto)}`}
+            title={t("Composizione del costo")}
+            subtitle={t("Costo diretto · {costo_diretto}", { costo_diretto: formatCurrency(risultato.costo_diretto) })}
           />
           <StackedBar slices={costoSlices} />
           <Legend slices={costoSlices} />
@@ -254,7 +257,7 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
             <span className="flex items-center gap-1.5 font-medium text-primary">
               <HardHat className="h-4 w-4" />
-              Incidenza manodopera sul prezzo
+              {t("Incidenza manodopera sul prezzo")}
             </span>
             <span className="flex items-center gap-2 tabular-nums">
               <span className="font-bold text-primary">
@@ -262,7 +265,7 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
               </span>
               <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <Package className="h-3.5 w-3.5" />
-                materiali {fmtPct(inc.materiali_pct_costo)}
+                {t("materiali")} {fmtPct(inc.materiali_pct_costo)}
               </span>
             </span>
           </div>

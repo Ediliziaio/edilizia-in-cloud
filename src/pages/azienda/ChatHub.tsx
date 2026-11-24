@@ -3,6 +3,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MessagesSquare, Users } from "lucide-react";
 import InternalChat from "@/pages/azienda/InternalChat";
 import ConversazioniInbox from "@/pages/azienda/conversazioni/ConversazioniInbox";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ChatHubProps {
   /** Override company_id per il riuso lato admin (scope alla propria azienda). */
@@ -17,6 +18,7 @@ interface ChatHubProps {
  * via prop `embedded`, ConversazioniInbox via h-full) così la barra tab non sfora.
  */
 export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
+  const t = useT();
   // Default "team" = nessuna regressione sull'esperienza attuale di /azienda/chat.
   // Il tab "Conversazioni" mostra lo stato di attivazione finché la migration
   // 20270704000000 non è applicata; diventerà default quando l'inbox sarà attivo.
@@ -45,10 +47,10 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
       >
         <TabsList data-chat-hub-tabs className="shrink-0 self-start mb-2 md:mx-3 md:mt-2">
           <TabsTrigger value="conversazioni" className="gap-1.5">
-            <MessagesSquare className="h-4 w-4" /> Conversazioni
+            <MessagesSquare className="h-4 w-4" /> {t("Conversazioni")}
           </TabsTrigger>
           <TabsTrigger value="team" className="gap-1.5">
-            <Users className="h-4 w-4" /> Team
+            <Users className="h-4 w-4" /> {t("Team")}
           </TabsTrigger>
         </TabsList>
 

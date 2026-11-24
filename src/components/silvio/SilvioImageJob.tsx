@@ -11,6 +11,7 @@ import { ImageGeneration } from "@/components/ui/ai-chat-image-generation";
 import { PostComposerDialog } from "@/components/creativita/PostComposerDialog";
 import type { CreativeAspect } from "../../../supabase/functions/_shared/brandCreativeRules";
 import { Download, ImageOff, Wand2 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface GenJob {
   id: string;
@@ -35,6 +36,7 @@ function isDone(j: GenJob | null | undefined): boolean {
 }
 
 export function SilvioImageJob({ jobId }: { jobId: string }) {
+  const tr = useT();
   const [timedOut, setTimedOut] = useState(false);
   const [composerAperto, setComposerAperto] = useState(false);
   useEffect(() => {
@@ -67,8 +69,8 @@ export function SilvioImageJob({ jobId }: { jobId: string }) {
       <div className="my-2 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
         <ImageOff className="h-4 w-4 shrink-0" />
         {failed
-          ? "Non sono riuscito a creare l'immagine. Riprova tra poco."
-          : "L'immagine ci sta mettendo più del previsto. Riprova tra qualche minuto."}
+          ? tr("Non sono riuscito a creare l'immagine. Riprova tra poco.")
+          : tr("L'immagine ci sta mettendo più del previsto. Riprova tra qualche minuto.")}
       </div>
     );
   }
@@ -77,7 +79,7 @@ export function SilvioImageJob({ jobId }: { jobId: string }) {
     <div className="my-2">
       <ImageGeneration status={url ? "completed" : "generating"}>
         {url ? (
-          <img src={url} alt="Grafica generata da Silvio" className={`w-full ${aspect} object-cover`} />
+          <img src={url} alt={tr("Grafica generata da Silvio")} className={`w-full ${aspect} object-cover`} />
         ) : (
           <div className={`w-full ${aspect} bg-slate-100 animate-pulse`} />
         )}
@@ -91,7 +93,7 @@ export function SilvioImageJob({ jobId }: { jobId: string }) {
             onClick={() => setComposerAperto(true)}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700"
           >
-            <Wand2 className="h-3.5 w-3.5" /> Prepara il post
+            <Wand2 className="h-3.5 w-3.5" /> {tr("Prepara il post")}
           </button>
           <a
             href={url}
@@ -99,7 +101,7 @@ export function SilvioImageJob({ jobId }: { jobId: string }) {
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            <Download className="h-3.5 w-3.5" /> Scarica l'immagine
+            <Download className="h-3.5 w-3.5" /> {tr("Scarica l'immagine")}
           </a>
         </div>
       )}

@@ -27,9 +27,10 @@ import {
   STATI_PRESENZA,
 } from "@/lib/personale/presenze";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const nomeData = (day: string) =>
-  new Date(`${day}T12:00:00`).toLocaleDateString("it-IT", {
+  new Date(`${day}T12:00:00`).toLocaleDateString(intlCampo(), {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -43,6 +44,7 @@ export function PresenzeHrCalendar({
   mese: string;
   oggi: string;
 }) {
+  const t = useT();
   const [ricerca, setRicerca] = useState("");
   const [reparto, setReparto] = useState("");
   const [stato, setStato] = useState("");
@@ -86,7 +88,7 @@ export function PresenzeHrCalendar({
   };
 
   return (
-    <section aria-label="Calendario presenze HR" className="space-y-4">
+    <section aria-label={t("Calendario presenze HR")} className="space-y-4">
       <div className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-2 xl:grid-cols-[minmax(200px,1fr)_180px_180px_auto]">
         <div className="relative">
           <Search
@@ -94,36 +96,36 @@ export function PresenzeHrCalendar({
             className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"
           />
           <Input
-            aria-label="Cerca persona o mansione"
-            placeholder="Cerca persona o mansione…"
+            aria-label={t("Cerca persona o mansione")}
+            placeholder={t("Cerca persona o mansione…")}
             value={ricerca}
             onChange={(e) => setRicerca(e.target.value)}
             className="h-9 pl-9"
           />
         </div>
         <UniformSelect
-          aria-label="Reparto presenze"
+          aria-label={t("Reparto presenze")}
           value={reparto}
           onChange={(e) => setReparto(e.target.value)}
           className={selectClass}
         >
-          <option value="">Tutti i reparti</option>
+          <option value="">{t("Tutti i reparti")}</option>
           {reparti.map((r) => (
             <option key={r} value={r}>
-              {r}
+              {r === "Non indicato" ? t("Non indicato") : r}
             </option>
           ))}
         </UniformSelect>
         <UniformSelect
-          aria-label="Stato presenza"
+          aria-label={t("Stato presenza")}
           value={stato}
           onChange={(e) => setStato(e.target.value)}
           className={selectClass}
         >
-          <option value="">Tutti gli stati</option>
+          <option value="">{t("Tutti gli stati")}</option>
           {Object.entries(STATI_PRESENZA).map(([key, info]) => (
             <option key={key} value={key}>
-              {info.label}
+              {t(info.label)}
             </option>
           ))}
         </UniformSelect>
@@ -138,7 +140,7 @@ export function PresenzeHrCalendar({
           )}
         >
           <AlertTriangle className="h-4 w-4" />
-          Solo anomalie
+          {t("Solo anomalie")}
         </Button>
       </div>
       {query.isError ? (
@@ -146,10 +148,9 @@ export function PresenzeHrCalendar({
           role="alert"
           className="rounded-xl border border-red-200 bg-white p-5"
         >
-          <p className="font-medium">Impossibile caricare le presenze</p>
+          <p className="font-medium">{t("Impossibile caricare le presenze")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            I dati non sono disponibili: questo non indica che il mese sia
-            vuoto.
+            {t("I dati non sono disponibili: questo non indica che il mese sia vuoto.")}
           </p>
           <Button
             onClick={() => {
@@ -158,7 +159,7 @@ export function PresenzeHrCalendar({
             variant="outline"
             className="mt-3"
           >
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : query.isLoading ? (
@@ -166,7 +167,7 @@ export function PresenzeHrCalendar({
           role="status"
           className="rounded-xl border bg-white p-12 text-center text-sm text-muted-foreground"
         >
-          Caricamento delle presenze…
+          {t("Caricamento delle presenze…")}
         </div>
       ) : (
         <>
@@ -209,12 +210,12 @@ export function PresenzeHrCalendar({
                         : "text-blue-600",
                     )}
                   />
-                  {label}
+                  {t(label)}
                 </div>
                 <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
                   {value}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t(hint)}</p>
               </div>
             ))}
           </div>
@@ -223,23 +224,19 @@ export function PresenzeHrCalendar({
             aria-live="polite"
           >
             <span>
-              {hasFilters ? "Risultati filtrati" : "Tutto il personale"} ·{" "}
-              {filtered.length}{" "}
-              {filtered.length === 1
-                ? "giornata registrata"
-                : "giornate registrate"}{" "}
-              · {personeCount} {personeCount === 1 ? "persona" : "persone"}
+              {hasFilters ? t("Risultati filtrati") : t("Tutto il personale")} ·{" "}
+              {t(filtered.length === 1 ? "{n} giornata registrata" : "{n} giornate registrate", { n: filtered.length })}{" "}
+              · {t(personeCount === 1 ? "{n} persona" : "{n} persone", { n: personeCount })}
             </span>
             {hasFilters && (
               <Button variant="ghost" size="sm" className="h-7" onClick={reset}>
-                Azzera filtri
+                {t("Azzera filtri")}
               </Button>
             )}
           </div>
           {rows.length === 0 && (
             <p className="rounded-lg border border-dashed bg-white p-3 text-sm text-muted-foreground">
-              Nessuna presenza HR registrata in questo mese. Le ore dei
-              rapportini sono nella vista “Ore per cantiere”.
+              {t("Nessuna presenza HR registrata in questo mese. Le ore dei rapportini sono nella vista “Ore per cantiere”.")}
             </p>
           )}
           {rows.length > 0 && filtered.length === 0 && (
@@ -247,7 +244,7 @@ export function PresenzeHrCalendar({
               role="status"
               className="rounded-lg border border-dashed bg-white p-3 text-sm"
             >
-              Nessuna presenza corrisponde ai filtri selezionati.
+              {t("Nessuna presenza corrisponde ai filtri selezionati.")}
             </p>
           )}
           <div className="overflow-x-auto rounded-xl border bg-white">
@@ -262,7 +259,7 @@ export function PresenzeHrCalendar({
                         i > 4 ? "text-slate-400" : "text-slate-600",
                       )}
                     >
-                      {d}
+                      {t(d)}
                     </div>
                   ),
                 )}
@@ -320,13 +317,11 @@ export function PresenzeHrCalendar({
                               statoPresenzaHr(key).className,
                             )}
                           >
-                            {count} · {statoPresenzaHr(key).label}
+                            {count} · {t(statoPresenzaHr(key).label)}
                           </span>
                         ))}
                         {entries.length > 2 && (
-                          <span className="block text-[10px] text-muted-foreground">
-                            +{entries.length - 2} stati
-                          </span>
+                          <span className="block text-[10px] text-muted-foreground">{t("+{n} stati", { n: entries.length - 2 })}</span>
                         )}
                       </span>
                       {dayRows.length > 0 && (
@@ -341,8 +336,7 @@ export function PresenzeHrCalendar({
             </div>
           </div>
           <p className="px-1 text-xs text-muted-foreground">
-            Seleziona un giorno per vedere nomi, orari e dettagli. I riepiloghi
-            seguono i filtri; nessun dato mancante viene considerato un’assenza.
+            {t("Seleziona un giorno per vedere nomi, orari e dettagli. I riepiloghi seguono i filtri; nessun dato mancante viene considerato un’assenza.")}
           </p>
         </>
       )}
@@ -355,19 +349,19 @@ export function PresenzeHrCalendar({
         <SheetContent className="flex w-full flex-col sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>
-              {selectedDay ? nomeData(selectedDay) : "Presenze del giorno"}
+              {selectedDay ? nomeData(selectedDay) : t("Presenze del giorno")}
             </SheetTitle>
             <SheetDescription>
-              {detail.length} {detail.length === 1 ? "presenza" : "presenze"}
-              {hasFilters ? " · con i filtri selezionati" : ""}. Dettagli dal
-              registro HR.
+              {t(detail.length === 1 ? "{n} presenza" : "{n} presenze", { n: detail.length })}
+              {hasFilters ? ` · ${t("con i filtri selezionati")}` : ""}. {t("Dettagli dal registro HR.")}
             </SheetDescription>
           </SheetHeader>
           <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
             {detail.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                Nessuna presenza registrata per questa giornata
-                {hasFilters ? " con questi filtri" : ""}.
+                {hasFilters
+                  ? t("Nessuna presenza registrata per questa giornata con questi filtri.")
+                  : t("Nessuna presenza registrata per questa giornata.")}
               </p>
             ) : (
               detail.map((g) => (
@@ -378,7 +372,7 @@ export function PresenzeHrCalendar({
                         {g.profilo_nome} {g.profilo_cognome}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {g.profilo_reparto || "Reparto non indicato"}
+                        {g.profilo_reparto || t("Reparto non indicato")}
                         {g.profilo_mansione ? ` · ${g.profilo_mansione}` : ""}
                       </p>
                     </div>
@@ -388,26 +382,26 @@ export function PresenzeHrCalendar({
                         statoPresenzaHr(g.stato).className,
                       )}
                     >
-                      {statoPresenzaHr(g.stato).label}
+                      {t(statoPresenzaHr(g.stato).label)}
                     </span>
                   </div>
                   <dl className="grid grid-cols-3 gap-2 text-sm">
                     <div>
-                      <dt className="text-xs text-muted-foreground">Entrata</dt>
+                      <dt className="text-xs text-muted-foreground">{t("Entrata")}</dt>
                       <dd>{g.prima_entrata?.slice(0, 5) || "—"}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-muted-foreground">Uscita</dt>
+                      <dt className="text-xs text-muted-foreground">{t("Uscita")}</dt>
                       <dd>{g.ultima_uscita?.slice(0, 5) || "—"}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-muted-foreground">Ore</dt>
+                      <dt className="text-xs text-muted-foreground">{t("Ore")}</dt>
                       <dd>{orePresenze(g.ore_lavorate || 0)}</dd>
                     </div>
                   </dl>
                   {giornataDaVerificare(g, oggi) && (
                     <p className="rounded-md bg-orange-50 p-2 text-xs text-orange-800">
-                      {g.anomalia_motivo || (g.prima_entrata && !g.ultima_uscita ? "Entrata senza uscita: verifica la giornata" : "Anomalia da verificare")}
+                      {g.anomalia_motivo || (g.prima_entrata && !g.ultima_uscita ? t("Entrata senza uscita: verifica la giornata") : t("Anomalia da verificare"))}
                     </p>
                   )}
                   {g.note && (

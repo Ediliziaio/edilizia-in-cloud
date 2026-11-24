@@ -4,9 +4,11 @@ import { Clock3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Stato del servizio, senza esporre saldi o contenuti dei documenti. */
 export function StatoCodaAllegati() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const permessi = usePermissions();
   const stato = useQuery({
@@ -21,17 +23,17 @@ export function StatoCodaAllegati() {
       return data;
     },
   });
-  if (stato.isError) return <p role="status" className="text-sm text-slate-600">Stato dell’estrazione automatica non disponibile. Puoi continuare a gestire i documenti.</p>;
+  if (stato.isError) return <p role="status" className="text-sm text-slate-600">{t("Stato dell’estrazione automatica non disponibile. Puoi continuare a gestire i documenti.")}</p>;
   if (!stato.data) return null;
-  const link = stato.data.motivo === "pagamento" ? { to: "/azienda/impostazioni/fatturazione", label: "Verifica fatturazione" }
-    : stato.data.motivo === "credito_azienda" ? { to: "/azienda/impostazioni/crediti", label: "Verifica crediti AI" } : null;
+  const link = stato.data.motivo === "pagamento" ? { to: "/azienda/impostazioni/fatturazione", label: t("Verifica fatturazione") }
+    : stato.data.motivo === "credito_azienda" ? { to: "/azienda/impostazioni/crediti", label: t("Verifica crediti AI") } : null;
   return <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
     <Clock3 aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
     <div className="space-y-1">
-      <p className="font-medium">Lettura automatica in attesa</p>
+      <p className="font-medium">{t("Lettura automatica in attesa")}</p>
       <p>{stato.data.messaggio}</p>
-      <p>I documenti restano disponibili. La coda ricontrolla le condizioni e riprende automaticamente al prossimo giro dopo lo sblocco.</p>
-      {link && (permessi.canViewBilling ? <Link to={link.to} className="inline-flex min-h-11 items-center font-medium underline underline-offset-2">{link.label}</Link> : <p>Chiedi all’amministratore di verificare fatturazione e crediti AI.</p>)}
+      <p>{t("I documenti restano disponibili. La coda ricontrolla le condizioni e riprende automaticamente al prossimo giro dopo lo sblocco.")}</p>
+      {link && (permessi.canViewBilling ? <Link to={link.to} className="inline-flex min-h-11 items-center font-medium underline underline-offset-2">{link.label}</Link> : <p>{t("Chiedi all’amministratore di verificare fatturazione e crediti AI.")}</p>)}
     </div>
   </div>;
 }

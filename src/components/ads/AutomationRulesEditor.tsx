@@ -38,6 +38,7 @@ import {
 import { Loader2, Plus, Trash2, Zap, PauseCircle, TrendingUp, Bell } from "lucide-react";
 import { useAdAutomationRules, type CreateRuleInput } from "@/hooks/useAdAutomationRules";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const METRICS = [
   { v: "cpa", label: "Costo per conversione (CPA)" },
@@ -97,6 +98,7 @@ const PRESETS: Array<{ name: string; description: string; rule: Omit<CreateRuleI
 ];
 
 export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
+  const t = useT();
   const { rules, isLoading, create, remove, toggleEnabled, isMutating } = useAdAutomationRules(companyId);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -108,15 +110,15 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Zap className="h-5 w-5 text-amber-500" />
-              Automazioni
+              {t("Automazioni")}
             </CardTitle>
             <CardDescription>
-              Pausa / scala / avvisa in base a metriche reali. Esecuzione cron oraria.
+              {t("Pausa / scala / avvisa in base a metriche reali. Esecuzione cron oraria.")}
             </CardDescription>
           </div>
           <Button onClick={() => setIsCreating(!isCreating)} size="sm">
             <Plus className="h-4 w-4" />
-            {isCreating ? "Annulla" : "Nuova regola"}
+            {isCreating ? t("Annulla") : t("Nuova regola")}
           </Button>
         </div>
       </CardHeader>
@@ -125,7 +127,7 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
         {/* Preset rapidi */}
         {!isCreating && rules.length === 0 && (
           <div className="rounded-xl border border-dashed bg-slate-50 p-4">
-            <p className="mb-3 text-sm font-semibold text-slate-700">Inizia con un preset</p>
+            <p className="mb-3 text-sm font-semibold text-slate-700">{t("Inizia con un preset")}</p>
             <div className="grid gap-2 md:grid-cols-3">
               {PRESETS.map((p) => (
                 <button
@@ -135,8 +137,8 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
                   onClick={() => void create({ ...p.rule, name: p.name, is_enabled: false })}
                   className="rounded-lg border bg-white p-3 text-left hover:border-amber-300 hover:bg-amber-50"
                 >
-                  <p className="text-sm font-semibold text-slate-950">{p.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">{p.description}</p>
+                  <p className="text-sm font-semibold text-slate-950">{t(p.name)}</p>
+                  <p className="mt-1 text-xs text-slate-500">{t(p.description)}</p>
                 </button>
               ))}
             </div>
@@ -156,11 +158,11 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
         {isLoading ? (
           <div className="flex items-center gap-2 py-4 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Caricamento regole...
+            {t("Caricamento regole...")}
           </div>
         ) : rules.length === 0 && !isCreating ? (
           <p className="py-4 text-center text-sm text-slate-500">
-            Nessuna regola attiva. Crea una regola o usa un preset.
+            {t("Nessuna regola attiva. Crea una regola o usa un preset.")}
           </p>
         ) : (
           <div className="space-y-2">
@@ -183,21 +185,17 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
                     <div className="min-w-0">
                       <p className="font-semibold text-slate-950">{rule.name}</p>
                       <p className="text-xs text-slate-500">
-                        Se <strong>{rule.trigger.metric}</strong> {rule.trigger.operator}{" "}
+                        {t("Se")} <strong>{rule.trigger.metric}</strong> {rule.trigger.operator}{" "}
                         <strong>{rule.trigger.value}</strong>
-                        {rule.trigger.window_days ? ` per ${rule.trigger.window_days}gg` : ""} →{" "}
-                        <strong>{actionMeta.label.toLowerCase()}</strong>
+                        {rule.trigger.window_days ? ` ${t("per {n}gg", { n: rule.trigger.window_days })}` : ""} →{" "}
+                        <strong>{t(actionMeta.label).toLowerCase()}</strong>
                         {rule.action.params?.scale_pct ? ` (+${rule.action.params.scale_pct}%)` : ""}
                       </p>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {rule.last_triggered_at && (
-                          <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">
-                            Ultimo trigger: {new Date(rule.last_triggered_at).toLocaleDateString("it-IT")}
-                          </Badge>
+                          <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">{t("Ultimo trigger: {valore}", { valore: new Date(rule.last_triggered_at).toLocaleDateString(intlCampo()) })}</Badge>
                         )}
-                        <Badge variant="outline" className="text-[10px] text-slate-500">
-                          {rule.trigger_count} esecuzioni totali
-                        </Badge>
+                        <Badge variant="outline" className="text-[10px] text-slate-500">{t("{trigger_count} esecuzioni totali", { trigger_count: String(rule.trigger_count ?? "") })}</Badge>
                       </div>
                     </div>
                   </div>
@@ -210,7 +208,7 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
                         "flex h-6 w-11 items-center rounded-full transition",
                         rule.is_enabled ? "bg-emerald-500" : "bg-slate-300",
                       )}
-                      aria-label={rule.is_enabled ? "Disattiva" : "Attiva"}
+                      aria-label={rule.is_enabled ? t("Disattiva") : t("Attiva")}
                     >
                       <span
                         className={cn(
@@ -223,7 +221,7 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
                       size="icon"
                       variant="ghost"
                       onClick={() => setDeleteId(rule.id)}
-                      aria-label="Elimina regola"
+                      aria-label={t("Elimina regola")}
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
@@ -238,20 +236,20 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa regola?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare questa regola?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              L'azione automatica non verrà più eseguita. Puoi sempre ricrearla da preset.
+              {t("L'azione automatica non verrà più eseguita. Puoi sempre ricrearla da preset.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (deleteId) void remove(deleteId);
                 setDeleteId(null);
               }}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -269,6 +267,7 @@ function RuleForm({
   onCancel: () => void;
   onCreated: () => void;
 }) {
+  const t = useT();
   const { create, isMutating } = useAdAutomationRules(companyId);
   const [name, setName] = useState("");
   const [metric, setMetric] = useState("cpl");
@@ -299,43 +298,43 @@ function RuleForm({
   return (
     <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/30 p-4">
       <div>
-        <Label className="mb-1 block">Nome regola</Label>
+        <Label className="mb-1 block">{t("Nome regola")}</Label>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Es. Pausa CPL alto"
+          placeholder={t("Es. Pausa CPL alto")}
         />
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
         <div>
-          <Label className="mb-1 block text-xs">Metrica</Label>
+          <Label className="mb-1 block text-xs">{t("Metrica")}</Label>
           <Select value={metric} onValueChange={setMetric}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {METRICS.map((m) => (
-                <SelectItem key={m.v} value={m.v}>{m.label}</SelectItem>
+                <SelectItem key={m.v} value={m.v}>{t(m.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label className="mb-1 block text-xs">Operatore</Label>
+          <Label className="mb-1 block text-xs">{t("Operatore")}</Label>
           <Select value={operator} onValueChange={setOperator}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {OPERATORS.map((o) => (
-                <SelectItem key={o.v} value={o.v}>{o.label}</SelectItem>
+                <SelectItem key={o.v} value={o.v}>{t(o.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label className="mb-1 block text-xs">Valore soglia</Label>
+          <Label className="mb-1 block text-xs">{t("Valore soglia")}</Label>
           <Input
             type="number"
             min={0}
@@ -347,7 +346,7 @@ function RuleForm({
       </div>
 
       <div>
-        <Label className="mb-1 block text-xs">Periodo osservazione (giorni)</Label>
+        <Label className="mb-1 block text-xs">{t("Periodo osservazione (giorni)")}</Label>
         <Input
           type="number"
           min={1}
@@ -357,12 +356,12 @@ function RuleForm({
           className="md:w-32"
         />
         <p className="mt-1 text-[11px] text-slate-500">
-          La condizione deve essere vera per N giorni consecutivi prima di attivare l'azione.
+          {t("La condizione deve essere vera per N giorni consecutivi prima di attivare l'azione.")}
         </p>
       </div>
 
       <div>
-        <Label className="mb-1 block text-xs">Azione da eseguire</Label>
+        <Label className="mb-1 block text-xs">{t("Azione da eseguire")}</Label>
         <div className="grid gap-2 md:grid-cols-3">
           {ACTIONS.map((a) => {
             const Icon = a.icon;
@@ -377,7 +376,7 @@ function RuleForm({
                 )}
               >
                 <Icon className={cn("h-4 w-4", a.color)} />
-                {a.label}
+                {t(a.label)}
               </button>
             );
           })}
@@ -386,7 +385,7 @@ function RuleForm({
 
       {actionType === "scale" && (
         <div>
-          <Label className="mb-1 block text-xs">% di aumento budget</Label>
+          <Label className="mb-1 block text-xs">{t("% di aumento budget")}</Label>
           <Input
             type="number"
             min={5}
@@ -400,11 +399,11 @@ function RuleForm({
 
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onCancel} disabled={isMutating}>
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button onClick={submit} disabled={!name.trim() || isMutating}>
           {isMutating && <Loader2 className="h-3 w-3 animate-spin" />}
-          Crea regola
+          {t("Crea regola")}
         </Button>
       </div>
     </div>

@@ -102,6 +102,7 @@ import {
   type MediaLibraryView,
 } from "@/lib/mediaLibrary";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type DocumentAnalysisRow = Pick<
   Database["public"]["Tables"]["document_analysis_results"]["Row"],
@@ -461,7 +462,7 @@ function percorsoRecordCollegato(tabella: string | null, id: string | null): str
 
 function formatDate(value: string | null): string {
   if (!value) return "Data non disponibile";
-  return new Intl.DateTimeFormat("it-IT", {
+  return new Intl.DateTimeFormat(intlCampo(), {
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
@@ -1238,6 +1239,7 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
 }
 
 export default function ContenutiMultimediali() {
+  const t = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
@@ -1495,7 +1497,7 @@ export default function ContenutiMultimediali() {
         : tabella.insert({ ...values, mode: modalitaCartella, slug: createMediaLibraryFolderSlug(name), company_id: companyId, created_by: user?.id ?? null });
       const { data, error } = await query.select(CAMPI_CARTELLA).maybeSingle();
       if (error || !data) throw error ?? new Error("La cartella è stata modificata nel frattempo.");
-      toast.success(cartellaInModifica ? "Cartella aggiornata" : "Cartella creata");
+      toast.success(cartellaInModifica ? t("Cartella aggiornata") : t("Cartella creata"));
       resetNewFolderForm();
       setShowFolderDialog(false);
       await refetchFolders();
@@ -1503,7 +1505,7 @@ export default function ContenutiMultimediali() {
       setQuery("");
     } catch (err) {
       const error = err as { code?: string; message?: string } | undefined;
-      toast.error("Cartella non salvata", { description: error?.code === "23505" ? "Esiste già una cartella con questo nome." : error?.message });
+      toast.error(t("Cartella non salvata"), { description: error?.code === "23505" ? t("Esiste già una cartella con questo nome.") : error?.message });
       void refetchFolders();
     } finally { setIsCreatingFolder(false); }
   };
@@ -1517,10 +1519,10 @@ export default function ContenutiMultimediali() {
         .eq("company_id", companyId).eq("id", folder.id).eq("updated_at", folder.updated_at).select("id").maybeSingle();
       if (error || !data) throw error ?? new Error("La cartella è stata modificata nel frattempo.");
       if (archivia && activeCustomFolderId === folder.id) mostraTutti();
-      toast.success(archivia ? "Cartella archiviata" : "Cartella ripristinata");
+      toast.success(archivia ? t("Cartella archiviata") : t("Cartella ripristinata"));
       setNuovaCartellaDaArchiviare(null);
     } catch (err) {
-      toast.error("Stato della cartella non aggiornato", { description: (err as { message?: string })?.message });
+      toast.error(t("Stato della cartella non aggiornato"), { description: (err as { message?: string })?.message });
       setNuovaCartellaDaArchiviare(null);
     } finally {
       void refetchFolders();
@@ -1539,8 +1541,8 @@ export default function ContenutiMultimediali() {
       const { data, error } = await (precedente ? comando.eq("folder_id", precedente) : comando.is("folder_id", null)).select("id").maybeSingle();
       if (error || !data) throw error ?? new Error("Il file è già stato spostato da un altro utente.");
       setSpostamento(null);
-      toast.success("File spostato");
-    } catch (err) { toast.error("File non spostato", { description: (err as { message?: string })?.message }); }
+      toast.success(t("File spostato"));
+    } catch (err) { toast.error(t("File non spostato"), { description: (err as { message?: string })?.message }); }
     finally { setIsCreatingFolder(false); void sincronizzaArchivio(); }
   };
 
@@ -1552,8 +1554,8 @@ export default function ContenutiMultimediali() {
     }
 
     if (target.kind === "missing") {
-      toast.error("File non disponibile", {
-        description: "Questo record non ha ancora un riferimento storage apribile.",
+      toast.error(t("File non disponibile"), {
+        description: t("Questo record non ha ancora un riferimento storage apribile."),
       });
       return;
     }
@@ -1571,7 +1573,7 @@ export default function ContenutiMultimediali() {
           maxAttempts: 3,
           onRetry: (attempt, _err, nextMs) => {
             if (attempt === 1) {
-              toast.info("Riprovo ad aprire il file...", { description: `Tentativo ${attempt + 1} tra ${Math.round(nextMs / 1000)}s` });
+              toast.info(t("Riprovo ad aprire il file..."), { description: t("Tentativo {attempt} tra {valore}s", { attempt: attempt + 1, valore: Math.round(nextMs / 1000) }) });
             }
           },
         },
@@ -1585,8 +1587,8 @@ export default function ContenutiMultimediali() {
       else window.location.assign(data.signedUrl);
     } catch (err) {
       scheda?.close();
-      toast.error("Non riesco ad aprire il file", {
-        description: err instanceof Error ? err.message : "Verifica permessi e bucket del documento.",
+      toast.error(t("Non riesco ad aprire il file"), {
+        description: err instanceof Error ? err.message : t("Verifica permessi e bucket del documento."),
       });
     } finally {
       setOpeningId(null);
@@ -1607,7 +1609,7 @@ export default function ContenutiMultimediali() {
       document.body.append(link);
       link.click();
       link.remove();
-    } catch { toast.error("Impossibile scaricare il file"); }
+    } catch { toast.error(t("Impossibile scaricare il file")); }
     finally { setOpeningId(null); }
   };
 
@@ -1628,8 +1630,8 @@ export default function ContenutiMultimediali() {
     return (
       <EmptyState
         icon={Lock}
-        title="Area documentale non disponibile"
-        description="Il tuo ruolo non ha accesso a EiC Drive. Chiedi a un amministratore di aggiornare i permessi."
+        title={t("Area documentale non disponibile")}
+        description={t("Il tuo ruolo non ha accesso a EiC Drive. Chiedi a un amministratore di aggiornare i permessi.")}
       />
     );
   }
@@ -1645,7 +1647,7 @@ export default function ContenutiMultimediali() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">EiC Drive</h1>
+              <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">{t("EiC Drive")}</h1>
             </div>
           </div>
         </div>
@@ -1653,36 +1655,36 @@ export default function ContenutiMultimediali() {
         <div className="flex flex-wrap gap-2 max-sm:shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem className="gap-2" onSelect={() => setShowSmartInbox(true)}>
-                <Inbox className="h-4 w-4" /> Inbox AI
+                <Inbox className="h-4 w-4" /> {t("Inbox AI")}
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2" onSelect={() => setShowPdfTools(true)}>
-                <FileText className="h-4 w-4" /> Strumenti PDF
+                <FileText className="h-4 w-4" /> {t("Strumenti PDF")}
               </DropdownMenuItem>
               {puoScrivere && <DropdownMenuItem className="gap-2" onSelect={() => apriCartella()}>
-                <FolderPlus className="h-4 w-4" /> Nuova cartella
+                <FolderPlus className="h-4 w-4" /> {t("Nuova cartella")}
               </DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
           {puoScrivere && <Button onClick={() => apriCaricamento()} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <UploadCloud className="mr-2 h-4 w-4 max-sm:mr-1.5" />
-            <span className="max-sm:hidden">Carica file</span>
-            <span className="sm:hidden">Carica</span>
+            <span className="max-sm:hidden">{t("Carica file")}</span>
+            <span className="sm:hidden">{t("Carica")}</span>
           </Button>}
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-5 max-sm:hidden">
-        <MetricCard label="Documenti" value={summary.total} icon={Archive} loading={isInitialMediaLoading} />
-        <MetricCard label="Inbox AI" value={summary.aiInbox} icon={Brain} loading={isInitialMediaLoading} />
-        <MetricCard label="Da verificare" value={summary.reviewRequired} icon={AlertTriangle} tone="warning" loading={isInitialMediaLoading} />
-        <MetricCard label="Collegati" value={summary.linked} icon={Link2} tone="success" loading={isInitialMediaLoading} />
-        <MetricCard label="Riservati" value={summary.reserved} icon={ShieldCheck} tone="restricted" loading={isInitialMediaLoading} />
+        <MetricCard label={t("Documenti")} value={summary.total} icon={Archive} loading={isInitialMediaLoading} />
+        <MetricCard label={t("Inbox AI")} value={summary.aiInbox} icon={Brain} loading={isInitialMediaLoading} />
+        <MetricCard label={t("Da verificare")} value={summary.reviewRequired} icon={AlertTriangle} tone="warning" loading={isInitialMediaLoading} />
+        <MetricCard label={t("Collegati")} value={summary.linked} icon={Link2} tone="success" loading={isInitialMediaLoading} />
+        <MetricCard label={t("Riservati")} value={summary.reserved} icon={ShieldCheck} tone="restricted" loading={isInitialMediaLoading} />
       </div>
 
       {/* Mobile: due numeri; «Da classificare» apre la cartella omonima.
@@ -1706,10 +1708,8 @@ export default function ContenutiMultimediali() {
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <div className="font-medium">Archivio caricato parzialmente</div>
-              <p className="mt-1 text-xs leading-relaxed max-sm:hidden">
-                Alcune fonti non hanno risposto: {sourceWarnings.join(" · ")}. I documenti disponibili restano consultabili.
-              </p>
+              <div className="font-medium">{t("Archivio caricato parzialmente")}</div>
+              <p className="mt-1 text-xs leading-relaxed max-sm:hidden">{t("Alcune fonti non hanno risposto: {sourceWarnings}. I documenti disponibili restano consultabili.", { sourceWarnings: sourceWarnings.join(" · ") })}</p>
             </div>
           </div>
         </div>
@@ -1722,38 +1722,38 @@ export default function ContenutiMultimediali() {
         <Card className="h-fit">
           <CardHeader className="px-3 pb-2 pt-4">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm">Cartelle</CardTitle>
-              {puoScrivere && <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2" onClick={() => apriCartella()} aria-label="Nuova cartella">
-                <FolderPlus className="h-4 w-4" /> Nuova
+              <CardTitle className="text-sm">{t("Cartelle")}</CardTitle>
+              {puoScrivere && <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2" onClick={() => apriCartella()} aria-label={t("Nuova cartella")}>
+                <FolderPlus className="h-4 w-4" /> {t("Nuova")}
               </Button>}
             </div>
           </CardHeader>
           <CardContent className="space-y-3 px-2 pb-3">
             <div className="space-y-0.5">
-              {CARTELLE_PRINCIPALI.map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={TAB_LABELS[tab]}
-                description={TAB_DESCRIPTIONS[tab]} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
+              {CARTELLE_PRINCIPALI.map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={t(TAB_LABELS[tab])}
+                description={t(TAB_DESCRIPTIONS[tab])} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
             </div>
             <details className="rounded-md border px-1" open={!activeCustomFolder && !CARTELLE_PRINCIPALI.includes(activeTab) ? true : undefined}>
-              <summary className="cursor-pointer px-2 py-2 text-xs font-medium text-muted-foreground">Altre categorie</summary>
-              {TABS.filter(tab => !CARTELLE_PRINCIPALI.includes(tab)).map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={TAB_LABELS[tab]}
-                description={TAB_DESCRIPTIONS[tab]} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
+              <summary className="cursor-pointer px-2 py-2 text-xs font-medium text-muted-foreground">{t("Altre categorie")}</summary>
+              {TABS.filter(tab => !CARTELLE_PRINCIPALI.includes(tab)).map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={t(TAB_LABELS[tab])}
+                description={t(TAB_DESCRIPTIONS[tab])} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
             </details>
             <div className="space-y-1.5 border-t pt-3">
               <div className="flex items-center justify-between px-2">
-                <p className="text-xs font-medium text-muted-foreground">Cartelle personalizzate</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("Cartelle personalizzate")}</p>
                 {isFetchingFolders && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               </div>
-              {customFolders.length > 5 && <Input aria-label="Cerca cartella" placeholder="Cerca cartella…" value={cercaCartella} onChange={e => setCercaCartella(e.target.value)} className="h-8 text-xs" />}
-              {customFolders.length === 0 && puoScrivere && <Button type="button" variant="ghost" size="sm" onClick={() => apriCartella()} className="w-full justify-start text-xs">Crea la prima cartella</Button>}
+              {customFolders.length > 5 && <Input aria-label={t("Cerca cartella")} placeholder={t("Cerca cartella…")} value={cercaCartella} onChange={e => setCercaCartella(e.target.value)} className="h-8 text-xs" />}
+              {customFolders.length === 0 && puoScrivere && <Button type="button" variant="ghost" size="sm" onClick={() => apriCartella()} className="w-full justify-start text-xs">{t("Crea la prima cartella")}</Button>}
               {customFolders.filter(folder => folder.name.toLowerCase().includes(cercaCartella.trim().toLowerCase())).map(folder => (
                 <FolderNavButton key={folder.id} icon={folder.mode === "automatic" ? Sparkles : Folder} label={folder.name}
-                  description={folder.description || (folder.mode === "automatic" ? "Automatica" : "Manuale")}
+                  description={folder.description || (folder.mode === "automatic" ? t("Automatica") : t("Manuale"))}
                   count={countsByCustomFolder.get(folder.id) ?? 0} active={activeCustomFolder?.id === folder.id} onClick={() => selectCustomFolder(folder.id)} />
               ))}
               {puoScrivere && cartelleArchiviate.length > 0 && <details className="rounded-md border px-2">
-                <summary className="cursor-pointer py-2 text-xs text-muted-foreground">Archiviate ({cartelleArchiviate.length})</summary>
+                <summary className="cursor-pointer py-2 text-xs text-muted-foreground">{t("Archiviate ({n})", { n: cartelleArchiviate.length })}</summary>
                 {cartelleArchiviate.map(folder => <div key={folder.id} className="flex items-center gap-1 text-xs"><span className="flex-1 truncate">{folder.name}</span>
-                  <Button variant="ghost" size="icon" aria-label={`Ripristina ${folder.name}`} disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(folder, false)}><RotateCcw className="h-3.5 w-3.5" /></Button></div>)}
+                  <Button variant="ghost" size="icon" aria-label={t("Ripristina {name}", { name: String(folder.name ?? "") })} disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(folder, false)}><RotateCcw className="h-3.5 w-3.5" /></Button></div>)}
               </details>}
             </div>
           </CardContent>
@@ -1768,14 +1768,14 @@ export default function ContenutiMultimediali() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {activeCustomFolder && puoScrivere && <DropdownMenu>
-                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Gestisci cartella"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label={t("Gestisci cartella")}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => apriCartella(activeCustomFolder)}><Pencil className="mr-2 h-4 w-4" /> Modifica cartella</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setNuovaCartellaDaArchiviare(activeCustomFolder)}><Archive className="mr-2 h-4 w-4" /> Archivia cartella</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => apriCartella(activeCustomFolder)}><Pencil className="mr-2 h-4 w-4" /> {t("Modifica cartella")}</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setNuovaCartellaDaArchiviare(activeCustomFolder)}><Archive className="mr-2 h-4 w-4" /> {t("Archivia cartella")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>}
                 <Button variant="outline" size="icon" onClick={() => { void sincronizzaArchivio(); void refetchFolders(); }}
-                  aria-label="Aggiorna" disabled={isFetching || estensioneArchivio || isFetchingFolders}>
+                  aria-label={t("Aggiorna")} disabled={isFetching || estensioneArchivio || isFetchingFolders}>
                   {isFetching || estensioneArchivio || isFetchingFolders ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 </Button>
               </div>
@@ -1786,13 +1786,13 @@ export default function ContenutiMultimediali() {
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Cerca per nome, tipo, area o collegamento..."
+                placeholder={t("Cerca per nome, tipo, area o collegamento...")}
                 className="pl-9 pr-9"
               />
               {query ? (
                 <button
                   type="button"
-                  aria-label="Pulisci ricerca"
+                  aria-label={t("Pulisci ricerca")}
                   onClick={() => setQuery("")}
                   className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
                 >
@@ -1801,13 +1801,13 @@ export default function ContenutiMultimediali() {
               ) : null}
             </div>
               <Button variant="outline" onClick={() => setFiltriDesktopAperti(!filtriDesktopAperti)} aria-expanded={filtriDesktopAperti}>
-                <SlidersHorizontal className="mr-2 h-4 w-4" /> Filtri{filtriAggiuntivi ? ` (${filtriAggiuntivi})` : ""}
+                <SlidersHorizontal className="mr-2 h-4 w-4" /> {t("Filtri")}{filtriAggiuntivi ? ` (${filtriAggiuntivi})` : ""}
               </Button>
             </div>
             {filtriDesktopAperti && <div className="space-y-2 rounded-lg border bg-muted/25 p-3"><FiltriDrive {...impostazioniFiltro} />
-              {filtriAggiuntivi > 0 && <Button size="sm" variant="ghost" onClick={azzeraFiltriAggiuntivi}>Azzera filtri</Button>}
+              {filtriAggiuntivi > 0 && <Button size="sm" variant="ghost" onClick={azzeraFiltriAggiuntivi}>{t("Azzera filtri")}</Button>}
             </div>}
-            <p role="status" className="text-xs text-muted-foreground">{estensioneArchivio ? "Caricamento delle pagine precedenti…" : `${filteredItems.length} ${filteredItems.length === 1 ? "risultato" : "risultati"}`}</p>
+            <p role="status" className="text-xs text-muted-foreground">{estensioneArchivio ? t("Caricamento delle pagine precedenti…") : `${filteredItems.length} ${filteredItems.length === 1 ? "risultato" : "risultati"}`}</p>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
@@ -1833,20 +1833,20 @@ export default function ContenutiMultimediali() {
               <EmptyState
                 inline
                 icon={AlertTriangle}
-                title="Sessione scaduta"
-                description="La tua sessione è terminata. Accedi di nuovo per continuare a vedere i tuoi documenti."
+                title={t("Sessione scaduta")}
+                description={t("La tua sessione è terminata. Accedi di nuovo per continuare a vedere i tuoi documenti.")}
                 action={{ label: "Vai al login", onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
               />
             ) : error ? (
               <EmptyState
                 inline
                 icon={AlertTriangle}
-                title="Archivio non caricato"
+                title={t("Archivio non caricato")}
                 description={`Non riesco a leggere una o più fonti documentali. ${error instanceof Error ? error.message : ""}`.trim()}
                 action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
               />
             ) : filteredItems.length === 0 && estensioneArchivio ? (
-              <p role="status" className="p-4 text-sm text-muted-foreground">Cerco anche nelle pagine precedenti…</p>
+              <p role="status" className="p-4 text-sm text-muted-foreground">{t("Cerco anche nelle pagine precedenti…")}</p>
             ) : filteredItems.length === 0 ? (
               rawItems.length === 0 ? (
                 // Azienda nuova senza alcun documento: onboarding ricco con 3 azioni
@@ -1855,8 +1855,8 @@ export default function ContenutiMultimediali() {
                     <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber-strong text-white shadow-md">
                       <FileText className="h-8 w-8" />
                     </div>
-                    <h3 className="mt-4 text-xl font-bold tracking-tight text-slate-950">Il Drive è vuoto, iniziamo</h3>
-                    <p className="mt-1 text-sm text-slate-600">Carica documenti, crea una cartella o apri l’Inbox AI.</p>
+                    <h3 className="mt-4 text-xl font-bold tracking-tight text-slate-950">{t("Il Drive è vuoto, iniziamo")}</h3>
+                    <p className="mt-1 text-sm text-slate-600">{t("Carica documenti, crea una cartella o apri l’Inbox AI.")}</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <button
@@ -1866,9 +1866,9 @@ export default function ContenutiMultimediali() {
                       className="flex flex-col items-start gap-2 rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-white p-4 text-left transition hover:border-orange-400 hover:shadow-md"
                     >
                       <UploadCloud className="h-6 w-6 text-orange-600" />
-                      <p className="text-sm font-bold text-slate-900">Carica un documento</p>
-                      <p className="text-xs text-slate-600">DDT, fatture, computi, foto, contratti. Archivia i file oppure analizzali con Silvio.</p>
-                      <span className="mt-auto text-xs font-semibold text-orange-700">Inizia →</span>
+                      <p className="text-sm font-bold text-slate-900">{t("Carica un documento")}</p>
+                      <p className="text-xs text-slate-600">{t("DDT, fatture, computi, foto, contratti. Archivia i file oppure analizzali con Silvio.")}</p>
+                      <span className="mt-auto text-xs font-semibold text-orange-700">{t("Inizia →")}</span>
                     </button>
                     <button
                       type="button"
@@ -1876,9 +1876,9 @@ export default function ContenutiMultimediali() {
                       className="flex flex-col items-start gap-2 rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 text-left transition hover:border-blue-400 hover:shadow-md"
                     >
                       <Inbox className="h-6 w-6 text-blue-600" />
-                      <p className="text-sm font-bold text-slate-900">Inbox AI</p>
-                      <p className="text-xs text-slate-600">Inoltra documenti via email a un indirizzo dedicato. Silvio li classifica.</p>
-                      <span className="mt-auto text-xs font-semibold text-blue-700">Configura →</span>
+                      <p className="text-sm font-bold text-slate-900">{t("Inbox AI")}</p>
+                      <p className="text-xs text-slate-600">{t("Inoltra documenti via email a un indirizzo dedicato. Silvio li classifica.")}</p>
+                      <span className="mt-auto text-xs font-semibold text-blue-700">{t("Configura →")}</span>
                     </button>
                     <button
                       type="button"
@@ -1886,9 +1886,9 @@ export default function ContenutiMultimediali() {
                       className="flex flex-col items-start gap-2 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-left transition hover:border-emerald-400 hover:shadow-md"
                     >
                       <FolderPlus className="h-6 w-6 text-emerald-600" />
-                      <p className="text-sm font-bold text-slate-900">Crea una cartella</p>
-                      <p className="text-xs text-slate-600">Raggruppa i file per progetto, cliente o tipo.</p>
-                      <span className="mt-auto text-xs font-semibold text-emerald-700">Crea →</span>
+                      <p className="text-sm font-bold text-slate-900">{t("Crea una cartella")}</p>
+                      <p className="text-xs text-slate-600">{t("Raggruppa i file per progetto, cliente o tipo.")}</p>
+                      <span className="mt-auto text-xs font-semibold text-emerald-700">{t("Crea →")}</span>
                     </button>
                   </div>
                 </div>
@@ -1896,8 +1896,8 @@ export default function ContenutiMultimediali() {
                 <EmptyState
                   inline
                   icon={FileText}
-                  title="Nessun contenuto in questa vista"
-                  description="Cambia filtro o tab per visualizzare gli allegati già presenti nell'archivio."
+                  title={t("Nessun contenuto in questa vista")}
+                  description={t("Cambia filtro o tab per visualizzare gli allegati già presenti nell'archivio.")}
                   action={{ label: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? "Carica in questa cartella" : "Mostra tutti",
                     onClick: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? () => apriCaricamento() : mostraTutti, variant: "outline" }}
                 />
@@ -1937,7 +1937,7 @@ export default function ContenutiMultimediali() {
         <CercaConFiltri
           valore={query}
           onCambia={(v) => { setQuery(v); setPaginaMobile(1); }}
-          segnaposto={activeCustomFolder || activeTab !== "tutti" ? `Cerca in ${activeFolderTitle}` : "Cerca documento"}
+          segnaposto={activeCustomFolder || activeTab !== "tutti" ? t("Cerca in {activeFolderTitle}", { activeFolderTitle: String(activeFolderTitle ?? "") }) : t("Cerca documento")}
           filtriAttivi={Number(Boolean(activeCustomFolder || activeTab !== "tutti")) + filtriAggiuntivi}
           onApriFiltri={() => setFiltriMobiliAperti(true)}
         />
@@ -1954,20 +1954,20 @@ export default function ContenutiMultimediali() {
           <EmptyState
             inline
             icon={AlertTriangle}
-            title="Sessione scaduta"
+            title={t("Sessione scaduta")}
             action={{ label: "Vai al login", onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
           />
         ) : error ? (
           <EmptyState
             inline
             icon={AlertTriangle}
-            title="Archivio non caricato"
+            title={t("Archivio non caricato")}
             action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
           />
         ) : filteredItems.length === 0 ? (
           <div className="space-y-1 py-3 text-center text-xs text-muted-foreground">
-            <p role="status">{estensioneArchivio ? "Cerco anche nelle pagine precedenti…" : rawItems.length === 0 ? "Il Drive è vuoto" : query ? "Nessun documento trovato" : "Nessun documento in questa cartella"}</p>
-            {!estensioneArchivio && (query || activeCustomFolder || activeTab !== "tutti" || filtriAggiuntivi > 0) && <Button size="sm" variant="ghost" onClick={mostraTutti}>Mostra tutti</Button>}
+            <p role="status">{estensioneArchivio ? t("Cerco anche nelle pagine precedenti…") : rawItems.length === 0 ? t("Il Drive è vuoto") : query ? t("Nessun documento trovato") : t("Nessun documento in questa cartella")}</p>
+            {!estensioneArchivio && (query || activeCustomFolder || activeTab !== "tutti" || filtriAggiuntivi > 0) && <Button size="sm" variant="ghost" onClick={mostraTutti}>{t("Mostra tutti")}</Button>}
           </div>
         ) : (
           <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
@@ -1991,15 +1991,13 @@ export default function ContenutiMultimediali() {
         )}
         {pagineMobili > 1 && (
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">
-              {(paginaMobileValida - 1) * PER_PAGINA_MOBILE + 1}–{Math.min(paginaMobileValida * PER_PAGINA_MOBILE, filteredItems.length)} di {filteredItems.length}
-            </span>
+            <span className="text-[11px] text-muted-foreground">{t("{paginaMobileValida}–{valore} di {n}", { paginaMobileValida: (paginaMobileValida - 1) * PER_PAGINA_MOBILE + 1, valore: Math.min(paginaMobileValida * PER_PAGINA_MOBILE, filteredItems.length), n: filteredItems.length })}</span>
             <div className="flex gap-1">
               <Button
                 variant="outline"
                 size="icon"
                 className="tap-compact h-8 w-8"
-                aria-label="Pagina precedente"
+                aria-label={t("Pagina precedente")}
                 disabled={paginaMobileValida <= 1}
                 onClick={() => setPaginaMobile(paginaMobileValida - 1)}
               >
@@ -2009,7 +2007,7 @@ export default function ContenutiMultimediali() {
                 variant="outline"
                 size="icon"
                 className="tap-compact h-8 w-8"
-                aria-label="Pagina successiva"
+                aria-label={t("Pagina successiva")}
                 disabled={paginaMobileValida >= pagineMobili}
                 onClick={() => setPaginaMobile(paginaMobileValida + 1)}
               >
@@ -2027,16 +2025,16 @@ export default function ContenutiMultimediali() {
         onAzzera={mostraTutti}
         risultati={filteredItems.length}
       >
-        <PilloleFiltro titolo="Cartella" valore={cartellaMobile} onScegli={scegliCartellaMobile} scelte={scelteCartelleMobili} />
+        <PilloleFiltro titolo={t("Cartella")} valore={cartellaMobile} onScegli={scegliCartellaMobile} scelte={scelteCartelleMobili} />
         <FiltriDrive {...impostazioniFiltro} />
         {puoScrivere && <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(); }}>Nuova cartella</Button>
+          <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(); }}>{t("Nuova cartella")}</Button>
           {activeCustomFolder && <>
-            <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(activeCustomFolder); }}>Modifica cartella</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setFiltriMobiliAperti(false); setNuovaCartellaDaArchiviare(activeCustomFolder); }}>Archivia cartella</Button>
+            <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(activeCustomFolder); }}>{t("Modifica cartella")}</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setFiltriMobiliAperti(false); setNuovaCartellaDaArchiviare(activeCustomFolder); }}>{t("Archivia cartella")}</Button>
           </>}
-          {cartelleArchiviate.length > 0 && <details className="w-full rounded-md border px-2 py-1"><summary className="text-sm">Cartelle archiviate</summary>
-            {cartelleArchiviate.map(folder => <Button key={folder.id} size="sm" variant="ghost" onClick={() => void cambiaArchivioCartella(folder, false)} disabled={isCreatingFolder}>Ripristina {folder.name}</Button>)}
+          {cartelleArchiviate.length > 0 && <details className="w-full rounded-md border px-2 py-1"><summary className="text-sm">{t("Cartelle archiviate")}</summary>
+            {cartelleArchiviate.map(folder => <Button key={folder.id} size="sm" variant="ghost" onClick={() => void cambiaArchivioCartella(folder, false)} disabled={isCreatingFolder}>{t("Ripristina {name}", { name: String(folder.name ?? "") })}</Button>)}
           </details>}
         </div>}
       </PannelloFiltri>
@@ -2048,7 +2046,7 @@ export default function ContenutiMultimediali() {
             <>
               <SheetHeader className="text-left">
                 <SheetTitle className="break-words pr-6 text-base leading-tight">{dettaglioMobile.fileName}</SheetTitle>
-                <SheetDescription className="sr-only">Dettaglio del documento</SheetDescription>
+                <SheetDescription className="sr-only">{t("Dettaglio del documento")}</SheetDescription>
               </SheetHeader>
               <p className="mt-1 text-xs text-muted-foreground">
                 {/* Niente doppioni (tipo uguale all'area) né «n.d.» quando manca la dimensione. */}
@@ -2065,7 +2063,7 @@ export default function ContenutiMultimediali() {
                 {dettaglioMobile.linkedEntityLabel ? (
                   percorsoRecordCollegato(dettaglioMobile.linkedEntityTable, dettaglioMobile.linkedEntityId) ? (
                     <>
-                      {" · collegato a "}
+                      {` ${t("· collegato a")} `}
                       <Link
                         to={percorsoRecordCollegato(dettaglioMobile.linkedEntityTable, dettaglioMobile.linkedEntityId)!}
                         className="font-medium text-primary underline underline-offset-2"
@@ -2074,7 +2072,7 @@ export default function ContenutiMultimediali() {
                       </Link>
                     </>
                   ) : (
-                    ` · collegato a ${dettaglioMobile.linkedEntityLabel}`
+                    t(" · collegato a {linkedEntityLabel}", { linkedEntityLabel: String(dettaglioMobile.linkedEntityLabel ?? "") })
                   )
                 ) : ""}
                 {dettaglioMobile.actorLabel ? ` · ${dettaglioMobile.actorLabel}` : ""}
@@ -2088,11 +2086,11 @@ export default function ContenutiMultimediali() {
                 disabled={openingId === dettaglioMobile.id || resolveMediaLibraryOpenTarget(dettaglioMobile).kind === "missing"}
               >
                 {openingId === dettaglioMobile.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
-                Anteprima
+                {t("Anteprima")}
               </Button>
               <div className="mt-2 flex flex-wrap gap-2">
-                {resolveMediaLibraryOpenTarget(dettaglioMobile).kind === "storage" && <Button variant="outline" size="sm" disabled={!!openingId} onClick={() => void scaricaFileDrive(dettaglioMobile)}><Download className="mr-2 h-4 w-4" /> Scarica</Button>}
-                {puoSpostareFile(dettaglioMobile) && <Button variant="outline" size="sm" onClick={() => { setSpostamento({ item: dettaglioMobile, cartella: dettaglioMobile.folderId ?? "" }); setDettaglioMobile(null); }}><Folder className="mr-2 h-4 w-4" /> Sposta file</Button>}
+                {resolveMediaLibraryOpenTarget(dettaglioMobile).kind === "storage" && <Button variant="outline" size="sm" disabled={!!openingId} onClick={() => void scaricaFileDrive(dettaglioMobile)}><Download className="mr-2 h-4 w-4" /> {t("Scarica")}</Button>}
+                {puoSpostareFile(dettaglioMobile) && <Button variant="outline" size="sm" onClick={() => { setSpostamento({ item: dettaglioMobile, cartella: dettaglioMobile.folderId ?? "" }); setDettaglioMobile(null); }}><Folder className="mr-2 h-4 w-4" /> {t("Sposta file")}</Button>}
               </div>
             </>
           )}
@@ -2116,76 +2114,76 @@ export default function ContenutiMultimediali() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{cartellaInModifica ? "Modifica cartella" : "Nuova cartella"}</DialogTitle>
-            <DialogDescription>Le cartelle rispettano la visibilità dei singoli documenti.</DialogDescription>
+            <DialogTitle>{cartellaInModifica ? t("Modifica cartella") : t("Nuova cartella")}</DialogTitle>
+            <DialogDescription>{t("Le cartelle rispettano la visibilità dei singoli documenti.")}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {!cartellaInModifica && <div className="space-y-1.5">
-              <Label htmlFor="media-folder-mode">Tipo di cartella</Label>
+              <Label htmlFor="media-folder-mode">{t("Tipo di cartella")}</Label>
               <UniformSelect id="media-folder-mode" className="block w-full rounded-md border bg-background p-2 text-sm" value={modalitaCartella} onChange={e => setModalitaCartella(e.target.value as DriveFolderMode)}>
-                <option value="manual">Manuale</option><option value="automatic">Automatica per parole chiave</option>
+                <option value="manual">{t("Manuale")}</option><option value="automatic">{t("Automatica per parole chiave")}</option>
               </UniformSelect>
-              <p className="text-xs text-muted-foreground">{modalitaCartella === "manual" ? "Scegli la cartella quando archivi o sposti un file." : "Raccoglie i documenti che corrispondono alle parole chiave impostate."}</p>
+              <p className="text-xs text-muted-foreground">{modalitaCartella === "manual" ? t("Scegli la cartella quando archivi o sposti un file.") : t("Raccoglie i documenti che corrispondono alle parole chiave impostate.")}</p>
             </div>}
             <div className="space-y-2">
-              <Label htmlFor="media-folder-name">Nome cartella</Label>
+              <Label htmlFor="media-folder-name">{t("Nome cartella")}</Label>
               <Input
                 id="media-folder-name"
                 value={newFolderName}
                 onChange={(event) => updateNewFolderName(event.target.value)}
-                placeholder="Es. Prodotti premium, Finanziarie, Render cliente Rossi"
+                placeholder={t("Es. Prodotti premium, Finanziarie, Render cliente Rossi")}
               />
             </div>
             {modalitaCartella === "automatic" && <div className="space-y-2">
-              <Label htmlFor="media-folder-query">Regole di raccolta</Label>
+              <Label htmlFor="media-folder-query">{t("Regole di raccolta")}</Label>
               <Textarea
                 id="media-folder-query"
                 value={newFolderMatchQuery}
                 onChange={(event) => setNewFolderMatchQuery(event.target.value)}
-                placeholder="Parole chiave separate da virgola: scheda prodotto, catalogo, render..."
+                placeholder={t("Parole chiave separate da virgola: scheda prodotto, catalogo, render...")}
               />
               <p className="text-xs text-muted-foreground">
-                Il sistema cerca in nome file, tipo documento, area, record collegato, autore e metadati AI.
+                {t("Il sistema cerca in nome file, tipo documento, area, record collegato, autore e metadati AI.")}
               </p>
             </div>}
             <div className="space-y-2">
-              <Label htmlFor="media-folder-description">Nota interna</Label>
+              <Label htmlFor="media-folder-description">{t("Nota interna")}</Label>
               <Textarea
                 id="media-folder-description"
                 value={newFolderDescription}
                 onChange={(event) => setNewFolderDescription(event.target.value)}
-                placeholder="A cosa serve questa cartella?"
+                placeholder={t("A cosa serve questa cartella?")}
               />
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowFolderDialog(false)} disabled={isCreatingFolder}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button onClick={handleCreateFolder} disabled={isCreatingFolder || newFolderName.trim().length < 2}>
               {isCreatingFolder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderPlus className="mr-2 h-4 w-4" />}
-              {cartellaInModifica ? "Salva modifiche" : "Crea cartella"}
+              {cartellaInModifica ? t("Salva modifiche") : t("Crea cartella")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {nuovaCartellaDaArchiviare && <Dialog open onOpenChange={open => { if (!open && !isCreatingFolder) setNuovaCartellaDaArchiviare(null); }}>
-        <DialogContent><DialogHeader><DialogTitle>Archivia «{nuovaCartellaDaArchiviare.name}»?</DialogTitle><DialogDescription>I file restano in Tutti. Puoi ripristinare la cartella da Archiviate.</DialogDescription></DialogHeader>
-          <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setNuovaCartellaDaArchiviare(null)}>Annulla</Button>
-            <Button disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(nuovaCartellaDaArchiviare, true)}>Archivia cartella</Button></DialogFooter></DialogContent>
+        <DialogContent><DialogHeader><DialogTitle>{t("Archivia «{name}»?", { name: String(nuovaCartellaDaArchiviare.name ?? "") })}</DialogTitle><DialogDescription>{t("I file restano in Tutti. Puoi ripristinare la cartella da Archiviate.")}</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setNuovaCartellaDaArchiviare(null)}>{t("Annulla")}</Button>
+            <Button disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(nuovaCartellaDaArchiviare, true)}>{t("Archivia cartella")}</Button></DialogFooter></DialogContent>
       </Dialog>}
 
       {spostamento && <Dialog open onOpenChange={open => { if (!open && !isCreatingFolder) setSpostamento(null); }}>
-        <DialogContent><DialogHeader><DialogTitle>Sposta file</DialogTitle><DialogDescription>{spostamento.item.fileName}</DialogDescription></DialogHeader>
-          <UniformSelect aria-label="Cartella di destinazione" value={spostamento.cartella} className="w-full rounded-md border bg-background p-2" disabled={isCreatingFolder}
+        <DialogContent><DialogHeader><DialogTitle>{t("Sposta file")}</DialogTitle><DialogDescription>{spostamento.item.fileName}</DialogDescription></DialogHeader>
+          <UniformSelect aria-label={t("Cartella di destinazione")} value={spostamento.cartella} className="w-full rounded-md border bg-background p-2" disabled={isCreatingFolder}
             onChange={e => setSpostamento({ ...spostamento, cartella: e.target.value })}>
-            <option value="">Archivio generale</option>{cartelleManuali.map(cartella => <option key={cartella.id} value={cartella.id}>{cartella.name}</option>)}
+            <option value="">{t("Archivio generale")}</option>{cartelleManuali.map(cartella => <option key={cartella.id} value={cartella.id}>{cartella.name}</option>)}
           </UniformSelect>
-          <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setSpostamento(null)}>Annulla</Button>
-            <Button disabled={isCreatingFolder || spostamento.cartella === (spostamento.item.folderId ?? "")} onClick={() => void spostaFile()}>Sposta file</Button></DialogFooter></DialogContent>
+          <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setSpostamento(null)}>{t("Annulla")}</Button>
+            <Button disabled={isCreatingFolder || spostamento.cartella === (spostamento.item.folderId ?? "")} onClick={() => void spostaFile()}>{t("Sposta file")}</Button></DialogFooter></DialogContent>
       </Dialog>}
 
       {showPdfTools && (
@@ -2224,24 +2222,25 @@ function FiltriDrive({ origini, tipi, origine, tipo, dal, al, onOrigine, onTipo,
   origini: string[]; tipi: string[]; origine: string; tipo: string; dal: string; al: string;
   onOrigine: (v: string) => void; onTipo: (v: string) => void; onDal: (v: string) => void; onAl: (v: string) => void;
 }) {
+  const t = useT();
   const id = useId();
   const input = "mt-1 block h-9 w-full min-w-0 rounded-md border bg-background px-2 text-sm";
   return <div className="grid gap-2 sm:grid-cols-2">
-    <label className="text-xs font-medium" htmlFor={`${id}-origine`}>Origine
+    <label className="text-xs font-medium" htmlFor={`${id}-origine`}>{t("Origine")}
       <UniformSelect id={`${id}-origine`} className={input} value={origine} onChange={e => onOrigine(e.target.value)}>
-        <option value="">Tutte le origini</option>
+        <option value="">{t("Tutte le origini")}</option>
         {origini.map(valore => <option key={valore} value={valore}>{valore}</option>)}
       </UniformSelect>
     </label>
-    <label className="text-xs font-medium" htmlFor={`${id}-tipo`}>Tipo di documento
+    <label className="text-xs font-medium" htmlFor={`${id}-tipo`}>{t("Tipo di documento")}
       <UniformSelect id={`${id}-tipo`} className={input} value={tipo} onChange={e => onTipo(e.target.value)}>
-        <option value="">Tutti i tipi</option>
+        <option value="">{t("Tutti i tipi")}</option>
         {tipi.map(valore => <option key={valore} value={valore}>{valore.replaceAll("_", " ")}</option>)}
       </UniformSelect>
     </label>
-    <label className="text-xs font-medium" htmlFor={`${id}-dal`}>Attività dal<Input id={`${id}-dal`} className={input} type="date" value={dal} max={al || undefined} onChange={e => onDal(e.target.value)} /></label>
-    <label className="text-xs font-medium" htmlFor={`${id}-al`}>Attività al<Input id={`${id}-al`} className={input} type="date" value={al} min={dal || undefined} onChange={e => onAl(e.target.value)} /></label>
-    {dal && al && dal > al && <p className="text-xs text-destructive sm:col-span-2" role="alert">La data finale precede quella iniziale.</p>}
+    <label className="text-xs font-medium" htmlFor={`${id}-dal`}>{t("Attività dal")}<Input id={`${id}-dal`} className={input} type="date" value={dal} max={al || undefined} onChange={e => onDal(e.target.value)} /></label>
+    <label className="text-xs font-medium" htmlFor={`${id}-al`}>{t("Attività al")}<Input id={`${id}-al`} className={input} type="date" value={al} min={dal || undefined} onChange={e => onAl(e.target.value)} /></label>
+    {dal && al && dal > al && <p className="text-xs text-destructive sm:col-span-2" role="alert">{t("La data finale precede quella iniziale.")}</p>}
   </div>;
 }
 
@@ -2254,6 +2253,7 @@ function PageDropOverlay({
   onFilesDropped: (files: File[]) => void;
   onDragStateChange: (dragging: boolean) => void;
 }) {
+  const t = useT();
   useEffect(() => {
     // Qui il rilascio vale per tutta la pagina: il livello comune si fa da parte.
     document.body.setAttribute("data-rilascio-pagina", "");
@@ -2297,8 +2297,8 @@ function PageDropOverlay({
       <div className="rounded-3xl border-4 border-dashed border-orange-500 bg-white/95 px-12 py-10 shadow-2xl">
         <div className="flex flex-col items-center gap-3">
           <UploadCloud className="h-16 w-16 text-orange-600" />
-          <p className="text-2xl font-bold text-slate-950">Rilascia qui per caricare</p>
-          <p className="text-sm text-slate-600">Silvio classifica automaticamente il documento e lo collega.</p>
+          <p className="text-2xl font-bold text-slate-950">{t("Rilascia qui per caricare")}</p>
+          <p className="text-sm text-slate-600">{t("Silvio classifica automaticamente il documento e lo collega.")}</p>
         </div>
       </div>
     </div>
@@ -2393,6 +2393,7 @@ function IntegrationCoveragePanel({
   loading?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const [isExpanded, setIsExpanded] = useState(false);
   const connected = coverage.filter((source) => source.state === "connected").length;
   const missingRequired = coverage.filter((source) => source.required && source.state === "missing").length;
@@ -2417,15 +2418,15 @@ function IntegrationCoveragePanel({
             />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium">Copertura Drive</span>
+                <span className="text-sm font-medium">{t("Copertura Drive")}</span>
                 <Badge variant="outline" className={cn("h-5 text-[10px]", badgeClass)}>
                   {badgeLabel}
                 </Badge>
               </div>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {loading
-                  ? "Sto verificando fonti, permessi e documenti collegati."
-                  : `${connected} fonti attive · ${connectedCount} documenti mappati nelle fonti monitorate.`}
+                  ? t("Sto verificando fonti, permessi e documenti collegati.")
+                  : t("{connected} fonti attive · {connectedCount} documenti mappati nelle fonti monitorate.", { connected: String(connected ?? ""), connectedCount: String(connectedCount ?? "") })}
               </p>
             </div>
           </div>
@@ -2437,7 +2438,7 @@ function IntegrationCoveragePanel({
             onClick={() => setIsExpanded((value) => !value)}
             disabled={loading}
           >
-            {isExpanded ? "Nascondi dettagli" : "Mostra dettagli"}
+            {isExpanded ? t("Nascondi dettagli") : t("Mostra dettagli")}
           </Button>
         </div>
 
@@ -2468,7 +2469,7 @@ function IntegrationCoveragePanel({
                     </div>
                     <div className="mt-3 flex items-center justify-between text-xs">
                       <span className={isConnected ? "text-emerald-700" : "text-muted-foreground"}>
-                        {isConnected ? "Collegato" : "Nessun file"}
+                        {isConnected ? t("Collegato") : t("Nessun file")}
                       </span>
                       <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">
                         {source.count}
@@ -2554,6 +2555,7 @@ function MediaRow({
   onSelect: () => void;
   onOpen: () => void;
 }) {
+  const t = useT();
   const canOpen = resolveMediaLibraryOpenTarget(item).kind !== "missing";
 
   return (
@@ -2570,7 +2572,7 @@ function MediaRow({
       </button>
       {(item.statusTone === "warning" || item.statusTone === "error" || item.statusTone === "processing") &&
         <Badge variant="outline" className={cn("hidden shrink-0 lg:inline-flex", STATUS_TONE_CLASS[item.statusTone])}><IconaStatoDrive tono={item.statusTone} />{statusLabel(item)}</Badge>}
-      <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label={`Apri ${item.fileName}`} title="Anteprima"
+      <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label={t("Apri {fileName}", { fileName: String(item.fileName ?? "") })} title={t("Anteprima")}
         onClick={onOpen} disabled={opening || !canOpen}>
         {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
       </Button>
@@ -2598,6 +2600,7 @@ function MediaDetailPanel({
   /** Falso sul telefono, dove il pannello è nascosto: l'immagine non si scarica. */
   anteprima?: boolean;
 }) {
+  const t = useT();
   if (!item) {
     return (
       <Card className="h-fit">
@@ -2605,8 +2608,8 @@ function MediaDetailPanel({
           <EmptyState
             inline
             icon={FolderOpen}
-            title="Seleziona un contenuto"
-            description="Qui vedrai sicurezza, collegamenti, origine e azioni rapide sul file."
+            title={t("Seleziona un contenuto")}
+            description={t("Qui vedrai sicurezza, collegamenti, origine e azioni rapide sul file.")}
             action={onImport ? { label: "Carica file", onClick: onImport } : undefined}
           />
         </CardContent>
@@ -2631,7 +2634,7 @@ function MediaDetailPanel({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <IconaFileDrive item={item} className="h-5 w-5 text-orange-500" />
-          Dettaglio contenuto
+          {t("Dettaglio contenuto")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -2641,7 +2644,7 @@ function MediaDetailPanel({
             <Badge variant="outline" className={STATUS_TONE_CLASS[item.statusTone]}>{statusLabel(item)}</Badge>
             <Badge variant="secondary">{item.areaLabel}</Badge>
             {item.securityLevel === "confidential" ? (
-              <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">Riservato</Badge>
+              <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">{t("Riservato")}</Badge>
             ) : null}
           </div>
         </div>
@@ -2649,16 +2652,16 @@ function MediaDetailPanel({
         {anteprima ? <AnteprimaImmagine key={item.id} item={item} /> : null}
 
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <DetailStat label="Tipo" value={item.docType.replace(/_/g, " ")} />
-          <DetailStat label="Dimensione" value={formatFileSize(item.fileSize)} />
-          <DetailStat label="Origine" value={item.origins?.join(" · ") ?? item.integrationLabel} />
-          <DetailStat label="Ultima attività" value={formatDate(item.lastActivityAt)} />
+          <DetailStat label={t("Tipo")} value={item.docType.replace(/_/g, " ")} />
+          <DetailStat label={t("Dimensione")} value={formatFileSize(item.fileSize)} />
+          <DetailStat label={t("Origine")} value={item.origins?.join(" · ") ?? item.integrationLabel} />
+          <DetailStat label={t("Ultima attività")} value={formatDate(item.lastActivityAt)} />
         </div>
 
         {typeof item.confidence === "number" ? (
           <div className="rounded-md border bg-muted/30 p-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Confidenza</span>
+              <span className="text-muted-foreground">{t("Confidenza")}</span>
               <span className="font-semibold">{Math.round(item.confidence * 100)}%</span>
             </div>
           </div>
@@ -2667,25 +2670,25 @@ function MediaDetailPanel({
         <div className="rounded-md border bg-muted/20 p-3 text-sm">
           <div className="mb-3 flex items-center gap-2 font-medium">
             <DatabaseIcon className="h-4 w-4 text-orange-500" />
-            Carta d'identità del documento
+            {t("Carta d'identità del documento")}
           </div>
           <div className="space-y-3">
             {/* Il record collegato si apre da qui; nome della tabella e uuid
                 (che erano scritti accanto) non dicevano niente a chi legge. */}
             <DetailLine
               icon={Link2}
-              label="Collegato a"
+              label={t("Collegato a")}
               value={item.linkedEntityLabel ?? "Da collegare a cliente, preventivo, commessa o record operativo."}
               to={item.linkedEntityLabel ? percorsoRecordCollegato(item.linkedEntityTable, item.linkedEntityId) : null}
             />
-            <DetailLine icon={UserRound} label="Caricato da" value={item.actorLabel ?? item.actorId ?? "Autore non registrato"} />
-            <DetailLine icon={Sparkles} label="Azione" value={item.actionLabel} />
-            <DetailLine icon={CalendarClock} label="Quando" value={formatDate(item.lastActivityAt)} />
+            <DetailLine icon={UserRound} label={t("Caricato da")} value={item.actorLabel ?? item.actorId ?? "Autore non registrato"} />
+            <DetailLine icon={Sparkles} label={t("Azione")} value={item.actionLabel} />
+            <DetailLine icon={CalendarClock} label={t("Quando")} value={formatDate(item.lastActivityAt)} />
           </div>
         </div>
 
         <div className="rounded-md border p-3 text-sm">
-          <div className="mb-2 font-medium">Info rapide</div>
+          <div className="mb-2 font-medium">{t("Info rapide")}</div>
           <div className="flex flex-wrap gap-2">
             {quickFacts.map((fact) => (
               <Badge key={fact} variant="secondary" className="max-w-full justify-start whitespace-normal text-left">
@@ -2696,7 +2699,7 @@ function MediaDetailPanel({
         </div>
 
         <div className="rounded-md border p-3 text-sm">
-          <div className="mb-2 font-medium">Storia documento</div>
+          <div className="mb-2 font-medium">{t("Storia documento")}</div>
           <div className="space-y-2">
             {item.timeline.map((event, index) => (
               <div key={`${event.label}-${event.at ?? index}`} className="flex gap-2">
@@ -2722,13 +2725,13 @@ function MediaDetailPanel({
         <div className="flex flex-col gap-2">
           <Button onClick={onOpen} disabled={opening || !canOpen}>
             {opening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Anteprima
+            {t("Anteprima")}
           </Button>
-          {onDownload && <Button variant="outline" disabled={opening} onClick={onDownload}><Download className="mr-2 h-4 w-4" /> Scarica</Button>}
-          {onSposta && <Button variant="outline" onClick={onSposta}><Folder className="mr-2 h-4 w-4" /> Sposta file</Button>}
+          {onDownload && <Button variant="outline" disabled={opening} onClick={onDownload}><Download className="mr-2 h-4 w-4" /> {t("Scarica")}</Button>}
+          {onSposta && <Button variant="outline" onClick={onSposta}><Folder className="mr-2 h-4 w-4" /> {t("Sposta file")}</Button>}
           {item.source === "ai_analysis" && <Button variant="outline" onClick={onInbox}>
             <Inbox className="mr-2 h-4 w-4" />
-            Inbox documenti AI
+            {t("Inbox documenti AI")}
           </Button>}
         </div>
       </CardContent>

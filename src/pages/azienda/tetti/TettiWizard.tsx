@@ -70,6 +70,7 @@ import { TETTI_TEMPLATE_MODULES, findTettiTemplateModule, type TettiTemplateModu
 import { makeTetQuoteModel, readTetQuoteModel } from "@/lib/tetti/quoteModel";
 import { getTetTemplatePdf } from "@/hooks/useTettiProgetto";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const STEP_ICONS: Record<TetWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -86,6 +87,7 @@ const ETICHETTA_BREVE_PASSO: Partial<Record<TetWizardStepKey, string>> = { immob
 const NESSUNA_VOCE: TetComputoVoce[] = [];
 
 export default function TettiWizard() {
+  const tr = useT();
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -138,8 +140,8 @@ export default function TettiWizard() {
   const upsertMut = useUpsertProgetto();
   const savedModel = useMemo<{ snapshot: ReturnType<typeof readTetQuoteModel>; error: string | null }>(() => {
     try { return { snapshot: detail ? readTetQuoteModel(detail.progetto.modello_snapshot, detail.progetto.company_id) : null, error: null }; }
-    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non valido" }; }
-  }, [detail]);
+    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : tr("Modello non valido") }; }
+  }, [detail, tr]);
   const model = findTettiTemplateModule(isNew ? requestedModel : savedModel.snapshot?.modelId);
 
   // Local form state (campi del progetto).
@@ -227,18 +229,18 @@ export default function TettiWizard() {
     const compute = () => {
       if (!lastSavedAt) { setSavedLabel(null); return; }
       const seconds = Math.floor((Date.now() - lastSavedAt.getTime()) / 1000);
-      if (seconds < 5) setSavedLabel("Salvato adesso");
-      else if (seconds < 60) setSavedLabel(`Salvato ${seconds}s fa`);
+      if (seconds < 5) setSavedLabel(tr("Salvato adesso"));
+      else if (seconds < 60) setSavedLabel(tr("Salvato {seconds}s fa", { seconds }));
       else {
         const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) setSavedLabel(`Salvato ${minutes}min fa`);
-        else setSavedLabel(`Salvato alle ${lastSavedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`);
+        if (minutes < 60) setSavedLabel(tr("Salvato {minutes}min fa", { minutes }));
+        else setSavedLabel(tr("Salvato alle {ora}", { ora: lastSavedAt.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" }) }));
       }
     };
     compute();
     const t = setInterval(compute, 10_000);
     return () => clearInterval(t);
-  }, [lastSavedAt]);
+  }, [lastSavedAt, tr]);
 
   const onChange = <K extends keyof TetFormPatch>(key: K, value: TetFormPatch[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -271,8 +273,8 @@ export default function TettiWizard() {
           setErroreSalvataggio(true);
           if (!avvisoErroreDatoRef.current) {
             avvisoErroreDatoRef.current = true;
-            toast.error("Salvataggio automatico non riuscito", {
-              description: `${motivoSalvataggioNonRiuscito(e)} Le modifiche restano qui e riprovo da solo.`,
+            toast.error(tr("Salvataggio automatico non riuscito"), {
+              description: tr("{motivo} Le modifiche restano qui e riprovo da solo.", { motivo: motivoSalvataggioNonRiuscito(e) }),
             });
           }
           ritentaTimer = window.setTimeout(() => setTentativoDi((n) => n + 1), RITENTA_SALVATAGGIO_DOPO_MS);
@@ -350,7 +352,7 @@ export default function TettiWizard() {
         const created = await upsertMut.mutateAsync(await createInput());
         navigate(`/azienda/tetti/${created.id}/modifica`, { replace: true });
       } catch (e) {
-        toast.error("Creazione progetto fallita", {
+        toast.error(tr("Creazione progetto fallita"), {
           description: motivoSalvataggioNonRiuscito(e),
         });
       } finally {
@@ -365,7 +367,7 @@ export default function TettiWizard() {
     if (idx >= 0 && idx < TET_WIZARD_STEPS.length - 1) {
       setCurrentStep(TET_WIZARD_STEPS[idx + 1].key);
     } else {
-      toast.success("Progetto salvato");
+      toast.success(tr("Progetto salvato"));
     }
   };
 
@@ -410,16 +412,16 @@ export default function TettiWizard() {
     return (
       <div className="container mx-auto p-4 max-w-4xl">
         <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-6 text-center space-y-3">
-          <p className="text-sm font-semibold text-rose-800">Impossibile caricare questo progetto.</p>
+          <p className="text-sm font-semibold text-rose-800">{tr("Impossibile caricare questo progetto.")}</p>
           <p className="text-xs text-muted-foreground">
-            Il progetto potrebbe essere stato eliminato o c'è un problema di connessione.
+            {tr("Il progetto potrebbe essere stato eliminato o c'è un problema di connessione.")}
           </p>
           <div className="flex items-center gap-2 justify-center flex-wrap">
             <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1">
-              <Loader2 className="h-3.5 w-3.5" /> Riprova
+              <Loader2 className="h-3.5 w-3.5" /> {tr("Riprova")}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => navigate("/azienda/marketing/preventivi")} className="gap-1">
-              <ArrowLeft className="h-3.5 w-3.5" /> Torna ai progetti
+              <ArrowLeft className="h-3.5 w-3.5" /> {tr("Torna ai progetti")}
             </Button>
           </div>
         </div>
@@ -427,7 +429,7 @@ export default function TettiWizard() {
     );
   }
 
-  if (savedModel.error || (isNew && requestedModel && !model)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{savedModel.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=tetti")}>Scegli un intervento</Button></div>;
+  if (savedModel.error || (isNew && requestedModel && !model)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">{tr("Intervento non disponibile")}</h1><p>{savedModel.error ?? tr("Il tipo di intervento richiesto non è riconosciuto.")}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=tetti")}>{tr("Scegli un intervento")}</Button></div>;
 
   const statoMeta = TET_STATI_LABEL[(detail?.progetto.stato as TetProgetto["stato"]) ?? "bozza"];
   const ultimoPasso = currentStepIndex === TET_WIZARD_STEPS.length - 1;
@@ -444,28 +446,26 @@ export default function TettiWizard() {
       <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Hai un preventivo in bozza")}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                <p className="mb-2">Vuoi riprendere da dove eri rimasto?</p>
+                <p className="mb-2">{tr("Vuoi riprendere da dove eri rimasto?")}</p>
                 <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700 space-y-0.5">
-                  <p className="font-semibold text-slate-900">{ultimaBozza?.code ?? "Bozza"}</p>
+                  <p className="font-semibold text-slate-900">{ultimaBozza?.code ?? tr("Bozza")}</p>
                   {(ultimaBozza?.cliente_nome || ultimaBozza?.cliente_cognome) && (
                     <p>{[ultimaBozza?.cliente_nome, ultimaBozza?.cliente_cognome].filter(Boolean).join(" ")}</p>
                   )}
                   {ultimaBozza?.updated_at && (
-                    <p className="text-xs text-muted-foreground">
-                      Ultima modifica {new Date(ultimaBozza.updated_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{tr("Ultima modifica {data}", { data: new Date(ultimaBozza.updated_at).toLocaleString(intlCampo(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) })}</p>
                   )}
                 </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setResumeDismissed(true)}>Nuovo da zero</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setResumeDismissed(true)}>{tr("Nuovo da zero")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => navigate(`/azienda/tetti/${ultimaBozza!.id}/modifica`)}>
-              Riprendi bozza
+              {tr("Riprendi bozza")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -475,32 +475,32 @@ export default function TettiWizard() {
       <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Salvare come bozza?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Salvare come bozza?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              I dati inseriti verranno salvati come bozza: la ritroverai nella lista e al prossimo "Nuovo preventivo".
+              {tr("I dati inseriti verranno salvati come bozza: la ritroverai nella lista e al prossimo \"Nuovo preventivo\".")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua a compilare</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Continua a compilare")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-slate-500 hover:bg-slate-600"
               onClick={() => navigate("/azienda/marketing/preventivi")}
             >
-              Esci senza salvare
+              {tr("Esci senza salvare")}
             </AlertDialogAction>
             <AlertDialogAction
               onClick={async () => {
                 try {
                   await upsertMut.mutateAsync(isNew ? await createInput() : { ...form, id });
-                  toast.success("Bozza salvata — la ritrovi nella lista");
+                  toast.success(tr("Bozza salvata — la ritrovi nella lista"));
                 } catch (e) {
-                  toast.error("Salvataggio bozza fallito", { description: motivoSalvataggioNonRiuscito(e) });
+                  toast.error(tr("Salvataggio bozza fallito"), { description: motivoSalvataggioNonRiuscito(e) });
                   return;
                 }
                 navigate("/azienda/marketing/preventivi");
               }}
             >
-              Salva bozza ed esci
+              {tr("Salva bozza ed esci")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -509,7 +509,7 @@ export default function TettiWizard() {
       <GuscioEdile
         testata={{
           icona: Hammer,
-          titolo: isNew ? model?.title ?? "Nuovo preventivo Tetti" : detail?.progetto.code ?? "Progetto",
+          titolo: isNew ? model?.title ?? tr("Nuovo preventivo Tetti") : detail?.progetto.code ?? tr("Progetto"),
           cliente: isNew ? null : compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) || null,
           stato: !isNew && detail ? statoMeta : null,
           intervento: isNew ? null : model?.title,
@@ -526,7 +526,7 @@ export default function TettiWizard() {
           ),
           onEsci: () => { void esci(); },
         }}
-        passi={TET_WIZARD_STEPS.map((s) => ({ key: s.key, label: s.label, breve: ETICHETTA_BREVE_PASSO[s.key] }))}
+        passi={TET_WIZARD_STEPS.map((s) => ({ key: s.key, label: tr(s.label), breve: ETICHETTA_BREVE_PASSO[s.key] ? tr(ETICHETTA_BREVE_PASSO[s.key]!) : undefined }))}
         corrente={currentStep}
         completati={new Set(TET_WIZARD_STEPS.filter((s) => s.key !== currentStep && completion[s.key]).map((s) => s.key))}
         conAvviso={new Set(TET_WIZARD_STEPS.filter((s, idx) => idx < currentStepIndex && (
@@ -542,7 +542,7 @@ export default function TettiWizard() {
         ) : undefined}
         statoSalvataggio={statoSalvataggio}
         testoSalvataggio={savedLabel}
-        ariaLabelFasi="Fasi del preventivo tetti"
+        ariaLabelFasi={tr("Fasi del preventivo tetti")}
         piede={{
           onIndietro: handleBack,
           indietroDisabilitato: currentStepIndex === 0,
@@ -557,7 +557,7 @@ export default function TettiWizard() {
         }}
         sopra={isNew && model && !modelSupport.supported && (
           <p role="alert" className="mx-3 my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:mx-6">
-            {modelSupport.isLoading ? "Verifica del salvataggio…" : "Attendi l’attivazione del database prima di compilare."}
+            {modelSupport.isLoading ? tr("Verifica del salvataggio…") : tr("Attendi l’attivazione del database prima di compilare.")}
           </p>
         )}
       >
@@ -630,6 +630,7 @@ export default function TettiWizard() {
 
 /** Placeholder per gli step non ancora implementati (Fasi 3-5). */
 function StepComingSoon({ step }: { step: TetWizardStepKey }) {
+  const t = useT();
   const meta = TET_WIZARD_STEPS.find((s) => s.key === step);
   const Icon = STEP_ICONS[step];
   return (
@@ -639,9 +640,9 @@ function StepComingSoon({ step }: { step: TetWizardStepKey }) {
           <Icon className="h-6 w-6" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-slate-900">{meta?.label}</h3>
+          <h3 className="text-sm font-semibold text-slate-900">{meta ? t(meta.label) : null}</h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            Questa sezione sarà disponibile a breve. I dati cliente e immobile sono già salvati.
+            {t("Questa sezione sarà disponibile a breve. I dati cliente e immobile sono già salvati.")}
           </p>
         </div>
       </CardContent>

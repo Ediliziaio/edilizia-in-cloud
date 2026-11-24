@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MetaIntegrationWizardProps {
   open: boolean;
@@ -51,6 +52,7 @@ const STEP_TITLES: Record<MetaWizardStep, string> = {
 const STEP_ORDER: MetaWizardStep[] = ["oauth", "pages", "ad_account", "confirm", "forms", "mapping", "activation"];
 
 export function MetaIntegrationWizard({ open, onOpenChange, integration, onComplete, initialStep, openDisconnect }: MetaIntegrationWizardProps) {
+  const t = useT();
   const isConnected = integration?.status === "connected";
   // Passo di partenza: OAuth se non connessi; da connessi initialStep
   // esplicito (anche "oauth" per il ri-consenso) o il default "pages".
@@ -182,25 +184,24 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {activeTab === "logs" ? "Log eventi" : STEP_TITLES[step]}
+              {activeTab === "logs" ? t("Log eventi") : t(STEP_TITLES[step])}
             </DialogTitle>
           </DialogHeader>
 
           {isConnected && integration ? (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "config" | "logs")}>
               <TabsList className="w-full">
-                <TabsTrigger value="config" className="flex-1">Configurazione</TabsTrigger>
-                <TabsTrigger value="logs" className="flex-1">Log & Monitoraggio</TabsTrigger>
+                <TabsTrigger value="config" className="flex-1">{t("Configurazione")}</TabsTrigger>
+                <TabsTrigger value="logs" className="flex-1">{t("Log & Monitoraggio")}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="config" className="mt-4">
                 {integration && (
                   <div className="mb-4 rounded-lg border bg-muted/30 p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm font-medium">Integrazione Meta attiva</p>
+                      <p className="text-sm font-medium">{t("Integrazione Meta attiva")}</p>
                       <p className="text-xs text-muted-foreground">
-                        Per concedere permessi nuovi (post, statistiche, messaggi) usa «Aggiorna permessi»:
-                        pagine e moduli restano come sono. Disconnetti solo per fermare lead e webhook.
+                        {t("Per concedere permessi nuovi (post, statistiche, messaggi) usa «Aggiorna permessi»: pagine e moduli restano come sono. Disconnetti solo per fermare lead e webhook.")}
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -209,10 +210,10 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                           senza disconnettere (lead fermi). Il callback aggiorna token e
                           permessi e conserva le pagine già scelte. */}
                       <Button variant="outline" size="sm" onClick={() => setStep("oauth")} disabled={step === "oauth"}>
-                        Aggiorna permessi
+                        {t("Aggiorna permessi")}
                       </Button>
                       <Button variant="destructive" size="sm" onClick={() => setShowDisconnectAlert(true)}>
-                        Disconnetti Meta
+                        {t("Disconnetti Meta")}
                       </Button>
                     </div>
                   </div>
@@ -243,14 +244,14 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
 
                 <div className="flex justify-between pt-2 border-t mt-4">
                   <Button variant="ghost" onClick={attemptClose}>
-                    Annulla
+                    {t("Annulla")}
                   </Button>
                   <div className="flex gap-2">
                     {currentIndex > 0 && (
-                      <Button variant="outline" onClick={goBack}>Indietro</Button>
+                      <Button variant="outline" onClick={goBack}>{t("Indietro")}</Button>
                     )}
                     {step === "confirm" && (
-                      <Button variant="outline" onClick={handleComplete}>Salva e chiudi</Button>
+                      <Button variant="outline" onClick={handleComplete}>{t("Salva e chiudi")}</Button>
                     )}
                     {step !== "oauth" && currentIndex < STEP_ORDER.length - 1 && (
                       step === "mapping" ? (
@@ -258,13 +259,13 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                         // mappatura" dentro lo step): un "Avanti" primario qui
                         // faceva perdere silenziosamente la mappatura appena
                         // configurata.
-                        <Button variant="outline" onClick={goNext}>Salta senza salvare</Button>
+                        <Button variant="outline" onClick={goNext}>{t("Salta senza salvare")}</Button>
                       ) : (
-                        <Button onClick={goNext} disabled={(step === "pages" && !pagesReady) || (step === "ad_account" && !accountsReady)}>{step === "confirm" ? "Configura lead" : step === "ad_account" && selectedAccountsCount === 0 ? "Continua senza account pubblicitario" : "Avanti"}</Button>
+                        <Button onClick={goNext} disabled={(step === "pages" && !pagesReady) || (step === "ad_account" && !accountsReady)}>{step === "confirm" ? t("Configura lead") : step === "ad_account" && selectedAccountsCount === 0 ? t("Continua senza account pubblicitario") : t("Avanti")}</Button>
                       )
                     )}
                     {currentIndex === STEP_ORDER.length - 1 && (
-                      <Button onClick={handleComplete}>Salva e chiudi</Button>
+                      <Button onClick={handleComplete}>{t("Salva e chiudi")}</Button>
                     )}
                   </div>
                 </div>
@@ -293,7 +294,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
 
               <div className="flex justify-between pt-2 border-t">
                 <Button variant="ghost" onClick={attemptClose}>
-                  Annulla
+                  {t("Annulla")}
                 </Button>
               </div>
             </>
@@ -304,14 +305,14 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
       <AlertDialog open={showUnsavedAlert} onOpenChange={setShowUnsavedAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Modifiche non salvate</AlertDialogTitle>
+            <AlertDialogTitle>{t("Modifiche non salvate")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Hai modifiche non salvate. Sei sicuro di voler chiudere senza salvare?
+              {t("Hai modifiche non salvate. Sei sicuro di voler chiudere senza salvare?")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua a modificare</AlertDialogCancel>
-            <AlertDialogAction onClick={doClose}>Chiudi senza salvare</AlertDialogAction>
+            <AlertDialogCancel>{t("Continua a modificare")}</AlertDialogCancel>
+            <AlertDialogAction onClick={doClose}>{t("Chiudi senza salvare")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -319,15 +320,15 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
       <AlertDialog open={showDisconnectAlert} onOpenChange={setShowDisconnectAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnettere Meta?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Disconnettere Meta?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione cancella le credenziali salvate per questa azienda, ferma il sync dei moduli Lead Ads e disattiva i moduli collegati. I lead già importati rimangono nel CRM.
+              {t("Questa azione cancella le credenziali salvate per questa azienda, ferma il sync dei moduli Lead Ads e disattiva i moduli collegati. I lead già importati rimangono nel CRM.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDisconnect} disabled={hook.disconnect.isPending}>
-              {hook.disconnect.isPending ? "Disconnessione..." : "Disconnetti"}
+              {hook.disconnect.isPending ? t("Disconnessione...") : t("Disconnetti")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

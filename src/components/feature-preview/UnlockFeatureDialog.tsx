@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
 import { EMAIL_ASSISTENZA, TELEFONO_COMMERCIALE } from "@/lib/impostazioni/contattiEdiliziaInCloud";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -59,6 +60,7 @@ export function UnlockFeatureDialog({
   benefits = DEFAULT_BENEFITS,
   chiudiLabel = DEFAULT_CHIUDI,
 }: Props) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -69,7 +71,7 @@ export function UnlockFeatureDialog({
 
   const handleSubmit = async () => {
     if (!effectiveCompany?.id) {
-      toast.error("Sessione non valida");
+      toast.error(t("Sessione non valida"));
       return;
     }
     setSending(true);
@@ -89,8 +91,8 @@ export function UnlockFeatureDialog({
       setSent(true);
       // toast inline non serve: lo stato success è chiaro
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore";
-      toast.error("Errore nell'invio: " + msg);
+      const msg = err instanceof Error ? err.message : t("Errore");
+      toast.error(t("Errore nell'invio: {errore}", { errore: msg }));
     } finally {
       setSending(false);
     }
@@ -113,21 +115,20 @@ export function UnlockFeatureDialog({
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             </div>
             <DialogHeader className="text-center">
-              <DialogTitle className="text-xl">Richiesta inviata ✓</DialogTitle>
+              <DialogTitle className="text-xl">{t("Richiesta inviata ✓")}</DialogTitle>
               <DialogDescription className="mt-2">
-                Il tuo consulente è stato avvisato. Ti contatterà a breve per attivare
-                <strong className="text-foreground"> {etichetta}</strong>.
+                {t("Il tuo consulente è stato avvisato. Ti contatterà a breve per attivare {etichetta}.", { etichetta: String(etichetta ?? "") })}
               </DialogDescription>
             </DialogHeader>
             <div className="mt-5 rounded-lg bg-muted/60 px-4 py-3 flex items-center gap-3 text-sm">
               <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="text-muted-foreground">
-                Tempo medio di risposta: <strong className="text-foreground">entro 24h lavorative</strong>
+                {t("Tempo medio di risposta: entro 24h lavorative")}
               </span>
             </div>
             <DialogFooter className="mt-5">
               <Button className="w-full" onClick={() => handleClose(false)}>
-                Continua a esplorare
+                {t("Continua a esplorare")}
               </Button>
             </DialogFooter>
           </div>
@@ -142,13 +143,13 @@ export function UnlockFeatureDialog({
                 </div>
                 <div className="flex-1 min-w-0">
                   <DialogTitle className="text-lg leading-tight">
-                    {eAddonWhatsApp ? "Attiva WhatsApp Business" : `Sblocca ${featureLabel}`}
+                    {eAddonWhatsApp ? t("Attiva WhatsApp Business") : t("Sblocca {featureLabel}", { featureLabel: String(featureLabel ?? "") })}
                   </DialogTitle>
                   <DialogDescription className="mt-1 text-sm">
                     {actionLabel ? (
-                      <>Per <strong className="text-foreground">{actionLabel.toLowerCase()}</strong> ti serve l'accesso completo.</>
+                      <>{t("Per {azione} ti serve l'accesso completo.", { azione: String(actionLabel ?? "").toLowerCase() })}</>
                     ) : (
-                      <>Stai esplorando la versione demo.</>
+                      <>{t("Stai esplorando la versione demo.")}</>
                     )}
                   </DialogDescription>
                 </div>
@@ -161,19 +162,19 @@ export function UnlockFeatureDialog({
                 <AddonWhatsAppOfferta />
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground">{description}</p>
+                  <p className="text-sm text-muted-foreground">{t(description)}</p>
 
                   {/* Benefits */}
                   {benefits.length > 0 && (
                     <div className="space-y-1.5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Cosa otterrai
+                        {t("Cosa otterrai")}
                       </p>
                       <ul className="space-y-1.5">
                         {benefits.map((b, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm">
                             <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                            <span>{b}</span>
+                            <span>{t(b)}</span>
                           </li>
                         ))}
                       </ul>
@@ -183,13 +184,13 @@ export function UnlockFeatureDialog({
                   {/* Message form */}
                   <div className="pt-2 space-y-1.5">
                     <Label htmlFor="unlock-msg" className="text-xs">
-                      Aggiungi un messaggio (opzionale)
+                      {t("Aggiungi un messaggio (opzionale)")}
                     </Label>
                     <Textarea
                       id="unlock-msg"
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Es: vorrei usarla per il progetto Rossi…"
+                      placeholder={t("Es: vorrei usarla per il progetto Rossi…")}
                       rows={2}
                       maxLength={500}
                       className="resize-none"
@@ -214,15 +215,15 @@ export function UnlockFeatureDialog({
                 size={eAddonWhatsApp ? "default" : "lg"}
               >
                 {sending ? (
-                  <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Invio richiesta…</>
+                  <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />{t("Invio richiesta…")}</>
                 ) : (
-                  <><MessageSquare className="h-4 w-4 mr-1.5" />Contatta il consulente</>
+                  <><MessageSquare className="h-4 w-4 mr-1.5" />{t("Contatta il consulente")}</>
                 )}
               </Button>
 
               <div className="flex items-center gap-2 text-xs">
                 <div className="flex-1 h-px bg-border" />
-                <span className="text-muted-foreground">oppure direttamente</span>
+                <span className="text-muted-foreground">{t("oppure direttamente")}</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
 
@@ -230,7 +231,7 @@ export function UnlockFeatureDialog({
                 <Button variant="outline" size="sm" asChild>
                   <a href={`tel:${TELEFONO_COMMERCIALE}`} className="gap-1.5">
                     <Phone className="h-3.5 w-3.5" />
-                    Chiama
+                    {t("Chiama")}
                   </a>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
@@ -248,7 +249,7 @@ export function UnlockFeatureDialog({
                 onClick={() => handleClose(false)}
                 className="w-full text-xs text-muted-foreground hover:text-foreground py-1 transition-colors"
               >
-                {chiudiLabel}
+                {t(chiudiLabel)}
               </button>
             </div>
           </>

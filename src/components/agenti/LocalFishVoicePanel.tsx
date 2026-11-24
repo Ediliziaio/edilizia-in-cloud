@@ -14,6 +14,7 @@ import type {
   LocalFishVoiceStatus,
   LocalLabSnapshot,
 } from "@/lib/localAssistanceClient";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Client = ReturnType<typeof createLocalAssistanceClient>;
 export function LocalFishVoicePanel({
@@ -29,6 +30,7 @@ export function LocalFishVoicePanel({
   disabled: boolean;
   onTranscript: (text: string) => void;
 }) {
+  const tr = useT();
   const [enabled, setEnabled] = useState(false);
   const [state, setState] = useState<
     "idle" | "loading" | "playing" | "opening" | "recording" | "transcribing"
@@ -117,11 +119,11 @@ export function LocalFishVoicePanel({
         controller.signal.aborted
       )
         return;
-      setError(e instanceof Error ? e.message : "Voce non disponibile.");
+      setError(e instanceof Error ? e.message : tr("Voce non disponibile."));
       setState("idle");
       stopAudio();
     }
-  }, [sessionId, last, status.configured, cancel, client, stopAudio]);
+  }, [sessionId, last, status.configured, cancel, client, stopAudio, tr]);
   // A new session or turn invalidates old audio and any pending microphone draft.
   useEffect(() => {
     cancel();
@@ -220,7 +222,7 @@ export function LocalFishVoicePanel({
             !controller.signal.aborted
           )
             setError(
-              e instanceof Error ? e.message : "Trascrizione non disponibile.",
+              e instanceof Error ? e.message : tr("Trascrizione non disponibile."),
             );
         } finally {
           if (mounted.current && run === generation.current) setState("idle");
@@ -240,10 +242,10 @@ export function LocalFishVoicePanel({
         setState("idle");
         setError(
           e instanceof DOMException && e.name === "NotAllowedError"
-            ? "Consenti l’accesso al microfono nelle impostazioni del browser e riprova."
+            ? tr("Consenti l’accesso al microfono nelle impostazioni del browser e riprova.")
             : e instanceof Error
               ? e.message
-              : "Microfono non disponibile.",
+              : tr("Microfono non disponibile."),
         );
       }
     }
@@ -251,17 +253,16 @@ export function LocalFishVoicePanel({
   return (
     <div
       className="space-y-3 border-b bg-blue-50/50 p-4 dark:bg-blue-950/20"
-      aria-label="Voce Fish del collaudo"
+      aria-label={tr("Voce Fish del collaudo")}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold">
             <AudioLines className="h-4 w-4 text-blue-700 dark:text-blue-300" />{" "}
-            Fish Audio · Drama 3 · {status.voice}
+            {tr("Fish Audio · Drama 3 ·")} {status.voice}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Il microfono e le risposte vocali usano Fish. Cliente, ticket e
-            agenda restano locali.
+            {tr("Il microfono e le risposte vocali usano Fish. Cliente, ticket e agenda restano locali.")}
           </p>
         </div>
         <Button
@@ -282,13 +283,12 @@ export function LocalFishVoicePanel({
           ) : (
             <Volume2 className="mr-2 h-4 w-4" />
           )}
-          {enabled ? "Disattiva voce Fish" : "Attiva voce Fish"}
+          {enabled ? tr("Disattiva voce Fish") : tr("Attiva voce Fish")}
         </Button>
       </div>
       {!status.configured && (
         <p role="status" className="text-xs">
-          La chiave Fish va inserita nel file privato .env.fish.local del server
-          e il backend va riavviato.
+          {tr("La chiave Fish va inserita nel file privato .env.fish.local del server e il backend va riavviato.")}
         </p>
       )}
       {enabled && (
@@ -300,7 +300,7 @@ export function LocalFishVoicePanel({
               onClick={() => recorder.current?.stop()}
             >
               <Square className="mr-2 h-4 w-4" />
-              Termina e trascrivi
+              {tr("Termina e trascrivi")}
             </Button>
           ) : (
             <Button
@@ -316,7 +316,7 @@ export function LocalFishVoicePanel({
               onClick={() => void record()}
             >
               <Mic className="mr-2 h-4 w-4" />
-              Registra risposta
+              {tr("Registra risposta")}
             </Button>
           )}
           <Button
@@ -331,7 +331,7 @@ export function LocalFishVoicePanel({
             }
             onClick={() => void speak()}
           >
-            Riascolta
+            {tr("Riascolta")}
           </Button>
           {["playing", "loading"].includes(state) && (
             <Button
@@ -343,7 +343,7 @@ export function LocalFishVoicePanel({
                 setState("idle");
               }}
             >
-              Interrompi voce
+              {tr("Interrompi voce")}
             </Button>
           )}
           <span
@@ -358,12 +358,12 @@ export function LocalFishVoicePanel({
             )}
             {
               {
-                idle: "Registra una risposta, controlla la trascrizione e inviala.",
-                loading: "Preparo la voce Drama 3…",
-                playing: "L’assistente sta parlando",
-                opening: "Apro il microfono…",
-                recording: "Ti ascolto · massimo 45 secondi",
-                transcribing: "Trascrivo con Fish…",
+                idle: tr("Registra una risposta, controlla la trascrizione e inviala."),
+                loading: tr("Preparo la voce Drama 3…"),
+                playing: tr("L’assistente sta parlando"),
+                opening: tr("Apro il microfono…"),
+                recording: tr("Ti ascolto · massimo 45 secondi"),
+                transcribing: tr("Trascrivo con Fish…"),
               }[state]
             }
           </span>

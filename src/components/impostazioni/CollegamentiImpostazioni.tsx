@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BASE = "/azienda/impostazioni/";
 /** Solo collegamenti presenti nell'indice autorizzato dell'utente e nel suo piano. */
@@ -20,6 +21,7 @@ const COLLEGAMENTI_IMPOSTAZIONI: Record<string, { sezione: string; motivo: strin
 };
 
 export function CollegamentiImpostazioni({ sezione }: { sezione: string | null }) {
+  const t = useT();
   const richiesti = sezione ? COLLEGAMENTI_IMPOSTAZIONI[sezione] ?? [] : [];
   const { voci } = useVociImpostazioni(richiesti.length > 0);
   const collegamenti = richiesti.flatMap((r) => {
@@ -27,12 +29,12 @@ export function CollegamentiImpostazioni({ sezione }: { sezione: string | null }
     return voce ? [{ ...r, voce }] : [];
   });
   if (!collegamenti.length) return null;
-  return <nav aria-label="Impostazioni collegate" className="mt-8 max-w-3xl border-t pt-4">
-    <p className="mb-2 text-xs font-semibold text-muted-foreground">Impostazioni collegate</p>
+  return <nav aria-label={t("Impostazioni collegate")} className="mt-8 max-w-3xl border-t pt-4">
+    <p className="mb-2 text-xs font-semibold text-muted-foreground">{t("Impostazioni collegate")}</p>
     <ul className="grid gap-2 sm:grid-cols-2">
       {collegamenti.map(({ voce, motivo }) => <li key={voce.url}>
         <Link to={voce.url} className="flex h-full items-start justify-between gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <span className="min-w-0"><span className="block text-sm font-medium">{voce.title}</span><span className="mt-0.5 block text-xs text-muted-foreground">{motivo}</span></span>
+          <span className="min-w-0"><span className="block text-sm font-medium">{voce.title}</span><span className="mt-0.5 block text-xs text-muted-foreground">{t(motivo)}</span></span>
           <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Link>
       </li>)}

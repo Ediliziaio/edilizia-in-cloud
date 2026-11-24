@@ -11,7 +11,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, subMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import { ArrowRight, CheckCircle2, Landmark, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { UnifiedCost } from "@/lib/costsUtils";
 import { matchCostsToBankTransactions, type BankTxLite, type CostBankMatch } from "@/lib/costiBankMatch";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CostiBankReconcileDialog({
   open,
@@ -41,6 +41,7 @@ export function CostiBankReconcileDialog({
    *  manager) e marca il movimento bancario come riconciliato al costo. */
   onPayCost: (cost: UnifiedCost, date: string, txId: string) => Promise<void>;
 }) {
+  const t = useT();
   const [confirming, setConfirming] = useState<string | null>(null); // cost.id in corso
   const [bulkRunning, setBulkRunning] = useState(false);
   const [done, setDone] = useState<Set<string>>(new Set());
@@ -105,11 +106,10 @@ export function CostiBankReconcileDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Landmark className="h-5 w-5 text-orange-500" />
-            Riconcilia con banca
+            {t("Riconcilia con banca")}
           </DialogTitle>
           <DialogDescription>
-            Confronto tra i costi non pagati e gli addebiti bancari degli ultimi 12 mesi.
-            Confermando, il costo viene segnato pagato alla data del movimento (con registrazione in Prima Nota).
+            {t("Confronto tra i costi non pagati e gli addebiti bancari degli ultimi 12 mesi. Confermando, il costo viene segnato pagato alla data del movimento (con registrazione in Prima Nota).")}
           </DialogDescription>
         </DialogHeader>
 
@@ -120,14 +120,14 @@ export function CostiBankReconcileDialog({
             </div>
           ) : transactions.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              Nessun movimento bancario disponibile.
-              <br />Collega o sincronizza il conto in <span className="font-medium">Finanza → Tesoreria</span>.
+              {t("Nessun movimento bancario disponibile.")}
+              <br />{t("Collega o sincronizza il conto in")} <span className="font-medium">{t("Finanza → Tesoreria")}</span>.
             </div>
           ) : matches.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
               {done.size > 0
-                ? `Tutto riconciliato: ${done.size} cost${done.size === 1 ? "o chiuso" : "i chiusi"}.`
-                : "Nessun match plausibile tra costi aperti e addebiti bancari."}
+                ? (done.size === 1 ? t("Tutto riconciliato: {n} costo chiuso.", { n: done.size }) : t("Tutto riconciliato: {n} costi chiusi.", { n: done.size }))
+                : t("Nessun match plausibile tra costi aperti e addebiti bancari.")}
             </div>
           ) : (
             <div className="space-y-2 py-1">
@@ -142,7 +142,7 @@ export function CostiBankReconcileDialog({
                     <p className="text-xs text-muted-foreground">
                       {[
                         m.cost.supplierName,
-                        `scad. ${format(parseISO(m.cost.due_date), "d MMM yyyy", { locale: it })}`,
+                        t("scad. {data}", { data: format(parseISO(m.cost.due_date), "d MMM yyyy", { locale: dateFnsCampo() }) }),
                         formatCurrency(Number(m.cost.amount)),
                       ].filter(Boolean).join(" · ")}
                     </p>
@@ -150,9 +150,9 @@ export function CostiBankReconcileDialog({
                   <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
                   {/* Movimento */}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-slate-700">{m.tx.description || m.tx.creditor_name || "Addebito"}</p>
+                    <p className="truncate text-sm text-slate-700">{m.tx.description || m.tx.creditor_name || t("Addebito")}</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(parseISO(m.tx.booking_date), "d MMM yyyy", { locale: it })} ·{" "}
+                      {format(parseISO(m.tx.booking_date), "d MMM yyyy", { locale: dateFnsCampo() })} ·{" "}
                       <span className="font-medium tabular-nums text-rose-600">{formatCurrency(Math.abs(Number(m.tx.amount)))}</span>
                       {" "}({m.amountKind})
                     </p>
@@ -167,7 +167,7 @@ export function CostiBankReconcileDialog({
                           : "border-amber-300 bg-amber-50 text-amber-700",
                       )}
                     >
-                      {m.strength === "forte" ? "Match forte" : "Possibile"}
+                      {m.strength === "forte" ? t("Match forte") : t("Possibile")}
                     </Badge>
                     <Button
                       size="sm"
@@ -179,7 +179,7 @@ export function CostiBankReconcileDialog({
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <>
-                          <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Segna pagato
+                          <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> {t("Segna pagato")}
                         </>
                       )}
                     </Button>
@@ -192,18 +192,18 @@ export function CostiBankReconcileDialog({
 
         <DialogFooter className="gap-2 border-t pt-3 sm:justify-between">
           <p className="text-xs text-muted-foreground self-center">
-            {matches.length} proposte · {strong.length} match fort{strong.length === 1 ? "e" : "i"}
-            {done.size > 0 ? ` · ${done.size} già chius${done.size === 1 ? "o" : "i"}` : ""}
+            {(strong.length === 1 ? t("{n} proposte · {forti} match forte", { n: matches.length, forti: strong.length }) : t("{n} proposte · {forti} match forti", { n: matches.length, forti: strong.length }))}
+            {done.size > 0 ? ` · ${(done.size === 1 ? t("{n} già chiuso", { n: done.size }) : t("{n} già chiusi", { n: done.size }))}` : ""}
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Chiudi</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
             <Button
               disabled={strong.length === 0 || bulkRunning || confirming !== null}
               onClick={confirmAllStrong}
               className="bg-emerald-600 text-white hover:bg-emerald-700"
             >
               {bulkRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-              Conferma {strong.length} match fort{strong.length === 1 ? "e" : "i"}
+              {(strong.length === 1 ? t("Conferma {n} match forte", { n: strong.length }) : t("Conferma {n} match forti", { n: strong.length }))}
             </Button>
           </div>
         </DialogFooter>

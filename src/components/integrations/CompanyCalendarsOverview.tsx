@@ -35,6 +35,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PallinoStato, type Tono } from "./StatoCollegamento";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ProfileLite = {
   id: string;
@@ -134,7 +135,7 @@ function formatRelativeTime(iso: string | null): string {
   if (h < 24) return `${h} h fa`;
   const days = Math.floor(h / 24);
   if (days < 30) return `${days} g fa`;
-  return d.toLocaleDateString("it-IT");
+  return d.toLocaleDateString(intlCampo());
 }
 
 function statoRiga(status: string): { tono: Tono; label: string } {
@@ -254,23 +255,23 @@ export function useCalendariDelTeam() {
 }
 
 function NonAdminPlaceholder() {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-base">Calendari aziendali</CardTitle>
+          <CardTitle className="text-base">{t("Calendari aziendali")}</CardTitle>
         </div>
         <CardDescription>
-          La panoramica calendari aziendali è riservata agli amministratori. Per
-          gestire i tuoi calendari personali (Google / Apple) vai al tuo profilo.
+          {t("La panoramica calendari aziendali è riservata agli amministratori. Per gestire i tuoi calendari personali (Google / Apple) vai al tuo profilo.")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Button variant="outline" size="sm" onClick={() => navigate("/azienda/impostazioni/mio-profilo")}>
           <User2 className="h-4 w-4 mr-2" />
-          Vai al mio profilo
+          {t("Vai al mio profilo")}
         </Button>
       </CardContent>
     </Card>
@@ -279,14 +280,14 @@ function NonAdminPlaceholder() {
 
 /** L'elenco dei calendari del team, per provider, senza cornice. */
 export function CalendariDelTeam() {
+  const t = useT();
   const { user } = useAuth();
   const { isAdmin, isLoading, righe, calendariPerAccount } = useCalendariDelTeam();
 
   if (!isAdmin) {
     return (
       <p className="text-sm text-muted-foreground">
-        L'elenco dei calendari di tutta l'azienda lo vedono gli amministratori. I tuoi calendari li
-        colleghi dal tuo profilo.
+        {t("L'elenco dei calendari di tutta l'azienda lo vedono gli amministratori. I tuoi calendari li colleghi dal tuo profilo.")}
       </p>
     );
   }
@@ -303,8 +304,7 @@ export function CalendariDelTeam() {
   if (righe.length === 0) {
     return (
       <div className="py-6 text-center text-sm text-muted-foreground">
-        Nessuno ha ancora collegato un calendario. Ognuno collega il proprio Google, Outlook o
-        Apple Calendar dal suo profilo.
+        {t("Nessuno ha ancora collegato un calendario. Ognuno collega il proprio Google, Outlook o Apple Calendar dal suo profilo.")}
       </div>
     );
   }
@@ -324,7 +324,9 @@ export function CalendariDelTeam() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">{NOME_PROVIDER[p]}</h3>
               <span className="text-xs text-muted-foreground tabular-nums">
-                {attivi} di {delProvider.length} {delProvider.length === 1 ? "attivo" : "attivi"}
+                {delProvider.length === 1
+                  ? t("{attivi} di {totale} attivo", { attivi, totale: delProvider.length })
+                  : t("{attivi} di {totale} attivi", { attivi, totale: delProvider.length })}
               </span>
             </div>
             <div className="divide-y rounded-lg border">
@@ -342,7 +344,7 @@ export function CalendariDelTeam() {
       })}
       {nonUsati.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Nessuno ha collegato {nonUsati.map((p) => NOME_PROVIDER[p]).join(" o ")}.
+          {t("Nessuno ha collegato {elenco}.", { elenco: nonUsati.map((p) => NOME_PROVIDER[p]).join(` ${t("o")} `) })}
         </p>
       )}
     </div>
@@ -350,6 +352,7 @@ export function CalendariDelTeam() {
 }
 
 export default function CompanyCalendarsOverview() {
+  const t = useT();
   const navigate = useNavigate();
   const isAdmin = useIsCompanyAdmin();
 
@@ -363,25 +366,23 @@ export default function CompanyCalendarsOverview() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">Calendari collegati dal team</CardTitle>
+            <CardTitle className="text-base">{t("Calendari collegati dal team")}</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            Ogni persona collega il proprio account dal suo profilo: qui vedi chi l'ha fatto,
-            con quale indirizzo e quali calendari del gestionale ci scrivono dentro. Il tuo lo
-            gestisci qui sopra, o da{" "}
+            {t("Ogni persona collega il proprio account dal suo profilo: qui vedi chi l'ha fatto, con quale indirizzo e quali calendari del gestionale ci scrivono dentro. Il tuo lo gestisci qui sopra, o da")}{" "}
             <button
               type="button"
               onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=calendari")}
               className="underline underline-offset-2 hover:text-foreground"
             >
-              Mio Profilo → Calendari
+              {t("Mio Profilo → Calendari")}
             </button>
             .
           </CardDescription>
         </div>
         <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=calendari")}>
           <ExternalLink className="h-4 w-4 mr-1.5" />
-          Mio profilo
+          {t("Mio profilo")}
         </Button>
       </CardHeader>
 
@@ -401,6 +402,7 @@ function CalendarRow({
   mio: boolean;
   calendariUsati?: string[];
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const stato = statoRiga(riga.status);
   const guasto = calendarioDaRicollegare(riga.status);
@@ -410,31 +412,27 @@ function CalendarRow({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium truncate">
             {riga.nome}
-            {mio && <span className="font-normal text-muted-foreground"> (tu)</span>}
+            {mio && <span className="font-normal text-muted-foreground"> {t("(tu)")}</span>}
           </span>
-          <PallinoStato tono={stato.tono}>{stato.label}</PallinoStato>
+          <PallinoStato tono={stato.tono}>{t(stato.label)}</PallinoStato>
         </div>
         <div className="text-xs text-muted-foreground truncate">
           {riga.account ?? "—"}
         </div>
         {calendariUsati.length > 0 && (
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">
-            Ci scrivono: {calendariUsati.join(", ")}
-          </div>
+          <div className="mt-0.5 truncate text-xs text-muted-foreground">{t("Ci scrivono: {calendariUsati}", { calendariUsati: calendariUsati.join(", ") })}</div>
         )}
         {guasto && (
           // Il testo originale dell'errore resta nel tooltip, per l'assistenza.
           <div className="mt-0.5 text-xs text-rose-700 dark:text-rose-400" title={riga.last_error ?? undefined}>
             {mio
-              ? "L'accesso al calendario si è interrotto: ricollegalo dal tuo profilo, ci vuole un minuto."
-              : `L'accesso al calendario si è interrotto: deve ricollegarlo ${riga.nome} dal suo profilo.`}
+              ? t("L'accesso al calendario si è interrotto: ricollegalo dal tuo profilo, ci vuole un minuto.")
+              : t("L'accesso al calendario si è interrotto: deve ricollegarlo {nome} dal suo profilo.", { nome: String(riga.nome ?? "") })}
           </div>
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5">
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          Ultima sync: {formatRelativeTime(riga.last_sync_at)}
-        </span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">{t("Ultima sync: {last_sync_at}", { last_sync_at: formatRelativeTime(riga.last_sync_at) })}</span>
         {guasto && mio && (
           <Button
             size="sm"
@@ -442,7 +440,7 @@ function CalendarRow({
             className="h-7"
             onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=calendari")}
           >
-            Ricollega
+            {t("Ricollega")}
           </Button>
         )}
       </div>

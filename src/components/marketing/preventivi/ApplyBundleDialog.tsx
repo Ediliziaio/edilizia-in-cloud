@@ -37,6 +37,7 @@ import { logger } from "@/utils/logger";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { AxisSelection, FamilyWithAxes } from "@/types/articleFamily";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -101,6 +102,7 @@ export default function ApplyBundleDialog({
   currentSortOrder,
   tariffe,
 }: Props) {
+  const tr = useT();
   const { bundles, isLoading } = useBundlesList();
   // Anche il kit a prezzo unico ora dipende dalle famiglie (il suo costo è
   // quello delle voci): finché non sono caricate non si conferma.
@@ -359,9 +361,9 @@ export default function ApplyBundleDialog({
         item_category: "prodotto",
         name: selectedBundle.nome,
         description: [
-          selectedBundle.fv_kwp != null ? `${Number(selectedBundle.fv_kwp).toLocaleString("it-IT")} kWp` : null,
+          selectedBundle.fv_kwp != null ? `${Number(selectedBundle.fv_kwp).toLocaleString(intlCampo())} kWp` : null,
           Number(selectedBundle.fv_accumulo_kwh ?? 0) > 0
-            ? `accumulo ${Number(selectedBundle.fv_accumulo_kwh).toLocaleString("it-IT")} kWh`
+            ? `accumulo ${Number(selectedBundle.fv_accumulo_kwh).toLocaleString(intlCampo())} kWh`
             : null,
           dettaglio || null,
         ].filter(Boolean).join(" · "),
@@ -400,7 +402,7 @@ export default function ApplyBundleDialog({
   const handleConfirm = () => {
     if (!expansion || expansion.items.length === 0) return;
     onAddItems(expansion.items, expansion.nextSortOrder);
-    toast.success(`Aggiunte ${expansion.items.length} voci dal bundle`);
+    toast.success(tr("Aggiunte {n} voci dal bundle", { n: expansion.items.length }));
     onClose();
   };
 
@@ -410,22 +412,21 @@ export default function ApplyBundleDialog({
         <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b bg-background">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Package className="h-5 w-5 shrink-0" aria-hidden="true" />
-            <span className="truncate">Applica bundle al preventivo</span>
+            <span className="truncate">{tr("Applica bundle al preventivo")}</span>
           </DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Seleziona un pacchetto pre-configurato. Le voci verranno aggiunte al preventivo,
-            puoi modificarle singolarmente dopo l&apos;inserimento.
+            {tr("Seleziona un pacchetto pre-configurato. Le voci verranno aggiunte al preventivo, puoi modificarle singolarmente dopo l'inserimento.")}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 min-h-0 px-4 sm:px-6 py-3">
-          {isLoading && <p className="text-sm text-muted-foreground">Caricamento…</p>}
+          {isLoading && <p className="text-sm text-muted-foreground">{tr("Caricamento…")}</p>}
           {!isLoading && activeBundles.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p>Nessun bundle attivo disponibile.</p>
+              <p>{tr("Nessun bundle attivo disponibile.")}</p>
               <p className="text-xs mt-2">
-                Creane uno in Impostazioni → Listino → Kit e pacchetti. Se sei un serramentista, installa i pacchetti di esempio.
+                {tr("Creane uno in Impostazioni → Listino → Kit e pacchetti. Se sei un serramentista, installa i pacchetti di esempio.")}
               </p>
             </div>
           )}
@@ -445,7 +446,7 @@ export default function ApplyBundleDialog({
           {selectedBundle && gridsLoading && familyIdsInSelected.length > 0 && (
             <div className="mt-4 rounded-md border p-3 bg-muted/30">
               <p className="text-sm text-muted-foreground">
-                Caricamento griglia prezzi…
+                {tr("Caricamento griglia prezzi…")}
               </p>
             </div>
           )}
@@ -459,17 +460,16 @@ export default function ApplyBundleDialog({
                   <AlertCircle className="h-4 w-4 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-destructive">
-                      Errore caricamento griglia prezzi
+                      {tr("Errore caricamento griglia prezzi")}
                     </p>
                     <p className="text-xs text-destructive/80 mt-1 break-words">
                       {gridsErrorObj instanceof Error
                         ? gridsErrorObj.message
-                        : "Impossibile calcolare i prezzi del bundle."}
+                        : tr("Impossibile calcolare i prezzi del bundle.")}
                     </p>
                     {anyVoceNeedsGrid && (
                       <p className="text-xs text-destructive/80 mt-1">
-                        Il bundle contiene voci che usano la griglia L×H: i prezzi
-                        mostrati sarebbero errati. Riprova o rimuovi quelle voci.
+                        {tr("Il bundle contiene voci che usano la griglia L×H: i prezzi mostrati sarebbero errati. Riprova o rimuovi quelle voci.")}
                       </p>
                     )}
                   </div>
@@ -480,7 +480,7 @@ export default function ApplyBundleDialog({
                   onClick={() => refetchGrids()}
                   className="h-9 shrink-0 w-full sm:w-auto"
                 >
-                  Riprova
+                  {tr("Riprova")}
                 </Button>
               </div>
             </div>
@@ -490,24 +490,22 @@ export default function ApplyBundleDialog({
           {selectedBundle && expansion && (
             <div className="mt-4 rounded-md border p-3 bg-muted/30">
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-muted-foreground">Voci da aggiungere:</span>
+                <span className="text-muted-foreground">{tr("Voci da aggiungere:")}</span>
                 <span className="font-medium">{expansion.items.length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-medium">Totale stimato:</span>
+                <span className="font-medium">{tr("Totale stimato:")}</span>
                 <span className="font-bold text-primary">
                   {formatCurrency(expansion.totalPreview)}
                 </span>
               </div>
               {Number(selectedBundle.sconto_bundle_pct) > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Sconto bundle {selectedBundle.sconto_bundle_pct}% applicato a ogni voce.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{tr("Sconto bundle {sconto_bundle_pct}% applicato a ogni voce.", { sconto_bundle_pct: String(selectedBundle.sconto_bundle_pct ?? "") })}</p>
               )}
               {expansion.warnings.length > 0 && (
                 <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 dark:border-amber-900/50 dark:bg-amber-950/30">
                   <p className="text-xs font-medium text-amber-900 dark:text-amber-200 mb-1">
-                    Avvertenze:
+                    {tr("Avvertenze:")}
                   </p>
                   {expansion.warnings.map((w, i) => (
                     <p key={i} className="text-xs text-amber-800 dark:text-amber-300">
@@ -526,7 +524,7 @@ export default function ApplyBundleDialog({
             onClick={onClose}
             className="h-10 w-full sm:w-auto"
           >
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button
             onClick={handleConfirm}
@@ -539,17 +537,17 @@ export default function ApplyBundleDialog({
             }
             title={
               gridBlocksConfirm
-                ? "Impossibile aggiungere: griglia prezzi non caricata"
+                ? tr("Impossibile aggiungere: griglia prezzi non caricata")
                 : undefined
             }
             className="h-10 w-full sm:w-auto"
           >
             <Check className="h-4 w-4 mr-1.5" aria-hidden="true" />
             <span className="sm:hidden">
-              Aggiungi {expansion ? expansion.items.length : 0}
+              {tr("Aggiungi")} {expansion ? expansion.items.length : 0}
             </span>
             <span className="hidden sm:inline">
-              Aggiungi {expansion ? expansion.items.length : 0} voci
+              {tr("Aggiungi {n} voci", { n: expansion ? expansion.items.length : 0 })}
             </span>
           </Button>
         </DialogFooter>
@@ -565,6 +563,7 @@ interface BundleCardProps {
 }
 
 function BundleCard({ bundle, selected, onSelect }: BundleCardProps) {
+  const t = useT();
   const numVoci = bundle.voci?.length ?? 0;
   return (
     <Card
@@ -596,7 +595,7 @@ function BundleCard({ bundle, selected, onSelect }: BundleCardProps) {
             )}
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <Badge variant="outline" className="text-xs">
-                {numVoci} {numVoci === 1 ? "voce" : "voci"}
+                {t(numVoci === 1 ? "{n} voce" : "{n} voci", { n: numVoci })}
               </Badge>
               {bundle.tipo_lavoro && (
                 <Badge variant="secondary" className="text-xs">
@@ -610,7 +609,7 @@ function BundleCard({ bundle, selected, onSelect }: BundleCardProps) {
               )}
               {bundle.is_template && (
                 <Badge variant="outline" className="text-xs text-muted-foreground">
-                  template
+                  {t("template")}
                 </Badge>
               )}
             </div>

@@ -17,6 +17,7 @@ import {
   PIANO_ALTEZZA, PIANO_LARGHEZZA, PIANO_ZOOM, disponiPannelli, leggiPiano, metriPerPunto, metriTesto,
   misureTesto, pianoConModulo, pianoIniziale, type MisureModulo, type PianoTetto,
 } from "../../../supabase/functions/_shared/fvPianoTetto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PianoSalvato = { x: number; y: number; rot: number; cols: number; unita?: "m"; orient?: "v" | "o"; modulo?: MisureModulo };
 
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificabile, modulo }: Props) {
+  const t = useT();
   const [img, setImg] = useState<string | null>(null);
   const [stato, setStato] = useState<"carico" | "ok" | "errore">("carico");
   const [fornitore, setFornitore] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
   if (!(moduli > 0)) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4 mt-4 text-sm text-slate-500">
-        Scegli il numero dei pannelli per disegnare il piano sul tetto.
+        {t("Scegli il numero dei pannelli per disegnare il piano sul tetto.")}
       </div>
     );
   }
@@ -115,12 +117,12 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h4 className="text-sm font-bold text-slate-900 inline-flex items-center gap-1.5">
-            <MapPinned className="h-4 w-4 text-orange-500" /> Piano di posa sul tetto
+            <MapPinned className="h-4 w-4 text-orange-500" /> {t("Piano di posa sul tetto")}
           </h4>
           <p className="text-[11px] text-slate-500 mt-0.5">
             {attuale
               ? `Trascina i moduli sulla falda e ruotali: sono in scala, ${misureTesto(attuale.modulo ?? modulo)} l'uno${(attuale.modulo ?? modulo).stimato ? " (misure stimate dalla potenza: scrivile nel pannello del listino)" : ""}. Finisce nel PDF.`
-              : "Disegna dove vanno i pannelli sul tetto: nel PDF compare una pagina col piano in scala."}
+              : t("Disegna dove vanno i pannelli sul tetto: nel PDF compare una pagina col piano in scala.")}
           </p>
         </div>
         {modificabile && !attuale && stato === "ok" && (
@@ -129,7 +131,7 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
             onClick={() => onChange(pianoIniziale(moduli, modulo))}
             className="px-3.5 py-2 text-xs font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow-sm hover:shadow-md"
           >
-            Disegna il piano sul tetto
+            {t("Disegna il piano sul tetto")}
           </button>
         )}
         {modificabile && attuale && (
@@ -138,7 +140,7 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
             onClick={() => onChange(null)}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
           >
-            <Trash2 className="h-3 w-3" /> Togli il piano
+            <Trash2 className="h-3 w-3" /> {t("Togli il piano")}
           </button>
         )}
       </div>
@@ -150,11 +152,11 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
       >
         {stato === "carico" && (
           <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carico la vista del tetto…
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t("Carico la vista del tetto…")}
           </div>
         )}
         {img && (
-          <svg viewBox={`0 0 ${PIANO_LARGHEZZA} ${PIANO_ALTEZZA}`} className="absolute inset-0 w-full h-full select-none" role="img" aria-label="Piano di posa dei pannelli sul tetto">
+          <svg viewBox={`0 0 ${PIANO_LARGHEZZA} ${PIANO_ALTEZZA}`} className="absolute inset-0 w-full h-full select-none" role="img" aria-label={t("Piano di posa dei pannelli sul tetto")}>
             <image href={img} x={0} y={0} width={PIANO_LARGHEZZA} height={PIANO_ALTEZZA} preserveAspectRatio="xMidYMid slice" />
             {disegno && (
               <g
@@ -186,29 +188,29 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
           <div className="mt-3 grid sm:grid-cols-3 gap-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <Label className="text-xs">Rotazione</Label>
+                <Label className="text-xs">{t("Rotazione")}</Label>
                 <span className="text-xs font-medium text-slate-600 tabular-nums">{Math.round(attuale.rot)}°</span>
               </div>
               <input
                 type="range" min={-90} max={90} value={Math.round(attuale.rot)} disabled={!modificabile}
                 onChange={(e) => scrivi({ rot: Number(e.target.value) })}
-                className="w-full accent-orange-500" aria-label="Rotazione dei moduli"
+                className="w-full accent-orange-500" aria-label={t("Rotazione dei moduli")}
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <Label className="text-xs">Moduli per fila</Label>
+                <Label className="text-xs">{t("Moduli per fila")}</Label>
                 <span className="text-xs font-medium text-slate-600 tabular-nums">{Math.min(attuale.cols, moduli)}</span>
               </div>
               <input
                 type="range" min={1} max={Math.min(moduli, 24)} value={Math.min(attuale.cols, moduli, 24)} disabled={!modificabile}
                 onChange={(e) => scrivi({ cols: Number(e.target.value) })}
-                className="w-full accent-orange-500" aria-label="Moduli per fila"
+                className="w-full accent-orange-500" aria-label={t("Moduli per fila")}
               />
             </div>
             <div>
-              <Label className="text-xs">Posa dei moduli</Label>
-              <div role="group" aria-label="Orientamento dei moduli" className="mt-1 flex gap-1.5">
+              <Label className="text-xs">{t("Posa dei moduli")}</Label>
+              <div role="group" aria-label={t("Orientamento dei moduli")} className="mt-1 flex gap-1.5">
                 {([["v", "In verticale"], ["o", "In orizzontale"]] as const).map(([chiave, etichetta]) => (
                   <button
                     key={chiave}
@@ -229,7 +231,9 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
           </div>
           <div className="mt-2 flex items-center justify-between gap-2 flex-wrap text-[11px] text-slate-500">
             <span>
-              {moduli} moduli{kwp != null && kwp > 0 ? ` · ${kwp.toFixed(1)} kWp` : ""} · ingombro {metriTesto(disegno.larghezzaM)} × {metriTesto(disegno.altezzaM)} · {Math.round(disegno.areaM2)} m²
+              {kwp != null && kwp > 0
+                ? t("{moduli} moduli · {kwp} kWp · ingombro {larghezza} × {altezza} · {area} m²", { moduli, kwp: kwp.toFixed(1), larghezza: metriTesto(disegno.larghezzaM), altezza: metriTesto(disegno.altezzaM), area: Math.round(disegno.areaM2) })
+                : t("{moduli} moduli · ingombro {larghezza} × {altezza} · {area} m²", { moduli, larghezza: metriTesto(disegno.larghezzaM), altezza: metriTesto(disegno.altezzaM), area: Math.round(disegno.areaM2) })}
             </span>
             {modificabile && (
               <button
@@ -237,18 +241,18 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
                 onClick={() => scrivi({ x: 0, y: 0 })}
                 className="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-slate-900"
               >
-                <RotateCcw className="h-3 w-3" /> Riporta al centro
+                <RotateCcw className="h-3 w-3" /> {t("Riporta al centro")}
               </button>
             )}
           </div>
           {disegno.fuori && (
             <p role="alert" className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
-              I moduli escono dalla vista: spostali, riduci le file o ruotali. Nel PDF si vedrebbero tagliati.
+              {t("I moduli escono dalla vista: spostali, riduci le file o ruotali. Nel PDF si vedrebbero tagliati.")}
             </p>
           )}
           {fornitore && fornitore !== "google" && (
             <p className="mt-2 text-[11px] text-slate-400">
-              La vista non arriva da Google: la scala è indicativa e il piano non entra nel PDF.
+              {t("La vista non arriva da Google: la scala è indicativa e il piano non entra nel PDF.")}
             </p>
           )}
         </>

@@ -16,8 +16,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, MessageSquare, CheckCircle2 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PlatformSmsActivationCard() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -43,10 +45,10 @@ export function PlatformSmsActivationCard() {
         );
       if (error) throw error;
       queryClient.invalidateQueries();
-      toast.success("Modulo SMS piattaforma attivato");
+      toast.success(t("Modulo SMS piattaforma attivato"));
     } catch (e) {
       setFailed(true);
-      toast.error(e instanceof Error ? e.message : "Attivazione non riuscita");
+      toast.error(e instanceof Error ? e.message : t("Attivazione non riuscita"));
     } finally {
       setCompleting(false);
     }
@@ -73,37 +75,36 @@ export function PlatformSmsActivationCard() {
         </div>
         <div className="space-y-1">
           <div className="flex items-center justify-center gap-2">
-            <h2 className="text-lg font-semibold">Modulo SMS — Piattaforma</h2>
-            <Badge variant="secondary">super admin</Badge>
+            <h2 className="text-lg font-semibold">{t("Modulo SMS — Piattaforma")}</h2>
+            <Badge variant="secondary">{t("super admin")}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Account piattaforma: <strong>nessun canone</strong> — il prezzo di 30 €/mese è
-            quello rivenduto alle aziende. I tuoi costi sono quelli wholesale Telnyx.
+            {t("Account piattaforma: nessun canone — il prezzo di 30 €/mese è quello rivenduto alle aziende. I tuoi costi sono quelli wholesale Telnyx.")}
           </p>
         </div>
         <ul className="text-sm text-left max-w-xs mx-auto space-y-1.5">
           <li className="flex gap-2 items-center">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-            Invio immediato con mittente alfanumerico
+            {t("Invio immediato con mittente alfanumerico")}
           </li>
           <li className="flex gap-2 items-center">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-            Numero dedicato opzionale (costo wholesale)
+            {t("Numero dedicato opzionale (costo wholesale)")}
           </li>
           <li className="flex gap-2 items-center">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-            Report consegna in tempo reale
+            {t("Report consegna in tempo reale")}
           </li>
         </ul>
         {failed ? (
           <Button onClick={handleActivate} disabled={busy} className="w-full max-w-xs">
             {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Riprova attivazione
+            {t("Riprova attivazione")}
           </Button>
         ) : (
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Attivazione automatica in corso…
+            {t("Attivazione automatica in corso…")}
           </div>
         )}
       </CardContent>

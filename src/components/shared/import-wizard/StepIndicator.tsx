@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STEPS = [
   { label: "Avvia", desc: "Seleziona gli oggetti e ulteriori informazioni" },
@@ -13,6 +14,7 @@ interface StepIndicatorProps {
 }
 
 export function StepIndicator({ currentStep }: StepIndicatorProps) {
+  const t = useT();
   return (
     <div className="flex items-start justify-center gap-0 w-full max-w-2xl mx-auto py-6">
       {STEPS.map((step, i) => {
@@ -39,10 +41,10 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
                 "text-xs font-medium mt-1.5 text-center",
                 (isCompleted || isCurrent) ? "text-foreground" : "text-muted-foreground"
               )}>
-                {step.label}
+                {t(step.label)}
               </p>
               <p className="text-[10px] text-muted-foreground text-center leading-tight">
-                {step.desc}
+                {t(step.desc)}
               </p>
             </div>
             {/* Connector line */}

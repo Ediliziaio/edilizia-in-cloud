@@ -13,6 +13,7 @@ import { esportaPercorsoPdf } from '@/lib/gps/exportPdf';
 import type { GpsPositionExport } from '@/lib/gps/exportExcel';
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Props {
   posizioni: GpsPositionExport[];
   nomeTecnico: string;
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function ExportPercorsiButton({ posizioni, nomeTecnico, data }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [isExporting, setIsExporting] = useState(false);
 
@@ -30,10 +32,10 @@ export function ExportPercorsiButton({ posizioni, nomeTecnico, data }: Props) {
     setIsExporting(true);
     try {
       await esportaPercorsoExcel(posizioni, nomeFile, nomeTecnico, data);
-      toast.success('Esportazione Excel completata');
+      toast.success(t("Esportazione Excel completata"));
     } catch (err) {
       console.error(err);
-      toast.error("Errore durante l'esportazione Excel");
+      toast.error(t("Errore durante l'esportazione Excel"));
     } finally {
       setIsExporting(false);
     }
@@ -44,10 +46,10 @@ export function ExportPercorsiButton({ posizioni, nomeTecnico, data }: Props) {
     setIsExporting(true);
     try {
       await esportaPercorsoPdf(posizioni, nomeFile, nomeTecnico, data);
-      toast.success('Esportazione PDF completata');
+      toast.success(t("Esportazione PDF completata"));
     } catch (err) {
       console.error(err);
-      toast.error("Errore durante l'esportazione PDF");
+      toast.error(t("Errore durante l'esportazione PDF"));
     } finally {
       setIsExporting(false);
     }
@@ -70,17 +72,17 @@ export function ExportPercorsiButton({ posizioni, nomeTecnico, data }: Props) {
           ) : (
             <Download className="h-3.5 w-3.5" />
           )}
-          Esporta
+          {t("Esporta")}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={handleExcel} className="gap-2">
           <FileSpreadsheet className="h-4 w-4 text-green-600" />
-          Esporta Excel (.xlsx)
+          {t("Esporta Excel (.xlsx)")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handlePdf} className="gap-2">
           <FileText className="h-4 w-4 text-red-600" />
-          Esporta PDF
+          {t("Esporta PDF")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

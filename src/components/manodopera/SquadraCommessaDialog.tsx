@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 import { messaggioErroreOperai, oggiRoma, useSquadraSuCommessa, useSquadre } from "@/hooks/useOperai";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SquadraCommessaDialog({
   aperto,
@@ -34,6 +35,7 @@ export function SquadraCommessaDialog({
   /** Per cambiare date e capocantiere di una squadra già sulla commessa. */
   iniziale?: { dal: string | null; al: string | null; capocantiere: boolean };
 }) {
+  const t = useT();
   const { data: squadre = [] } = useSquadre();
   const metti = useSquadraSuCommessa();
   const [squadra, setSquadra] = useState<string>("");
@@ -55,14 +57,14 @@ export function SquadraCommessaDialog({
   const modifica = !!iniziale;
 
   const invia = () => {
-    if (!squadra) { toast.error("Scegli la squadra."); return; }
-    if (!commessa) { toast.error("Scegli la commessa."); return; }
-    if (dal && al && al < dal) { toast.error("La fine viene prima dell'inizio: controlla le date."); return; }
+    if (!squadra) { toast.error(t("Scegli la squadra.")); return; }
+    if (!commessa) { toast.error(t("Scegli la commessa.")); return; }
+    if (dal && al && al < dal) { toast.error(t("La fine viene prima dell'inizio: controlla le date.")); return; }
     metti.mutate(
       { orderId: commessa, squadraId: squadra, dal: dal || null, al: al || null, capocantiere: capo },
       {
         onSuccess: () => {
-          toast.success(modifica ? "Date aggiornate" : `${scelta?.nome ?? "La squadra"} è sulla commessa`);
+          toast.success(modifica ? t("Date aggiornate") : t("{nome} è sulla commessa", { nome: scelta?.nome ?? t("La squadra") }));
           onAperto(false);
         },
         onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a mettere la squadra sulla commessa. Riprova tra qualche secondo.")),
@@ -74,29 +76,29 @@ export function SquadraCommessaDialog({
     <Dialog open={aperto} onOpenChange={(o) => !metti.isPending && onAperto(o)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{modifica ? "Date della squadra" : "Metti una squadra al lavoro"}</DialogTitle>
+          <DialogTitle>{modifica ? t("Date della squadra") : t("Metti una squadra al lavoro")}</DialogTitle>
           <DialogDescription>
-            Chi ha l'app si trova il cantiere sul telefono; gli altri risultano previsti lì nella giornata.
+            {t("Chi ha l'app si trova il cantiere sul telefono; gli altri risultano previsti lì nella giornata.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {!squadraId && (
             <div className="space-y-1.5">
-              <Label htmlFor="sc-squadra">Squadra</Label>
+              <Label htmlFor="sc-squadra">{t("Squadra")}</Label>
               {squadre.length === 0 ? (
                 <p className="rounded-lg border border-dashed px-3 py-3 text-sm text-muted-foreground">
-                  Non ci sono ancora squadre. Le crei in Manodopera e Mezzi, scheda Operai.
+                  {t("Non ci sono ancora squadre. Le crei in Manodopera e Mezzi, scheda Operai.")}
                 </p>
               ) : (
                 <Select value={squadra} onValueChange={setSquadra}>
-                  <SelectTrigger id="sc-squadra"><SelectValue placeholder="Scegli la squadra" /></SelectTrigger>
+                  <SelectTrigger id="sc-squadra"><SelectValue placeholder={t("Scegli la squadra")} /></SelectTrigger>
                   <SelectContent>
                     {squadre.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         <span className="inline-flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
-                          {s.nome} · {s.componenti.length === 1 ? "1 operaio" : `${s.componenti.length} operai`}
+                          {s.nome} · {s.componenti.length === 1 ? t("1 operaio") : t("{n} operai", { n: s.componenti.length })}
                         </span>
                       </SelectItem>
                     ))}
@@ -108,20 +110,20 @@ export function SquadraCommessaDialog({
 
           {!orderId && (
             <div className="space-y-1.5">
-              <Label>Commessa</Label>
-              <CommessaCombobox value={commessa} onChange={setCommessa} nessunaLabel="Scegli la commessa" className="w-full" />
+              <Label>{t("Commessa")}</Label>
+              <CommessaCombobox value={commessa} onChange={setCommessa} nessunaLabel={t("Scegli la commessa")} className="w-full" />
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="sc-dal">Dal</Label>
+              <Label htmlFor="sc-dal">{t("Dal")}</Label>
               <Input id="sc-dal" type="date" value={dal} onChange={(e) => setDal(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sc-al">Al</Label>
+              <Label htmlFor="sc-al">{t("Al")}</Label>
               <Input id="sc-al" type="date" value={al} min={dal || undefined} onChange={(e) => setAl(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Vuoto: finché non la togli.</p>
+              <p className="text-xs text-muted-foreground">{t("Vuoto: finché non la togli.")}</p>
             </div>
           </div>
 
@@ -129,11 +131,11 @@ export function SquadraCommessaDialog({
             <label htmlFor="sc-capo" className="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3">
               <Checkbox id="sc-capo" checked={capo} onCheckedChange={(v) => setCapo(v === true)} className="mt-0.5" />
               <span className="text-sm">
-                <span className="font-medium">Il responsabile fa da capocantiere</span>
+                <span className="font-medium">{t("Il responsabile fa da capocantiere")}</span>
                 <span className="block text-xs text-muted-foreground">
                   {scelta?.responsabile
-                    ? `${scelta.responsabile.nome} ${scelta.responsabile.cognome} vede il cantiere nell'app come capocantiere, se la commessa non ne ha già uno.`
-                    : "Vale se la squadra ha un responsabile con l'app e la commessa non ha già un capocantiere."}
+                    ? t("{nome} {cognome} vede il cantiere nell'app come capocantiere, se la commessa non ne ha già uno.", { nome: String(scelta.responsabile.nome ?? ""), cognome: String(scelta.responsabile.cognome ?? "") })
+                    : t("Vale se la squadra ha un responsabile con l'app e la commessa non ha già un capocantiere.")}
                 </span>
               </span>
             </label>
@@ -141,10 +143,10 @@ export function SquadraCommessaDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onAperto(false)} disabled={metti.isPending}>Annulla</Button>
+          <Button variant="outline" onClick={() => onAperto(false)} disabled={metti.isPending}>{t("Annulla")}</Button>
           <Button onClick={invia} disabled={metti.isPending} className="gap-1.5">
             {metti.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {modifica ? "Salva" : "Metti al lavoro"}
+            {modifica ? t("Salva") : t("Metti al lavoro")}
           </Button>
         </DialogFooter>
       </DialogContent>

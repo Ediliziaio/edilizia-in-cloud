@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { trovaCitazione } from "./documentoCitato";
 import { convertiHeic } from "@/lib/files/convertiHeic";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface DocumentoDelVisore {
   titolo: string;
@@ -50,6 +51,7 @@ function riquadroDi(item: { transform?: number[]; width?: number; height?: numbe
 }
 
 export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVisore | null; onChiudi: () => void }) {
+  const t = useT();
   const tela = useRef<HTMLCanvasElement>(null);
   const contenitore = useRef<HTMLDivElement>(null);
   const [pdf, setPdf] = useState<DocumentoPdf | null>(null);
@@ -94,7 +96,7 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         setPagina(Math.min(Math.max(1, documento.pagina ?? 1), aperto.numPages));
         setPdf(aperto);
       } catch (e) {
-        if (!annullato) setErrore(erroreLeggibile(e, "Non riesco ad aprire il documento."));
+        if (!annullato) setErrore(erroreLeggibile(e, t("Non riesco ad aprire il documento.")));
       } finally {
         if (!annullato) setCarico(false);
       }
@@ -134,7 +136,7 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         setRiquadri(indici.map((i) => riquadroDi(testo.items[i], vista, scala)).filter((x): x is Riquadro => !!x));
         setTrovata(documento.citazione && pagina === (documento.pagina ?? pagina) ? indici.length > 0 : null);
       } catch (e) {
-        if (!annullato) setErrore(erroreLeggibile(e, "Non riesco a disegnare la pagina."));
+        if (!annullato) setErrore(erroreLeggibile(e, t("Non riesco a disegnare la pagina.")));
       }
     })();
     return () => { annullato = true; compito?.cancel?.(); };
@@ -148,8 +150,8 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         <div className="min-w-0 pr-8">
           <DialogTitle className="truncate text-base">{documento?.titolo}</DialogTitle>
           <DialogDescription className="text-xs">
-            {documento?.dove ? `Il valore viene da ${documento.dove}.` : "Il documento da cui viene il valore."}
-            {trovata === false && " Il testo citato non si trova uguale nella pagina: guardalo a occhio."}
+            {documento?.dove ? t("Il valore viene da {dove}.", { dove: documento.dove }) : t("Il documento da cui viene il valore.")}
+            {trovata === false && ` ${t("Il testo citato non si trova uguale nella pagina: guardalo a occhio.")}`}
           </DialogDescription>
         </div>
         {documento?.citazione && (
@@ -159,11 +161,11 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         )}
         {errore && <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{errore}</p>}
         <div ref={contenitore} className="min-h-0 flex-1 overflow-auto rounded-md border bg-slate-100 p-2" data-pagina={pdf ? pagina : undefined}>
-          {carico && <p className="flex items-center gap-2 p-4 text-sm text-slate-600" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Apro il documento…</p>}
-          {immagine && <img src={immagine} alt={documento?.titolo ?? "documento"} className="mx-auto h-auto max-w-full" />}
+          {carico && <p className="flex items-center gap-2 p-4 text-sm text-slate-600" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />{t("Apro il documento…")}</p>}
+          {immagine && <img src={immagine} alt={documento?.titolo ?? t("documento")} className="mx-auto h-auto max-w-full" />}
           {pdf && (
             <div className="relative mx-auto w-fit">
-              <canvas ref={tela} className="block h-auto max-w-full bg-white shadow-sm" aria-label={`Pagina ${pagina} di ${pagine}`} />
+              <canvas ref={tela} className="block h-auto max-w-full bg-white shadow-sm" aria-label={t("Pagina {n} di {totale}", { n: String(pagina ?? ""), totale: String(pagine ?? "") })} />
               {riquadri.map((r, i) => (
                 <span key={i} aria-hidden className="pointer-events-none absolute rounded-sm bg-amber-300/45 ring-1 ring-amber-500"
                   style={{ left: r.x, top: r.y, width: Math.max(8, r.w), height: Math.max(8, r.h) }} />
@@ -174,11 +176,11 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         {pdf && (
           <div className="flex items-center justify-between gap-2">
             <Button type="button" variant="outline" size="sm" className="gap-1" disabled={pagina <= 1} onClick={() => setPagina(pagina - 1)}>
-              <ChevronLeft className="h-4 w-4" aria-hidden />Prima
+              <ChevronLeft className="h-4 w-4" aria-hidden />{t("Prima")}
             </Button>
-            <p className="text-sm text-slate-600" role="status">Pagina {pagina} di {pagine}</p>
+            <p className="text-sm text-slate-600" role="status">{t("Pagina {n} di {totale}", { n: String(pagina ?? ""), totale: String(pagine ?? "") })}</p>
             <Button type="button" variant="outline" size="sm" className="gap-1" disabled={pagina >= pagine} onClick={() => setPagina(pagina + 1)}>
-              Dopo<ChevronRight className="h-4 w-4" aria-hidden />
+              {t("Dopo")}<ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
           </div>
         )}

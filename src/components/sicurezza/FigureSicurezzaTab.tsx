@@ -26,6 +26,7 @@ import {
 } from "@/hooks/usePos";
 import { MANSIONI_PREDEFINITE } from "../../../supabase/functions/_shared/posModello";
 import { oggiRoma } from "../../../supabase/functions/_shared/posData";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const RUOLI: Array<{ value: RuoloFigura; label: string; obbligatoria: boolean }> = [
   { value: "datore_lavoro", label: "Datore di lavoro", obbligatoria: true },
@@ -48,6 +49,7 @@ const vuota = (ruolo: RuoloFigura): FiguraInput => ({
 });
 
 export function FigureSicurezzaTab() {
+  const t = useT();
   const perms = usePermissions();
   const puoScrivere = (perms.canViewSicurezzaCantiere || perms.isAdmin) && !perms.solaLettura;
   const { data: figure = [], isLoading, isError, refetch } = useFigureSicurezza();
@@ -58,8 +60,8 @@ export function FigureSicurezzaTab() {
 
   const presenti = new Set(figure.map((f) => f.ruolo));
   const haRls = presenti.has("rls") || presenti.has("rlst");
-  const mancano = RUOLI.filter((r) => r.obbligatoria && !presenti.has(r.value)).map((r) => r.label);
-  if (!haRls) mancano.push("RLS o RLST");
+  const mancano = RUOLI.filter((r) => r.obbligatoria && !presenti.has(r.value)).map((r) => t(r.label));
+  if (!haRls) mancano.push(t("RLS o RLST"));
 
   const oggi = oggiRoma();
 
@@ -79,14 +81,14 @@ export function FigureSicurezzaTab() {
           spiegazione (chi manca lo dice l'avviso qui sotto). */}
       {puoScrivere && (
         <div className="flex items-center justify-end">
-          <Button size="sm" onClick={() => setModulo(vuota("datore_lavoro"))} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="mr-1 h-4 w-4" />Aggiungi figura</Button>
+          <Button size="sm" onClick={() => setModulo(vuota("datore_lavoro"))} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="mr-1 h-4 w-4" />{t("Aggiungi figura")}</Button>
         </div>
       )}
 
       {!isLoading && !isError && mancano.length > 0 && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>Per un POS completo mancano: {mancano.join(", ")}.</span>
+          <span>{t("Per un POS completo mancano: {mancano}.", { mancano: mancano.join(", ") })}</span>
         </div>
       )}
 
@@ -94,14 +96,14 @@ export function FigureSicurezzaTab() {
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : isError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Non riesco a caricare le figure.{" "}
-          <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
+          {t("Non riesco a caricare le figure.")}{" "}
+          <button type="button" className="font-semibold underline" onClick={() => refetch()}>{t("Riprova")}</button>
         </div>
       ) : figure.length === 0 ? (
         <div className="rounded-xl border border-dashed py-10 text-center">
           <UserCheck className="mx-auto mb-2 h-9 w-9 text-muted-foreground/40" />
-          <p className="font-medium">Nessuna figura</p>
-          <p className="mt-1 text-sm text-muted-foreground">Inizia dal datore di lavoro e dall'RSPP.</p>
+          <p className="font-medium">{t("Nessuna figura")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Inizia dal datore di lavoro e dall'RSPP.")}</p>
         </div>
       ) : (
         <ul className="grid gap-2 md:grid-cols-2">
@@ -112,19 +114,19 @@ export function FigureSicurezzaTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{f.nominativo}</span>
-                    <Badge variant="outline" className="text-[11px]">{labelRuolo(f.ruolo)}</Badge>
-                    {f.esterno && <Badge variant="outline" className="text-[11px]">Esterno</Badge>}
+                    <Badge variant="outline" className="text-[11px]">{t(labelRuolo(f.ruolo))}</Badge>
+                    {f.esterno && <Badge variant="outline" className="text-[11px]">{t("Esterno")}</Badge>}
                   </div>
                   {f.attestato && (
                     <p className={`mt-0.5 text-xs ${scaduto ? "text-red-700" : "text-muted-foreground"}`}>
-                      {f.attestato}{f.scadenza ? ` · ${scaduto ? "scaduto il" : "valido fino al"} ${f.scadenza.split("-").reverse().join("/")}` : ""}
+                      {f.attestato}{f.scadenza ? ` · ${scaduto ? t("scaduto il {data}", { data: f.scadenza.split("-").reverse().join("/") }) : t("valido fino al {data}", { data: f.scadenza.split("-").reverse().join("/") })}` : ""}
                     </p>
                   )}
                   {f.mansioni_sicurezza && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{f.mansioni_sicurezza}</p>}
                 </div>
                 {puoScrivere && (
                   <div className="flex shrink-0">
-                    <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={`Modifica ${f.nominativo}`}
+                    <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={t("Modifica {nome}", { nome: String(f.nominativo ?? "") })}
                       onClick={() => setModulo({
                         id: f.id, ruolo: f.ruolo, nominativo: f.nominativo, hr_profilo_id: f.hr_profilo_id, esterno: f.esterno,
                         telefono: f.telefono ?? "", email: f.email ?? "", mansioni_sicurezza: f.mansioni_sicurezza ?? "",
@@ -132,7 +134,7 @@ export function FigureSicurezzaTab() {
                       })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive" aria-label={`Togli ${f.nominativo}`}
+                    <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive" aria-label={t("Togli {nome}", { nome: String(f.nominativo ?? "") })}
                       onClick={() => setDaTogliere(f)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -147,13 +149,13 @@ export function FigureSicurezzaTab() {
       <Dialog open={!!modulo} onOpenChange={(o) => !o && setModulo(null)}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{modulo?.id ? "Modifica figura" : "Nuova figura della sicurezza"}</DialogTitle>
-            <DialogDescription>Una persona con due incarichi, per esempio antincendio e primo soccorso, si aggiunge due volte.</DialogDescription>
+            <DialogTitle>{modulo?.id ? t("Modifica figura") : t("Nuova figura della sicurezza")}</DialogTitle>
+            <DialogDescription>{t("Una persona con due incarichi, per esempio antincendio e primo soccorso, si aggiunge due volte.")}</DialogDescription>
           </DialogHeader>
           {modulo && (
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="fig-ruolo" className="text-xs font-medium">Ruolo</Label>
+                <Label htmlFor="fig-ruolo" className="text-xs font-medium">{t("Ruolo")}</Label>
                 <Select value={modulo.ruolo} onValueChange={(v) => {
                   const ruolo = v as RuoloFigura;
                   // Se le mansioni sono ancora quelle tipiche del ruolo di prima, si cambiano con il ruolo.
@@ -165,20 +167,20 @@ export function FigureSicurezzaTab() {
                   });
                 }}>
                   <SelectTrigger id="fig-ruolo"><SelectValue /></SelectTrigger>
-                  <SelectContent>{RUOLI.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{RUOLI.map((r) => <SelectItem key={r.value} value={r.value}>{t(r.label)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="fig-nome" className="text-xs font-medium">Nome e cognome</Label>
+                <Label htmlFor="fig-nome" className="text-xs font-medium">{t("Nome e cognome")}</Label>
                 <Input id="fig-nome" value={modulo.nominativo} onChange={(e) => setModulo({ ...modulo, nominativo: e.target.value })} />
               </div>
               <div className="flex items-center gap-2">
                 <Switch id="fig-esterno" checked={modulo.esterno} onCheckedChange={(on) => setModulo({ ...modulo, esterno: on })} />
-                <Label htmlFor="fig-esterno" className="text-sm">Esterno all'impresa (consulente, medico, RLST)</Label>
+                <Label htmlFor="fig-esterno" className="text-sm">{t("Esterno all'impresa (consulente, medico, RLST)")}</Label>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="fig-tel" className="text-xs font-medium">Telefono</Label>
+                  <Label htmlFor="fig-tel" className="text-xs font-medium">{t("Telefono")}</Label>
                   <Input id="fig-tel" type="tel" value={modulo.telefono ?? ""} onChange={(e) => setModulo({ ...modulo, telefono: e.target.value })} />
                 </div>
                 <div className="space-y-1">
@@ -187,26 +189,26 @@ export function FigureSicurezzaTab() {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="fig-mansioni" className="text-xs font-medium">Mansioni di sicurezza svolte in cantiere</Label>
+                <Label htmlFor="fig-mansioni" className="text-xs font-medium">{t("Mansioni di sicurezza svolte in cantiere")}</Label>
                 <Textarea id="fig-mansioni" rows={3} value={modulo.mansioni_sicurezza ?? ""} onChange={(e) => setModulo({ ...modulo, mansioni_sicurezza: e.target.value })} />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="fig-attestato" className="text-xs font-medium">Attestato o nomina</Label>
-                  <Input id="fig-attestato" value={modulo.attestato ?? ""} placeholder="Es.: corso antincendio rischio medio 8 ore"
+                  <Label htmlFor="fig-attestato" className="text-xs font-medium">{t("Attestato o nomina")}</Label>
+                  <Input id="fig-attestato" value={modulo.attestato ?? ""} placeholder={t("Es.: corso antincendio rischio medio 8 ore")}
                     onChange={(e) => setModulo({ ...modulo, attestato: e.target.value })} />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="fig-scadenza" className="text-xs font-medium">Valido fino al</Label>
+                  <Label htmlFor="fig-scadenza" className="text-xs font-medium">{t("Valido fino al")}</Label>
                   <Input id="fig-scadenza" type="date" value={modulo.scadenza ?? ""} onChange={(e) => setModulo({ ...modulo, scadenza: e.target.value || null })} />
                 </div>
               </div>
             </div>
           )}
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setModulo(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setModulo(null)}>{t("Annulla")}</Button>
             <Button onClick={salvaModulo} disabled={!modulo?.nominativo.trim() || salva.isPending}>
-              {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva
+              {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -215,14 +217,14 @@ export function FigureSicurezzaTab() {
       <AlertDialog open={!!daTogliere} onOpenChange={(o) => !o && setDaTogliere(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Togliere {daTogliere?.nominativo}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Togliere {nome}?", { nome: String(daTogliere?.nominativo ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Non comparirà nei POS nuovi. I POS già scritti restano come sono.
+              {t("Non comparirà nei POS nuovi. I POS già scritti restano come sono.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => daTogliere && elimina.mutate(daTogliere.id)}>Togli</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => daTogliere && elimina.mutate(daTogliere.id)}>{t("Togli")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

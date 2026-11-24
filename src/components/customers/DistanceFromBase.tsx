@@ -11,6 +11,7 @@ import { Car } from "lucide-react";
 import { forwardGeocode } from "@/lib/geocoding";
 import { getRoute, formatDurationText, formatDistanceText } from "@/lib/routing";
 import { useCompanyBase } from "@/hooks/useCompanyBase";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DistanceFromBaseProps {
   address?: string | null;
@@ -25,6 +26,7 @@ export default function DistanceFromBase({
   province,
   className,
 }: DistanceFromBaseProps) {
+  const t = useT();
   const base = useCompanyBase();
   const fullAddress = [address, city, province].filter(Boolean).join(", ");
 
@@ -51,10 +53,10 @@ export default function DistanceFromBase({
   return (
     <span
       className={`inline-flex items-center gap-1 text-xs text-muted-foreground ${className ?? ""}`}
-      title="Distanza e tempo di viaggio in auto dalla sede operativa"
+      title={t("Distanza e tempo di viaggio in auto dalla sede operativa")}
     >
       <Car className="h-3.5 w-3.5" aria-hidden="true" />
-      {data.distanceText} · {data.durationText} dalla sede
+      {t("{distanza} · {durata} dalla sede", { distanza: data.distanceText, durata: data.durationText })}
     </span>
   );
 }

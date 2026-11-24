@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Building2, Warehouse, Briefcase, MoreHorizontal, MapPin } from "lucide-react";
 import { useSediList } from "@/hooks/useSediAnalytics";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_ICON: Record<string, typeof Building2> = {
   showroom: Building2,
@@ -48,6 +49,7 @@ export function SedeSelect({
   className,
   id,
 }: Props) {
+  const t = useT();
   const { data: sedi = [], isLoading } = useSediList();
   const activeSedi = useMemo(
     () => sedi.filter((s) => s.attiva),
@@ -61,11 +63,11 @@ export function SedeSelect({
         {label && <Label htmlFor={id}>{label}</Label>}
         <Select disabled>
           <SelectTrigger id={id}>
-            <SelectValue placeholder="Nessuna sede configurata" />
+            <SelectValue placeholder={t("Nessuna sede configurata")} />
           </SelectTrigger>
         </Select>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Configura le sedi in <span className="font-medium">Impostazioni → Sedi</span>.
+          {t("Configura le sedi in")} <span className="font-medium">{t("Impostazioni → Sedi")}</span>.
         </p>
       </div>
     );
@@ -80,14 +82,14 @@ export function SedeSelect({
         disabled={disabled || isLoading}
       >
         <SelectTrigger id={id}>
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={t(placeholder)} />
         </SelectTrigger>
         <SelectContent>
           {!required && (
             <SelectItem value="__none__">
               <span className="inline-flex items-center gap-2 text-muted-foreground">
                 <MapPin className="h-3.5 w-3.5" />
-                Nessuna sede
+                {t("Nessuna sede")}
               </span>
             </SelectItem>
           )}

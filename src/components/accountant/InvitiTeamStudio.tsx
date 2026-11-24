@@ -9,11 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Invito { id: string; email: string; expires_at: string }
-const dataIt = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
+const dataIt = { format: (d: Date) => new Intl.DateTimeFormat(intlCampo(), { dateStyle: "medium" }).format(d) };
 
 export function InvitiTeamStudio({ studioId }: { studioId: string }) {
+  const t = useT();
   const client = useQueryClient();
   const confirm = useConfirm();
   const [email, setEmail] = useState("");
@@ -57,39 +59,39 @@ export function InvitiTeamStudio({ studioId }: { studioId: string }) {
     onError: error => setErrore(error.message),
   });
 
-  if (stato.isError) return <p role="alert" className="text-sm">Impossibile caricare gli inviti. <Button size="sm" variant="outline" onClick={() => void stato.refetch()}>Riprova</Button></p>;
+  if (stato.isError) return <p role="alert" className="text-sm">{t("Impossibile caricare gli inviti.")} <Button size="sm" variant="outline" onClick={() => void stato.refetch()}>{t("Riprova")}</Button></p>;
   if (!stato.data?.puoInvitare) return null;
   return <Card>
-    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><MailPlus className="size-4" /> Invita collaboratore</CardTitle></CardHeader>
+    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><MailPlus className="size-4" /> {t("Invita collaboratore")}</CardTitle></CardHeader>
     <CardContent className="space-y-4">
       <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
         event.preventDefault(); setErrore(""); setLink(""); crea.mutate(email.trim());
       }}>
         <div className="min-w-[15rem] flex-1">
-          <label htmlFor="team-email" className="text-sm font-medium">Email del collaboratore</label>
+          <label htmlFor="team-email" className="text-sm font-medium">{t("Email del collaboratore")}</label>
           <Input id="team-email" type="email" required maxLength={254} value={email} onChange={event => setEmail(event.target.value)} />
         </div>
-        <Button type="submit" disabled={crea.isPending}>Genera link d’invito</Button>
+        <Button type="submit" disabled={crea.isPending}>{t("Genera link d’invito")}</Button>
       </form>
-      <p className="text-xs text-muted-foreground">Condividi il link con il collaboratore. Potrà usarlo entro 7 giorni con questa email.</p>
+      <p className="text-xs text-muted-foreground">{t("Condividi il link con il collaboratore. Potrà usarlo entro 7 giorni con questa email.")}</p>
       {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
       {link && <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/40 p-3">
-        <Input readOnly value={link} aria-label="Link d’invito" className="min-w-[12rem] flex-1" onFocus={event => event.target.select()} />
+        <Input readOnly value={link} aria-label={t("Link d’invito")} className="min-w-[12rem] flex-1" onFocus={event => event.target.select()} />
         <Button variant="outline" onClick={async () => {
-          try { await navigator.clipboard.writeText(link); toast.success("Link copiato"); }
-          catch { setErrore("Seleziona il link e copialo manualmente."); }
-        }}><Copy className="size-4" /> Copia link</Button>
+          try { await navigator.clipboard.writeText(link); toast.success(t("Link copiato")); }
+          catch { setErrore(t("Seleziona il link e copialo manualmente.")); }
+        }}><Copy className="size-4" /> {t("Copia link")}</Button>
       </div>}
       {stato.data.inviti.length > 0 && <ul className="divide-y rounded-lg border">
         {stato.data.inviti.map(invito => <li key={invito.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
           <span className="break-all">{invito.email}</span>
           <span className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Scadenza {dataIt.format(new Date(invito.expires_at))}</Badge>
+            <Badge variant="outline">{t("Scadenza {data}", { data: dataIt.format(new Date(invito.expires_at)) })}</Badge>
             <Button variant="ghost" size="sm" disabled={revoca.isPending} onClick={async () => {
-              if (await confirm({ title: `Revocare l’invito per ${invito.email}?`, confirmLabel: "Revoca", variant: "destructive" })) {
+              if (await confirm({ title: t("Revocare l’invito per {email}?", { email: String(invito.email ?? "") }), confirmLabel: t("Revoca"), variant: "destructive" })) {
                 setErrore(""); revoca.mutate(invito.id);
               }
-            }}>Revoca</Button>
+            }}>{t("Revoca")}</Button>
           </span>
         </li>)}
       </ul>}

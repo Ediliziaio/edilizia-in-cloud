@@ -9,6 +9,7 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import { descriviProgrammazione, fineStimata, formatoData } from "@/lib/importazione/programmata";
 import { annullaImportazione, motivoAnnullamentoFallito, testoAnnullamento } from "@/lib/importazione/registro";
 import { csvRigheProgrammate, scaricaCsv, type RigaProgrammataFallita } from "./scaricaRighe";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga {
   id: string; nome_file: string | null; stato: "attiva" | "in_pausa" | "completata" | "annullata";
@@ -34,6 +35,7 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
   /** Dopo un annullamento: la pagina ricarica i suoi elenchi. */
   onAnnullata?: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const chiave = ["importazioni-programmate", companyId, oggetto];
   const { data: righe = [], dataUpdatedAt } = useQuery({
@@ -104,10 +106,10 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
-      toast.success(v.stato === "in_pausa" ? "Importazione in pausa" : v.stato === "attiva" ? "Importazione ripresa" : "Importazione fermata: le righe non ancora entrate non entreranno");
+      toast.success(v.stato === "in_pausa" ? t("Importazione in pausa") : v.stato === "attiva" ? t("Importazione ripresa") : t("Importazione fermata: le righe non ancora entrate non entreranno"));
       queryClient.invalidateQueries({ queryKey: chiave });
     },
-    onError: (e) => toast.error(userErrorMessage(e, "Non sono riuscito a cambiare l'importazione")),
+    onError: (e) => toast.error(userErrorMessage(e, t("Non sono riuscito a cambiare l'importazione"))),
   });
 
   const [scaricando, setScaricando] = useState<string | null>(null);
@@ -127,26 +129,25 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
       const base = (r.nome_file ?? "importazione").replace(/\.[^.]+$/, "");
       scaricaCsv(`${base} - righe da correggere.csv`, csvRigheProgrammate(oggetto, tutte));
     } catch (e) {
-      toast.error(userErrorMessage(e, "Non sono riuscito a scaricare le righe da correggere"));
+      toast.error(userErrorMessage(e, t("Non sono riuscito a scaricare le righe da correggere")));
     } finally {
       setScaricando(null);
     }
   };
 
   if (!righe.length && !ultima) return null;
-  const nome = oggetto === "contatti" ? "contatti" : "opportunità";
+  const nome = oggetto === "contatti" ? t("contatti") : t("opportunità");
   const settimanaFa = dataUpdatedAt - 7 * 24 * 3600_000;
   return (
     <div className="space-y-2">
       {ultima && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/30 p-3 text-sm">
           <p className="min-w-0 flex-1">
-            Ultima importazione{ultima.nome_file ? ` · ${ultima.nome_file}` : ""}: {ultima.importazioni_registro_creati[0].count} creati
-            {" "}il {new Date(ultima.created_at).toLocaleString("it-IT", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+            {t("Ultima importazione")}{ultima.nome_file ? ` · ${ultima.nome_file}` : ""}: {t("{n} creati il {data}", { n: ultima.importazioni_registro_creati[0].count, data: new Date(ultima.created_at).toLocaleString(intlCampo(), { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) })}
           </p>
           <Button size="sm" variant="outline" disabled={annulla.isPending}
-            onClick={() => chiediAnnulla(ultima.id, `Annullare l'importazione? Quello che ha creato va nel cestino, anche le opportunità spostate di fase nel frattempo. I contatti che c'erano già e sono stati solo aggiornati restano come sono.`)}>
-            <Undo2 className="mr-1 h-3.5 w-3.5" /> Annulla questa importazione
+            onClick={() => chiediAnnulla(ultima.id, t("Annullare l'importazione? Quello che ha creato va nel cestino, anche le opportunità spostate di fase nel frattempo. I contatti che c'erano già e sono stati solo aggiornati restano come sono."))}>
+            <Undo2 className="mr-1 h-3.5 w-3.5" /> {t("Annulla questa importazione")}
           </Button>
         </div>
       )}
@@ -163,45 +164,45 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
             <div className="flex flex-wrap items-center gap-2">
               <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
               <p className="min-w-0 flex-1 font-medium">
-                Importazione a scaglioni{r.nome_file ? ` · ${r.nome_file}` : ""}:{" "}
-                {r.stato === "completata" ? "conclusa" : r.stato === "in_pausa" ? "in pausa" : r.stato === "annullata" ? "fermata" : "in corso"}
+                {t("Importazione a scaglioni")}{r.nome_file ? ` · ${r.nome_file}` : ""}:{" "}
+                {r.stato === "completata" ? t("conclusa") : r.stato === "in_pausa" ? t("in pausa") : r.stato === "annullata" ? t("fermata") : t("in corso")}
               </p>
               {r.stato === "attiva" && (
                 <Button size="sm" variant="outline" disabled={cambiaStato.isPending} onClick={() => cambiaStato.mutate({ id: r.id, stato: "in_pausa" })}>
-                  <Pause className="mr-1 h-3.5 w-3.5" /> Pausa
+                  <Pause className="mr-1 h-3.5 w-3.5" /> {t("Pausa")}
                 </Button>
               )}
               {r.stato === "in_pausa" && (
                 <Button size="sm" variant="outline" disabled={cambiaStato.isPending} onClick={() => cambiaStato.mutate({ id: r.id, stato: "attiva" })}>
-                  <Play className="mr-1 h-3.5 w-3.5" /> Riprendi
+                  <Play className="mr-1 h-3.5 w-3.5" /> {t("Riprendi")}
                 </Button>
               )}
               {(r.stato === "attiva" || r.stato === "in_pausa") && (
                 <Button size="sm" variant="ghost" disabled={cambiaStato.isPending}
-                  onClick={() => { if (window.confirm(`Fermare l'importazione? I ${restanti} ${nome} non ancora entrati non entreranno più. Quelli già entrati restano.`)) cambiaStato.mutate({ id: r.id, stato: "annullata" }); }}>
-                  <X className="mr-1 h-3.5 w-3.5" /> Ferma
+                  onClick={() => { if (window.confirm(t("Fermare l'importazione? I {restanti} {nome} non ancora entrati non entreranno più. Quelli già entrati restano.", { restanti: String(restanti ?? ""), nome: String(nome ?? "") }))) cambiaStato.mutate({ id: r.id, stato: "annullata" }); }}>
+                  <X className="mr-1 h-3.5 w-3.5" /> {t("Ferma")}
                 </Button>
               )}
             </div>
             <Progress value={percentuale} className="mt-2 h-1.5" />
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {r.fatte} di {r.totale} {nome} · {descriviProgrammazione(programmazione)}
-              {fine ? ` · finisce verso ${formatoData(fine)}` : ""}
-              {r.creati || r.aggiornati ? ` · ${r.creati} nuovi, ${r.aggiornati} aggiornati` : ""}
-              {r.saltati ? ` · ${r.saltati} saltati` : ""}
-              {r.errori ? ` · ${r.errori} con errore` : ""}
+              {t("{fatte} di {totale} {nome}", { fatte: r.fatte, totale: r.totale, nome })} · {descriviProgrammazione(programmazione)}
+              {fine ? ` · ${t("finisce verso {fine}", { fine: formatoData(fine) })}` : ""}
+              {r.creati || r.aggiornati ? ` · ${t("{creati} nuovi, {aggiornati} aggiornati", { creati: r.creati ?? 0, aggiornati: r.aggiornati ?? 0 })}` : ""}
+              {r.saltati ? ` · ${t("{saltati} saltati", { saltati: r.saltati })}` : ""}
+              {r.errori ? ` · ${t("{errori} con errore", { errori: r.errori })}` : ""}
             </p>
             {r.ultimo_errore && <p className="mt-1 text-xs text-amber-800">{r.ultimo_errore}</p>}
             {r.registro && !r.registro.annullata_at && new Date(r.registro.created_at).getTime() > settimanaFa && r.creati > 0 && (
               <Button size="sm" variant="ghost" className="mt-2 mr-2" disabled={annulla.isPending}
-                onClick={() => chiediAnnulla(r.id, `Annullare tutta l'importazione? Le righe non ancora entrate non entreranno, e quello che è già stato creato va nel cestino (anche le opportunità spostate di fase nel frattempo). I contatti che c'erano già restano come sono.`)}>
-                <Undo2 className="mr-1 h-3.5 w-3.5" /> {r.stato === "annullata" || r.stato === "completata" ? "Togli quelli già entrati" : "Annulla e togli quelli già entrati"}
+                onClick={() => chiediAnnulla(r.id, t("Annullare tutta l'importazione? Le righe non ancora entrate non entreranno, e quello che è già stato creato va nel cestino (anche le opportunità spostate di fase nel frattempo). I contatti che c'erano già restano come sono."))}>
+                <Undo2 className="mr-1 h-3.5 w-3.5" /> {r.stato === "annullata" || r.stato === "completata" ? t("Togli quelli già entrati") : t("Annulla e togli quelli già entrati")}
               </Button>
             )}
             {r.errori > 0 && (
               <Button size="sm" variant="outline" className="mt-2" disabled={scaricando === r.id} onClick={() => void scaricaErrori(r)}>
                 <Download className="mr-1 h-3.5 w-3.5" />
-                {scaricando === r.id ? "Preparo il file…" : `Scarica le ${r.errori} righe da correggere (Excel)`}
+                {scaricando === r.id ? t("Preparo il file…") : t("Scarica le {errori} righe da correggere (Excel)", { errori: String(r.errori ?? "") })}
               </Button>
             )}
           </div>

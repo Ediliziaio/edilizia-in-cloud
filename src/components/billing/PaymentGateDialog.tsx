@@ -13,6 +13,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { RechargeDialog } from "@/components/credits/RechargeDialog";
 import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
 import type { WalletType } from "@/hooks/credits/useWallets";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Ruoli che possono gestire la fatturazione/abbonamento dell'azienda. */
 const CAN_MANAGE_BILLING_ROLES = new Set(["company_admin", "super_admin"]);
@@ -30,6 +31,7 @@ const CAN_MANAGE_BILLING_ROLES = new Set(["company_admin", "super_admin"]);
  *    (AddonWhatsAppOfferta, che a chi non puo' comprarlo dice a chi chiederlo).
  */
 export function PaymentGateDialog() {
+  const t = useT();
   const open = usePaymentGateStore((s) => s.open);
   const hide = usePaymentGateStore((s) => s.hide);
   const kind = usePaymentGateStore((s) => s.kind);
@@ -59,21 +61,21 @@ export function PaymentGateDialog() {
 
   const title = isCredits
     ? eRender
-      ? "Crediti Render AI esauriti"
+      ? t("Crediti Render AI esauriti")
       : eSms
-        ? "Crediti SMS esauriti"
-        : "Crediti esauriti"
+        ? t("Crediti SMS esauriti")
+        : t("Crediti esauriti")
     : isSubscription
-      ? "Abbonamento non attivo"
-      : "Aggiungi una carta aziendale";
+      ? t("Abbonamento non attivo")
+      : t("Aggiungi una carta aziendale");
 
   // Cosa e' successo, detto per quel che e': il render non e' partito, l'SMS
   // non e' uscito, o il portafoglio unico (AI, email, WhatsApp) e' a zero.
   const spiegazione = eRender
-    ? "I crediti Render AI dell'azienda sono finiti: il render non è stato avviato."
+    ? t("I crediti Render AI dell'azienda sono finiti: il render non è stato avviato.")
     : eSms
-      ? "I crediti SMS dell'azienda sono finiti: l'invio non è partito."
-      : "Il portafoglio crediti dell'azienda è a zero: l'operazione è stata fermata prima di generare costi. Il portafoglio è unico per AI, email e WhatsApp.";
+      ? t("I crediti SMS dell'azienda sono finiti: l'invio non è partito.")
+      : t("Il portafoglio crediti dell'azienda è a zero: l'operazione è stata fermata prima di generare costi. Il portafoglio è unico per AI, email e WhatsApp.");
   const saldo = !eRender && !eSms && typeof dettaglio?.saldoEur === "number" ? dettaglio.saldoEur : null;
   const nota = dettaglio?.messaggio && dettaglio.messaggio.length <= 160 ? dettaglio.messaggio : null;
 
@@ -116,8 +118,8 @@ export function PaymentGateDialog() {
                 <CreditCard className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               )}
               {isAddonWhatsApp
-                ? "WhatsApp Business non attivo"
-                : canManageBilling ? title : "Strumento non disponibile"}
+                ? t("WhatsApp Business non attivo")
+                : canManageBilling ? title : t("Strumento non disponibile")}
             </DialogTitle>
           </DialogHeader>
 
@@ -126,30 +128,30 @@ export function PaymentGateDialog() {
           ) : !canManageBilling ? (
             <p className="text-sm text-muted-foreground">
               {isCredits
-                ? "I crediti per questa funzione sono esauriti. Contatta l'amministratore della tua azienda perché ricarichi il portafoglio."
+                ? t("I crediti per questa funzione sono esauriti. Contatta l'amministratore della tua azienda perché ricarichi il portafoglio.")
                 : isSubscription
-                  ? "L'abbonamento dell'azienda è sospeso o scaduto. Contatta l'amministratore della tua azienda perché lo rinnovi."
-                  : "Per usare questo strumento serve la carta di pagamento aziendale. Contatta l'amministratore della tua azienda perché la registri."}
+                  ? t("L'abbonamento dell'azienda è sospeso o scaduto. Contatta l'amministratore della tua azienda perché lo rinnovi.")
+                  : t("Per usare questo strumento serve la carta di pagamento aziendale. Contatta l'amministratore della tua azienda perché la registri.")}
             </p>
           ) : isCredits ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">{spiegazione}</p>
               {saldo !== null && (
                 <p className="text-sm">
-                  Saldo attuale: <strong className="tabular-nums">{formatCurrency(saldo)}</strong>
+                  {t("Saldo attuale:")} <strong className="tabular-nums">{formatCurrency(saldo)}</strong>
                 </p>
               )}
               {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
               <Button className="w-full" onClick={ricaricaOra}>
                 <Wallet className="mr-2 h-4 w-4" />
-                Ricarica ora
+                {t("Ricarica ora")}
               </Button>
               <button
                 type="button"
                 className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
                 onClick={vaiAiCrediti}
               >
-                Saldo, storico e ricarica automatica
+                {t("Saldo, storico e ricarica automatica")}
               </button>
             </div>
           ) : isMobileAppRuntime ? (
@@ -157,30 +159,26 @@ export function PaymentGateDialog() {
                esterni (Stripe). Abbonamento e metodi di pagamento si gestiscono
                dall'area riservata sul web. */
             <p className="text-sm text-muted-foreground">
-              La gestione dell'abbonamento e dei metodi di pagamento è disponibile
-              nell'area riservata sul sito web, non dall'app.
+              {t("La gestione dell'abbonamento e dei metodi di pagamento è disponibile nell'area riservata sul sito web, non dall'app.")}
             </p>
           ) : isSubscription && isMobile ? (
             <p className="text-sm text-muted-foreground">
-              L'abbonamento è sospeso o scaduto per mancato pagamento: si rinnova dal
-              computer, e da lì tornano email, WhatsApp, AI, render e firma.
+              {t("L'abbonamento è sospeso o scaduto per mancato pagamento: si rinnova dal computer, e da lì tornano email, WhatsApp, AI, render e firma.")}
             </p>
           ) : isSubscription ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                L'abbonamento è sospeso o scaduto per mancato pagamento. Rinnova per
-                riattivare email, WhatsApp, AI, render e firma.
+                {t("L'abbonamento è sospeso o scaduto per mancato pagamento. Rinnova per riattivare email, WhatsApp, AI, render e firma.")}
               </p>
               <Button className="w-full" onClick={renew}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Rinnova abbonamento
+                {t("Rinnova abbonamento")}
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Questo strumento è a consumo: per attivarlo registra il metodo di
-                pagamento dell'azienda. Nessun addebito finché non lo usi.
+                {t("Questo strumento è a consumo: per attivarlo registra il metodo di pagamento dell'azienda. Nessun addebito finché non lo usi.")}
               </p>
               <Button
                 className="w-full"
@@ -188,7 +186,7 @@ export function PaymentGateDialog() {
                 disabled={startSetup.isPending}
               >
                 <CreditCard className="mr-2 h-4 w-4" />
-                {startSetup.isPending ? "Apertura…" : "Aggiungi carta"}
+                {startSetup.isPending ? t("Apertura…") : t("Aggiungi carta")}
               </Button>
             </div>
           )}

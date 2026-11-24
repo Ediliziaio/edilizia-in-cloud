@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useDocumentoTemplateFile } from '@/hooks/useDocumentoTemplateFile';
 import { testoErrore } from '@/lib/impostazioni/testoErrore';
 import type { DocumentoTemplate, DocumentoTemplateField, PosizioneCampoPdf } from '@/types/fea';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   template: DocumentoTemplate;
@@ -16,6 +17,7 @@ interface Props {
 
 /** Click on the real PDF: stored coordinates do not depend on zoom or viewport. */
 export function TemplatePdfPositions({ template, fields, onPosition, busy }: Props) {
+  const t = useT();
   const file = useDocumentoTemplateFile(template);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [page, setPage] = useState(1);
@@ -63,33 +65,33 @@ export function TemplatePdfPositions({ template, fields, onPosition, busy }: Pro
   }, [file.data, page]);
 
   return <section className="space-y-3 rounded-xl border bg-slate-50 p-4">
-    <div><h3 className="font-semibold">Posiziona i campi sul PDF</h3>
-      <p className="text-sm text-slate-600">Scegli un campo e clicca nel punto in cui deve iniziare il valore. L’originale resta intatto.</p></div>
-    {fields.length === 0 ? <p className="text-sm">Aggiungi prima un campo personalizzato.</p> : <>
-      <Label htmlFor="pdf-field">Campo da posizionare</Label>
+    <div><h3 className="font-semibold">{t("Posiziona i campi sul PDF")}</h3>
+      <p className="text-sm text-slate-600">{t("Scegli un campo e clicca nel punto in cui deve iniziare il valore. L’originale resta intatto.")}</p></div>
+    {fields.length === 0 ? <p className="text-sm">{t("Aggiungi prima un campo personalizzato.")}</p> : <>
+      <Label htmlFor="pdf-field">{t("Campo da posizionare")}</Label>
       <UniformSelect id="pdf-field" value={selected} onChange={e => setSelected(e.target.value)} className="w-full rounded-md border bg-white p-2">
-        <option value="">Scegli un campo</option>
-        {fields.map(f => <option key={f.id} value={f.id}>{f.etichetta} — {f.posizioni_pdf?.length ?? 0} posizioni</option>)}
+        <option value="">{t("Scegli un campo")}</option>
+        {fields.map(f => <option key={f.id} value={f.id}>{f.etichetta} — {t("{n} posizioni", { n: f.posizioni_pdf?.length ?? 0 })}</option>)}
       </UniformSelect>
       <div className="grid grid-cols-3 gap-3">
-        <div><Label htmlFor="pdf-font">Carattere (pt)</Label><Input id="pdf-font" type="number" min={6} max={36} value={font} onChange={e => setFont(Number(e.target.value))} /></div>
-        <div><Label htmlFor="pdf-width">Larghezza (%)</Label><Input id="pdf-width" type="number" min={1} max={100} value={width} onChange={e => setWidth(Number(e.target.value))} /></div>
-        <div><Label htmlFor="pdf-height">Altezza (%)</Label><Input id="pdf-height" type="number" min={1} max={100} value={height} onChange={e => setHeight(Number(e.target.value))} /></div>
+        <div><Label htmlFor="pdf-font">{t("Carattere (pt)")}</Label><Input id="pdf-font" type="number" min={6} max={36} value={font} onChange={e => setFont(Number(e.target.value))} /></div>
+        <div><Label htmlFor="pdf-width">{t("Larghezza (%)")}</Label><Input id="pdf-width" type="number" min={1} max={100} value={width} onChange={e => setWidth(Number(e.target.value))} /></div>
+        <div><Label htmlFor="pdf-height">{t("Altezza (%)")}</Label><Input id="pdf-height" type="number" min={1} max={100} value={height} onChange={e => setHeight(Number(e.target.value))} /></div>
       </div>
       <div className="flex flex-wrap items-center gap-4 text-sm">
-        <label className="flex items-center gap-2"><input type="checkbox" checked={repeat} onChange={e => setRepeat(e.target.checked)} />Ripeti lo stesso campo in un altro punto</label>
-        {field?.posizioni_pdf?.length ? <Button size="sm" variant="outline" disabled={busy} onClick={() => onPosition(field.id, [])}>Rimuovi posizioni</Button> : null}
+        <label className="flex items-center gap-2"><input type="checkbox" checked={repeat} onChange={e => setRepeat(e.target.checked)} />{t("Ripeti lo stesso campo in un altro punto")}</label>
+        {field?.posizioni_pdf?.length ? <Button size="sm" variant="outline" disabled={busy} onClick={() => onPosition(field.id, [])}>{t("Rimuovi posizioni")}</Button> : null}
       </div>
     </>}
     <div className="flex items-center justify-between gap-2">
-      <Button variant="outline" size="sm" disabled={page <= 1 || rendering} onClick={() => setPage(page - 1)}>Pagina precedente</Button>
-      <span className="text-sm">Pagina {page} di {pages}</span>
-      <Button variant="outline" size="sm" disabled={page >= pages || rendering} onClick={() => setPage(page + 1)}>Pagina successiva</Button>
+      <Button variant="outline" size="sm" disabled={page <= 1 || rendering} onClick={() => setPage(page - 1)}>{t("Pagina precedente")}</Button>
+      <span className="text-sm">{t("Pagina {page} di {pages}", { page: String(page ?? ""), pages: String(pages ?? "") })}</span>
+      <Button variant="outline" size="sm" disabled={page >= pages || rendering} onClick={() => setPage(page + 1)}>{t("Pagina successiva")}</Button>
     </div>
-    {(error || file.error) && <p role="alert" className="text-sm text-red-700">{error || testoErrore(file.error)} <button onClick={() => void file.refetch()} className="underline">Riprova</button></p>}
-    {rendering && <p role="status" className="text-sm">Caricamento pagina…</p>}
+    {(error || file.error) && <p role="alert" className="text-sm text-red-700">{error || testoErrore(file.error)} <button onClick={() => void file.refetch()} className="underline">{t("Riprova")}</button></p>}
+    {rendering && <p role="status" className="text-sm">{t("Caricamento pagina…")}</p>}
     <div className="relative overflow-hidden border bg-white" style={{ cursor: field ? 'crosshair' : 'default' }}>
-      <canvas ref={canvas} aria-label="Pagina PDF su cui posizionare il campo" className="block h-auto w-full" onClick={e => {
+      <canvas ref={canvas} aria-label={t("Pagina PDF su cui posizionare il campo")} className="block h-auto w-full" onClick={e => {
         if (!field || renderedPage !== page || rendering || busy || error || ![font, width, height].every(Number.isFinite) || font < 6 || font > 36 || width <= 0 || height <= 0) return;
         const bounds = e.currentTarget.getBoundingClientRect();
         const x = (e.clientX - bounds.left) / bounds.width;

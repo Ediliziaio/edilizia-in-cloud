@@ -80,6 +80,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { shouldSendSilvioOnEnter } from "@/lib/silvio/composerKeyboard";
 import { cn } from "@/lib/utils";
 import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_ATTACHMENTS = 5;
@@ -174,7 +175,7 @@ interface Cartella {
 
 function formatOra(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" });
   } catch {
     return "";
   }
@@ -219,6 +220,7 @@ function titoloIntelligente(text: string, fallback: string): string {
 }
 
 export default function SilvioAIPage() {
+  const tr = useT();
   const { effectiveCompany, user, profile } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -303,7 +305,7 @@ export default function SilvioAIPage() {
       qc.setQueryData<Conversazione[]>(["silvio-conversazioni", userId], (prev) =>
         prev ? prev.map((c) => (c.id === id ? { ...c, pinned: !pinned } : c)) : prev,
       );
-      toast.error("Non sono riuscito a salvare. Riprova tra poco.");
+      toast.error(tr("Non sono riuscito a salvare. Riprova tra poco."));
     }
     void refetchConvs();
   };
@@ -344,38 +346,38 @@ export default function SilvioAIPage() {
     });
 
   const handleNuovaCartella = async () => {
-    const nome = typeof window !== "undefined" ? window.prompt("Nome della nuova cartella") : null;
+    const nome = typeof window !== "undefined" ? window.prompt(tr("Nome della nuova cartella")) : null;
     if (!nome || !nome.trim()) return;
     const { error } = await supabase.rpc("silvio_crea_cartella" as never, { p_nome: nome.trim(), p_colore: "orange" } as never);
     if (error) {
-      toast.error("Non sono riuscito a creare la cartella.");
+      toast.error(tr("Non sono riuscito a creare la cartella."));
       return;
     }
     qc.invalidateQueries({ queryKey: ["silvio-cartelle", userId] });
-    toast.success("Cartella creata");
+    toast.success(tr("Cartella creata"));
   };
 
   const handleRinominaCartella = async (id: string, attuale: string) => {
-    const nome = typeof window !== "undefined" ? window.prompt("Rinomina cartella", attuale) : null;
+    const nome = typeof window !== "undefined" ? window.prompt(tr("Rinomina cartella"), attuale) : null;
     if (!nome || !nome.trim() || nome.trim() === attuale) return;
     const { error } = await supabase.rpc("silvio_rinomina_cartella" as never, { p_id: id, p_nome: nome.trim() } as never);
     if (error) {
-      toast.error("Rinomina non riuscita.");
+      toast.error(tr("Rinomina non riuscita."));
       return;
     }
     qc.invalidateQueries({ queryKey: ["silvio-cartelle", userId] });
   };
 
   const handleEliminaCartella = async (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm("Eliminare la cartella? Le chat NON verranno eliminate: torneranno semplicemente senza cartella.")) return;
+    if (typeof window !== "undefined" && !window.confirm(tr("Eliminare la cartella? Le chat NON verranno eliminate: torneranno semplicemente senza cartella."))) return;
     const { error } = await supabase.rpc("silvio_elimina_cartella" as never, { p_id: id } as never);
     if (error) {
-      toast.error("Eliminazione non riuscita.");
+      toast.error(tr("Eliminazione non riuscita."));
       return;
     }
     qc.invalidateQueries({ queryKey: ["silvio-cartelle", userId] });
     void refetchConvs();
-    toast.success("Cartella eliminata");
+    toast.success(tr("Cartella eliminata"));
   };
 
   const spostaInCartella = async (channelId: string, folderId: string | null) => {
@@ -384,7 +386,7 @@ export default function SilvioAIPage() {
     );
     const { error } = await supabase.rpc("silvio_sposta_conversazione" as never, { p_channel_id: channelId, p_folder_id: folderId } as never);
     if (error) {
-      toast.error("Spostamento non riuscito.");
+      toast.error(tr("Spostamento non riuscito."));
       void refetchConvs();
       return;
     }
@@ -588,25 +590,25 @@ export default function SilvioAIPage() {
 
   // ── Allegati ────────────────────────────────────────────────────────────────
   const uploadAttachment = async (att: PendingAttachment): Promise<PendingAttachment> => {
-    if (!companyId || !userId) throw new Error("Setup non pronto");
+    if (!companyId || !userId) throw new Error(tr("Setup non pronto"));
     const safeName = att.file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
     const path = `${companyId}/${userId}/${Date.now()}-${safeName}`;
     const { error } = await supabase.storage
       .from("silvio-uploads")
       .upload(path, att.file, { contentType: att.file.type || "application/octet-stream", upsert: false });
-    if (error) throw new Error(`Upload fallito: ${error.message}`);
+    if (error) throw new Error(tr("Upload fallito: {errore}", { errore: error.message }));
     return { ...att, storagePath: path, uploading: false };
   };
 
   const addFiles = (files: File[]) => {
     if (files.length === 0) return;
     if (attachments.length + files.length > MAX_ATTACHMENTS) {
-      toast.error(`Massimo ${MAX_ATTACHMENTS} allegati per messaggio`);
+      toast.error(tr("Massimo {n} allegati per messaggio", { n: MAX_ATTACHMENTS }));
       return;
     }
     for (const file of files) {
       if (file.size > MAX_FILE_MB * 1024 * 1024) {
-        toast.error(`"${file.name}" supera ${MAX_FILE_MB}MB. Salta.`);
+        toast.error(tr("\"{name}\" supera {mb}MB. Salta.", { name: String(file.name ?? ""), mb: MAX_FILE_MB }));
         continue;
       }
       const kind = detectKind(file);
@@ -801,7 +803,7 @@ export default function SilvioAIPage() {
       { p_titolo: titolo } as never,
     );
     if (error || !data) {
-      toast.error("Non riesco ad avviare una nuova conversazione. Riprova tra poco.");
+      toast.error(tr("Non riesco ad avviare una nuova conversazione. Riprova tra poco."));
       return null;
     }
     await refetchConvs();
@@ -831,7 +833,7 @@ export default function SilvioAIPage() {
     const ready = attachments.filter((a) => a.storagePath && !a.uploadError);
     if ((!t && ready.length === 0) || sending) return;
     if (attachments.some((a) => a.uploading)) {
-      toast.error("Allegati ancora in upload, attendi");
+      toast.error(tr("Allegati ancora in upload, attendi"));
       return;
     }
     setLastFailed(null);
@@ -862,7 +864,7 @@ export default function SilvioAIPage() {
     sendAbortRef.current?.abort();
     sendAbortRef.current = null;
     setSending(false);
-    toast.info("Attesa interrotta. La risposta potrebbe comunque arrivare in questa chat.");
+    toast.info(tr("Attesa interrotta. La risposta potrebbe comunque arrivare in questa chat."));
   };
 
   const handleNuova = () => {
@@ -887,15 +889,15 @@ export default function SilvioAIPage() {
   }, []);
 
   const handleElimina = async (id: string) => {
-    if (!window.confirm("Eliminare questa conversazione e tutti i suoi messaggi?")) return;
+    if (!window.confirm(tr("Eliminare questa conversazione e tutti i suoi messaggi?"))) return;
     const { error } = await supabase.rpc("silvio_elimina_conversazione" as never, { p_channel_id: id } as never);
     if (error) {
-      toast.error("Non sono riuscito a eliminare la conversazione. Riprova.");
+      toast.error(tr("Non sono riuscito a eliminare la conversazione. Riprova."));
       return;
     }
     if (activeId === id) setActiveId(null);
     await refetchConvs();
-    toast.success("Conversazione eliminata");
+    toast.success(tr("Conversazione eliminata"));
   };
 
   // Riga conversazione (riusata sia nelle cartelle sia nei gruppi per data).
@@ -905,7 +907,7 @@ export default function SilvioAIPage() {
     const spostaItems = (
       <>
         {cartelle.length === 0 && (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna cartella ancora</div>
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">{tr("Nessuna cartella ancora")}</div>
         )}
         {cartelle.map((f) => (
           <DropdownMenuItem key={f.id} className="gap-2" onClick={() => void spostaInCartella(c.id, f.id)}>
@@ -918,13 +920,13 @@ export default function SilvioAIPage() {
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 text-slate-600" onClick={() => void spostaInCartella(c.id, null)}>
-              <X className="h-3.5 w-3.5" /> Togli dalla cartella
+              <X className="h-3.5 w-3.5" /> {tr("Togli dalla cartella")}
             </DropdownMenuItem>
           </>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem className="gap-2" onClick={() => void handleNuovaCartella()}>
-          <FolderPlus className="h-3.5 w-3.5" /> Nuova cartella…
+          <FolderPlus className="h-3.5 w-3.5" /> {tr("Nuova cartella…")}
         </DropdownMenuItem>
       </>
     );
@@ -953,14 +955,14 @@ export default function SilvioAIPage() {
             <button
               onClick={(e) => e.stopPropagation()}
               className="hidden md:group-hover:block text-slate-400 hover:text-orange-500 transition"
-              aria-label="Sposta in cartella"
-              title="Sposta in cartella"
+              aria-label={tr("Sposta in cartella")}
+              title={tr("Sposta in cartella")}
             >
               <FolderInput className="h-3.5 w-3.5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenuLabel className="text-xs">Sposta in…</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs">{tr("Sposta in…")}</DropdownMenuLabel>
             {spostaItems}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -973,8 +975,8 @@ export default function SilvioAIPage() {
             "hidden md:group-hover:block transition",
             isPin ? "text-orange-500" : "text-slate-400 hover:text-orange-500",
           )}
-          aria-label={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
-          title={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
+          aria-label={isPin ? tr("Rimuovi dai fissati") : tr("Fissa in alto")}
+          title={isPin ? tr("Rimuovi dai fissati") : tr("Fissa in alto")}
         >
           <Pin className={cn("h-3.5 w-3.5", isPin && "fill-orange-400 text-orange-400")} />
         </button>
@@ -984,7 +986,7 @@ export default function SilvioAIPage() {
             void handleElimina(c.id);
           }}
           className="hidden md:group-hover:block text-slate-400 hover:text-rose-500 transition"
-          aria-label="Elimina"
+          aria-label={tr("Elimina")}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -994,7 +996,7 @@ export default function SilvioAIPage() {
             <button
               onClick={(e) => e.stopPropagation()}
               className="md:hidden -my-1 rounded-md p-2 text-slate-400 active:bg-slate-100"
-              aria-label="Azioni conversazione"
+              aria-label={tr("Azioni conversazione")}
             >
               <MoreVertical className="h-4 w-4" />
             </button>
@@ -1002,17 +1004,17 @@ export default function SilvioAIPage() {
           <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuItem className="gap-2" onClick={() => void togglePin(c.id, !isPin)}>
               <Pin className={cn("h-3.5 w-3.5", isPin && "fill-orange-400 text-orange-400")} />
-              {isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
+              {isPin ? tr("Rimuovi dai fissati") : tr("Fissa in alto")}
             </DropdownMenuItem>
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="gap-2">
-                <FolderInput className="h-3.5 w-3.5" /> Sposta in…
+                <FolderInput className="h-3.5 w-3.5" /> {tr("Sposta in…")}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-52">{spostaItems}</DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 text-rose-600 focus:text-rose-600" onClick={() => void handleElimina(c.id)}>
-              <Trash2 className="h-3.5 w-3.5" /> Elimina
+              <Trash2 className="h-3.5 w-3.5" /> {tr("Elimina")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1026,7 +1028,7 @@ export default function SilvioAIPage() {
       .map((m) => `${m.sender_id === SILVIO_SENDER_ID ? "Silvio" : "Tu"}: ${m.content}`)
       .join("\n\n");
     void navigator.clipboard?.writeText(txt);
-    toast.success("Conversazione copiata");
+    toast.success(tr("Conversazione copiata"));
   };
 
   const confermaRinomina = async () => {
@@ -1038,7 +1040,7 @@ export default function SilvioAIPage() {
       { p_channel_id: activeId, p_titolo: nome } as never,
     );
     if (error) {
-      toast.error("Rinomina non disponibile (richiede l'aggiornamento del database).");
+      toast.error(tr("Rinomina non disponibile (richiede l'aggiornamento del database)."));
       return;
     }
     void refetchConvs();
@@ -1136,16 +1138,16 @@ export default function SilvioAIPage() {
       >
         <button
           onClick={() => setSidebarOpen(true)}
-          title="Espandi conversazioni"
-          aria-label="Espandi conversazioni"
+          title={tr("Espandi conversazioni")}
+          aria-label={tr("Espandi conversazioni")}
           className="h-9 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
         >
           <PanelLeft className="h-5 w-5" />
         </button>
         <button
           onClick={handleNuova}
-          title="Nuova chat"
-          aria-label="Nuova chat"
+          title={tr("Nuova chat")}
+          aria-label={tr("Nuova chat")}
           className="h-9 w-9 flex items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow hover:from-orange-600 hover:to-amber-500"
         >
           <SquarePen className="h-4 w-4" />
@@ -1155,17 +1157,17 @@ export default function SilvioAIPage() {
             setSidebarOpen(true);
             setSearchOpen(true);
           }}
-          title="Cerca"
-          aria-label="Cerca"
+          title={tr("Cerca")}
+          aria-label={tr("Cerca")}
           className="h-9 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
         >
           <Search className="h-5 w-5" />
         </button>
-        <Link to="/azienda/silvio-ai/attivita" className="flex h-9 items-center rounded-lg px-2 text-xs font-medium text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/50" aria-label="Centro attività di Silvio">Attività</Link>
+        <Link to="/azienda/silvio-ai/attivita" className="flex h-9 items-center rounded-lg px-2 text-xs font-medium text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/50" aria-label={tr("Centro attività di Silvio")}>{tr("Attività")}</Link>
         <button
           onClick={() => setProgrammateOpen(true)}
-          title="Attività programmate"
-          aria-label="Attività programmate"
+          title={tr("Attività programmate")}
+          aria-label={tr("Attività programmate")}
           className="relative h-9 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
         >
           <CalendarClock className="h-5 w-5" />
@@ -1192,11 +1194,11 @@ export default function SilvioAIPage() {
         {/* Mobile: intestazione del drawer con chiusura esplicita (prima si
             chiudeva solo toccando lo sfondo — non si capiva). */}
         <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2 md:hidden">
-          <span className="text-sm font-semibold text-slate-800">Le tue chat</span>
+          <span className="text-sm font-semibold text-slate-800">{tr("Le tue chat")}</span>
           <button
             onClick={() => setSidebarOpen(false)}
             className="-mr-1 rounded-md p-2 text-slate-400 active:bg-slate-100"
-            aria-label="Chiudi elenco conversazioni"
+            aria-label={tr("Chiudi elenco conversazioni")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -1215,7 +1217,7 @@ export default function SilvioAIPage() {
                     setSearchOpen(false);
                   }
                 }}
-                placeholder="Cerca conversazioni…"
+                placeholder={tr("Cerca conversazioni…")}
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-8 py-2 text-sm outline-none focus:border-orange-300"
               />
               <button
@@ -1224,7 +1226,7 @@ export default function SilvioAIPage() {
                   setSearchOpen(false);
                 }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                aria-label="Chiudi ricerca"
+                aria-label={tr("Chiudi ricerca")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1235,19 +1237,19 @@ export default function SilvioAIPage() {
                 onClick={handleNuova}
                 className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
-                <SquarePen className="h-4 w-4 text-orange-500" /> Nuova chat
+                <SquarePen className="h-4 w-4 text-orange-500" /> {tr("Nuova chat")}
               </button>
               <button
                 onClick={() => setSearchOpen(true)}
                 className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
               >
-                <Search className="h-4 w-4 text-slate-400" /> Cerca
+                <Search className="h-4 w-4 text-slate-400" /> {tr("Cerca")}
               </button>
               <button
                 onClick={() => setProgrammateOpen(true)}
                 className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
               >
-                <CalendarClock className="h-4 w-4 text-orange-500" /> Programmate
+                <CalendarClock className="h-4 w-4 text-orange-500" /> {tr("Programmate")}
                 {programmateCount > 0 && (
                   <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-orange-100 text-orange-700 text-[10px] font-semibold flex items-center justify-center">
                     {programmateCount}
@@ -1259,7 +1261,7 @@ export default function SilvioAIPage() {
                 onClick={() => void handleNuovaCartella()}
                 className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors max-md:hidden"
               >
-                <FolderPlus className="h-4 w-4 text-slate-400" /> Nuova cartella
+                <FolderPlus className="h-4 w-4 text-slate-400" /> {tr("Nuova cartella")}
               </button>
             </div>
           )}
@@ -1285,16 +1287,16 @@ export default function SilvioAIPage() {
                   <button
                     onClick={() => void handleRinominaCartella(folder.id, folder.nome)}
                     className="tap-compact p-1.5 md:p-0 md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-slate-600 transition"
-                    title="Rinomina cartella"
-                    aria-label="Rinomina cartella"
+                    title={tr("Rinomina cartella")}
+                    aria-label={tr("Rinomina cartella")}
                   >
                     <Pencil className="h-3 w-3" />
                   </button>
                   <button
                     onClick={() => void handleEliminaCartella(folder.id)}
                     className="tap-compact p-1.5 md:p-0 md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-rose-500 transition"
-                    title="Elimina cartella"
-                    aria-label="Elimina cartella"
+                    title={tr("Elimina cartella")}
+                    aria-label={tr("Elimina cartella")}
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -1302,7 +1304,7 @@ export default function SilvioAIPage() {
                 {!collapsed && (
                   <div className="space-y-0.5 mb-1">
                     {folder.items.length === 0 ? (
-                      <div className="px-2 py-1 text-[11px] italic text-slate-300 max-md:hidden">Vuota — sposta qui una chat</div>
+                      <div className="px-2 py-1 text-[11px] italic text-slate-300 max-md:hidden">{tr("Vuota — sposta qui una chat")}</div>
                     ) : (
                       folder.items.map(renderConvRow)
                     )}
@@ -1316,7 +1318,7 @@ export default function SilvioAIPage() {
             <div key={gruppo}>
               <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex items-center gap-1">
                 {isPinned && <Pin className="h-2.5 w-2.5 fill-orange-400 text-orange-400" />}
-                {gruppo}
+                {tr(gruppo)}
               </div>
               <div className="space-y-0.5">{items.map(renderConvRow)}</div>
             </div>
@@ -1326,23 +1328,23 @@ export default function SilvioAIPage() {
               <div className="h-11 w-11 rounded-xl bg-orange-50 flex items-center justify-center mb-3">
                 <Sparkles className="h-5 w-5 text-orange-500" />
               </div>
-              <p className="text-sm font-semibold text-slate-700">Inizia la tua prima chat</p>
+              <p className="text-sm font-semibold text-slate-700">{tr("Inizia la tua prima chat")}</p>
               <p className="text-xs text-slate-400 mt-1 mb-3">
-                Chiedi insight, analizza documenti o fai eseguire azioni nel gestionale.
+                {tr("Chiedi insight, analizza documenti o fai eseguire azioni nel gestionale.")}
               </p>
               <button
                 onClick={handleNuova}
                 className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber px-3 py-2 text-sm font-semibold text-white shadow hover:from-orange-600 hover:to-amber-500"
               >
-                <Plus className="h-4 w-4" /> Avvia una nuova chat
+                <Plus className="h-4 w-4" /> {tr("Avvia una nuova chat")}
               </button>
             </div>
           ) : gruppi.length === 0 && cartelleConItems.length === 0 ? (
-            <div className="px-3 py-8 text-center text-xs text-slate-400">Nessun risultato per “{search}”.</div>
+            <div className="px-3 py-8 text-center text-xs text-slate-400">{tr("Nessun risultato per “{search}”.", { search: String(search ?? "") })}</div>
           ) : null}
         </div>
         <div className="p-3 border-t border-slate-100 text-[10px] text-slate-400">
-          Silvio AI · Beta · memoria per conversazione
+          {tr("Silvio AI · Beta · memoria per conversazione")}
         </div>
       </aside>
 
@@ -1365,7 +1367,7 @@ export default function SilvioAIPage() {
         {dragOver && activeId && (
           <div className="absolute inset-0 z-50 m-3 rounded-2xl border-2 border-dashed border-orange-400 bg-orange-50/80 flex items-center justify-center pointer-events-none">
             <div className="flex items-center gap-2 font-medium text-orange-700">
-              <Paperclip className="h-5 w-5" /> Rilascia per allegare
+              <Paperclip className="h-5 w-5" /> {tr("Rilascia per allegare")}
             </div>
           </div>
         )}
@@ -1373,7 +1375,7 @@ export default function SilvioAIPage() {
           <button
             onClick={() => setSidebarOpen((v) => !v)}
             className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100"
-            aria-label="Mostra/nascondi conversazioni"
+            aria-label={tr("Mostra/nascondi conversazioni")}
           >
             {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
           </button>
@@ -1390,10 +1392,10 @@ export default function SilvioAIPage() {
                 }}
                 className="min-w-0 rounded border border-orange-300 px-2 py-0.5 text-sm outline-none"
               />
-              <button onClick={() => void confermaRinomina()} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" aria-label="Conferma">
+              <button onClick={() => void confermaRinomina()} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" aria-label={tr("Conferma")}>
                 <Check className="h-3.5 w-3.5" />
               </button>
-              <button onClick={() => setRenaming(false)} className="p-1 text-slate-400 hover:bg-slate-100 rounded" aria-label="Annulla">
+              <button onClick={() => setRenaming(false)} className="p-1 text-slate-400 hover:bg-slate-100 rounded" aria-label={tr("Annulla")}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -1408,7 +1410,7 @@ export default function SilvioAIPage() {
                     setRenaming(true);
                   }}
                   className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded shrink-0"
-                  aria-label="Rinomina conversazione"
+                  aria-label={tr("Rinomina conversazione")}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -1419,8 +1421,8 @@ export default function SilvioAIPage() {
             <button
               onClick={() => setMemoriaOpen(true)}
               className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              title="Cosa ricorda Silvio"
-              aria-label="Memoria di Silvio"
+              title={tr("Cosa ricorda Silvio")}
+              aria-label={tr("Memoria di Silvio")}
             >
               <Brain className="h-4 w-4" />
             </button>
@@ -1428,8 +1430,8 @@ export default function SilvioAIPage() {
               <button
                 onClick={copiaConversazione}
                 className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                title="Copia tutta la conversazione"
-                aria-label="Copia conversazione"
+                title={tr("Copia tutta la conversazione")}
+                aria-label={tr("Copia conversazione")}
               >
                 <Copy className="h-4 w-4" />
               </button>
@@ -1458,12 +1460,10 @@ export default function SilvioAIPage() {
                 <div className="flex items-start gap-2">
                   <Sparkles className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
                   <div className="flex-1">
-                    <span className="font-medium text-slate-800">Benvenuto in Silvio AI.</span> Puoi{" "}
-                    <strong>allegare</strong> documenti (DDT, fatture, bollette), <strong>dettare</strong> con la voce 🎙️, usare{" "}
-                    <strong>/comandi</strong> rapidi e far <strong>eseguire azioni</strong> nel gestionale (preventivi, solleciti,
-                    ordini) con la tua conferma.
+                    <span className="font-medium text-slate-800">{tr("Benvenuto in Silvio AI.")}</span>{" "}
+                    {tr("Puoi **allegare** documenti (DDT, fatture, bollette), **dettare** con la voce 🎙️, usare **/comandi** rapidi e far **eseguire azioni** nel gestionale (preventivi, solleciti, ordini) con la tua conferma.").split("**").map((pezzo, i) => (i % 2 ? <strong key={i}>{pezzo}</strong> : pezzo))}
                   </div>
-                  <button onClick={dismissOnboarding} className="text-slate-400 hover:text-slate-600" aria-label="Ho capito">
+                  <button onClick={dismissOnboarding} className="text-slate-400 hover:text-slate-600" aria-label={tr("Ho capito")}>
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -1480,7 +1480,7 @@ export default function SilvioAIPage() {
                 ) : threadVuoto ? (
                   <div className="text-center text-slate-400 py-16">
                     <SilvioAvatar size={48} className="mx-auto mb-3" />
-                    <p className="text-sm">Nuova conversazione — scrivi un messaggio o allega un documento (DDT, fattura, bolletta…).</p>
+                    <p className="text-sm">{tr("Nuova conversazione — scrivi un messaggio o allega un documento (DDT, fattura, bolletta…).")}</p>
                     <div className="mt-5 flex flex-wrap justify-center gap-2">
                       {QUICK_PROMPTS.slice(0, 3).map((q) => (
                         <button
@@ -1488,7 +1488,7 @@ export default function SilvioAIPage() {
                           onClick={() => onFollowupStable(q.prompt)}
                           className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-orange-300 hover:text-orange-700 hover:bg-orange-50 transition"
                         >
-                          {q.label}
+                          {tr(q.label)}
                         </button>
                       ))}
                     </div>
@@ -1508,11 +1508,11 @@ export default function SilvioAIPage() {
                 {lastFailed && !sending && (
                   <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span className="flex-1">Invio non riuscito.</span>
+                    <span className="flex-1">{tr("Invio non riuscito.")}</span>
                     <button onClick={handleRetry} className="inline-flex items-center gap-1 font-medium hover:underline">
-                      <RotateCcw className="h-3.5 w-3.5" /> Riprova
+                      <RotateCcw className="h-3.5 w-3.5" /> {tr("Riprova")}
                     </button>
-                    <button onClick={() => setLastFailed(null)} className="text-rose-400 hover:text-rose-600" aria-label="Ignora">
+                    <button onClick={() => setLastFailed(null)} className="text-rose-400 hover:text-rose-600" aria-label={tr("Ignora")}>
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -1523,7 +1523,7 @@ export default function SilvioAIPage() {
               <button
                 onClick={scrollToBottom}
                 className="absolute bottom-4 left-1/2 -translate-x-1/2 h-9 w-9 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-500 hover:text-slate-700"
-                aria-label="Vai in fondo"
+                aria-label={tr("Vai in fondo")}
               >
                 <ArrowDown className="h-4 w-4" />
               </button>
@@ -1563,11 +1563,11 @@ export default function SilvioAIPage() {
                           <p className="truncate text-[13px] font-medium leading-tight text-slate-800">{a.file.name}</p>
                           <p className={cn("mt-0.5 flex items-center gap-1 text-[11px] leading-tight", a.uploadError ? "text-rose-600" : "text-slate-500")}>
                             {a.uploading ? (
-                              <><Loader2 className="h-3 w-3 animate-spin" /> Caricamento…</>
+                              <><Loader2 className="h-3 w-3 animate-spin" /> {tr("Caricamento…")}</>
                             ) : a.uploadError ? (
-                              <>Non caricato · riprova</>
+                              <>{tr("Non caricato · riprova")}</>
                             ) : (
-                              <><Check className="h-3 w-3 text-emerald-500" /> Pronto · {pesoFile(a.file.size)}</>
+                              <><Check className="h-3 w-3 text-emerald-500" /> {tr("Pronto ·")} {pesoFile(a.file.size)}</>
                             )}
                           </p>
                         </div>
@@ -1575,7 +1575,7 @@ export default function SilvioAIPage() {
                           type="button"
                           onClick={() => removeAttachment(a.id)}
                           className="tap-compact flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                          aria-label={`Togli ${a.file.name}`}
+                          aria-label={tr("Togli {nome}", { nome: String(a.file.name ?? "") })}
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -1592,7 +1592,7 @@ export default function SilvioAIPage() {
                 {showSlash && (
                   <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden z-20">
                     <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
-                      Comandi rapidi
+                      {tr("Comandi rapidi")}
                     </div>
                     {slashItems.map((s) => (
                       <button
@@ -1618,7 +1618,7 @@ export default function SilvioAIPage() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={attachments.length >= MAX_ATTACHMENTS}
                   className="tap-compact h-8 w-8 shrink-0 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
-                  title="Allega documento (DDT, fattura, bolletta…)"
+                  title={tr("Allega documento (DDT, fattura, bolletta…)")}
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
@@ -1626,7 +1626,7 @@ export default function SilvioAIPage() {
                   onClick={() => cameraInputRef.current?.click()}
                   disabled={attachments.length >= MAX_ATTACHMENTS}
                   className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
-                  title="Scatta foto"
+                  title={tr("Scatta foto")}
                 >
                   <Camera className="h-4 w-4" />
                 </button>
@@ -1639,8 +1639,8 @@ export default function SilvioAIPage() {
                       ? "text-rose-500 bg-rose-50 animate-pulse"
                       : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40",
                   )}
-                  title={voice.recording ? "Ferma e trascrivi" : "Detta con la voce"}
-                  aria-label={voice.recording ? "Ferma registrazione" : "Detta con la voce"}
+                  title={voice.recording ? tr("Ferma e trascrivi") : tr("Detta con la voce")}
+                  aria-label={voice.recording ? tr("Ferma registrazione") : tr("Detta con la voce")}
                 >
                   {voice.transcribing ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1662,9 +1662,9 @@ export default function SilvioAIPage() {
                     }
                   }}
                   rows={1}
-                  aria-label="Scrivi a Silvio"
+                  aria-label={tr("Scrivi a Silvio")}
                   enterKeyHint="send"
-                  placeholder={attachments.length > 0 ? (isMobile ? "Cosa devo farci?" : "Descrivi cosa vuoi che analizzi…") : isMobile ? "Scrivi a Silvio…" : "Scrivi a Silvio…  (Invio per inviare)"}
+                  placeholder={attachments.length > 0 ? (isMobile ? tr("Cosa devo farci?") : tr("Descrivi cosa vuoi che analizzi…")) : isMobile ? tr("Scrivi a Silvio…") : tr("Scrivi a Silvio…  (Invio per inviare)")}
                   className="flex-1 min-w-0 resize-none outline-none text-base md:text-sm text-slate-700 placeholder:text-slate-400 max-h-40 py-1.5 max-sm:px-1"
                 />
                 {voice.recording && (
@@ -1677,8 +1677,8 @@ export default function SilvioAIPage() {
                   <button
                     onClick={handleStop}
                     className="tap-compact h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-900 max-sm:h-8 max-sm:w-8"
-                    aria-label="Interrompi"
-                    title="Interrompi generazione"
+                    aria-label={tr("Interrompi")}
+                    title={tr("Interrompi generazione")}
                   >
                     <Square className="h-3.5 w-3.5 fill-current" />
                   </button>
@@ -1692,15 +1692,15 @@ export default function SilvioAIPage() {
                         ? "bg-orange-500 text-white hover:bg-orange-600"
                         : "bg-slate-100 text-slate-400 cursor-not-allowed",
                     )}
-                    aria-label="Invia"
+                    aria-label={tr("Invia")}
                   >
                     <ArrowUp className="h-4 w-4" />
                   </button>
                 )}
               </div>
               <p className="mt-1 text-center text-[10px] text-slate-400 max-sm:hidden">
-                Silvio può sbagliare. Verifica le informazioni importanti.
-                <span className="hidden md:inline"> ⌘K per nuova conversazione.</span>
+                {tr("Silvio può sbagliare. Verifica le informazioni importanti.")}
+                <span className="hidden md:inline"> {tr("⌘K per nuova conversazione.")}</span>
               </p>
             </div>
           </div>
@@ -1724,6 +1724,7 @@ function MemoriaSilvioDialog({
   onOpenChange: (o: boolean) => void;
   companyId?: string;
 }) {
+  const t = useT();
   const { data: facts = [], isLoading } = useQuery({
     queryKey: ["silvio-brain-facts", companyId],
     enabled: open && !!companyId,
@@ -1755,18 +1756,18 @@ function MemoriaSilvioDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Brain className="h-4 w-4 text-orange-500" /> Cosa ricorda Silvio
+            <Brain className="h-4 w-4 text-orange-500" /> {t("Cosa ricorda Silvio")}
           </DialogTitle>
           <DialogDescription>
-            Fatti che Silvio ha imparato sulla tua azienda e usa nelle risposte.
+            {t("Fatti che Silvio ha imparato sulla tua azienda e usa nelle risposte.")}
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto space-y-2">
           {isLoading ? (
-            <div className="py-6 text-center text-sm text-slate-400">Carico la memoria…</div>
+            <div className="py-6 text-center text-sm text-slate-400">{t("Carico la memoria…")}</div>
           ) : facts.length === 0 ? (
             <div className="py-6 text-center text-sm text-slate-400">
-              Silvio non ha ancora memorizzato fatti specifici. Più lo usi, più impara.
+              {t("Silvio non ha ancora memorizzato fatti specifici. Più lo usi, più impara.")}
             </div>
           ) : (
             facts.map((f) => (
@@ -1821,6 +1822,7 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
   onFollowup: (q: string) => void;
   onRegenera: () => void;
 }) {
+  const t = useT();
   const meta: AiMeta = {
     ai_confidence: m.ai_confidence ?? undefined,
     ai_requires_human_review: m.ai_requires_human_review ?? undefined,
@@ -1851,8 +1853,8 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
         </div>
         {!live && <div className="flex items-center gap-1 mt-1 pl-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           {canRegenerate && (
-            <button onClick={onRegenera} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100" title="Rigenera">
-              <RefreshCw className="h-3 w-3" /> Rigenera
+            <button onClick={onRegenera} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100" title={t("Rigenera")}>
+              <RefreshCw className="h-3 w-3" /> {t("Rigenera")}
             </button>
           )}
           <SilvioRatingButtons messageId={m.id} />
@@ -1870,6 +1872,7 @@ const MessaggioUtente = memo(function MessaggioUtente({
   m: SilvioMsg;
   onEdit: (content: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="group flex justify-end">
       <div className="max-w-[85%]">
@@ -1890,7 +1893,7 @@ const MessaggioUtente = memo(function MessaggioUtente({
                 className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-2 py-1 text-xs underline"
               >
                 <FileText className="h-3.5 w-3.5" />
-                {m.attachment_name ?? "Allegato"}
+                {m.attachment_name ?? t("Allegato")}
               </a>
             ))}
         </div>
@@ -1898,9 +1901,9 @@ const MessaggioUtente = memo(function MessaggioUtente({
           <button
             onClick={() => onEdit(m.content)}
             className="opacity-100 md:opacity-0 md:group-hover:opacity-100 inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"
-            title="Modifica e reinvia"
+            title={t("Modifica e reinvia")}
           >
-            <Pencil className="h-3 w-3" /> Modifica
+            <Pencil className="h-3 w-3" /> {t("Modifica")}
           </button>
           <span className="text-[10px] text-slate-400">{formatOra(m.created_at)}</span>
         </div>

@@ -56,6 +56,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type FolderFilter =
   | { type: "system"; key: "inbox" | "sent" | "drafts" | "starred" | "spam" | "trash" | "archive" }
@@ -106,6 +107,7 @@ export function EmailLayout({
   scopedAccountIds,
   aiSettingsPath,
 }: EmailLayoutProps = {}) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const [searchParams] = useSearchParams();
   const queryThreadId = searchParams.get("thread_id");
@@ -165,9 +167,9 @@ export function EmailLayout({
       // Caselle in errore: NON fingere "completato" — mostra il motivo reale + come risolvere.
       if (failed.length > 0) {
         toast.error(
-          `${failed.length} ${failed.length === 1 ? "casella non sincronizzata" : "caselle non sincronizzate"}`,
+          t(failed.length === 1 ? "{n} casella non sincronizzata" : "{n} caselle non sincronizzate", { n: failed.length }),
           {
-            description: `${describeEmailSyncError(failed[0].error)} — verifica o riconnetti l'account in Impostazioni.`,
+            description: t("{error} — verifica o riconnetti l'account in Impostazioni.", { error: describeEmailSyncError(failed[0].error, t) }),
             duration: 8000,
           },
         );
@@ -175,8 +177,8 @@ export function EmailLayout({
       }
       // Nessuna casella processata (tutte disconnesse/revocate).
       if (checked === 0) {
-        toast.warning("Nessuna casella da sincronizzare", {
-          description: "Le caselle potrebbero essere disconnesse: riconnettile in Impostazioni → Il mio profilo → Email.",
+        toast.warning(t("Nessuna casella da sincronizzare"), {
+          description: t("Le caselle potrebbero essere disconnesse: riconnettile in Impostazioni → Il mio profilo → Email."),
           duration: 7000,
         });
         return;
@@ -184,15 +186,15 @@ export function EmailLayout({
       const reconciled = data?.reads_reconciled ?? 0;
       const pending = emailSyncPending(data);
       const notify = pending ? toast.info : toast.success;
-      notify(pending ? "Recupero email in corso" : "Sync completato", {
+      notify(pending ? t("Recupero email in corso") : t("Sync completato"), {
         description: [
-          stored === 0 ? "Nessuna nuova email." : `${stored} nuova email scaricata.`,
-          pending ? "Il recupero dello storico continua nei prossimi giri." : "",
-          reconciled > 0 ? `${reconciled} segnate come lette (aperte altrove).` : "",
+          stored === 0 ? t("Nessuna nuova email.") : t("{n} nuova email scaricata.", { n: stored }),
+          pending ? t("Il recupero dello storico continua nei prossimi giri.") : "",
+          reconciled > 0 ? t("{n} segnate come lette (aperte altrove).", { n: reconciled }) : "",
         ].filter(Boolean).join(" "),
       });
     },
-    onError: (e) => toast.error("Errore sync", { description: String(e) }),
+    onError: (e) => toast.error(t("Errore sync"), { description: String(e) }),
   });
 
   useEffect(() => {
@@ -254,7 +256,7 @@ export function EmailLayout({
           const receivedAt = m?.received_at ? new Date(m.received_at).getTime() : 0;
           const isRecent = receivedAt > Date.now() - 60_000;
           if (isRecent && (m?.from_name || m?.from_email)) {
-            toast.message("Nuova email", {
+            toast.message(t("Nuova email"), {
               description: `Da: ${m.from_name || m.from_email}${m.subject ? ` — ${m.subject}` : ""}`,
               duration: 5000,
             });
@@ -361,18 +363,18 @@ export function EmailLayout({
     <>
       {/* Mobile header — hamburger + folder title + account label + sync */}
       <div className="md:hidden p-2 border-b flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
+        <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} aria-label={t("Apri caselle")}>
           <Menu className="h-4 w-4" />
         </Button>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-tight truncate">
             <FolderTitle filter={filter.folder} />
           </p>
-          <p role="status" className="text-xs text-muted-foreground">{syncState.label}</p>
+          <p role="status" className="text-xs text-muted-foreground">{t(syncState.label)}</p>
           {/* Sotto il titolo solo la casella scelta; «2 caselle» non serviva. */}
           {connections && connections.length > 0 && filter.accountId && (
             <p className="truncate text-[10px] text-slate-500">
-              {connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"}
+              {connections.find((c) => c.id === filter.accountId)?.email_address ?? t("Tutte le caselle")}
             </p>
           )}
         </div>
@@ -381,7 +383,7 @@ export function EmailLayout({
           size="icon"
           onClick={() => forceSync.mutate()}
           disabled={forceSync.isPending}
-          aria-label="Sincronizza ora"
+          aria-label={t("Sincronizza ora")}
         >
           {forceSync.isPending
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -393,7 +395,7 @@ export function EmailLayout({
       <div className="hidden md:flex items-start justify-between gap-3 p-4 border-b border-blue-100 bg-white">
         {/* Sotto i 1280px, con un'email aperta, le caselle sono nascoste: il ☰ le apre. */}
         {selectedThreadId && (
-          <Button variant="ghost" size="icon" className="-ml-2 h-9 w-9 shrink-0 xl:hidden" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
+          <Button variant="ghost" size="icon" className="-ml-2 h-9 w-9 shrink-0 xl:hidden" onClick={() => setSidebarOpen(true)} aria-label={t("Apri caselle")}>
             <Menu className="h-4 w-4" />
           </Button>
         )}
@@ -408,14 +410,14 @@ export function EmailLayout({
                 syncState.warning ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-600",
               )}
             >
-              {syncState.label}
+              {t(syncState.label)}
             </span>
           </div>
           {connections && connections.length > 0 && (
             <p className="mt-0.5 truncate text-xs text-slate-500">
               {filter.accountId
-                ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
-                : `${connections.length} ${connections.length === 1 ? "casella collegata" : "caselle collegate"}`}
+                ? connections.find((c) => c.id === filter.accountId)?.email_address ?? t("Tutte le caselle")
+                : t(connections.length === 1 ? "{n} casella collegata" : "{n} caselle collegate", { n: connections.length })}
             </p>
           )}
         </div>
@@ -424,7 +426,7 @@ export function EmailLayout({
           size="sm"
           onClick={() => forceSync.mutate()}
           disabled={forceSync.isPending}
-          title="Sincronizza ora le caselle email"
+          title={t("Sincronizza ora le caselle email")}
           className="shrink-0 rounded-xl"
         >
           {forceSync.isPending
@@ -432,7 +434,7 @@ export function EmailLayout({
             : <RefreshCw className="h-4 w-4 2xl:mr-1" />}
           {/* La scritta solo sugli schermi larghi: nella colonna da 320px
               accanto all'email tagliava il nome della cartella («Casell…»). */}
-          <span className="hidden 2xl:inline">Aggiorna</span>
+          <span className="hidden 2xl:inline">{t("Aggiorna")}</span>
         </Button>
       </div>
 
@@ -458,10 +460,10 @@ export function EmailLayout({
       />
       {connectionsFailed ? (
         <div role="alert" className="m-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
-          <p>Non è stato possibile verificare le caselle collegate.</p>
-          <Button variant="outline" size="sm" className="mt-2" onClick={() => void retryConnections()}>Riprova caselle</Button>
+          <p>{t("Non è stato possibile verificare le caselle collegate.")}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => void retryConnections()}>{t("Riprova caselle")}</Button>
         </div>
-      ) : connectionsLoading ? <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento caselle…</p> : (
+      ) : connectionsLoading ? <p role="status" className="p-4 text-sm text-muted-foreground">{t("Caricamento caselle…")}</p> : (
       <EmailList
         filter={filter}
         scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map((connection) => connection.id) : undefined)}
@@ -482,7 +484,7 @@ export function EmailLayout({
       {sidebarOpen && (
         <button
           type="button"
-          aria-label="Chiudi sidebar"
+          aria-label={t("Chiudi sidebar")}
           className="fixed inset-0 z-40 bg-black/40 xl:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -501,7 +503,7 @@ export function EmailLayout({
         )}
       >
         <div className="md:hidden p-2 flex justify-end border-b">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} aria-label="Chiudi">
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} aria-label={t("Chiudi")}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -586,7 +588,7 @@ export function EmailLayout({
       {mobilePane === "list" && !composeOpen && (
         <Button
           onClick={() => openCompose({ mode: "new" })}
-          aria-label="Scrivi nuova email"
+          aria-label={t("Scrivi nuova email")}
           className="md:hidden fixed right-5 z-30 h-14 w-14 rounded-full p-0 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200"
           // Sopra la bottom-nav flottante (64px pillola + 8px margine + gap),
           // mai sovrapposta al menu (richiesta utente).
@@ -623,6 +625,7 @@ function EmailMailboxToolbar({
   filter: EmailFilter;
   onFilterChange: (filter: EmailFilter | ((current: EmailFilter) => EmailFilter)) => void;
 }) {
+  const t = useT();
   // 2026-05-28: header secondario rimosso (era ridondante con header principale + folder title).
   // Manteniamo solo le pillole categoria, allineate al mockup "Demo casella email operativa".
   // 2026-06-01 (richiesta utente): aggiunta riga "Filtri rapidi" sopra le categorie con
@@ -645,19 +648,19 @@ function EmailMailboxToolbar({
             category: v === "all" ? undefined : (v as EmailSmartCategory),
           }))}
         >
-          <SelectTrigger className="hidden h-7 w-auto shrink-0 gap-1.5 rounded-full border-blue-200 bg-white px-2.5 text-xs font-medium text-blue-700 sm:flex" aria-label="Categoria">
+          <SelectTrigger className="hidden h-7 w-auto shrink-0 gap-1.5 rounded-full border-blue-200 bg-white px-2.5 text-xs font-medium text-blue-700 sm:flex" aria-label={t("Categoria")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {CATEGORY_FILTERS.map((category) => (
-              <SelectItem key={category.key} value={category.key}>{category.label}</SelectItem>
+              <SelectItem key={category.key} value={category.key}>{t(category.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <button
           type="button"
           aria-pressed={!!filter.unreadOnly}
-          title="Mostra solo le email da leggere"
+          title={t("Mostra solo le email da leggere")}
           className={cn(
             "tap-compact inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors max-sm:h-8",
             filter.unreadOnly
@@ -670,12 +673,12 @@ function EmailMailboxToolbar({
           }))}
         >
           <Mail className="h-3.5 w-3.5" />
-          Non lette
+          {t("Non lette")}
         </button>
         <button
           type="button"
           aria-pressed={!!filter.priorityOnly}
-          title="Mostra solo le email ad alta priorità"
+          title={t("Mostra solo le email ad alta priorità")}
           className={cn(
             "tap-compact inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors max-sm:h-8",
             filter.priorityOnly
@@ -688,12 +691,12 @@ function EmailMailboxToolbar({
           }))}
         >
           <Flame className="h-3.5 w-3.5" />
-          Prioritarie
+          {t("Prioritarie")}
         </button>
         {anyQuickActive && (
           <button
             type="button"
-            title="Azzera i filtri rapidi"
+            title={t("Azzera i filtri rapidi")}
             className="ml-0.5 inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-400 transition-colors hover:text-slate-700"
             onClick={() => onFilterChange((current) => ({
               ...current,
@@ -702,7 +705,7 @@ function EmailMailboxToolbar({
             }))}
           >
             <X className="h-3.5 w-3.5" />
-            Azzera
+            {t("Azzera")}
           </button>
         )}
       </div>
@@ -728,7 +731,7 @@ function EmailMailboxToolbar({
               }))}
             >
               <Icon className="h-3.5 w-3.5" />
-              {category.label}
+              {t(category.label)}
             </button>
           );
         })}
@@ -738,8 +741,8 @@ function EmailMailboxToolbar({
 }
 
 /** L'errore di una casella in parole semplici: la frase sta in @/lib/email/spiegaErroreCasella (condivisa con le altre pagine della posta). */
-function describeEmailSyncError(raw: string): string {
-  return spiegaErroreCasella(raw) || "Questa casella non si aggiorna più. Premi «Riconnetti» per sistemarla.";
+function describeEmailSyncError(raw: string, t: (testo: string) => string): string {
+  return t(spiegaErroreCasella(raw) || "Questa casella non si aggiorna più. Premi «Riconnetti» per sistemarla.");
 }
 
 function folderTitleText(filter: FolderFilter): string {
@@ -759,5 +762,6 @@ function folderTitleText(filter: FolderFilter): string {
 }
 
 function FolderTitle({ filter }: { filter: FolderFilter }) {
-  return <>{folderTitleText(filter)}</>;
+  const t = useT();
+  return <>{t(folderTitleText(filter))}</>;
 }

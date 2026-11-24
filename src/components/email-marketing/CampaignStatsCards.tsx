@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, UserMinus, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StatsData {
   sent: number;
@@ -23,6 +24,7 @@ interface CampaignStatsCardsProps {
  * iniziano a penalizzare il mittente).
  */
 export function CampaignStatsCards({ stats }: CampaignStatsCardsProps) {
+  const t = useT();
   const pct = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0);
   const bouncePct = pct(stats.bounced, stats.sent);
   const unsubPct = pct(stats.unsubscribed, stats.delivered);
@@ -30,28 +32,28 @@ export function CampaignStatsCards({ stats }: CampaignStatsCardsProps) {
 
   const cards = [
     {
-      label: "Bounce (respinte)",
+      label: t("Bounce (respinte)"),
       icon: AlertTriangle,
       count: stats.bounced,
       rate: bouncePct,
       warn: bouncePct >= 5, // >5% bounce = problema serio
-      hint: "Indirizzi non validi",
+      hint: t("Indirizzi non validi"),
     },
     {
-      label: "Disiscrizioni",
+      label: t("Disiscrizioni"),
       icon: UserMinus,
       count: stats.unsubscribed,
       rate: unsubPct,
       warn: unsubPct >= 1, // >1% unsub = contenuto/frequenza da rivedere
-      hint: "Chi ha annullato l'iscrizione",
+      hint: t("Chi ha annullato l'iscrizione"),
     },
     {
-      label: "Segnalazioni spam",
+      label: t("Segnalazioni spam"),
       icon: ShieldAlert,
       count: stats.spam,
       rate: spamPct,
       warn: spamPct >= 0.1, // >0.1% spam = soglia critica provider
-      hint: "Marcate come spam",
+      hint: t("Marcate come spam"),
     },
   ];
 
@@ -69,7 +71,7 @@ export function CampaignStatsCards({ stats }: CampaignStatsCardsProps) {
                 {c.rate.toFixed(2)}%
               </p>
               <span className="text-sm text-muted-foreground tabular-nums">
-                {c.count.toLocaleString("it-IT")}
+                {c.count.toLocaleString(intlCampo())}
               </span>
             </div>
             <p className="text-xs text-muted-foreground">{c.hint}</p>

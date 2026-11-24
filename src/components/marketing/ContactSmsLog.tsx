@@ -7,6 +7,7 @@ import { ArrowUp, ArrowDown, Loader2, MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactSmsLogProps {
   contactId: string;
@@ -22,6 +23,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 export function ContactSmsLog({ contactId, companyId }: ContactSmsLogProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   // S2-02: stabilize queryKey via useMemo (era array nuovo ogni render -> realtime re-subscribe)
   const queryKey = useMemo(() => ["sms_logs", contactId, companyId], [contactId, companyId]);
@@ -77,7 +79,7 @@ export function ContactSmsLog({ contactId, companyId }: ContactSmsLogProps) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
         <MessageSquare className="h-8 w-8 opacity-40" />
-        <p className="text-sm">Nessun SMS registrato</p>
+        <p className="text-sm">{t("Nessun SMS registrato")}</p>
       </div>
     );
   }
@@ -104,12 +106,12 @@ export function ContactSmsLog({ contactId, companyId }: ContactSmsLogProps) {
                   ) : (
                     <ArrowUp className="h-3.5 w-3.5 text-blue-500" />
                   )}
-                  <span>{isInbound ? "Ricevuto" : "Inviato"}</span>
+                  <span>{isInbound ? t("Ricevuto") : t("Inviato")}</span>
                   <span>·</span>
                   <span>{log.from_number} → {log.to_number}</span>
                 </div>
                 <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", status.className)}>
-                  {status.label}
+                  {t(status.label)}
                 </Badge>
               </div>
 

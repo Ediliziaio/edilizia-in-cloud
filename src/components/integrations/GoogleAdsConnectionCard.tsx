@@ -21,6 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CheckCircle2, AlertTriangle, RefreshCw, Trash2, Megaphone } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type GoogleAdsConnection = {
   id: string;
@@ -50,6 +51,7 @@ const POPUP_POLL_INTERVAL_MS = 800;
 const POPUP_MAX_WAIT_MS = 5 * 60_000;
 
 export default function GoogleAdsConnectionCard() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -132,7 +134,7 @@ export default function GoogleAdsConnectionCard() {
       const data = ev.data;
       if (!data || data.source !== "google-ads-oauth") return;
       if (data.status === "ok") {
-        toast.success("Google Ads collegato — seleziona l'account");
+        toast.success(t("Google Ads collegato — seleziona l'account"));
         queryClient.invalidateQueries({ queryKey: ["google-ads-connection", companyId] });
       } else {
         toast.error(`Errore OAuth: ${data.message ?? "sconosciuto"}`);
@@ -155,7 +157,7 @@ export default function GoogleAdsConnectionCard() {
         body: JSON.stringify({}),
       });
       const json = await res.json();
-      if (!res.ok || !json.url) throw new Error(json.error ?? "Impossibile avviare OAuth");
+      if (!res.ok || !json.url) throw new Error(json.error ?? t("Impossibile avviare OAuth"));
 
       const w = 520, h = 640;
       const left = window.screenX + (window.outerWidth - w) / 2;
@@ -190,11 +192,11 @@ export default function GoogleAdsConnectionCard() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore selezione account");
+      if (!res.ok) throw new Error(json.error ?? t("Errore selezione account"));
       return json;
     },
     onSuccess: () => {
-      toast.success("Account Google Ads collegato");
+      toast.success(t("Account Google Ads collegato"));
       queryClient.invalidateQueries({ queryKey: ["google-ads-connection", companyId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -211,13 +213,13 @@ export default function GoogleAdsConnectionCard() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Sync completata: ${data?.campaigns ?? 0} campagne`);
+      toast.success(t("Sync completata: {n} campagne", { n: data?.campaigns ?? 0 }));
       queryClient.invalidateQueries({ queryKey: ["google-ads-connection", companyId] });
       queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns", companyId] });
       setSyncing(false);
     },
     onError: (e: Error) => {
-      toast.error(`Errore sync: ${e.message}`);
+      toast.error(t("Errore sync: {message}", { message: String(e.message ?? "") }));
       setSyncing(false);
     },
   });
@@ -233,11 +235,11 @@ export default function GoogleAdsConnectionCard() {
         body: JSON.stringify({}),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore disconnessione");
+      if (!res.ok) throw new Error(json.error ?? t("Errore disconnessione"));
       return json;
     },
     onSuccess: () => {
-      toast.success("Google Ads scollegato");
+      toast.success(t("Google Ads scollegato"));
       queryClient.invalidateQueries({ queryKey: ["google-ads-connection", companyId] });
       setDisconnectOpen(false);
     },
@@ -246,7 +248,7 @@ export default function GoogleAdsConnectionCard() {
 
   const lastSyncText = useMemo(() => {
     if (!connection?.last_sync_at) return null;
-    return new Date(connection.last_sync_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+    return new Date(connection.last_sync_at).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" });
   }, [connection?.last_sync_at]);
 
   return (
@@ -261,20 +263,20 @@ export default function GoogleAdsConnectionCard() {
               <div>
                 <CardTitle className="text-base">Google Ads</CardTitle>
                 <CardDescription>
-                  Campagne Search/Display, insights, conversioni offline CRM
+                  {t("Campagne Search/Display, insights, conversioni offline CRM")}
                 </CardDescription>
               </div>
             </div>
             {isReady ? (
               <Badge className="bg-emerald-600 hover:bg-emerald-600">
-                <CheckCircle2 className="mr-1 h-3 w-3" /> Collegato
+                <CheckCircle2 className="mr-1 h-3 w-3" /> {t("Collegato")}
               </Badge>
             ) : isConnected ? (
               <Badge variant="secondary">
-                <AlertTriangle className="mr-1 h-3 w-3" /> Seleziona account
+                <AlertTriangle className="mr-1 h-3 w-3" /> {t("Seleziona account")}
               </Badge>
             ) : (
-              <Badge variant="outline">Non collegato</Badge>
+              <Badge variant="outline">{t("Non collegato")}</Badge>
             )}
           </div>
         </CardHeader>
@@ -283,12 +285,10 @@ export default function GoogleAdsConnectionCard() {
           {!isConnected && (
             <>
               <p className="text-sm text-muted-foreground">
-                Collega Google Ads per importare campagne, insights e ricevere alert su
-                anomalie di spesa. Richiede Developer Token Google Ads approvato (config
-                lato amministratore).
+                {t("Collega Google Ads per importare campagne, insights e ricevere alert su anomalie di spesa. Richiede Developer Token Google Ads approvato (config lato amministratore).")}
               </p>
               <Button onClick={handleConnect} disabled={connecting || !companyId} className="w-full">
-                {connecting ? "Connessione in corso..." : "Collega Google Ads"}
+                {connecting ? t("Connessione in corso...") : t("Collega Google Ads")}
               </Button>
             </>
           )}
@@ -296,7 +296,7 @@ export default function GoogleAdsConnectionCard() {
           {isConnected && needsCustomerSelection && (
             <div className="space-y-3">
               <div className="rounded-lg bg-blue-50 p-3 text-sm">
-                <p className="font-medium text-blue-900">Account Google collegato</p>
+                <p className="font-medium text-blue-900">{t("Account Google collegato")}</p>
                 <p className="text-blue-700 text-xs mt-1">{connection?.google_account_email}</p>
               </div>
               {/* 2026-05-27: mostra last_error specifico (es. Developer Token
@@ -305,22 +305,21 @@ export default function GoogleAdsConnectionCard() {
               {connection?.last_error ? (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
                   <p className="font-medium text-amber-900 mb-1 flex items-center gap-1.5">
-                    <AlertTriangle className="h-4 w-4" /> Problema nel fetch account Ads
+                    <AlertTriangle className="h-4 w-4" /> {t("Problema nel fetch account Ads")}
                   </p>
                   <p className="text-amber-800 text-xs whitespace-pre-wrap">{connection.last_error}</p>
                 </div>
               ) : operationalCustomers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nessun account Google Ads trovato. Verifica che l'utente abbia accesso a
-                  un account Ads attivo (non solo Manager Account).
+                  {t("Nessun account Google Ads trovato. Verifica che l'utente abbia accesso a un account Ads attivo (non solo Manager Account).")}
                 </p>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Account Google Ads</label>
+                    <label className="text-sm font-medium">{t("Account Google Ads")}</label>
                     <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Scegli l'account principale" />
+                        <SelectValue placeholder={t("Scegli l'account principale")} />
                       </SelectTrigger>
                       <SelectContent>
                         {operationalCustomers.map((c) => (
@@ -330,11 +329,11 @@ export default function GoogleAdsConnectionCard() {
                                 {/* 2026-05-27: Badge spostato fuori dallo <span>
                                     interno — Badge è un <div>, era nested HTML
                                     invalido (warning React in dev). */}
-                                <span>{c.descriptive_name ?? "Senza nome"}</span>
-                                {c.is_test_account && <Badge variant="outline" className="text-xs">Test</Badge>}
+                                <span>{c.descriptive_name ?? t("Senza nome")}</span>
+                                {c.is_test_account && <Badge variant="outline" className="text-xs">{t("Test")}</Badge>}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                ID: {c.customer_id} · {c.currency_code ?? ""}
+                                {t("ID:")} {c.customer_id} · {c.currency_code ?? ""}
                               </span>
                             </div>
                           </SelectItem>
@@ -346,18 +345,18 @@ export default function GoogleAdsConnectionCard() {
                   {managerCustomers.length > 0 && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">
-                        Manager Account (MCC) <span className="text-muted-foreground">— opzionale</span>
+                        {t("Manager Account (MCC)")} <span className="text-muted-foreground">{t("— opzionale")}</span>
                       </label>
                       <Select
                         value={selectedManagerId || "__none__"}
                         onValueChange={(v) => setSelectedManagerId(v === "__none__" ? "" : v)}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Nessun MCC (account standalone)" />
+                          <SelectValue placeholder={t("Nessun MCC (account standalone)")} />
                         </SelectTrigger>
                         <SelectContent>
                           {/* Fix 2026-05-27: Radix Select non accetta value="" — sentinel "__none__" + map nel handler. */}
-                          <SelectItem value="__none__">Nessun MCC</SelectItem>
+                          <SelectItem value="__none__">{t("Nessun MCC")}</SelectItem>
                           {managerCustomers.map((c) => (
                             <SelectItem key={c.customer_id} value={c.customer_id}>
                               {c.descriptive_name ?? c.customer_id}
@@ -373,7 +372,7 @@ export default function GoogleAdsConnectionCard() {
                     disabled={!selectedCustomerId || selectCustomerMutation.isPending}
                     className="w-full"
                   >
-                    Conferma selezione
+                    {t("Conferma selezione")}
                   </Button>
                 </>
               )}
@@ -388,7 +387,7 @@ export default function GoogleAdsConnectionCard() {
                 onClick={() => setDisconnectOpen(true)}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Scollega Google Ads
+                {t("Scollega Google Ads")}
               </Button>
             </div>
           )}
@@ -397,20 +396,18 @@ export default function GoogleAdsConnectionCard() {
             <div className="space-y-3">
               <div className="rounded-lg bg-emerald-50 p-3">
                 <p className="text-sm font-medium text-emerald-900">
-                  {connection?.customer_descriptive_name ?? "Account Google Ads"}
+                  {connection?.customer_descriptive_name ?? t("Account Google Ads")}
                 </p>
                 <p className="text-xs text-emerald-700 mt-0.5">
-                  ID: {connection?.customer_id} · {connection?.customer_currency_code ?? ""}
+                  {t("ID:")} {connection?.customer_id} · {connection?.customer_currency_code ?? ""}
                   {connection?.manager_customer_id && ` · MCC ${connection.manager_customer_id}`}
                 </p>
-                <p className="text-xs text-emerald-700 mt-1">
-                  Account Google: {connection?.google_account_email}
-                </p>
+                <p className="text-xs text-emerald-700 mt-1">{t("Account Google: {google_account_email}", { google_account_email: String(connection?.google_account_email ?? "") })}</p>
               </div>
 
               {lastSyncText && (
                 <p className="text-xs text-muted-foreground">
-                  Ultima sync: {lastSyncText} · {connection?.last_sync_campaign_count ?? 0} campagne
+                  {t("Ultima sync:")} {lastSyncText} · {connection?.last_sync_campaign_count ?? 0} {t("campagne")}
                 </p>
               )}
               {connection?.last_error && (
@@ -428,7 +425,7 @@ export default function GoogleAdsConnectionCard() {
                   className="flex-1"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-                  Sincronizza campagne
+                  {t("Sincronizza campagne")}
                 </Button>
                 <Button variant="outline" onClick={() => setDisconnectOpen(true)}>
                   <Trash2 className="h-4 w-4" />
@@ -442,19 +439,18 @@ export default function GoogleAdsConnectionCard() {
       <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Scollegare Google Ads?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Scollegare Google Ads?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Le campagne già importate restano in EiC ma non riceverai più aggiornamenti da
-              Google Ads. Puoi ricollegare in qualsiasi momento.
+              {t("Le campagne già importate restano in EiC ma non riceverai più aggiornamenti da Google Ads. Puoi ricollegare in qualsiasi momento.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={disconnectMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={disconnectMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
             >
-              Scollega
+              {t("Scollega")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

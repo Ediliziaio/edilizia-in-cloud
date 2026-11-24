@@ -29,6 +29,7 @@ import type { SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramenti
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { srEditorPreviewSection, srPreviewPage } from "./srSemanticPreview";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Props {
   moduleId?: SerramentiTemplateModuleId;
   /** Template corrente in edit (anche con modifiche non salvate). */
@@ -58,6 +59,7 @@ export function SerramentiLivePreviewPanel({
   companyIndirizzo,
   activeSection,
 }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [status, setStatus] = useState<Status>("idle");
   const [pageCount, setPageCount] = useState(0);
@@ -108,7 +110,7 @@ export function SerramentiLivePreviewPanel({
         generaPdfDocumento(element),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(
-            "Generazione troppo lenta (timeout). Probabile causa: un'immagine del template (logo, foto o render) non si carica.",
+            t("Generazione troppo lenta (timeout). Probabile causa: un'immagine del template (logo, foto o render) non si carica."),
           )), 45_000),
         ),
       ]);
@@ -128,7 +130,7 @@ export function SerramentiLivePreviewPanel({
     } catch (err) {
       if (myGen !== genIdRef.current) return;
       console.error("[live-preview] errore generazione PDF:", err);
-      setErrorMsg(err instanceof Error ? err.message : "Errore sconosciuto");
+      setErrorMsg(err instanceof Error ? err.message : t("Errore sconosciuto"));
       setStatus((s) => (s === "ready" ? s : "error"));
     } finally {
       if (myGen === genIdRef.current) setIsRefreshing(false);
@@ -218,10 +220,10 @@ export function SerramentiLivePreviewPanel({
       const page = await srPreviewPage(pdfDoc, section);
       if (cancelled || pdfDocRef.current !== pdfDoc) return;
       const present = page !== null && Number.isInteger(page) && page >= 1 && page <= pdfDoc.numPages;
-      setSectionNotice({ section: activeSection, text: present ? `Sezione selezionata · pagina ${page} di ${pdfDoc.numPages}` : "Sezione non presente in questo PDF: vista mantenuta." });
+      setSectionNotice({ section: activeSection, text: present ? t("Sezione selezionata · pagina {n} di {totale}", { n: Number(page), totale: pdfDoc.numPages }) : t("Sezione non presente in questo PDF: vista mantenuta.") });
       if (present) scrollToPage(page);
     })().catch(() => {
-      if (!cancelled && pdfDocRef.current === pdfDoc) setSectionNotice({ section: activeSection, text: "Posizione della sezione non disponibile: vista mantenuta." });
+      if (!cancelled && pdfDocRef.current === pdfDoc) setSectionNotice({ section: activeSection, text: t("Posizione della sezione non disponibile: vista mantenuta.") });
     });
 
     return () => { cancelled = true; };
@@ -241,7 +243,7 @@ export function SerramentiLivePreviewPanel({
     a.href = lastBlobUrlRef.current;
     a.download = moduleId ? `anteprima-${moduleId}.pdf` : "anteprima-template.pdf";
     a.click();
-    toast.success("Anteprima scaricata");
+    toast.success(t("Anteprima scaricata"));
   };
   const handleOpenInTab = () => {
     if (lastBlobUrlRef.current) window.open(lastBlobUrlRef.current, "_blank");
@@ -255,39 +257,39 @@ export function SerramentiLivePreviewPanel({
           <div className="flex items-center gap-1.5 min-w-0">
             <Eye className="h-3.5 w-3.5 text-orange-500 shrink-0" />
             <span className="text-[11px] font-semibold uppercase tracking-wide text-orange-600 truncate">
-              Anteprima live PDF
+              {t("Anteprima live PDF")}
             </span>
             {isRefreshing && (
               <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> aggiorno…
+                <Loader2 className="h-3 w-3 animate-spin" /> {t("aggiorno…")}
               </span>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {/* Zoom */}
             <div className="flex items-center gap-0.5 mr-1 rounded-md border bg-white px-0.5">
-              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title="Riduci" className="h-6 w-6">
+              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title={t("Riduci")} className="h-6 w-6">
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>
-              <button type="button" onClick={() => setZoom(1)} title="Adatta larghezza" className="text-[10px] tabular-nums text-slate-600 hover:text-orange-600 min-w-[30px] text-center">
+              <button type="button" onClick={() => setZoom(1)} title={t("Adatta larghezza")} className="text-[10px] tabular-nums text-slate-600 hover:text-orange-600 min-w-[30px] text-center">
                 {Math.round(zoom * 100)}%
               </button>
-              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} title="Ingrandisci" className="h-6 w-6">
+              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} title={t("Ingrandisci")} className="h-6 w-6">
                 <ZoomIn className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" onClick={() => setZoom(1)} title="Adatta larghezza" className="h-6 w-6">
+              <Button size="icon" variant="ghost" onClick={() => setZoom(1)} title={t("Adatta larghezza")} className="h-6 w-6">
                 <Maximize2 className="h-3.5 w-3.5" />
               </Button>
             </div>
-            <Button size="icon" variant="ghost" onClick={() => void generate()} disabled={isRefreshing} title="Aggiorna ora" className="h-7 w-7">
+            <Button size="icon" variant="ghost" onClick={() => void generate()} disabled={isRefreshing} title={t("Aggiorna ora")} className="h-7 w-7">
               <RefreshCw className={"h-3.5 w-3.5 " + (isRefreshing ? "animate-spin" : "")} />
             </Button>
-            <Button size="icon" variant="ghost" onClick={handleOpenInTab} disabled={status !== "ready"} title="Apri in nuova scheda" className="h-7 w-7">
+            <Button size="icon" variant="ghost" onClick={handleOpenInTab} disabled={status !== "ready"} title={t("Apri in nuova scheda")} className="h-7 w-7">
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
             {/* Niente export su telefono. */}
             {!isMobile && (
-              <Button size="icon" variant="ghost" onClick={handleDownload} disabled={status !== "ready"} title="Scarica PDF" className="h-7 w-7">
+              <Button size="icon" variant="ghost" onClick={handleDownload} disabled={status !== "ready"} title={t("Scarica PDF")} className="h-7 w-7">
                 <Download className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -306,9 +308,9 @@ export function SerramentiLivePreviewPanel({
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-2 p-4 text-center">
               <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-              <p className="text-[11px] text-muted-foreground">Genero l'anteprima…</p>
+              <p className="text-[11px] text-muted-foreground">{t("Genero l'anteprima…")}</p>
               <p className="text-[10px] text-muted-foreground/70 max-w-[220px]">
-                Al primo utilizzo scarico il motore PDF (~1 MB): qualche secondo. Poi è rapido.
+                {t("Al primo utilizzo scarico il motore PDF (~1 MB): qualche secondo. Poi è rapido.")}
               </p>
             </div>
           </div>
@@ -317,10 +319,10 @@ export function SerramentiLivePreviewPanel({
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="flex flex-col items-center gap-2 max-w-[260px] text-center">
               <AlertCircle className="h-6 w-6 text-rose-600" />
-              <p className="text-xs font-semibold">Errore anteprima</p>
+              <p className="text-xs font-semibold">{t("Errore anteprima")}</p>
               <p className="text-[10px] text-muted-foreground">{errorMsg}</p>
               <Button size="sm" variant="outline" onClick={() => void generate()} className="mt-1 h-7 text-[11px]">
-                Riprova
+                {t("Riprova")}
               </Button>
             </div>
           </div>
@@ -336,17 +338,17 @@ export function SerramentiLivePreviewPanel({
                   (highlightedPage === pageNum ? "ring-2 ring-orange-400 ring-offset-2 ring-offset-muted" : "")
                 }
               >
-                <canvas data-page={pageNum} className="block h-auto" aria-label={`Pagina ${pageNum} di ${pageCount}`} />
+                <canvas data-page={pageNum} className="block h-auto" aria-label={t("Pagina {n} di {totale}", { n: pageNum, totale: pageCount })} />
               </div>
             ))}
             <p className="text-[10px] text-muted-foreground italic">
-              {pageCount} {pageCount === 1 ? "pagina" : "pagine"} · anteprima a bassa risoluzione · scarica per l'alta qualità
+              {t(pageCount === 1 ? "{n} pagina · anteprima a bassa risoluzione · scarica per l'alta qualità" : "{n} pagine · anteprima a bassa risoluzione · scarica per l'alta qualità", { n: pageCount })}
             </p>
           </div>
         )}
         {status === "idle" && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-[11px] text-muted-foreground">In attesa…</p>
+            <p className="text-[11px] text-muted-foreground">{t("In attesa…")}</p>
           </div>
         )}
       </div>

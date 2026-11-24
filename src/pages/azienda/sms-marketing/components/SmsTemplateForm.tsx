@@ -21,6 +21,7 @@ import {
 import { SmsMessaggioEditor } from "./SmsMessaggioEditor";
 import { useSmsTemplates } from "@/hooks/useSmsTemplates";
 import type { SmsTemplate, SmsTemplateFormData, SmsTemplateCategoria } from "@/types/sms-marketing";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CATEGORIE: { value: SmsTemplateCategoria; label: string }[] = [
   { value: "generico", label: "Generico" },
@@ -45,6 +46,7 @@ const defaultForm: SmsTemplateFormData = {
 };
 
 export function SmsTemplateForm({ initialData, onSuccess, onCancel }: SmsTemplateFormProps) {
+  const t = useT();
   const { create, update, isCreating, isUpdating } = useSmsTemplates();
   const isSaving = isCreating || isUpdating;
   const isEditing = !!initialData;
@@ -58,8 +60,8 @@ export function SmsTemplateForm({ initialData, onSuccess, onCancel }: SmsTemplat
 
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof SmsTemplateFormData, string>> = {};
-    if (!form.nome.trim()) newErrors.nome = "Il nome del template è obbligatorio";
-    if (!form.messaggio.trim()) newErrors.messaggio = "Il messaggio è obbligatorio";
+    if (!form.nome.trim()) newErrors.nome = t("Il nome del template è obbligatorio");
+    if (!form.messaggio.trim()) newErrors.messaggio = t("Il messaggio è obbligatorio");
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -81,26 +83,26 @@ export function SmsTemplateForm({ initialData, onSuccess, onCancel }: SmsTemplat
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1">
-        <Label htmlFor="nome-template" className="text-sm font-medium">Nome template *</Label>
+        <Label htmlFor="nome-template" className="text-sm font-medium">{t("Nome template *")}</Label>
         <Input
           id="nome-template"
           value={form.nome}
           onChange={(e) => set("nome", e.target.value)}
-          placeholder="Es: Benvenuto cliente"
+          placeholder={t("Es: Benvenuto cliente")}
           className={errors.nome ? "border-destructive" : ""}
         />
         {errors.nome && <p className="text-xs text-destructive">{errors.nome}</p>}
       </div>
 
       <div className="space-y-1">
-        <Label className="text-sm font-medium">Categoria</Label>
+        <Label className="text-sm font-medium">{t("Categoria")}</Label>
         <Select value={form.categoria} onValueChange={(v) => set("categoria", v as SmsTemplateCategoria)}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {CATEGORIE.map((c) => (
-              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -118,14 +120,14 @@ export function SmsTemplateForm({ initialData, onSuccess, onCancel }: SmsTemplat
           checked={form.attivo}
           onCheckedChange={(v) => set("attivo", v)}
         />
-        <Label htmlFor="attivo-toggle" className="text-sm cursor-pointer">Template attivo</Label>
+        <Label htmlFor="attivo-toggle" className="text-sm cursor-pointer">{t("Template attivo")}</Label>
       </div>
 
       <div className="flex gap-2 justify-end pt-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>Annulla</Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>{t("Annulla")}</Button>
         <Button type="submit" disabled={isSaving}>
           {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          {isEditing ? "Salva modifiche" : "Crea template"}
+          {isEditing ? t("Salva modifiche") : t("Crea template")}
         </Button>
       </div>
     </form>

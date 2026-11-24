@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const intentIcons: Record<string, LucideIcon> = {
   rapportino: FileText,
@@ -62,6 +62,7 @@ interface WhatsAppActivityFeedProps {
 }
 
 export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
@@ -120,13 +121,13 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
   ).length;
 
   if (isLoading) {
-    return <div role="status" className="text-sm text-muted-foreground p-3">Caricamento attività WhatsApp…</div>;
+    return <div role="status" className="text-sm text-muted-foreground p-3">{t("Caricamento attività WhatsApp…")}</div>;
   }
 
   if (isError) {
     return <Card><CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
-      <p role="alert" className="text-sm">Attività WhatsApp non disponibili. I messaggi non vengono reinviati.</p>
-      <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>Ricarica attività</Button>
+      <p role="alert" className="text-sm">{t("Attività WhatsApp non disponibili. I messaggi non vengono reinviati.")}</p>
+      <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>{t("Ricarica attività")}</Button>
     </CardContent></Card>;
   }
 
@@ -140,12 +141,10 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-emerald-600" />
-            Attività WhatsApp
+            {t("Attività WhatsApp")}
           </CardTitle>
           {pendingCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {pendingCount} in elaborazione
-            </Badge>
+            <Badge variant="secondary" className="text-xs">{t("{pendingCount} in elaborazione", { pendingCount: String(pendingCount ?? "") })}</Badge>
           )}
         </div>
       </CardHeader>
@@ -170,9 +169,9 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium truncate">{name}</span>
                       <Badge variant="outline" className="text-[10px]">
-                        {intentLabels[msg.ai_intent || "unknown"]}
+                        {t(intentLabels[msg.ai_intent || "unknown"])}
                       </Badge>
-                      <span role="img" aria-label={status.label} title={status.label}>
+                      <span role="img" aria-label={t(status.label)} title={t(status.label)}>
                         <StatusIcon aria-hidden="true" className={`h-3 w-3 flex-shrink-0 ${status.className}`} />
                       </span>
                     </div>
@@ -180,7 +179,7 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
                       {msg.content_text || `[${msg.message_type}]`}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: it })}
+                      {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: dateFnsCampo() })}
                     </p>
                   </div>
                 </div>

@@ -12,6 +12,7 @@ import { safeNumber } from "@/hooks/useCruscottoData";
 import { agreedContractValue } from "@/lib/orders/contractValue";
 import { leggiEconomiaCommesse, COLONNE_MARGINI_COMMESSE } from "@/lib/economiaCommesse";
 import type { OrderMarginRow } from "@/lib/orders/listScope";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type DrilldownType = "revenue" | "margin" | "late-orders" | "tickets" | null;
 
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export const DrilldownDrawer = memo(function DrilldownDrawer({ type, onClose, dateFrom, dateTo }: Props) {
+  const t = useT();
   const focusReturn = useDialogFocusReturn();
   if (!type) return null;
 
@@ -30,8 +32,8 @@ export const DrilldownDrawer = memo(function DrilldownDrawer({ type, onClose, da
     <Sheet open={!!type} onOpenChange={() => onClose()}>
       <SheetContent {...focusReturn} side="right" className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{TITLES[type]}</SheetTitle>
-          <SheetDescription>Il dettaglio mostra fino a 50 righe.</SheetDescription>
+          <SheetTitle>{t(TITLES[type])}</SheetTitle>
+          <SheetDescription>{t("Il dettaglio mostra fino a 50 righe.")}</SheetDescription>
         </SheetHeader>
         <div className="mt-4">
           {type === "revenue" && <RevenueDrill dateFrom={dateFrom} dateTo={dateTo} />}
@@ -60,6 +62,7 @@ function custName(c: unknown): string {
 }
 
 function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-revenue", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
@@ -89,18 +92,19 @@ function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
       {data.map((o: any) => (
         <div key={o.id} className="flex items-center justify-between p-3 rounded-lg border text-sm">
           <div className="min-w-0">
-            <div className="font-medium truncate">{o.order_code || o.description || "Ordine"}</div>
+            <div className="font-medium truncate">{o.order_code || o.description || t("Ordine")}</div>
             <div className="text-xs text-muted-foreground">{custName(o.customer)}</div>
           </div>
           <div className="font-semibold tabular-nums shrink-0 ml-4">{fmtCur(agreedContractValue(safeNumber(o.total_amount), o.variazioni ?? []))}</div>
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">Contratto più varianti approvate, IVA esclusa.</p>
+      <p className="text-xs text-muted-foreground">{t("Contratto più varianti approvate, IVA esclusa.")}</p>
     </div>
   );
 }
 
 function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-margin", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
@@ -146,9 +150,9 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
         return (
           <div key={o.id} className="p-3 rounded-lg border text-sm">
             <div className="flex justify-between mb-1">
-              <span className="font-medium truncate">{o.order_code || o.description || "Ordine"}</span>
+              <span className="font-medium truncate">{o.order_code || o.description || t("Ordine")}</span>
               {senzaCosti ? (
-                <span className="text-xs text-muted-foreground">Costi da registrare</span>
+                <span className="text-xs text-muted-foreground">{t("Costi da registrare")}</span>
               ) : (
                 <span className={cn("font-bold tabular-nums", marginPct >= 20 ? "text-emerald-600" : "text-destructive")}>
                   {marginPct.toFixed(1)}%
@@ -156,9 +160,9 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
               )}
             </div>
             <div className="flex gap-4 text-xs text-muted-foreground">
-              <span>Ricavo: {fmtCur(revenue)}</span>
-              <span>Costo: {fmtCur(cost)}</span>
-              {!senzaCosti && <span>Margine: {fmtCur(margin)}</span>}
+              <span>{t("Ricavo: {revenue}", { revenue: fmtCur(revenue) })}</span>
+              <span>{t("Costo: {cost}", { cost: fmtCur(cost) })}</span>
+              {!senzaCosti && <span>{t("Margine: {margin}", { margin: fmtCur(margin) })}</span>}
             </div>
           </div>
         );
@@ -168,6 +172,7 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
 }
 
 function LateOrdersDrill() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-late", effectiveCompany?.id],
@@ -199,11 +204,11 @@ function LateOrdersDrill() {
         return (
           <div key={o.id} className="flex items-center justify-between p-3 rounded-lg border text-sm">
             <div className="min-w-0">
-              <div className="font-medium truncate">{o.order_code || o.description || "Ordine"}</div>
+              <div className="font-medium truncate">{o.order_code || o.description || t("Ordine")}</div>
               <div className="text-xs text-muted-foreground">{custName(o.customer)}</div>
             </div>
             <div className="text-right shrink-0 ml-4">
-              <div className="font-semibold text-destructive">{daysLate}gg in ritardo</div>
+              <div className="font-semibold text-destructive">{t("{daysLate}gg in ritardo", { daysLate: String(daysLate ?? "") })}</div>
               <div className="text-xs text-muted-foreground">{o.expected_date}</div>
             </div>
           </div>
@@ -214,6 +219,7 @@ function LateOrdersDrill() {
 }
 
 function TicketsDrill() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-tickets", effectiveCompany?.id],
@@ -239,14 +245,14 @@ function TicketsDrill() {
       {data.map((t: any) => (
         <div key={t.id} className="flex items-center justify-between p-3 rounded-lg border text-sm">
           <div className="min-w-0">
-            <div className="font-medium truncate">{t.subject || "Ticket"}</div>
-            <div className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleDateString("it-IT")}</div>
+            <div className="font-medium truncate">{t.subject || tr("Ticket")}</div>
+            <div className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleDateString(intlCampo())}</div>
           </div>
           <span className={cn(
             "text-xs px-2 py-0.5 rounded-full shrink-0",
             t.priority === "alta" || t.priority === "urgente" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"
           )}>
-            {t.priority || "normale"}
+            {t.priority || tr("normale")}
           </span>
         </div>
       ))}
@@ -265,16 +271,18 @@ function DrillSkeleton() {
 }
 
 function EmptyDrill() {
+  const t = useT();
   return (
-    <p className="text-sm text-muted-foreground text-center py-8">Nessun dato da mostrare</p>
+    <p className="text-sm text-muted-foreground text-center py-8">{t("Nessun dato da mostrare")}</p>
   );
 }
 
 function DrillError({ onRetry }: { onRetry: () => void }) {
+  const t = useT();
   return (
     <div role="alert" className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-      <p>Impossibile caricare il dettaglio.</p>
-      <Button variant="outline" onClick={onRetry} aria-label="Riprova caricamento dettaglio">Riprova</Button>
+      <p>{t("Impossibile caricare il dettaglio.")}</p>
+      <Button variant="outline" onClick={onRetry} aria-label={t("Riprova caricamento dettaglio")}>{t("Riprova")}</Button>
     </div>
   );
 }

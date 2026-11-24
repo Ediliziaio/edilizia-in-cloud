@@ -35,6 +35,7 @@ import {
   areaDiVerticale,
   nomeArea as etichettaArea,
 } from "@/lib/listino/areeStandard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   tariffe: TariffaPro[];
@@ -68,6 +69,7 @@ export function TariffePicker({
   nomeArea,
   onTutteLeAree,
 }: Props) {
+  const tr = useT();
   const isMobile = useIsMobile();
   const dettagliRef = useRef<HTMLElement>(null);
   const elencoRef = useRef<HTMLDivElement>(null);
@@ -159,14 +161,14 @@ export function TariffePicker({
     <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden rounded-xl border md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[190px_minmax(0,1fr)_280px] max-md:block max-md:overflow-y-auto">
       <aside className="hidden min-h-0 overflow-y-auto border-r bg-muted/20 p-3 lg:block">
         <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Lavorazioni e servizi
+          {tr("Lavorazioni e servizi")}
         </p>
         <nav
-          aria-label="Gruppi dei servizi"
+          aria-label={tr("Gruppi dei servizi")}
           className="divide-y divide-border/60"
         >
           {[
-            { id: "all", nome: "Tutti i servizi", count: attive.length },
+            { id: "all", nome: tr("Tutti i servizi"), count: attive.length },
             ...gruppi,
           ].map((g) => (
             <div key={g.id} className="py-1 first:pt-0 last:pb-0">
@@ -204,8 +206,8 @@ export function TariffePicker({
             />
             <Input
               autoFocus={attivo && !isMobile}
-              aria-label="Cerca tariffa nel listino"
-              placeholder="Cerca posa, demolizione, codice…"
+              aria-label={tr("Cerca tariffa nel listino")}
+              placeholder={tr("Cerca posa, demolizione, codice…")}
               value={cerca}
               onChange={(e) => {
                 setCerca(e.target.value);
@@ -216,7 +218,7 @@ export function TariffePicker({
             {cerca && (
               <button
                 type="button"
-                aria-label="Azzera ricerca servizi"
+                aria-label={tr("Azzera ricerca servizi")}
                 className="absolute right-3 top-3"
                 onClick={() => {
                   setCerca("");
@@ -228,7 +230,7 @@ export function TariffePicker({
             )}
           </div>
           <UniformSelect
-            aria-label="Filtra servizi per lavorazione"
+            aria-label={tr("Filtra servizi per lavorazione")}
             className="h-10 w-full rounded-md border bg-background px-3 text-sm lg:hidden"
             value={gruppo}
             onChange={(e) => {
@@ -236,7 +238,7 @@ export function TariffePicker({
               setPagina(0);
             }}
           >
-            <option value="all">Tutti i servizi</option>
+            <option value="all">{tr("Tutti i servizi")}</option>
             {gruppi.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.nome} ({g.count})
@@ -245,11 +247,9 @@ export function TariffePicker({
           </UniformSelect>
           <p className="text-xs text-muted-foreground">
             {nomeArea && <span className="font-medium">{nomeArea} · </span>}
-            {filtrate.length}{" "}
-            {filtrate.length === 1
-              ? "servizio disponibile"
-              : "servizi disponibili"}{" "}
-            · scegli una voce per impostare la quantità
+            {tr(filtrate.length === 1
+              ? "{n} servizio disponibile · scegli una voce per impostare la quantità"
+              : "{n} servizi disponibili · scegli una voce per impostare la quantità", { n: filtrate.length })}
           </p>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -279,7 +279,7 @@ export function TariffePicker({
                     <span className="mt-1 block text-[11px]">
                       {areaDiVerticale(t.vertical_associato)
                         ? etichettaArea(areaDiVerticale(t.vertical_associato)!)
-                        : "Comune / senza area"}
+                        : tr("Comune / senza area")}
                     </span>
                   </span>
                   {t.codice && (
@@ -294,7 +294,7 @@ export function TariffePicker({
                       ? formatPrezzoUnitario(
                           prezzoUnitario?.(t) ?? t.prezzo_vendita,
                         )
-                      : "Da definire"}
+                      : tr("Da definire")}
                   </span>
                   <span className="mt-1 block text-[11px] text-muted-foreground">
                     / {unitaLeggibile(t)}
@@ -304,7 +304,7 @@ export function TariffePicker({
             ))}
             {!filtrate.length && (
               <div className="p-6 text-center text-sm text-muted-foreground">
-                Nessun servizio corrisponde ai filtri.
+                {tr("Nessun servizio corrisponde ai filtri.")}
                 <Button
                   variant="link"
                   onClick={() => {
@@ -312,18 +312,18 @@ export function TariffePicker({
                     setGruppo("all");
                   }}
                 >
-                  Azzera i filtri
+                  {tr("Azzera i filtri")}
                 </Button>
               {onTutteLeAree && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={onTutteLeAree}>
-                  Cerca in tutte le aree
+                  {tr("Cerca in tutte le aree")}
                 </Button>
               )}
                 <LinkImpostazione
                   to="/azienda/impostazioni/tariffe"
                   className="block text-sm text-primary"
                 >
-                  Apri il listino manodopera e servizi
+                  {tr("Apri il listino manodopera e servizi")}
                 </LinkImpostazione>
               </div>
             )}
@@ -332,14 +332,14 @@ export function TariffePicker({
         <div className="flex shrink-0 items-center justify-between gap-2 border-t px-4 py-2">
           <span role="status" className="text-xs text-muted-foreground">
             {filtrate.length
-              ? `${paginaCorrente * PAGINA + 1}–${Math.min((paginaCorrente + 1) * PAGINA, filtrate.length)} di ${filtrate.length} ${filtrate.length === 1 ? "voce attiva" : "voci attive"}`
-              : "0 voci attive"}
+              ? tr(filtrate.length === 1 ? "{da}–{a} di {totale} voce attiva" : "{da}–{a} di {totale} voci attive", { da: paginaCorrente * PAGINA + 1, a: Math.min((paginaCorrente + 1) * PAGINA, filtrate.length), totale: filtrate.length })
+              : tr("0 voci attive")}
           </span>
           <div className="flex gap-1">
             <Button
               variant="outline"
               size="sm"
-              aria-label="Precedenti"
+              aria-label={tr("Precedenti")}
               disabled={paginaCorrente === 0}
               onClick={() => setPagina(paginaCorrente - 1)}
             >
@@ -348,7 +348,7 @@ export function TariffePicker({
             <Button
               variant="outline"
               size="sm"
-              aria-label="Successive"
+              aria-label={tr("Successive")}
               disabled={(paginaCorrente + 1) * PAGINA >= filtrate.length}
               onClick={() => setPagina(paginaCorrente + 1)}
             >
@@ -359,16 +359,15 @@ export function TariffePicker({
       </div>
       <aside
         ref={dettagliRef}
-        aria-label="Dettagli del servizio"
+        aria-label={tr("Dettagli del servizio")}
         className="flex min-h-0 flex-col overflow-y-auto border-t bg-muted/20 p-4 lg:border-l lg:border-t-0"
       >
         {!scelta ? (
           <div className="my-auto py-6 text-center">
             <Wrench className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">Scegli un servizio</p>
+            <p className="text-sm font-medium">{tr("Scegli un servizio")}</p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Qui vedrai cosa comprende, come si misura e l’importo da
-              aggiungere.
+              {tr("Qui vedrai cosa comprende, come si misura e l’importo da aggiungere.")}
             </p>
           </div>
         ) : (
@@ -389,51 +388,46 @@ export function TariffePicker({
               }}
             >
               <ChevronLeft className="mr-1 h-4 w-4" />
-              Scegli un altro servizio
+              {tr("Scegli un altro servizio")}
             </Button>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Servizio selezionato
+                {tr("Servizio selezionato")}
               </p>
               <h3 className="mt-2 text-base font-semibold leading-snug">
                 {scelta.nome}
               </h3>
               <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                 {descrizioneCommerciale(scelta.descrizione) ||
-                  "Descrizione non presente nel listino. Potrai completarla sulla riga del preventivo."}
+                  tr("Descrizione non presente nel listino. Potrai completarla sulla riga del preventivo.")}
               </p>
               {scelta.fonte && (
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  Fonte: {scelta.fonte}
-                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">{tr("Fonte: {source}", { source: String(scelta.fonte ?? "") })}</p>
               )}
             </div>
             <div className="rounded-lg border bg-background p-3">
-              <Label htmlFor="servizio-vendita">
-                Prezzo di vendita (€ / {unitaLeggibile(scelta)})
-              </Label>
+              <Label htmlFor="servizio-vendita">{tr("Prezzo di vendita (€ / {scelta})", { scelta: String(unitaLeggibile(scelta) ?? "") })}</Label>
               <Input
                 id="servizio-vendita"
                 className="mt-2"
                 inputMode="decimal"
-                placeholder="Inserisci il prezzo cliente"
+                placeholder={tr("Inserisci il prezzo cliente")}
                 value={venditaManuale ?? (prezzo > 0 ? String(prezzo) : "")}
                 onChange={(e) => setVenditaManuale(e.target.value)}
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                IVA esclusa · solo per questo preventivo. Nessun costo
-                d’acquisto viene usato come prezzo cliente.
+                {tr("IVA esclusa · solo per questo preventivo. Nessun costo d’acquisto viene usato come prezzo cliente.")}
               </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="quantita-servizio">
                 {aCorpo
-                  ? "Intervento a corpo"
-                  : `Quantità (${unitaLeggibile(scelta)})`}
+                  ? tr("Intervento a corpo")
+                  : tr("Quantità ({unita})", { unita: String(unitaLeggibile(scelta) ?? "") })}
               </Label>
               <Input
                 id="quantita-servizio"
-                aria-label="Quantità servizio"
+                aria-label={tr("Quantità servizio")}
                 inputMode="decimal"
                 value={aCorpo ? "1" : quantita}
                 disabled={!!aCorpo}
@@ -441,23 +435,23 @@ export function TariffePicker({
               />
               {aCorpo && (
                 <p className="text-xs text-muted-foreground">
-                  Importo fisso per l’intero intervento.
+                  {tr("Importo fisso per l’intero intervento.")}
                 </p>
               )}
               {(!Number.isFinite(qty) || qty <= 0) && (
                 <p className="text-xs text-destructive">
-                  Inserisci una quantità maggiore di zero.
+                  {tr("Inserisci una quantità maggiore di zero.")}
                 </p>
               )}
             </div>
             {(!Number.isFinite(prezzo) || prezzo <= 0) && (
               <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                Inserisci il prezzo cliente per aggiungere questa voce.
+                {tr("Inserisci il prezzo cliente per aggiungere questa voce.")}
               </p>
             )}
             <div className="mt-auto space-y-3 border-t pt-4">
               <div className="flex items-center justify-between text-sm">
-                <span>Importo IVA esclusa</span>
+                <span>{tr("Importo IVA esclusa")}</span>
                 <strong className="tabular-nums">
                   {valida ? formatCurrency(qty * prezzo) : "—"}
                 </strong>
@@ -474,11 +468,10 @@ export function TariffePicker({
                 }}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Aggiungi servizio
+                {tr("Aggiungi servizio")}
               </Button>
               <p className="text-[11px] text-muted-foreground max-md:hidden">
-                Puoi aggiungere altre voci e modificare gli importi nel
-                preventivo.
+                {tr("Puoi aggiungere altre voci e modificare gli importi nel preventivo.")}
               </p>
             </div>
           </div>
@@ -493,6 +486,7 @@ export function TariffePickerDialog({
   onClose,
   ...props
 }: Props & { open: boolean; onClose: () => void }) {
+  const tr = useT();
   return (
     <Dialog
       open={open}
@@ -502,10 +496,9 @@ export function TariffePickerDialog({
     >
       <DialogContent className="flex h-[80vh] max-h-[90vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-6 py-5 pr-12">
-          <DialogTitle>Manodopera e servizi</DialogTitle>
+          <DialogTitle>{tr("Manodopera e servizi")}</DialogTitle>
           <DialogDescription>
-            Scegli la lavorazione, verifica la quantità e aggiungila al
-            preventivo.
+            {tr("Scegli la lavorazione, verifica la quantità e aggiungila al preventivo.")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 p-4">

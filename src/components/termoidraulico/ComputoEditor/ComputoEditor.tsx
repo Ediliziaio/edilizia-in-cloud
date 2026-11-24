@@ -24,6 +24,7 @@ import { usePuoVedereImpresa } from "@/components/preventivatore/usePuoVedereImp
 import CapitoloSection from "./CapitoloSection";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   value: IdrComputoVoce[];
@@ -43,6 +44,7 @@ const DEFAULT_CAPITOLO = "Generale";
 export default function ComputoEditor({
   value, onChange, progettoId, companyId,
 }: Props) {
+  const t = useT();
   const [showMargine, setShowMargine] = useState(false);
   // Costi e margine (per riga) li vede solo chi ha il permesso, come la vista «Impresa» dell'anteprima.
   const puoVedereImpresa = usePuoVedereImpresa();
@@ -128,8 +130,8 @@ export default function ComputoEditor({
     (oldName: string, newName: string) => {
       const esito = esitoRinomina(oldName, newName, capitoli.map((c) => c.nome));
       if (esito.tipo === "doppione") {
-        toast.error(`Esiste già un capitolo «${esito.nome}»`, {
-          description: "Il capitolo tiene il nome di prima: le voci si sarebbero unite.",
+        toast.error(t("Esiste già un capitolo «{nome}»", { nome: String(esito.nome ?? "") }), {
+          description: t("Il capitolo tiene il nome di prima: le voci si sarebbero unite."),
         });
         return;
       }
@@ -198,8 +200,8 @@ export default function ComputoEditor({
           <div>
             <p className="text-sm font-medium text-slate-900">
               {nVoci > 0
-                ? `${nVoci} ${nVoci === 1 ? "voce" : "voci"} · ${capitoli.length} ${capitoli.length === 1 ? "capitolo" : "capitoli"}`
-                : "Componi capitoli e voci dai listini"}
+                ? `${t(nVoci === 1 ? "{n} voce" : "{n} voci", { n: nVoci })} · ${t(capitoli.length === 1 ? "{n} capitolo" : "{n} capitoli", { n: capitoli.length })}`
+                : t("Componi capitoli e voci dai listini")}
             </p>
           </div>
         </div>
@@ -217,7 +219,7 @@ export default function ComputoEditor({
               )}
             >
               {showMargine ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              Margini
+              {t("Margini")}
             </button>
           )}
           <Button
@@ -226,7 +228,7 @@ export default function ComputoEditor({
             onClick={() => setGlobalPickerOpen(true)}
             className="tap-compact h-8 gap-1.5"
           >
-            <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Cerca voce
+            <Sparkles className="h-3.5 w-3.5 text-orange-500" /> {t("Cerca voce")}
           </Button>
         </div>
       </div>
@@ -258,7 +260,7 @@ export default function ComputoEditor({
             onClick={addCapitolo}
             className="w-full gap-1.5 border-dashed text-muted-foreground hover:border-orange-300 hover:text-orange-700"
           >
-            <Plus className="h-4 w-4" /> Aggiungi capitolo
+            <Plus className="h-4 w-4" /> {t("Aggiungi capitolo")}
           </Button>
         </div>
       )}
@@ -277,23 +279,23 @@ export default function ComputoEditor({
 
 /** Empty-state premium e guidato. */
 function EmptyState({ onAddCapitolo, onSearch }: { onAddCapitolo: () => void; onSearch: () => void }) {
+  const t = useT();
   return (
     // Telefono: due bottoni e basta (via icona grande e spiegazione).
     <div className="rounded-2xl border border-dashed border-border bg-gradient-to-b from-muted/30 to-transparent px-6 py-10 text-center max-sm:px-3 max-sm:py-4">
       <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 max-sm:hidden">
         <Calculator className="h-7 w-7" />
       </div>
-      <h3 className="text-base font-semibold text-slate-900 max-sm:text-sm">Costruisci il computo</h3>
+      <h3 className="text-base font-semibold text-slate-900 max-sm:text-sm">{t("Costruisci il computo")}</h3>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground max-sm:hidden">
-        Organizza il lavoro in capitoli (Demolizioni, Impianti, Finiture…) e pesca le voci
-        dai tuoi listini: lavorazioni, prodotti e manodopera. Tutto si somma in tempo reale.
+        {t("Organizza il lavoro in capitoli (Demolizioni, Impianti, Finiture…) e pesca le voci dai tuoi listini: lavorazioni, prodotti e manodopera. Tutto si somma in tempo reale.")}
       </p>
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2 max-sm:mt-3 max-sm:flex-nowrap">
         <Button onClick={onAddCapitolo} className="gap-1.5 bg-orange-500 hover:bg-orange-600 max-sm:flex-1 max-sm:px-2">
-          <Plus className="h-4 w-4" /> <span className="max-sm:hidden">Aggiungi capitolo</span><span className="sm:hidden">Nuovo capitolo</span>
+          <Plus className="h-4 w-4" /> <span className="max-sm:hidden">{t("Aggiungi capitolo")}</span><span className="sm:hidden">{t("Nuovo capitolo")}</span>
         </Button>
         <Button variant="outline" onClick={onSearch} className="gap-1.5 max-sm:flex-1 max-sm:px-2">
-          <Sparkles className="h-4 w-4 text-orange-500" /> <span className="max-sm:hidden">Cerca nei listini</span><span className="sm:hidden">Dai listini</span>
+          <Sparkles className="h-4 w-4 text-orange-500" /> <span className="max-sm:hidden">{t("Cerca nei listini")}</span><span className="sm:hidden">{t("Dai listini")}</span>
         </Button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "./ai-agent-response.css";
 
 export interface AgentActivity {
@@ -23,6 +24,7 @@ export function AgentThinking({ label, activities = [], hint, onStop }: {
   hint?: string;
   onStop?: () => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(true);
   const activityId = useId();
   const seen = new Set<string>();
@@ -38,26 +40,26 @@ export function AgentThinking({ label, activities = [], hint, onStop }: {
         <span className="silvio-thinking-shimmer">{label}</span>
       </p>
       {steps.length > 0 && <button type="button" aria-expanded={expanded} aria-controls={activityId}
-        aria-label={expanded ? "Nascondi attività avviate" : "Mostra attività avviate"}
+        aria-label={expanded ? t("Nascondi attività avviate") : t("Mostra attività avviate")}
         onClick={() => setExpanded(value => !value)}
         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
         <ChevronDown aria-hidden="true" className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", expanded && "rotate-180")} />
       </button>}
     </div>
     {steps.length > 0 && <div id={activityId} hidden={!expanded} className="ml-1.5 mt-2.5">
-      <p className="mb-2 pl-5 text-[11px] font-medium text-slate-400">Attività avviate · {steps.length}</p>
+      <p className="mb-2 pl-5 text-[11px] font-medium text-slate-400">{t("Attività avviate · {n}", { n: steps.length })}</p>
       <ol className="max-h-40 space-y-2.5 overflow-y-auto border-l border-slate-200 py-0.5 pl-5 pr-1 text-xs leading-5 text-slate-600">
         {steps.map(step => <li key={step.id} className="silvio-thinking-step relative break-words">
           <span aria-hidden="true" className="absolute -left-[23px] top-[7px] h-1.5 w-1.5 rounded-full bg-slate-300 ring-4 ring-white" />
           {/* A legacy fallback can contain an internal tool name; never expose it. */}
-          {/^Eseguo\s*:/i.test(step.label.trim()) ? "Consulto i dati disponibili" : step.label}
+          {/^Eseguo\s*:/i.test(step.label.trim()) ? t("Consulto i dati disponibili") : step.label}
         </li>)}
       </ol>
     </div>}
     {hint && <p className="mt-2 text-xs leading-relaxed text-slate-500">{hint}</p>}
     {onStop && <button type="button" onClick={onStop}
       className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
-      <Square aria-hidden="true" className="h-3 w-3" /> Interrompi attesa
+      <Square aria-hidden="true" className="h-3 w-3" /> {t("Interrompi attesa")}
     </button>}
   </div>;
 }

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isToday, isYesterday } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +17,7 @@ import { useConversazioneDettagli } from "@/hooks/useConversazioni";
 import {
   chiaveDettaglio, percorsoMessaggio, rigaPercorsoWhatsApp,
 } from "@/lib/conversazioni/presentazione";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ──
 interface TimelineEvent {
@@ -79,11 +79,11 @@ function getActivityIcon(type: string) {
   }
 }
 
-function getDateLabel(dateStr: string) {
+function getDateLabel(dateStr: string, t: (testo: string) => string) {
   const d = new Date(dateStr);
-  if (isToday(d)) return "Oggi";
-  if (isYesterday(d)) return "Ieri";
-  return format(d, "d MMMM yyyy", { locale: it });
+  if (isToday(d)) return t("Oggi");
+  if (isYesterday(d)) return t("Ieri");
+  return format(d, "d MMMM yyyy", { locale: dateFnsCampo() });
 }
 
 function digits(phone: string | null | undefined): string {
@@ -123,6 +123,7 @@ export function UnifiedContactTimeline({
   contactPhone?: string | null;
   contactEmail?: string | null;
 }) {
+  const t = useT();
   const [filter, setFilter] = useState<FilterCategory>("all");
 
   const queryOpts = { enabled: !!contactId, refetchInterval: 30000, refetchIntervalInBackground: false };
@@ -410,14 +411,14 @@ export function UnifiedContactTimeline({
 
   const isLoading = loadingAct || loadingMsg;
   const errors = [
-    errAct && "attività",
-    errMsg && "messaggi",
+    errAct && t("attività"),
+    errMsg && t("messaggi"),
     errWa && "WhatsApp",
-    (errEmailIn || errEmailOut) && "email ricevute/inviate",
-    errEmail && "email",
-    errCall && "chiamate",
-    errApt && "appuntamenti",
-    errNote && "note",
+    (errEmailIn || errEmailOut) && t("email ricevute/inviate"),
+    errEmail && t("email"),
+    errCall && t("chiamate"),
+    errApt && t("appuntamenti"),
+    errNote && t("note"),
   ].filter(Boolean) as string[];
 
   // Normalize all events (cronologico ASCENDENTE: vecchi sopra, nuovi sotto).
@@ -472,14 +473,14 @@ export function UnifiedContactTimeline({
         type: "message_whatsapp",
         category: "message",
         direction: inviato ? "outbound" : "inbound",
-        channelLabel: inviato && wa.message_type === "template" ? "WhatsApp · modello" : "WhatsApp",
+        channelLabel: inviato && wa.message_type === "template" ? `WhatsApp · ${t("modello")}` : "WhatsApp",
         status: inviato ? wa.delivery_status ?? undefined : undefined,
         icon: <MessageSquare className="h-3 w-3" />,
         color: "",
         title: "WhatsApp",
         metadata: { ref: chiaveDettaglio("whatsapp_messages", wa.id) },
         description: nonConsegnato
-          ? `${testo}\n✗ Non consegnato${wa.delivery_error ? `: ${wa.delivery_error}` : ""}`
+          ? `${testo}\n✗ ${t("Non consegnato")}${wa.delivery_error ? `: ${wa.delivery_error}` : ""}`
           : testo,
         timestamp: wa.created_at,
       });
@@ -538,14 +539,14 @@ export function UnifiedContactTimeline({
     }
 
     for (const log of emailLogs) {
-      const campaignName = (log.email_campaigns as any)?.name || "Campagna";
+      const campaignName = (log.email_campaigns as any)?.name || t("Campagna");
       events.push({
         id: `email-${log.id}`,
         type: "email_campaign",
         category: "email_campaign",
         icon: <Mail className="h-3 w-3" />,
         color: "bg-violet-100 text-violet-600",
-        title: `Campagna: ${campaignName}`,
+        title: t("Campagna: {nome}", { nome: campaignName }),
         timestamp: log.event_timestamp,
         metadata: { status: log.status },
       });
@@ -558,14 +559,12 @@ export function UnifiedContactTimeline({
         category: "call",
         icon: <Phone className="h-3 w-3" />,
         color: "bg-sky-100 text-sky-600",
-        title: `Chiamata ${
-          call.outcome === "answered" ? "risposta"
-            : call.outcome === "no_answer" ? "senza risposta"
-            : call.outcome === "busy" ? "occupato"
-            : call.outcome === "wrong_number" ? "numero errato"
-            : call.outcome === "callback" ? "da richiamare"
-            : call.outcome
-        }`,
+        title: call.outcome === "answered" ? t("Chiamata risposta")
+          : call.outcome === "no_answer" ? t("Chiamata senza risposta")
+          : call.outcome === "busy" ? t("Chiamata occupato")
+          : call.outcome === "wrong_number" ? t("Chiamata numero errato")
+          : call.outcome === "callback" ? t("Chiamata da richiamare")
+          : t("Chiamata {esito}", { esito: call.outcome }),
         description: call.notes || undefined,
         timestamp: call.started_at,
       });
@@ -580,7 +579,7 @@ export function UnifiedContactTimeline({
         icon: <CalendarDays className="h-3 w-3" />,
         color: getAppointmentStatusColor(apt.status),
         title: apt.title,
-        description: `${format(new Date(apt.appointment_date), "d MMM yyyy", { locale: it })}${apt.appointment_time ? " · " + apt.appointment_time.substring(0, 5) : ""} · ${statusMeta.label}`,
+        description: `${format(new Date(apt.appointment_date), "d MMM yyyy", { locale: dateFnsCampo() })}${apt.appointment_time ? " · " + apt.appointment_time.substring(0, 5) : ""} · ${t(statusMeta.label)}`,
         timestamp: apt.created_at,
       });
     }
@@ -594,29 +593,29 @@ export function UnifiedContactTimeline({
         color: "bg-amber-100 text-amber-600",
         // Chi l'ha scritta sta nel titolo: nella riga compatta della cronologia
         // la descrizione si tronca, il nome no.
-        title: `Nota di ${autoreNota((note as { profiles?: { first_name?: string | null; last_name?: string | null } | null }).profiles)} · ${dataOraNota(note.created_at)}`,
+        title: t("Nota di {autore} · {data}", { autore: autoreNota((note as { profiles?: { first_name?: string | null; last_name?: string | null } | null }).profiles), data: dataOraNota(note.created_at) }),
         description: note.content || undefined,
         timestamp: note.created_at,
       });
     }
 
     const statoSeq: Record<string, string> = {
-      active: "in corso", completed: "completata", stopped: "fermata", paused: "in pausa",
-      replied: "ha risposto", failed: "non riuscita", cancelled: "annullata", exited: "uscito",
+      active: t("in corso"), completed: t("completata"), stopped: t("fermata"), paused: t("in pausa"),
+      replied: t("ha risposto"), failed: t("non riuscita"), cancelled: t("annullata"), exited: t("uscito"),
     };
     for (const sq of sequenze) {
       events.push({
         id: `seq-${sq.id}`, type: "sequence", category: "sequence",
         icon: <Workflow className="h-3 w-3" />, color: "bg-fuchsia-100 text-fuchsia-600",
-        title: `Sequenza «${sq.nome}» avviata`, timestamp: sq.enrolled_at,
+        title: t("Sequenza «{nome}» avviata", { nome: sq.nome }), timestamp: sq.enrolled_at,
       });
       const fine = sq.status && sq.status !== "active";
       if (fine && sq.updated_at) {
         events.push({
           id: `seq-fine-${sq.id}`, type: "sequence", category: "sequence",
           icon: <Workflow className="h-3 w-3" />, color: "bg-fuchsia-100 text-fuchsia-600",
-          title: `Sequenza «${sq.nome}» ${statoSeq[sq.status!] ?? sq.status}`,
-          description: [sq.current_step != null ? `al passo ${sq.current_step}` : null, sq.stop_reason].filter(Boolean).join(" · ") || undefined,
+          title: t("Sequenza «{nome}» {stato}", { nome: sq.nome, stato: statoSeq[sq.status!] ?? sq.status }),
+          description: [sq.current_step != null ? t("al passo {n}", { n: sq.current_step }) : null, sq.stop_reason].filter(Boolean).join(" · ") || undefined,
           timestamp: sq.updated_at,
         });
       }
@@ -625,13 +624,13 @@ export function UnifiedContactTimeline({
       events.push({
         id: `aut-${au.id}`, type: "sequence", category: "sequence",
         icon: <Workflow className="h-3 w-3" />, color: "bg-indigo-100 text-indigo-600",
-        title: `Automazione «${au.nome}» avviata`, timestamp: au.created_at,
+        title: t("Automazione «{nome}» avviata", { nome: au.nome }), timestamp: au.created_at,
       });
       if (au.status && au.status !== "active" && au.updated_at) {
         events.push({
           id: `aut-fine-${au.id}`, type: "sequence", category: "sequence",
           icon: <Workflow className="h-3 w-3" />, color: "bg-indigo-100 text-indigo-600",
-          title: `Automazione «${au.nome}» ${statoSeq[au.status] ?? au.status}`, timestamp: au.updated_at,
+          title: t("Automazione «{nome}» {stato}", { nome: au.nome, stato: statoSeq[au.status] ?? au.status }), timestamp: au.updated_at,
         });
       }
     }
@@ -639,15 +638,15 @@ export function UnifiedContactTimeline({
       events.push({
         id: `ctk-${ct.id}`, type: "task", category: "task",
         icon: <Phone className="h-3 w-3" />, color: "bg-sky-100 text-sky-600",
-        title: "Chiamata da fare (dalla sequenza)",
-        description: [ct.note, ct.due_at ? `entro il ${format(new Date(ct.due_at), "d MMM HH:mm", { locale: it })}` : null].filter(Boolean).join(" · ") || undefined,
+        title: t("Chiamata da fare (dalla sequenza)"),
+        description: [ct.note, ct.due_at ? t("entro il {data}", { data: format(new Date(ct.due_at), "d MMM HH:mm", { locale: dateFnsCampo() }) }) : null].filter(Boolean).join(" · ") || undefined,
         timestamp: ct.created_at,
       });
       if (ct.done_at) {
         events.push({
           id: `ctk-ok-${ct.id}`, type: "task", category: "task",
           icon: <Check className="h-3 w-3" />, color: "bg-emerald-100 text-emerald-600",
-          title: "Chiamata della sequenza completata", timestamp: ct.done_at,
+          title: t("Chiamata della sequenza completata"), timestamp: ct.done_at,
         });
       }
     }
@@ -655,7 +654,7 @@ export function UnifiedContactTimeline({
       events.push({
         id: `tsk-${tk.id}`, type: "task", category: "task",
         icon: <ListChecks className="h-3 w-3" />, color: "bg-teal-100 text-teal-600",
-        title: `Task: ${tk.title ?? "senza titolo"}${tk.status ? ` · ${tk.status}` : ""}`,
+        title: `${t("Task: {titolo}", { titolo: tk.title ?? t("senza titolo") })}${tk.status ? ` · ${tk.status}` : ""}`,
         description: tk.notes || undefined,
         timestamp: tk.created_at,
       });
@@ -664,7 +663,7 @@ export function UnifiedContactTimeline({
     // ASCENDENTE: i più vecchi sopra, i più recenti in fondo (stile chat).
     events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return events;
-  }, [activities, messages, waMessaggi, emailInbox, emailOutbox, emailLogs, callLogs, appointments, notes, waLocale, sequenze, automazioni, chiamateDaFare, tasks]);
+  }, [activities, messages, waMessaggi, emailInbox, emailOutbox, emailLogs, callLogs, appointments, notes, waLocale, sequenze, automazioni, chiamateDaFare, tasks, t]);
 
   const filtroAttivo = FILTER_OPTIONS.find((o) => o.key === filter) ?? FILTER_OPTIONS[0];
   const filtered = filter === "all" ? allEvents : allEvents.filter(filtroAttivo.match);
@@ -672,13 +671,13 @@ export function UnifiedContactTimeline({
   const grouped = useMemo(() => {
     const groups: { label: string; items: TimelineEvent[] }[] = [];
     for (const event of filtered) {
-      const label = getDateLabel(event.timestamp);
+      const label = getDateLabel(event.timestamp, t);
       const lastGroup = groups[groups.length - 1];
       if (lastGroup && lastGroup.label === label) lastGroup.items.push(event);
       else groups.push({ label, items: [event] });
     }
     return groups;
-  }, [filtered]);
+  }, [filtered, t]);
 
   // Si parte dall'ultimo messaggio, come in chat; quando ne arriva uno nuovo si
   // segue solo se si era già in fondo. Scroll sul contenitore e non
@@ -706,7 +705,7 @@ export function UnifiedContactTimeline({
             onClick={() => setFilter(opt.key)}
           >
             {opt.icon}
-            {opt.label}
+            {t(opt.label)}
             {opt.key !== "all" && (
               <span className="text-[9px] opacity-70 max-sm:text-[11px]">
                 ({allEvents.filter(opt.match).length})
@@ -719,7 +718,7 @@ export function UnifiedContactTimeline({
       {errors.length > 0 && (
         <div className="flex items-center gap-2 px-4 py-1.5 bg-destructive/10 text-destructive text-[11px] border-b shrink-0">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          <span>Errore nel caricamento di: {errors.join(", ")}</span>
+          <span>{t("Errore nel caricamento di: {elenco}", { elenco: errors.join(", ") })}</span>
         </div>
       )}
 
@@ -745,10 +744,10 @@ export function UnifiedContactTimeline({
         ) : grouped.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground max-sm:py-8">
             <MessageSquare className="h-8 w-8 opacity-40" />
-            <p className="text-xs font-medium">Nessun messaggio</p>
+            <p className="text-xs font-medium">{t("Nessun messaggio")}</p>
             {/* Mobile no: la spiegazione sotto il vuoto. */}
             <p className="text-[11px] text-center max-w-[240px] max-sm:hidden">
-              Scrivi un messaggio qui sotto. Le risposte del cliente compariranno a sinistra.
+              {t("Scrivi un messaggio qui sotto. Le risposte del cliente compariranno a sinistra.")}
             </p>
           </div>
         ) : (
@@ -782,18 +781,18 @@ export function UnifiedContactTimeline({
                           )}>
                             <div className="flex items-center gap-1.5 border-b bg-blue-50/70 px-3 py-1.5 text-[11px]">
                               <Mail className="h-3.5 w-3.5 text-blue-600" />
-                              <span className="font-semibold text-blue-700">{out ? "Email inviata" : "Email ricevuta"}</span>
+                              <span className="font-semibold text-blue-700">{out ? t("Email inviata") : t("Email ricevuta")}</span>
                               <span className="ml-auto text-muted-foreground">{format(new Date(event.timestamp), "HH:mm")}</span>
                               {out && <StatusTick status={event.status} />}
                             </div>
                             <div className="space-y-0.5 px-3 pt-2 text-[11px] text-muted-foreground">
-                              {da && <p><span className="font-medium text-foreground/70">Da:</span> {da}</p>}
+                              {da && <p><span className="font-medium text-foreground/70">{t("Da:")}</span> {da}</p>}
                               {a && <p><span className="font-medium text-foreground/70">A:</span> {a}</p>}
-                              {perc?.via && <p><span className="font-medium text-foreground/70">Tramite:</span> {perc.via}</p>}
+                              {perc?.via && <p><span className="font-medium text-foreground/70">{t("Tramite:")}</span> {perc.via}</p>}
                             </div>
                             <div className="px-3 pb-2.5 pt-1.5">
                               {oggetto && <p className="text-[13px] font-semibold leading-snug">{oggetto}</p>}
-                              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-snug">{testo || "(vuota)"}</p>
+                              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-snug">{testo || t("(vuota)")}</p>
                             </div>
                           </div>
                         </div>
@@ -813,7 +812,7 @@ export function UnifiedContactTimeline({
                           {riga && (
                             <p className={cn("mb-0.5 text-[10px]", out ? "text-emerald-100" : "text-muted-foreground")}>{riga}</p>
                           )}
-                          <p>{event.description || "(vuoto)"}</p>
+                          <p>{event.description || t("(vuoto)")}</p>
                           <div
                             className={cn(
                               "mt-0.5 flex items-center justify-end gap-1 text-[10px] max-sm:text-[11px]",
@@ -844,7 +843,7 @@ export function UnifiedContactTimeline({
                             <span className="truncate">{event.title}</span>
                           </div>
                           <p className={cn("mt-1 text-[12px] leading-snug whitespace-pre-wrap break-words", lunga && !aperta && "line-clamp-6")}>
-                            {testo || "(vuota)"}
+                            {testo || t("(vuota)")}
                           </p>
                           {lunga && (
                             <button
@@ -856,7 +855,7 @@ export function UnifiedContactTimeline({
                                 return next;
                               })}
                             >
-                              {aperta ? "Mostra meno" : "Mostra tutto"}
+                              {aperta ? t("Mostra meno") : t("Mostra tutto")}
                             </button>
                           )}
                         </div>

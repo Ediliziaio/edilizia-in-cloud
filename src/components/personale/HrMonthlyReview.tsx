@@ -9,18 +9,21 @@ import { Button } from "@/components/ui/button";
 import { oggiRoma } from "@/hooks/useOperai";
 import { giornataDaVerificare } from "@/lib/personale/presenze";
 import { HrMonthClosure } from "@/components/personale/HrMonthClosure";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function HrMonthlyReview({ mese }: { mese: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return <section className="rounded-xl border bg-white p-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Controllo mensile</h3>
-      <p className="text-sm text-muted-foreground">Richieste, anomalie e copertura delle giornate prima di preparare i dati per il consulente.</p></div>
-      <Button variant="outline" size="sm" aria-expanded={open} onClick={()=>setOpen(!open)}>{open ? "Nascondi controllo" : "Verifica il mese"}</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">{t("Controllo mensile")}</h3>
+      <p className="text-sm text-muted-foreground">{t("Richieste, anomalie e copertura delle giornate prima di preparare i dati per il consulente.")}</p></div>
+      <Button variant="outline" size="sm" aria-expanded={open} onClick={()=>setOpen(!open)}>{open ? t("Nascondi controllo") : t("Verifica il mese")}</Button></div>
     {open && <Review key={mese} mese={mese} />}
   </section>;
 }
 
 function Review({ mese }: { mese: string }) {
+  const t = useT();
   const today=oggiRoma();
   const end=`${mese}-${String(new Date(Number(mese.slice(0,4)),Number(mese.slice(5,7)),0).getDate()).padStart(2,"0")}`;
   const days=useGiornate(`${mese}-01`,end), requests=useRichieste({meseAnno:mese}), people=useAllHrProfili(), calendar=useHrFestivita();
@@ -51,16 +54,16 @@ function Review({ mese }: { mese: string }) {
       incompleteEmployment:profiles.filter(p=>p.attivo && !p.data_assunzione).length,
     };
   },[days.data,requests.data,people.data,calendar.data,end,mese,today]);
-  if(loading) return <p role="status" className="mt-4 text-sm">Verifica dei registri in corso…</p>;
-  if(failed) return <div className="mt-4"><HrQueryError label="Controllo mensile incompleto" onRetry={()=>Promise.all([days.refetch(),requests.refetch(),people.refetch(),calendar.refetch()])} /></div>;
+  if(loading) return <p role="status" className="mt-4 text-sm">{t("Verifica dei registri in corso…")}</p>;
+  if(failed) return <div className="mt-4"><HrQueryError label={t("Controllo mensile incompleto")} onRetry={()=>Promise.all([days.refetch(),requests.refetch(),people.refetch(),calendar.refetch()])} /></div>;
   return <div className="mt-4 space-y-3">
     <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-      {[["Giornate registrate",summary.rows],["Anomalie da verificare",summary.anomalies],["Richieste in attesa",summary.pending],["Giornate senza registrazione",summary.missing]].map(([label,value])=><div key={label} className="rounded-lg bg-slate-50 p-3"><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold">{value}</dd></div>)}
+      {[[t("Giornate registrate"),summary.rows],[t("Anomalie da verificare"),summary.anomalies],[t("Richieste in attesa"),summary.pending],[t("Giornate senza registrazione"),summary.missing]].map(([label,value])=><div key={label} className="rounded-lg bg-slate-50 p-3"><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold">{value}</dd></div>)}
     </dl>
-    <p className="text-xs text-muted-foreground">Copertura fino al {end < today ? end : today}, sui calendari configurati e sulle date contrattuali disponibili. Una giornata senza registrazione non è un’assenza. {summary.unknown > 0 && `${summary.unknown} calendari personali non configurati: copertura non calcolabile per queste persone.`}</p>
-    {summary.incompleteEmployment>0 && <p className="text-sm text-amber-800">{summary.incompleteEmployment} profili attivi senza data di assunzione: completali prima di chiudere il mese.</p>}
-    {summary.byPerson.length>0 && <details><summary className="cursor-pointer text-sm font-medium">Dettaglio copertura per persona ({summary.byPerson.length})</summary><ul className="mt-2 max-h-64 space-y-1 overflow-auto text-sm">{summary.byPerson.map(p=><li key={p.id}>{p.name}: {p.missing==null ? "calendario da configurare" : `${p.missing} giornate da verificare`}</li>)}</ul></details>}
-    <p className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">La verifica non chiude il mese automaticamente e non invia dati al consulente. La chiusura richiede una conferma separata. Le ore di cantiere restano nel loro registro, distinte dalle ore HR.</p>
+    <p className="text-xs text-muted-foreground">{t("Copertura fino al {data}, sui calendari configurati e sulle date contrattuali disponibili. Una giornata senza registrazione non è un’assenza.", { data: end < today ? end : today })} {summary.unknown > 0 && t("{unknown} calendari personali non configurati: copertura non calcolabile per queste persone.", { unknown: String(summary.unknown ?? "") })}</p>
+    {summary.incompleteEmployment>0 && <p className="text-sm text-amber-800">{t("{incompleteEmployment} profili attivi senza data di assunzione: completali prima di chiudere il mese.", { incompleteEmployment: String(summary.incompleteEmployment ?? "") })}</p>}
+    {summary.byPerson.length>0 && <details><summary className="cursor-pointer text-sm font-medium">{t("Dettaglio copertura per persona ({n})", { n: summary.byPerson.length })}</summary><ul className="mt-2 max-h-64 space-y-1 overflow-auto text-sm">{summary.byPerson.map(p=><li key={p.id}>{p.name}: {p.missing==null ? t("calendario da configurare") : t("{missing} giornate da verificare", { missing: String(p.missing ?? "") })}</li>)}</ul></details>}
+    <p className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">{t("La verifica non chiude il mese automaticamente e non invia dati al consulente. La chiusura richiede una conferma separata. Le ore di cantiere restano nel loro registro, distinte dalle ore HR.")}</p>
     <HrMonthClosure month={mese} ready={end<today && summary.rows>0 && summary.anomalies===0 && summary.pending===0 && summary.missing===0 && summary.unknown===0 && summary.incompleteEmployment===0}/>
   </div>;
 }

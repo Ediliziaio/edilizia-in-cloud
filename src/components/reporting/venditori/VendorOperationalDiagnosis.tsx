@@ -20,6 +20,7 @@ import {
   type VendorIntegrationHealth,
 } from "@/lib/reporting/vendorOperations";
 import type { VendorKPI } from "@/hooks/useVendorReport";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const SEVERITY_STYLES: Record<VendorDiagnosisSeverity, { badge: string; icon: string; border: string }> = {
   good: {
@@ -53,6 +54,7 @@ export function VendorOperationalDiagnosis({
   integration: VendorIntegrationHealth | null;
   isLoading: boolean;
 }) {
+  const t = useT();
   if (isLoading) {
     return (
       <Card>
@@ -61,31 +63,31 @@ export function VendorOperationalDiagnosis({
             <div>
               <CardTitle className="flex items-center gap-2 text-lg max-sm:text-sm">
                 <ListChecks className="h-5 w-5 text-sky-600 max-sm:hidden" />
-                Diagnosi operativa venditori
+                {t("Diagnosi operativa venditori")}
               </CardTitle>
               <CardDescription className="max-sm:hidden">
-                Controllo di conversione, pipeline e integrazione CRM prima dei grafici.
+                {t("Controllo di conversione, pipeline e integrazione CRM prima dei grafici.")}
               </CardDescription>
             </div>
             <Badge variant="outline" className="w-fit border-border bg-card text-muted-foreground">
-              Caricamento
+              {t("Caricamento")}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
-            <LoadingTile label="Opportunità senza prossimo step" />
-            <LoadingTile label="Copertura pipeline" />
-            <LoadingTile label="Appuntamenti senza esito" />
-            <LoadingTile label="Controllo integrazione CRM" />
+            <LoadingTile label={t("Opportunità senza prossimo step")} />
+            <LoadingTile label={t("Copertura pipeline")} />
+            <LoadingTile label={t("Appuntamenti senza esito")} />
+            <LoadingTile label={t("Controllo integrazione CRM")} />
           </div>
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-lg border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Azioni consigliate</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">{t("Azioni consigliate")}</h3>
               <Skeleton className="h-20 rounded-md" />
             </div>
             <div className="rounded-lg border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Controllo integrazione CRM</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">{t("Controllo integrazione CRM")}</h3>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-11/12" />
@@ -101,14 +103,14 @@ export function VendorOperationalDiagnosis({
   const diagnosis = buildVendorOperationalDiagnosis(kpi, integration);
   const healthStyle = SEVERITY_STYLES[diagnosis.healthSeverity];
   const integrationIssues = integration ? [
-    { label: "Contatti senza venditore", value: integration.unassignedContacts },
-    { label: "Opportunità senza venditore", value: integration.unassignedOpportunities },
-    { label: "Appuntamenti senza venditore", value: integration.unassignedAppointments },
-    { label: "Appuntamenti senza contatto", value: integration.appointmentsWithoutContact },
+    { label: t("Contatti senza venditore"), value: integration.unassignedContacts },
+    { label: t("Opportunità senza venditore"), value: integration.unassignedOpportunities },
+    { label: t("Appuntamenti senza venditore"), value: integration.unassignedAppointments },
+    { label: t("Appuntamenti senza contatto"), value: integration.appointmentsWithoutContact },
   ] : [];
   const integrationDetail = diagnosis.integrationIssues > 0
-    ? "Record da assegnare o collegare"
-    : "Assegnazioni e collegamenti principali OK";
+    ? t("Record da assegnare o collegare")
+    : t("Assegnazioni e collegamenti principali OK");
 
   return (
     // Telefono: titolo e stato su una riga, i quattro numeri 2×2, le azioni senza spiegazione;
@@ -119,10 +121,10 @@ export function VendorOperationalDiagnosis({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg max-sm:text-sm">
               <ListChecks className={cn("h-5 w-5 max-sm:hidden", healthStyle.icon)} />
-              Diagnosi operativa venditori
+              {t("Diagnosi operativa venditori")}
             </CardTitle>
             <CardDescription className="max-sm:hidden">
-              Controllo di conversione, pipeline e integrazione CRM prima dei grafici.
+              {t("Controllo di conversione, pipeline e integrazione CRM prima dei grafici.")}
             </CardDescription>
           </div>
           <Badge variant="outline" className={cn("w-fit", healthStyle.badge)}>
@@ -135,28 +137,28 @@ export function VendorOperationalDiagnosis({
         <div className="grid gap-3 md:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
           <DiagnosisTile
             icon={Route}
-            label="Opportunità senza prossimo step"
+            label={t("Opportunità senza prossimo step")}
             value={String(integration?.staleOpenOpportunities ?? 0)}
-            detail={`${diagnosis.openOpportunities} opportunità aperte totali`}
+            detail={t("{n} opportunità aperte totali", { n: diagnosis.openOpportunities })}
             severity={(integration?.staleOpenOpportunities ?? 0) > 0 ? "warning" : "good"}
           />
           <DiagnosisTile
             icon={BriefcaseBusiness}
-            label="Copertura pipeline"
+            label={t("Copertura pipeline")}
             value={diagnosis.pipelineCoverage > 0 ? `${formatNumber(diagnosis.pipelineCoverage)}x` : "N/D"}
-            detail="Obiettivo consigliato: almeno 3x"
+            detail={t("Obiettivo consigliato: almeno 3x")}
             severity={diagnosis.pipelineCoverage === 0 ? "info" : diagnosis.pipelineCoverage >= 3 ? "good" : "warning"}
           />
           <DiagnosisTile
             icon={CalendarX}
-            label="Appuntamenti senza esito"
+            label={t("Appuntamenti senza esito")}
             value={String(diagnosis.unresolvedAppointments)}
-            detail="Passati ma non completati"
+            detail={t("Passati ma non completati")}
             severity={diagnosis.unresolvedAppointments > 0 ? "warning" : "good"}
           />
           <DiagnosisTile
             icon={Link2}
-            label="Controllo integrazione CRM"
+            label={t("Controllo integrazione CRM")}
             value={diagnosis.integrationIssues > 0 ? String(diagnosis.integrationIssues) : "OK"}
             detail={integrationDetail}
             severity={diagnosis.integrationIssues > 0 ? "warning" : "good"}
@@ -167,7 +169,7 @@ export function VendorOperationalDiagnosis({
           <div className="rounded-lg border bg-card p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
             <div className="mb-3 flex items-center gap-2 max-sm:mb-1.5">
               <AlertTriangle className="h-4 w-4 text-amber-600 max-sm:hidden" />
-              <h3 className="text-sm font-semibold text-foreground max-sm:text-[13px]">Azioni consigliate</h3>
+              <h3 className="text-sm font-semibold text-foreground max-sm:text-[13px]">{t("Azioni consigliate")}</h3>
             </div>
             <div className="space-y-2 max-sm:space-y-1.5">
               {diagnosis.actions.map((action) => {
@@ -179,7 +181,7 @@ export function VendorOperationalDiagnosis({
                       <div className="flex flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:justify-between">
                         <p className="text-sm font-medium text-foreground max-sm:text-[13px] max-sm:leading-tight">{action.title}</p>
                         <Badge variant="outline" className={cn("text-[11px] max-sm:shrink-0 max-sm:px-1.5", style.badge)}>
-                          {severityLabel(action.severity)}
+                          {t(severityLabel(action.severity))}
                         </Badge>
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{action.detail}</p>
@@ -193,7 +195,7 @@ export function VendorOperationalDiagnosis({
           <div className="rounded-lg border bg-card p-4 max-sm:hidden">
             <div className="mb-3 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              <h3 className="text-sm font-semibold text-foreground">Controllo integrazione CRM</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t("Controllo integrazione CRM")}</h3>
             </div>
             <div className="space-y-2">
               {integrationIssues.map((item) => (
@@ -212,7 +214,7 @@ export function VendorOperationalDiagnosis({
               ))}
             </div>
             <div className="mt-4 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-              Un venditore è misurabile bene solo se contatto, appuntamento e opportunità restano collegati fino alla chiusura vinta o persa.
+              {t("Un venditore è misurabile bene solo se contatto, appuntamento e opportunità restano collegati fino alla chiusura vinta o persa.")}
             </div>
           </div>
         </div>
@@ -265,7 +267,7 @@ function severityLabel(severity: VendorDiagnosisSeverity) {
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     maximumFractionDigits: Number.isInteger(value) ? 0 : 1,
   }).format(value);
 }

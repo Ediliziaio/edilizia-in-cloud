@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { RfqSupplier } from "@/hooks/useSupplierRfqs";
 import { TRASPORTO_LABELS } from "@/lib/acquisti/confronto";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 export function RdoCondizioniOfferta({
   fornitore: f,
   chiusa,
@@ -20,6 +21,7 @@ export function RdoCondizioniOfferta({
   ) => Promise<unknown>;
   onEditingChange: (editing: boolean) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [tipo, setTipo] = useState(f.trasporto_tipo ?? "da_confermare");
   const [costo, setCosto] = useState(
@@ -27,7 +29,7 @@ export function RdoCondizioniOfferta({
   );
   const [note, setNote] = useState(f.disponibilita_note ?? "");
   const [busy, setBusy] = useState(false);
-  const nome = f.suppliers?.name ?? "Fornitore";
+  const nome = f.suppliers?.name ?? t("Fornitore");
   const close = () => {
     setEditing(false);
     onEditingChange(false);
@@ -38,7 +40,7 @@ export function RdoCondizioniOfferta({
       tipo === "extra" &&
       (value == null || !Number.isFinite(value) || value < 0)
     ) {
-      toast.error("Indica un costo di trasporto maggiore o uguale a zero.");
+      toast.error(t("Indica un costo di trasporto maggiore o uguale a zero."));
       return;
     }
     setBusy(true);
@@ -50,7 +52,7 @@ export function RdoCondizioniOfferta({
       });
       close();
     } catch {
-      toast.error("Condizioni non salvate. Le modifiche restano aperte.");
+      toast.error(t("Condizioni non salvate. Le modifiche restano aperte."));
     } finally {
       setBusy(false);
     }
@@ -60,12 +62,12 @@ export function RdoCondizioniOfferta({
       {!editing ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold">Trasporto e disponibilità</p>
+            <p className="text-xs font-semibold">{t("Trasporto e disponibilità")}</p>
             {!chiusa && (
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Modifica trasporto e disponibilità ${nome}`}
+                aria-label={t("Modifica trasporto e disponibilità {nome}", { nome: String(nome ?? "") })}
                 onClick={() => {
                   setTipo(f.trasporto_tipo ?? "da_confermare");
                   setCosto(
@@ -76,24 +78,24 @@ export function RdoCondizioniOfferta({
                   onEditingChange(true);
                 }}
               >
-                Modifica
+                {t("Modifica")}
               </Button>
             )}
           </div>
           <p className="text-xs text-slate-600">
-            {TRASPORTO_LABELS[f.trasporto_tipo ?? "da_confermare"]}
+            {t(TRASPORTO_LABELS[f.trasporto_tipo ?? "da_confermare"])}
             {f.trasporto_tipo === "extra" && f.costo_trasporto != null
-              ? ` · ${Number(f.costo_trasporto).toLocaleString("it-IT", { style: "currency", currency: "EUR" })} + IVA`
+              ? ` · ${t("{valore} + IVA", { valore: Number(f.costo_trasporto).toLocaleString(intlCampo(), { style: "currency", currency: "EUR" }) })}`
               : ""}
           </p>
           <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">
-            {f.disponibilita_note || "Disponibilità e vincoli non specificati."}
+            {f.disponibilita_note || t("Disponibilità e vincoli non specificati.")}
           </p>
         </>
       ) : (
         <div className="space-y-3">
           <div>
-            <Label htmlFor={`trasporto-${f.id}`}>Trasporto</Label>
+            <Label htmlFor={`trasporto-${f.id}`}>{t("Trasporto")}</Label>
             <UniformSelect
               id={`trasporto-${f.id}`}
               value={tipo}
@@ -103,7 +105,7 @@ export function RdoCondizioniOfferta({
             >
               {Object.entries(TRASPORTO_LABELS).map(([v, label]) => (
                 <option key={v} value={v}>
-                  {label}
+                  {t(label)}
                 </option>
               ))}
             </UniformSelect>
@@ -111,7 +113,7 @@ export function RdoCondizioniOfferta({
           {tipo === "extra" && (
             <div>
               <Label htmlFor={`costo-${f.id}`}>
-                Costo trasporto, IVA esclusa (€)
+                {t("Costo trasporto, IVA esclusa (€)")}
               </Label>
               <Input
                 id={`costo-${f.id}`}
@@ -126,26 +128,25 @@ export function RdoCondizioniOfferta({
           )}
           <div>
             <Label htmlFor={`disponibilita-${f.id}`}>
-              Disponibilità e vincoli
+              {t("Disponibilità e vincoli")}
             </Label>
             <Textarea
               id={`disponibilita-${f.id}`}
               value={note}
               disabled={busy}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Es. disponibile a magazzino, consegna in due lotti…"
+              placeholder={t("Es. disponibile a magazzino, consegna in due lotti…")}
             />
           </div>
           <p className="text-[11px] text-slate-500">
-            Il totale del documento deve già comprendere il trasporto. Senza
-            totale documento, l’extra si somma alle righe.
+            {t("Il totale del documento deve già comprendere il trasporto. Senza totale documento, l’extra si somma alle righe.")}
           </p>
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" disabled={busy} onClick={close}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button size="sm" disabled={busy} onClick={() => void salva()}>
-              {busy ? "Salvataggio…" : "Salva condizioni"}
+              {busy ? t("Salvataggio…") : t("Salva condizioni")}
             </Button>
           </div>
         </div>

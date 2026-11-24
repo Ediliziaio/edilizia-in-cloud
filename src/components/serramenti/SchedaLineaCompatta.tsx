@@ -7,8 +7,10 @@ import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { datiTecniciScheda, type SchedaLinea } from "@/lib/listino/schedeLinea";
 import { immaginePrincipale, leggiImmaginiCatalogo } from "@/lib/listino/immaginiCatalogo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SchedaLineaCompatta({ scheda, className }: { scheda: SchedaLinea; className?: string }) {
+  const t = useT();
   const dati = datiTecniciScheda(scheda);
   const immagine = immaginePrincipale(leggiImmaginiCatalogo(scheda.immagini, scheda.immagine_url))?.url;
   return (
@@ -17,14 +19,14 @@ export function SchedaLineaCompatta({ scheda, className }: { scheda: SchedaLinea
         <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded border border-slate-100 bg-slate-50">
           <img
             src={immagine}
-            alt={`Profilo ${scheda.nome}`}
+            alt={t("Profilo {nome}", { nome: String(scheda.nome ?? "") })}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-contain p-1"
           />
         </div>
       )}
       <div className="min-w-0 flex-1 space-y-0.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Linea scelta</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Linea scelta")}</p>
         <p className="text-sm font-semibold leading-tight text-slate-900">{scheda.nome}</p>
         {dati.length > 0 && (
           <p className="text-xs tabular-nums text-slate-700">{dati.map((d) => d.breve).join(" · ")}</p>
@@ -40,7 +42,7 @@ export function SchedaLineaCompatta({ scheda, className }: { scheda: SchedaLinea
             className="inline-flex items-center gap-1 pt-0.5 text-[11px] font-medium text-orange-700 hover:underline"
           >
             <FileText className="h-3 w-3" aria-hidden="true" />
-            {scheda.scheda_tecnica_nome || "Scheda del produttore"}
+            {scheda.scheda_tecnica_nome || t("Scheda del produttore")}
           </a>
         )}
       </div>

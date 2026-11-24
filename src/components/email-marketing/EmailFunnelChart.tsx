@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FunnelData {
   sent: number;
@@ -19,6 +20,7 @@ interface EmailFunnelChartProps {
  * leggibile del bar chart recharts precedente, che mostrava solo i numeri.
  */
 export function EmailFunnelChart({ data }: EmailFunnelChartProps) {
+  const t = useT();
   const steps = [
     { name: "Inviate", value: data.sent, color: "bg-blue-500", prevLabel: null as string | null },
     { name: "Consegnate", value: data.delivered, color: "bg-emerald-500", prevLabel: "inviate" },
@@ -29,15 +31,15 @@ export function EmailFunnelChart({ data }: EmailFunnelChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Funnel di conversione</CardTitle>
+        <CardTitle className="text-base">{t("Funnel di conversione")}</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Quanti destinatari avanzano a ogni passo
+          {t("Quanti destinatari avanzano a ogni passo")}
         </p>
       </CardHeader>
       <CardContent>
         {data.sent === 0 ? (
           <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
-            Nessun dato disponibile. Invia la tua prima campagna per vedere il funnel.
+            {t("Nessun dato disponibile. Invia la tua prima campagna per vedere il funnel.")}
           </div>
         ) : (
           <div className="space-y-3">
@@ -48,13 +50,11 @@ export function EmailFunnelChart({ data }: EmailFunnelChartProps) {
               return (
                 <div key={step.name}>
                   <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="font-medium text-foreground">{step.name}</span>
+                    <span className="font-medium text-foreground">{t(step.name)}</span>
                     <span className="tabular-nums text-muted-foreground">
-                      <strong className="text-foreground">{step.value.toLocaleString("it-IT")}</strong>
+                      <strong className="text-foreground">{step.value.toLocaleString(intlCampo())}</strong>
                       {step.prevLabel && (
-                        <span className="ml-1.5 text-xs">
-                          ({convPct.toFixed(0)}% delle {step.prevLabel})
-                        </span>
+                        <span className="ml-1.5 text-xs">{t("({convPct}% delle {prevLabel})", { convPct: convPct.toFixed(0), prevLabel: t(step.prevLabel) })}</span>
                       )}
                     </span>
                   </div>

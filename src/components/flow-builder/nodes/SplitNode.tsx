@@ -2,8 +2,10 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { AlertTriangle, Shuffle } from "lucide-react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function SplitNodeComponent({ data, selected }: NodeProps) {
+  const t = useT();
   const catalog = getCatalogItem(data.itemId as string);
   const label = (data.label as string) || catalog?.label || "Split A/B";
   const percentuali = ((data.percentuali as string) || "50,50").split(",").map(s => s.trim());
@@ -20,7 +22,7 @@ function SplitNodeComponent({ data, selected }: NodeProps) {
           <Shuffle className="h-4 w-4" />
         </div>
         <span className="flex-1 text-[10px] font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-400">
-          Split A/B
+          {t("Split A/B")}
         </span>
         {(data.hasError || data.hasWarning) && (
           <AlertTriangle className={`h-3.5 w-3.5 ${data.hasError ? "text-destructive" : "text-amber-600"}`} />
@@ -38,7 +40,7 @@ function SplitNodeComponent({ data, selected }: NodeProps) {
           ))}
         </div>
         {data.modalita === "equilibrato" && (
-          <p className="mt-1 text-[10px] text-muted-foreground">In modo equo: a chi è più indietro oggi</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">{t("In modo equo: a chi è più indietro oggi")}</p>
         )}
       </div>
 

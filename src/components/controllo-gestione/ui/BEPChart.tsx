@@ -10,6 +10,7 @@ import { useCEMensile, useCEMensileDettaglio } from "@/hooks/controlloGestione/u
 import { ChartSkeleton } from "@/components/controllo-gestione/skeletons/ChartSkeleton";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface BEPChartProps {
   anno: number;
@@ -19,6 +20,7 @@ const MESI_BREVI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set
 const COSTO_CODES = ["03", "04", "05", "06", "07", "08", "09", "10", "11", "14", "15"];
 
 export function BEPChart({ anno }: BEPChartProps) {
+  const t = useT();
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
   const primary = useCEMensile(anno);
@@ -60,8 +62,8 @@ export function BEPChart({ anno }: BEPChartProps) {
   if (!data || data.length === 0) {
     return (
       <EmptyState
-        title="Nessun dato mensile"
-        description={`Non ho registrazioni per il ${anno}. Verifica le scritture in Prima Nota.`}
+        title={t("Nessun dato mensile")}
+        description={t("Non ho registrazioni per il {anno}. Verifica le scritture in Prima Nota.", { anno: String(anno ?? "") })}
       />
     );
   }
@@ -88,7 +90,7 @@ export function BEPChart({ anno }: BEPChartProps) {
           <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} formatter={testoLegenda} />
           <Bar
             dataKey="ricavi_cum"
-            name="Ricavi cumulati"
+            name={t("Ricavi cumulati")}
             fill={`url(#${id}-barra-ricavi)`}
             radius={[6, 6, 2, 2]}
             maxBarSize={40}
@@ -98,7 +100,7 @@ export function BEPChart({ anno }: BEPChartProps) {
           <Line
             type="monotone"
             dataKey="costi_totali_cum"
-            name="Costi cumulati"
+            name={t("Costi cumulati")}
             stroke={COLORI_GRAFICO.arancio}
             strokeWidth={2.5}
             filter={`url(#${id}-ombra)`}
@@ -111,7 +113,7 @@ export function BEPChart({ anno }: BEPChartProps) {
           <Line
             type="monotone"
             dataKey="bep_cum"
-            name="Soglia BEP"
+            name={t("Soglia BEP")}
             stroke={COLORI_GRAFICO.verde}
             strokeWidth={2}
             strokeDasharray="6 4"

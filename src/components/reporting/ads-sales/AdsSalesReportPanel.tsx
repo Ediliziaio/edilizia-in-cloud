@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAdsSalesReport } from "@/hooks/useAdsSalesReport";
 import { cn } from "@/lib/utils";
 import type { AdsSalesPlatform, AdsSalesProviderFilter } from "@/lib/reporting/adsSalesReport";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PROVIDER_LABEL: Record<AdsSalesProviderFilter, string> = {
   all: "Meta + Google",
@@ -33,6 +34,7 @@ export function AdsSalesReportPanel({
   compact?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { rows, totals, isLoading, error } = useAdsSalesReport({ companyId, provider, daysBack });
@@ -45,15 +47,11 @@ export function AdsSalesReportPanel({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Trophy className="h-5 w-5 text-emerald-600" />
-              CRM e vendite attribuite
+              {t("CRM e vendite attribuite")}
             </CardTitle>
-            <CardDescription>
-              Fatturato generato, appuntamenti e vendite ricondotti alle campagne {PROVIDER_LABEL[provider]}.
-            </CardDescription>
+            <CardDescription>{t("Fatturato generato, appuntamenti e vendite ricondotti alle campagne {piattaforma}.", { piattaforma: PROVIDER_LABEL[provider] })}</CardDescription>
           </div>
-          <Badge variant="outline" className="w-fit border-emerald-200 bg-white text-emerald-700">
-            Ultimi {daysBack} giorni
-          </Badge>
+          <Badge variant="outline" className="w-fit border-emerald-200 bg-white text-emerald-700">{t("Ultimi {daysBack} giorni", { daysBack })}</Badge>
         </div>
       </CardHeader>
 
@@ -61,21 +59,21 @@ export function AdsSalesReportPanel({
         {error && (
           <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4" />
-            Dati CRM parziali: {error}
+            {t("Dati CRM parziali: {errore}", { errore: String(error) })}
           </div>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricTile icon={Euro} label="Fatturato generato" value={formatMoney(totals.revenueCents)} loading={isLoading} />
-          <MetricTile icon={Trophy} label="Vendite vinte" value={String(totals.won)} loading={isLoading} />
-          <MetricTile icon={CalendarCheck} label="Costo appuntamento" value={formatCostMetric(totals.costPerAppointmentCents, totals.spendCents, totals.appointments)} loading={isLoading} />
-          <MetricTile icon={Target} label="Costo per vendita" value={formatCostMetric(totals.costPerSaleCents, totals.spendCents, totals.won)} loading={isLoading} />
+          <MetricTile icon={Euro} label={t("Fatturato generato")} value={formatMoney(totals.revenueCents)} loading={isLoading} />
+          <MetricTile icon={Trophy} label={t("Vendite vinte")} value={String(totals.won)} loading={isLoading} />
+          <MetricTile icon={CalendarCheck} label={t("Costo appuntamento")} value={formatCostMetric(totals.costPerAppointmentCents, totals.spendCents, totals.appointments)} loading={isLoading} />
+          <MetricTile icon={Target} label={t("Costo per vendita")} value={formatCostMetric(totals.costPerSaleCents, totals.spendCents, totals.won)} loading={isLoading} />
           {!compact && (
             <>
-              <MetricTile icon={Users} label="Lead CRM" value={String(totals.leads)} loading={isLoading} />
-              <MetricTile icon={Target} label="Opportunità" value={String(totals.opportunities)} loading={isLoading} />
-              <MetricTile icon={CalendarCheck} label="Appuntamenti" value={String(totals.appointments)} loading={isLoading} />
-              <MetricTile icon={Euro} label="ROAS vendite" value={formatRoas(totals)} loading={isLoading} />
+              <MetricTile icon={Users} label={t("Lead CRM")} value={String(totals.leads)} loading={isLoading} />
+              <MetricTile icon={Target} label={t("Opportunità")} value={String(totals.opportunities)} loading={isLoading} />
+              <MetricTile icon={CalendarCheck} label={t("Appuntamenti")} value={String(totals.appointments)} loading={isLoading} />
+              <MetricTile icon={Euro} label={t("ROAS vendite")} value={formatRoas(totals)} loading={isLoading} />
             </>
           )}
         </div>
@@ -88,23 +86,22 @@ export function AdsSalesReportPanel({
           </div>
         ) : visibleRows.length === 0 ? (
           <div className="rounded-lg border bg-white p-4 text-sm text-slate-600">
-            Nessuna vendita attribuita nel periodo. Quando i contatti hanno UTM, ID Meta, GCLID o campagna Google,
-            qui compaiono costo appuntamento, costo vendita e valore venduto.
+            {t("Nessuna vendita attribuita nel periodo. Quando i contatti hanno UTM, ID Meta, GCLID o campagna Google, qui compaiono costo appuntamento, costo vendita e valore venduto.")}
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border bg-white">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Piattaforma</TableHead>
-                  <TableHead>Campagna / sorgente</TableHead>
+                  <TableHead>{t("Piattaforma")}</TableHead>
+                  <TableHead>{t("Campagna / sorgente")}</TableHead>
                   <TableHead className="text-right">Lead</TableHead>
-                  <TableHead className="text-right">App.</TableHead>
-                  <TableHead className="text-right">Vendite</TableHead>
-                  <TableHead className="text-right">Spesa</TableHead>
-                  <TableHead className="text-right">Fatturato</TableHead>
+                  <TableHead className="text-right">{t("App.")}</TableHead>
+                  <TableHead className="text-right">{t("Vendite")}</TableHead>
+                  <TableHead className="text-right">{t("Spesa")}</TableHead>
+                  <TableHead className="text-right">{t("Fatturato")}</TableHead>
                   <TableHead className="text-right">CPL</TableHead>
-                  <TableHead className="text-right">Costo vendita</TableHead>
+                  <TableHead className="text-right">{t("Costo vendita")}</TableHead>
                   <TableHead className="text-right">ROAS</TableHead>
                 </TableRow>
               </TableHeader>
@@ -172,7 +169,7 @@ function PlatformBadge({ platform }: { platform: AdsSalesPlatform }) {
 
 function formatMoney(cents: number) {
   if (!cents) return "0 €";
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: cents % 100 === 0 ? 0 : 2, useGrouping: "always" }).format(cents / 100);

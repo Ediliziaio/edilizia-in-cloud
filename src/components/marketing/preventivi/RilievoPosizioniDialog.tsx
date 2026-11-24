@@ -36,6 +36,7 @@ import {
   selezioniEffettive, totaliRilievo,
   type PosizioneRilievo,
 } from "@/lib/preventivo/posizioni";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -67,6 +68,7 @@ const numero = (s: string): number | null => {
 export function RilievoPosizioniDialog({
   open, onClose, onAddItems, currentSortOrder, famiglie,
 }: Props) {
+  const t = useT();
   const serramenti = useMemo(
     () => famiglie.filter((f) => (f.vertical ?? "").startsWith("serrament")),
     [famiglie],
@@ -248,8 +250,8 @@ export function RilievoPosizioniDialog({
     }
 
     if (senzaPrezzo.length > 0) {
-      toast.warning(`Senza prezzo, non aggiunte: ${senzaPrezzo.join(", ")}`, {
-        description: "Controlla le misure rispetto alla griglia del listino, o riprova tra un attimo.",
+      toast.warning(t("Senza prezzo, non aggiunte: {senzaPrezzo}", { senzaPrezzo: senzaPrezzo.join(", ") }), {
+        description: t("Controlla le misure rispetto alla griglia del listino, o riprova tra un attimo."),
       });
     }
     if (items.length === 0) return;
@@ -263,33 +265,29 @@ export function RilievoPosizioniDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Ruler className="h-5 w-5 text-primary" aria-hidden="true" />
-            Rilievo per posizioni
+            {t("Rilievo per posizioni")}
           </DialogTitle>
           <DialogDescription>
-            Elenca le finestre come le hai misurate. Le scelte qui sopra valgono
-            per tutte; su una singola riga puoi cambiarle.
+            {t("Elenca le finestre come le hai misurate. Le scelte qui sopra valgono per tutte; su una singola riga puoi cambiarle.")}
           </DialogDescription>
         </DialogHeader>
 
         {serramenti.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Nel listino non ci sono ancora tipologie di serramento. Aggiungile dal
-            Listino con "Aggiungi una serie".
+            {t("Nel listino non ci sono ancora tipologie di serramento. Aggiungile dal Listino con \"Aggiungi una serie\".")}
           </p>
         ) : (
           <>
             <section className="grid gap-3 sm:grid-cols-3">
               {assiComuni.map((asse) => (
                 <div key={asse.id} className="space-y-1.5">
-                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {asse.nome} · per tutte
-                  </Label>
+                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">{t("{nome} · per tutte", { nome: String(asse.nome ?? "") })}</Label>
                   <Select
                     value={comuni[asse.codice] ?? ""}
                     onValueChange={(v) => setComuni((prev) => ({ ...prev, [asse.codice]: v }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="predefinito" />
+                      <SelectValue placeholder={t("predefinito")} />
                     </SelectTrigger>
                     <SelectContent>
                       {asse.values.map((v) => (
@@ -309,12 +307,12 @@ export function RilievoPosizioniDialog({
               <table className="w-full text-sm">
                 <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                   <tr className="[&>th]:pb-2 [&>th]:text-left [&>th]:font-medium">
-                    <th className="w-20">Rif.</th>
-                    <th>Tipologia</th>
-                    <th className="w-24 text-right">Largh. mm</th>
-                    <th className="w-24 text-right">Alt. mm</th>
-                    <th className="w-16 text-right">Qtà</th>
-                    <th className="w-28 text-right">Prezzo</th>
+                    <th className="w-20">{t("Rif.")}</th>
+                    <th>{t("Tipologia")}</th>
+                    <th className="w-24 text-right">{t("Largh. mm")}</th>
+                    <th className="w-24 text-right">{t("Alt. mm")}</th>
+                    <th className="w-16 text-right">{t("Qtà")}</th>
+                    <th className="w-28 text-right">{t("Prezzo")}</th>
                     <th className="w-10" />
                   </tr>
                 </thead>
@@ -326,7 +324,7 @@ export function RilievoPosizioniDialog({
                           value={p.riferimento}
                           onChange={(e) => cambia(p.id, { riferimento: e.target.value })}
                           className="h-9"
-                          aria-label="Riferimento posizione"
+                          aria-label={t("Riferimento posizione")}
                         />
                       </td>
                       <td>
@@ -335,7 +333,7 @@ export function RilievoPosizioniDialog({
                           onValueChange={(v) => cambia(p.id, { familyId: v })}
                         >
                           <SelectTrigger className="h-9">
-                            <SelectValue placeholder="scegli" />
+                            <SelectValue placeholder={t("scegli")} />
                           </SelectTrigger>
                           <SelectContent>
                             {serramenti.map((f) => (
@@ -352,7 +350,7 @@ export function RilievoPosizioniDialog({
                           className="h-9 text-right"
                           value={p.larghezza_mm ?? ""}
                           onChange={(e) => cambia(p.id, { larghezza_mm: numero(e.target.value) })}
-                          aria-label="Larghezza in millimetri"
+                          aria-label={t("Larghezza in millimetri")}
                         />
                       </td>
                       <td>
@@ -361,7 +359,7 @@ export function RilievoPosizioniDialog({
                           className="h-9 text-right"
                           value={p.altezza_mm ?? ""}
                           onChange={(e) => cambia(p.id, { altezza_mm: numero(e.target.value) })}
-                          aria-label="Altezza in millimetri"
+                          aria-label={t("Altezza in millimetri")}
                         />
                       </td>
                       <td>
@@ -370,7 +368,7 @@ export function RilievoPosizioniDialog({
                           className="h-9 text-right"
                           value={p.quantita}
                           onChange={(e) => cambia(p.id, { quantita: numero(e.target.value) ?? 0 })}
-                          aria-label="Quantità"
+                          aria-label={t("Quantità")}
                         />
                       </td>
                       <td className="text-right tabular-nums">
@@ -380,11 +378,11 @@ export function RilievoPosizioniDialog({
                               {formatCurrency(prezzo.unitario_vendita * p.quantita)}
                             </span>
                             <span className="block text-xs text-muted-foreground">
-                              {(prezzo.mq ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 2 })} m²
+                              {(prezzo.mq ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} m²
                             </span>
                           </>
                         ) : (
-                          <span className="text-xs text-muted-foreground">da misurare</span>
+                          <span className="text-xs text-muted-foreground">{t("da misurare")}</span>
                         )}
                       </td>
                       <td>
@@ -393,7 +391,7 @@ export function RilievoPosizioniDialog({
                           size="icon"
                           className="h-9 w-9"
                           onClick={() => setPosizioni((prev) => prev.filter((x) => x.id !== p.id))}
-                          aria-label={`Togli la posizione ${p.riferimento}`}
+                          aria-label={t("Togli la posizione {rif}", { rif: String(p.riferimento ?? "") })}
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -405,28 +403,26 @@ export function RilievoPosizioniDialog({
 
               <div className="flex gap-2 py-3">
                 <Button variant="outline" size="sm" onClick={aggiungi}>
-                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Posizione
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> {t("Posizione")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={duplicaUltima}>
-                  Ripeti l'ultima
+                  {t("Ripeti l'ultima")}
                 </Button>
               </div>
             </ScrollArea>
 
             <div className="rounded-lg border bg-muted/40 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
               <span>
-                <strong>{totali.posizioni}</strong> posizioni · <strong>{totali.pezzi}</strong> pezzi
+                <strong>{totali.posizioni}</strong> {t("posizioni ·")} <strong>{totali.pezzi}</strong> {t("pezzi")}
               </span>
               <span>
-                {totali.mq.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m²
+                {totali.mq.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} m²
               </span>
               <span className="ml-auto text-base font-semibold tabular-nums">
                 {formatCurrency(totali.vendita)}
               </span>
               {totali.marginePct != null && (
-                <span className="text-xs text-muted-foreground">
-                  margine {totali.marginePct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%
-                </span>
+                <span className="text-xs text-muted-foreground">{t("margine {marginePct}%", { marginePct: totali.marginePct.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}</span>
               )}
             </div>
           </>
@@ -434,10 +430,10 @@ export function RilievoPosizioniDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={conferma} disabled={totali.posizioni === 0}>
-            Aggiungi {totali.posizioni > 0 ? `${totali.posizioni} righe` : "al preventivo"}
+            {totali.posizioni > 0 ? t("Aggiungi {n} righe", { n: totali.posizioni }) : t("Aggiungi al preventivo")}
           </Button>
         </DialogFooter>
       </DialogContent>

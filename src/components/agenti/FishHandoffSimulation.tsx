@@ -5,6 +5,7 @@ import {
   FISH_DEMO_HANDOFF_MS,
   type FishDemoOutcome,
 } from "../../../supabase/functions/_shared/fishDemoHandoff";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type HandoffDemoState = {
   operator: string;
@@ -15,6 +16,7 @@ export type HandoffDemoState = {
 );
 
 function RingCountdown({ deadline }: { deadline: number }) {
+  const t = useT();
   const seconds = () => Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
   const [remaining, setRemaining] = useState(seconds);
   useEffect(() => {
@@ -28,14 +30,12 @@ function RingCountdown({ deadline }: { deadline: number }) {
   return (
     <div className="space-y-1.5">
       <progress
-        aria-label="Tempo prima del ritorno all’AI"
+        aria-label={t("Tempo prima del ritorno all’AI")}
         className="h-2 w-full accent-sky-700"
         max={FISH_DEMO_HANDOFF_MS / 1000}
         value={remaining}
       />
-      <p className="text-xs tabular-nums text-muted-foreground">
-        {remaining} s prima del ritorno all’AI
-      </p>
+      <p className="text-xs tabular-nums text-muted-foreground">{t("{remaining} s prima del ritorno all’AI", { remaining: String(remaining ?? "") })}</p>
     </div>
   );
 }
@@ -47,25 +47,26 @@ export function FishHandoffSimulation({
   state: HandoffDemoState | null;
   onOutcome: (outcome: FishDemoOutcome) => void;
 }) {
+  const t = useT();
   const status =
     state &&
     {
-      ringing: `Squillo simulato a ${state.operator}`,
-      accepted: `${state.operator} ha accettato · passaggio dimostrativo`,
-      no_answer: `${state.operator} non ha risposto · ritorno all’AI`,
-      cancelled: "Passaggio interrotto",
+      ringing: t("Squillo simulato a {operatore}", { operatore: state.operator }),
+      accepted: t("{operatore} ha accettato · passaggio dimostrativo", { operatore: state.operator }),
+      no_answer: t("{operatore} non ha risposto · ritorno all’AI", { operatore: state.operator }),
+      cancelled: t("Passaggio interrotto"),
     }[state.phase];
   return (
     <section
       className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/60 p-2.5 dark:border-sky-900 dark:bg-sky-950/30"
-      aria-label="Banco prova del passaggio"
+      aria-label={t("Banco prova del passaggio")}
     >
       <h3 className="text-sm font-semibold">
-        Primo operatore disponibile · simulazione
+        {t("Primo operatore disponibile · simulazione")}
       </h3>
       <ul
         className="flex flex-wrap gap-2"
-        aria-label="Operatori di test in ordine"
+        aria-label={t("Operatori di test in ordine")}
       >
         {FISH_DEMO_OPERATORS.map((operator) => (
           <li
@@ -78,7 +79,7 @@ export function FishHandoffSimulation({
                   : "bg-background"
             }`}
           >
-            {operator.name} · {operator.available ? "libero" : "occupato"}
+            {operator.name} · {operator.available ? t("libero") : t("occupato")}
           </li>
         ))}
       </ul>
@@ -97,14 +98,14 @@ export function FishHandoffSimulation({
               <RingCountdown deadline={state.deadline} />
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => onOutcome("accepted")}>
-                  Operatore risponde
+                  {t("Operatore risponde")}
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => onOutcome("no_answer")}
                 >
-                  Non risponde: torna all’AI
+                  {t("Non risponde: torna all’AI")}
                 </Button>
               </div>
             </>
@@ -112,8 +113,7 @@ export function FishHandoffSimulation({
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Chiedi di parlare con una persona per provare risposta o mancata
-          risposta.
+          {t("Chiedi di parlare con una persona per provare risposta o mancata risposta.")}
         </p>
       )}
     </section>

@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { DailyPoint } from "@/lib/metaInsightsNormalizer";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   dailySeries: DailyPoint[];
@@ -17,8 +17,8 @@ interface Props {
 
 type Vista = "spesa" | "traffico";
 
-const eur = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
-const num = (v: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(v);
+const eur = (v: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+const num = (v: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 0 }).format(v);
 
 const NOMI_BASE: Record<string, string> = {
   spend: "Spesa",
@@ -29,9 +29,11 @@ const NOMI_BASE: Record<string, string> = {
 };
 
 const TrendChart = ({ dailySeries, isLoading, nomeConversioni, sottotitolo }: Props) => {
+  const t = useT();
   const [vista, setVista] = useState<Vista>("spesa");
-  const NOMI = nomeConversioni
-    ? { ...NOMI_BASE, conversions: nomeConversioni, cpl: `Costo per ${nomeConversioni.toLowerCase().replace(/i$/, "e")}`, clicks: "Clic" }
+  // Nomi delle serie in italiano (chiavi di traduzione): si traducono dove si mostrano.
+  const NOMI: Record<string, string> = nomeConversioni
+    ? { ...NOMI_BASE, conversions: nomeConversioni, cpl: nomeConversioni === "Conversioni" ? "Costo per conversione" : `Costo per ${nomeConversioni.toLowerCase().replace(/i$/, "e")}`, clicks: "Clic" }
     : NOMI_BASE;
 
   if (isLoading) {
@@ -46,7 +48,7 @@ const TrendChart = ({ dailySeries, isLoading, nomeConversioni, sottotitolo }: Pr
   if (dailySeries.length === 0) {
     return (
       <Card className="p-6 flex items-center justify-center h-[300px]">
-        <p className="text-sm text-muted-foreground">Nessun dato nel periodo selezionato</p>
+        <p className="text-sm text-muted-foreground">{t("Nessun dato nel periodo selezionato")}</p>
       </Card>
     );
   }
@@ -54,19 +56,19 @@ const TrendChart = ({ dailySeries, isLoading, nomeConversioni, sottotitolo }: Pr
   const formatted = dailySeries.map((d) => ({
     ...d,
     cpl: d.conversions > 0 ? d.spend / d.conversions : null,
-    label: format(parseISO(d.date), "dd MMM", { locale: it }),
+    label: format(parseISO(d.date), "dd MMM", { locale: dateFnsCampo() }),
   }));
 
   return (
     <Card className="p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-medium">Andamento giornaliero</h3>
-          <p className="text-xs text-muted-foreground">{sottotitolo ?? "Tutto l'account, giorno per giorno"}</p>
+          <h3 className="text-sm font-medium">{t("Andamento giornaliero")}</h3>
+          <p className="text-xs text-muted-foreground">{sottotitolo ?? t("Tutto l'account, giorno per giorno")}</p>
         </div>
         <ToggleGroup type="single" size="sm" value={vista} onValueChange={(v) => v && setVista(v as Vista)}>
-          <ToggleGroupItem value="spesa" className="text-xs px-2.5">Spesa e {(nomeConversioni ?? "lead").toLowerCase()}</ToggleGroupItem>
-          <ToggleGroupItem value="traffico" className="text-xs px-2.5">Impressioni e clic</ToggleGroupItem>
+          <ToggleGroupItem value="spesa" className="text-xs px-2.5">{nomeConversioni ? t("Spesa e {nome}", { nome: t(nomeConversioni).toLowerCase() }) : t("Spesa e lead")}</ToggleGroupItem>
+          <ToggleGroupItem value="traffico" className="text-xs px-2.5">{t("Impressioni e clic")}</ToggleGroupItem>
         </ToggleGroup>
       </div>
       <ResponsiveContainer width="100%" height={280}>
@@ -93,10 +95,10 @@ const TrendChart = ({ dailySeries, isLoading, nomeConversioni, sottotitolo }: Pr
             contentStyle={{ borderRadius: 8, fontSize: 12 }}
             formatter={(value: number, name: string) => [
               name === "spend" || name === "cpl" ? eur(value) : num(value),
-              NOMI[name] ?? name,
+              t(NOMI[name] ?? name),
             ]}
           />
-          <Legend formatter={(name: string) => NOMI[name] ?? name} wrapperStyle={{ fontSize: 12 }} />
+          <Legend formatter={(name: string) => t(NOMI[name] ?? name)} wrapperStyle={{ fontSize: 12 }} />
         </ComposedChart>
       </ResponsiveContainer>
     </Card>

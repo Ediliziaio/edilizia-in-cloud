@@ -45,6 +45,7 @@ import {
   type FiltriArchivioPiante,
 } from "@/lib/planimetrie/elenco";
 import { RicercaSchedaFiltro } from "./RicercaSchedaFiltro";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Props {
   value: FiltriArchivioPiante;
   onChange: (patch: Partial<FiltriArchivioPiante>) => void;
@@ -73,6 +74,7 @@ export function FiltriArchivioPiante({
   accessi,
   risultati,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const mobile = useIsMobile();
   const picker = (tipo: TipoCollegamento, toolbar = false) =>
@@ -120,18 +122,18 @@ export function FiltriArchivioPiante({
   const pills: Array<{ label: string; reset: Partial<FiltriArchivioPiante> }> =
     [];
   if (v.ricerca)
-    pills.push({ label: `Ricerca: ${v.ricerca}`, reset: { ricerca: "" } });
+    pills.push({ label: t("Ricerca: {testo}", { testo: v.ricerca }), reset: { ricerca: "" } });
   if (v.stato !== "attive")
     pills.push({
-      label: `Stato: ${stati.find(([key]) => key === v.stato)?.[1]}`,
+      label: t("Stato: {stato}", { stato: t(stati.find(([key]) => key === v.stato)?.[1] ?? "") }),
       reset: { stato: "attive" },
     });
   for (const tipo of TIPI_COLLEGAMENTO) {
     const value = valoreFiltroPianta(v, tipo);
     if (!value) continue;
-    const label = DEFINIZIONI_COLLEGAMENTI[tipo].titolo;
+    const label = t(DEFINIZIONI_COLLEGAMENTI[tipo].titolo);
     pills.push({
-      label: `${label}: ${value === "presenti" ? "associato" : value === "nessuno" ? "nessuno" : mappa?.[tipo][value]?.nome || selectedNames[TIPI_COLLEGAMENTO.indexOf(tipo)].data?.nome || "selezionato"}`,
+      label: `${label}: ${value === "presenti" ? t("associato") : value === "nessuno" ? t("nessuno") : mappa?.[tipo][value]?.nome || selectedNames[TIPI_COLLEGAMENTO.indexOf(tipo)].data?.nome || t("selezionato")}`,
       reset: scegliFiltroPianta(v, tipo, ""),
     });
   }
@@ -139,20 +141,20 @@ export function FiltriArchivioPiante({
     pills.push({
       label:
         v.collegamento === "collegate"
-          ? "Con schede associate"
-          : "Senza schede associate",
+          ? t("Con schede associate")
+          : t("Senza schede associate"),
       reset: { collegamento: "tutti", riferimento: "" },
     });
   if (v.soloMie)
-    pills.push({ label: "Solo i miei progetti", reset: { soloMie: false } });
+    pills.push({ label: t("Solo i miei progetti"), reset: { soloMie: false } });
   if (v.dal || v.al)
     pills.push({
       label:
         v.dal && v.al
-          ? `Periodo: ${displayDate(v.dal)} – ${displayDate(v.al)}`
+          ? t("Periodo: {dal} – {al}", { dal: displayDate(v.dal), al: displayDate(v.al) })
           : v.dal
-            ? `Dal ${displayDate(v.dal)}`
-            : `Al ${displayDate(v.al)}`,
+            ? t("Dal {data}", { data: displayDate(v.dal) })
+            : t("Al {data}", { data: displayDate(v.al) }),
       reset: { dal: "", al: "" },
     });
   const activeCount = pills.length - (v.ricerca ? 1 : 0);
@@ -163,7 +165,7 @@ export function FiltriArchivioPiante({
     onChange({ dal: giornoLocalePianta(start), al: giornoLocalePianta(end) });
   };
   return (
-    <section aria-label="Filtri delle planimetrie" className="space-y-2">
+    <section aria-label={t("Filtri delle planimetrie")} className="space-y-2">
       <Card>
         <CardContent className="flex flex-wrap items-center gap-2 p-2.5 sm:p-3">
           <div className="relative min-w-[140px] flex-1">
@@ -172,8 +174,8 @@ export function FiltriArchivioPiante({
               aria-hidden="true"
             />
             <Input
-              aria-label="Cerca una pianta"
-              placeholder="Cerca progetto…"
+              aria-label={t("Cerca una pianta")}
+              placeholder={t("Cerca progetto…")}
               value={v.ricerca}
               onChange={(e) => onChange({ ricerca: e.target.value })}
               className="h-9 pl-8 pr-9"
@@ -183,7 +185,7 @@ export function FiltriArchivioPiante({
                 variant="ghost"
                 size="icon"
                 className="absolute right-0.5 top-0.5 h-8 w-8"
-                aria-label="Svuota la ricerca"
+                aria-label={t("Svuota la ricerca")}
                 onClick={() => onChange({ ricerca: "" })}
               >
                 <X className="h-3.5 w-3.5" />
@@ -199,10 +201,10 @@ export function FiltriArchivioPiante({
             size="sm"
             className="h-9 gap-1.5 px-2.5 sm:px-3"
             onClick={() => setOpen(true)}
-            aria-label="Filtri"
+            aria-label={t("Filtri")}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Filtri</span>
+            <span className="hidden sm:inline">{t("Filtri")}</span>
             {activeCount > 0 && (
               <Badge className="ml-1 h-5 bg-orange-500 px-1.5 text-[10px] hover:bg-orange-500">
                 {activeCount}
@@ -214,7 +216,7 @@ export function FiltriArchivioPiante({
       {(pills.length > 0 || v.ordine !== "recenti") && (
         <div
           className="flex flex-wrap items-center gap-1.5"
-          aria-label="Filtri applicati"
+          aria-label={t("Filtri applicati")}
         >
           {pills.map((pill) => (
             <Badge
@@ -227,7 +229,7 @@ export function FiltriArchivioPiante({
               </span>
               <button
                 type="button"
-                aria-label={`Rimuovi filtro ${pill.label}`}
+                aria-label={t("Rimuovi filtro {filtro}", { filtro: pill.label })}
                 onClick={() => onChange(pill.reset)}
                 className="rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -242,7 +244,7 @@ export function FiltriArchivioPiante({
             onClick={() => onChange(FILTRI_PIANTE_INIZIALI)}
           >
             <X className="mr-1 h-3 w-3" />
-            Azzera filtri
+            {t("Azzera filtri")}
           </Button>
         </div>
       )}
@@ -251,8 +253,8 @@ export function FiltriArchivioPiante({
         aria-live="polite"
         className="text-xs text-muted-foreground"
       >
-        {risultati} di {piante.length} planimetrie
-        {v.stato === "attive" ? " · escluse le archiviate" : ""}
+        {t("{n} di {totale} planimetrie", { n: risultati, totale: piante.length })}
+        {v.stato === "attive" ? ` · ${t("escluse le archiviate")}` : ""}
       </p>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
@@ -266,29 +268,27 @@ export function FiltriArchivioPiante({
           <SheetHeader className="shrink-0 border-b px-5 py-5 text-left">
             <SheetTitle className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4 text-orange-600" />
-              Filtri planimetrie
+              {t("Filtri planimetrie")}
               {activeCount > 0 && (
-                <Badge className="bg-orange-500 text-[10px] hover:bg-orange-500">
-                  {activeCount} attivi
-                </Badge>
+                <Badge className="bg-orange-500 text-[10px] hover:bg-orange-500">{t("{n} attivi", { n: activeCount })}</Badge>
               )}
             </SheetTitle>
             <SheetDescription>
-              Seleziona cliente, contatto, stato e periodo.
+              {t("Seleziona cliente, contatto, stato e periodo.")}
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
             <section className="space-y-3">
               <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <UserRound className="h-3.5 w-3.5" />
-                Cliente e contatto
+                {t("Cliente e contatto")}
               </h3>
               {(["cliente", "contatto"] as const).map(
                 (tipo) =>
                   accessi?.[tipo] && (
                     <div key={tipo} className="space-y-1.5">
                       <Label className="text-xs">
-                        {DEFINIZIONI_COLLEGAMENTI[tipo].titolo}
+                        {t(DEFINIZIONI_COLLEGAMENTI[tipo].titolo)}
                       </Label>
                       {picker(tipo)}
                     </div>
@@ -297,7 +297,7 @@ export function FiltriArchivioPiante({
             </section>
             <section className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Stato e autore
+                {t("Stato e autore")}
               </h3>
               <Select
                 value={v.stato}
@@ -305,13 +305,13 @@ export function FiltriArchivioPiante({
                   onChange({ stato: value as FiltriArchivioPiante["stato"] })
                 }
               >
-                <SelectTrigger aria-label="Stato planimetria" className="h-9">
+                <SelectTrigger aria-label={t("Stato planimetria")} className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {stati.map(([key, label]) => (
                     <SelectItem key={key} value={key}>
-                      {label} (
+                      {t(label)} (
                       {
                         filtraElencoPiante(
                           piante,
@@ -333,19 +333,19 @@ export function FiltriArchivioPiante({
                     onChange({ soloMie: value === true })
                   }
                 />
-                Solo i miei progetti
+                {t("Solo i miei progetti")}
               </label>
             </section>
             <section className="space-y-3">
               <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" />
-                Ultimo aggiornamento
+                {t("Ultimo aggiornamento")}
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <label className="space-y-1.5 text-xs">
-                  Dal
+                  {t("Dal")}
                   <Input
-                    aria-label="Aggiornata dal"
+                    aria-label={t("Aggiornata dal")}
                     type="date"
                     value={v.dal}
                     onChange={(e) => onChange({ dal: e.target.value })}
@@ -353,9 +353,9 @@ export function FiltriArchivioPiante({
                   />
                 </label>
                 <label className="space-y-1.5 text-xs">
-                  Al
+                  {t("Al")}
                   <Input
-                    aria-label="Aggiornata al"
+                    aria-label={t("Aggiornata al")}
                     type="date"
                     value={v.al}
                     onChange={(e) => onChange({ al: e.target.value })}
@@ -371,9 +371,7 @@ export function FiltriArchivioPiante({
                     variant="outline"
                     className="h-8 text-xs"
                     onClick={() => period(days)}
-                  >
-                    Ultimi {days} giorni
-                  </Button>
+                  >{t("Ultimi {n} giorni", { n: days })}</Button>
                 ))}
                 {(v.dal || v.al) && (
                   <Button
@@ -382,27 +380,26 @@ export function FiltriArchivioPiante({
                     className="h-8 text-xs"
                     onClick={() => onChange({ dal: "", al: "" })}
                   >
-                    Qualsiasi data
+                    {t("Qualsiasi data")}
                   </Button>
                 )}
               </div>
               {v.dal && v.al && v.dal > v.al && (
                 <p role="alert" className="text-xs text-destructive">
-                  La data iniziale deve precedere o coincidere con quella
-                  finale.
+                  {t("La data iniziale deve precedere o coincidere con quella finale.")}
                 </p>
               )}
             </section>
             <section className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Preventivo e lavoro
+                {t("Preventivo e lavoro")}
               </h3>
               {(["preventivo", "commessa", "computo"] as const).map(
                 (tipo) =>
                   accessi?.[tipo] && (
                     <div key={tipo} className="space-y-1.5">
                       <Label className="text-xs">
-                        {DEFINIZIONI_COLLEGAMENTI[tipo].titolo}
+                        {t(DEFINIZIONI_COLLEGAMENTI[tipo].titolo)}
                       </Label>
                       {picker(tipo)}
                     </div>
@@ -410,20 +407,20 @@ export function FiltriArchivioPiante({
               )}
             </section>
             <section className="space-y-2">
-              <Label className="text-xs">Ordinamento</Label>
+              <Label className="text-xs">{t("Ordinamento")}</Label>
               <Select
                 value={v.ordine}
                 onValueChange={(value) =>
                   onChange({ ordine: value as FiltriArchivioPiante["ordine"] })
                 }
               >
-                <SelectTrigger aria-label="Ordina planimetrie" className="h-9">
+                <SelectTrigger aria-label={t("Ordina planimetrie")} className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="recenti">Ultime modificate</SelectItem>
-                  <SelectItem value="nome">Nome A–Z</SelectItem>
-                  <SelectItem value="meno_recenti">Meno recenti</SelectItem>
+                  <SelectItem value="recenti">{t("Ultime modificate")}</SelectItem>
+                  <SelectItem value="nome">{t("Nome A–Z")}</SelectItem>
+                  <SelectItem value="meno_recenti">{t("Meno recenti")}</SelectItem>
                 </SelectContent>
               </Select>
             </section>
@@ -433,15 +430,14 @@ export function FiltriArchivioPiante({
               variant="outline"
               onClick={() => onChange(FILTRI_PIANTE_INIZIALI)}
             >
-              Azzera
+              {t("Azzera")}
             </Button>
             <Button
               className="flex-1"
               disabled={!!(v.dal && v.al && v.dal > v.al)}
               onClick={() => setOpen(false)}
             >
-              Mostra {risultati}{" "}
-              {risultati === 1 ? "planimetria" : "planimetrie"}
+              {t(risultati === 1 ? "Mostra {n} planimetria" : "Mostra {n} planimetrie", { n: risultati })}
             </Button>
           </div>
         </SheetContent>

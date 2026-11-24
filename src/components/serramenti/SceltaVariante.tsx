@@ -19,6 +19,7 @@ import type { AxisValue } from "@/types/articleFamily";
 import { cn } from "@/lib/utils";
 import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 import { codificaScelta, decodificaScelta, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   values: AxisValue[];
@@ -43,13 +44,14 @@ export function SceltaVariante({
   values, valueId, scelta, onChange, placeholder = "Seleziona…", className, mostraStandard = false, altro,
   "aria-label": ariaLabel,
 }: Props) {
+  const t = useT();
   const corrente = valueId ? values.find((v) => v.id === valueId) ?? null : null;
   const visibili = values.filter((v) => v.attivo || v.id === valueId);
   const valore = valueId ? codificaScelta(valueId, scelta, corrente ? vociDi(corrente) : []) : "";
   const testoChiuso = corrente
-    ? `${testoScelta(corrente.label, scelta)}${suffissoMaggiorazione(corrente.maggiorazione_tipo, corrente.maggiorazione_valore)}${corrente.attivo ? "" : " · non più a listino"}`
+    ? `${testoScelta(corrente.label, scelta)}${suffissoMaggiorazione(corrente.maggiorazione_tipo, corrente.maggiorazione_valore)}${corrente.attivo ? "" : ` · ${t("non più a listino")}`}`
     : valueId
-      ? "Scelta tolta dal listino"
+      ? t("Scelta tolta dal listino")
       : undefined;
 
   return (
@@ -66,12 +68,12 @@ export function SceltaVariante({
     >
       {/* text-left: un testo lungo, accorciato coi puntini, nel bottone si centrava e sembrava rientrato. */}
       <SelectTrigger className={cn("text-left", className)} aria-label={ariaLabel}>
-        <SelectValue placeholder={placeholder}>{testoChiuso}</SelectValue>
+        <SelectValue placeholder={t(placeholder)}>{testoChiuso}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {visibili.map((v, i) => {
           const voci = vociDi(v);
-          const etichetta = `${conMaggiorazione(v)}${mostraStandard && v.is_default ? " · standard" : ""}${v.attivo ? "" : " · non più a listino"}`;
+          const etichetta = `${conMaggiorazione(v)}${mostraStandard && v.is_default ? ` · ${t("standard")}` : ""}${v.attivo ? "" : ` · ${t("non più a listino")}`}`;
           const dopoUnElenco = i > 0 && vociDi(visibili[i - 1]).length > 0;
           if (voci.length === 0) {
             return (
@@ -90,7 +92,7 @@ export function SceltaVariante({
               <SelectGroup>
                 <SelectLabel className="py-1 text-[11px] font-semibold text-muted-foreground">{etichetta}</SelectLabel>
                 <SelectItem value={`v:${v.id}`} disabled={!v.attivo} className="text-xs italic">
-                  Da decidere
+                  {t("Da decidere")}
                 </SelectItem>
                 {voci.map((voce, j) => (
                   <SelectItem key={voce} value={`o:${v.id}:${j}`} disabled={!v.attivo} className="text-xs">
@@ -98,9 +100,7 @@ export function SceltaVariante({
                   </SelectItem>
                 ))}
                 {vocePersa && (
-                  <SelectItem value={`x:${v.id}`} disabled className="text-xs italic">
-                    {scelta} · non più a listino
-                  </SelectItem>
+                  <SelectItem value={`x:${v.id}`} disabled className="text-xs italic">{t("{scelta} · non più a listino", { scelta: String(scelta ?? "") })}</SelectItem>
                 )}
               </SelectGroup>
             </Fragment>
@@ -108,7 +108,7 @@ export function SceltaVariante({
         })}
         {valueId && !corrente && (
           <SelectItem value={valore} disabled className="text-xs italic">
-            Scelta tolta dal listino
+            {t("Scelta tolta dal listino")}
           </SelectItem>
         )}
         {altro && (

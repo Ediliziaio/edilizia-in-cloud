@@ -9,6 +9,7 @@ import { usePercorsoLead, pct, pctTxt, tempo } from "@/components/marketing/dash
 import { fmt } from "@/components/marketing/dashboard/utils";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   data: DashboardStats | undefined;
@@ -81,6 +82,7 @@ function KpiChip({
 }
 
 export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filters, assignedUserIds }: Props) {
+  const tr = useT();
   const isMobile = useIsMobile();
   const kpi = data?.kpi;
   const kpiPrev = data?.kpi_prev;
@@ -89,10 +91,10 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filt
   const t = percorso?.totale;
   const passi = t
     ? [
-        { label: "Lead arrivati", n: t.arrivati },
-        { label: "Presi in carico", n: t.presi, nota: `in ${tempo(t.ore_presa_mediana)}` },
-        { label: "Con appuntamento", n: t.appuntamenti },
-        { label: "Vendite", n: t.vinti, nota: t.giorni_vendita != null ? `in ${t.giorni_vendita.toLocaleString("it-IT")} gg` : undefined },
+        { label: tr("Lead arrivati"), n: t.arrivati },
+        { label: tr("Presi in carico"), n: t.presi, nota: tr("in {magazzino}", { magazzino: String(tempo(t.ore_presa_mediana) ?? "") }) },
+        { label: tr("Con appuntamento"), n: t.appuntamenti },
+        { label: tr("Vendite"), n: t.vinti, nota: t.giorni_vendita != null ? tr("in {giorni_vendita} gg", { giorni_vendita: t.giorni_vendita.toLocaleString(intlCampo()) }) : undefined },
       ]
     : [];
 
@@ -108,17 +110,17 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filt
         <Skeleton className="h-14 w-full rounded-md" />
       ) : kpi ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 max-sm:hidden">
-          <KpiChip label="Lead nuovi" value={kpi.leads_new} prevValue={kpiPrev?.leads_new ?? undefined} />
-          <KpiChip soloComputer label="App. fissati" value={kpi.appointments_set} prevValue={kpiPrev?.appointments_set ?? undefined} />
-          <KpiChip label="Da esitare" value={kpi.appointments_pending ?? 0} thresholds={{ warning: 0, critical: 5, higherIsBetter: false }} />
+          <KpiChip label={tr("Lead nuovi")} value={kpi.leads_new} prevValue={kpiPrev?.leads_new ?? undefined} />
+          <KpiChip soloComputer label={tr("App. fissati")} value={kpi.appointments_set} prevValue={kpiPrev?.appointments_set ?? undefined} />
+          <KpiChip label={tr("Da esitare")} value={kpi.appointments_pending ?? 0} thresholds={{ warning: 0, critical: 5, higherIsBetter: false }} />
           {/* senza una base (nessuna chiusa, nessun esito, nessuna chiamata) il colore non vuol dire niente */}
-          <KpiChip label="Chiusura" value={kpi.close_rate} prevValue={kpiPrev?.close_rate ?? undefined} format="percent"
+          <KpiChip label={tr("Chiusura")} value={kpi.close_rate} prevValue={kpiPrev?.close_rate ?? undefined} format="percent"
             thresholds={(kpi.opps_won ?? 0) + kpi.contracts_lost > 0 ? { warning: 20, critical: 10 } : undefined} />
-          <KpiChip label="Show rate" value={kpi.show_rate} prevValue={kpiPrev?.show_rate ?? undefined} format="percent"
+          <KpiChip label={tr("Show rate")} value={kpi.show_rate} prevValue={kpiPrev?.show_rate ?? undefined} format="percent"
             thresholds={kpi.appointments_done + (kpi.appointments_no_show ?? 0) > 0 ? { warning: 60, critical: 40 } : undefined} />
-          <KpiChip soloComputer label="Ticket medio" value={kpi.avg_ticket} prevValue={kpiPrev?.avg_ticket ?? undefined} format="currency" />
-          <KpiChip soloComputer label="Chiamate" value={kpi.calls_total} prevValue={kpiPrev?.calls_total ?? undefined} />
-          <KpiChip soloComputer label="Risposta" value={kpi.contact_rate} prevValue={kpiPrev?.contact_rate ?? undefined} format="percent"
+          <KpiChip soloComputer label={tr("Ticket medio")} value={kpi.avg_ticket} prevValue={kpiPrev?.avg_ticket ?? undefined} format="currency" />
+          <KpiChip soloComputer label={tr("Chiamate")} value={kpi.calls_total} prevValue={kpiPrev?.calls_total ?? undefined} />
+          <KpiChip soloComputer label={tr("Risposta")} value={kpi.contact_rate} prevValue={kpiPrev?.contact_rate ?? undefined} format="percent"
             thresholds={kpi.calls_total > 0 ? { warning: 50, critical: 30 } : undefined} />
         </div>
       ) : null}
@@ -127,14 +129,14 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filt
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Dal lead alla vendita</CardTitle>
-            <p className="text-[11px] text-muted-foreground max-sm:hidden">Lead arrivati nel periodo e cosa ne è stato</p>
+            <CardTitle className="text-sm">{tr("Dal lead alla vendita")}</CardTitle>
+            <p className="text-[11px] text-muted-foreground max-sm:hidden">{tr("Lead arrivati nel periodo e cosa ne è stato")}</p>
           </CardHeader>
           <CardContent className="space-y-2 pt-0">
             {passi.length === 0 ? (
               <Skeleton className="h-32 w-full" />
             ) : passi[0].n === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">Nessun lead arrivato nel periodo.</p>
+              <p className="py-2 text-sm text-muted-foreground">{tr("Nessun lead arrivato nel periodo.")}</p>
             ) : passi.map((p, i) => (
               <div key={p.label} className="text-xs">
                 <div className="flex items-baseline justify-between gap-2">
@@ -156,7 +158,7 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filt
         {/* Telefono: la tabella del team resta al computer (come la scheda Team). */}
         <Card className="max-sm:hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Team</CardTitle>
+            <CardTitle className="text-sm">{tr("Team")}</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <DashboardSalesTable sales={data?.sales_performance} isLoading={isLoading} compact />

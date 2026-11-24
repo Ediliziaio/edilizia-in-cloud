@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** «Tutti i preventivatori», «Preventivo generico»: a quali preventivi vale quello che c'è sotto. */
 export function AmbitoImpostazione({ children }: { children: ReactNode }) {
@@ -152,13 +153,14 @@ export interface VoceIndice {
 }
 
 export function IndiceSezioni({ voci, onVai }: { voci: VoceIndice[]; onVai: (id: string) => void }) {
+  const t = useT();
   const attiva = useSezioneAttiva(voci);
 
   if (voci.length < 2) return null;
 
   return (
     <nav
-      aria-label="Vai a una sezione"
+      aria-label={t("Vai a una sezione")}
       className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted/60 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {voci.map((voce) => {

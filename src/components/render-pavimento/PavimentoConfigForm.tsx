@@ -37,6 +37,7 @@ import {
   woodEssenceApplies,
 } from "../../../shared/render-floor/floorReplacementRules.ts";
 import { DettagliTelefono } from "@/components/render/DettagliTelefono";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type BattiscopaTipo = NonNullable<ConfigurazionePavimento["battiscopa"]>["tipo"];
 
@@ -288,6 +289,7 @@ function isSeamless(type: TipoPavimento): boolean {
 }
 
 export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Props) {
+  const t = useT();
   const set = <K extends keyof ConfigurazionePavimento>(
     key: K,
     val: ConfigurazionePavimento[K],
@@ -334,7 +336,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       <div className="rounded-lg border bg-muted/25 p-3 max-md:p-2">
         <div className="flex items-start gap-3 max-md:items-center max-md:gap-2.5">
           {fotoSuperficie ? (
-            <AnteprimaFoto foto={fotoSuperficie} alt={`Superficie: ${selectedType.label}`} className="h-16 w-16 rounded-md max-md:h-11 max-md:w-11" />
+            <AnteprimaFoto foto={fotoSuperficie} alt={t("Superficie: {label}", { label: t(selectedType.label) })} className="h-16 w-16 rounded-md max-md:h-11 max-md:w-11" />
           ) : (
             <div
               className="h-16 w-20 shrink-0 rounded-md border max-md:h-11 max-md:w-14"
@@ -343,19 +345,19 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 max-md:gap-1.5">
-              <p className="text-sm font-semibold max-md:text-[13px]">{selectedType.label}</p>
+              <p className="text-sm font-semibold max-md:text-[13px]">{t(selectedType.label)}</p>
               <Badge variant="secondary" className="max-md:px-1.5 max-md:py-0 max-md:text-[11px]">{value.pattern_posa.replace(/_/g, " ")}</Badge>
-              {seamless && <Badge variant="outline" className="max-md:px-1.5 max-md:py-0 max-md:text-[11px]">senza fughe</Badge>}
+              {seamless && <Badge variant="outline" className="max-md:px-1.5 max-md:py-0 max-md:text-[11px]">{t("senza fughe")}</Badge>}
             </div>
             <p className="mt-1 text-xs text-muted-foreground max-md:mt-0.5 max-md:truncate max-md:text-[11px]">
-              {value.colore_nome || "Colore selezionato"} · {value.finitura} · {value.scala_pattern || "scala standard"}
+              {value.colore_nome || t("Colore selezionato")} · {value.finitura} · {value.scala_pattern || t("scala standard")}
             </p>
           </div>
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label className="max-md:text-[13px] max-md:font-semibold">Materiale *</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">{t("Materiale *")}</Label>
         {/* Telefono: tre per riga, nome a 11px, senza la riga di dettaglio. */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-1.5">
           {FLOOR_TYPES.map((ft) => (
@@ -371,12 +373,12 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
               {FOTO_SCHEDA_TIPO[ft.value] ? (
-                <AnteprimaFoto foto={FOTO_SCHEDA_TIPO[ft.value]} alt={ft.label} className="mb-2 h-12 w-12 max-md:mb-1.5 max-md:h-10 max-md:w-10" />
+                <AnteprimaFoto foto={FOTO_SCHEDA_TIPO[ft.value]} alt={t(ft.label)} className="mb-2 h-12 w-12 max-md:mb-1.5 max-md:h-10 max-md:w-10" />
               ) : (
                 <div className="mb-2 h-8 rounded border max-md:mb-1.5 max-md:h-6" style={{ background: ft.preview }} />
               )}
-              <span className="block font-semibold leading-tight max-md:text-[11px]">{ft.label}</span>
-              <span className="block text-[11px] text-muted-foreground max-md:hidden">{ft.detail}</span>
+              <span className="block font-semibold leading-tight max-md:text-[11px]">{t(ft.label)}</span>
+              <span className="block text-[11px] text-muted-foreground max-md:hidden">{t(ft.detail)}</span>
             </button>
           ))}
         </div>
@@ -385,7 +387,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
       <div className="grid gap-4 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Effetto visivo</Label>
+          <Label className="max-md:text-[11px]">{t("Effetto visivo")}</Label>
           <Select
             value={value.effetto_visivo ?? selectedType.effect}
             onValueChange={(v) => set("effetto_visivo", v as EffettoVisivoPavimento)}
@@ -394,15 +396,15 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {EFFECTS.map((effect) => (
-                <SelectItem key={effect.value} value={effect.value}>{effect.label}</SelectItem>
+                <SelectItem key={effect.value} value={effect.value}>{t(effect.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Finitura</Label>
+          <Label className="max-md:text-[11px]">{t("Finitura")}</Label>
           <div className="flex items-center gap-2">
-            <AnteprimaFoto foto={fotoPer("SURFACE FINISH TARGET")} alt={`Finitura ${value.finitura}`} />
+            <AnteprimaFoto foto={fotoPer("SURFACE FINISH TARGET")} alt={t("Finitura {finitura}", { finitura: String(value.finitura ?? "") })} />
             <div className="min-w-0 flex-1">
               <Select
                 value={value.finitura}
@@ -412,7 +414,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {FINITURE.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                    <SelectItem key={f.value} value={f.value}>{t(f.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -423,7 +425,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
       {usaEssenza && (
         <div className="space-y-2">
-          <Label className="max-md:text-[13px] max-md:font-semibold">Essenza legno</Label>
+          <Label className="max-md:text-[13px] max-md:font-semibold">{t("Essenza legno")}</Label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-1.5">
             {WOOD_ESSENCES.map((wood) => (
               <button
@@ -438,11 +440,11 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                   } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
               >
                 {FLOOR_ESSENCE_PHOTOS[wood.value] ? (
-                  <AnteprimaFoto foto={FLOOR_ESSENCE_PHOTOS[wood.value]} alt={wood.label} className="mb-1 h-12 w-12 max-md:h-10 max-md:w-10" />
+                  <AnteprimaFoto foto={FLOOR_ESSENCE_PHOTOS[wood.value]} alt={t(wood.label)} className="mb-1 h-12 w-12 max-md:h-10 max-md:w-10" />
                 ) : (
                   <span className="mb-1 block h-6 rounded border" style={{ backgroundColor: wood.color }} />
                 )}
-                <span className="font-medium max-md:text-[11px] max-md:leading-tight">{wood.label}</span>
+                <span className="font-medium max-md:text-[11px] max-md:leading-tight">{t(wood.label)}</span>
               </button>
             ))}
           </div>
@@ -451,17 +453,17 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
       <div className="grid gap-4 sm:grid-cols-[1fr_88px] max-sm:grid-cols-[1fr_64px] max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Colore / nome commerciale</Label>
+          <Label className="max-md:text-[11px]">{t("Colore / nome commerciale")}</Label>
           <Input
             value={value.colore_nome ?? ""}
             onChange={(e) => set("colore_nome", e.target.value)}
-            placeholder="Es. Rovere naturale, Calacatta oro, cemento caldo"
+            placeholder={t("Es. Rovere naturale, Calacatta oro, cemento caldo")}
             className="max-md:placeholder:text-[13px]"
             disabled={disabled}
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Campione</Label>
+          <Label className="max-md:text-[11px]">{t("Campione")}</Label>
           <Input
             type="color"
             value={value.colore_hex ?? "#b0b0b0"}
@@ -473,7 +475,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       </div>
 
       <div className="space-y-2">
-        <Label className="max-md:text-[13px] max-md:font-semibold">Schema di posa *</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">{t("Schema di posa *")}</Label>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-1.5">
           {PATTERNS.map((p) => (
             <button
@@ -488,12 +490,12 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
               {FLOOR_LAYOUT_PHOTOS[p.value] ? (
-                <AnteprimaFoto foto={FLOOR_LAYOUT_PHOTOS[p.value]} alt={`Posa ${p.label}`} className="mb-2 h-12 w-12 max-md:mb-1.5 max-md:h-10 max-md:w-10" />
+                <AnteprimaFoto foto={FLOOR_LAYOUT_PHOTOS[p.value]} alt={t("Posa {data}", { data: t(p.label) })} className="mb-2 h-12 w-12 max-md:mb-1.5 max-md:h-10 max-md:w-10" />
               ) : (
                 <span className="mb-2 block h-7 rounded bg-muted max-md:mb-1.5 max-md:h-6" style={{ backgroundImage: p.preview }} />
               )}
-              <span className="block font-semibold max-md:text-[11px] max-md:leading-tight">{p.label}</span>
-              <span className="block text-[11px] text-muted-foreground max-md:hidden">{p.detail}</span>
+              <span className="block font-semibold max-md:text-[11px] max-md:leading-tight">{t(p.label)}</span>
+              <span className="block text-[11px] text-muted-foreground max-md:hidden">{t(p.detail)}</span>
             </button>
           ))}
         </div>
@@ -501,10 +503,10 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
       {/* Telefono: le scelte tecniche (hanno già valori sensati) stanno in
           «Dettagli di posa», chiusi; sul computer restano dove sono. */}
-      <DettagliTelefono titolo="Dettagli di posa">
+      <DettagliTelefono titolo={t("Dettagli di posa")}>
       <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Direzione posa</Label>
+          <Label className="max-md:text-[11px]">{t("Direzione posa")}</Label>
           <Select
             value={value.direzione_posa ?? "segue_prospettiva"}
             onValueChange={(v) => set("direzione_posa", v as DirezionePosa)}
@@ -513,13 +515,13 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {DIRECTIONS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                <SelectItem key={item.value} value={item.value}>{t(item.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Scala pattern</Label>
+          <Label className="max-md:text-[11px]">{t("Scala pattern")}</Label>
           <Select
             value={value.scala_pattern ?? "standard"}
             onValueChange={(v) => set("scala_pattern", v as ScalaPattern)}
@@ -528,13 +530,13 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {SCALES.map((item) => (
-                <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                <SelectItem key={item.value} value={item.value}>{t(item.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Variazione tono</Label>
+          <Label className="max-md:text-[11px]">{t("Variazione tono")}</Label>
           <Select
             value={value.variazione_tono ?? "naturale"}
             onValueChange={(v) => set("variazione_tono", v as VariazioneTono)}
@@ -543,7 +545,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {TONE_VARIATIONS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                <SelectItem key={item.value} value={item.value}>{t(item.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -552,7 +554,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
       <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Formato piastrella</Label>
+          <Label className="max-md:text-[11px]">{t("Formato piastrella")}</Label>
           <Select
             value={value.formato_piastrella ?? "60x60"}
             onValueChange={(v) => set("formato_piastrella", v)}
@@ -567,7 +569,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Larghezza listello</Label>
+          <Label className="max-md:text-[11px]">{t("Larghezza listello")}</Label>
           <Input
             type="number"
             min={50}
@@ -579,7 +581,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Lunghezza listello</Label>
+          <Label className="max-md:text-[11px]">{t("Lunghezza listello")}</Label>
           <Input
             type="number"
             min={100}
@@ -594,7 +596,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
       <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Fuga / giunto (mm)</Label>
+          <Label className="max-md:text-[11px]">{t("Fuga / giunto (mm)")}</Label>
           <Input
             type="number"
             min={0}
@@ -605,7 +607,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Colore fuga</Label>
+          <Label className="max-md:text-[11px]">{t("Colore fuga")}</Label>
           <Select
             value={value.fuga_colore ?? "tono_su_tono"}
             onValueChange={(v) => set("fuga_colore", v as ConfigurazionePavimento["fuga_colore"])}
@@ -614,13 +616,13 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {FUGA_COLORI.map((f) => (
-                <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                <SelectItem key={f.value} value={f.value}>{t(f.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Bisellatura</Label>
+          <Label className="max-md:text-[11px]">{t("Bisellatura")}</Label>
           <div className="flex items-center gap-2">
             <AnteprimaFoto foto={fotoPer("EDGE BEVEL TARGET")} alt={`Bisellatura ${value.bisellatura ?? "nessuna"}`} />
             <div className="min-w-0 flex-1">
@@ -632,7 +634,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {BEVELS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                    <SelectItem key={item.value} value={item.value}>{t(item.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -644,7 +646,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       <div className="rounded-lg border p-3 max-md:border-0 max-md:p-0">
         <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
           <div className="space-y-1.5">
-            <Label className="max-md:text-[11px]">Soglie porte</Label>
+            <Label className="max-md:text-[11px]">{t("Soglie porte")}</Label>
             <Select
               value={value.soglie_porte ?? "mantieni"}
               onValueChange={(v) => set("soglie_porte", v as SogliePorte)}
@@ -653,13 +655,13 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {THRESHOLDS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  <SelectItem key={item.value} value={item.value}>{t(item.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="max-md:text-[11px]">Giunto perimetrale</Label>
+            <Label className="max-md:text-[11px]">{t("Giunto perimetrale")}</Label>
             <Select
               value={value.giunto_perimetrale ?? "standard_nascosto"}
               onValueChange={(v) => set("giunto_perimetrale", v as GiuntoPerimetrale)}
@@ -668,13 +670,13 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PERIMETER_JOINTS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  <SelectItem key={item.value} value={item.value}>{t(item.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="max-md:text-[11px]">Fasce bordo</Label>
+            <Label className="max-md:text-[11px]">{t("Fasce bordo")}</Label>
             <Select
               value={value.fasce_bordo ?? "nessuna"}
               onValueChange={(v) => set("fasce_bordo", v as FasceBordo)}
@@ -683,7 +685,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {BORDER_BANDS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  <SelectItem key={item.value} value={item.value}>{t(item.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -696,7 +698,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       <div className="space-y-3 rounded-lg border p-3">
         <CatalogReferencePicker companyId={companyId} verticale="pavimento" categorie={["battiscopa"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => update({ catalogo_reference_ids: ids })} />
         <div className="flex items-center justify-between gap-3">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Battiscopa</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{t("Battiscopa")}</Label>
           <Select
             value={value.battiscopa?.azione ?? "mantieni"}
             onValueChange={(v) =>
@@ -711,9 +713,9 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="mantieni">Mantieni</SelectItem>
-              <SelectItem value="sostituisci">Sostituisci</SelectItem>
-              <SelectItem value="rimuovi">Rimuovi</SelectItem>
+              <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+              <SelectItem value="sostituisci">{t("Sostituisci")}</SelectItem>
+              <SelectItem value="rimuovi">{t("Rimuovi")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -721,7 +723,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         {isSostituisciBattiscopa && (
           <div className="grid grid-cols-2 gap-3 max-md:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Tipo</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Tipo")}</Label>
               <div className="flex items-center gap-2">
                 <AnteprimaFoto foto={fotoPer("SKIRTING BOARD TARGET")} alt={`Battiscopa ${value.battiscopa?.tipo ?? ""}`.trim()} />
                 <div className="min-w-0 flex-1">
@@ -738,7 +740,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {BATTISCOPA_TIPI.map((b) => (
-                        <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                        <SelectItem key={b.value} value={b.value}>{t(b.label)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -746,7 +748,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Altezza</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Altezza")}</Label>
               <Select
                 value={String(value.battiscopa?.altezza_cm ?? 8)}
                 onValueChange={(v) =>
@@ -772,28 +774,28 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       {/* Tappeti: un tappeto copre proprio il pavimento che si vuole mostrare al cliente. */}
       <div className="flex items-center justify-between gap-3 rounded-lg border p-3 max-md:p-2.5">
         <div className="min-w-0">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Tappeti sul pavimento</Label>
-          <p className="text-[11px] text-muted-foreground max-md:hidden">Togliendoli si vede il pavimento nuovo anche sotto; i mobili restano dove sono.</p>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{t("Tappeti sul pavimento")}</Label>
+          <p className="text-[11px] text-muted-foreground max-md:hidden">{t("Togliendoli si vede il pavimento nuovo anche sotto; i mobili restano dove sono.")}</p>
         </div>
         <Select
           value={value.tappeti ?? "mantieni"}
           onValueChange={(v) => set("tappeti", v as NonNullable<ConfigurazionePavimento["tappeti"]>)}
           disabled={disabled}
         >
-          <SelectTrigger className="w-44 max-md:w-36" aria-label="Tappeti sul pavimento"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 max-md:w-36" aria-label={t("Tappeti sul pavimento")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="mantieni">Lasciali dove sono</SelectItem>
-            <SelectItem value="rimuovi">Toglili</SelectItem>
+            <SelectItem value="mantieni">{t("Lasciali dove sono")}</SelectItem>
+            <SelectItem value="rimuovi">{t("Toglili")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="space-y-1.5">
-        <Label className="max-md:text-[13px] max-md:font-semibold">Note aggiuntive</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">{t("Note aggiuntive")}</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={(e) => set("note_libere", e.target.value)}
-          placeholder="Es. mantenere tappeto, non modificare porte, posa continua verso la cucina..."
+          placeholder={t("Es. mantenere tappeto, non modificare porte, posa continua verso la cucina...")}
           rows={3}
           disabled={disabled}
           // Telefono: segnaposto a 13px come il resto del testo.

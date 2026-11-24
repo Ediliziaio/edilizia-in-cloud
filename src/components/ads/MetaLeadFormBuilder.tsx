@@ -49,6 +49,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { isValidHttpsUrl } from "@/lib/ads/httpsUrl";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ════════════════════════════════════════════════════════════════════
 // TYPES — Meta Lead Form structure
@@ -263,6 +264,7 @@ export function MetaLeadFormBuilder({
   defaultCompanyName,
   defaultCompanyPhone,
 }: Props) {
+  const t = useT();
   const fieldId = useId();
   const privacyValid = isValidHttpsUrl(value.privacyPolicyUrl);
   const [activeSection, setActiveSection] = useState<"intro" | "fields" | "privacy" | "thanks">("fields");
@@ -315,29 +317,29 @@ export function MetaLeadFormBuilder({
       {/* === FORM TYPE — More Volume vs Higher Intent === */}
       <section className="rounded-2xl border bg-white p-5">
         <header className="mb-3">
-          <h3 className="text-base font-semibold text-slate-950">Tipologia modulo</h3>
+          <h3 className="text-base font-semibold text-slate-950">{t("Tipologia modulo")}</h3>
           <p className="text-xs text-slate-500">
-            Questa è la prima scelta di Meta Lead Forms. Diversi tipi = diversa qualità lead.
+            {t("Questa è la prima scelta di Meta Lead Forms. Diversi tipi = diversa qualità lead.")}
           </p>
         </header>
         <div className="grid gap-3 sm:grid-cols-2">
           <FormTypeCard
             active={value.formType === "MORE_VOLUME"}
-            title="More Volume"
-            description="3 step semplici. Più lead, qualità media. Per servizi dove serve volume di contatti."
-            timeToFill="~30 secondi"
-            qualityHint="Volume alto · Qualità media"
+            title={t("More Volume")}
+            description={t("3 step semplici. Più lead, qualità media. Per servizi dove serve volume di contatti.")}
+            timeToFill={t("~{n} secondi", { n: 30 })}
+            qualityHint={t("Volume alto · Qualità media")}
             tone="blue"
             onClick={() => update({ formType: "MORE_VOLUME" })}
           />
           <FormTypeCard
             active={value.formType === "HIGHER_INTENT"}
-            title="Higher Intent"
-            description="4 step con review pre-invio. Meno lead, qualità alta. Consigliato per edilizia/preventivi."
-            timeToFill="~60 secondi"
-            qualityHint="Volume medio · Qualità alta"
+            title={t("Higher Intent")}
+            description={t("4 step con review pre-invio. Meno lead, qualità alta. Consigliato per edilizia/preventivi.")}
+            timeToFill={t("~{n} secondi", { n: 60 })}
+            qualityHint={t("Volume medio · Qualità alta")}
             tone="emerald"
-            badge="Consigliato"
+            badge={t("Consigliato")}
             onClick={() => update({ formType: "HIGHER_INTENT" })}
           />
         </div>
@@ -347,10 +349,10 @@ export function MetaLeadFormBuilder({
       <div className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
         {(
           [
-            { v: "intro", label: "1. Introduzione", icon: ScrollText },
-            { v: "fields", label: "2. Domande", icon: HelpCircle },
-            { v: "privacy", label: "3. Privacy", icon: Shield },
-            { v: "thanks", label: "4. Grazie", icon: Check },
+            { v: "intro", label: t("1. Introduzione"), icon: ScrollText },
+            { v: "fields", label: t("2. Domande"), icon: HelpCircle },
+            { v: "privacy", label: t("3. Privacy"), icon: Shield },
+            { v: "thanks", label: t("4. Grazie"), icon: Check },
           ] as const
         ).map((s) => {
           const Icon = s.icon;
@@ -376,37 +378,37 @@ export function MetaLeadFormBuilder({
         <section className="space-y-3 rounded-2xl border bg-white p-5">
           <header className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-slate-950">Schermata introduttiva</h3>
+              <h3 className="text-base font-semibold text-slate-950">{t("Schermata introduttiva")}</h3>
               <p className="text-xs text-slate-500">
-                Il primo step che vede l'utente quando apre il form. Spiega cosa otterrà compilando.
+                {t("Il primo step che vede l'utente quando apre il form. Spiega cosa otterrà compilando.")}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor={`${fieldId}-show-intro`} className="text-xs">Mostra intro</Label>
+              <Label htmlFor={`${fieldId}-show-intro`} className="text-xs">{t("Mostra intro")}</Label>
               <Switch id={`${fieldId}-show-intro`} checked={value.showIntro} onCheckedChange={(v) => update({ showIntro: v })} />
             </div>
           </header>
           {value.showIntro && (
             <>
               <div>
-                <Label htmlFor={`${fieldId}-introHeadline`} className="mb-1 block text-xs font-semibold">Titolo</Label>
+                <Label htmlFor={`${fieldId}-introHeadline`} className="mb-1 block text-xs font-semibold">{t("Titolo")}</Label>
                 <Input
                   id={`${fieldId}-introHeadline`}
                   value={value.introHeadline}
                   onChange={(e) => update({ introHeadline: e.target.value.slice(0, 60) })}
                   maxLength={60}
-                  placeholder="Vuoi un preventivo chiaro?"
+                  placeholder={t("Vuoi un preventivo chiaro?")}
                 />
                 <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">{value.introHeadline.length}/60</p>
               </div>
               <div>
-                <Label htmlFor={`${fieldId}-introBody`} className="mb-1 block text-xs font-semibold">Descrizione</Label>
+                <Label htmlFor={`${fieldId}-introBody`} className="mb-1 block text-xs font-semibold">{t("Descrizione")}</Label>
                 <Textarea
                   id={`${fieldId}-introBody`}
                   value={value.introBody}
                   onChange={(e) => update({ introBody: e.target.value.slice(0, 600) })}
                   maxLength={600}
-                  placeholder="Compila il modulo: ti contattiamo entro 24h con una proposta su misura."
+                  placeholder={t("Compila il modulo: ti contattiamo entro 24h con una proposta su misura.")}
                   className="min-h-20"
                 />
                 <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">{value.introBody.length}/600</p>
@@ -423,12 +425,10 @@ export function MetaLeadFormBuilder({
           <div className="rounded-2xl border bg-white p-5">
             <header className="mb-3">
               <h3 className="text-base font-semibold text-slate-950">
-                Campi pre-compilati da Meta
+                {t("Campi pre-compilati da Meta")}
               </h3>
               <p className="text-xs text-slate-500">
-                Meta inserisce automaticamente questi dati dal profilo dell'utente. L'utente
-                conferma solo. <strong>Maggiore il numero, minore la qualità del lead</strong> —
-                stai sul minimo necessario (nome, telefono, email + 1-2).
+                {t("Meta inserisce automaticamente questi dati dal profilo dell'utente. L'utente conferma solo.")} <strong>{t("Maggiore il numero, minore la qualità del lead")}</strong> {t("— stai sul minimo necessario (nome, telefono, email + 1-2).")}
               </p>
             </header>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -448,7 +448,7 @@ export function MetaLeadFormBuilder({
                     )}
                   >
                     <Icon className={cn("h-4 w-4 shrink-0", checked ? "text-blue-600" : "text-slate-400")} />
-                    <span className="flex-1 truncate">{opt.label}</span>
+                    <span className="flex-1 truncate">{t(opt.label)}</span>
                     {opt.recommended && !checked && (
                       <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[9px] text-emerald-700 max-md:text-[11px]">★</Badge>
                     )}
@@ -463,11 +463,10 @@ export function MetaLeadFormBuilder({
           <div className="rounded-2xl border bg-white p-5">
             <header className="mb-3">
               <h3 className="text-base font-semibold text-slate-950">
-                Domande di qualificazione
+                {t("Domande di qualificazione")}
               </h3>
               <p className="text-xs text-slate-500">
-                Domande personalizzate per filtrare lead bassa qualità. Click su un template per aggiungerlo,
-                poi personalizza.
+                {t("Domande personalizzate per filtrare lead bassa qualità. Click su un template per aggiungerlo, poi personalizza.")}
               </p>
             </header>
             <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -488,7 +487,7 @@ export function MetaLeadFormBuilder({
                         : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50",
                     )}
                   >
-                    {tpl.label} {already && "✓"}
+                    {t(tpl.label)} {already && "✓"}
                   </button>
                 );
               })}
@@ -502,19 +501,19 @@ export function MetaLeadFormBuilder({
                 })}
                 className="rounded-lg border border-dashed border-slate-300 p-2 text-left text-xs text-slate-600 hover:bg-slate-50"
               >
-                <Plus className="mr-1 inline h-3 w-3" /> Domanda custom
+                <Plus className="mr-1 inline h-3 w-3" /> {t("Domanda custom")}
               </button>
             </div>
 
             {/* QUESTIONS LIST */}
             {value.questions.length === 0 ? (
               <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">
-                Nessuna domanda. Aggiungi almeno nome+telefono+email per partire.
+                {t("Nessuna domanda. Aggiungi almeno nome+telefono+email per partire.")}
               </p>
             ) : (
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">
-                  Ordine domande nel form
+                  {t("Ordine domande nel form")}
                 </p>
                 {value.questions.map((q, idx) => (
                   <QuestionRow
@@ -540,14 +539,14 @@ export function MetaLeadFormBuilder({
           <header>
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              Privacy Policy
+              {t("Privacy Policy")}
             </h3>
             <p className="text-xs text-slate-500">
-              <strong>OBBLIGATORIA per Meta.</strong> URL pubblico HTTPS della tua policy privacy aziendale (GDPR-compliant).
+              <strong>{t("OBBLIGATORIA per Meta.")}</strong> {t("URL pubblico HTTPS della tua policy privacy aziendale (GDPR-compliant).")}
             </p>
           </header>
           <div>
-            <Label htmlFor={`${fieldId}-privacy-url`} className="mb-1 block text-xs font-semibold">URL Privacy Policy *</Label>
+            <Label htmlFor={`${fieldId}-privacy-url`} className="mb-1 block text-xs font-semibold">{t("URL Privacy Policy *")}</Label>
             <Input
               id={`${fieldId}-privacy-url`}
               aria-invalid={Boolean(value.privacyPolicyUrl) && !privacyValid}
@@ -558,29 +557,27 @@ export function MetaLeadFormBuilder({
               type="url"
             />
             {value.privacyPolicyUrl && !privacyValid && (
-              <p id={`${fieldId}-privacy-status`} className="mt-1 text-xs text-rose-600">Inserisci un URL HTTPS completo con un dominio valido.</p>
+              <p id={`${fieldId}-privacy-status`} className="mt-1 text-xs text-rose-600">{t("Inserisci un URL HTTPS completo con un dominio valido.")}</p>
             )}
             {value.privacyPolicyUrl && privacyValid && (
-              <p id={`${fieldId}-privacy-status`} className="mt-1 text-xs text-emerald-600">✓ Formato URL valido</p>
+              <p id={`${fieldId}-privacy-status`} className="mt-1 text-xs text-emerald-600">{t("✓ Formato URL valido")}</p>
             )}
           </div>
           <div>
-            <Label htmlFor={`${fieldId}-privacy-disclaimer`} className="mb-1 block text-xs font-semibold">Disclaimer custom (opzionale)</Label>
+            <Label htmlFor={`${fieldId}-privacy-disclaimer`} className="mb-1 block text-xs font-semibold">{t("Disclaimer custom (opzionale)")}</Label>
             <Textarea
               id={`${fieldId}-privacy-disclaimer`}
               value={value.customPrivacyDisclaimer ?? ""}
               onChange={(e) => update({ customPrivacyDisclaimer: e.target.value.slice(0, 500) })}
-              placeholder="Es. Trattiamo i tuoi dati solo per inviarti il preventivo. Niente spam, niente terze parti."
+              placeholder={t("Es. Trattiamo i tuoi dati solo per inviarti il preventivo. Niente spam, niente terze parti.")}
               maxLength={500}
               className="min-h-16"
             />
           </div>
           <Alert className="border-amber-200 bg-amber-50">
-            <AlertTitle className="text-xs">Tip GDPR</AlertTitle>
+            <AlertTitle className="text-xs">{t("Tip GDPR")}</AlertTitle>
             <AlertDescription className="text-[11px]">
-              La policy deve specificare: finalità (lead/preventivo), base giuridica (consenso), durata
-              conservazione, diritti dell'utente (cancellazione/portabilità), eventuale trasferimento dati
-              (es. CRM).
+              {t("La policy deve specificare: finalità (lead/preventivo), base giuridica (consenso), durata conservazione, diritti dell'utente (cancellazione/portabilità), eventuale trasferimento dati (es. CRM).")}
             </AlertDescription>
           </Alert>
         </section>
@@ -592,16 +589,15 @@ export function MetaLeadFormBuilder({
           <header>
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <Sparkles className="h-4 w-4 text-fuchsia-600" />
-              Schermata "Grazie"
+              {t("Schermata \"Grazie\"")}
             </h3>
             <p className="text-xs text-slate-500">
-              Ultimo passo: cosa l'utente vede dopo aver inviato. È il momento per "agganciarlo" subito (call,
-              WhatsApp, sito).
+              {t("Ultimo passo: cosa l'utente vede dopo aver inviato. È il momento per \"agganciarlo\" subito (call, WhatsApp, sito).")}
             </p>
           </header>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <Label htmlFor={`${fieldId}-thankYouHeadline`} className="mb-1 block text-xs font-semibold">Titolo</Label>
+              <Label htmlFor={`${fieldId}-thankYouHeadline`} className="mb-1 block text-xs font-semibold">{t("Titolo")}</Label>
               <Input
                 id={`${fieldId}-thankYouHeadline`}
                 value={value.thankYouHeadline}
@@ -610,7 +606,7 @@ export function MetaLeadFormBuilder({
               />
             </div>
             <div>
-              <Label htmlFor={`${fieldId}-thankYouButtonText`} className="mb-1 block text-xs font-semibold">Testo CTA bottone</Label>
+              <Label htmlFor={`${fieldId}-thankYouButtonText`} className="mb-1 block text-xs font-semibold">{t("Testo CTA bottone")}</Label>
               <Input
                 id={`${fieldId}-thankYouButtonText`}
                 value={value.thankYouButtonText}
@@ -620,7 +616,7 @@ export function MetaLeadFormBuilder({
             </div>
           </div>
           <div>
-            <Label htmlFor={`${fieldId}-thankYouBody`} className="mb-1 block text-xs font-semibold">Testo schermata</Label>
+            <Label htmlFor={`${fieldId}-thankYouBody`} className="mb-1 block text-xs font-semibold">{t("Testo schermata")}</Label>
             <Textarea
               id={`${fieldId}-thankYouBody`}
                 value={value.thankYouBody}
@@ -631,23 +627,23 @@ export function MetaLeadFormBuilder({
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <Label htmlFor={`${fieldId}-cta-type`} className="mb-1 block text-xs font-semibold">Tipo bottone CTA</Label>
+              <Label htmlFor={`${fieldId}-cta-type`} className="mb-1 block text-xs font-semibold">{t("Tipo bottone CTA")}</Label>
               <Select
                 value={value.thankYouButtonType}
                 onValueChange={(v: MetaLeadFormState["thankYouButtonType"]) => update({ thankYouButtonType: v })}
               >
                 <SelectTrigger id={`${fieldId}-cta-type`}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="VIEW_WEBSITE">Apri sito web</SelectItem>
-                  <SelectItem value="CALL_BUSINESS">Chiama azienda</SelectItem>
-                  <SelectItem value="MESSAGE_BUSINESS">Scrivi su Messenger/WhatsApp</SelectItem>
-                  <SelectItem value="DOWNLOAD">Scarica file</SelectItem>
+                  <SelectItem value="VIEW_WEBSITE">{t("Apri sito web")}</SelectItem>
+                  <SelectItem value="CALL_BUSINESS">{t("Chiama azienda")}</SelectItem>
+                  <SelectItem value="MESSAGE_BUSINESS">{t("Scrivi su Messenger/WhatsApp")}</SelectItem>
+                  <SelectItem value="DOWNLOAD">{t("Scarica file")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label htmlFor={`${fieldId}-cta-destination`} className="mb-1 block text-xs font-semibold">
-                {value.thankYouButtonType === "CALL_BUSINESS" ? "Numero telefono *" : "URL destinazione *"}
+                {value.thankYouButtonType === "CALL_BUSINESS" ? t("Numero telefono *") : t("URL destinazione *")}
               </Label>
               <Input
                 id={`${fieldId}-cta-destination`}
@@ -668,16 +664,16 @@ export function MetaLeadFormBuilder({
 
       {/* === LIVE SUMMARY === */}
       <div className="rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-3">
-        <p className="text-xs font-semibold text-slate-700">📋 Riepilogo modulo</p>
+        <p className="text-xs font-semibold text-slate-700">{t("📋 Riepilogo modulo")}</p>
         <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-          <Badge variant="outline">{value.formType === "MORE_VOLUME" ? "Volume" : "Higher Intent"}</Badge>
-          <Badge variant="outline">{value.questions.length} domande</Badge>
-          <Badge variant="outline">{value.questions.filter((q) => q.kind === "prefilled").length} prefilled</Badge>
-          <Badge variant="outline">{value.questions.filter((q) => q.kind === "custom").length} custom</Badge>
+          <Badge variant="outline">{value.formType === "MORE_VOLUME" ? t("Volume") : t("Higher Intent")}</Badge>
+          <Badge variant="outline">{t("{n} domande", { n: value.questions.length })}</Badge>
+          <Badge variant="outline">{t("{n} prefilled", { n: value.questions.filter((q) => q.kind === "prefilled").length })}</Badge>
+          <Badge variant="outline">{t("{n} custom", { n: value.questions.filter((q) => q.kind === "custom").length })}</Badge>
           {privacyValid ? (
-            <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">✓ Privacy ok</Badge>
+            <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">{t("✓ Privacy ok")}</Badge>
           ) : (
-            <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700">{value.privacyPolicyUrl ? "⚠ Privacy URL non valido" : "⚠ Privacy URL mancante"}</Badge>
+            <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700">{value.privacyPolicyUrl ? t("⚠ Privacy URL non valido") : t("⚠ Privacy URL mancante")}</Badge>
           )}
         </div>
       </div>
@@ -765,6 +761,7 @@ function QuestionRow({
   onMoveDown: () => void;
   onUpdateCustom: (patch: Partial<CustomQuestion>) => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const isPrefilled = question.kind === "prefilled";
   const prefilledLabel = isPrefilled
@@ -780,12 +777,12 @@ function QuestionRow({
       <div className="flex items-center gap-2">
         <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-300" />
         <Badge variant="outline" className="shrink-0 text-[9px] max-md:text-[11px]">
-          {isPrefilled ? "Meta" : "Custom"}
+          {isPrefilled ? "Meta" : t("Custom")}
         </Badge>
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
           {isPrefilled ? prefilledLabel : custom?.label}
         </p>
-        {custom?.required && <Badge className="bg-rose-500 text-[9px] text-white max-md:text-[11px]">obbligatoria</Badge>}
+        {custom?.required && <Badge className="bg-rose-500 text-[9px] text-white max-md:text-[11px]">{t("obbligatoria")}</Badge>}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveUp} disabled={index === 0}>
           <ChevronUp className="h-3 w-3" />
         </Button>
@@ -794,7 +791,7 @@ function QuestionRow({
         </Button>
         {custom && (
           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setExpanded((e) => !e)}>
-            {expanded ? "Chiudi" : "Modifica"}
+            {expanded ? t("Chiudi") : t("Modifica")}
           </Button>
         )}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onRemove}>
@@ -804,7 +801,7 @@ function QuestionRow({
       {expanded && custom && (
         <div className="mt-3 space-y-2 border-t border-violet-200 pt-3">
           <div>
-            <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">Domanda</Label>
+            <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">{t("Domanda")}</Label>
             <Input
               value={custom.label}
               onChange={(e) => onUpdateCustom({ label: e.target.value.slice(0, 200) })}
@@ -813,17 +810,17 @@ function QuestionRow({
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">Tipo risposta</Label>
+              <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">{t("Tipo risposta")}</Label>
               <Select
                 value={custom.type}
                 onValueChange={(v: CustomQuestionType) => onUpdateCustom({ type: v })}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="short_answer">Testo libero corto</SelectItem>
-                  <SelectItem value="multiple_choice">Scelta multipla</SelectItem>
-                  <SelectItem value="conditional" disabled>Condizionale (V2)</SelectItem>
-                  <SelectItem value="appointment_request" disabled>Appuntamento (V2)</SelectItem>
+                  <SelectItem value="short_answer">{t("Testo libero corto")}</SelectItem>
+                  <SelectItem value="multiple_choice">{t("Scelta multipla")}</SelectItem>
+                  <SelectItem value="conditional" disabled>{t("Condizionale (V2)")}</SelectItem>
+                  <SelectItem value="appointment_request" disabled>{t("Appuntamento (V2)")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -832,19 +829,19 @@ function QuestionRow({
                 checked={custom.required ?? false}
                 onCheckedChange={(v) => onUpdateCustom({ required: !!v })}
               />
-              <Label className="text-xs">Domanda obbligatoria</Label>
+              <Label className="text-xs">{t("Domanda obbligatoria")}</Label>
             </div>
           </div>
           {custom.type === "multiple_choice" && (
             <div>
-              <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">Opzioni di risposta (una per riga)</Label>
+              <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">{t("Opzioni di risposta (una per riga)")}</Label>
               <Textarea
                 value={(custom.options ?? []).join("\n")}
                 onChange={(e) => onUpdateCustom({ options: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 10) })}
-                placeholder="Opzione 1&#10;Opzione 2&#10;Opzione 3"
+                placeholder={[1, 2, 3].map((n) => t("Opzione {n}", { n })).join("\n")}
                 className="min-h-20 font-mono text-xs"
               />
-              <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">Max 10 opzioni</p>
+              <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">{t("Max 10 opzioni")}</p>
             </div>
           )}
         </div>

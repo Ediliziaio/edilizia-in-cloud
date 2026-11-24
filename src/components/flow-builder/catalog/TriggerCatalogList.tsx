@@ -8,6 +8,7 @@ import {
 import { getCategoryColor } from "@/components/flow-builder/nodes/nodeStyles";
 import { getTriggerIcon } from "@/components/flow-builder/nodes/nodeIcons";
 import { CatalogItemRow } from "./CatalogItemRow";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COMPANY_CATEGORY_ORDER = ["crm", "marketing", "ordini", "fatturazione", "preventivi", "assistenza", "magazzino", "hr", "cantieri", "task", "generale"];
 const ADMIN_CATEGORY_ORDER = ["crm", "marketing", "comunicazione", "task", "generale", "piattaforma"];
@@ -35,6 +36,7 @@ interface TriggerCatalogListProps {
 }
 
 export function TriggerCatalogList({ search, onSelect, onDragStart, isAdmin = false }: TriggerCatalogListProps) {
+  const tr = useT();
   const CATEGORY_ORDER = isAdmin ? ADMIN_CATEGORY_ORDER : COMPANY_CATEGORY_ORDER;
   const [expanded, setExpanded] = useState<Set<string>>(new Set(isAdmin ? ["piattaforma"] : ["crm"]));
   const [recents] = useState<string[]>(() => {
@@ -100,7 +102,7 @@ export function TriggerCatalogList({ search, onSelect, onDragStart, isAdmin = fa
       {recentItems.length > 0 && (
         <div className="mb-1">
           <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Recenti
+            {tr("Recenti")}
           </p>
           {recentItems.map(item => (
             <CatalogItemRow key={item.id} item={item} onSelect={handleSelect} onDragStart={onDragStart} />
@@ -125,7 +127,7 @@ export function TriggerCatalogList({ search, onSelect, onDragStart, isAdmin = fa
                 <CatIcon className={`h-3 w-3 ${colors.text}`} />
               </div>
               <span className="text-xs font-medium text-foreground flex-1 text-left">
-                {CATEGORY_LABELS[category] ?? category}
+                {CATEGORY_LABELS[category] ? tr(CATEGORY_LABELS[category]) : category}
               </span>
               <span className="text-[10px] text-muted-foreground mr-1">{items.length}</span>
               {isOpen
@@ -141,7 +143,7 @@ export function TriggerCatalogList({ search, onSelect, onDragStart, isAdmin = fa
       })}
 
       {filteredByCategory.length === 0 && (
-        <p className="py-8 text-center text-xs text-muted-foreground">Nessun risultato</p>
+        <p className="py-8 text-center text-xs text-muted-foreground">{tr("Nessun risultato")}</p>
       )}
     </div>
   );

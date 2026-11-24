@@ -20,7 +20,6 @@ import {
   type EmailActivityAction,
 } from "../hooks/useThreadActivity";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import DOMPurify from "dompurify";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +58,7 @@ import {
   type PredictiveEmailResult,
 } from "../lib/predictiveReconciliation";
 import { FanneUnaCommessa } from "@/components/silvio-commessa/PulsantiIngressi";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MessageRow {
   id: string;
@@ -414,6 +414,7 @@ function predictiveFromMessages(messages: MessageRow[] | undefined): PredictiveE
 }
 
 export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onReply, onAiDraftReady }: EmailViewerProps) {
+  const t = useT();
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
@@ -488,7 +489,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
     },
-    onError: (e) => toast.error("Operazione fallita", { description: String(e) }),
+    onError: (e) => toast.error(t("Operazione fallita"), { description: String(e) }),
   });
 
   const archiveAll = useMutation({
@@ -503,13 +504,13 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
       );
     },
     onSuccess: () => {
-      toast.success("Conversazione archiviata");
+      toast.success(t("Conversazione archiviata"));
       qc.invalidateQueries({ queryKey: ["email-thread-messages", threadId] });
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
       onClose();
     },
-    onError: (e) => toast.error("Archiviazione fallita", { description: String(e) }),
+    onError: (e) => toast.error(t("Archiviazione fallita"), { description: String(e) }),
   });
 
   const summarizeMutation = useMutation({
@@ -526,7 +527,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
     onSuccess: (r) => {
       setAiSummary({ summary: r.summary, action_items: r.action_items });
     },
-    onError: (e) => toast.error("AI riassunto fallito", { description: String(e) }),
+    onError: (e) => toast.error(t("AI riassunto fallito"), { description: String(e) }),
   });
 
   const analyzeMutation = useMutation({
@@ -542,11 +543,11 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
     },
     onSuccess: (analysis) => {
       setAiAnalysis(analysis);
-      toast.success("Analisi AI aggiornata");
+      toast.success(t("Analisi AI aggiornata"));
       qc.invalidateQueries({ queryKey: ["email-thread-messages", threadId] });
       qc.invalidateQueries({ queryKey: ["email-threads"] });
     },
-    onError: (e) => toast.error("Analisi AI fallita", { description: String(e) }),
+    onError: (e) => toast.error(t("Analisi AI fallita"), { description: String(e) }),
   });
 
   const suggestRepliesMutation = useMutation({
@@ -563,7 +564,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
     onSuccess: (suggestions) => {
       setAiSuggestions(suggestions);
     },
-    onError: (e) => toast.error("AI risposte fallite", { description: String(e) }),
+    onError: (e) => toast.error(t("AI risposte fallite"), { description: String(e) }),
   });
 
   const operationProposalsMutation = useMutation({
@@ -586,16 +587,16 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       qc.invalidateQueries({ queryKey: ["email-action-proposals", threadId] });
       if (result.proposals.length > 0) {
-        toast.success("Proposte operative create", {
-          description: `${result.proposals.length} azioni pronte da confermare nel pannello AI.`,
+        toast.success(t("Proposte operative create"), {
+          description: t("{n} azioni pronte da confermare nel pannello AI.", { n: result.proposals.length }),
         });
       } else {
-        toast.info("Analisi operativa completata", {
-          description: "Non ho trovato azioni applicabili in sicurezza senza più dati.",
+        toast.info(t("Analisi operativa completata"), {
+          description: t("Non ho trovato azioni applicabili in sicurezza senza più dati."),
         });
       }
     },
-    onError: (e) => toast.error("Proposte operative fallite", { description: String(e) }),
+    onError: (e) => toast.error(t("Proposte operative fallite"), { description: String(e) }),
   });
 
   const trashAll = useMutation({
@@ -609,16 +610,16 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
       );
     },
     onSuccess: () => {
-      toast.success("Spostato nel cestino");
+      toast.success(t("Spostato nel cestino"));
       qc.invalidateQueries({ queryKey: ["email-thread-messages", threadId] });
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
       onClose();
     },
-    onError: (e) => toast.error("Spostamento nel cestino fallito", { description: String(e) }),
+    onError: (e) => toast.error(t("Spostamento nel cestino fallito"), { description: String(e) }),
   });
 
-  const subject = messages?.[0]?.subject ?? "(senza oggetto)";
+  const subject = messages?.[0]?.subject ?? t("(senza oggetto)");
   const messageCount = messages?.length ?? 0;
   const hasStarred = messages?.some((m) => m.is_starred) ?? false;
   const storedAnalysis = useMemo(() => analysisFromMessages(messages), [messages]);
@@ -651,7 +652,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
           size="icon"
           className="md:hidden shrink-0"
           onClick={onBack}
-          aria-label="Torna alla lista"
+          aria-label={t("Torna alla lista")}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -664,13 +665,13 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
                 : "bg-blue-50 text-blue-700",
             )}
           >
-            {headerCategoryLabel}
+            {t(headerCategoryLabel)}
           </span>
         )}
         <h2 className="font-semibold truncate flex-1 text-sm sm:text-base">{subject}</h2>
         {messageCount > 0 && (
           <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] shrink-0">
-            {messageCount} {messageCount === 1 ? "messaggio" : "messaggi"}
+            {messageCount} {messageCount === 1 ? t("messaggio") : t("messaggi")}
           </Badge>
         )}
         {/* Icon actions: desktop only — su mobile la bottom action bar ne replica il subset essenziale */}
@@ -683,7 +684,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
             const firstId = messages[0].id;
             toggleFlag.mutate({ id: firstId, flag: "starred", value: !hasStarred });
           }}
-          title={hasStarred ? "Rimuovi stella" : "Aggiungi stella"}
+          title={hasStarred ? t("Rimuovi stella") : t("Aggiungi stella")}
         >
           <Star className={cn("h-4 w-4", hasStarred && "fill-amber-400 text-amber-400")} />
         </Button>
@@ -693,7 +694,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
           className="hidden md:flex"
           onClick={() => archiveAll.mutate()}
           disabled={archiveAll.isPending}
-          title="Archivia"
+          title={t("Archivia")}
         >
           <Archive className="h-4 w-4" />
         </Button>
@@ -705,7 +706,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
           className="hidden md:flex hover:text-rose-600"
           onClick={() => trashAll.mutate()}
           disabled={trashAll.isPending}
-          title="Sposta nel cestino"
+          title={t("Sposta nel cestino")}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -714,7 +715,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
           size="icon"
           onClick={onClose}
           className="hidden md:flex"
-          title="Chiudi"
+          title={t("Chiudi")}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -727,7 +728,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               <div className="flex items-center gap-2">
                 <Wand2 className="h-4 w-4 text-violet-600" />
                 <span className="text-xs font-bold uppercase tracking-wide text-violet-800">
-                  Riassunto AI
+                  {t("Riassunto AI")}
                 </span>
               </div>
               <button
@@ -738,12 +739,12 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-            <p className="text-sm leading-relaxed text-violet-900">{aiSummary.summary}</p>
+            <p className="text-sm leading-relaxed text-violet-900">{t(aiSummary.summary)}</p>
             {aiSummary.action_items.length > 0 && (
               <div className="pt-2 border-t border-violet-200">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700 mb-1 flex items-center gap-1">
                   <ListChecks className="h-3 w-3" />
-                  Cose da fare
+                  {t("Cose da fare")}
                 </p>
                 <ul className="space-y-0.5 ml-1">
                   {aiSummary.action_items.map((a, i) => (
@@ -793,20 +794,20 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
              nascondendo errori RLS/rete come se la conversazione fosse vuota. */
           <div className="p-6 m-3 rounded-lg border border-rose-200 bg-rose-50 text-center">
             <AlertTriangle className="mx-auto h-8 w-8 text-rose-600 mb-2" />
-            <p className="text-sm font-semibold text-rose-900">Errore caricamento conversazione</p>
+            <p className="text-sm font-semibold text-rose-900">{t("Errore caricamento conversazione")}</p>
             <p className="mt-1 text-xs text-rose-700">
-              {messagesError instanceof Error ? messagesError.message : "Riprova tra poco."}
+              {messagesError instanceof Error ? messagesError.message : t("Riprova tra poco.")}
             </p>
             <Button onClick={() => void refetchMessages()} variant="outline" size="sm" className="mt-3 bg-white">
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : !messages || messages.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="text-sm text-muted-foreground">Nessun messaggio in questa conversazione.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun messaggio in questa conversazione.")}</p>
             <div className="mt-4 flex items-center justify-center gap-2">
-              <Button onClick={onClose} variant="outline" size="sm">Torna alla lista</Button>
-              <Button onClick={() => void refetchMessages()} variant="ghost" size="sm">Aggiorna</Button>
+              <Button onClick={onClose} variant="outline" size="sm">{t("Torna alla lista")}</Button>
+              <Button onClick={() => void refetchMessages()} variant="ghost" size="sm">{t("Aggiorna")}</Button>
             </div>
           </div>
         ) : (
@@ -828,7 +829,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-bold uppercase tracking-wide text-violet-700 flex items-center gap-1">
               <Sparkles className="h-3 w-3" />
-              Suggerite da AI · clicca per usarne una
+              {t("Suggerite da AI · clicca per usarne una")}
             </p>
             <button
               type="button"
@@ -906,14 +907,14 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
         // Cosa propone «Operativo» per questa categoria (es. «Aggiorna ODA · Crea
         // task logistica»): era la riga di bottoni, ora è la riga sotto la voce.
         const esempiOperativi = headerCategoryRaw
-          ? getContextualEmailActions(headerCategoryRaw).filter((a) => a.kind === "operative").map((a) => a.label).join(" · ")
+          ? getContextualEmailActions(headerCategoryRaw).filter((a) => a.kind === "operative").map((a) => t(a.label)).join(" · ")
           : "";
         const silvioAlLavoro = summarizeMutation.isPending || analyzeMutation.isPending || operationProposalsMutation.isPending || suggestRepliesMutation.isPending;
         return (
           <div className="hidden md:flex items-center gap-2 border-t p-3 bg-muted/20">
             <Button size="sm" className="gap-1.5" disabled={!ultima} onClick={() => rispondi("reply")}>
               <Reply className="h-3.5 w-3.5" />
-              Rispondi
+              {t("Rispondi")}
             </Button>
             {/* MP-EMAIL-AI-01: pulsante "Rispondi con AI" (L4 Sonnet) */}
             {onAiDraftReady && ultima && (
@@ -941,10 +942,10 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
                 }}
               />
             )}
-            <Button variant="outline" size="icon" className="h-9 w-9" disabled={!ultima} onClick={() => rispondi("replyAll")} aria-label="Rispondi a tutti" title="Rispondi a tutti">
+            <Button variant="outline" size="icon" className="h-9 w-9" disabled={!ultima} onClick={() => rispondi("replyAll")} aria-label={t("Rispondi a tutti")} title={t("Rispondi a tutti")}>
               <ReplyAll className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" className="h-9 w-9" disabled={!ultima} onClick={() => rispondi("forward")} aria-label="Inoltra" title="Inoltra">
+            <Button variant="outline" size="icon" className="h-9 w-9" disabled={!ultima} onClick={() => rispondi("forward")} aria-label={t("Inoltra")} title={t("Inoltra")}>
               <Forward className="h-4 w-4" />
             </Button>
             <DropdownMenu>
@@ -958,20 +959,20 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuItem disabled={summarizeMutation.isPending} onSelect={() => summarizeMutation.mutate()}>
-                  <ListChecks className="mr-2 h-4 w-4 text-violet-600" />Riassumi il thread
+                  <ListChecks className="mr-2 h-4 w-4 text-violet-600" />{t("Riassumi il thread")}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={analyzeMutation.isPending} onSelect={() => analyzeMutation.mutate()}>
-                  <Wand2 className="mr-2 h-4 w-4 text-violet-600" />Analizza email
+                  <Wand2 className="mr-2 h-4 w-4 text-violet-600" />{t("Analizza email")}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={operationProposalsMutation.isPending} onSelect={() => operationProposalsMutation.mutate()} className="items-start">
                   <Truck className="mr-2 mt-0.5 h-4 w-4 text-blue-600" />
                   <span className="min-w-0">
-                    <span className="block">Proposte operative</span>
+                    <span className="block">{t("Proposte operative")}</span>
                     {esempiOperativi && <span className="block truncate text-xs text-muted-foreground">{esempiOperativi}</span>}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={suggestRepliesMutation.isPending} onSelect={() => suggestRepliesMutation.mutate()}>
-                  <Sparkles className="mr-2 h-4 w-4 text-violet-600" />Suggerisci risposte
+                  <Sparkles className="mr-2 h-4 w-4 text-violet-600" />{t("Suggerisci risposte")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1008,7 +1009,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
             );
           }}
           disabled={!messages || messages.length === 0}
-          aria-label="Rispondi"
+          aria-label={t("Rispondi")}
         >
           <Reply className="h-5 w-5" />
         </Button>
@@ -1036,7 +1037,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
             );
           }}
           disabled={!messages || messages.length === 0}
-          aria-label="Inoltra"
+          aria-label={t("Inoltra")}
         >
           <Forward className="h-5 w-5" />
         </Button>
@@ -1049,7 +1050,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
             const firstId = messages[0].id;
             toggleFlag.mutate({ id: firstId, flag: "starred", value: !hasStarred });
           }}
-          aria-label={hasStarred ? "Rimuovi stella" : "Aggiungi stella"}
+          aria-label={hasStarred ? t("Rimuovi stella") : t("Aggiungi stella")}
         >
           <Star className={cn("h-5 w-5", hasStarred && "fill-amber-400 text-amber-400")} />
         </Button>
@@ -1059,7 +1060,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
           className="h-11 w-11 rounded-full"
           onClick={() => archiveAll.mutate()}
           disabled={archiveAll.isPending}
-          aria-label="Archivia"
+          aria-label={t("Archivia")}
         >
           {archiveAll.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Archive className="h-5 w-5" />}
         </Button>
@@ -1069,7 +1070,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
           className="h-11 w-11 rounded-full text-rose-600 hover:text-rose-700 hover:bg-rose-50"
           onClick={() => trashAll.mutate()}
           disabled={trashAll.isPending}
-          aria-label="Sposta nel cestino"
+          aria-label={t("Sposta nel cestino")}
         >
           {trashAll.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
         </Button>
@@ -1079,7 +1080,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               variant="ghost"
               size="icon"
               className="h-11 w-11 rounded-full"
-              aria-label="Altre azioni"
+              aria-label={t("Altre azioni")}
             >
               <MoreHorizontal className="h-5 w-5" />
             </Button>
@@ -1092,7 +1093,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               {summarizeMutation.isPending
                 ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 : <Wand2 className="h-4 w-4 mr-2 text-violet-600" />}
-              Riassumi thread con AI
+              {t("Riassumi thread con AI")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => analyzeMutation.mutate()}
@@ -1101,7 +1102,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               {analyzeMutation.isPending
                 ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 : <Sparkles className="h-4 w-4 mr-2 text-violet-600" />}
-              Analizza email
+              {t("Analizza email")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => operationProposalsMutation.mutate()}
@@ -1110,7 +1111,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               {operationProposalsMutation.isPending
                 ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 : <Truck className="h-4 w-4 mr-2 text-blue-600" />}
-              Operativo
+              {t("Operativo")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => suggestRepliesMutation.mutate()}
@@ -1119,7 +1120,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               {suggestRepliesMutation.isPending
                 ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 : <Sparkles className="h-4 w-4 mr-2 text-violet-600" />}
-              Suggerisci risposte
+              {t("Suggerisci risposte")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
@@ -1144,7 +1145,7 @@ export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onRep
               disabled={!messages || messages.length === 0}
             >
               <ReplyAll className="h-4 w-4 mr-2" />
-              Rispondi a tutti
+              {t("Rispondi a tutti")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1166,6 +1167,7 @@ function EmailActionProposalsPanel({
   onCreateOperationalProposals: () => void;
   creatingOperationalProposals: boolean;
 }) {
+  const t = useT();
   const pendingCount = proposals.filter((proposal) => proposal.status === "pending").length;
   const appliedCount = proposals.filter((proposal) => proposal.status === "applied").length;
 
@@ -1178,23 +1180,19 @@ function EmailActionProposalsPanel({
           </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-blue-900">
-              Azioni operative da questa email
+              {t("Azioni operative da questa email")}
             </p>
             <p className="text-xs text-blue-900/75">
-              Ritardi ODA, DDT, acquisti e risposte fornitore restano in conferma prima di modificare dati.
+              {t("Ritardi ODA, DDT, acquisti e risposte fornitore restano in conferma prima di modificare dati.")}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {pendingCount > 0 && (
-            <Badge className="bg-blue-600 text-[10px] hover:bg-blue-600">
-              {pendingCount} da confermare
-            </Badge>
+            <Badge className="bg-blue-600 text-[10px] hover:bg-blue-600">{t("{pendingCount} da confermare", { pendingCount: String(pendingCount ?? "") })}</Badge>
           )}
           {appliedCount > 0 && (
-            <Badge variant="outline" className="bg-white text-[10px] text-emerald-700">
-              {appliedCount} applicate
-            </Badge>
+            <Badge variant="outline" className="bg-white text-[10px] text-emerald-700">{t("{appliedCount} applicate", { appliedCount: String(appliedCount ?? "") })}</Badge>
           )}
           <Button
             type="button"
@@ -1209,7 +1207,7 @@ function EmailActionProposalsPanel({
             ) : (
               <Sparkles className="h-3.5 w-3.5" />
             )}
-            Aggiorna proposte
+            {t("Aggiorna proposte")}
           </Button>
         </div>
       </div>
@@ -1222,7 +1220,7 @@ function EmailActionProposalsPanel({
           </div>
         ) : proposals.length === 0 ? (
           <div className="rounded-md border border-dashed bg-blue-50/30 p-4 text-sm text-muted-foreground">
-            Nessuna proposta ancora creata per questa conversazione. Usa “Operativo” per far leggere la mail a Silvio e preparare azioni sicure da confermare.
+            {t("Nessuna proposta ancora creata per questa conversazione. Usa “Operativo” per far leggere la mail a Silvio e preparare azioni sicure da confermare.")}
           </div>
         ) : (
           <div className="space-y-2">
@@ -1239,6 +1237,7 @@ function EmailActionProposalsPanel({
 // ───────────────────────────────────────────────────────────────────────────
 
 function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResult }) {
+  const t = useT();
   // 2026-05-28: pannello collassabile come nel mockup demo. Apre/chiude i dettagli
   // (segnali + agganci) per non rubare spazio al messaggio quando l'utente vuole
   // solo leggere l'email. Default chiuso, pochissimo rumore visivo.
@@ -1265,14 +1264,14 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
           </div>
           <div className="min-w-0">
             <p className="text-sm font-bold text-blue-950">
-              Analisi predittiva
+              {t("Analisi predittiva")}
             </p>
             <p className="mt-0.5 truncate text-xs leading-5 text-blue-900/80">
               {prediction.priority === "alta"
-                ? "Priorità alta rilevata — richiede attenzione immediata."
+                ? t("Priorità alta rilevata — richiede attenzione immediata.")
                 : prediction.targets.length > 0
-                  ? `${prediction.targets.length} aggancio${prediction.targets.length === 1 ? "" : "i"} suggerito${prediction.targets.length === 1 ? "" : "i"} (${category})`
-                  : `Categoria predittiva: ${category}`}
+                  ? t(prediction.targets.length === 1 ? "{n} aggancio suggerito ({categoria})" : "{n} agganci suggeriti ({categoria})", { n: prediction.targets.length, categoria: t(category) })
+                  : t("Categoria predittiva: {category}", { category: t(category) })}
             </p>
           </div>
         </div>
@@ -1285,7 +1284,7 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
                 : "bg-blue-100 text-blue-800",
             )}
           >
-            {priorityLabel}
+            {t(priorityLabel)}
           </span>
           <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
             {confidence}%
@@ -1303,10 +1302,10 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
             <ListChecks className="h-3 w-3" />
-            Segnali rilevati
+            {t("Segnali rilevati")}
           </p>
           <ul className="mt-2 space-y-1">
-            {(prediction.reasons.length > 0 ? prediction.reasons : ["pattern contenuto coerente"]).map((reason, index) => (
+            {(prediction.reasons.length > 0 ? prediction.reasons : [t("pattern contenuto coerente")]).map((reason, index) => (
               <li key={`${reason}-${index}`} className="flex gap-2 text-xs leading-5 text-slate-800">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" />
                 <span>{reason}</span>
@@ -1318,7 +1317,7 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
           <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
             <PackageCheck className="h-3 w-3" />
-            Agganci consigliati
+            {t("Agganci consigliati")}
           </p>
           {prediction.targets.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1327,7 +1326,7 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
                   key={`${target.type}-${target.label}`}
                   variant="outline"
                   className="border-emerald-200 bg-white text-[10px] font-semibold text-emerald-800"
-                  title={`Confidenza ${Math.round(target.confidence * 100)}%`}
+                  title={t("Confidenza {n}%", { n: Math.round(target.confidence * 100) })}
                 >
                   {target.label}
                 </Badge>
@@ -1335,7 +1334,7 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
             </div>
           ) : (
             <p className="mt-2 text-xs leading-5 text-emerald-950">
-              Nessun aggancio automatico sicuro: resta nella categoria, senza modificare dati.
+              {t("Nessun aggancio automatico sicuro: resta nella categoria, senza modificare dati.")}
             </p>
           )}
         </div>
@@ -1356,6 +1355,7 @@ function EmailAnalysisPanel({
   onCreateOperationalProposals: () => void;
   creatingOperationalProposals: boolean;
 }) {
+  const t = useT();
   const category = emailCategoryLabel(analysis.category) ?? "Altro";
   const priorityLabel = analysis.priority === "alta"
     ? "Alta"
@@ -1393,16 +1393,16 @@ function EmailAnalysisPanel({
           </div>
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wide text-violet-900 max-sm:whitespace-nowrap">
-              Analisi AI<span className="max-sm:hidden"> email</span>
+              {t("Analisi AI")}<span className="max-sm:hidden"> {t("email")}</span>
             </p>
             <p className="text-xs text-violet-800/80 max-sm:hidden">
-              {analysis.intent || "Intento rilevato dalla conversazione"}
+              {analysis.intent || t("Intento rilevato dalla conversazione")}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1 max-sm:flex-nowrap">
           <Badge variant="outline" className="bg-white text-[10px]">
-            {category}
+            {t(category)}
           </Badge>
           <Badge
             className={cn(
@@ -1413,9 +1413,7 @@ function EmailAnalysisPanel({
                 ? "bg-rose-600 hover:bg-rose-600"
                 : "bg-violet-600 hover:bg-violet-600",
             )}
-          >
-            Priorità {priorityLabel}
-          </Badge>
+          >{t("Priorità {livello}", { livello: t(priorityLabel) })}</Badge>
           {isMobile && <ChevronDown className={cn("h-4 w-4 shrink-0 text-violet-700 transition-transform", aperta && "rotate-180")} />}
         </div>
       </div>
@@ -1425,16 +1423,16 @@ function EmailAnalysisPanel({
         <div className="space-y-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Riepilogo operativo
+              {t("Riepilogo operativo")}
             </p>
-            <p className="mt-1 text-sm leading-relaxed">{analysis.summary}</p>
+            <p className="mt-1 text-sm leading-relaxed">{t(analysis.summary)}</p>
           </div>
 
           {analysis.action_items.length > 0 && (
             <div>
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <ListChecks className="h-3 w-3" />
-                Prossime azioni
+                {t("Prossime azioni")}
               </p>
               <ul className="mt-1 space-y-1">
                 {analysis.action_items.map((item, index) => (
@@ -1452,7 +1450,7 @@ function EmailAnalysisPanel({
           {analysis.reply_strategy && (
             <div className="rounded-md bg-slate-50 p-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Strategia risposta
+                {t("Strategia risposta")}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-slate-700">{analysis.reply_strategy}</p>
             </div>
@@ -1470,7 +1468,7 @@ function EmailAnalysisPanel({
         <div className="space-y-3">
           <div className="rounded-md border bg-muted/20 p-2">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Azione consigliata
+              {t("Azione consigliata")}
             </p>
             <p className="mt-1 text-xs font-medium">{analysis.suggested_action.replaceAll("_", " ")}</p>
           </div>
@@ -1479,7 +1477,7 @@ function EmailAnalysisPanel({
             <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
                 <AlertTriangle className="h-3 w-3" />
-                Attenzioni
+                {t("Attenzioni")}
               </p>
               <ul className="mt-1 space-y-1">
                 {analysis.risk_flags.map((risk, index) => (
@@ -1494,7 +1492,7 @@ function EmailAnalysisPanel({
           {extractedEntries.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Dati estratti
+                {t("Dati estratti")}
               </p>
               <div className="mt-1 flex flex-wrap gap-1">
                 {extractedEntries.map(([key, value]) => (
@@ -1558,11 +1556,12 @@ function EmailOperationsPanel({
   onCreateOperationalProposals: () => void;
   creatingOperationalProposals: boolean;
 }) {
+  const t = useT();
   const confidence = typeof operations.confidence === "number"
     ? Math.round(operations.confidence * 100)
     : null;
-  const supplierLabel = operations.supplier?.name || operations.supplier?.email || "Fornitore da confermare";
-  const poLabel = operations.purchase_order?.number || operations.purchase_order?.reference_text || "ODA non agganciato";
+  const supplierLabel = operations.supplier?.name || operations.supplier?.email || t("Fornitore da confermare");
+  const poLabel = operations.purchase_order?.number || operations.purchase_order?.reference_text || t("ODA non agganciato");
   const newDate = operations.delivery?.new_date;
   const oldDate = operations.delivery?.original_date;
   const hasDraft = Boolean(operations.draft_email?.to && operations.draft_email?.subject);
@@ -1578,16 +1577,16 @@ function EmailOperationsPanel({
           </div>
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wide text-blue-900">
-              Operativo acquisti / logistica
+              {t("Operativo acquisti / logistica")}
             </p>
             <p className="text-xs text-blue-900/80">
-              {operationDomainLabel(operations.domain)}
-              {confidence !== null ? ` · confidenza ${confidence}%` : ""}
+              {t(operationDomainLabel(operations.domain))}
+              {confidence !== null ? t(" · confidenza {confidence}%", { confidence: String(confidence ?? "") }) : ""}
             </p>
           </div>
         </div>
         <Badge variant="outline" className="bg-white text-[10px] text-blue-800">
-          {deliveryStatusLabel(operations.delivery?.status)}
+          {t(deliveryStatusLabel(operations.delivery?.status))}
         </Badge>
       </div>
 
@@ -1595,18 +1594,18 @@ function EmailOperationsPanel({
         <div className="rounded-md bg-white/80 p-2">
           <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             <PackageCheck className="h-3 w-3" />
-            Fornitore
+            {t("Fornitore")}
           </p>
           <p className="mt-1 truncate text-xs font-medium">{supplierLabel}</p>
         </div>
         <div className="rounded-md bg-white/80 p-2">
           <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             <ClipboardCheck className="h-3 w-3" />
-            Ordine / DDT
+            {t("Ordine / DDT")}
           </p>
           <p className="mt-1 truncate text-xs font-medium">
             {poLabel}
-            {operations.ddt?.number ? ` · DDT ${operations.ddt.number}` : ""}
+            {operations.ddt?.number ? t(" · DDT {number}", { number: String(operations.ddt.number ?? "") }) : ""}
           </p>
         </div>
       </div>
@@ -1615,12 +1614,12 @@ function EmailOperationsPanel({
         <div className="mt-2 rounded-md border border-blue-100 bg-white p-2">
           <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             <CalendarClock className="h-3 w-3" />
-            Consegna
+            {t("Consegna")}
           </p>
           <p className="mt-1 text-xs">
-            {oldDate ? `Prima: ${oldDate}` : "Data precedente non indicata"}
-            {newDate ? ` · Nuova: ${newDate}` : ""}
-            {operations.delivery?.delay_days ? ` · Ritardo: ${operations.delivery.delay_days} giorni` : ""}
+            {oldDate ? t("Prima: {oldDate}", { oldDate: String(oldDate ?? "") }) : t("Data precedente non indicata")}
+            {newDate ? t(" · Nuova: {newDate}", { newDate: String(newDate ?? "") }) : ""}
+            {operations.delivery?.delay_days ? t(" · Ritardo: {delay_days} giorni", { delay_days: String(operations.delivery.delay_days ?? "") }) : ""}
           </p>
           {operations.delivery?.reason && (
             <p className="mt-1 text-xs text-muted-foreground">{operations.delivery.reason}</p>
@@ -1631,12 +1630,12 @@ function EmailOperationsPanel({
       {items.length > 0 && (
         <div className="mt-2 rounded-md border border-blue-100 bg-white p-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Materiali rilevati
+            {t("Materiali rilevati")}
           </p>
           <div className="mt-1 flex flex-wrap gap-1">
             {items.slice(0, 4).map((item, index) => (
               <Badge key={index} variant="outline" className="bg-white text-[10px]">
-                {item.description || "Materiale"}
+                {item.description || t("Materiale")}
                 {item.quantity ? ` · ${item.quantity}${item.unit ? ` ${item.unit}` : ""}` : ""}
               </Badge>
             ))}
@@ -1657,10 +1656,10 @@ function EmailOperationsPanel({
                 {index + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-medium">{action.label || action.type || "Azione operativa"}</p>
+                <p className="font-medium">{action.label || action.type || t("Azione operativa")}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  {action.requires_confirmation === false ? "Può essere automatizzata" : "Richiede conferma prima di applicare"}
-                  {action.risk ? ` · rischio ${action.risk}` : ""}
+                  {action.requires_confirmation === false ? t("Può essere automatizzata") : t("Richiede conferma prima di applicare")}
+                  {action.risk ? t(" · rischio {risk}", { risk: String(action.risk ?? "") }) : ""}
                 </p>
               </div>
             </div>
@@ -1672,7 +1671,7 @@ function EmailOperationsPanel({
         <div className="mt-2 rounded-md border border-orange-200 bg-orange-50 p-2">
           <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-orange-800">
             <Send className="h-3 w-3" />
-            Bozza email pronta
+            {t("Bozza email pronta")}
           </p>
           <p className="mt-1 truncate text-xs font-medium">{operations.draft_email?.subject}</p>
           <p className="text-[11px] text-orange-900/80">A: {operations.draft_email?.to}</p>
@@ -1691,13 +1690,14 @@ function EmailOperationsPanel({
         ) : (
           <Sparkles className="h-3.5 w-3.5" />
         )}
-        Crea proposte da confermare
+        {t("Crea proposte da confermare")}
       </Button>
     </div>
   );
 }
 
 function MessageBubble({ message }: { message: MessageRow }) {
+  const t = useT();
   // 2026-05-26: sanitize email-friendly. PRIMA il config era troppo aggressivo:
   //   - FORBID_TAGS["style"] → strippava <style> inline → tabelle Meta perdevano
   //     spacing, bottoni perdevano background colors
@@ -1777,7 +1777,7 @@ function MessageBubble({ message }: { message: MessageRow }) {
     : [];
 
   const senderLabel = message.from_name || message.from_email || "(sconosciuto)";
-  const ts = format(new Date(message.received_at), "d MMM yyyy 'alle' HH:mm", { locale: it });
+  const ts = format(new Date(message.received_at), "d MMM yyyy 'alle' HH:mm", { locale: dateFnsCampo() });
   const category = emailCategoryLabel(message.ai_category);
   const highPriority = isHighPriority(message.ai_priority);
 
@@ -1818,11 +1818,11 @@ function MessageBubble({ message }: { message: MessageRow }) {
           <div className="flex-1 min-w-0">
             {category && (
               <Badge variant="outline" className="text-[10px] mb-1 bg-white">
-                {category}
+                {t(category)}
               </Badge>
             )}
             <p className="text-xs text-violet-900 leading-snug">
-              {sanitizeAiSummary(message.ai_summary) || "Questa email richiede attenzione entro 24 ore."}
+              {sanitizeAiSummary(message.ai_summary) || t("Questa email richiede attenzione entro 24 ore.")}
             </p>
           </div>
         </div>
@@ -1851,7 +1851,7 @@ function MessageBubble({ message }: { message: MessageRow }) {
               {message.raw_text}
             </pre>
           ) : (
-            <p className="text-sm text-muted-foreground italic">(messaggio vuoto)</p>
+            <p className="text-sm text-muted-foreground italic">{t("(messaggio vuoto)")}</p>
           )}
         </div>
       )}
@@ -1915,18 +1915,18 @@ const ACTION_TONE: Record<EmailActivityAction, string> = {
   starred: "text-amber-600",
 };
 
-function relativeTime(value: string): string {
+function relativeTime(value: string, t: (testo: string, valori?: Record<string, string | number>) => string): string {
   const ts = new Date(value).getTime();
   if (!Number.isFinite(ts)) return "—";
   const diff = Date.now() - ts;
   const minutes = Math.round(diff / 60_000);
-  if (minutes < 1) return "adesso";
-  if (minutes < 60) return `${minutes} min fa`;
+  if (minutes < 1) return t("adesso");
+  if (minutes < 60) return t("{n} min fa", { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h fa`;
+  if (hours < 24) return t("{n} h fa", { n: hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days} ${days === 1 ? "giorno" : "giorni"} fa`;
-  return new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+  if (days < 7) return t(days === 1 ? "{n} giorno fa" : "{n} giorni fa", { n: days });
+  return new Date(value).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" });
 }
 
 function initials(name: string | null): string {
@@ -1942,6 +1942,7 @@ function ThreadCollabBanner({
 }: {
   items: ReturnType<typeof summarizeThreadActivity>;
 }) {
+  const t = useT();
   if (items.length === 0) return null;
   // Mostro max 5 + counter "altri"
   const visible = items.slice(0, 5);
@@ -1955,17 +1956,17 @@ function ThreadCollabBanner({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">
-            Collaborazione team
+            {t("Collaborazione team")}
           </p>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] leading-snug text-slate-700">
             {visible.map((item) => {
               const tone = ACTION_TONE[item.last_action] ?? "text-slate-600";
-              const label = ACTION_LABEL[item.last_action] ?? "ha interagito";
+              const label = t(ACTION_LABEL[item.last_action] ?? "ha interagito");
               return (
                 <span
                   key={item.user_id}
                   className="inline-flex items-center gap-1.5"
-                  title={`${item.user_name ?? "Membro team"} · ${label} il ${new Date(item.last_at).toLocaleString("it-IT")}${item.last_email_address ? ` da ${item.last_email_address}` : ""}`}
+                  title={item.last_email_address ? t("{nome} · {azione} il {data} da {email}", { nome: item.user_name ?? t("Membro team"), azione: label, data: new Date(item.last_at).toLocaleString(intlCampo()), email: item.last_email_address }) : t("{nome} · {azione} il {data}", { nome: item.user_name ?? t("Membro team"), azione: label, data: new Date(item.last_at).toLocaleString(intlCampo()) })}
                 >
                   <span
                     className={cn(
@@ -1976,10 +1977,10 @@ function ThreadCollabBanner({
                     {initials(item.user_name)}
                   </span>
                   <span className="font-medium text-slate-900">
-                    {item.user_name ?? "Membro team"}
+                    {item.user_name ?? t("Membro team")}
                   </span>
                   <span className={tone}>{label}</span>
-                  <span className="text-slate-500">{relativeTime(item.last_at)}</span>
+                  <span className="text-slate-500">{relativeTime(item.last_at, t)}</span>
                   {item.last_email_address && (
                     <span className="rounded bg-white px-1 text-[10px] text-slate-500 border border-slate-100">
                       {item.last_email_address}
@@ -1989,7 +1990,7 @@ function ThreadCollabBanner({
               );
             })}
             {hidden > 0 && (
-              <span className="text-slate-500">+ altri {hidden}</span>
+              <span className="text-slate-500">{t("+ altri {hidden}", { hidden: String(hidden ?? "") })}</span>
             )}
           </div>
         </div>

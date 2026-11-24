@@ -52,6 +52,7 @@ import { FishFlowPicker } from "./FishFlowPicker";
 import "@/components/ui/fish-agent-pipeline.css";
 import { FishLiveVoice } from "./FishLiveVoice";
 import { FishNumberConnectionRequest } from "./FishNumberConnectionRequest";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STEPS = ["Attività", "Agenda", "Voce", "Prova", "Numero"];
 export function FishOnboardingWizard({
@@ -69,6 +70,7 @@ export function FishOnboardingWizard({
   existingAgent?: any;
   initialFlowId?: string;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const auth = useAuth();
   const { isAdmin } = usePermissions();
@@ -160,7 +162,7 @@ export function FishOnboardingWizard({
   async function next() {
     setError("");
     if (step === 0 && !values.name.trim()) {
-      setError("Dai un nome all’assistente per continuare.");
+      setError(t("Dai un nome all’assistente per continuare."));
       return;
     }
     if (
@@ -170,7 +172,7 @@ export function FishOnboardingWizard({
       !/^\+[1-9]\d{7,14}$/.test(onboardingPhone(values.operatorNumber))
     ) {
       setError(
-        "Per l’operatore inserisci un numero con prefisso internazionale, per esempio +39.",
+        t("Per l’operatore inserisci un numero con prefisso internazionale, per esempio +39."),
       );
       return;
     }
@@ -181,7 +183,7 @@ export function FishOnboardingWizard({
         !calendars.data?.some((c) => c.id === values.calendarId))
     ) {
       setError(
-        "Scegli un calendario attivo per completare il flusso di assistenza.",
+        t("Scegli un calendario attivo per completare il flusso di assistenza."),
       );
       return;
     }
@@ -191,7 +193,7 @@ export function FishOnboardingWizard({
       !assistanceReady
     ) {
       setError(
-        "Il collegamento a Silvio è in preparazione. La configurazione è qui: completa il collegamento prima di creare il flusso completo.",
+        t("Il collegamento a Silvio è in preparazione. La configurazione è qui: completa il collegamento prima di creare il flusso completo."),
       );
       return;
     }
@@ -211,7 +213,7 @@ export function FishOnboardingWizard({
         setStep(3);
       } catch {
         setError(
-          "Non sono riuscito a salvare l’assistente. I dati sono qui: riprova senza ricominciare.",
+          t("Non sono riuscito a salvare l’assistente. I dati sono qui: riprova senza ricominciare."),
         );
       }
     } else setStep((value) => Math.min(4, value + 1));
@@ -223,14 +225,14 @@ export function FishOnboardingWizard({
     ({ id }) => id === values.calendarId,
   )?.name;
   const agendaLabel = !needsCalendar
-    ? "Non richiesta"
+    ? t("Non richiesta")
     : calendarName ||
       (values.calendarId && calendars.isPending
-        ? "Caricamento…"
-        : "Da scegliere");
+        ? t("Caricamento…")
+        : t("Da scegliere"));
   const operatorLabel = availableOperators
-    ? "Primo operatore disponibile"
-    : values.operatorNumber || "Richiesta di richiamo";
+    ? t("Primo operatore disponibile")
+    : values.operatorNumber || t("Richiesta di richiamo");
   return (
     <Dialog
       open={open}
@@ -253,17 +255,16 @@ export function FishOnboardingWizard({
               <Bot className="size-4" />
             </span>
             {agentId
-              ? "Completa il tuo assistente"
-              : "Crea il tuo assistente telefonico"}
+              ? t("Completa il tuo assistente")
+              : t("Crea il tuo assistente telefonico")}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Scegli cosa farà l’assistente e provalo a voce prima di collegare il
-            numero.
+            {t("Scegli cosa farà l’assistente e provalo a voce prima di collegare il numero.")}
           </DialogDescription>
         </DialogHeader>
         <ol
           className="grid shrink-0 grid-cols-5 gap-1 border-b bg-muted/20 px-2 py-1.5 sm:px-4"
-          aria-label="Passaggi della configurazione"
+          aria-label={t("Passaggi della configurazione")}
         >
           {STEPS.map((label, index) => (
             <li key={label}>
@@ -282,7 +283,7 @@ export function FishOnboardingWizard({
                 >
                   {index < step ? <Check className="h-3.5 w-3.5" /> : index + 1}
                 </span>
-                {label}
+                {t(label)}
               </button>
             </li>
           ))}
@@ -292,18 +293,17 @@ export function FishOnboardingWizard({
             <div className="eic-motion-enter min-w-0 space-y-3">
               {!canManage && (
                 <p role="alert" className="rounded-lg border p-3 text-sm">
-                  La creazione e il collegamento degli assistenti sono riservati
-                  all’amministratore dell’azienda.
+                  {t("La creazione e il collegamento degli assistenti sono riservati all’amministratore dell’azienda.")}
                 </p>
               )}
               {step === 0 && (
                 <>
                   <h2 className="text-base font-semibold">
-                    Che cosa deve fare?
+                    {t("Che cosa deve fare?")}
                   </h2>
                   <div>
                     <Label htmlFor="onboarding-agent-name">
-                      Nome dell’assistente
+                      {t("Nome dell’assistente")}
                     </Label>
                     <Input
                       id="onboarding-agent-name"
@@ -334,10 +334,10 @@ export function FishOnboardingWizard({
                 <>
                   <div>
                     <h2 className="text-base font-semibold">
-                      Agenda e persone
+                      {t("Agenda e persone")}
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Collega le risorse che l’assistente può usare.
+                      {t("Collega le risorse che l’assistente può usare.")}
                     </p>
                   </div>
                   {values.flowId === "support_appointment" ? (
@@ -351,15 +351,15 @@ export function FishOnboardingWizard({
                     />
                   ) : needsCalendar ? (
                     <div className="rounded-lg border p-3">
-                      <Label>Calendario per gli appuntamenti</Label>
+                      <Label>{t("Calendario per gli appuntamenti")}</Label>
                       {calendars.isError ? (
                         <div role="alert" className="mt-3 text-sm">
-                          Non riesco a leggere i calendari.
+                          {t("Non riesco a leggere i calendari.")}
                           <Button
                             variant="ghost"
                             onClick={() => calendars.refetch()}
                           >
-                            Riprova
+                            {t("Riprova")}
                           </Button>
                         </div>
                       ) : (
@@ -372,28 +372,23 @@ export function FishOnboardingWizard({
                           }
                         >
                           <SelectTrigger
-                            aria-label="Calendario dell’assistente"
+                            aria-label={t("Calendario dell’assistente")}
                             className="mt-2"
                           >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="later">
-                              Lo configuro più tardi
+                              {t("Lo configuro più tardi")}
                             </SelectItem>
                             {calendars.data?.map((calendar) => (
-                              <SelectItem key={calendar.id} value={calendar.id}>
-                                {calendar.name} · {calendar.duration_minutes}{" "}
-                                min
-                              </SelectItem>
+                              <SelectItem key={calendar.id} value={calendar.id}>{t("{name} · {duration_minutes} min", { name: String(calendar.name ?? ""), duration_minutes: String(calendar.duration_minutes ?? "") })}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       )}
                       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        L’agenda rispetta disponibilità, durata e impegni del
-                        titolare. Puoi già fare una prova; per prenotare davvero
-                        serve un calendario attivo.
+                        {t("L’agenda rispetta disponibilità, durata e impegni del titolare. Puoi già fare una prova; per prenotare davvero serve un calendario attivo.")}
                       </p>
                       {!calendars.isLoading &&
                         !calendars.isError &&
@@ -404,30 +399,26 @@ export function FishOnboardingWizard({
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Apri la gestione dei calendari
+                            {t("Apri la gestione dei calendari")}
                           </a>
                         )}
                     </div>
                   ) : (
                     <div className="rounded-lg bg-muted/30 p-3 text-sm">
-                      Questo flusso non prenota appuntamenti. Non serve
-                      scegliere un calendario.
+                      {t("Questo flusso non prenota appuntamenti. Non serve scegliere un calendario.")}
                     </div>
                   )}
                   {availableOperators ? (
                     <div className="rounded-lg border p-3 text-sm leading-6">
-                      <b>Primo operatore disponibile</b>
+                      <b>{t("Primo operatore disponibile")}</b>
                       <p className="mt-2">
-                        Usa gli operatori presenti e liberi nel centralino, con
-                        numero completo già configurato. Se nessuno può
-                        rispondere raccoglie una richiesta di richiamo. Puoi
-                        provare il dialogo anche prima di collegare la linea.
+                        {t("Usa gli operatori presenti e liberi nel centralino, con numero completo già configurato. Se nessuno può rispondere raccoglie una richiesta di richiamo. Puoi provare il dialogo anche prima di collegare la linea.")}
                       </p>
                     </div>
                   ) : (
                     <div className="rounded-lg border p-3">
                       <Label htmlFor="onboarding-operator">
-                        Numero dell’operatore, facoltativo
+                        {t("Numero dell’operatore, facoltativo")}
                       </Label>
                       <Input
                         id="onboarding-operator"
@@ -441,9 +432,7 @@ export function FishOnboardingWizard({
                         maxLength={30}
                       />
                       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        È la persona a cui passare le chiamate dopo la verifica
-                        di disponibilità. Se lo lasci vuoto, l’assistente
-                        raccoglie una richiesta di richiamo.
+                        {t("È la persona a cui passare le chiamate dopo la verifica di disponibilità. Se lo lasci vuoto, l’assistente raccoglie una richiesta di richiamo.")}
                       </p>
                     </div>
                   )}
@@ -453,15 +442,15 @@ export function FishOnboardingWizard({
                 <>
                   <div>
                     <h2 className="text-base font-semibold">
-                      Come si presenta?
+                      {t("Come si presenta?")}
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Scegli la voce e la frase da cui parte ogni conversazione.
+                      {t("Scegli la voce e la frase da cui parte ogni conversazione.")}
                     </p>
                   </div>
                   <div className="space-y-2 rounded-lg border bg-sky-50/50 p-3 dark:bg-sky-950/25">
                     <Label htmlFor="onboarding-voice">
-                      Voce dell’assistente
+                      {t("Voce dell’assistente")}
                     </Label>
                     <Select
                       value={values.voiceId || FISH_DEFAULT_VOICE}
@@ -470,7 +459,7 @@ export function FishOnboardingWizard({
                     >
                       <SelectTrigger
                         id="onboarding-voice"
-                        aria-label="Voce dell’assistente"
+                        aria-label={t("Voce dell’assistente")}
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -483,11 +472,11 @@ export function FishOnboardingWizard({
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Potrai ascoltarla nel passaggio successivo.
+                      {t("Potrai ascoltarla nel passaggio successivo.")}
                     </p>
                   </div>
                   <div>
-                    <Label htmlFor="onboarding-greeting">Primo messaggio</Label>
+                    <Label htmlFor="onboarding-greeting">{t("Primo messaggio")}</Label>
                     <Textarea
                       id="onboarding-greeting"
                       value={values.greeting}
@@ -499,10 +488,10 @@ export function FishOnboardingWizard({
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <div>
                       <Label htmlFor="onboarding-expressive">
-                        Voce naturale ed espressiva
+                        {t("Voce naturale ed espressiva")}
                       </Label>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Adatta pause ed enfasi alla conversazione.
+                        {t("Adatta pause ed enfasi alla conversazione.")}
                       </p>
                     </div>
                     <Switch
@@ -517,17 +506,16 @@ export function FishOnboardingWizard({
                 <>
                   <div>
                     <h2 className="text-base font-semibold">
-                      Prova il tuo assistente
+                      {t("Prova il tuo assistente")}
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      La bozza è salvata. Ascolta come gestisce una richiesta
-                      prima di collegare il numero.
+                      {t("La bozza è salvata. Ascolta come gestisce una richiesta prima di collegare il numero.")}
                     </p>
                   </div>
                   {status.isPending ? (
                     <div className="flex items-center gap-2 rounded-lg border p-3 text-sm">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Preparo la conversazione…
+                      {t("Preparo la conversazione…")}
                     </div>
                   ) : ready ? (
                     <FishLiveVoice
@@ -540,9 +528,7 @@ export function FishOnboardingWizard({
                   ) : (
                     <div className="space-y-3 rounded-lg border p-3">
                       <p className="text-sm">
-                        L’assistente è salvato. La prova vocale non è ancora
-                        pronta; puoi riprovare la preparazione senza creare un
-                        altro agente.
+                        {t("L’assistente è salvato. La prova vocale non è ancora pronta; puoi riprovare la preparazione senza creare un altro agente.")}
                       </p>
                       <Button
                         variant="outline"
@@ -554,12 +540,11 @@ export function FishOnboardingWizard({
                         ) : (
                           <Sparkles className="mr-2 h-4 w-4" />
                         )}
-                        Prepara la prova
+                        {t("Prepara la prova")}
                       </Button>
                       {prepare.isError && (
                         <p role="alert" className="text-xs text-destructive">
-                          La preparazione non è riuscita. Riprova più tardi; la
-                          bozza rimane salvata.
+                          {t("La preparazione non è riuscita. Riprova più tardi; la bozza rimane salvata.")}
                         </p>
                       )}
                     </div>
@@ -567,7 +552,7 @@ export function FishOnboardingWizard({
                   {tested && (
                     <p className="flex items-center gap-2 text-sm text-emerald-800">
                       <CheckCircle2 className="h-4 w-4" />
-                      Collegamento vocale verificato.
+                      {t("Collegamento vocale verificato.")}
                     </p>
                   )}
                 </>
@@ -586,11 +571,9 @@ export function FishOnboardingWizard({
                     role="status"
                     className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
                   >
-                    Collegamento a Silvio in preparazione. Puoi scegliere le
-                    impostazioni; la creazione del flusso completo sarà
-                    disponibile dopo il collegamento.
+                    {t("Collegamento a Silvio in preparazione. Puoi scegliere le impostazioni; la creazione del flusso completo sarà disponibile dopo il collegamento.")}
                     <Button variant="link" onClick={() => assistance.refetch()}>
-                      Ricontrolla
+                      {t("Ricontrolla")}
                     </Button>
                   </p>
                 )}
@@ -612,10 +595,10 @@ export function FishOnboardingWizard({
                   id="onboarding-summary"
                   className="text-xs font-semibold text-sky-700 dark:text-sky-300"
                 >
-                  Riepilogo assistente
+                  {t("Riepilogo assistente")}
                 </h2>
                 <p className="mt-1 break-words text-sm font-semibold">
-                  {values.name.trim() || "Assistente senza nome"}
+                  {values.name.trim() || t("Assistente senza nome")}
                 </p>
                 <p className="mt-0.5 text-xs font-medium">{flow.title}</p>
                 <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
@@ -635,20 +618,20 @@ export function FishOnboardingWizard({
               </ol>
               <dl className="space-y-1.5 text-xs max-md:[&>div]:grid max-md:[&>div]:grid-cols-[7rem_minmax(0,1fr)] max-md:[&>div]:gap-2">
                 <div>
-                  <dt className="text-muted-foreground">Agenda</dt>
+                  <dt className="text-muted-foreground">{t("Agenda")}</dt>
                   <dd className="break-words font-medium">{agendaLabel}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Voce</dt>
+                  <dt className="text-muted-foreground">{t("Voce")}</dt>
                   <dd className="break-words font-medium">
                     {selectedVoice?.name ||
                       existingAgent?.voice_nome ||
-                      "Voce personalizzata"}
+                      t("Voce personalizzata")}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">
-                    Passaggio a una persona
+                    {t("Passaggio a una persona")}
                   </dt>
                   <dd className="break-words font-medium">{operatorLabel}</dd>
                 </div>
@@ -661,7 +644,7 @@ export function FishOnboardingWizard({
             {step === 0 ? (
               onChangeType && (
                 <Button variant="ghost" onClick={onChangeType}>
-                  Altri tipi di agente
+                  {t("Altri tipi di agente")}
                 </Button>
               )
             ) : (
@@ -677,13 +660,13 @@ export function FishOnboardingWizard({
                 }}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                {agentId && step === 3 ? "Apri impostazioni" : "Indietro"}
+                {agentId && step === 3 ? t("Apri impostazioni") : t("Indietro")}
               </Button>
             )}
           </div>
           {step === 4 ? (
             <Button onClick={() => onSuccess(agentId!)}>
-              Apri il mio assistente
+              {t("Apri il mio assistente")}
               <Check className="ml-2 h-4 w-4" />
             </Button>
           ) : (
@@ -695,18 +678,18 @@ export function FishOnboardingWizard({
               {busy ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creo l’assistente…
+                  {t("Creo l’assistente…")}
                 </>
               ) : step === 2 ? (
-                "Crea e prova"
+                t("Crea e prova")
               ) : step === 3 ? (
                 <>
                   <Phone className="mr-2 h-4 w-4" />
-                  Collega il numero
+                  {t("Collega il numero")}
                 </>
               ) : (
                 <>
-                  Continua
+                  {t("Continua")}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}

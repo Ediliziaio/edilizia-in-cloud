@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtCur } from "./utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   sales: SalesPerformance[] | undefined;
@@ -47,6 +48,7 @@ function TargetProgress({ value, target }: { value: number; target: number }) {
 }
 
 export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, isLoading, compact, percorso, mostraObiettivo = true }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -74,7 +76,7 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Performance Commerciali</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{tr("Performance Commerciali")}</CardTitle></CardHeader>
         <CardContent><Skeleton className="h-40 w-full" /></CardContent>
       </Card>
     );
@@ -95,15 +97,15 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
     return (
       <div className="overflow-x-auto">
         {rows.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">Nessun dato</p>
+          <p className="text-xs text-muted-foreground text-center py-4">{tr("Nessun dato")}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[10px] sm:text-xs max-md:text-[11px]">Commerciale</TableHead>
-                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">App.</TableHead>
-                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">Vinti</TableHead>
-                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">Fatturato</TableHead>
+                <TableHead className="text-[10px] sm:text-xs max-md:text-[11px]">{tr("Commerciale")}</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">{tr("App.")}</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">{tr("Vinti")}</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">{tr("Fatturato")}</TableHead>
                 <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">%</TableHead>
               </TableRow>
             </TableHeader>
@@ -133,35 +135,35 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Trophy className="h-4 w-4 text-amber-500" />
-            <CardTitle className="text-base">Performance Commerciali</CardTitle>
+            <CardTitle className="text-base">{tr("Performance Commerciali")}</CardTitle>
           </div>
           {rows.length > 0 && (
             <div className="flex items-center gap-3 text-[10px] text-muted-foreground max-md:text-[11px]">
-              <span>Media team: {fmtCur(avgRevenue)} | Chiusura {Math.round(avgCloseRate)}% | Show {Math.round(avgShowRate)}%</span>
+              <span>{tr("Media team: {avgRevenue} | Chiusura {valore}% | Show {valore2}%", { avgRevenue: fmtCur(avgRevenue), valore: Math.round(avgCloseRate), valore2: Math.round(avgShowRate) })}</span>
             </div>
           )}
         </div>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Nessun dato</p>
+          <p className="text-sm text-muted-foreground text-center py-8">{tr("Nessun dato")}</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs">#</TableHead>
-                  <TableHead className="text-xs">Commerciale</TableHead>
-                  <TableHead className="text-xs text-right">App. Fissati</TableHead>
-                  <TableHead className="text-xs text-right">App. Svolti</TableHead>
-                  <TableHead className="text-xs text-right">Show Rate</TableHead>
-                  <TableHead className="text-xs text-right">Vinti</TableHead>
-                  <TableHead className="text-xs text-right">Fatturato</TableHead>
-                  <TableHead className="text-xs text-right">Chiusura %</TableHead>
-                  <TableHead className="text-xs text-right">vs Media</TableHead>
-                  {percorso && <TableHead className="text-xs text-right whitespace-nowrap">1° contatto</TableHead>}
-                  {percorso && <TableHead className="text-xs text-right whitespace-nowrap">Lead → vendita</TableHead>}
-                  {hasTargets && mostraObiettivo && <TableHead className="text-xs text-center">Obiettivo mese</TableHead>}
+                  <TableHead className="text-xs">{tr("Commerciale")}</TableHead>
+                  <TableHead className="text-xs text-right">{tr("App. Fissati")}</TableHead>
+                  <TableHead className="text-xs text-right">{tr("App. Svolti")}</TableHead>
+                  <TableHead className="text-xs text-right">{tr("Show Rate")}</TableHead>
+                  <TableHead className="text-xs text-right">{tr("Vinti")}</TableHead>
+                  <TableHead className="text-xs text-right">{tr("Fatturato")}</TableHead>
+                  <TableHead className="text-xs text-right">{tr("Chiusura %")}</TableHead>
+                  <TableHead className="text-xs text-right">{tr("vs Media")}</TableHead>
+                  {percorso && <TableHead className="text-xs text-right whitespace-nowrap">{tr("1° contatto")}</TableHead>}
+                  {percorso && <TableHead className="text-xs text-right whitespace-nowrap">{tr("Lead → vendita")}</TableHead>}
+                  {hasTargets && mostraObiettivo && <TableHead className="text-xs text-center">{tr("Obiettivo mese")}</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -206,11 +208,11 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
                         return (
                           <>
                             <TableCell className="whitespace-nowrap text-sm text-right tabular-nums">
-                              {ore === null ? "—" : ore < 1 ? `${Math.max(1, Math.round(ore * 60))} min` : ore < 48 ? `${Math.round(ore)} h` : `${(ore / 24).toLocaleString("it-IT", { maximumFractionDigits: 1 })} gg`}
+                              {ore === null ? "—" : ore < 1 ? tr("{valore} min", { valore: Math.max(1, Math.round(ore * 60)) }) : ore < 48 ? `${Math.round(ore)} h` : tr("{n} gg", { n: (ore / 24).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}
                             </TableCell>
                             <TableCell className="whitespace-nowrap text-sm text-right tabular-nums">
                               {p && p.arrivati > 0 ? `${Math.round((p.vinti / p.arrivati) * 100)}%` : "—"}
-                              {p && p.arrivati > 0 && <span className="ml-1 text-xs text-muted-foreground">di {fmt(p.arrivati)}</span>}
+                              {p && p.arrivati > 0 && <span className="ml-1 text-xs text-muted-foreground">{tr("di {n}", { n: fmt(p.arrivati) })}</span>}
                             </TableCell>
                           </>
                         );

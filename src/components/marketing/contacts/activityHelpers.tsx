@@ -3,8 +3,6 @@ import {
   ArrowRight, RefreshCw, UserCheck, FileText, Activity, Trash2, ArchiveRestore,
 } from "lucide-react";
 import { isToday, isYesterday, format } from "date-fns";
-import { it } from "date-fns/locale";
-
 export function getActivityIcon(type: string) {
   switch (type) {
     case "created":
@@ -50,7 +48,7 @@ export function getDateLabel(dateStr: string) {
   const d = new Date(dateStr);
   if (isToday(d)) return "Oggi";
   if (isYesterday(d)) return "Ieri";
-  return format(d, "d MMMM yyyy", { locale: it });
+  return format(d, "d MMMM yyyy", { locale: dateFnsCampo() });
 }
 
 export type RightTab = "tracking" | "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "invoices" | "documents" | "ai_conversations" | "calls" | "sms_log" | "settings";
@@ -60,6 +58,7 @@ import {
   CalendarDays, Target as TargetIcon, FileSignature, Bot, Smartphone, Settings as SettingsIcon,
   Radar as RadarIcon, Phone,
 } from "lucide-react";
+import { dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "tracking", icon: RadarIcon, label: "Tracking" },

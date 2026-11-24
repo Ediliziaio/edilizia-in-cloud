@@ -58,6 +58,7 @@ import {
 
 import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
 import type { RenderCatalogVerticale } from "@/lib/render/renderCatalog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 type Step = 1 | 2 | 3 | 4;
 
 type DynamicRenderDbQuery<T = unknown> = PromiseLike<{ data: T | null; error: { message?: string } | null }> & {
@@ -115,11 +116,12 @@ const NON_SPECIFICATO = "__non_specificato__";
  * resta nella lista e non finisce nel campo chiuso.
  */
 function RigaConFoto({ foto, label }: { foto: { folder: string; filename: string } | null; label: string }) {
+  const t = useT();
   if (!foto) return <>{label}</>;
   return (
     <span className="flex items-center gap-2">
       <span className="h-10 w-10 shrink-0 overflow-hidden rounded border bg-muted">
-        <ReferenceThumb photo={foto} alt={`Esempio: ${label}`} />
+        <ReferenceThumb photo={foto} alt={t("Esempio: {label}", { label: String(label ?? "") })} />
       </span>
       <span>{label}</span>
     </span>
@@ -140,6 +142,7 @@ function OpzioniModuloTecnico({
   /** valore null = «non specificato» */
   onScelta: (chiave: string, valore: string | null) => void;
 }) {
+  const t = useT();
   const opzioni = opzioniDelModulo(spec.id)
     .map((opzione) => ({ opzione, valori: valoriApplicabili(opzione, config.interventionPreset) }))
     .filter(({ valori }) => valori.length > 0);
@@ -150,19 +153,19 @@ function OpzioniModuloTecnico({
         const scelto = valori.find((v) => v.value === config.opzioni?.[opzione.chiave]);
         return (
           <div key={opzione.chiave} className="grid gap-2">
-            <Label className="max-md:text-[11px]">{opzione.etichetta}</Label>
+            <Label className="max-md:text-[11px]">{t(opzione.etichetta)}</Label>
             <Select
               value={scelto?.value ?? NON_SPECIFICATO}
               onValueChange={(value) => onScelta(opzione.chiave, value === NON_SPECIFICATO ? null : value)}
             >
-              <SelectTrigger aria-label={opzione.etichetta}>
-                <SelectValue>{scelto?.label ?? opzione.nonSpecificato}</SelectValue>
+              <SelectTrigger aria-label={t(opzione.etichetta)}>
+                <SelectValue>{t(scelto?.label ?? opzione.nonSpecificato)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NON_SPECIFICATO}>{opzione.nonSpecificato}</SelectItem>
+                <SelectItem value={NON_SPECIFICATO}>{t(opzione.nonSpecificato)}</SelectItem>
                 {valori.map((v) => (
                   <SelectItem key={v.value} value={v.value}>
-                    <RigaConFoto foto={fotoDellOpzione(spec.id, config.interventionPreset, opzione.chiave, v.value)} label={v.label} />
+                    <RigaConFoto foto={fotoDellOpzione(spec.id, config.interventionPreset, opzione.chiave, v.value)} label={t(v.label)} />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -175,6 +178,7 @@ function OpzioniModuloTecnico({
 }
 
 export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: TechnicalRenderModuleId }) {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { effectiveCompany, user } = useAuth();
@@ -237,11 +241,11 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error(t("File troppo grande (max 20 MB)"));
       return;
     }
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      toast.error("Formato non supportato. Usa JPG, PNG o WEBP.");
+      toast.error(t("Formato non supportato. Usa JPG, PNG o WEBP."));
       return;
     }
     if (photoPreview) URL.revokeObjectURL(photoPreview);
@@ -278,15 +282,15 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         .select<{ id: string }>("id")
         .single();
 
-      if (error || !session) throw new Error(error?.message ?? "Creazione sessione fallita");
+      if (error || !session) throw new Error(error?.message ?? t("Creazione sessione fallita"));
       setSessionId(session.id as string);
       setStep(2);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload foto fallito");
+      toast.error(error instanceof Error ? error.message : t("Upload foto fallito"));
     } finally {
       setUploading(false);
     }
-  }, [companyId, config, contactId, db, moduleId, opportunityId, photo, user]);
+  }, [companyId, config, contactId, db, moduleId, opportunityId, photo, user, t]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -311,7 +315,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         stopPolling();
         setGenerating(false);
         setStep(2);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova più tardi.");
+        toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova più tardi."));
         return;
       }
 
@@ -337,7 +341,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         stopPolling();
         setGenerating(false);
         setStep(2);
-        toast.error(session.error_message || "Render fallito. Riprova.");
+        toast.error(session.error_message || t("Render fallito. Riprova."));
         return;
       }
 
@@ -347,7 +351,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
     };
 
     poll();
-  }, [companyId, db, moduleId, queryClient, stopPolling]);
+  }, [companyId, db, moduleId, queryClient, stopPolling, t]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
@@ -385,14 +389,14 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         const message = await resolveEdgeFunctionErrorMessage({
           error,
           data,
-          fallback: "Generazione fallita",
+          fallback: t("Generazione fallita"),
         });
         if (isIdleTimeoutMessage(message)) {
-          toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+          toast.info(t("Render avviato: continuo a controllare lo stato in automatico."));
           return;
         }
         stopPolling();
-        throw new Error(message.includes("insufficient_credits") ? "Crediti render insufficienti. Acquista nuovi crediti." : message);
+        throw new Error(message.includes("insufficient_credits") ? t("Crediti render insufficienti. Acquista nuovi crediti.") : message);
       }
 
       const urls: string[] = data?.result_urls ?? (data?.result_url ? [data.result_url] : []);
@@ -411,9 +415,9 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
       stopPolling();
       setGenerating(false);
       setStep(2);
-      toast.error(error instanceof Error ? error.message : "Render fallito");
+      toast.error(error instanceof Error ? error.message : t("Render fallito"));
     }
-  }, [companyId, config, db, generating, moduleId, photoPreview, queryClient, sessionId, startPolling, stopPolling]);
+  }, [companyId, config, db, generating, moduleId, photoPreview, queryClient, sessionId, startPolling, stopPolling, t]);
 
   const downloadResult = async () => {
     const url = resultUrls[0];
@@ -421,7 +425,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
     try {
       await downloadRenderImage(url, `render_${moduleId}_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
   };
 
@@ -457,12 +461,12 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Render fotorealistico"
-        title={`Render ${spec.label}`}
-        mobileTitle={`Render ${spec.label}`}
-        description={`Configura ${spec.singularLabel} e genera un'anteprima a partire dalla foto originale.`}
-        badgeLabel={`Render AI — ${spec.label}`}
-        stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
+        eyebrow={t("Render fotorealistico")}
+        title={t("Render {tipo}", { tipo: t(spec.label) })}
+        mobileTitle={t("Render {tipo}", { tipo: t(spec.label) })}
+        description={t("Configura {singularLabel} e genera un'anteprima a partire dalla foto originale.", { singularLabel: t(spec.singularLabel) })}
+        badgeLabel={t("Render AI — {label}", { label: t(spec.label) })}
+        stepLabels={[t("Foto"), t("Configura"), t("Elaborazione"), t("Risultato")]}
         currentStep={step}
         accent="orange"
       />
@@ -479,7 +483,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
             <>
               <ZonaFotoMobile
                 onScegli={() => fileRef.current?.click()}
-                suggerimento={spec.uploadTitle}
+                suggerimento={t(spec.uploadTitle)}
                 accento="orange"
               />
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
@@ -489,18 +493,18 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
             <CardHeader className="max-md:hidden">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Upload className="h-4 w-4" />
-                {spec.uploadTitle}
+                {t(spec.uploadTitle)}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
               {photoPreview ? (
                 <div className="relative overflow-hidden rounded-lg">
-                  <img loading="lazy" src={photoPreview} alt="Foto caricata" className="max-h-96 w-full object-cover" />
+                  <img loading="lazy" src={photoPreview} alt={t("Foto caricata")} className="max-h-96 w-full object-cover" />
                   {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
                   <Button variant="secondary" size="sm" className="absolute right-3 top-3 gap-1.5 max-md:right-2 max-md:top-2 max-md:h-8 max-md:rounded-full max-md:bg-black/55 max-md:px-3 max-md:text-[13px] max-md:text-white max-md:backdrop-blur-sm max-md:hover:bg-black/65" onClick={resetPhoto}>
                     <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
                     <Camera className="hidden h-3.5 w-3.5 max-md:block" />
-                    Cambia foto
+                    {t("Cambia foto")}
                   </Button>
                 </div>
               ) : (
@@ -513,10 +517,10 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
                     <ImageIcon className={`h-8 w-8 ${hubConfig.accentClassName}`} />
                   </div>
                   <div>
-                    <p className="font-semibold">{spec.uploadTitle}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">JPG, PNG, WEBP - Max 20 MB</p>
+                    <p className="font-semibold">{t(spec.uploadTitle)}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("JPG, PNG, WEBP - Max 20 MB")}</p>
                   </div>
-                  <span className="rounded-md border bg-background px-3 py-2 text-sm font-medium">Sfoglia file</span>
+                  <span className="rounded-md border bg-background px-3 py-2 text-sm font-medium">{t("Sfoglia file")}</span>
                 </button>
               )}
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
@@ -534,7 +538,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           {/* Telefono: compare con la foto (prima era un bottone spento). */}
           {(!isMobile || photo) && (
           <Button className={`w-full ${spec.buttonClassName}`} size="lg" disabled={!photo || uploading} onClick={goToStep2}>
-            {uploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Caricamento...</> : "Continua con la configurazione"}
+            {uploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("Caricamento...")}</> : t("Continua con la configurazione")}
           </Button>
           )}
         </div>
@@ -544,28 +548,28 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         <div className="space-y-4 max-md:space-y-3">
           {photoPreview && (
             <div className="overflow-hidden rounded-lg">
-              <img loading="lazy" src={photoPreview} alt="Foto render" className="max-h-56 w-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt={t("Foto render")} className="max-h-56 w-full object-cover" />
             </div>
           )}
 
           <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
             <CardHeader className="max-md:hidden">
-              <CardTitle className="text-base">{spec.configTitle}</CardTitle>
+              <CardTitle className="text-base">{t(spec.configTitle)}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 max-md:gap-3 max-md:p-0">
               <div className="grid gap-2 max-md:gap-1.5">
-                <Label className="max-md:text-[13px] max-md:font-semibold">Tipo intervento</Label>
+                <Label className="max-md:text-[13px] max-md:font-semibold">{t("Tipo intervento")}</Label>
                 <Select
                   value={config.interventionPreset}
                   onValueChange={(value) => setConfig((prev) => applicaSceltaTecnica(spec, prev, { interventionPreset: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue>{presetCorrente?.label ?? config.interventionPreset}</SelectValue>
+                    <SelectValue>{presetCorrente?.label ? t(presetCorrente.label) : config.interventionPreset}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {spec.presets.map((preset) => (
                       <SelectItem key={preset.value} value={preset.value}>
-                        <RigaConFoto foto={fotoPreset[preset.value] ?? null} label={preset.label} />
+                        <RigaConFoto foto={fotoPreset[preset.value] ?? null} label={t(preset.label)} />
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -575,11 +579,11 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
                     <span className="h-12 w-12 shrink-0 overflow-hidden rounded-md border bg-muted">
                       <ReferenceThumb
                         photo={fotoPreset[config.interventionPreset]!}
-                        alt={`Esempio: ${presetCorrente?.label ?? config.interventionPreset}`}
+                        alt={t("Esempio: {label}", { label: presetCorrente?.label ? t(presetCorrente.label) : config.interventionPreset })}
                       />
                     </span>
                   )}
-                  <p className="text-xs text-muted-foreground max-md:text-[11px]">{presetCorrente?.description}</p>
+                  <p className="text-xs text-muted-foreground max-md:text-[11px]">{presetCorrente?.description ? t(presetCorrente.description) : null}</p>
                 </div>
               </div>
 
@@ -592,17 +596,17 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
               <div className="grid gap-4 md:grid-cols-2 max-md:grid-cols-2 max-md:gap-2">
                 <div className="grid gap-2">
-                  <Label className="max-md:text-[11px]">Area target</Label>
+                  <Label className="max-md:text-[11px]">{t("Area target")}</Label>
                   <Input value={config.targetArea} onChange={(event) => setConfig((prev) => ({ ...prev, targetArea: event.target.value }))} />
                 </div>
                 <div className="grid gap-2">
-                  <Label className="max-md:text-[11px]">Intensità</Label>
+                  <Label className="max-md:text-[11px]">{t("Intensità")}</Label>
                   <Select value={config.intensity} onValueChange={(value: TechnicalRenderConfig["intensity"]) => setConfig((prev) => ({ ...prev, intensity: value }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="leggera">Leggera</SelectItem>
-                      <SelectItem value="media">Media</SelectItem>
-                      <SelectItem value="completa">Completa</SelectItem>
+                      <SelectItem value="leggera">{t("Leggera")}</SelectItem>
+                      <SelectItem value="media">{t("Media")}</SelectItem>
+                      <SelectItem value="completa">{t("Completa")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -610,24 +614,24 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
               <div className="grid gap-4 md:grid-cols-2 max-md:grid-cols-2 max-md:gap-2">
                 <div className="grid gap-2">
-                  <Label className="max-md:text-[11px]">Materiale / sistema</Label>
+                  <Label className="max-md:text-[11px]">{t("Materiale / sistema")}</Label>
                   <Input value={config.materialOrSystem} onChange={(event) => setConfig((prev) => ({ ...prev, materialOrSystem: event.target.value }))} />
                 </div>
                 <div className="grid gap-2">
-                  <Label className="max-md:text-[11px]">Colore / finitura</Label>
+                  <Label className="max-md:text-[11px]">{t("Colore / finitura")}</Label>
                   <Input value={config.colorAndFinish} onChange={(event) => setConfig((prev) => ({ ...prev, colorAndFinish: event.target.value }))} />
                 </div>
               </div>
 
               <div className="grid gap-2 max-md:gap-1.5">
-                <Label className="max-md:text-[13px] max-md:font-semibold">Dettagli tecnici</Label>
+                <Label className="max-md:text-[13px] max-md:font-semibold">{t("Dettagli tecnici")}</Label>
                 <Textarea rows={4} value={config.technicalDetails} onChange={(event) => setConfig((prev) => ({ ...prev, technicalDetails: event.target.value }))} className="max-md:min-h-[88px]" />
               </div>
 
               {/* Telefono: gli elementi da preservare hanno già un testo di partenza: riga chiusa. */}
-              <DettagliTelefono titolo="Elementi da preservare">
+              <DettagliTelefono titolo={t("Elementi da preservare")}>
               <div className="grid gap-2">
-                <Label className="max-md:hidden">Elementi da preservare</Label>
+                <Label className="max-md:hidden">{t("Elementi da preservare")}</Label>
                 <Textarea rows={3} value={config.preserveNotes} onChange={(event) => setConfig((prev) => ({ ...prev, preserveNotes: event.target.value }))} />
               </div>
               </DettagliTelefono>
@@ -647,11 +651,11 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           {/* Telefono: il riepilogo a etichette (con i codici) resta al computer. */}
           <Card className="max-md:hidden">
             <CardContent className="flex flex-wrap gap-2 py-4">
-              <Badge variant="secondary">{spec.label}</Badge>
+              <Badge variant="secondary">{t(spec.label)}</Badge>
               <Badge variant="outline">{config.interventionPreset.replace(/_/g, " ")}</Badge>
               {opzioniDelModulo(spec.id).map((opzione) => {
                 const scelto = opzione.valori.find((v) => v.value === config.opzioni?.[opzione.chiave]);
-                return scelto ? <Badge key={opzione.chiave} variant="outline">{opzione.etichetta}: {scelto.label}</Badge> : null;
+                return scelto ? <Badge key={opzione.chiave} variant="outline">{t(opzione.etichetta)}: {t(scelto.label)}</Badge> : null;
               })}
               <Badge variant="outline">{config.intensity}</Badge>
               <Badge variant="outline">{config.targetArea}</Badge>
@@ -660,7 +664,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
           <Button className={`w-full ${spec.buttonClassName}`} size="lg" onClick={startRender}>
             <Zap className="mr-2 h-4 w-4" />
-            Genera render {spec.singularLabel}
+            {t("Genera render {tipo}", { tipo: t(spec.singularLabel) })}
           </Button>
         </div>
       )}
@@ -671,7 +675,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           elapsedSec={elapsedSec}
           dots={dots}
           accent="orange"
-          subjectLabel={`L'AI sta elaborando il render: ${spec.label}`}
+          subjectLabel={t("L'AI sta elaborando il render: {label}", { label: t(spec.label) })}
         />
       )}
 
@@ -682,12 +686,12 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
               {/* Telefono: parla l'immagine. */}
               <div className="mb-4 flex items-center gap-2 max-md:hidden">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <span className="font-semibold text-green-700">{spec.resultTitle}</span>
+                <span className="font-semibold text-green-700">{t(spec.resultTitle)}</span>
               </div>
               {photoPreview ? (
                 <BeforeAfterSlider beforeUrl={photoPreview} afterUrl={resultUrls[0]} />
               ) : (
-                <img loading="lazy" src={resultUrls[0]} alt="Render completato" className="w-full rounded-lg object-cover" />
+                <img loading="lazy" src={resultUrls[0]} alt={t("Render completato")} className="w-full rounded-lg object-cover" />
               )}
             </CardContent>
           </Card>
@@ -695,7 +699,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
           {isMobile && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile={`render-${moduleId}`} className="min-w-0 flex-1" />
@@ -703,20 +707,20 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           )}
 
           <div className="grid gap-2 sm:grid-cols-3 max-md:hidden">
-            <Button variant="outline" className="gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Scarica</Button>
+            <Button variant="outline" className="gap-2" onClick={downloadResult}><Download className="h-4 w-4" />{t("Scarica")}</Button>
             <Button variant="outline" className="gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
-            <Button className="gap-2" onClick={() => navigate(`/azienda/render/${moduleId}/gallery`)}>Apri galleria</Button>
+            <Button className="gap-2" onClick={() => navigate(`/azienda/render/${moduleId}/gallery`)}>{t("Apri galleria")}</Button>
           </div>
 
           <RenderResultRefinementPanel
             config={config}
             noteValue={config.technicalDetails}
-            notePlaceholder="Scrivi una variante precisa. Esempio: mantieni identici porta e pavimento, cambia solo la finitura del pannello, evita arredi nuovi."
+            notePlaceholder={t("Scrivi una variante precisa. Esempio: mantieni identici porta e pavimento, cambia solo la finitura del pannello, evita arredi nuovi.")}
             onNoteChange={(technicalDetails) => setConfig((current) => ({ ...current, technicalDetails }))}
             onEditChoices={() => setStep(2)}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel={`Genera nuova variante ${spec.singularLabel}`}
+            regenerateLabel={t("Genera nuova variante {singularLabel}", { singularLabel: t(spec.singularLabel) })}
           />
 
           <Button
@@ -725,7 +729,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
             onClick={nuovoRender}
           >
             <RefreshCw className="h-4 w-4" />
-            Nuovo render {spec.singularLabel}
+            {t("Nuovo render {tipo}", { tipo: t(spec.singularLabel) })}
           </Button>
         </div>
       )}

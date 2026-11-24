@@ -34,6 +34,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type { VoceSim } from "@/lib/simulatore/tipi";
 import type { PrezzarioVoceConFonte } from "@/lib/prezzario/queries";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Tipo locale snello per il picker (solo i campi usati nel mapping → VoceSim).
 // `codice` non è nei tipi generati di `tariffe_aziendali` → leggiamo via cast
@@ -131,6 +132,7 @@ interface AggiungiVociDialogProps {
 }
 
 export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDialogProps) {
+  const tr = useT();
   const [tab, setTab] = useState<"listino" | "prezzario">("listino");
   const [qListino, setQListino] = useState("");
   const [qPrezzario, setQPrezzario] = useState("");
@@ -199,9 +201,9 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[88vh] max-w-3xl flex-col">
         <DialogHeader>
-          <DialogTitle>Aggiungi voci</DialogTitle>
+          <DialogTitle>{tr("Aggiungi voci")}</DialogTitle>
           <DialogDescription>
-            Scegli dal listino aziendale o dai prezzari regionali. Puoi selezionarne più di una.
+            {tr("Scegli dal listino aziendale o dai prezzari regionali. Puoi selezionarne più di una.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,14 +211,14 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="listino" className="gap-1.5">
               <Library className="h-4 w-4" />
-              Listino aziendale
+              {tr("Listino aziendale")}
               {selListino.size > 0 ? (
                 <Badge variant="default" className="ml-1 h-5 px-1.5">{selListino.size}</Badge>
               ) : null}
             </TabsTrigger>
             <TabsTrigger value="prezzario" className="gap-1.5">
               <MapPin className="h-4 w-4" />
-              Prezzario regionale
+              {tr("Prezzario regionale")}
               {selPrezzario.size > 0 ? (
                 <Badge variant="default" className="ml-1 h-5 px-1.5">{selPrezzario.size}</Badge>
               ) : null}
@@ -230,7 +232,7 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
               <Input
                 value={qListino}
                 onChange={(e) => setQListino(e.target.value)}
-                placeholder="Cerca per nome o codice…"
+                placeholder={tr("Cerca per nome o codice…")}
                 className="pl-8"
               />
             </div>
@@ -239,17 +241,17 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
                 {listinoQuery.isLoading ? (
                   <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Caricamento listino…
+                    {tr("Caricamento listino…")}
                   </div>
                 ) : listinoFiltrato.length === 0 ? (
                   <EmptyState
                     icon={Library}
                     size="sm"
-                    title={qListino ? "Nessun risultato" : "Listino vuoto"}
+                    title={qListino ? tr("Nessun risultato") : tr("Listino vuoto")}
                     description={
                       qListino
-                        ? "Nessuna voce di listino corrisponde alla ricerca."
-                        : "Non ci sono ancora voci attive nel listino aziendale."
+                        ? tr("Nessuna voce di listino corrisponde alla ricerca.")
+                        : tr("Non ci sono ancora voci attive nel listino aziendale.")
                     }
                   />
                 ) : (
@@ -272,14 +274,14 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
                             ) : null}
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                            <span>{t.unita_fatturazione ?? t.unita ?? "pz"}</span>
+                            <span>{t.unita_fatturazione ?? t.unita ?? tr("pz")}</span>
                             <span>
-                              Prezzo{" "}
+                              {tr("Prezzo")}{" "}
                               <span className="font-medium text-foreground">
                                 {formatCurrency(t.prezzo_vendita ?? 0)}
                               </span>
                             </span>
-                            {costo > 0 ? <span>Costo {formatCurrency(costo)}</span> : null}
+                            {costo > 0 ? <span>{tr("Costo {prezzoAcquisto}", { prezzoAcquisto: formatCurrency(costo) })}</span> : null}
                           </div>
                         </div>
                       </label>
@@ -297,7 +299,7 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
               <Input
                 value={qPrezzario}
                 onChange={(e) => setQPrezzario(e.target.value)}
-                placeholder="Cerca nei prezzari regionali (min. 2 caratteri)…"
+                placeholder={tr("Cerca nei prezzari regionali (min. 2 caratteri)…")}
                 className="pl-8"
               />
             </div>
@@ -307,20 +309,20 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
                   <EmptyState
                     icon={MapPin}
                     size="sm"
-                    title="Cerca una voce"
-                    description="Digita almeno 2 caratteri per cercare nei prezzari regionali pubblicati."
+                    title={tr("Cerca una voce")}
+                    description={tr("Digita almeno 2 caratteri per cercare nei prezzari regionali pubblicati.")}
                   />
                 ) : prezzarioQuery.isLoading ? (
                   <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Ricerca…
+                    {tr("Ricerca…")}
                   </div>
                 ) : (prezzarioQuery.data ?? []).length === 0 ? (
                   <EmptyState
                     icon={MapPin}
                     size="sm"
-                    title="Nessun risultato"
-                    description="Nessuna voce di prezzario corrisponde alla ricerca."
+                    title={tr("Nessun risultato")}
+                    description={tr("Nessuna voce di prezzario corrisponde alla ricerca.")}
                   />
                 ) : (
                   (prezzarioQuery.data ?? []).map((v) => {
@@ -342,7 +344,7 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
                               {v.fonteLabel}
                             </Badge>
                             {v.codice ? <span className="font-mono">{v.codice}</span> : null}
-                            <span>{v.unita_misura ?? "pz"}</span>
+                            <span>{v.unita_misura ?? tr("pz")}</span>
                             <span className="font-medium text-foreground">{formatCurrency(v.prezzo ?? 0)}</span>
                           </div>
                         </div>
@@ -357,13 +359,13 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
 
         <DialogFooter className="gap-2 sm:gap-2">
           <span className="mr-auto self-center text-sm text-muted-foreground">
-            {totSelezionate > 0 ? `${totSelezionate} selezionate` : "Nessuna selezione"}
+            {totSelezionate > 0 ? tr("{n} selezionate", { n: String(totSelezionate ?? "") }) : tr("Nessuna selezione")}
           </span>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button onClick={handleAdd} disabled={totSelezionate === 0}>
-            Aggiungi{totSelezionate > 0 ? ` (${totSelezionate})` : ""}
+            {tr("Aggiungi")}{totSelezionate > 0 ? ` (${totSelezionate})` : ""}
           </Button>
         </DialogFooter>
       </DialogContent>

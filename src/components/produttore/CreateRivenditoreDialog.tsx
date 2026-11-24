@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/formatEuro";
 import { useResellerPlans } from "@/hooks/useResellerPlans";
 import { Building2, Factory, CreditCard, Loader2, Plus, Info, Check, Package } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PAY = [
   { comped: true, label: "Paghi tu", desc: "Il rivenditore usa il software gratis, l'abbonamento lo paghi tu (produttore).", Icon: Factory },
@@ -31,6 +32,7 @@ export function CreateRivenditoreDialog({
   companyId: string | null;
   defaultComped: boolean;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const { data: plans = [], isLoading: plansLoading } = useResellerPlans();
   const [nome, setNome] = useState("");
@@ -46,24 +48,24 @@ export function CreateRivenditoreDialog({
     mutationFn: async () => {
       const n = nome.trim();
       const e = email.trim().toLowerCase();
-      if (!n) throw new Error("Inserisci il nome del rivenditore");
-      if (n.length > 120) throw new Error("Il nome è troppo lungo (max 120 caratteri)");
-      if (!e || !/^\S+@\S+\.\S+$/.test(e)) throw new Error("Inserisci un'email admin valida");
-      if (!planId) throw new Error("Seleziona un piano");
+      if (!n) throw new Error(t("Inserisci il nome del rivenditore"));
+      if (n.length > 120) throw new Error(t("Il nome è troppo lungo (max 120 caratteri)"));
+      if (!e || !/^\S+@\S+\.\S+$/.test(e)) throw new Error(t("Inserisci un'email admin valida"));
+      if (!planId) throw new Error(t("Seleziona un piano"));
       const { data, error } = await supabase.functions.invoke("create-reseller", {
         body: { nome: n, email_admin: e, billing_comped: comped, subscription_plan_id: planId },
       });
-      if (error) throw new Error(error.message ?? "Creazione fallita");
+      if (error) throw new Error(error.message ?? t("Creazione fallita"));
       const r = data as { success?: boolean; error?: string } | null;
-      if (r && r.success === false) throw new Error(r.error ?? "Creazione fallita");
+      if (r && r.success === false) throw new Error(r.error ?? t("Creazione fallita"));
     },
     onSuccess: () => {
-      toast.success("Rivenditore creato", { description: "Invito inviato all'admin del rivenditore." });
+      toast.success(t("Rivenditore creato"), { description: t("Invito inviato all'admin del rivenditore.") });
       onOpenChange(false);
       qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
       qc.invalidateQueries({ queryKey: ["produttore-billing", companyId] });
     },
-    onError: (e) => toast.error("Creazione fallita", { description: (e as Error).message }),
+    onError: (e) => toast.error(t("Creazione fallita"), { description: (e as Error).message }),
   });
 
   return (
@@ -71,31 +73,30 @@ export function CreateRivenditoreDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" /> Nuovo rivenditore
+            <Building2 className="h-5 w-5" /> {t("Nuovo rivenditore")}
           </DialogTitle>
           <DialogDescription>
-            Crea l&apos;area dedicata di un rivenditore, col tuo brand. Riceverà un invito email per
-            impostare la password.
+            {t("Crea l'area dedicata di un rivenditore, col tuo brand. Riceverà un invito email per impostare la password.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="r-nome">Nome rivenditore</Label>
-            <Input id="r-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder="Es. Serramenti Bianchi" />
+            <Label htmlFor="r-nome">{t("Nome rivenditore")}</Label>
+            <Input id="r-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder={t("Es. Serramenti Bianchi")} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="r-email">Email admin rivenditore</Label>
+            <Label htmlFor="r-email">{t("Email admin rivenditore")}</Label>
             <Input id="r-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@serramentibianchi.it" />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Piano del rivenditore</Label>
+            <Label>{t("Piano del rivenditore")}</Label>
             {plansLoading ? (
-              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Caricamento piani…</div>
+              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">{t("Caricamento piani…")}</div>
             ) : plans.length === 0 ? (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-                Nessun piano disponibile. Contatta il supporto.
+                {t("Nessun piano disponibile. Contatta il supporto.")}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -128,7 +129,7 @@ export function CreateRivenditoreDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Chi paga l&apos;abbonamento?</Label>
+            <Label>{t("Chi paga l'abbonamento?")}</Label>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {PAY.map(({ comped: val, label, desc, Icon }) => {
                 const selected = comped === val;
@@ -149,8 +150,8 @@ export function CreateRivenditoreDialog({
                       </span>
                     )}
                     <Icon className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
-                    <div className="mt-1.5 text-sm font-semibold">{label}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{desc}</div>
+                    <div className="mt-1.5 text-sm font-semibold">{t(label)}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{t(desc)}</div>
                   </button>
                 );
               })}
@@ -159,25 +160,23 @@ export function CreateRivenditoreDialog({
 
           {selectedPlan && (
             <p className="text-xs text-muted-foreground">
-              <strong className="text-foreground">{selectedPlan.name}</strong> · {formatEuro(selectedPlan.price_monthly)}/mese —{" "}
-              {comped ? "lo paghi tu" : "lo paga il rivenditore"}
+              <strong className="text-foreground">{selectedPlan.name}</strong> · {comped ? t("{prezzo}/mese — lo paghi tu", { prezzo: formatEuro(selectedPlan.price_monthly) }) : t("{prezzo}/mese — lo paga il rivenditore", { prezzo: formatEuro(selectedPlan.price_monthly) })}
             </p>
           )}
 
           <div className="flex gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-800">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              Il rivenditore accederà da <strong>app.ediliziaincloud.com</strong> o dal <strong>tuo dominio</strong>:
-              per lui è un&apos;area come le altre, col tuo brand. Tu vedi i suoi dati; lui non vede te.
+              {t("Il rivenditore accederà da {indirizzo} o dal tuo dominio: per lui è un'area come le altre, col tuo brand. Tu vedi i suoi dati; lui non vede te.", { indirizzo: "app.ediliziaincloud.com" })}
             </span>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={crea.isPending}>Annulla</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={crea.isPending}>{t("Annulla")}</Button>
           <Button onClick={() => crea.mutate()} disabled={crea.isPending || !planId} className="gap-1.5">
             {crea.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Crea rivenditore
+            {t("Crea rivenditore")}
           </Button>
         </DialogFooter>
       </DialogContent>

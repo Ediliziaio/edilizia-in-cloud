@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type { Employee } from "@/types/employees";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface EmployeesTabProps {
   employees: Employee[];
@@ -54,6 +55,7 @@ export function EmployeesTab({
   soloLettura = false,
   canViewIndividualCosts = false,
 }: EmployeesTabProps) {
+  const t = useT();
   const activeEmployees = employees.filter((e) => e.is_active);
   const inactiveEmployees = employees.filter((e) => !e.is_active);
 
@@ -67,19 +69,17 @@ export function EmployeesTab({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <div className="text-sm text-muted-foreground">
-          {activeEmployees.length} attivi, {inactiveEmployees.length} inattivi
-        </div>
+        <div className="text-sm text-muted-foreground">{t("{n} attivi, {n2} inattivi", { n: activeEmployees.length, n2: inactiveEmployees.length })}</div>
         <Button onClick={onNew} disabled={soloLettura}>
           <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-          Nuovo dipendente
+          {t("Nuovo dipendente")}
         </Button>
       </div>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-3" role="status" aria-busy="true" aria-label="Caricamento dei dipendenti">
+            <div className="p-6 space-y-3" role="status" aria-busy="true" aria-label={t("Caricamento dei dipendenti")}>
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="flex items-center gap-4">
                   <Skeleton className="h-5 w-[150px]" />
@@ -93,27 +93,27 @@ export function EmployeesTab({
           ) : employees.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               {roleType === 'staff_interno'
-                ? "Nessun membro dello staff interno ancora. Aggiungi il primo per cominciare."
-                : "Nessun operaio ancora. Aggiungi il primo per cominciare."}
+                ? t("Nessun membro dello staff interno ancora. Aggiungi il primo per cominciare.")
+                : t("Nessun operaio ancora. Aggiungi il primo per cominciare.")}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Area</TableHead>
-                  <TableHead>Contatti</TableHead>
-                  {canViewIndividualCosts && <TableHead className="text-right">Stipendio lordo</TableHead>}
-                  {canViewIndividualCosts && <TableHead className="text-right">Stipendio netto</TableHead>}
-                  <TableHead className="text-right">Ore al mese</TableHead>
+                  <TableHead>{t("Nome")}</TableHead>
+                  <TableHead>{t("Area")}</TableHead>
+                  <TableHead>{t("Contatti")}</TableHead>
+                  {canViewIndividualCosts && <TableHead className="text-right">{t("Stipendio lordo")}</TableHead>}
+                  {canViewIndividualCosts && <TableHead className="text-right">{t("Stipendio netto")}</TableHead>}
+                  <TableHead className="text-right">{t("Ore al mese")}</TableHead>
                   {canViewIndividualCosts && <TableHead
                     className="text-right"
-                    title="Tariffa scritta a mano nella scheda; altrimenti lordo più contributi diviso le ore del mese. È il costo che finisce nelle commesse."
+                    title={t("Tariffa scritta a mano nella scheda; altrimenti lordo più contributi diviso le ore del mese. È il costo che finisce nelle commesse.")}
                   >
-                    Costo orario
+                    {t("Costo orario")}
                   </TableHead>}
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
+                  <TableHead>{t("Stato")}</TableHead>
+                  <TableHead className="text-right"><span className="sr-only">{t("Azioni")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -138,10 +138,10 @@ export function EmployeesTab({
                               : ""
                           }
                         >
-                          {employee.area === "cantiere" ? "Cantiere"
-                            : employee.area === "commerciale" ? "Commerciale"
-                            : employee.area === "amministrazione" ? "Amministrazione"
-                            : employee.area === "tecnico" ? "Tecnico"
+                          {employee.area === "cantiere" ? t("Cantiere")
+                            : employee.area === "commerciale" ? t("Commerciale")
+                            : employee.area === "amministrazione" ? t("Amministrazione")
+                            : employee.area === "tecnico" ? t("Tecnico")
                             : employee.area}
                         </Badge>
                       ) : (
@@ -178,7 +178,7 @@ export function EmployeesTab({
                     </TableCell>}
                     <TableCell>
                       <Badge variant={employee.is_active ? "default" : "secondary"}>
-                        {employee.is_active ? "Attivo" : "Inattivo"}
+                        {employee.is_active ? t("Attivo") : t("Inattivo")}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -189,8 +189,8 @@ export function EmployeesTab({
                             size="icon"
                             onClick={() => onCreateUser(employee)}
                             disabled={soloLettura}
-                            title="Crea l'accesso"
-                            aria-label={`Crea l'accesso per ${employee.first_name} ${employee.last_name}`}
+                            title={t("Crea l'accesso")}
+                            aria-label={t("Crea l'accesso per {first_name} {last_name}", { first_name: String(employee.first_name ?? ""), last_name: String(employee.last_name ?? "") })}
                           >
                             <UserPlus className="h-4 w-4 text-primary" aria-hidden="true" />
                           </Button>
@@ -199,8 +199,8 @@ export function EmployeesTab({
                           variant="ghost"
                           size="icon"
                           onClick={() => onViewAttachments(employee)}
-                          title="Documenti"
-                          aria-label={`Documenti di ${employee.first_name} ${employee.last_name}`}
+                          title={t("Documenti")}
+                          aria-label={t("Documenti di {first_name} {last_name}", { first_name: String(employee.first_name ?? ""), last_name: String(employee.last_name ?? "") })}
                         >
                           <FileText className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -209,8 +209,8 @@ export function EmployeesTab({
                           size="icon"
                           onClick={() => onEdit(employee)}
                           disabled={soloLettura}
-                          title="Modifica"
-                          aria-label={`Modifica ${employee.first_name} ${employee.last_name}`}
+                          title={t("Modifica")}
+                          aria-label={t("Modifica {nome} {cognome}", { nome: String(employee.first_name ?? ""), cognome: String(employee.last_name ?? "") })}
                         >
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -220,26 +220,26 @@ export function EmployeesTab({
                               variant="ghost"
                               size="icon"
                               disabled={soloLettura}
-                              title="Elimina"
-                              aria-label={`Elimina ${employee.first_name} ${employee.last_name}`}
+                              title={t("Elimina")}
+                              aria-label={t("Elimina {first_name} {last_name}", { first_name: String(employee.first_name ?? ""), last_name: String(employee.last_name ?? "") })}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare {employee.first_name} {employee.last_name}?</AlertDialogTitle>
+                              <AlertDialogTitle>{t("Eliminare {first_name} {last_name}?", { first_name: String(employee.first_name ?? ""), last_name: String(employee.last_name ?? "") })}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Non si può annullare. Se è assegnato a delle commesse, meglio impostarlo come «Inattivo».
+                                {t("Non si può annullare. Se è assegnato a delle commesse, meglio impostarlo come «Inattivo».")}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => onDelete(employee.id)}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
-                                Elimina
+                                {t("Elimina")}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>

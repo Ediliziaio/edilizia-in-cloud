@@ -10,10 +10,13 @@ import { ChevronDown, PaintBucket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FASI_FABBISOGNO, fabbisognoMateriali, IPOTESI_FABBISOGNO, NOME_LAVORO, stanzeFabbisogno, type FaseFabbisogno } from "../../../shared/planimetrie/fabbisogno.ts";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const fmt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+const fmt = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 1 });
 
-export function FabbisognoMateriali({ documento, ambito, titolo = "Materiali da comprare" }: { documento: Planimetria; ambito: string; titolo?: string }) {
+export function FabbisognoMateriali({ documento, ambito, titolo: titoloDato }: { documento: Planimetria; ambito: string; titolo?: string }) {
+  const t = useT();
+  const titolo = titoloDato ?? t("Materiali da comprare");
   const [mani, setMani] = useState(IPOTESI_FABBISOGNO.maniPittura);
   const [sfrido, setSfrido] = useState(Math.round(IPOTESI_FABBISOGNO.sfridoPavimento * 100));
   const [aperta, setAperta] = useState<string | null>(null);
@@ -46,36 +49,36 @@ export function FabbisognoMateriali({ documento, ambito, titolo = "Materiali da 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold"><PaintBucket className="h-4 w-4 text-primary" />{titolo}</h3>
-          <p className="text-xs text-muted-foreground">Scegli i lavori e le stanze: la lista si calcola dalle misure della pianta, nell’ordine del cantiere. Rese tipiche, da confermare con le schede dei prodotti.</p>
+          <p className="text-xs text-muted-foreground">{t("Scegli i lavori e le stanze: la lista si calcola dalle misure della pianta, nell’ordine del cantiere. Rese tipiche, da confermare con le schede dei prodotti.")}</p>
         </div>
-        <Button size="sm" variant="outline" onClick={scarica}>Scarica CSV</Button>
+        <Button size="sm" variant="outline" onClick={scarica}>{t("Scarica CSV")}</Button>
       </div>
       <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold">1 · Che lavori fai?</p>
+          <p className="text-xs font-semibold">{t("1 · Che lavori fai?")}</p>
           <div className="flex flex-wrap gap-1.5">
             {lavoriPossibili.map((f) => <button key={f} type="button" aria-pressed={lavori.includes(f)} className={pulsante(lavori.includes(f))}
               onClick={() => setLavoriTolti((v) => v.includes(f) ? v.filter((x) => x !== f) : [...v, f])}>{NOME_LAVORO[f]}</button>)}
           </div>
         </div>
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold">2 · In quali stanze? <span className="font-normal text-muted-foreground">{scelte.length} di {stanze.length}{stanze.some((s) => s.toccata) && stanzeScelte === null ? " · quelle che cambiano nella variante" : ""}</span></p>
+          <p className="text-xs font-semibold">{t("2 · In quali stanze?")} <span className="font-normal text-muted-foreground">{t("{n} di {totale}", { n: scelte.length, totale: stanze.length })}{stanze.some((s) => s.toccata) && stanzeScelte === null ? ` · ${t("quelle che cambiano nella variante")}` : ""}</span></p>
           <div className="flex flex-wrap gap-1.5">
             {stanze.map((s) => <button key={s.id} type="button" aria-pressed={scelte.includes(s.id)} className={pulsante(scelte.includes(s.id))}
               onClick={() => setStanzeScelte(scelte.includes(s.id) ? scelte.filter((x) => x !== s.id) : [...scelte, s.id])}>{s.nome}</button>)}
             {scelte.length < stanze.length && <button type="button" className="rounded-full px-2.5 py-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
-              onClick={() => setStanzeScelte(stanze.map((s) => s.id))}>Tutta la casa</button>}
+              onClick={() => setStanzeScelte(stanze.map((s) => s.id))}>{t("Tutta la casa")}</button>}
           </div>
         </div>
       </div>
-      {!righe.length && <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">Scegli almeno un lavoro e una stanza per vedere i materiali.</p>}
+      {!righe.length && <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">{t("Scegli almeno un lavoro e una stanza per vedere i materiali.")}</p>}
       <div className="flex flex-wrap gap-3 text-xs">
-        <label className="flex items-center gap-1.5">Mani di pittura
+        <label className="flex items-center gap-1.5">{t("Mani di pittura")}
           <select value={mani} onChange={(e) => setMani(Number(e.target.value))} className="rounded-md border bg-background px-1.5 py-1">
             {[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>
-        <label className="flex items-center gap-1.5">Sfrido pavimento
+        <label className="flex items-center gap-1.5">{t("Sfrido pavimento")}
           <select value={sfrido} onChange={(e) => setSfrido(Number(e.target.value))} className="rounded-md border bg-background px-1.5 py-1">
             {[5, 8, 10, 12, 15].map((n) => <option key={n} value={n}>{n}%</option>)}
           </select>

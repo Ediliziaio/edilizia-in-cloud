@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail, Package, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type EmailQuota = {
   plan_name: string | null;
@@ -26,14 +27,15 @@ type EmailQuota = {
 };
 
 const fmtInt = (n: number | null | undefined) =>
-  Number(n ?? 0).toLocaleString("it-IT");
+  Number(n ?? 0).toLocaleString(intlCampo());
 const fmtEur = (n: number | null | undefined) =>
-  `${Number(n ?? 0).toLocaleString("it-IT", {
+  `${Number(n ?? 0).toLocaleString(intlCampo(), {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   })}`;
 
 export function EmailQuotaWidget() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -86,47 +88,46 @@ export function EmailQuotaWidget() {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold">Quota email mensile</span>
+                <span className="text-sm font-semibold">{t("Quota email mensile")}</span>
                 {q.is_free && (
                   <Badge className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0">
-                    Gratis
+                    {t("Gratis")}
                   </Badge>
                 )}
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Package className="h-3 w-3" />
-                Piano {q.plan_name ?? "non configurato"}
+                {t("Piano {nome}", { nome: q.plan_name ?? t("non configurato") })}
               </div>
             </div>
           </div>
           {noQuota ? (
             <Badge variant="outline" className="gap-1 text-[11px]">
-              Non configurata
+              {t("Non configurata")}
             </Badge>
           ) : q.over_quota ? (
             <Badge variant="destructive" className="gap-1 text-[11px]">
               <AlertTriangle className="h-3 w-3" />
-              Oltre quota
+              {t("Oltre quota")}
             </Badge>
           ) : (
             <Badge variant="outline" className="gap-1 text-[11px] border-emerald-300 text-emerald-700">
               <CheckCircle2 className="h-3 w-3" />
-              Dentro quota
+              {t("Dentro quota")}
             </Badge>
           )}
         </div>
 
         {noQuota ? (
           <div className="text-xs text-muted-foreground">
-            Il tuo piano non include una quota email mensile. Le email vengono addebitate
-            direttamente dal wallet Email Marketing.
+            {t("Il tuo piano non include una quota email mensile. Le email vengono addebitate direttamente dal wallet Email Marketing.")}
           </div>
         ) : (
           <>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-bold">{fmtInt(q.sent_this_month)}</span>
               <span className="text-sm text-muted-foreground">
-                / {unlimited ? "∞" : fmtInt(q.effective_limit)} email inviate questo mese
+                / {unlimited ? "∞" : fmtInt(q.effective_limit)} {t("email inviate questo mese")}
               </span>
             </div>
 
@@ -134,19 +135,19 @@ export function EmailQuotaWidget() {
 
             <div className="text-xs text-muted-foreground">
               {unlimited ? (
-                <>Piano con email transazionali illimitate.</>
+                <>{t("Piano con email transazionali illimitate.")}</>
               ) : q.over_quota ? (
                 q.is_free ? (
-                  <>Quota esaurita ma il tuo piano copre le email in eccesso senza addebito.</>
+                  <>{t("Quota esaurita ma il tuo piano copre le email in eccesso senza addebito.")}</>
                 ) : (
                   <>
-                    Quota esaurita. Ogni email ulteriore costa{" "}
-                    <strong>{fmtEur(q.effective_price_eur)}</strong> e viene scalata dal wallet.
+                    {t("Quota esaurita. Ogni email ulteriore costa")}{" "}
+                    <strong>{fmtEur(q.effective_price_eur)}</strong> {t("e viene scalata dal wallet.")}
                   </>
                 )
               ) : (
                 <>
-                  Restano <strong>{fmtInt(q.remaining)}</strong> email incluse nel piano questo mese.
+                  {t("Restano")} <strong>{fmtInt(q.remaining)}</strong> {t("email incluse nel piano questo mese.")}
                 </>
               )}
             </div>
@@ -155,7 +156,7 @@ export function EmailQuotaWidget() {
               <Alert className="py-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
                 <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
-                  Hai superato la quota inclusa. Le prossime email verranno addebitate.
+                  {t("Hai superato la quota inclusa. Le prossime email verranno addebitate.")}
                 </AlertDescription>
               </Alert>
             )}

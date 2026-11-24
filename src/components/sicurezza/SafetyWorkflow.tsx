@@ -33,6 +33,7 @@ import {
 import { OperationalTable } from "@/components/orders/OperationalTable";
 import { operationalPage } from "@/lib/orders/operationalFilters";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SafetyStage {
   id: string;
@@ -89,6 +90,7 @@ export function SafetyWorkflow<T extends { id: string }>({
   toolbarAction?: ReactNode;
   defaultView?: "pipeline" | "elenco";
 }) {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const key = (name: string) => `sic_${namespace}_${name}`;
   useOperationalViewMemory(
@@ -151,7 +153,7 @@ export function SafetyWorkflow<T extends { id: string }>({
   return (
     <div className="min-w-0 space-y-4">
       <section
-        aria-label={`Filtri ${label}`}
+        aria-label={t("Filtri {label}", { label: String(label ?? "") })}
         className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm"
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -164,8 +166,8 @@ export function SafetyWorkflow<T extends { id: string }>({
           <div className="relative min-w-48 flex-1">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label={`Cerca ${label}`}
-              placeholder="Cerca documento, commessa o responsabile…"
+              aria-label={t("Cerca {cosa}", { cosa: String(label ?? "") })}
+              placeholder={t("Cerca documento, commessa o responsabile…")}
               value={search}
               onChange={(e) => update({ cerca: e.target.value })}
               className="h-8 pl-9 text-xs"
@@ -174,18 +176,18 @@ export function SafetyWorkflow<T extends { id: string }>({
           <Select value={order} onValueChange={(v) => update({ commessa: v })}>
             <SelectTrigger
               className="h-8 w-[200px] text-xs"
-              aria-label={`Commessa ${label}`}
+              aria-label={t("Commessa {codice}", { codice: String(label ?? "") })}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutte">Tutte le commesse</SelectItem>
-              <SelectItem value="nessuna">Senza commessa</SelectItem>
+              <SelectItem value="tutte">{t("Tutte le commesse")}</SelectItem>
+              <SelectItem value="nessuna">{t("Senza commessa")}</SelectItem>
               {orders
                 .filter((o) => items.some((i) => getOrderId(i) === o.id))
                 .map((o) => (
                   <SelectItem key={o.id} value={o.id}>
-                    {o.order_code || o.description || "Commessa"}
+                    {o.order_code || o.description || t("Commessa")}
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -199,7 +201,7 @@ export function SafetyWorkflow<T extends { id: string }>({
               }
             >
               <X className="mr-1 h-3.5 w-3.5" />
-              Azzera
+              {t("Azzera")}
             </Button>
           )}
           {note && <OperationalHelp>{note}</OperationalHelp>}
@@ -207,10 +209,10 @@ export function SafetyWorkflow<T extends { id: string }>({
         </div>
         <div
           role="group"
-          aria-label={`Fasi ${label}`}
+          aria-label={t("Fasi {label}", { label: String(label ?? "") })}
           className="flex gap-1 overflow-x-auto border-t pt-2"
         >
-          {[{ id: "tutte", label: "Tutti" }, ...stages].map((stage) => (
+          {[{ id: "tutte", label: t("Tutti") }, ...stages].map((stage) => (
             <button
               key={stage.id}
               type="button"
@@ -232,21 +234,19 @@ export function SafetyWorkflow<T extends { id: string }>({
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {rows.length} di {items.length} {label.toLowerCase()}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("{n} di {n2} {label}", { n: rows.length, n2: items.length, label: label.toLowerCase() })}</p>
       </section>
       {!rows.length ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
           {active
-            ? "Nessun risultato per questi filtri."
-            : "Nessun elemento registrato."}
+            ? t("Nessun risultato per questi filtri.")
+            : t("Nessun elemento registrato.")}
         </div>
       ) : telefono ? (
         // Sul telefono: una riga per documento (titolo, commessa, fase). Le azioni stanno
         // nella scheda che si apre col tocco: niente icone in fila su ogni riga.
         <>
-          <ul aria-label={`Elenco ${label}`} className="divide-y overflow-hidden rounded-lg border bg-card">
+          <ul aria-label={t("Elenco {label}", { label: String(label ?? "") })} className="divide-y overflow-hidden rounded-lg border bg-card">
             {rows.slice((page - 1) * 25, page * 25).map((item) => {
               const commessa = getOrderId(item)
                 ? orders.find((o) => o.id === getOrderId(item))
@@ -258,13 +258,13 @@ export function SafetyWorkflow<T extends { id: string }>({
                   <button
                     type="button"
                     onClick={() => openItem(item)}
-                    aria-label={`Apri ${getTitle(item)}`}
+                    aria-label={t("Apri {nome}", { nome: String(getTitle(item) ?? "") })}
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{getTitle(item)}</span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {commessa?.description || commessa?.order_code || "Senza commessa"}
+                        {commessa?.description || commessa?.order_code || t("Senza commessa")}
                       </span>
                     </span>
                     <Badge variant="outline" className="shrink-0 whitespace-nowrap text-[11px]">
@@ -278,13 +278,13 @@ export function SafetyWorkflow<T extends { id: string }>({
           <OperationalPagination
             page={page}
             total={rows.length}
-            label={`Pagine ${label}`}
+            label={t("Pagine {label}", { label: String(label ?? "") })}
             onChange={(v) => update({ pagina: String(v) })}
           />
         </>
       ) : view === "pipeline" ? (
         <OperationalBoard
-          label={`Pipeline ${label}`}
+          label={t("Pipeline {label}", { label: String(label ?? "") })}
           columns={stages.map((s) => ({
             ...s,
             items: rows.filter((i) => getStage(i) === s.id),
@@ -307,7 +307,7 @@ export function SafetyWorkflow<T extends { id: string }>({
                   className="block text-xs text-primary hover:underline"
                 >
                   {orders.find((o) => o.id === getOrderId(item))?.order_code ??
-                    "Apri commessa"}
+                    t("Apri commessa")}
                 </Link>
               )}
               {renderCard(item)}
@@ -316,7 +316,7 @@ export function SafetyWorkflow<T extends { id: string }>({
         />
       ) : (
         <>
-          <OperationalTable label={`Elenco ${label}`}>
+          <OperationalTable label={t("Elenco {label}", { label: String(label ?? "") })}>
             <thead>
               <tr>
                 {columns.map((c) => (
@@ -324,8 +324,8 @@ export function SafetyWorkflow<T extends { id: string }>({
                     {c.label}
                   </th>
                 ))}
-                <th scope="col">Fase</th>
-                {renderActions && <th scope="col">Azioni</th>}
+                <th scope="col">{t("Fase")}</th>
+                {renderActions && <th scope="col">{t("Azioni")}</th>}
               </tr>
             </thead>
             <tbody>
@@ -333,7 +333,7 @@ export function SafetyWorkflow<T extends { id: string }>({
                 <tr
                   key={item.id}
                   tabIndex={0}
-                  aria-label={`Apri ${getTitle(item)}`}
+                  aria-label={t("Apri {nome}", { nome: String(getTitle(item) ?? "") })}
                   className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                   onClick={(event) => {
                     if (!isPipelineCardControl(event.target)) openItem(item);
@@ -368,7 +368,7 @@ export function SafetyWorkflow<T extends { id: string }>({
           <OperationalPagination
             page={page}
             total={rows.length}
-            label={`Pagine ${label}`}
+            label={t("Pagine {label}", { label: String(label ?? "") })}
             onChange={(v) => update({ pagina: String(v) })}
           />
         </>
@@ -382,7 +382,7 @@ export function SafetyWorkflow<T extends { id: string }>({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {selected ? getTitle(selected) : "Dettagli"}
+              {selected ? getTitle(selected) : t("Dettagli")}
             </DialogTitle>
             <DialogDescription>
               {selected
@@ -429,7 +429,7 @@ export function SafetyWorkflow<T extends { id: string }>({
               disabled={pending}
               onClick={() => setTransition(null)}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               disabled={pending || !canWrite}
@@ -441,7 +441,7 @@ export function SafetyWorkflow<T extends { id: string }>({
                   setTransition(null);
                 } catch (e) {
                   toast.error(
-                    e instanceof Error ? e.message : "Operazione non riuscita",
+                    e instanceof Error ? e.message : t("Operazione non riuscita"),
                   );
                 } finally {
                   setPending(false);
@@ -453,7 +453,7 @@ export function SafetyWorkflow<T extends { id: string }>({
               ) : (
                 <ArrowRight className="mr-1 h-4 w-4" />
               )}
-              {transition?.label ?? "Apri e completa il passaggio"}
+              {transition?.label ?? t("Apri e completa il passaggio")}
             </Button>
           </DialogFooter>
         </DialogContent>

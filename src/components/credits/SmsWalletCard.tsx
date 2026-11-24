@@ -17,11 +17,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, ArrowRight } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const eur = (v: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(v);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(v);
 
 export function SmsWalletCard() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { wallet } = useSmsWallet();
@@ -81,36 +83,34 @@ export function SmsWalletCard() {
           </div>
           {crediti <= 0.5 && (
             <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px]">
-              Crediti bassi
+              {t("Crediti bassi")}
             </Badge>
           )}
         </div>
 
         <div>
           <p className="text-2xl font-bold tabular-nums">{eur(crediti)}</p>
-          <p className="text-xs text-muted-foreground">crediti residui</p>
+          <p className="text-xs text-muted-foreground">{t("crediti residui")}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-md bg-muted/50 p-2">
-            <p className="font-semibold tabular-nums">{(stats?.smsMese ?? 0).toLocaleString("it-IT")}</p>
-            <p className="text-muted-foreground">SMS questo mese</p>
+            <p className="font-semibold tabular-nums">{(stats?.smsMese ?? 0).toLocaleString(intlCampo())}</p>
+            <p className="text-muted-foreground">{t("SMS questo mese")}</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2">
             <p className="font-semibold tabular-nums">{eur(stats?.spesaMese ?? 0)}</p>
-            <p className="text-muted-foreground">spesa del mese</p>
+            <p className="text-muted-foreground">{t("spesa del mese")}</p>
           </div>
         </div>
 
         {speso > 0 && (
-          <p className="text-[11px] text-muted-foreground">
-            Totale storico: {eur(speso)}
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("Totale storico: {speso}", { speso: String(eur(speso) ?? "") })}</p>
         )}
 
         <Button asChild size="sm" variant="outline" className="mt-auto w-full">
           <Link to="/azienda/sms">
-            Gestisci e ricarica <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            {t("Gestisci e ricarica")} <ArrowRight className="ml-1 h-3.5 w-3.5" />
           </Link>
         </Button>
       </CardContent>

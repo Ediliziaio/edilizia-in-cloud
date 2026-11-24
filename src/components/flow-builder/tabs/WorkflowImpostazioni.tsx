@@ -9,12 +9,14 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { indirizzoMittenteValido } from "../../../../supabase/functions/_shared/mittenteAutomazione";
 import { regolaGiorno, scriviRegolaGiorno, type RegolaGiorno } from "../../../../supabase/functions/_shared/finestraFlusso";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   flowId?: string;
 }
 
 export function WorkflowImpostazioni({ flowId }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const [form, setForm] = useState<Record<string, any>>({});
   const [isDirty, setIsDirty] = useState(false);
@@ -75,13 +77,13 @@ export function WorkflowImpostazioni({ flowId }: Props) {
   if (!flowId) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-        Salva il flusso per configurare le impostazioni.
+        {t("Salva il flusso per configurare le impostazioni.")}
       </div>
     );
   }
 
   if (isLoading) {
-    return <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">Caricamento...</div>;
+    return <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">{t("Caricamento...")}</div>;
   }
 
   return (
@@ -89,13 +91,13 @@ export function WorkflowImpostazioni({ flowId }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Impostazioni Flusso di lavoro</h2>
-          <p className="text-sm text-muted-foreground">Configura comportamento, comunicazione e accesso</p>
+          <h2 className="text-lg font-semibold">{t("Impostazioni Flusso di lavoro")}</h2>
+          <p className="text-sm text-muted-foreground">{t("Configura comportamento, comunicazione e accesso")}</p>
         </div>
         {isDirty && (
           <Button size="sm" onClick={() => salva.mutate()} disabled={salva.isPending}>
             <Save className="h-3.5 w-3.5 mr-1.5" />
-            {salva.isPending ? "Salvo..." : "Salva modifiche"}
+            {salva.isPending ? t("Salvo...") : t("Salva modifiche")}
           </Button>
         )}
       </div>
@@ -104,29 +106,29 @@ export function WorkflowImpostazioni({ flowId }: Props) {
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Contatto</h3>
+          <h3 className="text-sm font-semibold">{t("Contatto")}</h3>
         </div>
         <div className="space-y-4 pl-6">
           <ToggleSetting
-            titolo="Consenti re-iscrizione"
-            descrizione="I contatti possono entrare nuovamente nel flusso dopo averlo completato."
+            titolo={t("Consenti re-iscrizione")}
+            descrizione={t("I contatti possono entrare nuovamente nel flusso dopo averlo completato.")}
             valore={get("allow_reentry", true)}
             onChange={(v) => handleChange("allow_reentry", v)}
           />
           <ToggleSetting
-            titolo="Consenti più opportunità"
-            descrizione="Consente opportunità aperte in pipeline diverse. Nella stessa pipeline una nuova richiesta aggiorna la scheda esistente, senza spostarla né cambiare chi la segue."
+            titolo={t("Consenti più opportunità")}
+            descrizione={t("Consente opportunità aperte in pipeline diverse. Nella stessa pipeline una nuova richiesta aggiorna la scheda esistente, senza spostarla né cambiare chi la segue.")}
             valore={get("allow_multiple_opportunities", true)}
             onChange={(v) => handleChange("allow_multiple_opportunities", v)}
           />
           <ToggleSetting
-            titolo="Interrompi su risposta"
-            descrizione="Si ferma se il contatto risponde a un'email, o se sposti la sua scheda oltre la prima fase della pipeline: da lì te ne occupi tu (WhatsApp, chiamata, appuntamento)."
+            titolo={t("Interrompi su risposta")}
+            descrizione={t("Si ferma se il contatto risponde a un'email, o se sposti la sua scheda oltre la prima fase della pipeline: da lì te ne occupi tu (WhatsApp, chiamata, appuntamento).")}
             valore={get("stop_on_reply", false)}
             onChange={(v) => handleChange("stop_on_reply", v)}
           />
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Fermati quando diventa cliente</Label>
+            <Label className="text-sm font-medium">{t("Fermati quando diventa cliente")}</Label>
             <Select
               value={get("stop_on_won_pipeline_id", null) || "__mai__"}
               onValueChange={(v) => handleChange("stop_on_won_pipeline_id", v === "__mai__" ? null : v)}
@@ -135,14 +137,14 @@ export function WorkflowImpostazioni({ flowId }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__mai__">No, continua comunque</SelectItem>
+                <SelectItem value="__mai__">{t("No, continua comunque")}</SelectItem>
                 {pipelines.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>Vinta in «{p.name}»</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>{t("Vinta in «{name}»", { name: String(p.name ?? "") })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Il contatto esce dal flusso appena ha un'opportunità vinta in questa pipeline: un cliente non riceve più email di vendita.
+              {t("Il contatto esce dal flusso appena ha un'opportunità vinta in questa pipeline: un cliente non riceve più email di vendita.")}
             </p>
           </div>
         </div>
@@ -152,31 +154,31 @@ export function WorkflowImpostazioni({ flowId }: Props) {
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Comunicazione</h3>
+          <h3 className="text-sm font-semibold">{t("Comunicazione")}</h3>
         </div>
         <div className="space-y-4 pl-6">
           <div className="space-y-1.5">
-            <Label className="text-xs">Fuso orario</Label>
+            <Label className="text-xs">{t("Fuso orario")}</Label>
             <Select value={get("timezone", "account")} onValueChange={(v) => handleChange("timezone", v)}>
               <SelectTrigger className="h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="account">Fuso orario Account</SelectItem>
-                <SelectItem value="contact">Fuso orario Contatto</SelectItem>
-                <SelectItem value="Europe/Rome">Europa/Roma (CET)</SelectItem>
-                <SelectItem value="America/New_York">America/New York (ET)</SelectItem>
+                <SelectItem value="account">{t("Fuso orario Account")}</SelectItem>
+                <SelectItem value="contact">{t("Fuso orario Contatto")}</SelectItem>
+                <SelectItem value="Europe/Rome">{t("Europa/Roma (CET)")}</SelectItem>
+                <SelectItem value="America/New_York">{t("America/New York (ET)")}</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              Le esecuzioni dei passaggi di attesa seguiranno questo fuso orario.
+              {t("Le esecuzioni dei passaggi di attesa seguiranno questo fuso orario.")}
             </p>
           </div>
 
           {/* Time window */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">Finestra oraria</Label>
+              <Label className="text-xs">{t("Finestra oraria")}</Label>
               <Switch
                 checked={get("time_window_active", false)}
                 onCheckedChange={(v) => handleChange("time_window_active", v)}
@@ -185,7 +187,7 @@ export function WorkflowImpostazioni({ flowId }: Props) {
             {get("time_window_active", false) && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Dalle</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("Dalle")}</Label>
                   <Input
                     type="time"
                     value={get("time_window_from", "09:00")}
@@ -194,7 +196,7 @@ export function WorkflowImpostazioni({ flowId }: Props) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Alle</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("Alle")}</Label>
                   <Input
                     type="time"
                     value={get("time_window_to", "18:00")}
@@ -203,12 +205,12 @@ export function WorkflowImpostazioni({ flowId }: Props) {
                   />
                 </div>
                 <GiornoFinestra
-                  giorno="Sabato"
+                  giorno={t("Sabato")}
                   valore={get("time_window_sabato", null)}
                   onChange={(v) => handleChange("time_window_sabato", v)}
                 />
                 <GiornoFinestra
-                  giorno="Domenica"
+                  giorno={t("Domenica")}
                   valore={get("time_window_domenica", null)}
                   onChange={(v) => handleChange("time_window_domenica", v)}
                 />
@@ -220,18 +222,18 @@ export function WorkflowImpostazioni({ flowId }: Props) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-              <Label className="text-xs">Dettagli mittente email</Label>
+              <Label className="text-xs">{t("Dettagli mittente email")}</Label>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Input
-                placeholder="Nome mittente"
+                placeholder={t("Nome mittente")}
                 value={get("sender_name", "")}
                 onChange={(e) => handleChange("sender_name", e.target.value)}
                 className="h-9"
               />
               <Input
                 type="email"
-                placeholder="Email mittente"
+                placeholder={t("Email mittente")}
                 value={get("sender_email", "")}
                 onChange={(e) => handleChange("sender_email", e.target.value)}
                 className="h-9"
@@ -239,11 +241,11 @@ export function WorkflowImpostazioni({ flowId }: Props) {
             </div>
             {String(get("sender_email", "")).trim() && !indirizzoMittenteValido(get("sender_email", "")) ? (
               <p className="text-[11px] font-medium text-destructive">
-                Indirizzo non valido: le email partiranno dall'indirizzo dell'azienda.
+                {t("Indirizzo non valido: le email partiranno dall'indirizzo dell'azienda.")}
               </p>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                Vale per le email che non hanno un mittente sul passo. Con il solo nome, partono dall'indirizzo dell'azienda con questo nome.
+                {t("Vale per le email che non hanno un mittente sul passo. Con il solo nome, partono dall'indirizzo dell'azienda con questo nome.")}
               </p>
             )}
           </div>
@@ -266,6 +268,7 @@ function GiornoFinestra({
   valore: string | null;
   onChange: (v: string | null) => void;
 }) {
+  const t = useT();
   const regola = regolaGiorno(valore);
   const orario = (x: number) => `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
   const minuti = (hhmm: string) => {
@@ -291,24 +294,24 @@ function GiornoFinestra({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="uguale">Come gli altri giorni</SelectItem>
-            <SelectItem value="chiuso">Chiuso, nessun invio</SelectItem>
-            <SelectItem value="fascia">Orario diverso</SelectItem>
+            <SelectItem value="uguale">{t("Come gli altri giorni")}</SelectItem>
+            <SelectItem value="chiuso">{t("Chiuso, nessun invio")}</SelectItem>
+            <SelectItem value="fascia">{t("Orario diverso")}</SelectItem>
           </SelectContent>
         </Select>
         {regola.tipo === "fascia" && (
           <>
             <Input
               type="time"
-              aria-label={`${giorno}: dalle`}
+              aria-label={t("{giorno}: dalle", { giorno: String(giorno ?? "") })}
               value={orario(regola.da)}
               onChange={(e) => cambiaFascia(minuti(e.target.value), regola.a)}
               className="h-9 w-28"
             />
-            <span className="text-xs text-muted-foreground">alle</span>
+            <span className="text-xs text-muted-foreground">{t("alle")}</span>
             <Input
               type="time"
-              aria-label={`${giorno}: alle`}
+              aria-label={t("{giorno}: alle", { giorno: String(giorno ?? "") })}
               value={orario(regola.a)}
               onChange={(e) => cambiaFascia(regola.da, minuti(e.target.value))}
               className="h-9 w-28"

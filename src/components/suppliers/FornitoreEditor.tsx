@@ -75,6 +75,7 @@ import {
   type Supplier,
   type SupplierFormData,
 } from "@/lib/suppliers/anagraficaFornitore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 // ─── Finestra del fornitore (nuovo / modifica) ──────────────────────────────
 
 export interface FornitoreDialogProps {
@@ -112,6 +113,7 @@ function FornitoreDialogAperta({
   onChiudi,
   onSalva,
 }: FornitoreDialogProps) {
+  const tr = useT();
   const [formIniziale] = useState<SupplierFormData>(() =>
     fornitore
       ? supplierToForm(fornitore)
@@ -196,7 +198,7 @@ function FornitoreDialogAperta({
     const safeNameKey = supplierNameKey(formData.name);
     const safeVatNumber = normalizeVatNumber(formData.vat_number);
     if (!safeName) {
-      toast.error("Errore", { description: "Il nome è obbligatorio." });
+      toast.error(tr("Errore"), { description: tr("Il nome è obbligatorio.") });
       return;
     }
     if (
@@ -207,8 +209,8 @@ function FornitoreDialogAperta({
           supplierNameKey(supplier.name) === safeNameKey,
       )
     ) {
-      toast.error("Fornitore duplicato", {
-        description: "Esiste già un fornitore con questa ragione sociale.",
+      toast.error(tr("Fornitore duplicato"), {
+        description: tr("Esiste già un fornitore con questa ragione sociale."),
       });
       return;
     }
@@ -222,33 +224,33 @@ function FornitoreDialogAperta({
           normalizeVatNumber(supplier.vat_number || "") === safeVatNumber,
       )
     ) {
-      toast.error("P.IVA duplicata", {
-        description: "Esiste già un fornitore con questa partita IVA.",
+      toast.error(tr("P.IVA duplicata"), {
+        description: tr("Esiste già un fornitore con questa partita IVA."),
       });
       return;
     }
     if (!isValidItalianVat(formData.vat_number, formData.is_foreign)) {
-      toast.error("P.IVA non valida", {
+      toast.error(tr("P.IVA non valida"), {
         description:
-          "Per fornitori italiani usa 11 cifre, con prefisso IT opzionale.",
+          tr("Per fornitori italiani usa 11 cifre, con prefisso IT opzionale."),
       });
       return;
     }
     if (!isValidEmail(formData.email)) {
-      toast.error("Email non valida", {
-        description: "Inserisci un indirizzo email valido.",
+      toast.error(tr("Email non valida"), {
+        description: tr("Inserisci un indirizzo email valido."),
       });
       return;
     }
     if (!isValidPhone(formData.phone)) {
-      toast.error("Telefono non valido", {
-        description: "Usa solo numeri, spazi, +, parentesi, punti o trattini.",
+      toast.error(tr("Telefono non valido"), {
+        description: tr("Usa solo numeri, spazi, +, parentesi, punti o trattini."),
       });
       return;
     }
     const errore = validaDettagliFornitore(formData);
     if (errore) {
-      toast.error("Controlla i dati", { description: errore });
+      toast.error(tr("Controlla i dati"), { description: errore });
       return;
     }
     onSalva(formData);
@@ -257,7 +259,7 @@ function FornitoreDialogAperta({
   const formFornitore = (
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <nav
-            aria-label="Sezioni del fornitore"
+            aria-label={tr("Sezioni del fornitore")}
             className="flex shrink-0 flex-wrap gap-1 border-b px-4 py-2"
           >
             {[
@@ -272,7 +274,7 @@ function FornitoreDialogAperta({
                 variant="ghost"
                 onClick={() => vaiASezione(id)}
               >
-                {label}
+                {tr(label)}
               </Button>
             ))}
           </nav>
@@ -288,33 +290,33 @@ function FornitoreDialogAperta({
               >
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-primary" />
-                  Dati generali
+                  {tr("Dati generali")}
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Nome del fornitore *</Label>
+                    <Label htmlFor="name">{tr("Nome del fornitore *")}</Label>
                     <Input
                       id="name"
                       value={formData.name}
                       onChange={(e) => updateField("name", e.target.value)}
-                      placeholder="Es. ABC Serramenti Srl"
+                      placeholder={tr("Es. ABC Serramenti Srl")}
                       maxLength={100}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supplier-genere">Che fornitore è</Label>
+                    <Label htmlFor="supplier-genere">{tr("Che fornitore è")}</Label>
                     <Select
                       value={isTipoFornitore(formData.tipo) ? formData.tipo : "none"}
                       onValueChange={(v) => updateField("tipo", v === "none" ? "" : v)}
                     >
                       <SelectTrigger id="supplier-genere">
-                        <SelectValue placeholder="Scegli…" />
+                        <SelectValue placeholder={tr("Scegli…")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Da decidere</SelectItem>
+                        <SelectItem value="none">{tr("Da decidere")}</SelectItem>
                         {TIPI_FORNITORE.map((t) => (
                           <SelectItem key={t} value={t}>
-                            {INFO_TIPO_FORNITORE[t].etichetta}
+                            {tr(INFO_TIPO_FORNITORE[t].etichetta)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -324,10 +326,10 @@ function FornitoreDialogAperta({
                       <p className="text-xs text-muted-foreground">
                         {INFO_TIPO_FORNITORE[formData.tipo].esempi}.{" "}
                         {INFO_TIPO_FORNITORE[formData.tipo].commessa === "si"
-                          ? "Le sue fatture vanno su una commessa."
+                          ? tr("Le sue fatture vanno su una commessa.")
                           : INFO_TIPO_FORNITORE[formData.tipo].commessa === "no"
-                            ? "Spesa generale: le sue fatture non vanno su una commessa."
-                            : "Le sue fatture vanno su una commessa solo quando servono a un cantiere."}
+                            ? tr("Spesa generale: le sue fatture non vanno su una commessa.")
+                            : tr("Le sue fatture vanno su una commessa solo quando servono a un cantiere.")}
                       </p>
                     ) : (() => {
                       const proposta = proponiTipo({ nome: formData.name, categoriaScheda: formData.product_category });
@@ -336,15 +338,13 @@ function FornitoreDialogAperta({
                           type="button"
                           className="text-xs text-primary underline-offset-2 hover:underline"
                           onClick={() => updateField("tipo", proposta.tipo)}
-                        >
-                          Proposto: {INFO_TIPO_FORNITORE[proposta.tipo].etichetta} ({proposta.motivo.toLowerCase()})
-                        </button>
+                        >{tr("Proposto: {etichetta} ({motivo})", { etichetta: tr(INFO_TIPO_FORNITORE[proposta.tipo].etichetta), motivo: proposta.motivo.toLowerCase() })}</button>
                       ) : null;
                     })()}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supplier-categoria">Cosa vende</Label>
-                    <p className="text-xs text-muted-foreground">Puoi scegliere più categorie, per esempio Idraulica e Climatizzazione.</p>
+                    <Label htmlFor="supplier-categoria">{tr("Cosa vende")}</Label>
+                    <p className="text-xs text-muted-foreground">{tr("Puoi scegliere più categorie, per esempio Idraulica e Climatizzazione.")}</p>
                     <Popover
                       open={categoryPopoverOpen}
                       onOpenChange={setCategoryPopoverOpen}
@@ -358,7 +358,7 @@ function FornitoreDialogAperta({
                           className="w-full justify-between font-normal"
                         >
                           <span className="min-w-0 truncate">{categorieScelte.join(" · ") ||
-                            "Seleziona categoria..."}</span>
+                            tr("Seleziona categoria...")}</span>
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
@@ -368,14 +368,14 @@ function FornitoreDialogAperta({
                       >
                         <Command shouldFilter={false}>
                           <CommandInput
-                            placeholder="Cerca o crea categoria..."
+                            placeholder={tr("Cerca o crea categoria...")}
                             value={categorySearch}
                             onValueChange={setCategorySearch}
                             maxLength={50}
                           />
                           <CommandList>
                             <CommandEmpty className="py-2 px-4 text-sm text-muted-foreground">
-                              Nessuna categoria trovata
+                              {tr("Nessuna categoria trovata")}
                             </CommandEmpty>
                             <CommandGroup>
                               {categorie
@@ -421,7 +421,7 @@ function FornitoreDialogAperta({
                                     className="text-primary"
                                   >
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Crea "{categorySearch}"
+                                    {tr("Crea \"{nome}\"", { nome: categorySearch })}
                                   </CommandItem>
                                 )}
                             </CommandGroup>
@@ -429,13 +429,13 @@ function FornitoreDialogAperta({
                         </Command>
                       </PopoverContent>
                     </Popover>
-                    {categorieScelte.length > 0 && <div className="flex flex-wrap gap-1" aria-label="Categorie del fornitore">{categorieScelte.map((cat) => <Button key={cat} type="button" variant="secondary" size="sm" className="h-auto min-h-8 max-w-full whitespace-normal text-left text-xs" disabled={salvataggio} aria-label={`Rimuovi categoria ${cat}`} onClick={() => alternaCategoria(cat)}>{cat} ×</Button>)}</div>}
+                    {categorieScelte.length > 0 && <div className="flex flex-wrap gap-1" aria-label={tr("Categorie del fornitore")}>{categorieScelte.map((cat) => <Button key={cat} type="button" variant="secondary" size="sm" className="h-auto min-h-8 max-w-full whitespace-normal text-left text-xs" disabled={salvataggio} aria-label={tr("Rimuovi categoria {cat}", { cat: String(cat ?? "") })} onClick={() => alternaCategoria(cat)}>{cat} ×</Button>)}</div>}
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 mt-3">
                   <div className="space-y-2">
                     <Label htmlFor="supplier-pagamento">
-                      Modalità di pagamento
+                      {tr("Modalità di pagamento")}
                     </Label>
                     <Select
                       value={formData.payment_method || "none"}
@@ -444,10 +444,10 @@ function FornitoreDialogAperta({
                       }
                     >
                       <SelectTrigger id="supplier-pagamento">
-                        <SelectValue placeholder="Seleziona modalità..." />
+                        <SelectValue placeholder={tr("Seleziona modalità...")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Nessuna</SelectItem>
+                        <SelectItem value="none">{tr("Nessuna")}</SelectItem>
                         {formData.payment_method &&
                           !PAYMENT_METHODS.some(
                             (m) => m.value === formData.payment_method,
@@ -458,14 +458,14 @@ function FornitoreDialogAperta({
                           )}
                         {PAYMENT_METHODS.map((m) => (
                           <SelectItem key={m.value} value={m.value}>
-                            {m.label}
+                            {tr(m.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supplier-tipo">Italiano o estero</Label>
+                    <Label htmlFor="supplier-tipo">{tr("Italiano o estero")}</Label>
                     <Select
                       value={formData.is_foreign ? "estero" : "italiano"}
                       onValueChange={(v) =>
@@ -476,8 +476,8 @@ function FornitoreDialogAperta({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="italiano">Italiano</SelectItem>
-                        <SelectItem value="estero">Estero</SelectItem>
+                        <SelectItem value="italiano">{tr("Italiano")}</SelectItem>
+                        <SelectItem value="estero">{tr("Estero")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -492,11 +492,10 @@ function FornitoreDialogAperta({
                   />
                   <div>
                     <Label htmlFor="supplier-active" className="cursor-pointer">
-                      Fornitore attivo
+                      {tr("Fornitore attivo")}
                     </Label>
                     <p className="text-[11px] text-muted-foreground">
-                      I fornitori inattivi restano nello storico, ma non
-                      dovrebbero essere usati per nuovi acquisti.
+                      {tr("I fornitori inattivi restano nello storico, ma non dovrebbero essere usati per nuovi acquisti.")}
                     </p>
                   </div>
                 </div>
@@ -508,11 +507,10 @@ function FornitoreDialogAperta({
               >
                 <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
                   <UserRound className="h-4 w-4 text-primary" />
-                  Referente / responsabile
+                  {tr("Referente / responsabile")}
                 </h3>
                 <p className="mb-4 text-xs text-muted-foreground">
-                  La persona da contattare per questo fornitore. I suoi recapiti
-                  restano separati da quelli generali dell’azienda.
+                  {tr("La persona da contattare per questo fornitore. I suoi recapiti restano separati da quelli generali dell’azienda.")}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {(
@@ -544,13 +542,13 @@ function FornitoreDialogAperta({
                     ] as const
                   ).map(([key, label, placeholder, type]) => (
                     <div key={key} className="min-w-0 space-y-2">
-                      <Label htmlFor={key}>{label}</Label>
+                      <Label htmlFor={key}>{tr(label)}</Label>
                       <Input
                         id={key}
                         type={type}
                         maxLength={key === "contact_phone" ? 25 : 200}
                         value={formData[key]}
-                        placeholder={placeholder}
+                        placeholder={tr(placeholder)}
                         onChange={(e) => updateField(key, e.target.value)}
                       />
                     </div>
@@ -559,10 +557,9 @@ function FornitoreDialogAperta({
                 <div className="mt-5 space-y-3 border-t pt-4">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium">Altri referenti</p>
+                      <p className="text-sm font-medium">{tr("Altri referenti")}</p>
                       <p className="text-xs text-muted-foreground">
-                        Chi segue gli ordini, chi le fatture e i pagamenti, chi
-                        riceve le consegne.
+                        {tr("Chi segue gli ordini, chi le fatture e i pagamenti, chi riceve le consegne.")}
                       </p>
                     </div>
                     <Button
@@ -572,7 +569,7 @@ function FornitoreDialogAperta({
                       onClick={aggiungiReferente}
                     >
                       <Plus className="mr-1 h-4 w-4" />
-                      Aggiungi referente
+                      {tr("Aggiungi referente")}
                     </Button>
                   </div>
                   {formData.altri_referenti.map((r, i) => (
@@ -582,7 +579,7 @@ function FornitoreDialogAperta({
                     >
                       <div className="min-w-0 space-y-1">
                         <Label htmlFor={`ref-ruolo-${i}`} className="text-xs">
-                          Ruolo
+                          {tr("Ruolo")}
                         </Label>
                         <Select
                           value={r.ruolo}
@@ -596,7 +593,7 @@ function FornitoreDialogAperta({
                           <SelectContent>
                             {RUOLI_REFERENTE.map((x) => (
                               <SelectItem key={x.value} value={x.value}>
-                                {x.label}
+                                {tr(x.label)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -604,13 +601,13 @@ function FornitoreDialogAperta({
                       </div>
                       <div className="min-w-0 space-y-1">
                         <Label htmlFor={`ref-nome-${i}`} className="text-xs">
-                          Nome
+                          {tr("Nome")}
                         </Label>
                         <Input
                           id={`ref-nome-${i}`}
                           value={r.nome}
                           maxLength={200}
-                          placeholder="Nome e cognome"
+                          placeholder={tr("Nome e cognome")}
                           onChange={(e) =>
                             aggiornaReferente(i, "nome", e.target.value)
                           }
@@ -633,7 +630,7 @@ function FornitoreDialogAperta({
                       </div>
                       <div className="min-w-0 space-y-1">
                         <Label htmlFor={`ref-tel-${i}`} className="text-xs">
-                          Telefono
+                          {tr("Telefono")}
                         </Label>
                         <Input
                           id={`ref-tel-${i}`}
@@ -652,9 +649,9 @@ function FornitoreDialogAperta({
                         variant="ghost"
                         className="text-muted-foreground"
                         onClick={() => togliReferente(i)}
-                        aria-label={`Togli il referente ${i + 2}`}
+                        aria-label={tr("Togli il referente {i}", { i: i + 2 })}
                       >
-                        Togli
+                        {tr("Togli")}
                       </Button>
                     </div>
                   ))}
@@ -663,7 +660,7 @@ function FornitoreDialogAperta({
 
               {/* Dati fiscali */}
               <div className="min-w-0 rounded-xl border p-4">
-                <h3 className="text-sm font-semibold mb-3">Dati fiscali</h3>
+                <h3 className="text-sm font-semibold mb-3">{tr("Dati fiscali")}</h3>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="vat_number">P.IVA</Label>
@@ -678,7 +675,7 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fiscal_code">Codice fiscale</Label>
+                    <Label htmlFor="fiscal_code">{tr("Codice fiscale")}</Label>
                     <Input
                       id="fiscal_code"
                       value={formData.fiscal_code}
@@ -689,7 +686,7 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="vat_rate">Aliquota IVA</Label>
+                    <Label htmlFor="vat_rate">{tr("Aliquota IVA")}</Label>
                     <Select
                       value={formData.vat_rate.toString()}
                       onValueChange={(v) =>
@@ -705,7 +702,7 @@ function FornitoreDialogAperta({
                             key={rate.value}
                             value={rate.value.toString()}
                           >
-                            {rate.label}
+                            {tr(rate.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -720,8 +717,8 @@ function FornitoreDialogAperta({
                     onChange={(e) => updateField("inversione_contabile", e.target.checked)}
                   />
                   <span>
-                    <span className="font-medium">Reverse charge</span>
-                    <span className="block text-xs text-muted-foreground">I nuovi ordini a questo fornitore nascono con inversione contabile e IVA a zero.</span>
+                    <span className="font-medium">{tr("Reverse charge")}</span>
+                    <span className="block text-xs text-muted-foreground">{tr("I nuovi ordini a questo fornitore nascono con inversione contabile e IVA a zero.")}</span>
                   </span>
                 </label>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -737,14 +734,14 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="codice_sdi">Codice destinatario SDI</Label>
+                    <Label htmlFor="codice_sdi">{tr("Codice destinatario SDI")}</Label>
                     <Input
                       id="codice_sdi"
                       value={formData.codice_sdi}
                       onChange={(e) =>
                         updateField("codice_sdi", e.target.value)
                       }
-                      placeholder="7 caratteri"
+                      placeholder={tr("7 caratteri")}
                       maxLength={7}
                     />
                   </div>
@@ -754,7 +751,7 @@ function FornitoreDialogAperta({
               {/* Contatti */}
               <div className="min-w-0 rounded-xl border p-4">
                 <h3 className="text-sm font-semibold mb-3">
-                  Contatti aziendali
+                  {tr("Contatti aziendali")}
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
@@ -769,7 +766,7 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Telefono</Label>
+                    <Label htmlFor="phone">{tr("Telefono")}</Label>
                     <Input
                       id="phone"
                       value={formData.phone}
@@ -779,7 +776,7 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="website">Sito web</Label>
+                    <Label htmlFor="website">{tr("Sito web")}</Label>
                     <Input
                       id="website"
                       value={formData.website}
@@ -790,7 +787,7 @@ function FornitoreDialogAperta({
                   </div>
                 </div>
                 <div className="mt-4 space-y-2">
-                  <Label htmlFor="email_ordini">Email per gli ordini</Label>
+                  <Label htmlFor="email_ordini">{tr("Email per gli ordini")}</Label>
                   <Input
                     id="email_ordini"
                     type="email"
@@ -802,29 +799,28 @@ function FornitoreDialogAperta({
                     maxLength={200}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Gli ordini d’acquisto partono qui. Se è vuota: il referente
-                    degli ordini, poi l’email generale.
+                    {tr("Gli ordini d’acquisto partono qui. Se è vuota: il referente degli ordini, poi l’email generale.")}
                   </p>
                 </div>
               </div>
 
               {/* Indirizzo */}
               <div className="min-w-0 rounded-xl border p-4 lg:col-span-2">
-                <h3 className="text-sm font-semibold mb-3">Indirizzo</h3>
+                <h3 className="text-sm font-semibold mb-3">{tr("Indirizzo")}</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2 col-span-2">
-                    <Label htmlFor="address">Via / Indirizzo</Label>
+                    <Label htmlFor="address">{tr("Via / Indirizzo")}</Label>
                     <CampoIndirizzo
                       id="address"
                       value={formData.address}
                       onChange={(v) => updateField("address", v)}
                       onScegli={(a) => setFormData((prev) => ({ ...prev, ...campiDaTrovato(a, { via: "address", citta: "city", provincia: "province", cap: "postal_code" }) }))}
-                      placeholder="Via Roma 1"
+                      placeholder={tr("Via Roma 1")}
                       maxLength={200}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="city">Città</Label>
+                    <Label htmlFor="city">{tr("Città")}</Label>
                     <Input
                       id="city"
                       value={formData.city}
@@ -833,7 +829,7 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="province">Provincia</Label>
+                    <Label htmlFor="province">{tr("Provincia")}</Label>
                     <Input
                       id="province"
                       value={formData.province}
@@ -855,7 +851,7 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="country">Paese</Label>
+                    <Label htmlFor="country">{tr("Paese")}</Label>
                     <Input
                       id="country"
                       value={formData.country}
@@ -869,28 +865,27 @@ function FornitoreDialogAperta({
               {/* Ritiro / magazzino */}
               <div className="min-w-0 rounded-xl border p-4 lg:col-span-2">
                 <h3 className="text-sm font-semibold mb-1">
-                  Ritiro merce / magazzino
+                  {tr("Ritiro merce / magazzino")}
                 </h3>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Solo se è diverso dalla sede: dove mandi il furgone a
-                  caricare.
+                  {tr("Solo se è diverso dalla sede: dove mandi il furgone a caricare.")}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="ritiro_indirizzo">
-                      Indirizzo di ritiro
+                      {tr("Indirizzo di ritiro")}
                     </Label>
                     <CampoIndirizzo
                       id="ritiro_indirizzo"
                       value={formData.ritiro_indirizzo}
                       onChange={(v) => updateField("ritiro_indirizzo", v)}
                       onScegli={(a) => setFormData((prev) => ({ ...prev, ...campiDaTrovato(a, { via: "ritiro_indirizzo", citta: "ritiro_citta" }) }))}
-                      placeholder="Via del Magazzino 10"
+                      placeholder={tr("Via del Magazzino 10")}
                       maxLength={200}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ritiro_citta">Città del ritiro</Label>
+                    <Label htmlFor="ritiro_citta">{tr("Città del ritiro")}</Label>
                     <Input
                       id="ritiro_citta"
                       value={formData.ritiro_citta}
@@ -902,7 +897,7 @@ function FornitoreDialogAperta({
                   </div>
                   <div className="space-y-2 sm:col-span-3">
                     <Label htmlFor="ritiro_note">
-                      Orari e note per il ritiro
+                      {tr("Orari e note per il ritiro")}
                     </Label>
                     <Input
                       id="ritiro_note"
@@ -910,7 +905,7 @@ function FornitoreDialogAperta({
                       onChange={(e) =>
                         updateField("ritiro_note", e.target.value)
                       }
-                      placeholder="Es. lun-ven 7:30-12 / 13:30-17, chiedere di Marco in accettazione"
+                      placeholder={tr("Es. lun-ven 7:30-12 / 13:30-17, chiedere di Marco in accettazione")}
                       maxLength={300}
                     />
                   </div>
@@ -923,11 +918,10 @@ function FornitoreDialogAperta({
               >
                 <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
                   <CreditCard className="h-4 w-4 text-primary" />
-                  Pagamenti e condizioni d’acquisto
+                  {tr("Pagamenti e condizioni d’acquisto")}
                 </h3>
                 <p className="mb-4 text-xs text-muted-foreground">
-                  Dati di riferimento. Le condizioni e le scadenze effettive si
-                  definiscono nei singoli ordini d’acquisto.
+                  {tr("Dati di riferimento. Le condizioni e le scadenze effettive si definiscono nei singoli ordini d’acquisto.")}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -941,7 +935,7 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="bank_name">Banca</Label>
+                    <Label htmlFor="bank_name">{tr("Banca")}</Label>
                     <Input
                       id="bank_name"
                       value={formData.bank_name}
@@ -953,12 +947,12 @@ function FornitoreDialogAperta({
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2">
                     <Label htmlFor="termini_giorni">
-                      Termini di pagamento (giorni)
+                      {tr("Termini di pagamento (giorni)")}
                     </Label>
                     <Input
                       id="termini_giorni"
                       inputMode="numeric"
-                      placeholder="Es. 60"
+                      placeholder={tr("Es. 60")}
                       value={formData.termini_giorni}
                       onChange={(e) =>
                         updateField("termini_giorni", e.target.value)
@@ -977,18 +971,18 @@ function FornitoreDialogAperta({
                           updateField("termini_fine_mese", c === true)
                         }
                       />
-                      Fine mese
+                      {tr("Fine mese")}
                     </label>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="codice_cliente">
-                      Il nostro codice cliente
+                      {tr("Il nostro codice cliente")}
                     </Label>
                     <Input
                       id="codice_cliente"
                       value={formData.codice_cliente}
                       maxLength={50}
-                      placeholder="Come ci chiama il fornitore"
+                      placeholder={tr("Come ci chiama il fornitore")}
                       onChange={(e) =>
                         updateField("codice_cliente", e.target.value)
                       }
@@ -996,12 +990,12 @@ function FornitoreDialogAperta({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sconto_percentuale">
-                      Sconto concordato (%)
+                      {tr("Sconto concordato (%)")}
                     </Label>
                     <Input
                       id="sconto_percentuale"
                       inputMode="decimal"
-                      placeholder="Sul listino del fornitore"
+                      placeholder={tr("Sul listino del fornitore")}
                       value={formData.sconto_percentuale}
                       onChange={(e) =>
                         updateField("sconto_percentuale", e.target.value)
@@ -1018,30 +1012,30 @@ function FornitoreDialogAperta({
                     ] as const
                   ).map(([key, label]) => (
                     <div key={key} className="space-y-2">
-                      <Label htmlFor={key}>{label}</Label>
+                      <Label htmlFor={key}>{tr(label)}</Label>
                       <Input
                         id={key}
                         inputMode={
                           key === "lead_time_days" ? "numeric" : "decimal"
                         }
-                        placeholder="Non indicato"
+                        placeholder={tr("Non indicato")}
                         value={formData[key]}
                         onChange={(e) => updateField(key, e.target.value)}
                       />
                     </div>
                   ))}
                   <div className="space-y-2">
-                    <Label htmlFor="rating">Valutazione interna</Label>
+                    <Label htmlFor="rating">{tr("Valutazione interna")}</Label>
                     <UniformSelect
                       id="rating"
                       className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                       value={formData.rating}
                       onChange={(e) => updateField("rating", e.target.value)}
                     >
-                      <option value="">Non valutato</option>
+                      <option value="">{tr("Non valutato")}</option>
                       {[1, 2, 3, 4, 5].map((n) => (
                         <option key={n} value={n}>
-                          {n} {n === 1 ? "stella" : "stelle"}
+                          {tr(n === 1 ? "{n} stella" : "{n} stelle", { n })}
                         </option>
                       ))}
                     </UniformSelect>
@@ -1061,17 +1055,16 @@ function FornitoreDialogAperta({
                       }
                     />
                     <span>
-                      Numerazione propria degli ordini
+                      {tr("Numerazione propria degli ordini")}
                       <span className="block text-xs font-normal text-muted-foreground">
-                        Gli ordini a questo fornitore seguono questa
-                        numerazione, non quella dell’azienda.
+                        {tr("Gli ordini a questo fornitore seguono questa numerazione, non quella dell’azienda.")}
                       </span>
                     </span>
                   </label>
                   {formData.oda_numerazione_propria && (
                     <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_9rem]">
                       <div className="space-y-1">
-                        <Label htmlFor="oda_formato">Formato</Label>
+                        <Label htmlFor="oda_formato">{tr("Formato")}</Label>
                         <Input
                           id="oda_formato"
                           value={formData.oda_formato}
@@ -1080,19 +1073,19 @@ function FornitoreDialogAperta({
                           onChange={(e) => updateField("oda_formato", e.target.value)}
                         />
                         <p className="text-[11px] text-muted-foreground">
-                          {"{n}"} il numero, {"{n:4}"} con gli zeri, {"{anno}"}, {"{aa}"}.
+                          {tr("{numero} il numero, {zeri} con gli zeri, {anno}, {aa}.", { numero: "{n}", zeri: "{n:4}", anno: "{anno}", aa: "{aa}" })}
                           {!erroreFormatoOda(formData.oda_formato) && !erroreProssimoOda(formData.oda_prossimo) && (
-                            <> Il prossimo sarà <span className="font-mono font-semibold text-foreground">{formattaNumeroOda(formData.oda_formato, Number(formData.oda_prossimo))}</span>.</>
+                            <> {tr("Il prossimo sarà")} <span className="font-mono font-semibold text-foreground">{formattaNumeroOda(formData.oda_formato, Number(formData.oda_prossimo))}</span>.</>
                           )}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="oda_prossimo">Prossimo numero</Label>
+                        <Label htmlFor="oda_prossimo">{tr("Prossimo numero")}</Label>
                         <Input
                           id="oda_prossimo"
                           inputMode="numeric"
                           className="text-right tabular-nums"
-                          placeholder="Es. 1"
+                          placeholder={tr("Es. 1")}
                           value={formData.oda_prossimo}
                           onChange={(e) => updateField("oda_prossimo", e.target.value)}
                         />
@@ -1104,12 +1097,12 @@ function FornitoreDialogAperta({
 
               {/* Note */}
               <div className="min-w-0 rounded-xl border p-4 space-y-2">
-                <Label htmlFor="notes">Note</Label>
+                <Label htmlFor="notes">{tr("Note")}</Label>
                 <Textarea
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => updateField("notes", e.target.value)}
-                  placeholder="Note aggiuntive sul fornitore..."
+                  placeholder={tr("Note aggiuntive sul fornitore...")}
                   rows={3}
                   maxLength={2000}
                 />
@@ -1128,10 +1121,10 @@ function FornitoreDialogAperta({
                       <QrCode className="h-4 w-4 text-muted-foreground" />
                       <div className="flex flex-col items-start">
                         <span className="text-sm font-medium">
-                          Codici a barre
+                          {tr("Codici a barre")}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {formData.uses_gs1 ? "GS1 attivo" : "GS1 non attivo"}
+                          {formData.uses_gs1 ? tr("GS1 attivo") : tr("GS1 non attivo")}
                         </span>
                       </div>
                     </div>
@@ -1150,11 +1143,10 @@ function FornitoreDialogAperta({
                           htmlFor="uses-gs1"
                           className="text-sm font-medium cursor-pointer"
                         >
-                          Questo fornitore usa codici GS1
+                          {tr("Questo fornitore usa codici GS1")}
                         </Label>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Il lettore legge da solo lotto, seriale e scadenza dai
-                          QR di questo fornitore.
+                          {tr("Il lettore legge da solo lotto, seriale e scadenza dai QR di questo fornitore.")}
                         </p>
                       </div>
                     </div>
@@ -1171,7 +1163,7 @@ function FornitoreDialogAperta({
               disabled={salvataggio}
               onClick={chiudi}
             >
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               type="submit"
@@ -1179,20 +1171,20 @@ function FornitoreDialogAperta({
               disabled={salvataggio}
             >
               {salvataggio && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {fornitore ? "Salva" : "Crea"}
+              {fornitore ? tr("Salva") : tr("Crea")}
             </Button>
           </DialogFooter>
         </form>
   );
   const contenuto = <>
         <div className="shrink-0 border-b px-5 py-4">
-          <h3 className="text-lg font-semibold">{fornitore ? "Modifica fornitore" : "Nuovo fornitore"}</h3>
-          <p className="text-sm text-muted-foreground">Solo il nome è obbligatorio. Puoi completare gli altri dati in seguito.</p>
+          <h3 className="text-lg font-semibold">{fornitore ? tr("Modifica fornitore") : tr("Nuovo fornitore")}</h3>
+          <p className="text-sm text-muted-foreground">{tr("Solo il nome è obbligatorio. Puoi completare gli altri dati in seguito.")}</p>
         </div>
         {formFornitore}
       </>;
 
-  if (inline) return <section aria-label="Nuovo fornitore" className="flex min-h-0 flex-col rounded-lg border bg-background">{contenuto}</section>;
+  if (inline) return <section aria-label={tr("Nuovo fornitore")} className="flex min-h-0 flex-col rounded-lg border bg-background">{contenuto}</section>;
 
   return (
     <Dialog
@@ -1204,14 +1196,10 @@ function FornitoreDialogAperta({
       <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-5 py-4">
           <DialogTitle>
-            {fornitore ? "Modifica fornitore" : "Nuovo fornitore"}
+            {fornitore ? tr("Modifica fornitore") : tr("Nuovo fornitore")}
           </DialogTitle>
           <DialogDescription>
-            Solo il nome è obbligatorio. Completa i contatti del referente, i
-            dati fiscali e le condizioni d’acquisto quando sono disponibili.
-            Puoi registrare anche consulenti, professionisti e subappaltatori.
-            Dopo il salvataggio, apri la scheda «Contratti e ruoli» per
-            incarichi, scadenze e allegati privati.
+            {tr("Solo il nome è obbligatorio. Completa i contatti del referente, i dati fiscali e le condizioni d’acquisto quando sono disponibili. Puoi registrare anche consulenti, professionisti e subappaltatori. Dopo il salvataggio, apri la scheda «Contratti e ruoli» per incarichi, scadenze e allegati privati.")}
           </DialogDescription>
         </DialogHeader>
         {formFornitore}

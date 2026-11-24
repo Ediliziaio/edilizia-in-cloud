@@ -13,6 +13,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PersianeGalleryRow = {
   id: string;
@@ -31,6 +32,7 @@ const compact = (values: Array<string | null | undefined>) =>
   values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
 
 export default function RenderPersianeGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -68,7 +70,7 @@ export default function RenderPersianeGallery() {
 
     return {
       id: item.id,
-      title: legacy?.tipo ? `Persiane ${String(legacy.tipo).replace(/_/g, " ")}` : "Render persiane",
+      title: legacy?.tipo ? t("Persiane {valore}", { valore: String(legacy.tipo).replace(/_/g, " ") }) : t("Render persiane"),
       date: item.created_at,
       detailPath: `/azienda/render/persiane/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -87,14 +89,14 @@ export default function RenderPersianeGallery() {
       opportunityName: item.meta.opportunityName,
       imageFit: "contain",
     };
-  }), [sessions]);
+  }), [sessions, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Persiane"
-      badgeLabel="Galleria persiane"
-      title="Render persiane e oscuranti salvati, con filtri data e CRM."
-      description="Controlla rapidamente tipologia, colore, aperture target, autore e associazione a contatto o opportunita."
+      moduleName={t("Persiane")}
+      badgeLabel={t("Galleria persiane")}
+      title={t("Render persiane e oscuranti salvati, con filtri data e CRM.")}
+      description={t("Controlla rapidamente tipologia, colore, aperture target, autore e associazione a contatto o opportunita.")}
       backPath="/azienda/render/persiane"
       newPath="/azienda/render/persiane/new"
       items={items}
@@ -102,9 +104,9 @@ export default function RenderPersianeGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render persiane completati appariranno qui."
-      searchPlaceholder="Cerca persiane, colore, apertura, autore..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render persiane completati appariranno qui.")}
+      searchPlaceholder={t("Cerca persiane, colore, apertura, autore...")}
       emptyIcon={PanelLeftClose}
       accentClassName="text-green-600"
     />

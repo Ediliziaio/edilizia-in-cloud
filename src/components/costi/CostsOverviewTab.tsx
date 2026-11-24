@@ -16,7 +16,6 @@ import {
   addMonths, endOfMonth, endOfQuarter, endOfYear, format, getQuarter, isWithinInterval,
   parseISO, startOfMonth, startOfQuarter, startOfYear, subMonths,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, ChevronLeft, Minus, PiggyBank, ReceiptText, Wallet } from "lucide-react";
 import {
   Bar,
@@ -47,6 +46,7 @@ import { NavyStatCard } from "@/components/costi/KpiCard";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { COLORI_GRAFICO, PillolaVariazione, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Filtri neutri: la Panoramica lavora sempre sul dataset completo e filtra
 // per periodo lato client (le query sono condivise con la tab Spese).
@@ -114,7 +114,7 @@ export function periodRange(month: Date, mode: PeriodMode): { start: Date; end: 
 export function periodLabel(month: Date, mode: PeriodMode): string {
   if (mode === "anno") return format(month, "yyyy");
   if (mode === "trimestre") return `${getQuarter(month)}° trimestre`;
-  return format(month, "MMMM", { locale: it });
+  return format(month, "MMMM", { locale: dateFnsCampo() });
 }
 
 /**
@@ -132,7 +132,7 @@ export function buildCostsOverview(allCosts: UnifiedCost[], month: Date, mode: P
   const trendKeys: { key: string; label: string; date: Date }[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = startOfMonth(subMonths(month, i));
-    trendKeys.push({ key: format(d, "yyyy-MM"), label: format(d, "MMM", { locale: it }), date: d });
+    trendKeys.push({ key: format(d, "yyyy-MM"), label: format(d, "MMM", { locale: dateFnsCampo() }), date: d });
   }
   const trendMap = new Map(trendKeys.map((t) => [t.key, { personale: 0, altro: 0 }]));
 
@@ -217,6 +217,7 @@ export function CostsOverviewTab({
   month: Date;
   onMonthChange: (m: Date) => void;
 }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const data = useCompanyCostsData(companyId, NEUTRAL_FILTERS);
@@ -305,7 +306,7 @@ export function CostsOverviewTab({
                     : "text-muted-foreground hover:bg-muted",
                 )}
               >
-                {opt.label}
+                {tr(opt.label)}
               </button>
             ))}
           </div>
@@ -326,7 +327,7 @@ export function CostsOverviewTab({
             ) : (
               <Minus className="h-3.5 w-3.5" />
             )}
-            {Math.abs(deltaPct).toFixed(0)}% vs {labelPeriodoPrec}
+            {tr("{pct}% vs {periodo}", { pct: Math.abs(deltaPct).toFixed(0), periodo: labelPeriodoPrec })}
           </Badge>
         )}
       </div>
@@ -340,25 +341,25 @@ export function CostsOverviewTab({
         <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
             <NavyStatCard
-              label={`Totale ${labelPeriodo}`}
+              label={tr("Totale {labelPeriodo}", { labelPeriodo })}
               value={formatCurrency(totalePeriodo)}
-              sub={`${voci.length} voci · prima ${formatCurrency(totalePrec)}`}
+              sub={tr("{n} voci · prima {importo}", { n: voci.length, importo: formatCurrency(totalePrec) })}
               icon={Wallet}
               tone="text-orange-100"
               // Costi che salgono: pillola rossa.
-              variazione={totalePrec > 0 ? { pct: ((totalePeriodo - totalePrec) / totalePrec) * 100, piuEMeglio: false, nota: "Rispetto al periodo prima" } : undefined}
+              variazione={totalePrec > 0 ? { pct: ((totalePeriodo - totalePrec) / totalePrec) * 100, piuEMeglio: false, nota: tr("Rispetto al periodo prima") } : undefined}
             />
             <NavyStatCard
-              label="Già pagato"
+              label={tr("Già pagato")}
               value={formatCurrency(pagatoPeriodo)}
-              sub={`${vocePagataPct}% del periodo`}
+              sub={tr("{pct}% del periodo", { pct: vocePagataPct })}
               icon={PiggyBank}
               tone="text-emerald-200"
             />
             <NavyStatCard
-              label="Da pagare"
+              label={tr("Da pagare")}
               value={formatCurrency(daPagarePeriodo)}
-              sub="nel periodo, scaduti compresi"
+              sub={tr("nel periodo, scaduti compresi")}
               icon={ReceiptText}
             />
           </div>
@@ -368,8 +369,8 @@ export function CostsOverviewTab({
       <KpiMobili
         className="sm:hidden"
         voci={[
-          { label: `Totale ${labelPeriodo}`, valore: formatCurrency(totalePeriodo) },
-          { label: "Da pagare", valore: formatCurrency(daPagarePeriodo), tono: daPagarePeriodo > 0 ? "text-rose-600" : undefined },
+          { label: tr("Totale {labelPeriodo}", { labelPeriodo }), valore: formatCurrency(totalePeriodo) },
+          { label: tr("Da pagare"), valore: formatCurrency(daPagarePeriodo), tono: daPagarePeriodo > 0 ? "text-rose-600" : undefined },
         ]}
       />
 
@@ -383,14 +384,12 @@ export function CostsOverviewTab({
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
           <span className="min-w-0 text-xs text-amber-900">
-            <strong>{senzaScadenza.count} costi senza scadenza · {formatCurrency(senzaScadenza.totale)}</strong> → dai una data
+            <strong>{tr("{count} costi senza scadenza · {totale}", { count: String(senzaScadenza.count ?? ""), totale: formatCurrency(senzaScadenza.totale) })}</strong> {tr("→ dai una data")}
           </span>
         </button>
       )}
       {oltreOrizzonte && (
-        <p className="text-xs text-muted-foreground max-sm:hidden">
-          Stipendi proiettati fino a {EMPLOYEE_PROJECTION_MONTHS} mesi da oggi.
-        </p>
+        <p className="text-xs text-muted-foreground max-sm:hidden">{tr("Stipendi proiettati fino a {EMPLOYEE_PROJECTION_MONTHS} mesi da oggi.", { EMPLOYEE_PROJECTION_MONTHS: String(EMPLOYEE_PROJECTION_MONTHS ?? "") })}</p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-5">
@@ -405,21 +404,21 @@ export function CostsOverviewTab({
                     size="icon"
                     className="h-7 w-7"
                     onClick={() => setDrillVoce(null)}
-                    aria-label="Torna alla ripartizione"
+                    aria-label={tr("Torna alla ripartizione")}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                   {drill.nome} · {formatCurrency(drill.totale)}
                 </span>
               ) : (
-                "Dove vanno i soldi"
+                tr("Dove vanno i soldi")
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="max-sm:px-2 max-sm:pb-2">
             {voci.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground max-sm:py-3 max-sm:text-xs">
-                Nessun costo con scadenza in questo periodo.
+                {tr("Nessun costo con scadenza in questo periodo.")}
               </p>
             ) : drill ? (
               <div className="max-h-[380px] space-y-1 overflow-y-auto pr-1">
@@ -435,8 +434,8 @@ export function CostsOverviewTab({
                           c.supplierName,
                           c.order?.order_code,
                           parseDue(c.due_date)
-                            ? format(parseDue(c.due_date)!, mode === "mese" ? "d MMM" : "d MMM yyyy", { locale: it })
-                            : "senza scadenza",
+                            ? format(parseDue(c.due_date)!, mode === "mese" ? "d MMM" : "d MMM yyyy", { locale: dateFnsCampo() })
+                            : tr("senza scadenza"),
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -446,7 +445,7 @@ export function CostsOverviewTab({
                       variant={c.is_paid ? "secondary" : "outline"}
                       className={cn("shrink-0 text-[11px] max-sm:hidden", !c.is_paid && "border-sky-300 text-sky-700")}
                     >
-                      {c.is_paid ? "Pagato" : "Da pagare"}
+                      {c.is_paid ? tr("Pagato") : tr("Da pagare")}
                     </Badge>
                     <span className={cn("w-24 shrink-0 text-right text-sm font-semibold tabular-nums max-sm:w-auto max-sm:text-[13px]", c.is_paid && "max-sm:text-emerald-700 dark:text-emerald-400")}>
                       {formatCurrency(Number(c.amount))}
@@ -459,7 +458,7 @@ export function CostsOverviewTab({
               <div className="grid items-start gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
               <div className="max-sm:hidden sm:sticky sm:top-2">
                 <Ciambella
-                  titolo="Dove vanno i soldi"
+                  titolo={tr("Dove vanno i soldi")}
                   legenda={false}
                   massimo={VOCE_COLORS.length}
                   fette={voci.map((v, idx) => ({ nome: v.nome, valore: v.totale, colore: VOCE_COLORS[idx % VOCE_COLORS.length] }))}
@@ -494,7 +493,7 @@ export function CostsOverviewTab({
                       </div>
                       <div className="mt-0.5 flex items-baseline justify-between gap-3 pl-[18px] text-xs">
                         <span className="text-muted-foreground max-sm:text-[11px]">
-                          {v.count} {v.count === 1 ? "costo" : "costi"}
+                          {(v.count === 1 ? tr("{n} costo", { n: v.count }) : tr("{n} costi", { n: v.count }))}
                         </span>
                         <span className="font-semibold tabular-nums text-foreground max-sm:text-[13px]">
                           {formatCurrency(v.totale)}
@@ -519,22 +518,22 @@ export function CostsOverviewTab({
             Mobile no: analisi da scrivania, il mese si cambia in cima. */}
         <Card className="rounded-2xl border-border shadow-sm lg:col-span-2 max-sm:hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Andamento — ultimi 12 mesi</CardTitle>
+            <CardTitle className="text-base">{tr("Andamento — ultimi 12 mesi")}</CardTitle>
           </CardHeader>
           <CardContent>
             {statTrend && (
               <div className="mb-3 grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 px-3 py-2">
-                <StatGrafico etichetta="Mese più caro" valore={formatCurrencyCompact(statTrend.caro.totale)} nota={statTrend.caro.label} />
-                <StatGrafico etichetta="Media" valore={formatCurrencyCompact(statTrend.media)} nota="al mese" />
+                <StatGrafico etichetta={tr("Mese più caro")} valore={formatCurrencyCompact(statTrend.caro.totale)} nota={statTrend.caro.label} />
+                <StatGrafico etichetta={tr("Media")} valore={formatCurrencyCompact(statTrend.media)} nota={tr("al mese")} />
                 <StatGrafico
-                  etichetta="Ultimo mese"
+                  etichetta={tr("Ultimo mese")}
                   valore={
                     <span className="inline-flex flex-wrap items-center gap-1">
                       {formatCurrencyCompact(statTrend.ultimo.totale)}
-                      <PillolaVariazione pct={statTrend.media > 0 ? ((statTrend.ultimo.totale - statTrend.media) / statTrend.media) * 100 : null} piuEMeglio={false} titolo="Rispetto alla media dei 12 mesi" />
+                      <PillolaVariazione pct={statTrend.media > 0 ? ((statTrend.ultimo.totale - statTrend.media) / statTrend.media) * 100 : null} piuEMeglio={false} titolo={tr("Rispetto alla media dei 12 mesi")} />
                     </span>
                   }
-                  nota="contro la media"
+                  nota={tr("contro la media")}
                 />
               </div>
             )}
@@ -564,7 +563,7 @@ export function CostsOverviewTab({
                         active={p.active}
                         payload={(p.payload ?? []).map((x) => ({
                           ...x,
-                          name: x.dataKey === "personale" ? "Personale" : x.dataKey === "altro" ? "Altri costi" : "Totale",
+                          name: x.dataKey === "personale" ? tr("Personale") : x.dataKey === "altro" ? tr("Altri costi") : tr("Totale"),
                           color: x.dataKey === "personale" ? COLORI_GRAFICO.arancio : x.dataKey === "altro" ? "hsl(var(--muted-foreground))" : COLORI_GRAFICO.blu,
                         })) as never}
                         label={String(p.label ?? "")}
@@ -599,13 +598,13 @@ export function CostsOverviewTab({
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.arancio }} /> Personale
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.arancio }} /> {tr("Personale")}
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground" /> Altri costi
+                <span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground" /> {tr("Altri costi")}
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-0.5 w-3 rounded-full" style={{ background: COLORI_GRAFICO.blu }} /> Totale
+                <span className="h-0.5 w-3 rounded-full" style={{ background: COLORI_GRAFICO.blu }} /> {tr("Totale")}
               </span>
             </div>
           </CardContent>

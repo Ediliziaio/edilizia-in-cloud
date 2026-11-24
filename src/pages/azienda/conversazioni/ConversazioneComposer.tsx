@@ -16,6 +16,7 @@ import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import { requireWhatsAppReceipt } from "../../../../supabase/functions/_shared/whatsappReceipt";
 import { readInvokeError } from "@/lib/readInvokeError";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Canale = "email" | "whatsapp" | "whatsapp_locale" | "sms" | "instagram" | "messenger";
 type PiattaformaSocial = "instagram" | "messenger";
@@ -61,6 +62,7 @@ function escapeHtml(s: string): string {
  *  • SMS      → rimando al modulo SMS dedicato (coerente col resto dell'app).
  */
 export default function ConversazioneComposer({ entitaTipo, entitaId, email, telefono, onSent }: Props) {
+  const tr = useT();
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
 
@@ -108,12 +110,12 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
     },
     onSuccess: (_d, piattaforma) => {
       setTestoSocial("");
-      toast.success(`Messaggio ${piattaforma === "instagram" ? "Instagram" : "Messenger"} inviato`);
+      toast.success(tr("Messaggio {canale} inviato", { canale: piattaforma === "instagram" ? "Instagram" : "Messenger" }));
       qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
       qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
       onSent?.();
     },
-    onError: (e) => toast.error("Messaggio non inviato", { description: (e as Error).message }),
+    onError: (e) => toast.error(tr("Messaggio non inviato"), { description: (e as Error).message }),
   });
 
   // Numeri del canale WhatsApp LOCALE (non ufficiale, solo piattaforma).
@@ -148,13 +150,13 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
     },
     onSuccess: () => {
       setTestoLocale("");
-      toast.success("Messaggio WhatsApp Locale inviato");
+      toast.success(tr("Messaggio WhatsApp Locale inviato"));
       qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
       qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
       qc.invalidateQueries({ queryKey: ["openwa"] });
       onSent?.();
     },
-    onError: (e) => toast.error("Invio WhatsApp Locale fallito", { description: (e as Error).message }),
+    onError: (e) => toast.error(tr("Invio WhatsApp Locale fallito"), { description: (e as Error).message }),
   });
 
   // In area piattaforma le impostazioni email stanno sotto /admin: il link
@@ -291,12 +293,12 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
     onSuccess: () => {
       setSubject("");
       setBody("");
-      toast.success(`Email inviata a ${email}`);
+      toast.success(tr("Email inviata a {customerEmail}", { customerEmail: String(email ?? "") }));
       qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
       qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
       onSent?.();
     },
-    onError: (e) => toast.error("Invio email fallito", { description: (e as Error).message }),
+    onError: (e) => toast.error(tr("Invio email fallito"), { description: (e as Error).message }),
   });
 
   const CANALI: { key: Canale; label: string; Icon: typeof Mail; disabled: boolean }[] = [
@@ -305,7 +307,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
     // Canale non ufficiale della piattaforma: compare solo se c'e' almeno un
     // numero collegato E il contatto ha un telefono.
     ...(numeriLocali.length > 0
-      ? [{ key: "whatsapp_locale" as Canale, label: "WA Locale", Icon: MessageCircle, disabled: !cleanPhone }]
+      ? [{ key: "whatsapp_locale" as Canale, label: tr("WA Locale"), Icon: MessageCircle, disabled: !cleanPhone }]
       : []),
     { key: "sms", label: "SMS", Icon: MessageSquare, disabled: false },
     ...(socialDi("instagram") ? [{ key: "instagram" as Canale, label: "Instagram", Icon: Instagram, disabled: false }] : []),
@@ -338,14 +340,13 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
         <div className="px-3 pb-2 pt-1.5 space-y-1.5">
           {accounts.length === 0 ? (
             <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
-              Nessuna casella personale collegata: l'email partirà dall'indirizzo della
-              piattaforma. Per scrivere dal tuo,{" "}
-              <LinkImpostazione to={impostazioniEmailHref} className="underline font-medium">collega Gmail o Outlook</LinkImpostazione>.
+              {tr("Nessuna casella personale collegata: l'email partirà dall'indirizzo della piattaforma. Per scrivere dal tuo,")}{" "}
+              <LinkImpostazione to={impostazioniEmailHref} className="underline font-medium">{tr("collega Gmail o Outlook")}</LinkImpostazione>.
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <Select value={fromId} onValueChange={setFrom}>
-                <SelectTrigger className="h-8 text-xs w-[200px] shrink-0" aria-label="Account email mittente"><SelectValue placeholder="Mittente" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs w-[200px] shrink-0" aria-label={tr("Account email mittente")}><SelectValue placeholder={tr("Mittente")} /></SelectTrigger>
                 <SelectContent>
                   {accounts.map((a) => (
                     <SelectItem key={a.id} value={a.id} className="text-xs">{a.email_address ?? a.id}</SelectItem>
@@ -356,14 +357,14 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             </div>
           )}
           <Input
-            placeholder="Oggetto…"
+            placeholder={tr("Oggetto…")}
             value={subject}
             onChange={(e) => setSubject(e.target.value.slice(0, 200))}
             className="h-8 text-sm"
           />
           <div className="flex items-end gap-2">
             <Textarea
-              placeholder="Scrivi l'email…"
+              placeholder={tr("Scrivi l'email…")}
               value={body}
               onChange={(e) => setBody(e.target.value.slice(0, 50_000))}
               rows={2}
@@ -372,7 +373,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             <Button
               size="icon"
               className="shrink-0"
-              aria-label="Invia email"
+              aria-label={tr("Invia email")}
               onClick={() => sendEmail.mutate()}
               disabled={!email || !subject.trim() || !body.trim() || sendEmail.isPending}
             >
@@ -392,7 +393,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
               phone={cleanPhone}
               isSending={waSending}
               onSend={async ({ waNumberId, content, template, idempotencyKey }) => {
-                if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return false; }
+                if (!effectiveCompany?.id) { toast.error(tr("Azienda non disponibile")); return false; }
                 setWaSending(true);
                 try {
                   const payload: Record<string, unknown> = {
@@ -429,13 +430,13 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
                     if (pausaErr) console.warn("[composer] pausa assistente non salvata:", pausaErr.message);
                     qc.invalidateQueries({ queryKey: ["conversazione-assistente"] });
                   }
-                  toast.success("Messaggio accettato da WhatsApp");
+                  toast.success(tr("Messaggio accettato da WhatsApp"));
                   qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
                   qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
                   onSent?.();
                   return true;
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp");
+                  toast.error(e instanceof Error ? e.message : tr("Errore invio WhatsApp"));
                   return false;
                 } finally {
                   setWaSending(false);
@@ -443,7 +444,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
               }}
             />
           ) : (
-            <p className="text-xs text-muted-foreground italic">Contatto senza numero di telefono.</p>
+            <p className="text-xs text-muted-foreground italic">{tr("Contatto senza numero di telefono.")}</p>
           )}
         </div>
       )}
@@ -453,12 +454,12 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
       {canale === "whatsapp_locale" && (
         <div className="px-3 pb-2 pt-1.5 space-y-1.5">
           <p className="text-[11px] text-muted-foreground">
-            Parte dal numero {numeriLocali[0]?.display_name || numeriLocali[0]?.numero}
-            {numeriLocali.length > 1 && " (o dal numero già usato con questo contatto)"} · canale non ufficiale
+            {tr("Parte dal numero")} {numeriLocali[0]?.display_name || numeriLocali[0]?.numero}
+            {numeriLocali.length > 1 && ` ${tr("(o dal numero già usato con questo contatto)")}`} {tr("· canale non ufficiale")}
           </p>
           <div className="flex items-end gap-2">
             <Textarea
-              placeholder={`Messaggio WhatsApp a ${telefono ?? ""}…`}
+              placeholder={tr("Messaggio WhatsApp a {telefono}…", { telefono: telefono ?? "" })}
               value={testoLocale}
               onChange={(e) => setTestoLocale(e.target.value.slice(0, 4000))}
               rows={2}
@@ -473,7 +474,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             <Button
               size="icon"
               className="shrink-0 bg-emerald-600 hover:bg-emerald-700"
-              aria-label="Invia WhatsApp Locale"
+              aria-label={tr("Invia WhatsApp Locale")}
               onClick={() => inviaLocale.mutate()}
               disabled={!cleanPhone || !testoLocale.trim() || inviaLocale.isPending}
             >
@@ -494,20 +495,17 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             {/* Mobile: il canale lo dice già la pillola selezionata sopra. */}
             <p className="text-[11px] text-muted-foreground max-md:hidden">
               {etichetta}{id?.username ? ` · @${id.username}` : id?.nome ? ` · ${id.nome}` : ""}
-              {aperta && " · puoi rispondere fino a 24 ore dal suo ultimo messaggio"}
+              {aperta && ` ${tr("· puoi rispondere fino a 24 ore dal suo ultimo messaggio")}`}
             </p>
             {!aperta && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                <span className="md:hidden">Oltre 24 ore dal suo ultimo messaggio: rispondi dall'app di {etichetta}.</span>
-                <span className="max-md:hidden">
-                  Sono passate più di 24 ore dal suo ultimo messaggio: Meta non permette di rispondere da qui
-                  finché non scrive di nuovo. Puoi rispondere dall'app di {etichetta}.
-                </span>
+                <span className="md:hidden">{tr("Oltre 24 ore dal suo ultimo messaggio: rispondi dall'app di {etichetta}.", { etichetta: String(etichetta ?? "") })}</span>
+                <span className="max-md:hidden">{tr("Sono passate più di 24 ore dal suo ultimo messaggio: Meta non permette di rispondere da qui finché non scrive di nuovo. Puoi rispondere dall'app di {etichetta}.", { etichetta: String(etichetta ?? "") })}</span>
               </div>
             )}
             <div className="flex items-end gap-2">
               <Textarea
-                placeholder={`Messaggio ${etichetta}…`}
+                placeholder={tr("Messaggio {etichetta}…", { etichetta: String(etichetta ?? "") })}
                 value={testoSocial}
                 onChange={(e) => setTestoSocial(e.target.value.slice(0, 1000))}
                 rows={2}
@@ -523,7 +521,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
               <Button
                 size="icon"
                 className="shrink-0"
-                aria-label={`Invia messaggio ${etichetta}`}
+                aria-label={tr("Invia messaggio {etichetta}", { etichetta: String(etichetta ?? "") })}
                 onClick={() => inviaSocial.mutate(piattaforma)}
                 disabled={!aperta || !testoSocial.trim() || inviaSocial.isPending}
               >
@@ -537,7 +535,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
       {/* SMS */}
       {canale === "sms" && (
         <div className="px-3 pb-2 pt-1.5 text-xs text-muted-foreground italic">
-          Invio SMS singolo in arrivo. Per ora usa il <a href="/azienda/sms" className="underline">modulo SMS</a> dedicato.
+          {tr("Invio SMS singolo in arrivo. Per ora usa il")} <a href="/azienda/sms" className="underline">{tr("modulo SMS")}</a> {tr("dedicato.")}
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart2, TrendingUp, AlertTriangle } from "lucide-react";
 import type { FonteLeadPerf } from "@/hooks/useCallCenterReport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const qualityBadge: Record<string, { variant: "default" | "secondary" | "destructive"; label: string; dot: string }> = {
   ottima: { variant: "default", label: "Ottima", dot: "bg-green-500" },
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function FonteLeadTable({ data, isLoading }: Props) {
+  const t = useT();
   if (isLoading) {
     return (
       <Card>
@@ -30,8 +32,8 @@ export function FonteLeadTable({ data, isLoading }: Props) {
     return (
       <Card>
         <CardContent className="py-10 text-center space-y-2">
-          <p className="text-muted-foreground font-medium">Nessuna fonte lead con dati sufficienti nel periodo.</p>
-          <p className="text-sm text-muted-foreground">Verifica che i contatti abbiano il campo "fonte" compilato.</p>
+          <p className="text-muted-foreground font-medium">{t("Nessuna fonte lead con dati sufficienti nel periodo.")}</p>
+          <p className="text-sm text-muted-foreground">{t("Verifica che i contatti abbiano il campo \"fonte\" compilato.")}</p>
         </CardContent>
       </Card>
     );
@@ -47,29 +49,29 @@ export function FonteLeadTable({ data, isLoading }: Props) {
     <div className="space-y-4">
       {/* Explanatory header */}
       <p className="text-sm text-muted-foreground">
-        Analisi per fonte lead: capire quale canale porta lead più "caldi" aiuta a ottimizzare il budget marketing e a prioritizzare i lead da chiamare per primi.
+        {t("Analisi per fonte lead: capire quale canale porta lead più \"caldi\" aiuta a ottimizzare il budget marketing e a prioritizzare i lead da chiamare per primi.")}
       </p>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart2 className="h-4 w-4 text-primary" />
-            Performance per Fonte Lead
+            {t("Performance per Fonte Lead")}
           </CardTitle>
-          <p className="text-sm text-muted-foreground">Solo fonti con almeno 3 lead nel periodo</p>
+          <p className="text-sm text-muted-foreground">{t("Solo fonti con almeno 3 lead nel periodo")}</p>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Fonte</TableHead>
+                <TableHead>{t("Fonte")}</TableHead>
                 <TableHead className="text-right">Lead</TableHead>
-                <TableHead className="text-right">Contattati</TableHead>
-                <TableHead className="text-right">% Contatto</TableHead>
-                <TableHead className="text-right">App.</TableHead>
-                <TableHead className="text-right min-w-[140px]">% App.</TableHead>
-                <TableHead className="text-right">Avg STL</TableHead>
-                <TableHead>Qualità</TableHead>
+                <TableHead className="text-right">{t("Contattati")}</TableHead>
+                <TableHead className="text-right">{t("% Contatto")}</TableHead>
+                <TableHead className="text-right">{t("App.")}</TableHead>
+                <TableHead className="text-right min-w-[140px]">{t("% App.")}</TableHead>
+                <TableHead className="text-right">{t("Avg STL")}</TableHead>
+                <TableHead>{t("Qualità")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -112,7 +114,7 @@ export function FonteLeadTable({ data, isLoading }: Props) {
                     <TableCell>
                       <Badge variant={badge.variant} className="gap-1">
                         <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
-                        {badge.label}
+                        {t(badge.label)}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -131,11 +133,8 @@ export function FonteLeadTable({ data, isLoading }: Props) {
               <div className="flex items-start gap-2">
                 <TrendingUp className="h-4 w-4 text-green-600 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-green-800">🏆 Fonte migliore: {best.fonte}</p>
-                  <p className="text-xs text-green-700 mt-1">
-                    Tasso appuntamento del {best.tasso_appuntamento}% su {best.lead_totali} lead.
-                    Prioritizza questa fonte nei budget advertising.
-                  </p>
+                  <p className="text-sm font-semibold text-green-800">{t("🏆 Fonte migliore: {fonte}", { fonte: String(best.fonte ?? "") })}</p>
+                  <p className="text-xs text-green-700 mt-1">{t("Tasso appuntamento del {tasso_appuntamento}% su {lead_totali} lead. Prioritizza questa fonte nei budget advertising.", { tasso_appuntamento: String(best.tasso_appuntamento ?? ""), lead_totali: String(best.lead_totali ?? "") })}</p>
                 </div>
               </div>
             </CardContent>
@@ -147,11 +146,8 @@ export function FonteLeadTable({ data, isLoading }: Props) {
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">⚠️ Fonte da rivalutare: {worst.fonte}</p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      Solo {worst.tasso_appuntamento}% di conversione su {worst.lead_totali} lead.
-                      Considera se il targeting o il messaggio va ottimizzato.
-                    </p>
+                    <p className="text-sm font-semibold text-amber-800">{t("⚠️ Fonte da rivalutare: {fonte}", { fonte: String(worst.fonte ?? "") })}</p>
+                    <p className="text-xs text-amber-700 mt-1">{t("Solo {tasso_appuntamento}% di conversione su {lead_totali} lead. Considera se il targeting o il messaggio va ottimizzato.", { tasso_appuntamento: String(worst.tasso_appuntamento ?? ""), lead_totali: String(worst.lead_totali ?? "") })}</p>
                   </div>
                 </div>
               </CardContent>

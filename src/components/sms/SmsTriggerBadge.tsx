@@ -8,6 +8,7 @@
 import { Badge } from "@/components/ui/badge";
 import { User, Zap, Code } from "lucide-react";
 import type { SmsTriggerType } from "@/types/sms";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsTriggerBadgeProps {
   triggerType: SmsTriggerType | null;
@@ -21,6 +22,7 @@ const TRIGGER_CONFIG: Record<SmsTriggerType, { label: string; icon: React.Compon
 };
 
 export function SmsTriggerBadge({ triggerType, className = "" }: SmsTriggerBadgeProps) {
+  const t = useT();
   if (!triggerType) return null;
 
   const config = TRIGGER_CONFIG[triggerType];
@@ -34,7 +36,7 @@ export function SmsTriggerBadge({ triggerType, className = "" }: SmsTriggerBadge
       className={`inline-flex items-center gap-1 text-xs ${config.className} ${className}`}
     >
       <Icon className="h-3 w-3" />
-      {config.label}
+      {t(config.label)}
     </Badge>
   );
 }

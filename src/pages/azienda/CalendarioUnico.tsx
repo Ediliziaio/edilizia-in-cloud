@@ -9,13 +9,15 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { tipoCalendario, CHIAVE_TIPO_CALENDARIO, type TipoCalendario } from "@/lib/calendar/calendarioUnico";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CalendarioLavori = lazy(() => import("@/pages/azienda/Calendar"));
 const CalendarioCommerciale = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
 
 function Caricamento() {
+  const t = useT();
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Caricamento calendario">
+    <div className="space-y-3" aria-busy="true" aria-label={t("Caricamento calendario")}>
       <Skeleton className="h-8 w-48" />
       <Skeleton className="h-64 rounded-xl" />
     </div>
@@ -32,6 +34,7 @@ function Caricamento() {
  * I due calendari restano due motori: qui si sceglie quale mostrare, con un indirizzo solo.
  */
 export default function CalendarioUnico() {
+  const t = useT();
   const permissions = usePermissions();
   const crm = useFeatureAccess("crm_modulo");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -67,7 +70,7 @@ export default function CalendarioUnico() {
   return (
     <div className="space-y-3">
       {vedeLavori && vedeCommerciale && (
-        <div role="tablist" aria-label="Quale calendario" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-auto">
+        <div role="tablist" aria-label={t("Quale calendario")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-auto">
           {([
             ["lavori", "Lavori", HardHat],
             ["commerciali", "Commerciali", Handshake],
@@ -84,7 +87,7 @@ export default function CalendarioUnico() {
               )}
             >
               <Icona className="h-4 w-4" aria-hidden="true" />
-              {etichetta}
+              {t(etichetta)}
             </button>
           ))}
         </div>
@@ -93,7 +96,7 @@ export default function CalendarioUnico() {
         {tipo === "commerciali" ? (
           <FeatureRoute featureKey="crm_modulo"><CalendarioCommerciale /></FeatureRoute>
         ) : (
-          <ErrorBoundary title="Errore nel caricamento calendario"><CalendarioLavori /></ErrorBoundary>
+          <ErrorBoundary title={t("Errore nel caricamento calendario")}><CalendarioLavori /></ErrorBoundary>
         )}
       </Suspense>
     </div>

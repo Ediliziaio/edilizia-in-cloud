@@ -1,5 +1,6 @@
 import { Users, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type ObjectType = "contacts" | "opportunities";
 
@@ -24,12 +25,13 @@ const OPTIONS: { type: ObjectType; icon: typeof Users; title: string; desc: stri
 ];
 
 export function StepStart({ objectType, onObjectTypeChange }: StepStartProps) {
+  const t = useT();
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Cosa vuoi importare?</h2>
+        <h2 className="text-lg font-semibold">{t("Cosa vuoi importare?")}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Seleziona il tipo di dati che desideri importare nel sistema.
+          {t("Seleziona il tipo di dati che desideri importare nel sistema.")}
         </p>
       </div>
 
@@ -56,8 +58,8 @@ export function StepStart({ objectType, onObjectTypeChange }: StepStartProps) {
                 <Icon className="h-6 w-6" />
               </div>
               <div>
-                <p className="font-semibold">{opt.title}</p>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{opt.desc}</p>
+                <p className="font-semibold">{t(opt.title)}</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t(opt.desc)}</p>
               </div>
             </button>
           );

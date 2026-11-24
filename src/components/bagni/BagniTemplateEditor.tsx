@@ -88,6 +88,7 @@ import { bgnCopyChoices } from "@/lib/moduli-vendita/bgnInterventionCopy";
 import { InterventionTextPicker } from "@/components/preventivi/modules/InterventionTextPicker";
 import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -120,6 +121,7 @@ function PlaceholderChips({
   targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
   label?: string;
 }) {
+  const t = useT();
   const insert = (name: string) => {
     const token = `{${name}}`;
     const el = targetRef?.current;
@@ -134,7 +136,7 @@ function PlaceholderChips({
   };
   return (
     <div className="mt-1.5">
-      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <p className="text-[10px] text-muted-foreground mb-1">{t(label)}</p>
       <div className="flex flex-wrap gap-1">
         {BGN_PLACEHOLDERS.map((n) => (
           <button
@@ -281,6 +283,7 @@ interface Props {
 }
 
 export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   // Profilo azienda (impostazioni/profilo): usato per mostrare i dati EREDITATI
   // come placeholder nell'anagrafica. Se un campo del template è vuoto, nel PDF
@@ -396,12 +399,12 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
         setLocalSaved(true);
       } else await upsert.mutateAsync(patch);
       setDirty(false);
-      toast.success(localModule ? "Modello salvato" : "Template salvato", {
-        description: localModule ? "Salvato per l'azienda: lo usano i nuovi preventivi con questo intervento." : "Verrà applicato ai nuovi preventivi bagni.",
+      toast.success(localModule ? t("Modello salvato") : t("Template salvato"), {
+        description: localModule ? t("Salvato per l'azienda: lo usano i nuovi preventivi con questo intervento.") : t("Verrà applicato ai nuovi preventivi bagni."),
       });
     } catch (e) {
-      toast.error("Salvataggio non riuscito", {
-        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      toast.error(t("Salvataggio non riuscito"), {
+        description: e instanceof Error ? e.message : t("Errore sconosciuto"),
       });
     }
   };
@@ -437,7 +440,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
   const handleGenerateAi = async () => {
     if (localModule || aiLoading) return;
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(t("Azienda non disponibile"));
       return;
     }
     setAiLoading(true);
@@ -466,14 +469,14 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
       if (error) throw error;
       const payload = data as { success?: boolean; error?: string; generated?: GeneratedTemplateTexts };
       if (!payload?.success || !payload.generated) {
-        throw new Error(payload?.error ?? "Generazione non riuscita");
+        throw new Error(payload?.error ?? t("Generazione non riuscita"));
       }
       setAiDraft(payload.generated);
       setAiOpen(false);
       setReviewOpen(true);
     } catch (e) {
-      toast.error("Generazione non riuscita", {
-        description: e instanceof Error ? e.message : "Riprova tra poco.",
+      toast.error(t("Generazione non riuscita"), {
+        description: e instanceof Error ? e.message : t("Riprova tra poco."),
       });
     } finally {
       setAiLoading(false);
@@ -503,22 +506,22 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
     items: Array<{ id: BgnSection; label: string; emoji: string; descr?: string }>;
   }> = [
     {
-      label: "AZIENDA",
+      label: t("AZIENDA"),
       items: [
-        { id: "brand", label: "Azienda e stile", emoji: "🏢", descr: "Logo e colori del PDF" },
+        { id: "brand", label: t("Azienda e stile"), emoji: "🏢", descr: "Logo e colori del PDF" },
       ],
     },
     {
-      label: "PAGINE DEL PDF",
+      label: t("PAGINE DEL PDF"),
       // Una sezione per pagina, nell'ordine in cui escono nel documento: le pagine nuove
       // stanno qui come le altre, non solo in «Ordine e pagine» (vedi pagineEditor.ts).
-      items: PAGINE_EDITOR_EDILI.map((p) => ({ id: p.id as BgnSection, label: p.voce, emoji: p.emoji, descr: p.descrizione })),
+      items: PAGINE_EDITOR_EDILI.map((p) => ({ id: p.id as BgnSection, label: t(p.voce), emoji: p.emoji, descr: p.descrizione })),
     },
     {
-      label: "DATI & CONTENUTI",
+      label: t("DATI & CONTENUTI"),
       items: [
-        { id: "contenuti", label: "Contenuti",   emoji: "📝", descr: "Esigenze, soluzione, USP" },
-        { id: "opzioni",   label: "Opzioni PDF", emoji: "⚙️", descr: "Visibilità documento" },
+        { id: "contenuti", label: t("Contenuti"),   emoji: "📝", descr: "Esigenze, soluzione, USP" },
+        { id: "opzioni",   label: t("Opzioni PDF"), emoji: "⚙️", descr: "Visibilità documento" },
       ],
     },
   ];
@@ -587,11 +590,9 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="space-y-0.5">
-            <p className="font-medium">Modulo Bagni non ancora pubblicato sul database</p>
+            <p className="font-medium">{t("Modulo Bagni non ancora pubblicato sul database")}</p>
             <p className="text-amber-800 dark:text-amber-300/90">
-              Stai vedendo e modificando i valori predefiniti: l'editor è pienamente
-              funzionante, ma il salvataggio sarà attivo solo dopo la pubblicazione del
-              modulo (applicazione della migrazione sul database).
+              {t("Stai vedendo e modificando i valori predefiniti: l'editor è pienamente funzionante, ma il salvataggio sarà attivo solo dopo la pubblicazione del modulo (applicazione della migrazione sul database).")}
             </p>
           </div>
         </div>
@@ -605,9 +606,9 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
               <Wand2 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">{localModule ? "Testi pronti per questo intervento" : "Scrivi il template con l'AI"}</p>
+              <p className="text-sm font-semibold">{localModule ? t("Testi pronti per questo intervento") : t("Scrivi il template con l'AI")}</p>
               <p className="text-[12px] text-muted-foreground">
-                {localModule ? "Personalizza le pagine e verifica il PDF a destra. Ogni variante modifica solo la sezione scelta." : "Genera una bozza dei testi, poi rifinisci e salva."}
+                {localModule ? t("Personalizza le pagine e verifica il PDF a destra. Ogni variante modifica solo la sezione scelta.") : t("Genera una bozza dei testi, poi rifinisci e salva.")}
               </p>
             </div>
           </div>
@@ -617,9 +618,9 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
             className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
           >
             <Sparkles className="h-4 w-4" />
-            Genera testi con AI
+            {t("Genera testi con AI")}
           </Button>}
-          {localModule && moduleDefaults ? <InterventionTextPicker title={moduleDefaults.cover_title || "Bagni"} choices={bgnCopyChoices(localModule.id, moduleDefaults)} onApply={patch => {
+          {localModule && moduleDefaults ? <InterventionTextPicker title={moduleDefaults.cover_title || t("Bagni")} choices={bgnCopyChoices(localModule.id, moduleDefaults)} onApply={patch => {
             setForm(prev => prev ? { ...prev, ...patch, ...(typeof patch.cover_title === "string" ? { pdf_cover_hero: patch.cover_title } : {}), ...(typeof patch.cover_subtitle === "string" ? { pdf_cover_subhero: patch.cover_subtitle } : {}) } : prev); setDirty(true);
           }} /> : <StandardTextTemplatePicker
             module="bagni"
@@ -644,7 +645,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                 className="h-8 w-full gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 <Eye className="h-3.5 w-3.5" />
-                Anteprima live
+                {t("Anteprima live")}
               </Button>
               <Button
                 type="button"
@@ -655,7 +656,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                 className="h-8 w-full gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50"
               >
                 {isPreviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
-                Apri in scheda
+                {t("Apri in scheda")}
               </Button>
             </div>
           </nav>
@@ -666,7 +667,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
           {/* Barra di salvataggio: in cima al pannello, scorre con la pagina */}
           <TemplateEditorSaveBar>
             <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
-              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello pronto · non ancora salvato"}
+              {dirty ? t("Modifiche non salvate") : localSaved ? t("Tutto salvato") : t("Modello pronto · non ancora salvato")}
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -677,7 +678,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                 className="gap-1.5"
               >
                 {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />}
-                Anteprima PDF
+                {t("Anteprima PDF")}
               </Button>
               <Button
                 onClick={() => void handleSave()}
@@ -685,28 +686,28 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                 className="gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modello" : "Salva template"}
+                {localModule ? t("Salva modello") : t("Salva template")}
               </Button>
             </div>
           </TemplateEditorSaveBar>
           {/* Branding */}
           {activeSection === "brand" && (
             <>
-            <SectionCard icon={Palette} title="Branding" description="Logo e colori usati nel PDF.">
+            <SectionCard icon={Palette} title={t("Branding")} description={t("Logo e colori usati nel PDF.")}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <ImageUploadField localOnly={!!localModule}
-                  label="Logo azienda"
-                  hint="PNG con sfondo trasparente consigliato."
+                  label={t("Logo azienda")}
+                  hint={t("PNG con sfondo trasparente consigliato.")}
                   value={form.logo_url}
                   companyId={companyId}
                   onChange={(url) => set("logo_url", url)}
                   aspect="aspect-[3/1]"
                 />
                 <div className="grid grid-cols-2 gap-3">
-                  <ColorField label="Primario" value={form.color_primary} onChange={(v) => set("color_primary", v)} />
-                  <ColorField label="Secondario" value={form.color_secondary} onChange={(v) => set("color_secondary", v)} />
-                  <ColorField label="Accent" value={form.color_accent} onChange={(v) => set("color_accent", v)} />
-                  <ColorField label="Testo" value={form.color_text} onChange={(v) => set("color_text", v)} />
+                  <ColorField label={t("Primario")} value={form.color_primary} onChange={(v) => set("color_primary", v)} />
+                  <ColorField label={t("Secondario")} value={form.color_secondary} onChange={(v) => set("color_secondary", v)} />
+                  <ColorField label={t("Accent")} value={form.color_accent} onChange={(v) => set("color_accent", v)} />
+                  <ColorField label={t("Testo")} value={form.color_text} onChange={(v) => set("color_text", v)} />
                 </div>
               </div>
 
@@ -714,7 +715,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
               <div className="mt-4 border-t pt-4">
                 <div className="mb-2 flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                  <Label className="text-xs font-medium">Palette pronte</Label>
+                  <Label className="text-xs font-medium">{t("Palette pronte")}</Label>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {PALETTE_PRESETS.map((p) => {
@@ -750,65 +751,63 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                             />
                           ))}
                         </span>
-                        <span className="text-[11px] font-medium text-foreground">{p.nome}</span>
+                        <span className="text-[11px] font-medium text-foreground">{t(p.nome)}</span>
                       </button>
                     );
                   })}
                 </div>
                 <p className="mt-1.5 text-[10px] text-muted-foreground">
-                  Applica una combinazione coordinata ai 4 colori del brand. Puoi sempre ritoccarli dopo.
+                  {t("Applica una combinazione coordinata ai 4 colori del brand. Puoi sempre ritoccarli dopo.")}
                 </p>
               </div>
             </SectionCard>
 
             {/* Anagrafica azienda — dati che compaiono in header/footer del PDF */}
-            <SectionCard icon={Building2} title="Anagrafica azienda" description="Dati che compaiono nell'header e nel footer di ogni preventivo PDF.">
+            <SectionCard icon={Building2} title={t("Anagrafica azienda")} description={t("Dati che compaiono nell'header e nel footer di ogni preventivo PDF.")}>
               {/* I dati arrivano dal Profilo azienda: se lasci un campo vuoto, nel
                   PDF usiamo il valore del profilo (mostrato come placeholder). */}
               <div className="mb-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/60 p-2.5 text-[11px] text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
                 <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  Questi dati arrivano dal{" "}
+                  {t("Questi dati arrivano dal")}{" "}
                   <Link to="/azienda/impostazioni/profilo" className="font-medium underline">
-                    Profilo azienda
+                    {t("Profilo azienda")}
                   </Link>
-                  . Lascia un campo vuoto per usarli in automatico; compila solo per
-                  sovrascriverli nei preventivi bagni.
+                  .{" "}{t("Lascia un campo vuoto per usarli in automatico; compila solo per sovrascriverli nei preventivi bagni.")}
                 </span>
               </div>
               {!anagraficaPdfCompleta && (
                 <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50/70 p-2.5 text-[11px] text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>
-                    <strong>PDF non ancora pronto per l&apos;invio.</strong> Verifica che
-                    ragione sociale e almeno telefono o email siano presenti qui o nel Profilo azienda.
+                    <strong>{t("PDF non ancora pronto per l'invio.")}</strong> {t("Verifica che ragione sociale e almeno telefono o email siano presenti qui o nel Profilo azienda.")}
                   </span>
                 </div>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-xs">Ragione sociale</Label>
+                  <Label className="text-xs">{t("Ragione sociale")}</Label>
                   <Input
                     value={form.ragione_sociale ?? ""}
                     onChange={(e) => set("ragione_sociale", e.target.value)}
-                    placeholder={companyAnagrafica?.ragione_sociale ? `${companyAnagrafica.ragione_sociale} · dal profilo` : "Es. Edil Rossi S.r.l."}
+                    placeholder={companyAnagrafica?.ragione_sociale ? t("{ragione_sociale} · dal profilo", { ragione_sociale: String(companyAnagrafica.ragione_sociale ?? "") }) : t("Es. Edil Rossi S.r.l.")}
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="modello-indirizzo-completo" className="text-xs">Indirizzo completo</Label>
+                  <Label htmlFor="modello-indirizzo-completo" className="text-xs">{t("Indirizzo completo")}</Label>
                   <CampoIndirizzo
                     id="modello-indirizzo-completo"
                     value={form.indirizzo_completo ?? ""}
                     onChange={(v) => set("indirizzo_completo", v)}
-                    placeholder={companyAnagrafica?.indirizzo_completo ? `${companyAnagrafica.indirizzo_completo} · dal profilo` : "Es. Via Roma 42 · 20121 Milano (MI)"}
+                    placeholder={companyAnagrafica?.indirizzo_completo ? t("{indirizzo_completo} · dal profilo", { indirizzo_completo: String(companyAnagrafica.indirizzo_completo ?? "") }) : t("Es. Via Roma 42 · 20121 Milano (MI)")}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Telefono</Label>
+                  <Label className="text-xs">{t("Telefono")}</Label>
                   <Input
                     value={form.telefono ?? ""}
                     onChange={(e) => set("telefono", e.target.value)}
-                    placeholder={companyAnagrafica?.telefono ? `${companyAnagrafica.telefono} · dal profilo` : "+39 02 1234 5678"}
+                    placeholder={companyAnagrafica?.telefono ? t("{telefono} · dal profilo", { telefono: String(companyAnagrafica.telefono ?? "") }) : "+39 02 1234 5678"}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -817,7 +816,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                     type="email"
                     value={form.email ?? ""}
                     onChange={(e) => set("email", e.target.value)}
-                    placeholder={companyAnagrafica?.email ? `${companyAnagrafica.email} · dal profilo` : "info@azienda.it"}
+                    placeholder={companyAnagrafica?.email ? t("{email} · dal profilo", { email: String(companyAnagrafica.email ?? "") }) : "info@azienda.it"}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -825,45 +824,44 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                   <Input
                     value={form.partita_iva ?? ""}
                     onChange={(e) => set("partita_iva", e.target.value)}
-                    placeholder={companyAnagrafica?.partita_iva ? `${companyAnagrafica.partita_iva} · dal profilo` : "IT12345670156"}
+                    placeholder={companyAnagrafica?.partita_iva ? t("{partita_iva} · dal profilo", { partita_iva: String(companyAnagrafica.partita_iva ?? "") }) : "IT12345670156"}
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label className="text-xs">Tipografia del documento</Label>
+                  <Label className="text-xs">{t("Tipografia del documento")}</Label>
                   <UniformSelect
                     value={tipografiaDaModello(form.font_family)}
                     onChange={(e) => set("font_family", e.target.value)}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <option value="lineare">Lineare · titoli e testo senza grazie</option>
-                    <option value="editoriale">Editoriale · titoli con le grazie, testo lineare</option>
-                    <option value="classica">Classica · tutto con le grazie</option>
+                    <option value="lineare">{t("Lineare · titoli e testo senza grazie")}</option>
+                    <option value="editoriale">{t("Editoriale · titoli con le grazie, testo lineare")}</option>
+                    <option value="classica">{t("Classica · tutto con le grazie")}</option>
                   </UniformSelect>
                   <p className="text-[10px] text-muted-foreground">
-                    Cambia davvero il PDF: sono i caratteri che il documento ha già dentro, quindi non c'è niente da
-                    scaricare e nessun carattere può mancare alla stampa.
+                    {t("Cambia davvero il PDF: sono i caratteri che il documento ha già dentro, quindi non c'è niente da scaricare e nessun carattere può mancare alla stampa.")}
                   </p>
                 </div>
               </div>
             </SectionCard>
 
             {/* Footer PDF — toggle informazioni in coda a ogni pagina */}
-            <SectionCard icon={FileText} title="Footer PDF" description="Cosa mostrare nel piè di pagina di ogni foglio del preventivo.">
+            <SectionCard icon={FileText} title={t("Footer PDF")} description={t("Cosa mostrare nel piè di pagina di ogni foglio del preventivo.")}>
               <div className="space-y-2">
                 <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
                   <div>
-                    <p className="text-sm font-medium">Mostra info versione nel footer</p>
+                    <p className="text-sm font-medium">{t("Mostra info versione nel footer")}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      Aggiunge codice preventivo, data e numero di pagina su ogni foglio.
+                      {t("Aggiunge codice preventivo, data e numero di pagina su ogni foglio.")}
                     </p>
                   </div>
                   <Switch checked={form.show_footer_version} onCheckedChange={(v) => set("show_footer_version", v)} />
                 </label>
                 <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
                   <div>
-                    <p className="text-sm font-medium">Mostra footer legale esteso (B2B)</p>
+                    <p className="text-sm font-medium">{t("Mostra footer legale esteso (B2B)")}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      Aggiunge i dati legali dell'azienda (ragione sociale, indirizzo, P.IVA) in coda.
+                      {t("Aggiunge i dati legali dell'azienda (ragione sociale, indirizzo, P.IVA) in coda.")}
                     </p>
                   </div>
                   <Switch checked={form.show_footer_legal} onCheckedChange={(v) => set("show_footer_legal", v)} />
@@ -876,7 +874,7 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
           {/* Copertina — parity Serramenti: preset 1-click + anteprima live A4 */}
           {/* Ordine dei capitoli e pagine libere: stesso blocco degli otto moduli. */}
           {activeSection === "page_ordine" && (
-            <SectionCard icon={ListOrdered} title="Ordine e pagine" description="In che ordine escono i capitoli, quali nascondere, e le pagine scritte da voi.">
+            <SectionCard icon={ListOrdered} title={t("Ordine e pagine")} description={t("In che ordine escono i capitoli, quali nascondere, e le pagine scritte da voi.")}>
               <OrdineCapitoli visibilitySettings={form} onVisibilityChange={setPageVisibility}
                 ordine={form.pdf_ordine_capitoli}
                 pagine={form.pdf_pagine_libere}
@@ -887,36 +885,36 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                 onBlocchi={(v) => set("pdf_blocchi", v)}
                 apriSezione={(sezione) => setActiveSection(sezione as BgnSection)}
                 campoFoto={(valore, onChange) => (
-                  <ImageUploadField localOnly={!!localModule} label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+                  <ImageUploadField localOnly={!!localModule} label={t("Foto della pagina")} value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
                 )}
               />
             </SectionCard>
           )}
 
           {activeSection === "page_cover" && (
-            <SectionCard icon={FileText} title="Copertina" description="Layout completo della prima pagina: preset, immagine, testo, decorazione.">
+            <SectionCard icon={FileText} title={t("Copertina")} description={t("Layout completo della prima pagina: preset, immagine, testo, decorazione.")}>
               <TemplateCoverStylePicker presets={COVER_LAYOUT_PRESETS} activeId={activeCoverPresetId} onApply={applyCoverPreset} />
               <TemplateCoverTextFields value={{ eyebrow: form.pdf_cover_eyebrow, title: form.pdf_cover_hero, subtitle: form.pdf_cover_subhero }} onChange={(field, value) => { if (field === "eyebrow") { set("pdf_cover_eyebrow", (value ?? "") || null); }
 if (field === "title") { set("pdf_cover_hero", (value ?? "") || null); }
 if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }}   placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange}  />} />
               <div data-cover-media className="space-y-4">
 <ImageUploadField localOnly={!!localModule}
-                    label="Logo copertina — opzionale (default: logo principale)"
-                    hint="Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale."
+                    label={t("Logo copertina — opzionale (default: logo principale)")}
+                    hint={t("Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale.")}
                     value={form.cover_logo_url}
                     companyId={companyId}
                     onChange={(url) => set("cover_logo_url", url)}
                     aspect="aspect-[3/1]"
                   />
 <ImageUploadField localOnly={!!localModule}
-                      label="Immagine di sfondo cover (opzionale)"
-                      hint="Carica una foto (PNG/JPG max 8 MB) o scegli dalla galleria stock."
+                      label={t("Immagine di sfondo cover (opzionale)")}
+                      hint={t("Carica una foto (PNG/JPG max 8 MB) o scegli dalla galleria stock.")}
                       value={form.pdf_cover_image_url}
                       companyId={companyId}
                       onChange={(url) => set("pdf_cover_image_url", url)}
                       aspect="aspect-[16/9]"
                     />
-<Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>Scegli dalla libreria</Button>
+<Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>{t("Scegli dalla libreria")}</Button>
 </div>
               <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} fields={[
 { id: "overlayOpacity", kind: "range", value: form.pdf_cover_overlay_opacity ?? 55, min: 0, max: 100, step: 5, unit: "%", onChange: value => set("pdf_cover_overlay_opacity", value) },
@@ -941,22 +939,22 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
           {activeSection === "page_chi_siamo" && (
             <SectionCard
               icon={Building2}
-              title="Chi siamo"
-              description="Presentazione dell'impresa nel PDF."
-              toggle={{ value: !edileSectionExcluded(form, "page_chi_siamo"), onChange: (v) => setPageVisibility("chiSiamo", v), label: "Mostra nel PDF" }}
+              title={t("Chi siamo")}
+              description={t("Presentazione dell'impresa nel PDF.")}
+              toggle={{ value: !edileSectionExcluded(form, "page_chi_siamo"), onChange: (v) => setPageVisibility("chiSiamo", v), label: t("Mostra nel PDF") }}
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Testo presentazione</Label>
+                  <Label className="text-xs">{t("Testo presentazione")}</Label>
                   <RichTextEditorSafe
                     value={form.chi_siamo ?? ""}
                     onChange={(html) => set("chi_siamo", html)}
-                    placeholder="Da oltre 20 anni realizziamo ristrutturazioni complete..."
+                    placeholder={t("Da oltre 20 anni realizziamo ristrutturazioni complete...")}
                     minHeight={160}
                   />
                 </div>
                 <ImageUploadField localOnly={!!localModule}
-                  label="Foto azienda / team"
+                  label={t("Foto azienda / team")}
                   value={form.chi_siamo_foto_url}
                   companyId={companyId}
                   onChange={(url) => set("chi_siamo_foto_url", url)}
@@ -970,9 +968,9 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
           {activeSection === "page_percorso" && (
             <SectionCard
               icon={Route}
-              title="Come lavoriamo"
-              description="Le fasi del cantiere mostrate nel PDF."
-              toggle={{ value: !edileSectionExcluded(form, "page_percorso"), onChange: (v) => setPageVisibility("percorso", v), label: "Mostra nel PDF" }}
+              title={t("Come lavoriamo")}
+              description={t("Le fasi del cantiere mostrate nel PDF.")}
+              toggle={{ value: !edileSectionExcluded(form, "page_percorso"), onChange: (v) => setPageVisibility("percorso", v), label: t("Mostra nel PDF") }}
             >
               <ListItemsEditor
                 items={form.percorso}
@@ -988,9 +986,9 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
           {activeSection === "page_crono" && (
             <SectionCard
               icon={Clock}
-              title="Cronoprogramma"
-              description="Le fasi tipiche del cantiere con durata indicativa."
-              toggle={{ value: !edileSectionExcluded(form, "page_crono"), onChange: (v) => setPageVisibility("tempi", v), label: "Mostra nel PDF" }}
+              title={t("Cronoprogramma")}
+              description={t("Le fasi tipiche del cantiere con durata indicativa.")}
+              toggle={{ value: !edileSectionExcluded(form, "page_crono"), onChange: (v) => setPageVisibility("tempi", v), label: t("Mostra nel PDF") }}
             >
               <CronoEditor
                 items={form.cronoprogramma}
@@ -1001,24 +999,24 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
 
           {/* Condizioni */}
           {activeSection === "page_condizioni" && (
-            <SectionCard icon={FileText} title="Condizioni e firma" description="Imposta pagamenti e validità, poi le clausole e il blocco di accettazione.">
+            <SectionCard icon={FileText} title={t("Condizioni e firma")} description={t("Imposta pagamenti e validità, poi le clausole e il blocco di accettazione.")}>
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Pagamenti e validità</h3>
+                <h3 className="text-sm font-semibold">{t("Pagamenti e validità")}</h3>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Modalità di pagamento</Label>
+                  <Label className="text-xs">{t("Modalità di pagamento")}</Label>
                   <RichTextEditorSafe
                     value={form.payment_terms_text ?? ""}
                     onChange={(html) => set("payment_terms_text", html)}
-                    placeholder="30% all'accettazione, 40% a metà lavori, 30% a fine lavori..."
+                    placeholder={t("30% all'accettazione, 40% a metà lavori, 30% a fine lavori...")}
                     minHeight={100}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Validità dell'offerta</Label>
+                  <Label className="text-xs">{t("Validità dell'offerta")}</Label>
                   <Input
                     value={form.validity_text ?? ""}
                     onChange={(e) => set("validity_text", e.target.value)}
-                    placeholder="Preventivo valido 30 giorni dalla data di emissione."
+                    placeholder={t("Preventivo valido 30 giorni dalla data di emissione.")}
                   />
                 </div>
 
@@ -1043,7 +1041,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
           {/* Contenuti: Esigenze / Soluzione / USP */}
           {activeSection === "contenuti" && (
             <>
-              <SectionCard icon={ListChecks} title="Esigenze tipiche" description="I problemi del cliente che il vostro intervento risolve.">
+              <SectionCard icon={ListChecks} title={t("Esigenze tipiche")} description={t("I problemi del cliente che il vostro intervento risolve.")}>
                 <ListItemsEditor
                   items={form.esigenze}
                   onChange={(items) => set("esigenze", items)}
@@ -1053,7 +1051,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
                 />
               </SectionCard>
 
-              <SectionCard icon={Sparkles} title="La nostra soluzione" description="Come affrontate il lavoro.">
+              <SectionCard icon={Sparkles} title={t("La nostra soluzione")} description={t("Come affrontate il lavoro.")}>
                 <ListItemsEditor
                   items={form.soluzione}
                   onChange={(items) => set("soluzione", items)}
@@ -1063,7 +1061,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
                 />
               </SectionCard>
 
-              <SectionCard icon={ListChecks} title="Perché sceglierci (USP)" description="I punti di forza dell'impresa.">
+              <SectionCard icon={ListChecks} title={t("Perché sceglierci (USP)")} description={t("I punti di forza dell'impresa.")}>
                 <ListItemsEditor
                   items={form.usp}
                   onChange={(items) => set("usp", items)}
@@ -1078,17 +1076,16 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
           {/* Opzioni PDF */}
           {activeSection === "opzioni" && (
             <>
-              <SectionCard icon={BadgeEuro} title="Opzioni PDF" description="Impostazioni di visibilità del documento.">
+              <SectionCard icon={BadgeEuro} title={t("Opzioni PDF")} description={t("Impostazioni di visibilità del documento.")}>
                 <div className="mb-4 space-y-1.5">
-                  <Label className="text-xs">Nota a piè di pagina</Label>
-                  <Input value={form.footer_text ?? ""} onChange={e=>set("footer_text",e.target.value)} placeholder="Testo aggiuntivo nel footer (opzionale)" />
+                  <Label className="text-xs">{t("Nota a piè di pagina")}</Label>
+                  <Input value={form.footer_text ?? ""} onChange={e=>set("footer_text",e.target.value)} placeholder={t("Testo aggiuntivo nel footer (opzionale)")} />
                 </div>
                 <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
                   <div>
-                    <p className="text-sm font-medium">Mostra i margini nel PDF</p>
+                    <p className="text-sm font-medium">{t("Mostra i margini nel PDF")}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      Visibile solo a te: stampa la marginalità per voce e capitolo. Tienilo
-                      SPENTO per i PDF da consegnare al cliente.
+                      {t("Visibile solo a te: stampa la marginalità per voce e capitolo. Tienilo SPENTO per i PDF da consegnare al cliente.")}
                     </p>
                   </div>
                   <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
@@ -1101,18 +1098,18 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
                 onChange={(v) => (set as unknown as (k: string, val: unknown) => void)("finanziamento_promo", v)}
               />
               </SectionCard>
-              <SectionCard icon={Percent} title="Default economici" description="Valori precompilati sui nuovi preventivi bagni.">
+              <SectionCard icon={Percent} title={t("Default economici")} description={t("Valori precompilati sui nuovi preventivi bagni.")}>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">IVA predefinita (%)</Label>
+                    <Label className="text-xs">{t("IVA predefinita (%)")}</Label>
                     <Input type="number" min={0} max={99} value={form.default_iva_pct ?? IVA_PREDEFINITA_PCT} onChange={(e) => set("default_iva_pct", Number(e.target.value))} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Detrazione fiscale (%)</Label>
+                    <Label className="text-xs">{t("Detrazione fiscale (%)")}</Label>
                     <Input type="number" min={0} max={100} value={form.default_detrazione_pct ?? 50} onChange={(e) => set("default_detrazione_pct", Number(e.target.value))} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Validità offerta (giorni)</Label>
+                    <Label className="text-xs">{t("Validità offerta (giorni)")}</Label>
                     <Input type="number" min={1} step={1} value={form.default_validita_giorni ?? 30} onChange={(e) => set("default_validita_giorni", Math.trunc(Number(e.target.value)))} />
                   </div>
                 </div>
@@ -1134,7 +1131,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
             onMostraGaranzie={(v) => set("show_garanzie", v)}
             contenuti={contenutiPagine}
             campoFoto={(valore, onChange) => (
-              <ImageUploadField localOnly={!!localModule} label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+              <ImageUploadField localOnly={!!localModule} label={t("Foto della pagina")} value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
             )}
           />
 
@@ -1163,7 +1160,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
         onApply={(d) => {
           applyGenerated(d);
           setReviewOpen(false);
-          toast.success("Testi applicati al template", { description: "Rivedi le singole sezioni e salva." });
+          toast.success(t("Testi applicati al template"), { description: t("Rivedi le singole sezioni e salva.") });
         }}
       />
 
@@ -1172,11 +1169,10 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-orange-500" />
-              Genera testi con AI
+              {t("Genera testi con AI")}
             </DialogTitle>
             <DialogDescription>
-              Rispondi a poche domande sulla tua impresa: l&apos;AI scrive la bozza dei testi.
-              Le risposte si salvano nel profilo vendita e si riusano in ogni modulo.
+              {t("Rispondi a poche domande sulla tua impresa: l'AI scrive la bozza dei testi. Le risposte si salvano nel profilo vendita e si riusano in ogni modulo.")}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto pr-1">
@@ -1184,7 +1180,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAiOpen(false)} disabled={aiLoading}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               type="button"
@@ -1195,12 +1191,12 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
               {aiLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generazione…
+                  {t("Generazione…")}
                 </>
               ) : (
                 <>
                   <Wand2 className="h-4 w-4" />
-                  Genera bozza
+                  {t("Genera bozza")}
                 </>
               )}
             </Button>
@@ -1212,9 +1208,9 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
       <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-4 pb-3 border-b">
-            <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
+            <DialogTitle className="text-base">{t("📷 Galleria immagini stock")}</DialogTitle>
             <DialogDescription className="text-xs">
-              {localModule ? "Immagini illustrative dedicate al modulo. Non documentano lavori aziendali e non sostituiscono il progetto del tuo bagno." : "Scegli una foto per la copertina dalla libreria locale del modulo."}
+              {localModule ? t("Immagini illustrative dedicate al modulo. Non documentano lavori aziendali e non sostituiscono il progetto del tuo bagno.") : t("Scegli una foto per la copertina dalla libreria locale del modulo.")}
             </DialogDescription>
             <div className="flex flex-wrap gap-1 pt-2">
               {COVER_STOCK_CATEGORIE.filter(cat => !localModule || cat.value === "all").map((cat) => {
@@ -1230,7 +1226,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
                     )}
                   >
                     <span>{cat.emoji}</span>
-                    {cat.label}
+                    {t(cat.label)}
                   </button>
                 );
               })}
@@ -1267,7 +1263,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
               })}
             </div>
             {stockFiltered.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-8">Nessuna immagine in questa categoria.</p>
+              <p className="text-center text-sm text-muted-foreground py-8">{t("Nessuna immagine in questa categoria.")}</p>
             )}
           </div>
         </DialogContent>
@@ -1283,6 +1279,7 @@ if (field === "subtitle") { set("pdf_cover_subhero", (value ?? "") || null); } }
 
 // ─── Color field ──────────────────────────────────────────────────────────────
 function ColorField({ label, value, onChange }: { label: string; value: string | null; onChange: (v: string) => void }) {
+  const t = useT();
   const safe = value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
   return (
     <div className="space-y-1.5">
@@ -1293,7 +1290,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string |
           value={safe}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-background p-0.5"
-          aria-label={`Colore ${label}`}
+          aria-label={t("Colore {label}", { label: String(label ?? "") })}
         />
         <Input
           value={value ?? ""}
@@ -1318,26 +1315,27 @@ interface ImageUploadFieldProps {
 }
 
 function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "aspect-[4/3]", localOnly = false }: ImageUploadFieldProps) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const handleFile = async (file: File | null) => {
     if (!file) return;
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(t("Azienda non disponibile"));
       return;
     }
     if (!ALLOWED_MIMES.has(file.type)) {
-      toast.error(`"${file.name}" non supportato`, { description: "Usa PNG, JPG o WEBP." });
+      toast.error(t("\"{name}\" non supportato", { name: String(file.name ?? "") }), { description: t("Usa PNG, JPG o WEBP.") });
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      toast.error(`"${file.name}" troppo grande`, { description: "Massimo 8 MB." });
+      toast.error(t("\"{name}\" troppo grande", { name: String(file.name ?? "") }), { description: t("Massimo 8 MB.") });
       return;
     }
     setUploading(true);
     try {
-      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta"); return; }
+      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success(t("Immagine aggiunta")); return; }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
       // folder[1] DEVE essere company_id (policy storage company-scoped).
       const path = `${companyId}/bagni/template/${crypto.randomUUID()}.${ext}`;
@@ -1345,14 +1343,14 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
         .from(BUCKET)
         .upload(path, file, { contentType: file.type, upsert: false });
       if (upErr) {
-        toast.error("Upload fallito", { description: upErr.message });
+        toast.error(t("Upload fallito"), { description: upErr.message });
         return;
       }
       const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
       onChange(pub.publicUrl);
-      toast.success("Immagine caricata");
+      toast.success(t("Immagine caricata"));
     } catch (error) {
-      toast.error("Immagine non caricata", { description: error instanceof Error ? error.message : "Riprova con un'altra immagine." });
+      toast.error(t("Immagine non caricata"), { description: error instanceof Error ? error.message : t("Riprova con un'altra immagine.") });
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";

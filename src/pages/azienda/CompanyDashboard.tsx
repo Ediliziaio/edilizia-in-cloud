@@ -17,7 +17,6 @@ import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   AlertTriangle,
   ArrowRight,
@@ -59,6 +58,8 @@ import { CaricoSettimana, caricoSettimana } from "@/components/regia/CaricoSetti
 import { Comparsa } from "@/components/charts/grafici/comune";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SegnaFinita, SpostaData } from "@/components/regia/AzioniRegia";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import type { Traduttore } from "@/lib/campo/lingua/traduttore";
 
 export default function CompanyDashboard() {
   const {
@@ -72,11 +73,11 @@ export default function CompanyDashboard() {
   return <RegiaOperativa />;
 }
 
-function quando(giorno: string): string {
+function quando(giorno: string, t: Traduttore): string {
   const d = giorniDaOggi(giorno);
-  if (d === 0) return "Oggi";
-  if (d === 1) return "Domani";
-  return format(parseISO(giorno), "EEEE d MMMM", { locale: it }).replace(
+  if (d === 0) return t("Oggi");
+  if (d === 1) return t("Domani");
+  return format(parseISO(giorno), "EEEE d MMMM", { locale: dateFnsCampo() }).replace(
     /^./,
     (c) => c.toUpperCase(),
   );
@@ -103,6 +104,7 @@ const FILTRI_AGENDA: Array<{ id: "tutti" | TipoEvento; nome: string }> = [
 ];
 
 function RegiaOperativa() {
+  const tr = useT();
   const queryClient = useQueryClient();
   const { effectiveCompany, isImpersonating, impersonatedCompanyId } =
     useAuth();
@@ -125,13 +127,13 @@ function RegiaOperativa() {
         {isImpersonating || impersonatedCompanyId ? (
           <>
             <Loader2 className="mb-4 h-8 w-8 animate-spin" />
-            <p className="font-medium text-foreground">Caricamento azienda…</p>
+            <p className="font-medium text-foreground">{tr("Caricamento azienda…")}</p>
           </>
         ) : (
           <>
             <Users className="mb-4 h-12 w-12 opacity-50" />
             <p className="font-medium text-foreground">
-              Nessuna azienda selezionata
+              {tr("Nessuna azienda selezionata")}
             </p>
           </>
         )}
@@ -141,7 +143,7 @@ function RegiaOperativa() {
 
   const aggiorna = () =>
     queryClient.invalidateQueries({ queryKey: ["regia-operativa"] });
-  const oggi = new Date().toLocaleDateString("it-IT", {
+  const oggi = new Date().toLocaleDateString(intlCampo(), {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -159,8 +161,8 @@ function RegiaOperativa() {
   if ((r.daApprovare ?? 0) > 0)
     blocchi.push({
       id: "approvare",
-      titolo: `${r.daApprovare} da approvare dal cantiere`,
-      dettaglio: "Rapportini, correzioni di timbratura e bolle in attesa",
+      titolo: tr("{n} da approvare dal cantiere", { n: r.daApprovare ?? 0 }),
+      dettaglio: tr("Rapportini, correzioni di timbratura e bolle in attesa"),
       to: "/azienda/attivita",
       grave: true,
     });
@@ -168,11 +170,11 @@ function RegiaOperativa() {
     blocchi.push({
       id: "merce",
       grave: true,
-      titolo: `${r.merceInRitardo.totale} ${r.merceInRitardo.totale === 1 ? "ordine fornitore in ritardo" : "ordini fornitore in ritardo"}`,
+      titolo: tr(r.merceInRitardo.totale === 1 ? "{n} ordine fornitore in ritardo" : "{n} ordini fornitore in ritardo", { n: r.merceInRitardo.totale }),
       dettaglio: r.merceInRitardo.voci
         .map(
           (v) =>
-            `${v.suppliers?.name || v.oda_number || "Fornitore"} (dal ${format(parseISO(v.expected_delivery_date), "d MMM", { locale: it })})`,
+            tr("{fornitore} (dal {data})", { fornitore: v.suppliers?.name || v.oda_number || tr("Fornitore"), data: format(parseISO(v.expected_delivery_date), "d MMM", { locale: dateFnsCampo() }) }),
         )
         .join(" · "),
       to: "/azienda/ordini?tab=acquisto",
@@ -182,23 +184,23 @@ function RegiaOperativa() {
   if (r.cantieriInRitardo > 0)
     blocchi.push({
       id: "ritardo",
-      titolo: `${r.cantieriInRitardo} ${r.cantieriInRitardo === 1 ? "cantiere oltre la fine lavori" : "cantieri oltre la fine lavori"}`,
-      dettaglio: "Aggiorna la fase o sposta la data",
+      titolo: tr(r.cantieriInRitardo === 1 ? "{n} cantiere oltre la fine lavori" : "{n} cantieri oltre la fine lavori", { n: r.cantieriInRitardo }),
+      dettaglio: tr("Aggiorna la fase o sposta la data"),
       to: "/azienda/ordini",
       grave: false,
     });
   if ((r.documentiDaConfermare ?? 0) > 0)
     blocchi.push({
       id: "documenti",
-      titolo: `${r.documentiDaConfermare} ${r.documentiDaConfermare === 1 ? "documento dalle email da confermare" : "documenti dalle email da confermare"}`,
-      dettaglio: "Fatture e bolle lette dagli allegati",
+      titolo: tr(r.documentiDaConfermare === 1 ? "{n} documento dalle email da confermare" : "{n} documenti dalle email da confermare", { n: r.documentiDaConfermare ?? 0 }),
+      dettaglio: tr("Fatture e bolle lette dagli allegati"),
       to: "/azienda/email/documenti",
       grave: false,
     });
   if (r.numeri.ticket > 0)
     blocchi.push({
       id: "ticket",
-      titolo: `${r.numeri.ticket} ${r.numeri.ticket === 1 ? "richiesta di assistenza aperta" : "richieste di assistenza aperte"}`,
+      titolo: tr(r.numeri.ticket === 1 ? "{n} richiesta di assistenza aperta" : "{n} richieste di assistenza aperte", { n: r.numeri.ticket }),
       dettaglio: "Clienti in attesa di una risposta",
       to: "/azienda/assistenza",
       grave: false,
@@ -226,11 +228,11 @@ function RegiaOperativa() {
         <div className="min-w-0">
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <LayoutDashboard className="h-3.5 w-3.5" />
-            <span>Dashboard Operativa</span>
-            <DashboardSelectorBar title="Dashboard Operativa" soloSelettore />
+            <span>{tr("Dashboard Operativa")}</span>
+            <DashboardSelectorBar title={tr("Dashboard Operativa")} soloSelettore />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Panoramica operativa
+            {tr("Panoramica operativa")}
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {effectiveCompany.name} ·{" "}
@@ -244,8 +246,8 @@ function RegiaOperativa() {
             size="icon"
             className="h-8 w-8 bg-card"
             onClick={aggiorna}
-            aria-label="Aggiorna"
-            title="Aggiorna dati"
+            aria-label={tr("Aggiorna")}
+            title={tr("Aggiorna dati")}
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
@@ -257,12 +259,11 @@ function RegiaOperativa() {
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
         >
-          Non riesco a caricare una parte della regia. Riprova con il tasto
-          aggiorna.
+          {tr("Non riesco a caricare una parte della regia. Riprova con il tasto aggiorna.")}
         </p>
       )}
 
-      <section aria-label="Riepilogo operativo">
+      <section aria-label={tr("Riepilogo operativo")}>
         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
           <span />
           {(permissions.isAdmin || permissions.canViewCruscotto) && (
@@ -270,7 +271,7 @@ function RegiaOperativa() {
               to="/azienda/cruscotto/aziendale"
               className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary"
             >
-              Cruscotto Economico <ArrowUpRight className="h-3.5 w-3.5" />
+              {tr("Cruscotto Economico")} <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           )}
         </div>
@@ -287,33 +288,33 @@ function RegiaOperativa() {
                   buona o una cattiva notizia. Il colore resta per l'assistenza,
                   dove un numero sopra zero è qualcuno che aspetta. */}
               <RiquadroNumero
-                etichetta="Lavori programmati"
+                etichetta={tr("Lavori programmati")}
                 tendenza={perGiornoTipo("lavoro")}
-                etichettaTendenza="Lavori programmati, giorno per giorno nei prossimi 7 giorni"
+                etichettaTendenza={tr("Lavori programmati, giorno per giorno nei prossimi 7 giorni")}
                 valore={String(r.numeri.lavori)}
-                periodo="Prossimi 7 giorni"
+                periodo={tr("Prossimi 7 giorni")}
                 to="/azienda/calendario"
               />
               <RiquadroNumero
-                etichetta="Consegne in arrivo"
+                etichetta={tr("Consegne in arrivo")}
                 tendenza={perGiornoTipo("merce")}
-                etichettaTendenza="Consegne in arrivo, giorno per giorno nei prossimi 7 giorni"
+                etichettaTendenza={tr("Consegne in arrivo, giorno per giorno nei prossimi 7 giorni")}
                 valore={String(r.numeri.merce)}
-                periodo="Prossimi 7 giorni"
+                periodo={tr("Prossimi 7 giorni")}
                 to="/azienda/ordini-acquisto"
               />
               <RiquadroNumero
-                etichetta="Appuntamenti"
+                etichetta={tr("Appuntamenti")}
                 tendenza={perGiornoTipo("appuntamento")}
-                etichettaTendenza="Appuntamenti, giorno per giorno nei prossimi 7 giorni"
+                etichettaTendenza={tr("Appuntamenti, giorno per giorno nei prossimi 7 giorni")}
                 valore={String(r.numeri.appuntamenti)}
-                periodo="Prossimi 7 giorni"
+                periodo={tr("Prossimi 7 giorni")}
                 to="/azienda/calendario"
               />
               <RiquadroNumero
-                etichetta="Assistenza aperta"
+                etichetta={tr("Assistenza aperta")}
                 valore={String(r.numeri.ticket)}
-                periodo="A oggi"
+                periodo={tr("A oggi")}
                 tono={r.numeri.ticket > 0 ? "attenzione" : "buono"}
                 to="/azienda/assistenza"
               />
@@ -328,21 +329,21 @@ function RegiaOperativa() {
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <CardTitle className="text-base font-semibold">
-                Agenda dei prossimi giorni
+                {tr("Agenda dei prossimi giorni")}
               </CardTitle>
             </div>
             <Link
               to="/azienda/calendario"
               className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary/5 px-2.5 py-2 text-xs font-medium text-primary hover:bg-primary/10"
             >
-              Calendario <ArrowRight className="h-3 w-3" />
+              {tr("Calendario")} <ArrowRight className="h-3 w-3" />
             </Link>
           </CardHeader>
           <CardContent className="pt-0">
             <div
               className="mb-4 mt-2 flex flex-wrap gap-1 rounded-lg bg-muted/70 p-1"
               role="group"
-              aria-label="Tipo di evento in agenda"
+              aria-label={tr("Tipo di evento in agenda")}
             >
               {FILTRI_AGENDA.map((f) => (
                 <button
@@ -360,7 +361,7 @@ function RegiaOperativa() {
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {f.nome}
+                  {tr(f.nome)}
                 </button>
               ))}
             </div>
@@ -371,13 +372,13 @@ function RegiaOperativa() {
                 <CalendarDays className="mb-1 h-7 w-7 text-muted-foreground/50" />
                 <p className="text-sm font-medium text-muted-foreground">
                   {filtroAgenda === "tutti"
-                    ? "Niente in programma"
-                    : "Nessun evento di questo tipo"}
+                    ? tr("Niente in programma")
+                    : tr("Nessun evento di questo tipo")}
                 </p>
                 <p className="max-w-xs text-xs text-muted-foreground">
                   {filtroAgenda === "tutti"
-                    ? "I lavori, le consegne e gli appuntamenti compariranno qui."
-                    : "Scegli un altro filtro o apri il calendario completo."}
+                    ? tr("I lavori, le consegne e gli appuntamenti compariranno qui.")
+                    : tr("Scegli un altro filtro o apri il calendario completo.")}
                 </p>
               </div>
             ) : (
@@ -385,11 +386,11 @@ function RegiaOperativa() {
                 {[...perGiorno.entries()].map(([g, eventi]) => (
                   <div key={g}>
                     <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                      <span>{quando(g)}</span>
+                      <span>{quando(g, tr)}</span>
                       <span className="h-px flex-1 bg-muted" />
                       <span className="font-normal">
                         {eventi.length < (totaliPerGiorno.get(g) ?? 0)
-                          ? `${eventi.length} di ${totaliPerGiorno.get(g)} eventi`
+                          ? tr("{n} di {totale} eventi", { n: eventi.length, totale: totaliPerGiorno.get(g) ?? 0 })
                           : `${eventi.length} ${eventi.length === 1 ? "evento" : "eventi"}`}
                       </span>
                     </p>
@@ -446,17 +447,14 @@ function RegiaOperativa() {
                   </div>
                 ))}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">
-                  <span className="text-xs text-muted-foreground">
-                    {Math.min(eventiFiltrati.length, limiteAgenda)} di{" "}
-                    {eventiFiltrati.length} eventi
-                  </span>
+                  <span className="text-xs text-muted-foreground">{tr("{n} di {totale} eventi", { n: Math.min(eventiFiltrati.length, limiteAgenda), totale: eventiFiltrati.length })}</span>
                   {eventiFiltrati.length > EVENTI_ANTEPRIMA && !agendaEstesa ? (
                     <button
                       type="button"
                       onClick={() => setAgendaEstesa(true)}
                       className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
-                      Mostra altri eventi{" "}
+                      {tr("Mostra altri eventi")}{" "}
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                   ) : agendaEstesa ? (
@@ -465,7 +463,7 @@ function RegiaOperativa() {
                       onClick={() => setAgendaEstesa(false)}
                       className="text-xs font-medium text-primary hover:underline"
                     >
-                      Mostra meno
+                      {tr("Mostra meno")}
                     </button>
                   ) : null}
                   {agendaEstesa && eventiFiltrati.length > 24 && (
@@ -473,7 +471,7 @@ function RegiaOperativa() {
                       to="/azienda/calendario"
                       className="text-xs font-medium text-primary hover:underline"
                     >
-                      Tutti gli eventi nel calendario
+                      {tr("Tutti gli eventi nel calendario")}
                     </Link>
                   )}
                 </div>
@@ -488,7 +486,7 @@ function RegiaOperativa() {
             <Comparsa indice={2}>
               <Card className="overflow-hidden rounded-xl border shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">Carico dei prossimi 7 giorni</CardTitle>
+                  <CardTitle className="text-base font-semibold">{tr("Carico dei prossimi 7 giorni")}</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <CaricoSettimana giorni={settimana} />
@@ -500,16 +498,14 @@ function RegiaOperativa() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base font-semibold">
-                  Da sbloccare
+                  {tr("Da sbloccare")}
                 </CardTitle>
                 {!r.isLoading && blocchi.length > 0 && (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
-                    {blocchi.length} aree
-                  </span>
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">{tr("{n} aree", { n: blocchi.length })}</span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Le situazioni che richiedono attenzione.
+                {tr("Le situazioni che richiedono attenzione.")}
               </p>
             </CardHeader>
             <CardContent className="pt-0">
@@ -517,8 +513,7 @@ function RegiaOperativa() {
                 <Skeleton className="h-28 w-full" />
               ) : blocchi.length === 0 ? (
                 <p className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Niente
-                  di fermo.
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {tr("Niente di fermo.")}
                 </p>
               ) : (
                 <ul className="space-y-2">
@@ -555,9 +550,7 @@ function RegiaOperativa() {
                       </Link>
                       {b.voci && (
                         <details className="pb-2 pl-7">
-                          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                            Mostra i primi {b.voci.length} ordini
-                          </summary>
+                          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">{tr("Mostra i primi {n} ordini", { n: b.voci.length })}</summary>
                           <ul className="mt-2 space-y-1">
                             {b.voci.map((v) => (
                               <li
@@ -567,20 +560,20 @@ function RegiaOperativa() {
                                 <Link
                                   to={`/azienda/ordini-acquisto/${v.id}`}
                                   className="min-w-0 flex-1 truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
-                                  title="Apri l'ordine per registrare l'arrivo"
+                                  title={tr("Apri l'ordine per registrare l'arrivo")}
                                 >
                                   {v.suppliers?.name ||
                                     v.oda_number ||
-                                    "Fornitore"}{" "}
-                                  · atteso il{" "}
+                                    tr("Fornitore")}{" "}
+                                  {tr("· atteso il")}{" "}
                                   {format(
                                     parseISO(v.expected_delivery_date),
                                     "d MMM",
-                                    { locale: it },
+                                    { locale: dateFnsCampo() },
                                   )}
                                 </Link>
                                 <SpostaData
-                                  etichetta="Sposta l'arrivo"
+                                  etichetta={tr("Sposta l'arrivo")}
                                   attuale={v.expected_delivery_date}
                                   inCorso={
                                     azioni.spostaArrivo.isPending &&
@@ -607,22 +600,22 @@ function RegiaOperativa() {
           </Card>
         </div>
       </div>
-      <section aria-label="Commesse da seguire">
+      <section aria-label={tr("Commesse da seguire")}>
         <Card className="overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
             <div>
               <CardTitle className="text-base font-semibold">
-                Commesse da seguire
+                {tr("Commesse da seguire")}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                Prima le scadenze superate, poi i prossimi lavori.
+                {tr("Prima le scadenze superate, poi i prossimi lavori.")}
               </p>
             </div>
             <Link
               to="/azienda/ordini"
               className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
             >
-              Commesse <ArrowRight className="h-3 w-3" />
+              {tr("Commesse")} <ArrowRight className="h-3 w-3" />
             </Link>
           </CardHeader>
           <CardContent className="pt-0">
@@ -630,7 +623,7 @@ function RegiaOperativa() {
               <Skeleton className="h-40 w-full" />
             ) : r.daSeguire.length === 0 ? (
               <p className="py-3 text-sm text-muted-foreground">
-                Nessuna commessa aperta con lavori in programma.
+                {tr("Nessuna commessa aperta con lavori in programma.")}
               </p>
             ) : (
               <ul className="divide-y divide-border/60">
@@ -645,11 +638,11 @@ function RegiaOperativa() {
                           {c.cliente || c.codice}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {c.cliente ? c.codice : "Commessa"}
+                          {c.cliente ? c.codice : tr("Commessa")}
                         </span>
                       </span>
                       <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">
-                        {c.fase || "Fase non indicata"}
+                        {c.fase || tr("Fase non indicata")}
                       </span>
                       <span
                         className={cn(
@@ -660,16 +653,16 @@ function RegiaOperativa() {
                         )}
                       >
                         {c.ritardo !== null
-                          ? `${c.ritardo} ${c.ritardo === 1 ? "giorno" : "gg"} di ritardo`
+                          ? tr(c.ritardo === 1 ? "{n} giorno di ritardo" : "{n} gg di ritardo", { n: c.ritardo })
                           : c.prossima
-                            ? quando(c.prossima)
+                            ? quando(c.prossima, tr)
                             : ""}
                       </span>
                     </Link>
                     {puoModificare && c.ritardo !== null && (
                       <>
                         <SpostaData
-                          etichetta="Sposta la fine lavori"
+                          etichetta={tr("Sposta la fine lavori")}
                           attuale={c.scadenza}
                           inCorso={
                             azioni.spostaFineLavori.isPending &&

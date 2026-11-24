@@ -2,7 +2,7 @@ import * as React from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useLinguaCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -19,23 +19,25 @@ export type CalendarProps = React.ComponentProps<typeof DayPicker>;
  * Su mobile i giorni sono 40px (esclusi dal min-44 globale in index.css
  * per non far sovrapporre le celle della griglia 7×).
  */
-function Calendar({ className, classNames, showOutsideDays = true, locale = it, labels, ...props }: CalendarProps) {
-  const effectiveLocale = React.useMemo(() => ({ ...it, ...locale, options: { ...it.options, ...locale?.options } }), [locale]);
+function Calendar({ className, classNames, showOutsideDays = true, locale, labels, ...props }: CalendarProps) {
+  // La lingua di chi guarda (fuori dall'area con le lingue: italiano); chi passa `locale` la sovrascrive.
+  const { t, localeDateFns: base } = useLinguaCampo();
+  const effectiveLocale = React.useMemo(() => ({ ...base, ...locale, options: { ...base.options, ...locale?.options } }), [base, locale]);
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
       locale={effectiveLocale}
       labels={{
-        labelNav: () => "Navigazione calendario",
-        labelPrevious: () => "Mese precedente",
-        labelNext: () => "Mese successivo",
-        labelMonthDropdown: () => "Scegli il mese",
-        labelYearDropdown: () => "Scegli l’anno",
-        labelWeekNumber: (week) => `Settimana ${week}`,
+        labelNav: () => t("Navigazione calendario"),
+        labelPrevious: () => t("Mese precedente"),
+        labelNext: () => t("Mese successivo"),
+        labelMonthDropdown: () => t("Scegli il mese"),
+        labelYearDropdown: () => t("Scegli l’anno"),
+        labelWeekNumber: (week) => t("Settimana {n}", { n: week }),
         labelDayButton: (date, modifiers, _options, dateLib) => [
           dateLib ? dateLib.format(date, "PPPP") : format(date, "PPPP", { locale: effectiveLocale }),
-          modifiers.today && "oggi",
-          modifiers.selected && "selezionato",
+          modifiers.today && t("oggi"),
+          modifiers.selected && t("selezionato"),
         ].filter(Boolean).join(", "),
         ...labels,
       }}

@@ -21,6 +21,7 @@ import { IDEE_PRONTE } from "@/modules/render-stanza/lib/ideePronte";
 import { avviaRenderStanza } from "@/lib/planimetrie/render/renderInSerie";
 import { chiaviRenderPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   documento: Planimetria;
@@ -57,6 +58,7 @@ async function pngDaSvg(svg: string, larghezza = 1800): Promise<Uint8Array> {
 }
 
 export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livelloId, propostaId, contactId, sola = false, prezzi = true, creaPreventivo = true }: Props) {
+  const tr = useT();
   const [preventivo, setPreventivo] = useState(false);
   // Avanzamento: i lavori spuntati come fatti (bozza finché non si salva)
   const salva = useSalvaVersionePlanimetria();
@@ -109,9 +111,9 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
       a.download = `${titolo.replace(/[^\w-]+/g, "-").toLowerCase() || "pianta"}-prima-e-dopo.pdf`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      toast.success("PDF prima e dopo pronto");
+      toast.success(tr("PDF prima e dopo pronto"));
     } catch (e) {
-      toast.error("PDF non creato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("PDF non creato"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setPdfInCorso(false);
     }
@@ -121,7 +123,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
   const renderPrimaEDopo = async () => {
     const l = stanzeProgetto.find((x) => x.id === stanzaScelta);
     if (!l || !effectiveCompany?.id || !user?.id) return;
-    if (!window.confirm(`Due render di «${l.nome}»: com'è oggi e con il progetto. Costano 2 crediti render. Procedo?`)) return;
+    if (!window.confirm(tr("Due render di «{nome}»: com'è oggi e con il progetto. Costano 2 crediti render. Procedo?", { nome: String(l.nome ?? "") }))) return;
     setRenderInCorso(true);
     try {
       const base = { companyId: effectiveCompany.id, userId: user.id, planimetriaId, versione, documento, livelloId: livello.id };
@@ -130,11 +132,11 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
       const ideaDopo = IDEE_PRONTE.find((i) => i.id === idea) ?? IDEE_PRONTE[0];
       if (oggi) await avviaRenderStanza({ ...base, ambito: "fatto", nota: "Com'è oggi, senza lavori." }, { chiave: `${l.id}:prima`, localeId: l.id, localeNome: l.nome, idea: ideaOggi });
       await avviaRenderStanza({ ...base, ambito: `progetto:${proposta.id}` }, { chiave: `${l.id}:dopo`, localeId: l.id, localeNome: l.nome, idea: ideaDopo });
-      toast.success(oggi ? "Render prima e dopo avviati" : "Render del progetto avviato (la stanza oggi non c'è)", { description: "Compaiono in fondo alla pagina fra un paio di minuti." });
+      toast.success(oggi ? tr("Render prima e dopo avviati") : tr("Render del progetto avviato (la stanza oggi non c'è)"), { description: tr("Compaiono in fondo alla pagina fra un paio di minuti.") });
       queryClient.invalidateQueries({ queryKey: chiaviRenderPianta.dellaPianta(planimetriaId) });
       queryClient.invalidateQueries({ queryKey: ["render-credits", effectiveCompany.id] });
     } catch (e) {
-      toast.error("Render non avviati", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Render non avviati"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setRenderInCorso(false);
     }
@@ -150,9 +152,9 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
     try {
       await salva.mutateAsync({ planimetriaId, documento: { ...documento, lavoriFatti }, origine: "manuale", nota: `Avanzamento lavori ${av.percento}%`, versioneAttesa: versione });
       setFattiBozza(null);
-      toast.success(`Avanzamento salvato: ${av.percento}%`);
+      toast.success(tr("Avanzamento salvato: {percento}%", { percento: String(av.percento ?? "") }));
     } catch (e) {
-      toast.error("Avanzamento non salvato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Avanzamento non salvato"), { description: e instanceof Error ? e.message : String(e) });
     }
   };
 
@@ -162,19 +164,19 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Prima e dopo</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{tr("Prima e dopo")}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <ToggleGroup type="single" value={modo} onValueChange={(v) => v && setModo(v as typeof modo)} variant="outline" size="sm">
-            <ToggleGroupItem value="cursore">Cursore</ToggleGroupItem>
-            <ToggleGroupItem value="affiancate">Affiancate</ToggleGroupItem>
+            <ToggleGroupItem value="cursore">{tr("Cursore")}</ToggleGroupItem>
+            <ToggleGroupItem value="affiancate">{tr("Affiancate")}</ToggleGroupItem>
           </ToggleGroup>
           {prezzi && <Button size="sm" variant="outline" onClick={scaricaPdf} disabled={pdfInCorso}>
             {pdfInCorso ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-            PDF prima e dopo
+            {tr("PDF prima e dopo")}
           </Button>}
           {creaPreventivo && prezzi && <Button size="sm" onClick={() => setPreventivo(true)} disabled={!lavori || lavori.totale <= 0}>
             <FileText className="mr-1.5 h-4 w-4" />
-            Crea il preventivo
+            {tr("Crea il preventivo")}
           </Button>}
         </div>
       </div>
@@ -186,7 +188,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
           onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); muovi(e.clientX); }}
           onPointerMove={(e) => { if (e.buttons) muovi(e.clientX); }}
           role="slider"
-          aria-label="Confronto com'è oggi e progetto"
+          aria-label={tr("Confronto com'è oggi e progetto")}
           aria-valuenow={Math.round(taglio)}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -194,16 +196,16 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
           onKeyDown={(e) => { if (e.key === "ArrowLeft") setTaglio((t) => Math.max(0, t - 5)); if (e.key === "ArrowRight") setTaglio((t) => Math.min(100, t + 5)); }}
         >
           <img src={svgUrl(piante[1])} alt={`${proposta.nome}`} className="block w-full" draggable={false} />
-          <img src={svgUrl(piante[0])} alt="Com'è oggi" className="absolute inset-0 block w-full" style={{ clipPath: `inset(0 ${100 - taglio}% 0 0)` }} draggable={false} />
+          <img src={svgUrl(piante[0])} alt={tr("Com'è oggi")} className="absolute inset-0 block w-full" style={{ clipPath: `inset(0 ${100 - taglio}% 0 0)` }} draggable={false} />
           <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-primary" style={{ left: `${taglio}%` }}>
             <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-2 py-1 text-[11px] font-medium text-white shadow">◀ ▶</div>
           </div>
-          <span className="pointer-events-none absolute left-2 top-2 rounded bg-white/90 px-2 py-0.5 text-xs font-medium shadow-sm">Com'è oggi</span>
+          <span className="pointer-events-none absolute left-2 top-2 rounded bg-white/90 px-2 py-0.5 text-xs font-medium shadow-sm">{tr("Com'è oggi")}</span>
           <span className="pointer-events-none absolute right-2 top-2 rounded bg-white/90 px-2 py-0.5 text-xs font-medium text-red-700 shadow-sm">{proposta.nome}</span>
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {([["Com'è oggi", piante[0]], [proposta.nome, piante[1]]] as const).map(([t, svg]) => (
+          {([[tr("Com'è oggi"), piante[0]], [proposta.nome, piante[1]]] as const).map(([t, svg]) => (
             <Card key={t} className="overflow-hidden">
               <p className="border-b px-3 py-1.5 text-xs font-medium">{t}</p>
               <img src={svgUrl(svg)} alt={t} className="block w-full bg-white" />
@@ -211,21 +213,21 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
           ))}
         </div>
       )}
-      <p className="text-xs text-muted-foreground">In giallo ciò che si demolisce, in rosso ciò che si costruisce. Trascina il cursore per confrontare.</p>
+      <p className="text-xs text-muted-foreground">{tr("In giallo ciò che si demolisce, in rosso ciò che si costruisce. Trascina il cursore per confrontare.")}</p>
 
       <Card>
         <CardContent className="space-y-2 p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold">Lavori stanza per stanza</p>
-            {prezzi && <p className="text-sm">Totale di massima <span className="font-semibold">{eur(lavori.totale)}</span> <span className="text-xs text-muted-foreground">IVA esclusa</span></p>}
+            <p className="text-sm font-semibold">{tr("Lavori stanza per stanza")}</p>
+            {prezzi && <p className="text-sm">{tr("Totale di massima")} <span className="font-semibold">{eur(lavori.totale)}</span> <span className="text-xs text-muted-foreground">{tr("IVA esclusa")}</span></p>}
           </div>
           {lavori.stanze.length > 0 && (
             <div className="space-y-1">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span>Lavori fatti: <span className="font-semibold">{av.percento}%</span>{prezzi && <> ({eur(av.eseguito)} di {eur(lavori.totale)})</>}</span>
+                <span>{tr("Lavori fatti:")} <span className="font-semibold">{av.percento}%</span>{prezzi && <>{" "}{tr("({eseguito} di {totale})", { eseguito: String(eur(av.eseguito) ?? ""), totale: String(eur(lavori.totale) ?? "") })}</>}</span>
                 {fattiBozza && !sola && (
                   <Button size="sm" variant="outline" className="h-7" onClick={salvaAvanzamento} disabled={salva.isPending}>
-                    {salva.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Salva l'avanzamento
+                    {salva.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}{tr("Salva l'avanzamento")}
                   </Button>
                 )}
               </div>
@@ -233,24 +235,24 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
             </div>
           )}
           {lavori.stanze.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Il progetto non cambia niente rispetto a oggi: disegna demolizioni, pareti nuove o impianti nella proposta.</p>
+            <p className="text-sm text-muted-foreground">{tr("Il progetto non cambia niente rispetto a oggi: disegna demolizioni, pareti nuove o impianti nella proposta.")}</p>
           ) : (
             <ul className="divide-y">
               {lavori.stanze.map((s) => (
                 <li key={s.stanza}>
                   <button type="button" className="flex w-full items-center justify-between gap-2 py-2 text-left text-sm" onClick={() => apri(s.stanza)} aria-expanded={aperte.has(s.stanza)}>
-                    <span className="font-medium">{s.stanza} <span className="text-xs font-normal text-muted-foreground">· {s.lavori.length} {s.lavori.length === 1 ? "lavoro" : "lavori"}</span></span>
-                    <span className="flex items-center gap-2 tabular-nums">{(() => { const a = av.stanze.find((x) => x.stanza === s.stanza); return a && a.fatti > 0 ? <span className="text-xs text-emerald-700">{a.percento}% fatto</span> : null; })()}{eur(s.totale)}<ChevronDown className={`h-4 w-4 transition-transform ${aperte.has(s.stanza) ? "rotate-180" : ""}`} /></span>
+                    <span className="font-medium">{s.stanza} <span className="text-xs font-normal text-muted-foreground">· {tr(s.lavori.length === 1 ? "{n} lavoro" : "{n} lavori", { n: s.lavori.length })}</span></span>
+                    <span className="flex items-center gap-2 tabular-nums">{(() => { const a = av.stanze.find((x) => x.stanza === s.stanza); return a && a.fatti > 0 ? <span className="text-xs text-emerald-700">{tr("{percento}% fatto", { percento: String(a.percento ?? "") })}</span> : null; })()}{eur(s.totale)}<ChevronDown className={`h-4 w-4 transition-transform ${aperte.has(s.stanza) ? "rotate-180" : ""}`} /></span>
                   </button>
                   {aperte.has(s.stanza) && (
                     <table className="mb-2 w-full text-xs">
                       <tbody>
                         {s.lavori.map((l, i) => (
                           <tr key={i} className="border-t">
-                            <td className="w-6 py-1"><Checkbox disabled={sola} checked={fatti.has(chiaveLavoro(s.stanza, l))} onCheckedChange={(v) => spunta(chiaveLavoro(s.stanza, l), !!v)} aria-label="Fatto" /></td>
+                            <td className="w-6 py-1"><Checkbox disabled={sola} checked={fatti.has(chiaveLavoro(s.stanza, l))} onCheckedChange={(v) => spunta(chiaveLavoro(s.stanza, l), !!v)} aria-label={tr("Fatto")} /></td>
                             <td className={`py-1 pr-2 ${fatti.has(chiaveLavoro(s.stanza, l)) ? "text-muted-foreground line-through" : ""}`}>{l.descrizione}<span className="ml-1 text-muted-foreground">({nomeGenere(l.genere)})</span></td>
                             <td className="whitespace-nowrap py-1 pr-2 text-right tabular-nums">{scriviQuantita(l)}</td>
-                            <td className="whitespace-nowrap py-1 text-right tabular-nums">{!prezzi ? "" : l.prezzo == null ? "a parte" : eur(l.importo)}</td>
+                            <td className="whitespace-nowrap py-1 text-right tabular-nums">{!prezzi ? "" : l.prezzo == null ? tr("a parte") : eur(l.importo)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -260,26 +262,26 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
               ))}
             </ul>
           )}
-          <p className="text-[11px] text-muted-foreground">Prezzi indicativi di mercato, per dare l'ordine di grandezza. Quelli veri si scrivono nel computo, dove le voci restano legate alla pianta.</p>
+          <p className="text-[11px] text-muted-foreground">{tr("Prezzi indicativi di mercato, per dare l'ordine di grandezza. Quelli veri si scrivono nel computo, dove le voci restano legate alla pianta.")}</p>
         </CardContent>
       </Card>
 
       {stanzeProgetto.length > 0 && (
         <Card>
           <CardContent className="flex flex-wrap items-center gap-2 p-4">
-            <p className="w-full text-sm font-semibold">Render AI prima e dopo</p>
-            <p className="w-full text-xs text-muted-foreground">La stessa stanza, dalla stessa inquadratura: com'è oggi e con il progetto, nello stile scelto.</p>
+            <p className="w-full text-sm font-semibold">{tr("Render AI prima e dopo")}</p>
+            <p className="w-full text-xs text-muted-foreground">{tr("La stessa stanza, dalla stessa inquadratura: com'è oggi e con il progetto, nello stile scelto.")}</p>
             <Select value={stanzaScelta} onValueChange={setStanzaRender}>
-              <SelectTrigger className="h-9 w-52" aria-label="Stanza"><SelectValue placeholder="Stanza" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-52" aria-label={tr("Stanza")}><SelectValue placeholder={tr("Stanza")} /></SelectTrigger>
               <SelectContent>{stanzeProgetto.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={idea} onValueChange={setIdea}>
-              <SelectTrigger className="h-9 w-52" aria-label="Stile del progetto"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-52" aria-label={tr("Stile del progetto")}><SelectValue /></SelectTrigger>
               <SelectContent>{IDEE_PRONTE.map((i) => <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>)}</SelectContent>
             </Select>
             <Button size="sm" className="gap-1.5 bg-primary hover:bg-primary/90" onClick={renderPrimaEDopo} disabled={renderInCorso || !stanzaScelta}>
               {renderInCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Render prima e dopo (2 crediti)
+              {tr("Render prima e dopo (2 crediti)")}
             </Button>
           </CardContent>
         </Card>

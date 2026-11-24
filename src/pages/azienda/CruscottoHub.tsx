@@ -72,6 +72,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Ruoli ───────────────────────────────────────────────────────────────────
 const ALL_ROLES: Array<{ role: AppRole; label: string; color: string }> = [
@@ -183,6 +184,7 @@ function CreationOverlay({
   dashboards: DashboardListItem[];
   isAdmin: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const [step, setStep]             = useState<CreateStep>("source");
   const [source, setSource]         = useState<CreateSource>("blank");
@@ -225,7 +227,7 @@ function CreationOverlay({
         const original = source === "clone" && pickedClone
           ? await getDashboard(pickedClone.id)
           : null;
-        if (source === "clone" && !original) throw new Error("Seleziona una dashboard da clonare.");
+        if (source === "clone" && !original) throw new Error(t("Seleziona una dashboard da clonare."));
         const result = await saveDash.mutateAsync({
           name, scope,
           layout: original ? original.version.layout : { widgets: [] },
@@ -233,7 +235,7 @@ function CreationOverlay({
         });
         newId = result.dashboard_id;
       }
-      toast.success(`Dashboard "${name}" creata`);
+      toast.success(t("Dashboard \"{nome}\" creata", { nome: String(name ?? "") }));
       reset();
       onClose();
       navigate(`/azienda/dashboards/${newId}/modifica`);
@@ -252,8 +254,8 @@ function CreationOverlay({
       {/* Full-page overlay */}
       <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
       <DialogContent {...focusReturn} className="fixed inset-0 top-0 left-0 translate-x-0 translate-y-0 z-50 bg-white flex flex-col w-screen max-w-none sm:max-w-none h-dvh max-h-none rounded-none sm:rounded-none border-0 p-0 gap-0 [&>button]:hidden">
-        <DialogTitle className="sr-only">Nuova dashboard</DialogTitle>
-        <DialogDescription className="sr-only">Scegli la fonte della nuova dashboard.</DialogDescription>
+        <DialogTitle className="sr-only">{t("Nuova dashboard")}</DialogTitle>
+        <DialogDescription className="sr-only">{t("Scegli la fonte della nuova dashboard.")}</DialogDescription>
         {/* Top bar */}
         <div className="flex items-center h-12 px-6 border-b shrink-0">
           <button
@@ -261,12 +263,12 @@ function CreationOverlay({
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Indietro
+            {t("Indietro")}
           </button>
           <p className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-foreground pointer-events-none">
-            Nuova dashboard
+            {t("Nuova dashboard")}
           </p>
-          <button aria-label="Chiudi creazione dashboard" onClick={handleClose} className="ml-auto p-1.5 rounded-md hover:bg-muted transition-colors">
+          <button aria-label={t("Chiudi creazione dashboard")} onClick={handleClose} className="ml-auto p-1.5 rounded-md hover:bg-muted transition-colors">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
@@ -276,9 +278,9 @@ function CreationOverlay({
           <div className="flex-1 overflow-auto bg-[#f8f9fb]">
             <div className="max-w-3xl mx-auto px-6 py-10">
               <div className="mb-8">
-                <h2 className="text-base font-semibold text-foreground">Fonte della dashboard</h2>
+                <h2 className="text-base font-semibold text-foreground">{t("Fonte della dashboard")}</h2>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  Seleziona una dashboard vuota per iniziare da zero o scegli da un modello.
+                  {t("Seleziona una dashboard vuota per iniziare da zero o scegli da un modello.")}
                 </p>
               </div>
 
@@ -286,20 +288,20 @@ function CreationOverlay({
                 {[
                   {
                     id: "blank" as const,
-                    title: "Crea una dashboard vuota",
-                    desc: "Inizia da zero con una lavagna pulita",
+                    title: t("Crea una dashboard vuota"),
+                    desc: t("Inizia da zero con una lavagna pulita"),
                     illus: <IlluBlank />,
                   },
                   {
                     id: "template" as const,
-                    title: "Dalla Libreria di modelli",
-                    desc: "Usa un modello già pronto dalla libreria o uno dei tuoi",
+                    title: t("Dalla Libreria di modelli"),
+                    desc: t("Usa un modello già pronto dalla libreria o uno dei tuoi"),
                     illus: <IlluTemplate />,
                   },
                   {
                     id: "clone" as const,
-                    title: "Clona dashboard esistente",
-                    desc: "Crea un clone della tua dashboard attuale",
+                    title: t("Clona dashboard esistente"),
+                    desc: t("Crea un clone della tua dashboard attuale"),
                     illus: <IlluClone />,
                   },
                 ].map((src) => (
@@ -331,7 +333,7 @@ function CreationOverlay({
                           else setNameOpen(true);
                         }}
                       >
-                        Seleziona
+                        {t("Seleziona")}
                       </Button>
                     </div>
                   </div>
@@ -401,6 +403,7 @@ const STANDARD_DASHBOARDS = [
 
 // ─── Standard dashboard card (pre-costruita, navigate diretta) ───────────────
 function StandardDashboardCard({ dash }: { dash: (typeof STANDARD_DASHBOARDS)[number] }) {
+  const t = useT();
   const navigate = useNavigate();
   const [permOpen, setPermOpen] = useState(false);
   const Icon = dash.icon;
@@ -423,7 +426,7 @@ function StandardDashboardCard({ dash }: { dash: (typeof STANDARD_DASHBOARDS)[nu
               type="button"
               onClick={(e) => { e.stopPropagation(); setPermOpen(true); }}
               className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-colors"
-              title="Permessi dashboard"
+              title={t("Permessi dashboard")}
             >
               <Settings2 className="h-3.5 w-3.5" />
             </button>
@@ -437,7 +440,7 @@ function StandardDashboardCard({ dash }: { dash: (typeof STANDARD_DASHBOARDS)[nu
           >
             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-foreground text-xs font-medium shadow-sm pointer-events-none">
               <ExternalLink className="h-3.5 w-3.5" />
-              Apri
+              {t("Apri")}
             </span>
           </button>
         </div>
@@ -447,15 +450,15 @@ function StandardDashboardCard({ dash }: { dash: (typeof STANDARD_DASHBOARDS)[nu
           onClick={() => navigate(dash.url)}
           className="p-3 flex flex-col gap-2 flex-1 text-left"
         >
-          <p className="font-semibold text-sm leading-snug truncate">{dash.title}</p>
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{dash.description}</p>
+          <p className="font-semibold text-sm leading-snug truncate">{t(dash.title)}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{t(dash.description)}</p>
           <div className="mt-auto pt-1 flex justify-end">
             <Badge
               variant="outline"
               className="text-[10px] px-1.5 py-0.5 gap-1 text-primary border-primary/30 bg-primary/5"
             >
               <Sparkles className="h-2.5 w-2.5" />
-              Standard
+              {t("Standard")}
             </Badge>
           </div>
         </button>
@@ -482,6 +485,7 @@ function TemplateLibraryContent({
 }: {
   onSelect: (t: DashboardTemplate) => void;
 }) {
+  const tr = useT();
   const navigate = useNavigate();
   const { data: templates = [], isLoading, isError, refetch } = useDashboardTemplates();
   const [search, setSearch]       = useState("");
@@ -515,7 +519,7 @@ function TemplateLibraryContent({
       {/* Sidebar */}
       <div className="w-full sm:w-60 max-h-[40%] sm:max-h-none border-b sm:border-b-0 sm:border-r bg-white shrink-0 flex flex-col">
         <div className="px-4 py-3 border-b">
-          <p className="text-sm font-semibold">Libreria di modelli</p>
+          <p className="text-sm font-semibold">{tr("Libreria di modelli")}</p>
         </div>
         <ScrollArea className="flex-1">
           <div className="py-2 px-2 space-y-0.5">
@@ -532,14 +536,14 @@ function TemplateLibraryContent({
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                {label}
+                {tr(label)}
               </button>
             ))}
 
             <Separator className="my-2" />
 
             <p className="text-[11px] font-semibold text-muted-foreground px-3 py-1 uppercase tracking-widest">
-              Sfoglia categorie
+              {tr("Sfoglia categorie")}
             </p>
 
             {categories.map((cat) => {
@@ -564,9 +568,9 @@ function TemplateLibraryContent({
 
             <Separator className="my-2" />
             <p className="text-[11px] font-semibold text-muted-foreground px-3 py-1 uppercase tracking-widest">
-              Etichette
+              {tr("Etichette")}
             </p>
-            <p className="text-xs text-muted-foreground px-3 pb-2">Nessuna etichetta</p>
+            <p className="text-xs text-muted-foreground px-3 pb-2">{tr("Nessuna etichetta")}</p>
           </div>
         </ScrollArea>
       </div>
@@ -575,12 +579,12 @@ function TemplateLibraryContent({
       <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-[#f8f9fb]">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-4 px-5 py-3 border-b bg-white shrink-0">
-          <p className="font-semibold text-sm">Dashboards</p>
+          <p className="font-semibold text-sm">{tr("Dashboards")}</p>
           <div className="relative ml-auto w-full sm:w-56">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              aria-label="Cerca modelli per nome"
-              placeholder="Cerca modelli per nome..."
+              aria-label={tr("Cerca modelli per nome")}
+              placeholder={tr("Cerca modelli per nome...")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1"
@@ -592,8 +596,8 @@ function TemplateLibraryContent({
           <div className="p-5 space-y-8">
             {isError && (
               <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-2">
-                <p className="text-sm">Impossibile caricare i modelli personalizzati. I modelli standard restano disponibili.</p>
-                <Button variant="outline" size="sm" aria-label="Riprova caricamento modelli" onClick={() => void refetch()}>Riprova</Button>
+                <p className="text-sm">{tr("Impossibile caricare i modelli personalizzati. I modelli standard restano disponibili.")}</p>
+                <Button variant="outline" size="sm" aria-label={tr("Riprova caricamento modelli")} onClick={() => void refetch()}>{tr("Riprova")}</Button>
               </div>
             )}
 
@@ -602,11 +606,11 @@ function TemplateLibraryContent({
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-                    Standard
+                    {tr("Standard")}
                   </p>
                   <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                     <Sparkles className="h-2.5 w-2.5" />
-                    Incluse
+                    {tr("Incluse")}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -637,7 +641,7 @@ function TemplateLibraryContent({
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-medium leading-snug truncate">{s.title}</p>
                             <Badge variant="outline" className="text-[10px] shrink-0 text-primary border-primary/30 bg-primary/5">
-                              Standard
+                              {tr("Standard")}
                             </Badge>
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
@@ -662,14 +666,14 @@ function TemplateLibraryContent({
               ) : filtered.length > 0 ? (
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
-                    Dalla libreria
+                    {tr("Dalla libreria")}
                   </p>
                   <div className="grid grid-cols-4 gap-4">
                     {filtered.map((tpl, idx) => {
                       const style = getTplStyle(idx);
                       const Icon  = style.icon;
                       const roleLabels = (tpl.target_roles ?? [])
-                        .map((r) => ALL_ROLES.find((x) => x.role === r)?.label ?? r)
+                        .map((r) => { const etichetta = ALL_ROLES.find((x) => x.role === r)?.label; return etichetta ? tr(etichetta) : r; })
                         .join(", ");
                       return (
                         <button
@@ -706,7 +710,7 @@ function TemplateLibraryContent({
               ) : filteredStd.length === 0 && !isError ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
                   <Layers className="h-9 w-9 opacity-30" />
-                  <p className="text-sm">Nessun template trovato</p>
+                  <p className="text-sm">{tr("Nessun template trovato")}</p>
                 </div>
               ) : null
             )}
@@ -725,6 +729,7 @@ function ClonePickContent({
   dashboards: DashboardListItem[];
   onSelect: (d: DashboardListItem) => void;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const filtered = dashboards.filter((d) =>
     d.name.toLowerCase().includes(search.toLowerCase()),
@@ -734,16 +739,16 @@ function ClonePickContent({
     <div className="flex-1 overflow-hidden flex flex-col bg-[#f8f9fb]">
       <div className="p-5 max-w-2xl mx-auto w-full">
         <div className="mb-5">
-          <h2 className="text-base font-semibold">Scegli la dashboard da clonare</h2>
+          <h2 className="text-base font-semibold">{t("Scegli la dashboard da clonare")}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Seleziona una dashboard esistente come punto di partenza.
+            {t("Seleziona una dashboard esistente come punto di partenza.")}
           </p>
         </div>
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            aria-label="Cerca dashboard da clonare"
-            placeholder="Cerca dashboard..."
+            aria-label={t("Cerca dashboard da clonare")}
+            placeholder={t("Cerca dashboard...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 h-10"
@@ -752,7 +757,7 @@ function ClonePickContent({
         </div>
         <ScrollArea className="h-96">
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">Nessuna dashboard trovata</p>
+            <p className="text-sm text-muted-foreground text-center py-10">{t("Nessuna dashboard trovata")}</p>
           ) : (
             <div className="space-y-2">
               {filtered.map((d) => {
@@ -773,7 +778,7 @@ function ClonePickContent({
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{d.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {d.scope === "personal" ? "Privata" : "Aziendale"}
+                        {d.scope === "personal" ? t("Privata") : t("Aziendale")}
                       </p>
                     </div>
                     <Copy className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary transition-colors" />
@@ -804,6 +809,7 @@ function NameDialog({
   onClose: () => void;
   onConfirm: (name: string, isPrivate: boolean) => void;
 }) {
+  const t = useT();
   const [name, setName]         = useState(defaultName ?? "");
   const [isPrivate, setPrivate] = useState(true);
   const focusReturn = useDialogFocusReturn();
@@ -818,17 +824,17 @@ function NameDialog({
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-1">
             <Plus className="h-6 w-6 text-green-600" />
           </div>
-          <DialogTitle className="text-lg">Nuova dashboard</DialogTitle>
-          <DialogDescription>Scegli un nome e la visibilità della dashboard.</DialogDescription>
+          <DialogTitle className="text-lg">{t("Nuova dashboard")}</DialogTitle>
+          <DialogDescription>{t("Scegli un nome e la visibilità della dashboard.")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-1">
           <div className="space-y-1.5">
-            <Label htmlFor="d-name" className="text-sm">Nome della dashboard</Label>
+            <Label htmlFor="d-name" className="text-sm">{t("Nome della dashboard")}</Label>
             <Input
               id="d-name"
               disabled={isPending}
-              placeholder="(ad es.) Panoramica delle vendite"
+              placeholder={t("(ad es.) Panoramica delle vendite")}
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !isPending && name.trim()) onConfirm(name.trim(), isPrivate); }}
@@ -841,15 +847,15 @@ function NameDialog({
               <Separator />
               <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div>
-                  <p className="text-sm font-medium leading-none">Dashboard privato</p>
+                  <p className="text-sm font-medium leading-none">{t("Dashboard privato")}</p>
                   <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                     {isPrivate
-                      ? "Configura questa dashboard in modo che solo tu possa vederla. Non sarà visibile agli altri membri del team."
-                      : "Visibile e assegnabile a tutto il team aziendale."}
+                      ? t("Configura questa dashboard in modo che solo tu possa vederla. Non sarà visibile agli altri membri del team.")
+                      : t("Visibile e assegnabile a tutto il team aziendale.")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="Dashboard privata"
+                  aria-label={t("Dashboard privata")}
                   disabled={isPending}
                   checked={isPrivate}
                   onCheckedChange={setPrivate}
@@ -862,7 +868,7 @@ function NameDialog({
 
         <div className="flex gap-3 mt-2">
           <Button variant="outline" className="flex-1" disabled={isPending} onClick={onClose}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             className="flex-1"
@@ -870,7 +876,7 @@ function NameDialog({
             onClick={() => onConfirm(name.trim(), isPrivate)}
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Conferma
+            {t("Conferma")}
           </Button>
         </div>
       </DialogContent>
@@ -898,6 +904,7 @@ function DashboardPermissionsDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const { data: allMembers = [], isLoading: membersLoading, isError: membersError } = useCompanyMembers();
   const updateScope  = useUpdateDashboardScope();
   const grantAccess  = useSetDashboardUserAccess();
@@ -994,7 +1001,7 @@ function DashboardPermissionsDialog({
             </div>
             <div className="min-w-0">
               <DialogTitle className="text-base leading-snug truncate">{dashboard.name}</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Impostazioni accesso</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("Impostazioni accesso")}</p>
             </div>
           </div>
         </DialogHeader>
@@ -1005,7 +1012,7 @@ function DashboardPermissionsDialog({
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Visibilità
+                {t("Visibilità")}
               </p>
               {updateScope.isPending && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
@@ -1013,8 +1020,8 @@ function DashboardPermissionsDialog({
             </div>
             <div className="divide-y">
               {([
-                { scope: "personal" as const, label: "Privata",    desc: "Solo tu puoi vederla",               icon: Lock,  color: "text-slate-600" },
-                { scope: "company"  as const, label: "Aziendale",  desc: "Visibile a tutto il team",            icon: Globe, color: "text-blue-600"  },
+                { scope: "personal" as const, label: t("Privata"),    desc: t("Solo tu puoi vederla"),               icon: Lock,  color: "text-slate-600" },
+                { scope: "company"  as const, label: t("Aziendale"),  desc: t("Visibile a tutto il team"),            icon: Globe, color: "text-blue-600"  },
               ] as const).map(({ scope, label, desc, icon: ScopeIcon, color }) => {
                 const active = localScope === scope;
                 return (
@@ -1054,9 +1061,7 @@ function DashboardPermissionsDialog({
             <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-4 flex items-center gap-3">
               <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                La dashboard è <span className="font-medium text-foreground">privata</span>.
-                Imposta la visibilità su <span className="font-medium text-foreground">Aziendale</span> per
-                gestire l'accesso dei membri del team.
+                {t("La dashboard è")} <span className="font-medium text-foreground">{t("privata")}</span>{t(". Imposta la visibilità su")} <span className="font-medium text-foreground">{t("Aziendale")}</span> {t("per gestire l'accesso dei membri del team.")}
               </p>
             </div>
           )}
@@ -1065,15 +1070,15 @@ function DashboardPermissionsDialog({
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Accesso utenti
+                {t("Accesso utenti")}
               </p>
               {membersLoading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               ) : (
                 <p className="text-[10px] text-muted-foreground">
                   {accessSet.size > 0
-                    ? `${accessSet.size} uten${accessSet.size === 1 ? "te" : "ti"} con accesso`
-                    : "Nessun accesso aggiuntivo"}
+                    ? t(accessSet.size === 1 ? "{n} utente con accesso" : "{n} utenti con accesso", { n: accessSet.size })
+                    : t("Nessun accesso aggiuntivo")}
                 </p>
               )}
             </div>
@@ -1087,15 +1092,15 @@ function DashboardPermissionsDialog({
             ) : membersError ? (
               <div className="px-4 py-5 text-center space-y-2">
                 <p className="text-xs text-destructive font-medium">
-                  Impossibile caricare i membri
+                  {t("Impossibile caricare i membri")}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Verifica di avere i permessi necessari.
+                  {t("Verifica di avere i permessi necessari.")}
                 </p>
               </div>
             ) : members.length === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                Nessun altro membro nell'azienda
+                {t("Nessun altro membro nell'azienda")}
               </div>
             ) : (
               <div className="divide-y max-h-64 overflow-auto">
@@ -1136,7 +1141,7 @@ function DashboardPermissionsDialog({
                           "rounded-full border px-1.5 py-0.5 text-[10px] font-semibold shrink-0",
                           roleMeta.color,
                         )}>
-                          {roleMeta.label}
+                          {t(roleMeta.label)}
                         </span>
                       )}
                       {(grantAccess.isPending || revokeAccess.isPending) ? (
@@ -1159,7 +1164,7 @@ function DashboardPermissionsDialog({
         </div>
 
         <div className="flex justify-end pt-2 shrink-0 border-t mt-2">
-          <Button variant="outline" size="sm" onClick={onClose}>Chiudi</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t("Chiudi")}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -1176,6 +1181,7 @@ function StandardPermissionsDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const { data: members = [], isLoading } = useCompanyMembers();
   const Icon = dash.icon;
 
@@ -1191,8 +1197,8 @@ function StandardPermissionsDialog({
               <Icon className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
-              <DialogTitle className="text-base leading-snug truncate">{dash.title}</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Dashboard predefinita</p>
+              <DialogTitle className="text-base leading-snug truncate">{t(dash.title)}</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("Dashboard predefinita")}</p>
             </div>
           </div>
         </DialogHeader>
@@ -1203,12 +1209,10 @@ function StandardPermissionsDialog({
             <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="space-y-1 text-xs">
               <p className="font-semibold text-amber-900 dark:text-amber-200">
-                Permessi gestiti dal sistema
+                {t("Permessi gestiti dal sistema")}
               </p>
               <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
-                Questa è una dashboard predefinita. La visibilità segue i ruoli e i permessi utente
-                (Amministrazione → Utenti). Per creare una dashboard con permessi personalizzati
-                crea una dashboard personale.
+                {t("Questa è una dashboard predefinita. La visibilità segue i ruoli e i permessi utente (Amministrazione → Utenti). Per creare una dashboard con permessi personalizzati crea una dashboard personale.")}
               </p>
             </div>
           </div>
@@ -1216,14 +1220,14 @@ function StandardPermissionsDialog({
           {/* Visibilità fissa */}
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-2.5 bg-muted/30 border-b">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Visibilità</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("Visibilità")}</p>
             </div>
             <div className="flex items-center gap-3 px-4 py-3 bg-primary/5">
               <Globe className="h-4 w-4 text-blue-600 shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium">Aziendale · sola lettura</p>
+                <p className="text-sm font-medium">{t("Aziendale · sola lettura")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Accessibile a tutti i membri del team autorizzati dal ruolo
+                  {t("Accessibile a tutti i membri del team autorizzati dal ruolo")}
                 </p>
               </div>
             </div>
@@ -1233,10 +1237,10 @@ function StandardPermissionsDialog({
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Chi può vederla
+                {t("Chi può vederla")}
               </p>
               {!isLoading && (
-                <p className="text-[10px] text-muted-foreground">{members.length} uten{members.length === 1 ? "te" : "ti"}</p>
+                <p className="text-[10px] text-muted-foreground">{t(members.length === 1 ? "{n} utente" : "{n} utenti", { n: members.length })}</p>
               )}
             </div>
             {isLoading ? (
@@ -1247,7 +1251,7 @@ function StandardPermissionsDialog({
               </div>
             ) : members.length === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                Nessun membro trovato
+                {t("Nessun membro trovato")}
               </div>
             ) : (
               <div className="divide-y max-h-64 overflow-auto">
@@ -1269,7 +1273,7 @@ function StandardPermissionsDialog({
                           "rounded-full border px-1.5 py-0.5 text-[10px] font-semibold shrink-0",
                           roleMeta.color,
                         )}>
-                          {roleMeta.label}
+                          {t(roleMeta.label)}
                         </span>
                       )}
                     </div>
@@ -1281,7 +1285,7 @@ function StandardPermissionsDialog({
         </div>
 
         <div className="flex justify-end pt-2 shrink-0 border-t mt-2">
-          <Button variant="outline" size="sm" onClick={onClose}>Chiudi</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t("Chiudi")}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -1298,6 +1302,7 @@ function DeleteConfirmDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const deleteDash = useDeleteDashboard();
 
   if (!dashboard) return null;
@@ -1305,7 +1310,7 @@ function DeleteConfirmDialog({
   const handleDelete = () => {
     deleteDash.mutate(dashboard.id, {
       onSuccess: () => {
-        toast.success(`Dashboard "${dashboard.name}" eliminata`);
+        toast.success(t("Dashboard \"{nome}\" eliminata", { nome: String(dashboard.name ?? "") }));
         onClose();
       },
       onError: (e) => toast.error(String(e)),
@@ -1320,21 +1325,19 @@ function DeleteConfirmDialog({
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 shrink-0">
               <AlertTriangle className="h-5 w-5 text-destructive" />
             </div>
-            <DialogTitle className="text-base leading-snug">Elimina dashboard</DialogTitle>
+            <DialogTitle className="text-base leading-snug">{t("Elimina dashboard")}</DialogTitle>
           </div>
         </DialogHeader>
 
         <div className="space-y-3 py-1">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Stai per eliminare definitivamente{" "}
-            <span className="font-semibold text-foreground">"{dashboard.name}"</span>.
-            Questa azione è irreversibile e non può essere annullata.
+            {t("Stai per eliminare definitivamente")}{" "}
+            <span className="font-semibold text-foreground">"{dashboard.name}"</span>{t(". Questa azione è irreversibile e non può essere annullata.")}
           </p>
           <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
             <p className="text-xs text-destructive leading-snug font-medium">
-              Tutti i widget, le configurazioni e la cronologia delle versioni
-              verranno eliminati definitivamente.
+              {t("Tutti i widget, le configurazioni e la cronologia delle versioni verranno eliminati definitivamente.")}
             </p>
           </div>
         </div>
@@ -1346,7 +1349,7 @@ function DeleteConfirmDialog({
             onClick={onClose}
             disabled={deleteDash.isPending}
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             variant="destructive"
@@ -1357,7 +1360,7 @@ function DeleteConfirmDialog({
             {deleteDash.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <Trash2 className="h-4 w-4" />}
-            Elimina definitivamente
+            {t("Elimina definitivamente")}
           </Button>
         </div>
       </DialogContent>
@@ -1375,6 +1378,7 @@ function DashboardCard({
   isAdmin: boolean;
   readOnly: boolean;
 }) {
+  const t = useT();
   const [permOpen, setPermOpen]     = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const style = getCardStyle(dashboard.id);
@@ -1401,7 +1405,7 @@ function DashboardCard({
                 disabled={readOnly}
                 onClick={(e) => { e.preventDefault(); setPermOpen(true); }}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-colors"
-                title="Permessi dashboard"
+                title={t("Permessi dashboard")}
               >
                 <Settings2 className="h-3.5 w-3.5" />
               </button>
@@ -1412,7 +1416,7 @@ function DashboardCard({
                 disabled={readOnly}
                 onClick={(e) => { e.preventDefault(); setDeleteOpen(true); }}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-red-500 hover:text-white transition-colors"
-                title="Elimina dashboard"
+                title={t("Elimina dashboard")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -1424,14 +1428,14 @@ function DashboardCard({
             <Link to={`/azienda/dashboards/${dashboard.id}`}>
               <Button size="sm" className="h-8 gap-1.5 bg-white text-foreground hover:bg-white/90 shadow-sm">
                 <ExternalLink className="h-3.5 w-3.5" />
-                Apri
+                {t("Apri")}
               </Button>
             </Link>
             {dashboard.can_edit && !readOnly && (
               <Link to={`/azienda/dashboards/${dashboard.id}/modifica`}>
                 <Button size="sm" className="h-8 gap-1.5 bg-white text-foreground hover:bg-white/90 shadow-sm">
                   <Pencil className="h-3.5 w-3.5" />
-                  Modifica
+                  {t("Modifica")}
                 </Button>
               </Link>
             )}
@@ -1457,8 +1461,8 @@ function DashboardCard({
               )}
             >
               {dashboard.scope === "personal"
-                ? <><Lock className="h-2.5 w-2.5" />Privata</>
-                : <><Globe className="h-2.5 w-2.5" />Aziendale</>}
+                ? <><Lock className="h-2.5 w-2.5" />{t("Privata")}</>
+                : <><Globe className="h-2.5 w-2.5" />{t("Aziendale")}</>}
             </Badge>
           </div>
         </div>
@@ -1483,6 +1487,7 @@ function DashboardCard({
 
 // ─── Add card ─────────────────────────────────────────────────────────────────
 function AddCard({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+  const t = useT();
   return (
     <button
       onClick={onClick}
@@ -1492,13 +1497,14 @@ function AddCard({ onClick, disabled }: { onClick: () => void; disabled: boolean
       <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-current transition-transform group-hover:scale-110 group-hover:border-primary">
         <Plus className="h-5 w-5" />
       </div>
-      <span className="text-xs font-medium group-hover:text-primary">Aggiungi dashboard</span>
+      <span className="text-xs font-medium group-hover:text-primary">{t("Aggiungi dashboard")}</span>
     </button>
   );
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function CruscottoHub() {
+  const t = useT();
   const permissions             = usePermissions();
   const [createOpen, setCreate] = useState(false);
   const canManage = !permissions.isLoading && !permissions.solaLettura;
@@ -1535,20 +1541,20 @@ export default function CruscottoHub() {
               <LayoutGrid className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Dashboard</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{t("Dashboard")}</h1>
               <p className="mt-0.5 text-sm text-slate-500">
                 {isError
-                  ? "Le dashboard personalizzate potrebbero non essere aggiornate."
+                  ? t("Le dashboard personalizzate potrebbero non essere aggiornate.")
                   : dashboards.length === 0
-                  ? "Crea la tua prima dashboard personalizzata con KPI, grafici e viste operative."
-                  : `${dashboards.length} dashboard ${dashboards.length === 1 ? "personalizzata" : "personalizzate"} tra viste private e aziendali.`}
+                  ? t("Crea la tua prima dashboard personalizzata con KPI, grafici e viste operative.")
+                  : t(dashboards.length === 1 ? "{n} dashboard personalizzata tra viste private e aziendali." : "{n} dashboard personalizzate tra viste private e aziendali.", { n: dashboards.length })}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="gap-1.5 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0" aria-label="Aggiungi dashboard" disabled={!canManage} onClick={openCreation}>
+            <Button size="sm" className="gap-1.5 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0" aria-label={t("Aggiungi dashboard")} disabled={!canManage} onClick={openCreation}>
               <Plus className="h-4 w-4" />
-              <span className="max-sm:hidden">Aggiungi dashboard</span>
+              <span className="max-sm:hidden">{t("Aggiungi dashboard")}</span>
             </Button>
           </div>
         </div>
@@ -1556,15 +1562,15 @@ export default function CruscottoHub() {
 
       {isError && (
         <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-2">
-          <p className="text-sm">Impossibile aggiornare le dashboard personalizzate. Eventuali risultati già caricati restano visibili.</p>
-          <Button variant="outline" size="sm" aria-label="Riprova caricamento dashboard" onClick={() => void refetch()}>Riprova</Button>
+          <p className="text-sm">{t("Impossibile aggiornare le dashboard personalizzate. Eventuali risultati già caricati restano visibili.")}</p>
+          <Button variant="outline" size="sm" aria-label={t("Riprova caricamento dashboard")} onClick={() => void refetch()}>{t("Riprova")}</Button>
         </div>
       )}
 
       {/* ── Dashboard predefinite (sempre visibili) ─────────────────────────── */}
       <section className="space-y-3">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-          Dashboard predefinite
+          {t("Dashboard predefinite")}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {STANDARD_DASHBOARDS.map((d) => (
@@ -1576,7 +1582,7 @@ export default function CruscottoHub() {
       {/* ── Le mie dashboard ────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-          Le mie dashboard
+          {t("Le mie dashboard")}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {myDashboards.map((d) => (
@@ -1595,7 +1601,7 @@ export default function CruscottoHub() {
       {sharedDashboards.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-            Dashboard aziendali
+            {t("Dashboard aziendali")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {sharedDashboards.map((d) => (

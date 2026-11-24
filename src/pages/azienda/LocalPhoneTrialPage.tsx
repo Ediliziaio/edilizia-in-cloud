@@ -24,6 +24,7 @@ import {
   type LocalPhoneSettings,
   type LocalPhoneTrial,
 } from "@/lib/localAssistanceClient";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const phaseCopy: Record<LocalPhoneTrial["phase"], [string, string]> = {
   office_ringing: [
@@ -160,6 +161,7 @@ export default function LocalPhoneTrialPage({
 }: {
   standalone?: boolean;
 }) {
+  const t = useT();
   const [client] = useState(createLocalAssistanceClient);
   const [bootstrap, setBootstrap] = useState<LocalLabBootstrap>();
   const [settings, setSettings] = useState<LocalPhoneSettings>();
@@ -346,19 +348,18 @@ export default function LocalPhoneTrialPage({
       <header className="eic-motion-enter flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-            Centralino · Collaudo locale
+            {t("Centralino · Collaudo locale")}
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            Prova il tuo numero aziendale
+            {t("Prova il tuo numero aziendale")}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Simula l’arrivo di una chiamata, il passaggio all’AI e il richiamo
-            dallo stesso numero.
+            {t("Simula l’arrivo di una chiamata, il passaggio all’AI e il richiamo dallo stesso numero.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
-            <a href="#configurazione-sip">Prepara SIP</a>
+            <a href="#configurazione-sip">{t("Prepara SIP")}</a>
           </Button>
           <Button asChild variant="outline" size="sm">
             <a
@@ -366,14 +367,14 @@ export default function LocalPhoneTrialPage({
                 standalone ? "./assistance-local.html" : "/azienda/centralino"
               }
             >
-              {standalone ? "Collaudo assistenza" : "Torna al centralino"}
+              {standalone ? t("Collaudo assistenza") : t("Torna al centralino")}
             </a>
           </Button>
         </div>
       </header>
 
       <AgentPipeline
-        title="Percorso della chiamata"
+        title={t("Percorso della chiamata")}
         steps={callSteps(phase, selected?.officeSeconds ?? 15)}
       />
 
@@ -391,7 +392,7 @@ export default function LocalPhoneTrialPage({
               disabled={busy}
               onClick={() => void move()}
             >
-              Aggiorna esito
+              {t("Aggiorna esito")}
             </Button>
           )}
         </div>
@@ -404,21 +405,21 @@ export default function LocalPhoneTrialPage({
             aria-labelledby="phone-settings-title"
           >
             <h2 id="phone-settings-title" className="font-semibold">
-              Impostazioni della linea di test
+              {t("Impostazioni della linea di test")}
             </h2>
             <dl className="space-y-3 rounded-xl bg-muted/50 p-4 text-sm">
               <div>
-                <dt className="text-muted-foreground">Numero aziendale</dt>
+                <dt className="text-muted-foreground">{t("Numero aziendale")}</dt>
                 <dd className="mt-1 font-mono text-base font-semibold">
                   {setup.companyNumber}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Cliente che chiama</dt>
+                <dt className="text-muted-foreground">{t("Cliente che chiama")}</dt>
                 <dd className="mt-1 font-mono">{setup.callerNumber}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Prima destinazione</dt>
+                <dt className="text-muted-foreground">{t("Prima destinazione")}</dt>
                 <dd className="mt-1 font-medium">{setup.officeGroup}</dd>
               </div>
             </dl>
@@ -428,7 +429,7 @@ export default function LocalPhoneTrialPage({
                   htmlFor="office-wait"
                   className="block text-sm font-medium"
                 >
-                  Quanto squilla l’ufficio
+                  {t("Quanto squilla l’ufficio")}
                 </label>
                 <select
                   id="office-wait"
@@ -443,9 +444,7 @@ export default function LocalPhoneTrialPage({
                   }}
                 >
                   {setup.durations.map((seconds) => (
-                    <option key={seconds} value={seconds}>
-                      {seconds} secondi
-                    </option>
+                    <option key={seconds} value={seconds}>{t("{seconds} secondi", { seconds: String(seconds ?? "") })}</option>
                   ))}
                 </select>
               </div>
@@ -464,10 +463,10 @@ export default function LocalPhoneTrialPage({
                 />
                 <span>
                   <span className="block font-medium">
-                    Uscita SIP abilitata
+                    {t("Uscita SIP abilitata")}
                   </span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                    Permette all’AI di richiamare mostrando il numero aziendale.
+                    {t("Permette all’AI di richiamare mostrando il numero aziendale.")}
                   </span>
                 </span>
               </label>
@@ -480,7 +479,7 @@ export default function LocalPhoneTrialPage({
                 onClick={() => void start()}
               >
                 <Phone className="mr-2 size-4" />
-                {busy ? "Avvio in corso…" : "Simula chiamata in entrata"}
+                {busy ? t("Avvio in corso…") : t("Simula chiamata in entrata")}
               </Button>
             ) : (
               <Button
@@ -490,19 +489,18 @@ export default function LocalPhoneTrialPage({
                 disabled={busy}
                 onClick={reset}
               >
-                Nuova prova
+                {t("Nuova prova")}
               </Button>
             )}
             <p className="text-xs leading-5 text-muted-foreground">
-              I numeri sono fittizi. Gli squilli e gli esiti sono simulati nel
-              browser.
+              {t("I numeri sono fittizi. Gli squilli e gli esiti sono simulati nel browser.")}
             </p>
           </section>
 
           <div className="space-y-5">
             <section
               className="eic-motion-panel overflow-hidden rounded-2xl border bg-card"
-              aria-label="Chiamata di test"
+              aria-label={t("Chiamata di test")}
             >
               <div className="eic-call-display p-5 text-white sm:p-6">
                 <div className="flex items-start gap-4">
@@ -526,13 +524,13 @@ export default function LocalPhoneTrialPage({
                       >
                         {phase
                           ? phaseCopy[phase][0]
-                          : "Pronto a ricevere la chiamata"}
+                          : t("Pronto a ricevere la chiamata")}
                       </span>
                     </h2>
                     <p className="mt-1 text-sm text-slate-300">
                       {phase
                         ? phaseCopy[phase][1]
-                        : "L’ufficio risponde per primo. L’assistente interviene dopo l’attesa impostata."}
+                        : t("L’ufficio risponde per primo. L’assistente interviene dopo l’attesa impostata.")}
                     </p>
                   </div>
                 </div>
@@ -541,7 +539,7 @@ export default function LocalPhoneTrialPage({
                     <p
                       className={`flex items-center gap-2 text-sm tabular-nums ${seconds <= 4 ? "text-orange-200" : "text-blue-200"}`}
                     >
-                      <Clock3 className="size-4" /> Tempo residuo {seconds} s
+                      <Clock3 className="size-4" /> {t("Tempo residuo")} {seconds} s
                     </p>
                     <div
                       aria-hidden="true"
@@ -570,7 +568,7 @@ export default function LocalPhoneTrialPage({
                     <dl className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <dt className="text-xs text-slate-300">
-                          Numero sul display del cliente
+                          {t("Numero sul display del cliente")}
                         </dt>
                         <dd className="mt-1 font-mono text-lg font-semibold">
                           {trial.callback.from}
@@ -578,7 +576,7 @@ export default function LocalPhoneTrialPage({
                       </div>
                       <div>
                         <dt className="text-xs text-slate-300">
-                          Cliente richiamato
+                          {t("Cliente richiamato")}
                         </dt>
                         <dd className="mt-1 font-mono text-lg">
                           {trial.callback.to}
@@ -587,8 +585,7 @@ export default function LocalPhoneTrialPage({
                     </dl>
                     {trial.callback.from === trial.inbound.to && (
                       <p className="flex items-center gap-2 text-xs text-emerald-200">
-                        <Check className="size-4" /> Coincide con il numero
-                        chiamato in entrata
+                        <Check className="size-4" /> {t("Coincide con il numero chiamato in entrata")}
                       </p>
                     )}
                   </div>
@@ -607,7 +604,7 @@ export default function LocalPhoneTrialPage({
                         ) : (
                           <Headphones className="size-4" />
                         )}{" "}
-                        Giulia · assistente virtuale
+                        {t("Giulia · assistente virtuale")}
                       </p>
                       <p>{trial.prompt}</p>
                       {bootstrap?.voice?.configured && (
@@ -620,8 +617,8 @@ export default function LocalPhoneTrialPage({
                         >
                           <AudioLines className="mr-2 size-4" />
                           {audioBusy
-                            ? "Generazione audio…"
-                            : "Ascolta con Drama 3"}
+                            ? t("Generazione audio…")
+                            : t("Ascolta con Drama 3")}
                         </Button>
                       )}
                       {audioSrc && (
@@ -633,7 +630,7 @@ export default function LocalPhoneTrialPage({
                           onPlaying={() => setAudioPlaying(true)}
                           onPause={() => setAudioPlaying(false)}
                           onEnded={() => setAudioPlaying(false)}
-                          aria-label="Risposta di Giulia"
+                          aria-label={t("Risposta di Giulia")}
                         />
                       )}
                       {audioError && (
@@ -653,14 +650,14 @@ export default function LocalPhoneTrialPage({
                           disabled={busy}
                           onClick={() => void move("office_answer")}
                         >
-                          Rispondi dall’ufficio
+                          {t("Rispondi dall’ufficio")}
                         </Button>
                         <Button
                           variant="outline"
                           disabled={busy}
                           onClick={() => void move("skip_wait")}
                         >
-                          Simula mancata risposta
+                          {t("Simula mancata risposta")}
                         </Button>
                       </>
                     )}
@@ -670,14 +667,14 @@ export default function LocalPhoneTrialPage({
                           disabled={busy}
                           onClick={() => void move("accept_callback")}
                         >
-                          Sì, richiamami
+                          {t("Sì, richiamami")}
                         </Button>
                         <Button
                           variant="outline"
                           disabled={busy}
                           onClick={() => void move("decline_callback")}
                         >
-                          No, grazie
+                          {t("No, grazie")}
                         </Button>
                       </>
                     )}
@@ -687,8 +684,8 @@ export default function LocalPhoneTrialPage({
                         onClick={() => void move("hang_up")}
                       >
                         {trial.settings.outboundEnabled
-                          ? "Chiudi e avvia il richiamo"
-                          : "Chiudi e lascia la richiesta"}
+                          ? t("Chiudi e avvia il richiamo")
+                          : t("Chiudi e lascia la richiesta")}
                       </Button>
                     )}
                     {phase === "callback_ringing" && (
@@ -697,14 +694,14 @@ export default function LocalPhoneTrialPage({
                           disabled={busy}
                           onClick={() => void move("answer_callback")}
                         >
-                          Rispondi al richiamo
+                          {t("Rispondi al richiamo")}
                         </Button>
                         <Button
                           variant="outline"
                           disabled={busy}
                           onClick={() => void move("miss_callback")}
                         >
-                          Non rispondere
+                          {t("Non rispondere")}
                         </Button>
                       </>
                     )}
@@ -718,7 +715,7 @@ export default function LocalPhoneTrialPage({
                 aria-labelledby="phone-timeline-title"
               >
                 <h2 id="phone-timeline-title" className="font-semibold">
-                  Cronologia della prova
+                  {t("Cronologia della prova")}
                 </h2>
                 <ol className="mt-3 divide-y text-sm">
                   {trial.events.map((event) => (
@@ -740,7 +737,7 @@ export default function LocalPhoneTrialPage({
       ) : (
         !error && (
           <p role="status" className="text-sm text-muted-foreground">
-            Preparazione del collaudo…
+            {t("Preparazione del collaudo…")}
           </p>
         )
       )}

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { finituraDaEtichetta } from "@/lib/serramenti/finituraSerramento";
 import { chiaveColore, coloreDisponibile, elencoColori, type CatalogoColori } from "@/lib/serramenti/catalogoColori";
 import type { AsseColore, LatoColore, SceltaLato } from "@/lib/serramenti/coloriDentroFuori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function sfondo(nome: string, hex?: string) {
   if (hex) return hex;
@@ -18,6 +19,7 @@ export function PaletteColore({ asse, catalogo, lato, scelta, onChange }: {
   asse: AsseColore; catalogo?: CatalogoColori | null; lato: LatoColore; scelta: SceltaLato;
   onChange: (valueId: string, voce: string | null) => void;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [cerca, setCerca] = useState("");
   const campioni = elencoColori(asse).filter(v => v.attivo && coloreDisponibile(catalogo, v.chiave, lato));
@@ -26,9 +28,9 @@ export function PaletteColore({ asse, catalogo, lato, scelta, onChange }: {
     return `${v.nome} ${v.fascia} ${m?.codice ?? ""} ${m?.finitura ?? ""}`.toLowerCase().includes(cerca.toLowerCase());
   });
   return <div>
-    <Button type="button" variant="ghost" size="sm" className="h-6 px-1 text-[10px] text-blue-800" aria-expanded={aperto} onClick={() => setAperto(!aperto)}><Palette className="mr-1 h-3 w-3" />{aperto ? "Chiudi campioni" : "Campioni colore"} {lato}</Button>
+    <Button type="button" variant="ghost" size="sm" className="h-6 px-1 text-[10px] text-blue-800" aria-expanded={aperto} onClick={() => setAperto(!aperto)}><Palette className="mr-1 h-3 w-3" />{lato === "esterno" ? (aperto ? t("Chiudi campioni esterno") : t("Campioni colore esterno")) : (aperto ? t("Chiudi campioni interno") : t("Campioni colore interno"))}</Button>
     {aperto && <div className="space-y-2 rounded-md border bg-background p-2">
-      <Input className="h-8 text-xs" aria-label={`Cerca colore ${lato}`} placeholder="Nome, RAL, codice o finitura…" value={cerca} onChange={e => setCerca(e.target.value)} />
+      <Input className="h-8 text-xs" aria-label={lato === "esterno" ? t("Cerca colore esterno") : t("Cerca colore interno")} placeholder={t("Nome, RAL, codice o finitura…")} value={cerca} onChange={e => setCerca(e.target.value)} />
       <div className="grid max-h-52 grid-cols-2 gap-1.5 overflow-y-auto">
         {risultati.map(v => {
           const m = catalogo?.campioni.find(c => c.chiave === v.chiave);
@@ -39,9 +41,9 @@ export function PaletteColore({ asse, catalogo, lato, scelta, onChange }: {
           </button>;
         })}
       </div>
-      <p className="text-[10px] text-muted-foreground">Campioni indicativi, non sostituiscono quelli fisici del fornitore.</p>
-      {campioni.length === 0 && <p className="text-xs">Nessun colore disponibile su questo lato.</p>}
-      {campioni.length > 0 && risultati.length === 0 && <p role="status" className="text-xs">Nessun campione trovato. Prova un altro nome o codice.</p>}
+      <p className="text-[10px] text-muted-foreground">{t("Campioni indicativi, non sostituiscono quelli fisici del fornitore.")}</p>
+      {campioni.length === 0 && <p className="text-xs">{t("Nessun colore disponibile su questo lato.")}</p>}
+      {campioni.length > 0 && risultati.length === 0 && <p role="status" className="text-xs">{t("Nessun campione trovato. Prova un altro nome o codice.")}</p>}
     </div>}
   </div>;
 }

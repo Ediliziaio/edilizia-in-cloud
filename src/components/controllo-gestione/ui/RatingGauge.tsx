@@ -1,4 +1,5 @@
 import { angoloLancetta, FASCE_RATING, type ClasseRating } from "@/lib/controlloGestione/indiciBanca";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RatingGaugeProps {
   score: number;
@@ -31,6 +32,7 @@ function arcPath(start: number, end: number) {
  * destra col punteggio: con 95/100 indicava la zona CCC.
  */
 export function RatingGauge({ score, classe, provvisorio = false }: RatingGaugeProps) {
+  const t = useT();
   const clamped = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
   const needle = polar(CX, CY, R - STROKE / 2 - 6, angoloLancetta(clamped));
   const meta = FASCE_RATING.find((c) => c.classe === classe);
@@ -41,7 +43,7 @@ export function RatingGauge({ score, classe, provvisorio = false }: RatingGaugeP
         viewBox="0 0 300 180"
         className={provvisorio ? "w-full max-w-[300px] opacity-60 grayscale" : "w-full max-w-[300px]"}
         role="img"
-        aria-label={`Classe ${classe}, punteggio ${Math.round(clamped)} su 100`}
+        aria-label={t("Classe {classe}, punteggio {valore} su 100", { classe: String(classe ?? ""), valore: Math.round(clamped) })}
       >
         {FASCE_RATING.map((f) => (
           <path
@@ -78,9 +80,9 @@ export function RatingGauge({ score, classe, provvisorio = false }: RatingGaugeP
           {classe}
         </p>
         <p className="text-sm text-muted-foreground">
-          Punteggio <span className="font-semibold tabular-nums">{Math.round(clamped)}</span> su 100
+          {t("Punteggio")} <span className="font-semibold tabular-nums">{Math.round(clamped)}</span> {t("su 100")}
         </p>
-        {meta && <p className="text-xs text-muted-foreground">{provvisorio ? "Stima provvisoria" : meta.giudizio}</p>}
+        {meta && <p className="text-xs text-muted-foreground">{provvisorio ? t("Stima provvisoria") : t(meta.giudizio)}</p>}
       </div>
     </div>
   );

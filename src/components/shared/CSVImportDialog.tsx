@@ -11,6 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ImportField {
   key: string;
@@ -134,6 +135,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
 }
 
 export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, nota }: CSVImportDialogProps) {
+  const t = useT();
   const [step, setStep] = useState<Step>("upload");
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [fileRows, setFileRows] = useState<string[][]>([]);
@@ -165,7 +167,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
       setMapping(autoMatch(headers, fields));
       setStep("mapping");
     } catch {
-      setResult({ success: 0, errors: ["Errore durante la lettura del file"] });
+      setResult({ success: 0, errors: [t("Errore durante la lettura del file")] });
       setStep("result");
     }
   }, [fields]);
@@ -209,7 +211,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
       const res = await onImport(validRows);
       setResult(res);
     } catch (err: any) {
-      setResult({ success: 0, errors: [err?.message || "Errore durante l'importazione"] });
+      setResult({ success: 0, errors: [err?.message || t("Errore durante l'importazione")] });
     } finally {
       setStep("result");
     }
@@ -224,10 +226,10 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {step === "upload" && "Carica un file CSV o Excel (.xls, .xlsx)"}
-            {step === "mapping" && `${fileName} — ${fileRows.length} righe trovate. Mappa le colonne ai campi.`}
-            {step === "importing" && "Importazione in corso..."}
-            {step === "result" && "Importazione completata"}
+            {step === "upload" && t("Carica un file CSV o Excel (.xls, .xlsx)")}
+            {step === "mapping" && t("{fileName} — {n} righe trovate. Mappa le colonne ai campi.", { fileName: String(fileName ?? ""), n: fileRows.length })}
+            {step === "importing" && t("Importazione in corso...")}
+            {step === "result" && t("Importazione completata")}
           </DialogDescription>
           {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
         </DialogHeader>
@@ -245,8 +247,8 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
               onClick={() => document.getElementById("csv-file-input")?.click()}
             >
               <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-              <p className="font-medium mb-1">Trascina qui il file o clicca per selezionare</p>
-              <p className="text-sm text-muted-foreground">Formati supportati: .csv, .xls, .xlsx</p>
+              <p className="font-medium mb-1">{t("Trascina qui il file o clicca per selezionare")}</p>
+              <p className="text-sm text-muted-foreground">{t("Formati supportati: .csv, .xls, .xlsx")}</p>
               <input
                 id="csv-file-input"
                 type="file"
@@ -262,7 +264,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
             <div className="space-y-4">
               {/* Column mapping */}
               <div className="space-y-2">
-                <p className="text-sm font-medium">Mappatura colonne</p>
+                <p className="text-sm font-medium">{t("Mappatura colonne")}</p>
                 <div className="space-y-2 max-h-[220px] overflow-auto pr-1">
                   {fileHeaders.map((header) => (
                     <div key={header} className="flex items-center gap-3">
@@ -285,7 +287,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__ignore__">— Ignora —</SelectItem>
+                          <SelectItem value="__ignore__">{t("— Ignora —")}</SelectItem>
                           {fields.map((f) => (
                             <SelectItem key={f.key} value={f.key}>
                               {f.label}{f.required ? " *" : ""}
@@ -303,7 +305,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
                 <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 rounded p-2">
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>
-                    Campi obbligatori non mappati:{" "}
+                    {t("Campi obbligatori non mappati:")}{" "}
                     {missingRequired.map((f) => nomeCampoObbligatorio(f, fields)).join(", ")}
                   </span>
                 </div>
@@ -312,9 +314,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
               {/* Preview */}
               {previewRows.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">
-                    Anteprima ({previewRows.length} di {fileRows.length} righe)
-                  </p>
+                  <p className="text-sm font-medium">{t("Anteprima ({n} di {n2} righe)", { n: previewRows.length, n2: fileRows.length })}</p>
                   <ScrollArea className="max-h-[160px]">
                     <div className="rounded-md border">
                       <Table>
@@ -348,7 +348,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
           {step === "importing" && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Importazione in corso...</p>
+              <p className="text-sm text-muted-foreground">{t("Importazione in corso...")}</p>
             </div>
           )}
 
@@ -358,14 +358,14 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
               {result.success > 0 && (
                 <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-400 rounded-lg p-3">
                   <CheckCircle2 className="h-5 w-5 shrink-0" />
-                  <span>{result.success} righe importate con successo</span>
+                  <span>{t("{success} righe importate con successo", { success: String(result.success ?? "") })}</span>
                 </div>
               )}
               {result.errors.length > 0 && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm text-destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <span>{result.errors.length} errori</span>
+                    <span>{t("{n} errori", { n: result.errors.length })}</span>
                   </div>
                   <ScrollArea className="max-h-[200px]">
                     <div className="space-y-1">
@@ -383,15 +383,15 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, n
         <DialogFooter>
           {step === "mapping" && (
             <>
-              <Button variant="outline" onClick={() => setStep("upload")}>Indietro</Button>
+              <Button variant="outline" onClick={() => setStep("upload")}>{t("Indietro")}</Button>
               <Button onClick={handleImport} disabled={!canImport}>
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Importa {fileRows.length} righe
+                {t("Importa {n} righe", { n: fileRows.length })}
               </Button>
             </>
           )}
           {step === "result" && (
-            <Button onClick={() => handleClose(false)}>Chiudi</Button>
+            <Button onClick={() => handleClose(false)}>{t("Chiudi")}</Button>
           )}
         </DialogFooter>
       </DialogContent>

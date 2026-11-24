@@ -36,8 +36,10 @@ import {
   sottotitoloBozza,
 } from "@/lib/email-ai/documentiDaConfermare";
 import { CarichiSection, DraftCard, ScadenzeSection } from "./DocumentoEstrattoPanel";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Dettaglio({ doc }: { doc: DocumentoDaConfermare }) {
+  const t = useT();
   const mittente = mittenteEmail(doc.email);
   const thread = doc.email?.thread_id;
   return (
@@ -46,15 +48,15 @@ function Dettaglio({ doc }: { doc: DocumentoDaConfermare }) {
         <Mail className="h-3 w-3 shrink-0" aria-hidden />
         {doc.email ? (
           <>
-            <span className="min-w-0 max-w-full truncate">{doc.email.subject?.trim() || "(senza oggetto)"}</span>
+            <span className="min-w-0 max-w-full truncate">{doc.email.subject?.trim() || t("(senza oggetto)")}</span>
             {mittente && <span className="truncate">· {mittente}</span>}
           </>
         ) : (
-          <span>Documento arrivato senza email</span>
+          <span>{t("Documento arrivato senza email")}</span>
         )}
         {thread && (
           <Link to={`/azienda/email?thread_id=${encodeURIComponent(thread)}`} className="tap-compact py-0.5 font-medium text-primary underline underline-offset-2">
-            Apri email
+            {t("Apri email")}
           </Link>
         )}
       </p>
@@ -67,6 +69,7 @@ function Dettaglio({ doc }: { doc: DocumentoDaConfermare }) {
 }
 
 function Riga({ doc, aperta, onToggle }: { doc: DocumentoDaConfermare; aperta: boolean; onToggle: () => void }) {
+  const t = useT();
   const r = riepilogoBozza(doc);
   const mittente = mittenteEmail(doc.email);
   return (
@@ -78,7 +81,7 @@ function Riga({ doc, aperta, onToggle }: { doc: DocumentoDaConfermare; aperta: b
         className="flex w-full items-start gap-3 text-left"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-slate-900">{r.fornitore ?? "Fornitore non letto"}</span>
+          <span className="block truncate text-[13px] font-semibold text-slate-900">{r.fornitore ?? t("Fornitore non letto")}</span>
           <span className="block truncate text-[11px] text-muted-foreground">{sottotitoloBozza(doc)}</span>
           {/* Da telefono basta la riga di sopra: mittente ed età stanno nel dettaglio. */}
           <span className="block truncate text-[11px] text-muted-foreground max-sm:hidden">
@@ -91,7 +94,7 @@ function Riga({ doc, aperta, onToggle }: { doc: DocumentoDaConfermare; aperta: b
             {r.totale !== null && (
               <span className="block text-[13px] font-semibold tabular-nums text-slate-900">{formatCurrency(r.totale)}</span>
             )}
-            {r.incerti > 0 && <span className="block text-[11px] text-amber-700">{r.incerti} da controllare</span>}
+            {r.incerti > 0 && <span className="block text-[11px] text-amber-700">{t("{incerti} da controllare", { incerti: String(r.incerti ?? "") })}</span>}
           </span>
         )}
         <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform", aperta && "rotate-180")} aria-hidden />
@@ -110,11 +113,12 @@ function AltriDocumenti({
   aperto: string | null;
   onApri: (id: string | null) => void;
 }) {
+  const t = useT();
   const [mostra, setMostra] = useState(false);
   const [conferma, setConferma] = useState(false);
   const scarta = useScartaDocumentiEstratti();
   return (
-    <section aria-label="Altri documenti" className="rounded-xl border bg-card">
+    <section aria-label={t("Altri documenti")} className="rounded-xl border bg-card">
       <div className="flex items-center gap-2 px-3 py-2.5">
         <button
           type="button"
@@ -123,10 +127,10 @@ function AltriDocumenti({
           className="flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] font-medium text-slate-700"
         >
           <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", mostra && "rotate-180")} aria-hidden />
-          <span className="truncate">Altri documenti ({righe.length})</span>
+          <span className="truncate">{t("Altri documenti ({n})", { n: righe.length })}</span>
         </button>
         <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" disabled={scarta.isPending} onClick={() => setConferma(true)}>
-          {scarta.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Scarta tutti"}
+          {scarta.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("Scarta tutti")}
         </Button>
       </div>
       {mostra && (
@@ -139,14 +143,14 @@ function AltriDocumenti({
       <AlertDialog open={conferma} onOpenChange={setConferma}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Scartare {righe.length} {righe.length === 1 ? "documento" : "documenti"}?</AlertDialogTitle>
+            <AlertDialogTitle>{t(righe.length === 1 ? "Scartare {n} documento?" : "Scartare {n} documenti?", { n: righe.length })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sono listini, moduli e altri allegati che non sembrano fatture né bolle. Restano nell’email, ma qui non si vedono più.
+              {t("Sono listini, moduli e altri allegati che non sembrano fatture né bolle. Restano nell’email, ma qui non si vedono più.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => scarta.mutate(righe.map((d) => d.id))}>Scarta tutti</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => scarta.mutate(righe.map((d) => d.id))}>{t("Scarta tutti")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -155,6 +159,7 @@ function AltriDocumenti({
 }
 
 export function DocumentiDaConfermareLista() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const documenti = useDocumentiDaConfermare(effectiveCompany?.id);
   // Una bozza aperta alla volta: la lista resta corta e si legge.
@@ -163,16 +168,16 @@ export function DocumentiDaConfermareLista() {
   if (documenti.isLoading) {
     return (
       <p role="status" className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carico i documenti…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico i documenti…")}
       </p>
     );
   }
   if (documenti.isError) {
     return (
       <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
-        Non riesco a leggere i documenti da confermare.{" "}
+        {t("Non riesco a leggere i documenti da confermare.")}{" "}
         <button type="button" className="font-medium underline underline-offset-2" onClick={() => void documenti.refetch()}>
-          Riprova
+          {t("Riprova")}
         </button>
       </div>
     );
@@ -182,7 +187,7 @@ export function DocumentiDaConfermareLista() {
   if (principali.length === 0 && altro.length === 0) {
     return (
       <p className="flex items-center gap-2 rounded-xl border bg-card px-4 py-6 text-sm text-slate-600">
-        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Niente da confermare.
+        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {t("Niente da confermare.")}
       </p>
     );
   }
@@ -197,7 +202,7 @@ export function DocumentiDaConfermareLista() {
         </ul>
       ) : (
         <p className="flex items-center gap-2 rounded-xl border bg-card px-4 py-4 text-sm text-slate-600">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Nessuna fattura o bolla da confermare.
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {t("Nessuna fattura o bolla da confermare.")}
         </p>
       )}
       {altro.length > 0 && <AltriDocumenti righe={altro} aperto={aperto} onApri={setAperto} />}

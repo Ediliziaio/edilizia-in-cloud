@@ -35,6 +35,7 @@ import type { RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import { CreditCard, AlertTriangle, CheckCircle2, Calculator, Banknote, Calendar, Percent } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface FinancingProposal {
   /** id eic_tabelle_finanziamento */
@@ -57,11 +58,12 @@ interface Props {
 }
 
 const fmtEur = (n: number) =>
-  n.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
+  n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" });
 
 const alCentesimo = (n: number) => Math.round(n * 100) / 100;
 
 export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
+  const tr = useT();
   const [enabled, setEnabled] = useState(!!value);
   const [tableId, setTableId] = useState<string | null>(value?.table_id ?? null);
   const [amount, setAmount] = useState<number>(value?.amount ?? quoteTotal);
@@ -141,18 +143,17 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
         <CardTitle className="flex items-center justify-between text-base">
           <span className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-muted-foreground" />
-            Proposta di Finanziamento
+            {tr("Proposta di Finanziamento")}
           </span>
           <div className="flex items-center gap-2">
-            <Switch aria-label="Includi proposta di finanziamento" checked={enabled} onCheckedChange={setEnabled} />
+            <Switch aria-label={tr("Includi proposta di finanziamento")} checked={enabled} onCheckedChange={setEnabled} />
             {/* Telefono: basta l'interruttore, la scritta mandava il titolo su due righe. */}
-            <Label className="text-sm max-sm:hidden">{enabled ? "Inclusa nel preventivo" : "Non inclusa"}</Label>
+            <Label className="text-sm max-sm:hidden">{enabled ? tr("Inclusa nel preventivo") : tr("Non inclusa")}</Label>
           </div>
         </CardTitle>
         {!enabled && (
           <p className="text-xs text-muted-foreground max-sm:hidden">
-            Attiva per mostrare al cliente una proposta di rata mensile basata sulle tabelle
-            finanziarie configurate. Aiuta a chiudere preventivi sopra €5.000.
+            {tr("Attiva per mostrare al cliente una proposta di rata mensile basata sulle tabelle finanziarie configurate. Aiuta a chiudere preventivi sopra €5.000.")}
           </p>
         )}
       </CardHeader>
@@ -164,14 +165,14 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
             <Alert className="border-amber-300 bg-amber-50">
               <AlertTriangle className="h-4 w-4 text-amber-700" />
               <AlertDescription className="text-amber-900">
-                <strong>Nessuna tabella finanziamento configurata.</strong>{" "}
+                <strong>{tr("Nessuna tabella finanziamento configurata.")}</strong>{" "}
                 <LinkImpostazione
                   to="/azienda/impostazioni/finanziamenti"
                   className="underline underline-offset-2"
                 >
-                  Vai a Impostazioni → Finanziamenti
+                  {tr("Vai a Impostazioni → Finanziamenti")}
                 </LinkImpostazione>{" "}
-                per aggiungerne una.
+                {tr("per aggiungerne una.")}
               </AlertDescription>
             </Alert>
           )}
@@ -182,7 +183,7 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
           {tabelle.data && tabelle.data.length > 0 && (
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               <div>
-                <Label className="text-xs">Prodotto finanziario *</Label>
+                <Label className="text-xs">{tr("Prodotto finanziario *")}</Label>
                 <Select
                   value={tableId ?? ""}
                   onValueChange={(v) => {
@@ -191,46 +192,42 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
                   }}
                 >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Seleziona tabella…" />
+                    <SelectValue placeholder={tr("Seleziona tabella…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {tabelle.data.filter((t) => t.attiva).map((t) => (
                       <SelectItem key={t.id} value={t.id}>
                         {t.nome_prodotto}
-                        {t.tan_base && ` · TAN ${t.tan_base.toFixed(2)}%`}
+                        {t.tan_base && tr(" · TAN {tan_base}%", { tan_base: t.tan_base.toFixed(2) })}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {tabella && tabella.importo_min !== null && tabella.importo_max !== null && (
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    Range: {fmtEur(tabella.importo_min)} – {fmtEur(tabella.importo_max)}
-                  </p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">{tr("Range: {importo_min} – {importo_max}", { importo_min: fmtEur(tabella.importo_min), importo_max: fmtEur(tabella.importo_max) })}</p>
                 )}
               </div>
 
               <div>
-                <Label className="text-xs">Numero rate *</Label>
+                <Label className="text-xs">{tr("Numero rate *")}</Label>
                 <Select
                   value={numInstallments ? String(numInstallments) : ""}
                   onValueChange={(v) => setNumInstallments(Number(v))}
                   disabled={!tabella}
                 >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Seleziona durata…" />
+                    <SelectValue placeholder={tr("Seleziona durata…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {tabella?.durate_disponibili?.map((d) => (
-                      <SelectItem key={d} value={String(d)}>
-                        {d} rate ({Math.round(d / 12 * 10) / 10} anni)
-                      </SelectItem>
+                      <SelectItem key={d} value={String(d)}>{tr("{d} rate ({valore} anni)", { d: String(d ?? ""), valore: Math.round(d / 12 * 10) / 10 })}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="md:col-span-2">
-                <Label className="text-xs">Importo da finanziare (€)</Label>
+                <Label className="text-xs">{tr("Importo da finanziare (€)")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -243,19 +240,16 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
                   }}
                   className="h-9"
                 />
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Default: totale preventivo {fmtEur(quoteTotal)}.
-                  Modificalo se finanzia solo parte (es. acconto contanti + rate sul saldo).
-                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{tr("Default: totale preventivo {quoteTotal}. Modificalo se finanzia solo parte (es. acconto contanti + rate sul saldo).", { quoteTotal: fmtEur(quoteTotal) })}</p>
                 {quoteTotal > 0 && Math.abs(amount - quoteTotal) >= 0.005 && (
                   <p className="mt-1 text-[11px] text-amber-700">
-                    Stai finanziando {fmtEur(amount)} su un totale di {fmtEur(quoteTotal)}: la rata nel PDF è calcolata su {fmtEur(amount)}.{" "}
+                    {tr("Stai finanziando {importo} su un totale di {totale}: la rata nel PDF è calcolata su {importo}.", { importo: fmtEur(amount), totale: fmtEur(quoteTotal) })}{" "}
                     <button
                       type="button"
                       className="tap-compact font-medium underline underline-offset-2"
                       onClick={() => setAmount(alCentesimo(quoteTotal))}
                     >
-                      Usa il totale
+                      {tr("Usa il totale")}
                     </button>
                   </p>
                 )}
@@ -270,14 +264,10 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
               <AlertDescription>
                 <strong>{result.messaggio}</strong>
                 {result.durate_disponibili && result.durate_disponibili.length > 0 && (
-                  <p className="mt-1 text-xs">
-                    Durate disponibili: {result.durate_disponibili.join(", ")} rate
-                  </p>
+                  <p className="mt-1 text-xs">{tr("Durate disponibili: {durate_disponibili} rate", { durate_disponibili: result.durate_disponibili.join(", ") })}</p>
                 )}
                 {result.importo_min !== undefined && result.importo_max !== undefined && (
-                  <p className="mt-1 text-xs">
-                    Range importi: {fmtEur(result.importo_min)} – {fmtEur(result.importo_max)}
-                  </p>
+                  <p className="mt-1 text-xs">{tr("Range importi: {importo_min} – {importo_max}", { importo_min: fmtEur(result.importo_min), importo_max: fmtEur(result.importo_max) })}</p>
                 )}
               </AlertDescription>
             </Alert>
@@ -295,7 +285,7 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
               <div className="mb-3 flex items-center justify-between">
                 <p className="flex items-center gap-2 text-sm font-semibold">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  Rata calcolata
+                  {tr("Rata calcolata")}
                 </p>
                 <Badge
                   variant="outline"
@@ -306,30 +296,30 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
                       : "border-blue-400 text-blue-700",
                   )}
                 >
-                  {result.modalita === "esatto" ? "Da tabella" : "Interpolato"}
+                  {result.modalita === "esatto" ? tr("Da tabella") : tr("Interpolato")}
                 </Badge>
               </div>
 
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Stat
                   icon={<Banknote className="h-3.5 w-3.5" />}
-                  label="Rata mensile cliente"
+                  label={tr("Rata mensile cliente")}
                   value={fmtEur(result.rata_completa ?? result.importo_rata ?? 0)}
                   highlight
                 />
                 <Stat
                   icon={<Calendar className="h-3.5 w-3.5" />}
-                  label="Durata"
+                  label={tr("Durata")}
                   value={`${result.numero_rate} rate`}
                 />
                 <Stat
                   icon={<Calculator className="h-3.5 w-3.5" />}
-                  label="Totale dovuto"
+                  label={tr("Totale dovuto")}
                   value={fmtEur(result.importo_totale_dovuto ?? 0)}
                 />
                 <Stat
                   icon={<Percent className="h-3.5 w-3.5" />}
-                  label="TAN / TAEG"
+                  label={tr("TAN / TAEG")}
                   value={`${result.tan?.toFixed(2) ?? "—"}% / ${result.taeg?.toFixed(2) ?? "—"}%`}
                 />
               </div>
@@ -338,12 +328,12 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
                 (result.spese_incasso_rata ?? 0) > 0) && (
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   {(result.spese_istruttoria ?? 0) > 0 &&
-                    `Spese istruttoria: ${fmtEur(result.spese_istruttoria ?? 0)}`}
+                    tr("Spese istruttoria: {valore}", { valore: fmtEur(result.spese_istruttoria ?? 0) })}
                   {(result.spese_istruttoria ?? 0) > 0 &&
                     (result.spese_incasso_rata ?? 0) > 0 &&
                     " · "}
                   {(result.spese_incasso_rata ?? 0) > 0 &&
-                    `Spese incasso/rata: ${fmtEur(result.spese_incasso_rata ?? 0)}`}
+                    tr("Spese incasso/rata: {valore}", { valore: fmtEur(result.spese_incasso_rata ?? 0) })}
                 </p>
               )}
             </div>

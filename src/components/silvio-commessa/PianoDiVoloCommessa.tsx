@@ -17,22 +17,23 @@ import {
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { useCreaConSilvioAttivo } from "./useCreaConSilvioAttivo";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il motivo di un'azione saltata: dal database arriva anche il testo tecnico, che qui non si legge. */
-const motivoInParole = (m: string) => erroreLeggibile(m, "Non si è potuto fare");
+const motivoInParole = (m: string, t: ReturnType<typeof useT>) => erroreLeggibile(m, t("Non si è potuto fare"));
 
 /** «Fatto: 2 cose. Non fatto: 1 (motivo).» */
-function esitoInParole(e: EsitoConferma): string {
-  const cose = (n: number) => (n === 1 ? "1 cosa" : `${n} cose`);
-  const parti = [e.fatte.length ? `Fatto: ${cose(e.fatte.length)}.` : ""];
-  if (e.saltate.length) parti.push(`Non fatto: ${e.saltate.length} (${e.saltate.map((x) => motivoInParole(x.motivo)).join("; ")}).`);
-  if (e.nonScelte.length) parti.push(`${e.nonScelte.length === 1 ? "Ne resta 1" : `Ne restano ${e.nonScelte.length}`} che non hai scelto.`);
-  return parti.filter(Boolean).join(" ") || "Non c'era niente da fare.";
+function esitoInParole(e: EsitoConferma, t: ReturnType<typeof useT>): string {
+  const parti = [e.fatte.length ? t(e.fatte.length === 1 ? "Fatto: 1 cosa." : "Fatto: {n} cose.", { n: e.fatte.length }) : ""];
+  if (e.saltate.length) parti.push(t("Non fatto: {n} ({motivi}).", { n: e.saltate.length, motivi: e.saltate.map((x) => motivoInParole(x.motivo, t)).join("; ") }));
+  if (e.nonScelte.length) parti.push(t(e.nonScelte.length === 1 ? "Ne resta 1 che non hai scelto." : "Ne restano {n} che non hai scelto.", { n: e.nonScelte.length }));
+  return parti.filter(Boolean).join(" ") || t("Non c'era niente da fare.");
 }
 
 function Proposta({ p, puoModificare, db, onFatto, onEsito }: {
   p: PropostaVolo; puoModificare: boolean; db?: ClientVolo; onFatto: () => void; onEsito: (e: EsitoConferma) => void;
 }) {
+  const t = useT();
   // Quello che una conferma ha già fatto non si rifà, anche prima che la riga si rilegga.
   const [fatteOra, setFatteOra] = useState<number[]>([]);
   const [saltateOra, setSaltateOra] = useState<PropostaVolo["saltate"] | null>(null);
@@ -55,19 +56,19 @@ function Proposta({ p, puoModificare, db, onFatto, onEsito }: {
       onEsito(e);
       onFatto();
     } catch (err) {
-      setErrore(erroreLeggibile(err, "Non sono riuscito a farlo: riprova."));
+      setErrore(erroreLeggibile(err, t("Non sono riuscito a farlo: riprova.")));
     } finally {
       setLavoro(null);
     }
   };
   const scarta = async () => {
     setLavoro("scarta");
-    try { await scartaVolo(p.id, db); onFatto(); } catch (err) { setErrore(erroreLeggibile(err, "Non è andata: riprova.")); } finally { setLavoro(null); }
+    try { await scartaVolo(p.id, db); onFatto(); } catch (err) { setErrore(erroreLeggibile(err, t("Non è andata: riprova."))); } finally { setLavoro(null); }
   };
 
   return (
     <li className="px-4 py-2" data-tipo={p.tipo}>
-      <p className="text-sm text-slate-900"><span className="font-medium">{p.tipo === "sal" ? "SAL" : "Controllo"}{p.fase ? ` · ${p.fase}` : ""}:</span> {p.riassunto}</p>
+      <p className="text-sm text-slate-900"><span className="font-medium">{p.tipo === "sal" ? "SAL" : t("Controllo")}{p.fase ? ` · ${p.fase}` : ""}:</span> {p.riassunto}</p>
       {problemi.length > 0 && (
         <ul className="mt-0.5 space-y-0.5 text-xs text-red-800">{problemi.map((x, i) => <li key={i}>• {x.testo}</li>)}</ul>
       )}
@@ -80,7 +81,7 @@ function Proposta({ p, puoModificare, db, onFatto, onEsito }: {
               return (
                 <li key={i}>
                   {fatte.has(i) ? (
-                    <p className="flex min-h-11 items-center gap-2 text-emerald-800 lg:min-h-0"><Check className="h-4 w-4 shrink-0" aria-hidden /><span className="min-w-0 break-words">{azioneInParole(a)}<span className="sr-only"> (fatta)</span></span></p>
+                    <p className="flex min-h-11 items-center gap-2 text-emerald-800 lg:min-h-0"><Check className="h-4 w-4 shrink-0" aria-hidden /><span className="min-w-0 break-words">{azioneInParole(a)}<span className="sr-only"> {t("(fatta)")}</span></span></p>
                   ) : (
                     <div className="flex min-h-11 items-center gap-2 lg:min-h-0 lg:items-start">
                       <Checkbox id={`volo-${p.id}-${i}`} checked={scelte.includes(i)} className="lg:mt-0.5"
@@ -88,18 +89,18 @@ function Proposta({ p, puoModificare, db, onFatto, onEsito }: {
                       <label htmlFor={`volo-${p.id}-${i}`} className="min-w-0 break-words py-2 text-slate-700 lg:py-0">{azioneInParole(a)}</label>
                     </div>
                   )}
-                  {saltata && !fatte.has(i) && <p className="text-red-800 lg:ml-6">Non fatto: {motivoInParole(saltata.motivo)}.</p>}
+                  {saltata && !fatte.has(i) && <p className="text-red-800 lg:ml-6">{t("Non fatto: {motivo}.", { motivo: motivoInParole(saltata.motivo, t) })}</p>}
                 </li>
               );
             })}
           </ul>
           <div className="flex shrink-0 gap-2">
             <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" disabled={!!lavoro} onClick={() => void scarta()}>
-              {lavoro === "scarta" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}Non serve
+              {lavoro === "scarta" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}{t("Non serve")}
             </Button>
             <Button type="button" size="sm" className="h-11 gap-1 lg:h-8" disabled={!!lavoro || !daFare.length} onClick={() => void fai()}>
               {lavoro === "fai" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
-              Fai {daFare.length === 1 ? "questa" : `queste ${daFare.length}`}
+              {daFare.length === 1 ? t("Fai questa") : t("Fai queste {n}", { n: daFare.length })}
             </Button>
           </div>
         </div>
@@ -107,7 +108,7 @@ function Proposta({ p, puoModificare, db, onFatto, onEsito }: {
       {p.azioni.length === 0 && puoModificare && (
         <div className="mt-1 flex justify-end">
           <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" disabled={!!lavoro} onClick={() => void scarta()}>
-            <Check className="h-4 w-4" aria-hidden />Visto
+            <Check className="h-4 w-4" aria-hidden />{t("Visto")}
           </Button>
         </div>
       )}
@@ -119,6 +120,7 @@ function Proposta({ p, puoModificare, db, onFatto, onEsito }: {
 export function PianoDiVoloCommessa({ orderId, companyId, puoModificare, db }: {
   orderId: string; companyId: string | null | undefined; puoModificare: boolean; db?: ClientVolo;
 }) {
+  const t = useT();
   const attivo = useCreaConSilvioAttivo(companyId);
   const queryClient = useQueryClient();
   const chiave = ["silvio-commessa", "piano-volo", orderId];
@@ -135,15 +137,15 @@ export function PianoDiVoloCommessa({ orderId, companyId, puoModificare, db }: {
   const rilegge = () => { void queryClient.invalidateQueries({ queryKey: chiave }); void queryClient.invalidateQueries({ queryKey: ["orders"] }); };
 
   return (
-    <section className={cn("mx-0 mt-2 rounded-xl border border-sky-200 bg-sky-50 sm:mx-6")} aria-label="Piano di volo di Silvio">
+    <section className={cn("mx-0 mt-2 rounded-xl border border-sky-200 bg-sky-50 sm:mx-6")} aria-label={t("Piano di volo di Silvio")}>
       <h2 className="flex items-center gap-2 border-b border-sky-200 px-4 py-1.5 text-sm font-semibold text-sky-950">
         <CalendarCheck className="h-4 w-4 text-sky-700" aria-hidden />
-        Silvio ha controllato la partenza
-        {elenco.length > 0 && <span className="font-normal text-sky-800">· {elenco.length === 1 ? "una cosa da guardare" : `${elenco.length} cose da guardare`}</span>}
+        {t("Silvio ha controllato la partenza")}
+        {elenco.length > 0 && <span className="font-normal text-sky-800">· {elenco.length === 1 ? t("una cosa da guardare") : t("{n} cose da guardare", { n: elenco.length })}</span>}
       </h2>
       {esito && <p role="status" className="border-b border-sky-200 px-4 py-1.5 text-sm text-sky-950">{esito}</p>}
       <ul className="divide-y divide-sky-100">
-        {elenco.map((p) => <Proposta key={p.id} p={p} puoModificare={puoModificare} db={db} onFatto={rilegge} onEsito={(e) => setEsito(esitoInParole(e))} />)}
+        {elenco.map((p) => <Proposta key={p.id} p={p} puoModificare={puoModificare} db={db} onFatto={rilegge} onEsito={(e) => setEsito(esitoInParole(e, t))} />)}
       </ul>
     </section>
   );

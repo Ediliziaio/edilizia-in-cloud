@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Mail, MousePointerClick, Eye } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   campaignId: string;
@@ -23,6 +24,7 @@ function calcRate(num: number, den: number) {
 }
 
 export function CampaignAbResults({ campaignId }: Props) {
+  const t = useT();
   const { data: campaign } = useQuery({
     queryKey: ["ab-campaign", campaignId],
     queryFn: async () => {
@@ -81,15 +83,13 @@ export function CampaignAbResults({ campaignId }: Props) {
       <CardHeader className="pb-3">
         <CardTitle className="text-sm flex items-center gap-2">
           <Trophy className="h-4 w-4" />
-          Risultati A/B Test
+          {t("Risultati A/B Test")}
           {winner && (
-            <Badge className="bg-emerald-100 text-emerald-700 border-0 text-[10px]">
-              Vincitore: Variante {winner}
-            </Badge>
+            <Badge className="bg-emerald-100 text-emerald-700 border-0 text-[10px]">{t("Vincitore: Variante {winner}", { winner: String(winner ?? "") })}</Badge>
           )}
           {!winner && campaign.status === "sent" && (
             <Badge variant="secondary" className="text-[10px]">
-              In attesa ({(campaign as any)?.ab_test_duration_hours ?? 4}h) · Criterio: {criteriaLabel}
+              {t("In attesa ({ore}h) · Criterio: {criterio}", { ore: (campaign as any)?.ab_test_duration_hours ?? 4, criterio: t(criteriaLabel) })}
             </Badge>
           )}
         </CardTitle>
@@ -129,17 +129,18 @@ function VariantCard({ label, subject, stats, isWinner }: {
   stats: VariantStats;
   isWinner: boolean;
 }) {
+  const t = useT();
   return (
     <div className={`rounded-lg border p-3 space-y-3 ${isWinner ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10" : ""}`}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold">Variante {label}</span>
+        <span className="text-xs font-semibold">{t("Variante {label}", { label: String(label ?? "") })}</span>
         {isWinner && <Trophy className="h-3.5 w-3.5 text-emerald-600" />}
       </div>
       <p className="text-[11px] text-muted-foreground line-clamp-2 italic">"{subject}"</p>
       <div className="space-y-1.5">
-        <StatRow icon={<Mail className="h-3 w-3" />} label="Inviati" value={stats.total} rate="" />
-        <StatRow icon={<Eye className="h-3 w-3" />} label="Aperture" value={stats.opened} rate={calcRate(stats.opened, stats.delivered)} />
-        <StatRow icon={<MousePointerClick className="h-3 w-3" />} label="Clic" value={stats.clicked} rate={calcRate(stats.clicked, stats.delivered)} />
+        <StatRow icon={<Mail className="h-3 w-3" />} label={t("Inviati")} value={stats.total} rate="" />
+        <StatRow icon={<Eye className="h-3 w-3" />} label={t("Aperture")} value={stats.opened} rate={calcRate(stats.opened, stats.delivered)} />
+        <StatRow icon={<MousePointerClick className="h-3 w-3" />} label={t("Clic")} value={stats.clicked} rate={calcRate(stats.clicked, stats.delivered)} />
       </div>
     </div>
   );

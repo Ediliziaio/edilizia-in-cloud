@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { History, Mail, Pencil, Loader2 } from "lucide-react";
 import { modificheEvento, record, valoreStorico } from "@/lib/acquisti/storico";
 import { DocumentoAnteprimaDialog } from "./DocumentoAnteprimaDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 type FileStorico = { path: string; bucket: string; name: string };
 const stati: Record<string, string> = {
   queued: "In coda",
@@ -31,6 +32,7 @@ export function StoricoAcquistiCard({
    */
   rigaSeVuoto?: boolean;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const [limite, setLimite] = useState(20);
   const [file, setFile] = useState<FileStorico | null>(null);
@@ -61,15 +63,15 @@ export function StoricoAcquistiCard({
   if (rigaSeVuoto && !q.isError && (q.isLoading || !q.data?.length))
     return (
       <section
-        aria-label="Storico invii e revisioni"
+        aria-label={t("Storico invii e revisioni")}
         className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500"
       >
         <History className="h-3.5 w-3.5 shrink-0 text-orange-500" />
         <span className="min-w-0 flex-1 truncate">
           <span className="font-medium text-slate-700">
-            Storico invii e revisioni
+            {t("Storico invii e revisioni")}
           </span>
-          {q.isLoading ? " · caricamento…" : " · ancora nessun invio o modifica"}
+          {q.isLoading ? ` ${t("· caricamento…")}` : ` ${t("· ancora nessun invio o modifica")}`}
         </span>
         <Button
           size="sm"
@@ -78,19 +80,19 @@ export function StoricoAcquistiCard({
           disabled={q.isFetching}
           onClick={() => void q.refetch()}
         >
-          Aggiorna
+          {t("Aggiorna")}
         </Button>
       </section>
     );
   return (
     <section
-      aria-label="Storico invii e revisioni"
+      aria-label={t("Storico invii e revisioni")}
       className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-bold">
           <History className="h-4 w-4 text-orange-500" />
-          Storico invii e revisioni
+          {t("Storico invii e revisioni")}
         </h2>
         <Button
           size="sm"
@@ -98,29 +100,27 @@ export function StoricoAcquistiCard({
           disabled={q.isFetching}
           onClick={() => void q.refetch()}
         >
-          Aggiorna
+          {t("Aggiorna")}
         </Button>
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        Le modifiche e gli invii registrati da ora conservano i dati del
-        momento. Le bozze email non sono invii.
+        {t("Le modifiche e gli invii registrati da ora conservano i dati del momento. Le bozze email non sono invii.")}
       </p>
       {q.isLoading ? (
         <p role="status" className="mt-4 flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Caricamento storico…
+          {t("Caricamento storico…")}
         </p>
       ) : q.isError ? (
         <p role="alert" className="mt-4 text-sm text-red-700">
-          Storico non disponibile.{" "}
+          {t("Storico non disponibile.")}{" "}
           <Button variant="link" onClick={() => void q.refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </p>
       ) : !q.data?.length ? (
         <p className="mt-4 text-sm text-slate-500">
-          Nessun evento registrato. I prossimi salvataggi e invii compariranno
-          qui.
+          {t("Nessun evento registrato. I prossimi salvataggi e invii compariranno qui.")}
         </p>
       ) : (
         <ol className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto pr-1">
@@ -145,8 +145,8 @@ export function StoricoAcquistiCard({
                         )}
                         <span>
                           {e.kind === "email"
-                            ? `Email · ${stati[e.operation] ?? e.operation}`
-                            : `${e.entity} · ${e.operation === "INSERT" ? "Aggiunto" : e.operation === "DELETE" ? "Rimosso" : "Modificato"}`}
+                            ? `Email · ${stati[e.operation] ? t(stati[e.operation]) : e.operation}`
+                            : `${e.entity} · ${e.operation === "INSERT" ? t("Aggiunto") : e.operation === "DELETE" ? t("Rimosso") : t("Modificato")}`}
                         </span>
                       </div>
                       <time className="text-[11px] text-slate-500">
@@ -154,11 +154,11 @@ export function StoricoAcquistiCard({
                           typeof p.sent_at === "string"
                             ? p.sent_at
                             : e.created_at,
-                        ).toLocaleString("it-IT")}
+                        ).toLocaleString(intlCampo())}
                       </time>
                     </div>
                     <p className="mt-1 break-words text-xs text-slate-600">
-                      {e.actor_label || "Sistema"}
+                      {e.actor_label || t("Sistema")}
                       {e.kind === "email" && Array.isArray(p.to)
                         ? ` → ${p.to.join(", ")}`
                         : ""}
@@ -169,7 +169,7 @@ export function StoricoAcquistiCard({
                       </p>
                     )}
                     <p className="mt-1 text-[11px] text-blue-600">
-                      Apri dettagli
+                      {t("Apri dettagli")}
                     </p>
                   </summary>
                   <div className="mt-3 border-t pt-3">
@@ -178,22 +178,14 @@ export function StoricoAcquistiCard({
                         <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-700">
                           {typeof p.body === "string"
                             ? p.body
-                            : "Messaggio senza testo semplice."}
+                            : t("Messaggio senza testo semplice.")}
                         </p>
                         {righe.length > 0 && (
                           <details className="mt-3 rounded-lg bg-slate-50 p-3">
-                            <summary className="cursor-pointer text-xs font-semibold">
-                              Versione documento preparata ·{" "}
-                              {String(documento.numero ?? "")}
-                            </summary>
-                            <p className="mt-2 text-xs">
-                              Fornitore:{" "}
-                              {String(
+                            <summary className="cursor-pointer text-xs font-semibold">{t("Versione documento preparata · {numero}", { numero: String(documento.numero ?? "") })}</summary>
+                            <p className="mt-2 text-xs">{t("Fornitore: {fornitore} · Pagamento: {pagamento}", { fornitore: String(
                                 record(documento.destinatario).nome ?? "—",
-                              )}{" "}
-                              · Pagamento:{" "}
-                              {String(documento.pagamento ?? "Da indicare")}
-                            </p>
+                              ), pagamento: documento.pagamento ? String(documento.pagamento) : t("Da indicare") })}</p>
                             <ul className="mt-2 space-y-1">
                               {righe.map((r, i) => {
                                 const voce = record(r);
@@ -203,16 +195,14 @@ export function StoricoAcquistiCard({
                                     {String(voce.unita ?? "")} ·{" "}
                                     {String(voce.descrizione ?? "")}
                                     {typeof voce.prezzo === "number"
-                                      ? ` · ${voce.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`
+                                      ? ` · ${voce.prezzo.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" })}`
                                       : ""}
                                   </li>
                                 );
                               })}
                             </ul>
                             <p className="mt-2 text-[11px] text-slate-500">
-                              Questi sono i dati salvati all’apertura del
-                              compositore. Il testo sopra e gli allegati
-                              riportano il contenuto finale dell’email.
+                              {t("Questi sono i dati salvati all’apertura del compositore. Il testo sopra e gli allegati riportano il contenuto finale dell’email.")}
                             </p>
                           </details>
                         )}
@@ -244,15 +234,14 @@ export function StoricoAcquistiCard({
                                     })
                                   }
                                 >
-                                  Apri PDF originale
+                                  {t("Apri PDF originale")}
                                 </Button>
                               )}
                             </div>
                           ) : null;
                         })}
                         <p className="mt-2 text-[11px] text-slate-500">
-                          Il PDF originale rispetta i permessi di accesso agli
-                          allegati della casella mittente.
+                          {t("Il PDF originale rispetta i permessi di accesso agli allegati della casella mittente.")}
                         </p>
                       </>
                     ) : (
@@ -285,7 +274,7 @@ export function StoricoAcquistiCard({
                           </dl>
                         ) : (
                           <p className="text-xs text-slate-500">
-                            Dati del documento aggiornati.
+                            {t("Dati del documento aggiornati.")}
                           </p>
                         )}
                       </>
@@ -304,7 +293,7 @@ export function StoricoAcquistiCard({
           className="mt-3"
           onClick={() => setLimite((n) => n + 20)}
         >
-          Mostra eventi precedenti
+          {t("Mostra eventi precedenti")}
         </Button>
       )}
       {file && (

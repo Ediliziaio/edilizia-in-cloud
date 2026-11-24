@@ -13,6 +13,7 @@
 import React, { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Category = "recenti" | "smile" | "gesti" | "cuori" | "oggetti" | "natura" | "cibo" | "attivita" | "simboli";
 
@@ -122,6 +123,7 @@ const ACCENT_BG: Record<NonNullable<Props["accent"]>, string> = {
 };
 
 export function EmojiPicker({ trigger, onPick, side = "top", align = "end", accent = "orange" }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Category>("smile");
   const [recent, setRecent] = useState<string[]>(loadRecent);
@@ -170,7 +172,7 @@ export function EmojiPicker({ trigger, onPick, side = "top", align = "end", acce
         {/* Grid */}
         <div className="overflow-y-auto p-2 flex-1 min-h-0">
           {visibleEmojis.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-4">Nessuna emoji recente.</p>
+            <p className="text-xs text-slate-400 text-center py-4">{t("Nessuna emoji recente.")}</p>
           ) : (
             <div className="grid grid-cols-8 gap-0.5">
               {visibleEmojis.map((e, i) => (

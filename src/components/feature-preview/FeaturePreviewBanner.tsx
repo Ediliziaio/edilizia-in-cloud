@@ -17,6 +17,7 @@ import { useFeaturePreviewContextOptional } from "./useFeaturePreview";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { UnlockFeatureDialog } from "./UnlockFeatureDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Se non fornito, legge dal FeaturePreviewProvider. */
@@ -35,9 +36,10 @@ export function FeaturePreviewBanner({
   benefits: benefitsProp,
   compact = false,
 }: Props) {
+  const t = useT();
   const ctx = useFeaturePreviewContextOptional();
   const featureKey = keyProp ?? ctx?.featureKey;
-  const featureLabel = labelProp ?? ctx?.featureLabel ?? "questa funzione";
+  const featureLabel = labelProp ?? ctx?.featureLabel ?? t("questa funzione");
   const description = descProp ?? ctx?.description;
   const benefits = benefitsProp ?? ctx?.benefits ?? [];
 
@@ -63,15 +65,13 @@ export function FeaturePreviewBanner({
           {/* Testo */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-sm text-amber-900 dark:text-amber-100">
-                Modalità Demo · {featureLabel}
-              </p>
+              <p className="font-semibold text-sm text-amber-900 dark:text-amber-100">{t("Modalità Demo · {featureLabel}", { featureLabel: String(featureLabel ?? "") })}</p>
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-200 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 uppercase tracking-wide">
-                Preview
+                {t("Preview")}
               </span>
             </div>
             <p className="text-xs text-amber-800 dark:text-amber-200/80 mt-0.5">
-              {description ?? "Esplora liberamente l'interfaccia. Per salvare, integrare o generare contenuti contatta il tuo consulente."}
+              {description ?? t("Esplora liberamente l'interfaccia. Per salvare, integrare o generare contenuti contatta il tuo consulente.")}
             </p>
           </div>
 
@@ -82,7 +82,7 @@ export function FeaturePreviewBanner({
             onClick={() => setOpen(true)}
           >
             <Sparkles className="h-3.5 w-3.5 mr-1" />
-            Sblocca ora
+            {t("Sblocca ora")}
           </Button>
         </div>
 
@@ -95,9 +95,7 @@ export function FeaturePreviewBanner({
               className="w-full px-3 sm:px-4 py-2 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 hover:bg-white/40 dark:hover:bg-black/20 transition-colors"
               aria-expanded={expanded}
             >
-              <span className="font-medium">
-                Cosa otterrai sbloccando · {benefits.length} vantaggi
-              </span>
+              <span className="font-medium">{t("Cosa otterrai sbloccando · {n} vantaggi", { n: benefits.length })}</span>
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
             {expanded && (

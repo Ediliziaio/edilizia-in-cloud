@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ValueCardProps {
   icon: typeof TrendingUp;
@@ -42,6 +43,7 @@ function ValueCard({ icon: Icon, iconClass, title, desc }: ValueCardProps) {
 }
 
 export function CogestEmptyState() {
+  const t = useT();
   return (
     <div className="max-w-4xl mx-auto py-8 space-y-8">
       {/* Hero */}
@@ -50,11 +52,10 @@ export function CogestEmptyState() {
           <Sparkles className="h-7 w-7 text-white" />
         </div>
         <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
-          Smetti di guardare il bilancio una volta all&apos;anno.
+          {t("Smetti di guardare il bilancio una volta all'anno.")}
         </h1>
         <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-          Il Controllo di Gestione ti dice ogni mese quanto stai facendo, su quali
-          cantieri stai perdendo, dove tagliare costi e quanto cash avrai fra 90 giorni.
+          {t("Il Controllo di Gestione ti dice ogni mese quanto stai facendo, su quali cantieri stai perdendo, dove tagliare costi e quanto cash avrai fra 90 giorni.")}
         </p>
       </div>
 
@@ -63,20 +64,20 @@ export function CogestEmptyState() {
         <ValueCard
           icon={TrendingUp}
           iconClass="bg-emerald-100 text-emerald-700"
-          title="Margine cantiere"
-          desc="Vedi cantiere per cantiere quanto stai guadagnando davvero, costi inclusi. Smetti di scoprirlo a fine anno."
+          title={t("Margine cantiere")}
+          desc={t("Vedi cantiere per cantiere quanto stai guadagnando davvero, costi inclusi. Smetti di scoprirlo a fine anno.")}
         />
         <ValueCard
           icon={Target}
           iconClass="bg-blue-100 text-blue-700"
-          title="Budget vs Actual"
-          desc="Imposta il budget annuale e ricevi alert mensili sugli scostamenti. Sai subito dove correggere."
+          title={t("Budget vs Actual")}
+          desc={t("Imposta il budget annuale e ricevi alert mensili sugli scostamenti. Sai subito dove correggere.")}
         />
         <ValueCard
           icon={Banknote}
           iconClass="bg-amber-100 text-amber-700"
-          title="Cash flow 90gg"
-          desc="Forecast dei prossimi 90 giorni basato su scadenze attive, passive e payback medio. Niente sorprese."
+          title={t("Cash flow 90gg")}
+          desc={t("Forecast dei prossimi 90 giorni basato su scadenze attive, passive e payback medio. Niente sorprese.")}
         />
       </div>
 
@@ -84,13 +85,12 @@ export function CogestEmptyState() {
       <div className="space-y-3 text-center">
         <Button asChild size="lg" className="gap-2">
           <Link to="/azienda/controllo-gestione/configurazione">
-            Inizia dalla classificazione voci
+            {t("Inizia dalla classificazione voci")}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </Button>
         <p className="text-xs text-muted-foreground">
-          Configura piano dei conti, aliquote IRES/IRAP e note → poi i tab Bilancio, Budget
-          e Marginalità si popolano automaticamente.
+          {t("Configura piano dei conti, aliquote IRES/IRAP e note → poi i tab Bilancio, Budget e Marginalità si popolano automaticamente.")}
         </p>
       </div>
 
@@ -98,15 +98,10 @@ export function CogestEmptyState() {
       <Card className="bg-slate-50 border-slate-200">
         <CardContent className="p-4 text-sm text-slate-600 space-y-2">
           <p>
-            <strong className="text-slate-900">Da dove arrivano i dati?</strong> Il modulo
-            riclassifica automaticamente i movimenti di prima nota, le fatture attive/passive,
-            i finanziamenti e gli ordini. Non serve inserire nulla a mano se hai già usato
-            Tesoreria e Fatturazione.
+            <strong className="text-slate-900">{t("Da dove arrivano i dati?")}</strong> {t("Il modulo riclassifica automaticamente i movimenti di prima nota, le fatture attive/passive, i finanziamenti e gli ordini. Non serve inserire nulla a mano se hai già usato Tesoreria e Fatturazione.")}
           </p>
           <p>
-            <strong className="text-slate-900">Quando attivarlo?</strong> Quando inizi a fare
-            bilancio mensile (non solo annuale), quando vuoi capire quali cantieri sono
-            realmente profittevoli, o quando devi presentare un pacchetto banca aggiornato.
+            <strong className="text-slate-900">{t("Quando attivarlo?")}</strong> {t("Quando inizi a fare bilancio mensile (non solo annuale), quando vuoi capire quali cantieri sono realmente profittevoli, o quando devi presentare un pacchetto banca aggiornato.")}
           </p>
         </CardContent>
       </Card>

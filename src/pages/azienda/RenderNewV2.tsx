@@ -90,6 +90,7 @@ import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 // v8.6.23 — Polling come SAFETY NET dietro al canale Realtime.
 // La Realtime subscription riceve l'evento UPDATE row push istantaneo dal DB
 // (latenza <500ms). Il polling è il paracadute se il websocket cade
@@ -160,6 +161,7 @@ interface ResumeSnapshot {
 }
 
 export default function RenderNewV2() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -326,7 +328,7 @@ export default function RenderNewV2() {
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB). Comprimi l'immagine e riprova.");
+      toast.error(t("File troppo grande (max 20 MB). Comprimi l'immagine e riprova."));
       return;
     }
 
@@ -354,7 +356,7 @@ export default function RenderNewV2() {
         setPhoto(null);
         toast.error(err instanceof Error ? err.message : String(err));
       });
-  }, []);
+  }, [t]);
 
   const startWindowAnalysis = useCallback(async (path: string, sid: string) => {
     setAnalysisLoading(true);
@@ -365,7 +367,7 @@ export default function RenderNewV2() {
         .createSignedUrl(path, 300);
 
       if (!signed?.signedUrl) {
-        throw new Error("Signed URL non disponibile per l'analisi.");
+        throw new Error(t("Signed URL non disponibile per l'analisi."));
       }
 
       const headers = await getEdgeFunctionAuthHeaders();
@@ -379,7 +381,7 @@ export default function RenderNewV2() {
           await resolveEdgeFunctionErrorMessage({
             error,
             data,
-            fallback: "Analisi ambiente non disponibile.",
+            fallback: t("Analisi ambiente non disponibile."),
           }),
         );
       }
@@ -395,7 +397,7 @@ export default function RenderNewV2() {
     } finally {
       setAnalysisLoading(false);
     }
-  }, [photoMeta]);
+  }, [photoMeta, t]);
 
   // v8.6.31 — Override manuale cassonettoStyle: l'utente può correggere
   // l'analyzer se ha mis-classificato (es. ha detto "internal_monoblocco"
@@ -435,21 +437,21 @@ export default function RenderNewV2() {
       // Rollback UI + toast utente con messaggio chiaro in italiano.
       setSceneAnalysis(previousAnalysis);
       console.warn("Override cassonettoStyle persist failed:", err);
-      toast.error("Modifica non salvata. Controlla la connessione e riprova.");
+      toast.error(t("Modifica non salvata. Controlla la connessione e riprova."));
     }
-  }, [sceneAnalysis, sessionId]);
+  }, [sceneAnalysis, sessionId, t]);
 
   const uploadAndCreateSession = useCallback(async (): Promise<{ sid: string; path: string } | null> => {
     if (!user) {
-      toast.error("Devi essere autenticato per creare un render.");
+      toast.error(t("Devi essere autenticato per creare un render."));
       return null;
     }
     if (!companyId) {
-      toast.error("Azienda non identificata. Ricarica la pagina o riprova.");
+      toast.error(t("Azienda non identificata. Ricarica la pagina o riprova."));
       return null;
     }
     if (!photo) {
-      toast.error("Carica una foto prima di procedere.");
+      toast.error(t("Carica una foto prima di procedere."));
       return null;
     }
     if (sessionId && photoPath) {
@@ -468,12 +470,12 @@ export default function RenderNewV2() {
       if (upErr) {
         const message = upErr.message ?? "";
         if (/row-level security|permission|policy/i.test(message)) {
-          throw new Error("Permessi insufficienti per caricare la foto. Verifica l'azienda attiva.");
+          throw new Error(t("Permessi insufficienti per caricare la foto. Verifica l'azienda attiva."));
         }
         if (/not found|bucket/i.test(message)) {
-          throw new Error("Bucket 'render-originals' non disponibile. Contatta l'assistenza.");
+          throw new Error(t("Bucket 'render-originals' non disponibile. Contatta l'assistenza."));
         }
-        throw new Error(`Upload foto fallito: ${message || "errore sconosciuto"}`);
+        throw new Error(t("Upload foto fallito: {errore}", { errore: message || t("errore sconosciuto") }));
       }
 
       const { data: sess, error: sessErr } = await supabase
@@ -489,7 +491,7 @@ export default function RenderNewV2() {
         .single();
 
       if (sessErr || !sess) {
-        throw new Error(sessErr?.message ?? "Creazione sessione render fallita.");
+        throw new Error(sessErr?.message ?? t("Creazione sessione render fallita."));
       }
 
       setPhotoPath(path);
@@ -501,7 +503,7 @@ export default function RenderNewV2() {
     } finally {
       setUploading(false);
     }
-  }, [companyId, photo, photoPath, sessionId, user]);
+  }, [companyId, photo, photoPath, sessionId, user, t]);
 
   // v8.5.5 — stopPoll ferma SOLO il timeout di polling. Il contatore tick
   // (elapsedSec) deve continuare a girare durante il polling: era questo
@@ -587,14 +589,14 @@ export default function RenderNewV2() {
         stopPolling();
         setGenerating(false);
         setGenerateError(
-          `Render interrotto sul server dopo ${Math.round(ageSec)}s (timeout 150s edge function Supabase). Riprova: di solito al secondo tentativo va a buon fine.`,
+          t("Render interrotto sul server dopo {secondi}s (timeout 150s edge function Supabase). Riprova: di solito al secondo tentativo va a buon fine.", { secondi: Math.round(ageSec) }),
         );
         return true;
       }
     }
 
     if (sess?.status === "failed") {
-      const errorMessage = sess.error_message || "Render fallito";
+      const errorMessage = sess.error_message || t("Render fallito");
       stopPolling();
       setGenerating(false);
       setGenerateError(errorMessage);
@@ -614,7 +616,7 @@ export default function RenderNewV2() {
     return false;
     // v8.6.33 — companyId rimosso dalle deps: ora letto da companyIdRef.current
     // per evitare stale closure su Realtime callback (multi-tenant fix).
-  }, [queryClient, stopPolling, isEmbed]);
+  }, [queryClient, stopPolling, isEmbed, t]);
 
   const startPolling = useCallback((sid: string) => {
     // Cancella solo eventuali poll timeout pendenti.
@@ -664,7 +666,7 @@ export default function RenderNewV2() {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         stopPolling();
         setGenerating(false);
-        setGenerateError("Timeout: il render sta impiegando troppo tempo.");
+        setGenerateError(t("Timeout: il render sta impiegando troppo tempo."));
         return;
       }
 
@@ -691,7 +693,7 @@ export default function RenderNewV2() {
     // completed (es. retry di una sessione che era stata completata
     // qualche secondo prima del subscribe).
     pollRef.current = setTimeout(poll, 50);
-  }, [stopPoll, stopPolling, handleSessionRow]);
+  }, [stopPoll, stopPolling, handleSessionRow, t]);
 
   // F4 (audit 16/07) — opts.refine: correzione MIRATA del risultato precedente
   // (image-to-image sul render, non rigenerazione da zero). La prima entro
@@ -743,8 +745,8 @@ export default function RenderNewV2() {
 
     if (updateError) {
       setGenerating(false);
-      setGenerateError(`Salvataggio configurazione fallito. Riprova tra qualche secondo.`);
-      toast.error(`Salvataggio configurazione render fallito: ${updateError.message}`);
+      setGenerateError(t("Salvataggio configurazione fallito. Riprova tra qualche secondo."));
+      toast.error(t("Salvataggio configurazione render fallito: {message}", { message: String(updateError.message ?? "") }));
       return;
     }
 
@@ -796,7 +798,7 @@ export default function RenderNewV2() {
           await resolveEdgeFunctionErrorMessage({
             error,
             data,
-            fallback: "Generazione render non riuscita.",
+            fallback: t("Generazione render non riuscita."),
           }),
         );
       }
@@ -831,7 +833,7 @@ export default function RenderNewV2() {
         console.warn("[render] invoke timed out, falling back to polling");
         startPolling(sessionId);
         // Mostra un messaggio non-bloccante invece di error rosso
-        toast.message("Il render sta impiegando più tempo del previsto. Attendi...");
+        toast.message(t("Il render sta impiegando più tempo del previsto. Attendi..."));
         return;
       }
       stopPolling();
@@ -842,7 +844,7 @@ export default function RenderNewV2() {
     } finally {
       startingRef.current = false;
     }
-  }, [companyId, generating, notes, photoMeta, queryClient, sceneAnalysis, selectedOpeningIds, sessionId, startPolling, stopPolling, state]);
+  }, [companyId, generating, notes, photoMeta, queryClient, sceneAnalysis, selectedOpeningIds, sessionId, startPolling, stopPolling, state, t]);
 
   useEffect(() => {
     if (!photoPath || originalSignedUrl) return;
@@ -949,8 +951,8 @@ export default function RenderNewV2() {
       setStep(7);
       setResultUrl(row.result_urls[0] as string);
     }
-    toast.success("Sessione ripresa da dove l'avevi lasciata.");
-  }, [resumable, startPolling]);
+    toast.success(t("Sessione ripresa da dove l'avevi lasciata."));
+  }, [resumable, startPolling, t]);
 
   const discardResume = useCallback(() => {
     setResumable(null);
@@ -991,9 +993,9 @@ export default function RenderNewV2() {
   const goNext = useCallback(async () => {
     if (step === 1) {
       if ((renderBalance ?? 0) <= 0) {
-        toast.error("Crediti render esauriti. Ricarica il pacchetto per continuare.", {
+        toast.error(t("Crediti render esauriti. Ricarica il pacchetto per continuare."), {
           action: {
-            label: "Ricarica",
+            label: t("Ricarica"),
             onClick: () => navigate("/azienda/impostazioni/abbonamento?tab=portafoglio"),
           },
         });
@@ -1006,7 +1008,7 @@ export default function RenderNewV2() {
       return;
     }
     if (step < 7) setStep((current) => (current + 1) as Step);
-  }, [navigate, renderBalance, startWindowAnalysis, step, uploadAndCreateSession]);
+  }, [navigate, renderBalance, startWindowAnalysis, step, uploadAndCreateSession, t]);
 
   const goBack = useCallback(() => {
     if (step > 1) setStep((current) => (current - 1) as Step);
@@ -1055,11 +1057,11 @@ export default function RenderNewV2() {
     try {
       await downloadRenderImage(resultUrl, `render_infissi_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     } finally {
       setDownloading(false);
     }
-  }, [resultUrl, downloading]);
+  }, [resultUrl, downloading, t]);
 
   const canGoNextFromStep = useCallback((current: Step) => {
     switch (current) {
@@ -1107,10 +1109,10 @@ export default function RenderNewV2() {
         <div className="mb-4 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-3 text-white">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-white/80">
-              Step {step} / {STEP_LABELS.length} · {STEP_LABELS[step - 1] ?? ""}
+              {t("Step {step} / {n}", { step: String(step ?? ""), n: STEP_LABELS.length })} · {t(STEP_LABELS[step - 1] ?? "")}
             </span>
             <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20 text-[10px] py-0">
-              <Zap className="h-2.5 w-2.5" /> Render AI
+              <Zap className="h-2.5 w-2.5" /> {t("Render AI")}
             </Badge>
           </div>
           <Progress value={progressValue} className="h-1 bg-white/20" />
@@ -1124,35 +1126,34 @@ export default function RenderNewV2() {
               className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Indietro
+              {t("Indietro")}
             </button>
             <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20">
               <Zap className="h-3 w-3" />
-              Render AI — Infissi
+              {t("Render AI — Infissi")}
             </Badge>
           </div>
 
           <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between max-md:mt-0 max-md:flex-row max-md:items-center max-md:justify-between">
             <div>
               {/* Mobile: titolo compatto. Desktop: kicker + claim + descrizione estesa. */}
-              <div className="text-xl font-bold md:hidden max-md:text-lg">Render Infissi</div>
+              <div className="text-xl font-bold md:hidden max-md:text-lg">{t("Render Infissi")}</div>
               <div className="hidden md:block">
                 <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
-                  Sostituzione serramenti fotorealistica
+                  {t("Sostituzione serramenti fotorealistica")}
                 </div>
                 <div className="text-2xl font-bold">
-                  Stessa casa, stessa foto, nuovi infissi
+                  {t("Stessa casa, stessa foto, nuovi infissi")}
                 </div>
                 <div className="mt-1 max-w-2xl text-sm text-white/70">
-                  Guidiamo l'AI a sostituire solo le aperture selezionate, mantenendo ambiente, prospettiva,
-                  arredi, luce e formato della foto esattamente coerenti con l'originale.
+                  {t("Guidiamo l'AI a sostituire solo le aperture selezionate, mantenendo ambiente, prospettiva, arredi, luce e formato della foto esattamente coerenti con l'originale.")}
                 </div>
               </div>
             </div>
             <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80 max-md:shrink-0 max-md:rounded-full max-md:bg-muted max-md:px-2.5 max-md:py-1 max-md:text-[11px] max-md:font-medium max-md:text-muted-foreground">
-              <span className="max-md:hidden">Step {step} / {STEP_LABELS.length}</span>
+              <span className="max-md:hidden">{t("Step {step} / {n}", { step: String(step ?? ""), n: STEP_LABELS.length })}</span>
               <span className="md:hidden">
-                {STEP_LABELS[step - 1]} · {step}/{STEP_LABELS.length}
+                {t(STEP_LABELS[step - 1])} · {step}/{STEP_LABELS.length}
               </span>
             </div>
           </div>
@@ -1169,7 +1170,7 @@ export default function RenderNewV2() {
                     )}
                   />
                   <div className={cn("text-[10px] font-semibold", step >= index + 1 ? "text-white" : "text-white/40")}>
-                    {label}
+                    {t(label)}
                   </div>
                 </div>
               ))}
@@ -1319,6 +1320,7 @@ function RipresaRender({
   onRiprendi: () => void;
   onRicomincia: () => void;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [miniatura, setMiniatura] = useState<string | null>(null);
 
@@ -1350,12 +1352,12 @@ function RipresaRender({
         )}
         <div className="text-sm max-md:min-w-0 max-md:flex-1">
           <div className="font-semibold max-md:truncate max-md:text-[13px]">
-            <span className="max-md:hidden">Hai un render lasciato a metà</span>
-            <span className="md:hidden">Render a metà</span>
+            <span className="max-md:hidden">{t("Hai un render lasciato a metà")}</span>
+            <span className="md:hidden">{t("Render a metà")}</span>
           </div>
           <div className="text-muted-foreground max-md:text-[11px]">
-            <span className="max-md:hidden">Foto e scelte sono salvate (step {passo} di 7). Vuoi riprendere da dove eri?</span>
-            <span className="md:hidden">Passo {passo} di 7</span>
+            <span className="max-md:hidden">{t("Foto e scelte sono salvate (step {passo} di 7). Vuoi riprendere da dove eri?", { passo: String(passo ?? "") })}</span>
+            <span className="md:hidden">{t("Passo {passo} di 7", { passo: String(passo ?? "") })}</span>
           </div>
         </div>
         <div className="flex shrink-0 gap-2 max-md:items-center max-md:gap-0.5">
@@ -1365,17 +1367,17 @@ function RipresaRender({
             className="max-md:h-9 max-md:bg-slate-800 max-md:px-3.5 max-md:text-[13px] max-md:hover:bg-slate-700"
             onClick={onRiprendi}
           >
-            Riprendi
+            {t("Riprendi")}
           </Button>
           <Button
             size="sm"
             variant={isMobile ? "ghost" : "outline"}
             className="max-md:h-9 max-md:w-9 max-md:px-0 max-md:text-muted-foreground"
             onClick={onRicomincia}
-            aria-label="Ricomincia da capo"
+            aria-label={t("Ricomincia da capo")}
           >
             <X className="hidden h-4 w-4 max-md:block" />
-            <span className="max-md:hidden">Ricomincia</span>
+            <span className="max-md:hidden">{t("Ricomincia")}</span>
           </Button>
         </div>
       </CardContent>
@@ -1398,6 +1400,7 @@ function StepPhoto({
   uploading: boolean;
   fileRef: React.RefObject<HTMLInputElement>;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   return (
     <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr] max-md:gap-3">
@@ -1405,7 +1408,7 @@ function StepPhoto({
         <CardContent className="p-0">
           {preview ? (
             <div className="relative">
-              <img loading="lazy" src={preview} alt="Anteprima foto" className="block max-h-[520px] w-full object-contain bg-slate-100" />
+              <img loading="lazy" src={preview} alt={t("Anteprima foto")} className="block max-h-[520px] w-full object-contain bg-slate-100" />
               {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
               <Button
                 type="button"
@@ -1415,11 +1418,11 @@ function StepPhoto({
                 onClick={() => onFile(null)}
               >
                 <Camera className="hidden h-3.5 w-3.5 max-md:block" />
-                Cambia foto
+                {t("Cambia foto")}
               </Button>
               {meta && (
                 <div className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-3 py-1.5 text-xs text-white max-md:hidden">
-                  {meta.width}×{meta.height} · {ORIENTAMENTO_IT[meta.orientation] ?? meta.orientation}
+                  {meta.width}×{meta.height} · {ORIENTAMENTO_IT[meta.orientation] ? t(ORIENTAMENTO_IT[meta.orientation]) : meta.orientation}
                 </div>
               )}
             </div>
@@ -1438,22 +1441,22 @@ function StepPhoto({
               </div>
               <div className="space-y-1 text-center">
                 <div className="text-lg font-bold max-md:text-sm max-md:font-semibold">
-                  <span className="max-md:hidden">Carica la foto reale dell'ambiente</span>
-                  <span className="md:hidden">Scatta o scegli una foto</span>
+                  <span className="max-md:hidden">{t("Carica la foto reale dell'ambiente")}</span>
+                  <span className="md:hidden">{t("Scatta o scegli una foto")}</span>
                 </div>
                 {/* Telefono: niente spiegazione né limiti del file (se serve lo dice l'avviso). */}
                 <div className="text-sm text-muted-foreground max-md:hidden">
-                  L'obiettivo è sostituire solo gli infissi visibili mantenendo identico tutto il resto.
+                  {t("L'obiettivo è sostituire solo gli infissi visibili mantenendo identico tutto il resto.")}
                 </div>
-                <div className="text-[11px] text-muted-foreground md:hidden">Frontale, ben illuminata, con tutta la finestra</div>
+                <div className="text-[11px] text-muted-foreground md:hidden">{t("Frontale, ben illuminata, con tutta la finestra")}</div>
                 {/* v8.6.33 — Hint preventivo formato/dimensione: evita di scoprire i limiti DOPO la selezione del file. */}
                 <div className="pt-2 text-xs text-muted-foreground max-md:hidden">
-                  JPG o PNG · max 20 MB · idealmente sotto i 5 MB per analisi più veloce
+                  {t("JPG o PNG · max 20 MB · idealmente sotto i 5 MB per analisi più veloce")}
                 </div>
               </div>
               <div className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white max-md:hidden">
                 <Upload className="mr-2 inline h-4 w-4" />
-                Sfoglia file
+                {t("Sfoglia file")}
               </div>
             </button>
           )}
@@ -1478,20 +1481,20 @@ function StepPhoto({
         <CardContent className="space-y-4 p-5 max-md:p-0">
           {!isMobile && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 1</div>
-              <h2 className="mt-1 text-xl font-bold">Foto sorgente</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">{t("Step 1")}</div>
+              <h2 className="mt-1 text-xl font-bold">{t("Foto sorgente")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Più la foto è chiara e leggibile, più il render finale sembrerà una sostituzione reale e non una reinterpretazione AI.
+                {t("Più la foto è chiara e leggibile, più il render finale sembrerà una sostituzione reale e non una reinterpretazione AI.")}
               </p>
             </div>
           )}
 
           {!isMobile && (
             <div className="space-y-2 text-sm text-muted-foreground">
-              <div>1. Inquadra bene le aperture da modificare.</div>
-              <div>2. Evita tagli eccessivi dei bordi del vano finestra.</div>
-              <div>3. Mantieni visibili elementi di contorno utili: tende, davanzale, radiatore, cassonetto.</div>
-              <div>4. Se la foto è verticale, il render resterà verticale.</div>
+              <div>{t("1. Inquadra bene le aperture da modificare.")}</div>
+              <div>{t("2. Evita tagli eccessivi dei bordi del vano finestra.")}</div>
+              <div>{t("3. Mantieni visibili elementi di contorno utili: tende, davanzale, radiatore, cassonetto.")}</div>
+              <div>{t("4. Se la foto è verticale, il render resterà verticale.")}</div>
             </div>
           )}
 
@@ -1504,11 +1507,11 @@ function StepPhoto({
             {uploading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Upload e preparazione…
+                {t("Upload e preparazione…")}
               </>
             ) : (
               <>
-                Analizza ambiente
+                {t("Analizza ambiente")}
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
@@ -1545,6 +1548,7 @@ function StepAnalysis({
   // v8.6.31 — Override manuale cassonettoStyle (definito nel padre RenderNewV2)
   onCassonettoStyleChange: (openingId: string, style: "external_box" | "internal_monoblocco" | "absent") => void;
 }) {
+  const t = useT();
   const openings = analysis?.openings ?? [];
   return (
     <div className="space-y-4">
@@ -1553,10 +1557,10 @@ function StepAnalysis({
           {/* Telefono: titolo e badge li dice già la testata; «Rianalizza» sta accanto ai numeri. */}
           <div className="flex items-start justify-between gap-4 max-md:hidden">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600 max-md:hidden">Step 2</div>
-              <h2 className="mt-1 text-xl font-bold max-md:hidden">Analisi ambiente esistente</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600 max-md:hidden">{t("Step 2")}</div>
+              <h2 className="mt-1 text-xl font-bold max-md:hidden">{t("Analisi ambiente esistente")}</h2>
               <p className="mt-2 text-sm text-muted-foreground max-md:hidden">
-                Leggiamo la scena per capire aperture visibili, accessori esistenti e punti da preservare.
+                {t("Leggiamo la scena per capire aperture visibili, accessori esistenti e punti da preservare.")}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1570,16 +1574,16 @@ function StepAnalysis({
                   onClick={onRetry}
                   variant="outline"
                   size="sm"
-                  aria-label="Rianalizza"
+                  aria-label={t("Rianalizza")}
                   className="gap-1 text-xs max-md:h-9 max-md:w-9 max-md:px-0"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
-                  <span className="max-md:hidden">Rianalizza</span>
+                  <span className="max-md:hidden">{t("Rianalizza")}</span>
                 </Button>
               )}
               <Badge className="gap-1 bg-slate-900 text-white hover:bg-slate-900 max-md:hidden">
                 <ScanSearch className="h-3.5 w-3.5" />
-                Scene analysis
+                {t("Scene analysis")}
               </Badge>
             </div>
           </div>
@@ -1587,36 +1591,34 @@ function StepAnalysis({
           {loading ? (
             <div className="mt-6 rounded-2xl border border-dashed bg-slate-50 p-8 text-center">
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-orange-500" />
-              <div className="mt-3 text-base font-semibold">Analisi in corso…</div>
+              <div className="mt-3 text-base font-semibold">{t("Analisi in corso…")}</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                Stiamo identificando aperture, contorni e accessori da trattare con precisione.
+                {t("Stiamo identificando aperture, contorni e accessori da trattare con precisione.")}
               </div>
             </div>
           ) : analysis ? (
             <div className="mt-5 space-y-4 max-md:mt-0 max-md:space-y-3">
               {error && (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Analisi AI parziale: abbiamo attivato una fallback analysis per non bloccarti. Dettaglio: {error}
-                </div>
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">{t("Analisi AI parziale: abbiamo attivato una fallback analysis per non bloccarti. Dettaglio: {error}", { error: String(error ?? "") })}</div>
               )}
 
               {/* Telefono: aperture, ambiente e vista su una riga; la luce (testo libero
                   dell'AI) e la lettura della scena restano al computer. */}
               <div className={cn("grid gap-3 md:grid-cols-4 max-md:gap-2", onRetry ? "max-md:grid-cols-[1fr_1fr_1fr_auto]" : "max-md:grid-cols-3")}>
-                <MetricCard label="Aperture visibili" labelBreve="Aperture" value={String(analysis.estimatedOpeningsVisible)} />
+                <MetricCard label={t("Aperture visibili")} labelBreve={t("Aperture")} value={String(analysis.estimatedOpeningsVisible)} />
                 <MetricCard
-                  label="Ambiente percepito"
-                  labelBreve="Ambiente"
-                  value={AMBIENTE_IT[analysis.environmentType] ?? analysis.environmentType.replace(/_/g, " ")}
+                  label={t("Ambiente percepito")}
+                  labelBreve={t("Ambiente")}
+                  value={AMBIENTE_IT[analysis.environmentType] ? t(AMBIENTE_IT[analysis.environmentType]) : analysis.environmentType.replace(/_/g, " ")}
                 />
-                <MetricCard label="Vista" value={VISTA_IT[analysis.viewMode] ?? analysis.viewMode} />
-                <MetricCard label="Luce" value={analysis.lightingDirection} className="max-md:hidden" />
+                <MetricCard label={t("Vista")} value={VISTA_IT[analysis.viewMode] ? t(VISTA_IT[analysis.viewMode]) : analysis.viewMode} />
+                <MetricCard label={t("Luce")} value={analysis.lightingDirection} className="max-md:hidden" />
                 {onRetry && (
                   <Button
                     type="button"
                     variant="outline"
                     onClick={onRetry}
-                    aria-label="Rianalizza la foto"
+                    aria-label={t("Rianalizza la foto")}
                     className="hidden h-auto w-10 px-0 max-md:flex"
                   >
                     <RefreshCw className="h-4 w-4" />
@@ -1625,7 +1627,7 @@ function StepAnalysis({
               </div>
 
               <div className="rounded-2xl border bg-slate-50 p-4 max-md:hidden">
-                <div className="text-sm font-semibold">Lettura scena</div>
+                <div className="text-sm font-semibold">{t("Lettura scena")}</div>
                 <div className="mt-2 text-sm text-muted-foreground">{analysis.environmentSummary}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {analysis.untouchedElements.slice(0, 8).map((item) => (
@@ -1650,7 +1652,7 @@ function StepAnalysis({
                             <div className="text-xs text-muted-foreground max-md:text-[11px]">{opening.approximatePlacement}</div>
                           </div>
                         </div>
-                        <Badge variant="outline" className="max-md:text-[11px]">{opening.sashCount} ante</Badge>
+                        <Badge variant="outline" className="max-md:text-[11px]">{t("{sashCount} ante", { sashCount: String(opening.sashCount ?? "") })}</Badge>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {/* v8.6.31 — cassonetto override: click sul badge per cambiare lo stile rilevato. */}
@@ -1667,17 +1669,15 @@ function StepAnalysis({
                                     ? "border-border bg-muted/30 text-foreground"
                                     : "border-dashed border-border bg-background text-muted-foreground",
                               )}
-                              title="Click per correggere lo stile cassonetto rilevato"
+                              title={t("Click per correggere lo stile cassonetto rilevato")}
                             >
                               {opening.hasCassonetto
-                                ? `cassonetto${
-                                    opening.cassonettoStyle === "internal_monoblocco"
-                                      ? " (monoblocco a scomparsa)"
-                                      : opening.cassonettoStyle === "external_box"
-                                        ? " (scatola esterna)"
-                                        : ""
-                                  }`
-                                : "no cassonetto"}
+                                ? opening.cassonettoStyle === "internal_monoblocco"
+                                  ? t("cassonetto (monoblocco a scomparsa)")
+                                  : opening.cassonettoStyle === "external_box"
+                                    ? t("cassonetto (scatola esterna)")
+                                    : t("cassonetto")
+                                : t("no cassonetto")}
                               <span className="opacity-60">▾</span>
                             </button>
                           </DropdownMenuTrigger>
@@ -1688,7 +1688,7 @@ function StepAnalysis({
                               <span className={cn("mr-2", opening.cassonettoStyle === "external_box" && "font-bold")}>
                                 {opening.cassonettoStyle === "external_box" ? "✓" : " "}
                               </span>
-                              Scatola esterna (sporgente sopra il telaio)
+                              {t("Scatola esterna (sporgente sopra il telaio)")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => onCassonettoStyleChange(opening.id, "internal_monoblocco")}
@@ -1696,7 +1696,7 @@ function StepAnalysis({
                               <span className={cn("mr-2", opening.cassonettoStyle === "internal_monoblocco" && "font-bold")}>
                                 {opening.cassonettoStyle === "internal_monoblocco" ? "✓" : " "}
                               </span>
-                              Monoblocco a scomparsa (incassato)
+                              {t("Monoblocco a scomparsa (incassato)")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => onCassonettoStyleChange(opening.id, "absent")}
@@ -1704,18 +1704,18 @@ function StepAnalysis({
                               <span className={cn("mr-2", (!opening.hasCassonetto || opening.cassonettoStyle === "absent") && "font-bold")}>
                                 {(!opening.hasCassonetto || opening.cassonettoStyle === "absent") ? "✓" : " "}
                               </span>
-                              Nessun cassonetto
+                              {t("Nessun cassonetto")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                         {opening.hasRollerShutter && <MiniBadge text="tapparella" />}
-                        {opening.hasBelt && <MiniBadge text="cinghia visibile" intent="warning" />}
+                        {opening.hasBelt && <MiniBadge text={t("cinghia visibile")} intent="warning" />}
                         {opening.hasCurtains && <MiniBadge text="tende" />}
-                        {opening.radiatorNearby && <MiniBadge text="radiatore vicino" />}
+                        {opening.radiatorNearby && <MiniBadge text={t("radiatore vicino")} />}
                         {opening.hasSill && <MiniBadge text="davanzale" />}
                         {opening.hasGrates && <MiniBadge text="grate" />}
                         {opening.hasHorizontalTransom && (
-                          <MiniBadge text="traverso orizzontale" intent="info" />
+                          <MiniBadge text={t("traverso orizzontale")} intent="info" />
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground max-md:text-[11px]">
@@ -1730,7 +1730,7 @@ function StepAnalysis({
                       {opening.hasHorizontalTransom && transomChoice && onTransomChange && (
                         <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
                           <div className="text-xs font-semibold text-blue-900">
-                            ⚙️ Hai rilevato un <strong>traverso orizzontale</strong>. Cosa fare?
+                            {t("⚙️ Hai rilevato un **traverso orizzontale**. Cosa fare?").split("**").map((pezzo, i) => (i % 2 ? <strong key={i}>{pezzo}</strong> : pezzo))}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <Button
@@ -1740,7 +1740,7 @@ function StepAnalysis({
                               onClick={() => onTransomChange("mantieni")}
                               className="text-xs h-8"
                             >
-                              ✓ Mantieni traverso
+                              {t("✓ Mantieni traverso")}
                             </Button>
                             <Button
                               type="button"
@@ -1749,7 +1749,7 @@ function StepAnalysis({
                               onClick={() => onTransomChange("rimuovi")}
                               className="text-xs h-8"
                             >
-                              ✗ Rimuovi (vetro unico)
+                              {t("✗ Rimuovi (vetro unico)")}
                             </Button>
                             <Button
                               type="button"
@@ -1758,17 +1758,17 @@ function StepAnalysis({
                               onClick={() => onTransomChange("auto")}
                               className="text-xs h-8"
                             >
-                              Decido dopo
+                              {t("Decido dopo")}
                             </Button>
                           </div>
                           {transomChoice === "rimuovi" && (
                             <div className="mt-2 text-[11px] text-blue-800">
-                              Il nuovo serramento avrà <strong>ante a tutta altezza</strong> con vetro unico — look contemporaneo.
+                              {t("Il nuovo serramento avrà **ante a tutta altezza** con vetro unico — look contemporaneo.").split("**").map((pezzo, i) => (i % 2 ? <strong key={i}>{pezzo}</strong> : pezzo))}
                             </div>
                           )}
                           {transomChoice === "mantieni" && (
                             <div className="mt-2 text-[11px] text-blue-800">
-                              Il traverso verrà preservato nel render (look classico).
+                              {t("Il traverso verrà preservato nel render (look classico).")}
                             </div>
                           )}
                         </div>
@@ -1782,30 +1782,28 @@ function StepAnalysis({
             // v8.4 — Empty/error state con CTA esplicita: niente piu' schermata
             // vuota quando l'analisi fallisce senza fallback.
             <div className="mt-6 rounded-2xl border border-red-300 bg-red-50 p-6 text-center">
-              <div className="text-base font-semibold text-red-900">Analisi non riuscita</div>
-              <div className="mt-2 text-sm text-red-800">
-                Non siamo riusciti a leggere la scena. {error}
-              </div>
+              <div className="text-base font-semibold text-red-900">{t("Analisi non riuscita")}</div>
+              <div className="mt-2 text-sm text-red-800">{t("Non siamo riusciti a leggere la scena. {error}", { error: String(error ?? "") })}</div>
               <div className="mt-4 flex justify-center gap-2">
                 {onRetry && (
                   <Button onClick={onRetry} variant="default" className="gap-2">
-                    Riprova analisi
+                    {t("Riprova analisi")}
                   </Button>
                 )}
                 <Button onClick={onBack} variant="outline">
-                  Cambia foto
+                  {t("Cambia foto")}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-muted-foreground">
-              In attesa di una foto da analizzare. Torna al primo step per caricarla.
+              {t("In attesa di una foto da analizzare. Torna al primo step per caricarla.")}
             </div>
           )}
         </CardContent>
       </Card>
 
-      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel="Scegli aperture target" />
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel={t("Scegli aperture target")} />
     </div>
   );
 }
@@ -1823,6 +1821,7 @@ function StepTargeting({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const allIds = analysis.openings.map((opening) => opening.id);
   const allSelected = selectedOpeningIds.length === allIds.length;
@@ -1833,7 +1832,7 @@ function StepTargeting({
       // v8.6.33 — Feedback esplicito se l'utente prova a deselezionare l'ultima
       // apertura: altrimenti il click sembra "non fare nulla" = bug percepito.
       if (next.length === 0) {
-        toast.info("Almeno un'apertura deve restare selezionata per generare il render.");
+        toast.info(t("Almeno un'apertura deve restare selezionata per generare il render."));
         return;
       }
       onChange(next);
@@ -1848,10 +1847,10 @@ function StepTargeting({
         <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
           {!isMobile && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 3</div>
-              <h2 className="mt-1 text-xl font-bold">Quali aperture vuoi modificare?</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">{t("Step 3")}</div>
+              <h2 className="mt-1 text-xl font-bold">{t("Quali aperture vuoi modificare?")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Se nella foto ci sono più infissi, decidiamo con precisione quali sostituire e quali lasciare identici.
+                {t("Se nella foto ci sono più infissi, decidiamo con precisione quali sostituire e quali lasciare identici.")}
               </p>
             </div>
           )}
@@ -1864,12 +1863,12 @@ function StepTargeting({
               className={cn(allSelected && "bg-slate-800 hover:bg-slate-700", "max-md:flex-1 max-md:px-2 max-md:text-[13px]")}
               onClick={() => onChange(allIds)}
             >
-              <span className="max-md:hidden">Applica a tutte le aperture visibili</span>
-              <span className="md:hidden">Tutte</span>
+              <span className="max-md:hidden">{t("Applica a tutte le aperture visibili")}</span>
+              <span className="md:hidden">{t("Tutte")}</span>
             </Button>
             <Button type="button" variant="outline" className="max-md:flex-1 max-md:px-2 max-md:text-[13px]" onClick={() => onChange(allIds.slice(0, 1))}>
-              <span className="max-md:hidden">Solo apertura principale</span>
-              <span className="md:hidden">Solo la principale</span>
+              <span className="max-md:hidden">{t("Solo apertura principale")}</span>
+              <span className="md:hidden">{t("Solo la principale")}</span>
             </Button>
           </div>
 
@@ -1891,30 +1890,26 @@ function StepTargeting({
                     <SelectionMark checked={checked} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold max-md:text-[13px]">
-                          Apertura {opening.label}
-                        </div>
-                        <Badge variant={checked ? "default" : "outline"}>{checked ? "Target" : "Intatta"}</Badge>
+                        <div className="font-semibold max-md:text-[13px]">{t("Apertura {label}", { label: String(opening.label ?? "") })}</div>
+                        <Badge variant={checked ? "default" : "outline"}>{checked ? t("Target") : t("Intatta")}</Badge>
                       </div>
-                      <div className="mt-1 text-sm text-muted-foreground max-md:mt-0.5 max-md:text-[11px]">
-                        {opening.typeCurrent.replace(/_/g, " ")} · {opening.sashCount} ante · {opening.approximatePlacement}
-                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground max-md:mt-0.5 max-md:text-[11px]">{t("{typeCurrent} · {sashCount} ante · {approximatePlacement}", { typeCurrent: opening.typeCurrent.replace(/_/g, " "), sashCount: String(opening.sashCount ?? ""), approximatePlacement: String(opening.approximatePlacement ?? "") })}</div>
                       <div className="mt-3 flex flex-wrap gap-2 max-md:mt-2 max-md:gap-1.5">
-                        {opening.hasBelt && <MiniBadge text="cinghia da gestire" intent="warning" />}
+                        {opening.hasBelt && <MiniBadge text={t("cinghia da gestire")} intent="warning" />}
                         {opening.hasCassonetto && (
                           <MiniBadge
-                            text={`cassonetto${
+                            text={
                               opening.cassonettoStyle === "internal_monoblocco"
-                                ? " (monoblocco)"
+                                ? t("cassonetto (monoblocco)")
                                 : opening.cassonettoStyle === "external_box"
-                                  ? " (scatola)"
-                                  : ""
-                            }`}
+                                  ? t("cassonetto (scatola)")
+                                  : t("cassonetto")
+                            }
                             intent={opening.cassonettoStyle === "internal_monoblocco" ? "info" : undefined}
                           />
                         )}
                         {opening.hasCurtains && <MiniBadge text="tende" />}
-                        {opening.radiatorNearby && <MiniBadge text="radiatore vicino" />}
+                        {opening.radiatorNearby && <MiniBadge text={t("radiatore vicino")} />}
                       </div>
                     </div>
                   </div>
@@ -1925,7 +1920,7 @@ function StepTargeting({
         </CardContent>
       </Card>
 
-      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={selectedOpeningIds.length === 0} nextLabel="Configura il nuovo infisso" />
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={selectedOpeningIds.length === 0} nextLabel={t("Configura il nuovo infisso")} />
     </div>
   );
 }
@@ -1943,6 +1938,7 @@ function StepInfisso({
   onNext: () => void;
   nextDisabled: boolean;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   return (
     <div className="space-y-4">
@@ -1950,22 +1946,22 @@ function StepInfisso({
         <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
           {!isMobile && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 4</div>
-              <h2 className="mt-1 text-xl font-bold">Nuovo infisso</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">{t("Step 4")}</div>
+              <h2 className="mt-1 text-xl font-bold">{t("Nuovo infisso")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Definiamo tipologia, materiale e famiglia di profilo del serramento da installare.
+                {t("Definiamo tipologia, materiale e famiglia di profilo del serramento da installare.")}
               </p>
             </div>
           )}
 
           <div>
-            <SectionTitle primo>Tipologia apertura</SectionTitle>
+            <SectionTitle primo>{t("Tipologia apertura")}</SectionTitle>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_TIPI.map((option) => (
                 <ChoiceCard
                   key={option.id}
-                  title={option.label}
-                  desc={option.desc}
+                  title={t(option.label)}
+                  desc={t(option.desc)}
                   selected={state.tipo === option.id}
                   onClick={() => setState((current) => ({ ...current, tipo: option.id as WizardTipo }))}
                 />
@@ -1974,13 +1970,13 @@ function StepInfisso({
           </div>
 
           <div>
-            <SectionTitle>Famiglia profilo</SectionTitle>
+            <SectionTitle>{t("Famiglia profilo")}</SectionTitle>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_PROFILI.map((option) => (
                 <ChoiceCard
                   key={option.id}
-                  title={option.label}
-                  desc={option.desc}
+                  title={t(option.label)}
+                  desc={t(option.desc)}
                   selected={state.profilo === option.id}
                   onClick={() => setState((current) => ({ ...current, profilo: option.id as WizardProfilo }))}
                 />
@@ -1990,7 +1986,7 @@ function StepInfisso({
 
           {state.profilo && (state.tipo === "F2A" || state.tipo === "PF2A") && (
             <div className="space-y-2">
-              <SectionTitle>Configurazione nodo centrale (solo 2 ante)</SectionTitle>
+              <SectionTitle>{t("Configurazione nodo centrale (solo 2 ante)")}</SectionTitle>
               <div className="grid gap-3 md:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
                 {WIZARD_NODO_OPTIONS.map((option) => {
                   const supportsAsymmetric = profileSupportsAsymmetricNode(state.profilo as WizardProfilo);
@@ -1998,8 +1994,8 @@ function StepInfisso({
                   return (
                     <ChoiceCard
                       key={option.id}
-                      title={`${option.label}${"upsell" in option && option.upsell ? " · premium" : ""}`}
-                      desc={disabled ? "Disponibile su PVC, alluminio, minimal o legno-alluminio." : option.desc}
+                      title={`${t(option.label)}${"upsell" in option && option.upsell ? " · premium" : ""}`}
+                      desc={disabled ? t("Disponibile su PVC, alluminio, minimal o legno-alluminio.") : t(option.desc)}
                       selected={state.nodo === option.id}
                       disabled={disabled}
                       onClick={() => setState((current) => ({
@@ -2017,7 +2013,7 @@ function StepInfisso({
         </CardContent>
       </Card>
 
-      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel="Definisci finiture" />
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel={t("Definisci finiture")} />
     </div>
   );
 }
@@ -2035,6 +2031,7 @@ function StepFiniture({
   onNext: () => void;
   nextDisabled: boolean;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [tab, setTab] = useState<"ral" | "legno">("ral");
   // v8.3 — colorList rimosso: la griglia colori ora usa getRalsByFamily / WIZARD_LEGNO direttamente.
@@ -2060,16 +2057,16 @@ function StepFiniture({
         <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
           {!isMobile && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 5</div>
-              <h2 className="mt-1 text-xl font-bold">Finiture e ferramenta</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">{t("Step 5")}</div>
+              <h2 className="mt-1 text-xl font-bold">{t("Finiture e ferramenta")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Colore telaio, effetto legno e finitura maniglie devono essere coerenti con il posizionamento premium del render.
+                {t("Colore telaio, effetto legno e finitura maniglie devono essere coerenti con il posizionamento premium del render.")}
               </p>
             </div>
           )}
 
           <div>
-            <SectionTitle primo>Finitura telaio</SectionTitle>
+            <SectionTitle primo>{t("Finitura telaio")}</SectionTitle>
             <div className="mb-3 flex overflow-hidden rounded-lg border">
               {(["ral", "legno"] as const).map((item, index) => (
                 <button
@@ -2082,16 +2079,14 @@ function StepFiniture({
                     index > 0 && "border-l",
                   )}
                 >
-                  {item === "ral" ? "Colori RAL" : "Effetti legno"}
+                  {item === "ral" ? t("Colori RAL") : t("Effetti legno")}
                 </button>
               ))}
             </div>
 
             {tab === "legno" && (
               <div className="mb-3 rounded-2xl border border-orange-200 bg-orange-50/70 p-3 text-sm text-slate-700">
-                Le anteprime sono foto reali dei campioni del fornitore. Il render AI usa
-                anche la descrizione materica del colore (venatura, finitura, tono caldo/freddo)
-                non solo il nome commerciale.
+                {t("Le anteprime sono foto reali dei campioni del fornitore. Il render AI usa anche la descrizione materica del colore (venatura, finitura, tono caldo/freddo) non solo il nome commerciale.")}
               </div>
             )}
 
@@ -2104,7 +2099,7 @@ function StepFiniture({
                   return (
                     <div key={family}>
                       <div className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground max-md:mb-1.5 max-md:text-[11px] max-md:tracking-wide">
-                        {RAL_FAMILY_LABELS[family as RalFamily]}
+                        {t(RAL_FAMILY_LABELS[family as RalFamily])}
                       </div>
                       {/* Telefono: quattro campioni per riga (erano due quadrati da 160px: 5.461px di pagina). */}
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 max-sm:grid-cols-4 max-sm:gap-1.5">
@@ -2136,17 +2131,14 @@ function StepFiniture({
           </div>
 
           <div>
-            <SectionTitle>Tipologia maniglia</SectionTitle>
+            <SectionTitle>{t("Tipologia maniglia")}</SectionTitle>
             {/* v8.6.13 — Warning UX se DK Vasistas selezionata su tipo non
                 anta-ribalta. La DK e' specifica per finestre Dreh-Kipp,
                 potrebbe non essere appropriata per un battente puro. */}
             {state.tipoManiglia === "dk_vasistas" && state.tipo !== "" &&
               !["F1A", "F2A"].includes(state.tipo) && (
               <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900">
-                ⚠️ La maniglia <strong>DK Vasistas</strong> è cilindrica
-                e tipica delle finestre <em>anta-ribalta</em> (Dreh-Kipp).
-                Verifica che il serramento target sia anta-ribalta;
-                per battente puro o portafinestra usa una maniglia standard.
+                {t("⚠️ La maniglia")} <strong>DK Vasistas</strong> {t("è cilindrica e tipica delle finestre")} <em>anta-ribalta</em> {t("(Dreh-Kipp). Verifica che il serramento target sia anta-ribalta; per battente puro o portafinestra usa una maniglia standard.")}
               </div>
             )}
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 max-md:gap-2">
@@ -2169,14 +2161,14 @@ function StepFiniture({
                   >
                     {recommended && !selected && (
                       <div className="absolute -top-2 -right-2 z-10 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                        Consigliata
+                        {t("Consigliata")}
                       </div>
                     )}
                     <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-50 border max-md:h-14 max-md:w-14">
                       {previewUrl ? (
                         <img
                           src={previewUrl}
-                          alt={handleType.label}
+                          alt={t(handleType.label)}
                           loading="lazy"
                           className="h-full w-full object-contain transition-[filter] duration-200"
                           // v8.6.13 — Live preview combinata: applica filter
@@ -2188,10 +2180,10 @@ function StepFiniture({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold max-md:text-[13px]">{handleType.label}</div>
-                      <div className="mt-1 text-xs text-muted-foreground max-md:mt-0.5 max-md:line-clamp-1 max-md:text-[11px]">{handleType.desc}</div>
+                      <div className="text-sm font-semibold max-md:text-[13px]">{t(handleType.label)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground max-md:mt-0.5 max-md:line-clamp-1 max-md:text-[11px]">{t(handleType.desc)}</div>
                       {!previewUrl && (
-                        <div className="mt-1 text-[10px] italic text-amber-600 max-md:hidden">Anteprima generica</div>
+                        <div className="mt-1 text-[10px] italic text-amber-600 max-md:hidden">{t("Anteprima generica")}</div>
                       )}
                     </div>
                   </button>
@@ -2201,7 +2193,7 @@ function StepFiniture({
           </div>
 
           <div>
-            <SectionTitle>Finitura maniglie e cerniere</SectionTitle>
+            <SectionTitle>{t("Finitura maniglie e cerniere")}</SectionTitle>
             {/* Telefono: tre per riga, colore e nome (la frase uguale su ogni scheda resta al computer). */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 max-sm:grid-cols-3 max-sm:gap-2">
               {WIZARD_HW_COLORS.map((hardware) => (
@@ -2217,7 +2209,7 @@ function StepFiniture({
                   <div className="h-11 rounded-xl border max-sm:h-8 max-sm:rounded-lg" style={{ background: hardware.hex }} />
                   <div className="mt-2 text-sm font-semibold max-sm:mt-1 max-sm:truncate max-sm:text-[11px]">{hardware.nome}</div>
                   <div className="mt-1 text-xs text-muted-foreground max-sm:hidden">
-                    La finitura si applica a maniglia e cerniere visibili.
+                    {t("La finitura si applica a maniglia e cerniere visibili.")}
                   </div>
                 </button>
               ))}
@@ -2226,7 +2218,7 @@ function StepFiniture({
         </CardContent>
       </Card>
 
-      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel="Accessori e regole" />
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel={t("Accessori e regole")} />
     </div>
   );
 }
@@ -2250,6 +2242,7 @@ function StepAccessori({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const targetOpenings = sceneAnalysis?.openings.filter((opening) => selectedOpeningIds.includes(opening.id)) ?? [];
   const hasVisibleManualBelt = targetOpenings.some((opening) => opening.hasBelt || opening.hasBeltBox);
@@ -2268,16 +2261,16 @@ function StepAccessori({
         <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
           {!isMobile && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 6</div>
-              <h2 className="mt-1 text-xl font-bold">Oscuranti, accessori e dettagli</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">{t("Step 6")}</div>
+              <h2 className="mt-1 text-xl font-bold">{t("Oscuranti, accessori e dettagli")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Qui definiamo cassonetti, tapparelle e note libere che influenzeranno le regole di sostituzione.
+                {t("Qui definiamo cassonetti, tapparelle e note libere che influenzeranno le regole di sostituzione.")}
               </p>
             </div>
           )}
 
           <div className="space-y-3">
-            <SectionTitle primo>Cassonetto</SectionTitle>
+            <SectionTitle primo>{t("Cassonetto")}</SectionTitle>
             <button
               type="button"
               aria-pressed={state.cass}
@@ -2289,9 +2282,9 @@ function StepAccessori({
             >
               <SelectionMark checked={state.cass} />
               <div>
-                <div className="font-semibold max-md:text-[13px]">Sostituisci il cassonetto</div>
+                <div className="font-semibold max-md:text-[13px]">{t("Sostituisci il cassonetto")}</div>
                 <div className="mt-1 text-sm text-muted-foreground max-md:hidden">
-                  Il prompt tratterà il cassonetto come elemento separato dal serramento.
+                  {t("Il prompt tratterà il cassonetto come elemento separato dal serramento.")}
                 </div>
               </div>
             </button>
@@ -2301,8 +2294,8 @@ function StepAccessori({
                 {WIZARD_CASS_MATERIALI.map((option) => (
                   <ChoiceCard
                     key={option.id}
-                    title={option.label}
-                    desc={option.desc}
+                    title={t(option.label)}
+                    desc={t(option.desc)}
                     selected={state.cassMat === option.id}
                     onClick={() => setState((current) => ({ ...current, cassMat: option.id as typeof current.cassMat }))}
                   />
@@ -2312,7 +2305,7 @@ function StepAccessori({
 
             {state.cass && state.cassMat === "colore_custom" && (
               <div className="rounded-2xl border bg-slate-50 p-4">
-                <div className="mb-3 text-sm font-semibold">Colore cassonetto personalizzato</div>
+                <div className="mb-3 text-sm font-semibold">{t("Colore cassonetto personalizzato")}</div>
                 <div className="space-y-3">
                   {(["bianchi", "grigi", "marroni", "verdi", "blu", "rossi", "premium"] as RalFamily[]).map((family) => {
                     const colors = getRalsByFamily(family);
@@ -2320,7 +2313,7 @@ function StepAccessori({
                     return (
                       <div key={family}>
                         <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          {RAL_FAMILY_LABELS[family]}
+                          {t(RAL_FAMILY_LABELS[family])}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {colors.map((color) => (
@@ -2345,8 +2338,8 @@ function StepAccessori({
                   const selected = WIZARD_RAL.find((c) => c.id === state.cassCol);
                   return selected ? (
                     <div className="mt-3 text-xs text-slate-600">
-                      Selezionato: <strong>{selected.nome}</strong>
-                      {selected.code ? ` (RAL ${selected.code})` : ""}
+                      {t("Selezionato:")} <strong>{selected.nome}</strong>
+                      {selected.code ? t(" (RAL {code})", { code: String(selected.code ?? "") }) : ""}
                     </div>
                   ) : null;
                 })()}
@@ -2355,19 +2348,19 @@ function StepAccessori({
 
             {state.cass && state.cassMat === "stesso_colore" && infissoColor && (
               <div className="rounded-xl border bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
-                Cassonetto coordinato in <strong>{infissoColor.nome}</strong>.
+                {t("Cassonetto coordinato in")} <strong>{infissoColor.nome}</strong>.
               </div>
             )}
           </div>
 
           <div className="space-y-3">
-            <SectionTitle>Tapparella / oscurante</SectionTitle>
+            <SectionTitle>{t("Tapparella / oscurante")}</SectionTitle>
             <div className="grid gap-3 md:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_TAPP_OPTIONS.map((option) => (
                 <ChoiceCard
                   key={option.id}
-                  title={option.label}
-                  desc={option.desc}
+                  title={t(option.label)}
+                  desc={t(option.desc)}
                   selected={state.tapp === option.id}
                   onClick={() => setState((current) => ({ ...current, tapp: option.id as WizardTapp }))}
                 />
@@ -2376,7 +2369,7 @@ function StepAccessori({
 
             {(state.tapp === "motorizzate" || state.tapp === "nuove") && (
               <div className="rounded-2xl border bg-slate-50 p-4">
-                <div className="mb-3 text-sm font-semibold">Colore tapparella</div>
+                <div className="mb-3 text-sm font-semibold">{t("Colore tapparella")}</div>
                 <div className="mb-4">
                   <button
                     type="button"
@@ -2386,7 +2379,7 @@ function StepAccessori({
                       state.tappCol === "stesso" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-border bg-white hover:border-orange-300",
                     )}
                   >
-                    Stesso colore infisso
+                    {t("Stesso colore infisso")}
                   </button>
                 </div>
                 <div className="space-y-3">
@@ -2396,7 +2389,7 @@ function StepAccessori({
                     return (
                       <div key={family}>
                         <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          {RAL_FAMILY_LABELS[family]}
+                          {t(RAL_FAMILY_LABELS[family])}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {colors.map((color) => (
@@ -2422,7 +2415,7 @@ function StepAccessori({
                     ?? WIZARD_RAL.find((c) => c.id === state.tappCol);
                   return selected ? (
                     <div className="mt-3 text-xs text-slate-600">
-                      Selezionato: <strong>{selected.nome}</strong>
+                      {t("Selezionato:")} <strong>{selected.nome}</strong>
                     </div>
                   ) : null;
                 })()}
@@ -2431,27 +2424,25 @@ function StepAccessori({
 
             {state.tapp === "motorizzate" && hasVisibleManualBelt && (
               <div className="rounded-2xl border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900">
-                Rilevata cinghia manuale su almeno una apertura target: il prompt imporrà rimozione cinghia,
-                placca/avvolgitore e ripristino parete senza lasciare tracce del vecchio sistema.
+                {t("Rilevata cinghia manuale su almeno una apertura target: il prompt imporrà rimozione cinghia, placca/avvolgitore e ripristino parete senza lasciare tracce del vecchio sistema.")}
               </div>
             )}
 
             {(state.tapp === "motorizzate" || state.tapp === "nuove") && hasNoVisibleCurtain && (
               <div className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">
-                Nella foto non si vede una tapparella abbassata: il render la manterrà aperta e nascosta nel cassonetto,
-                evitando fasce colorate artificiali sopra il vetro.
+                {t("Nella foto non si vede una tapparella abbassata: il render la manterrà aperta e nascosta nel cassonetto, evitando fasce colorate artificiali sopra il vetro.")}
               </div>
             )}
           </div>
 
           <div className="space-y-3">
-            <SectionTitle>Cerniere</SectionTitle>
+            <SectionTitle>{t("Cerniere")}</SectionTitle>
             <div className="grid gap-3 md:grid-cols-2 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_CERNIERE_OPTIONS.map((option) => (
                 <ChoiceCard
                   key={option.id}
-                  title={`${option.label}${"upsell" in option && option.upsell ? " · premium" : ""}`}
-                  desc={option.desc}
+                  title={`${t(option.label)}${"upsell" in option && option.upsell ? " · premium" : ""}`}
+                  desc={t(option.desc)}
                   selected={state.cerniere === option.id}
                   onClick={() =>
                     setState((current) => ({ ...current, cerniere: option.id as WizardCerniere }))
@@ -2461,11 +2452,10 @@ function StepAccessori({
             </div>
             {state.cerniere === "scomparsa" && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                Il render userà cerniere a scomparsa: lato telaio pulito, senza cilindri o placche visibili.
+                {t("Il render userà cerniere a scomparsa: lato telaio pulito, senza cilindri o placche visibili.")}
                 {!hiddenHingesSupported && (
                   <span className="mt-1 block text-xs text-emerald-800">
-                    Nota tecnica: su profili PVC/legno classici le cerniere a scomparsa
-                    sono un upsell architettonico — il render le forzerà comunque come da richiesta.
+                    {t("Nota tecnica: su profili PVC/legno classici le cerniere a scomparsa sono un upsell architettonico — il render le forzerà comunque come da richiesta.")}
                   </span>
                 )}
               </div>
@@ -2474,13 +2464,13 @@ function StepAccessori({
 
           {isDoorWindow && (
             <div className="space-y-3">
-              <SectionTitle>Traverso portafinestra</SectionTitle>
+              <SectionTitle>{t("Traverso portafinestra")}</SectionTitle>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-2 max-md:gap-2">
                 {WIZARD_TRAVERSO_OPTIONS.map((option) => (
                   <ChoiceCard
                     key={option.id}
-                    title={option.label}
-                    desc={option.desc}
+                    title={t(option.label)}
+                    desc={t(option.desc)}
                     selected={state.traverso === option.id}
                     onClick={() => setState((current) => ({ ...current, traverso: option.id as WizardTraverso }))}
                   />
@@ -2488,7 +2478,7 @@ function StepAccessori({
               </div>
               {hasDetectedTransom && (
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                  La foto sembra avere un traverso orizzontale: scegli se mantenerlo o pulire la composizione.
+                  {t("La foto sembra avere un traverso orizzontale: scegli se mantenerlo o pulire la composizione.")}
                 </div>
               )}
             </div>
@@ -2496,19 +2486,18 @@ function StepAccessori({
 
           {hasCompositionChange && (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Hai scelto una composizione diversa dalla foto: il render cambierà solo ante e vetri del serramento,
-              mantenendo foro murario, soglia, pareti e contesto invariati.
+              {t("Hai scelto una composizione diversa dalla foto: il render cambierà solo ante e vetri del serramento, mantenendo foro murario, soglia, pareti e contesto invariati.")}
             </div>
           )}
 
           <div className="space-y-3">
-            <SectionTitle>Note operative per l'AI</SectionTitle>
+            <SectionTitle>{t("Note operative per l'AI")}</SectionTitle>
             <Textarea
               value={notes}
               onChange={(event) => onNotesChange(event.target.value)}
               placeholder={isMobile
-                ? "Es. tende e radiatore identici, profilo minimal…"
-                : "Esempio: mantieni tende e radiatore identici, resa molto fotorealistica, profilo minimal ma senza cambiare il vano esistente."}
+                ? t("Es. tende e radiatore identici, profilo minimal…")
+                : t("Esempio: mantieni tende e radiatore identici, resa molto fotorealistica, profilo minimal ma senza cambiare il vano esistente.")}
               // Telefono: segnaposto corto, a 13px come il resto del testo.
               className="min-h-[120px] max-md:min-h-[88px] max-md:placeholder:text-[13px]"
             />
@@ -2516,7 +2505,7 @@ function StepAccessori({
         </CardContent>
       </Card>
 
-      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={false} nextLabel="Riepilogo e genera" nextIcon={<Wand2 className="h-4 w-4" />} nextAccent />
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={false} nextLabel={t("Riepilogo e genera")} nextIcon={<Wand2 className="h-4 w-4" />} nextAccent />
     </div>
   );
 }
@@ -2568,6 +2557,7 @@ function StepRender({
   onCreateQuote: () => void;
   downloading?: boolean;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   // Telefono: con il render in corso o pronto il riepilogo lascia la schermata
   // al risultato (prima bisognava scorrerlo per arrivare all'immagine).
@@ -2592,7 +2582,7 @@ function StepRender({
       className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
     >
       <FileText className="h-4 w-4" />
-      {contactId ? "Crea preventivo da questo render" : "Collega un contatto per creare il preventivo"}
+      {contactId ? t("Crea preventivo da questo render") : t("Collega un contatto per creare il preventivo")}
     </Button>
   );
 
@@ -2603,10 +2593,10 @@ function StepRender({
         <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
           {!isMobile && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 7</div>
-              <h2 className="mt-1 text-xl font-bold">Riepilogo finale e generazione</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">{t("Step 7")}</div>
+              <h2 className="mt-1 text-xl font-bold">{t("Riepilogo finale e generazione")}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Controlliamo target, specifiche e regole di sostituzione prima di lanciare il render.
+                {t("Controlliamo target, specifiche e regole di sostituzione prima di lanciare il render.")}
               </p>
             </div>
           )}
@@ -2618,56 +2608,50 @@ function StepRender({
             <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr] max-md:gap-0">
               <Card className="border-slate-200 max-md:border-0 max-md:bg-transparent max-md:shadow-none">
                 <CardContent className="space-y-4 p-4 max-md:space-y-2 max-md:p-0">
-                  <div className="text-sm font-semibold max-md:hidden">Scope render</div>
+                  <div className="text-sm font-semibold max-md:hidden">{t("Scope render")}</div>
                   <div className="flex flex-wrap gap-2 max-md:hidden">
                     {preview.target_selection.targetLabels.map((label) => (
-                      <Badge key={label} className="bg-slate-800 text-white hover:bg-slate-800">
-                        Apertura {label}
-                      </Badge>
+                      <Badge key={label} className="bg-slate-800 text-white hover:bg-slate-800">{t("Apertura {label}", { label: String(label ?? "") })}</Badge>
                     ))}
                     {preview.target_selection.preservedOpeningIds.map((label) => (
-                      <Badge key={label} variant="outline">
-                        Apertura {label} invariata
-                      </Badge>
+                      <Badge key={label} variant="outline">{t("Apertura {label} invariata", { label: String(label ?? "") })}</Badge>
                     ))}
                   </div>
 
                   <div className="space-y-2">
                     <div className="text-sm font-semibold max-md:text-[13px]">
-                      <span className="max-md:hidden">Specifiche tecniche</span>
-                      <span className="md:hidden">Riepilogo</span>
+                      <span className="max-md:hidden">{t("Specifiche tecniche")}</span>
+                      <span className="md:hidden">{t("Riepilogo")}</span>
                     </div>
                     {preview.technical_specification.map((spec) => (
                       <div key={spec.openingId} className="rounded-xl border bg-slate-50 p-3 text-sm max-md:rounded-lg max-md:px-3 max-md:py-2.5">
-                        <div className="font-semibold max-md:text-[13px]">
-                          Apertura {spec.openingLabel} · {spec.desiredOpeningType.replace(/_/g, " ")}
-                        </div>
+                        <div className="font-semibold max-md:text-[13px]">{t("Apertura {openingLabel} · {desiredOpeningType}", { openingLabel: String(spec.openingLabel ?? ""), desiredOpeningType: spec.desiredOpeningType.replace(/_/g, " ") })}</div>
                         <div className="mt-1 text-muted-foreground max-md:mt-0.5 max-md:text-[11px]">
                           {/* Materiale e profilo spesso coincidono («pvc · pvc»): una volta sola, col nome del catalogo. */}
                           {[...new Set([spec.material, spec.profileId])]
-                            .map((id) => WIZARD_PROFILI.find((profilo) => profilo.id === id)?.label ?? id)
+                            .map((id) => { const etichetta = WIZARD_PROFILI.find((profilo) => profilo.id === id)?.label; return etichetta ? t(etichetta) : id; })
                             .join(" · ")} · {spec.finish.mode === "legno"
-                            ? `${spec.finish.name} effetto legno`
+                            ? t("{name} effetto legno", { name: String(spec.finish.name ?? "") })
                             : isMobile
                               // Telefono: basta il nome; il codice è quello del catalogo, non un RAL.
                               ? spec.finish.name
                               : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}`}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2 max-md:hidden">
-                          <MiniBadge text={`maniglia ${spec.handleStyle.replace(/_/g, " ")}`} />
+                          <MiniBadge text={t("maniglia {tipo}", { tipo: spec.handleStyle.replace(/_/g, " ") })} />
                           <MiniBadge text={`hardware ${spec.handleFinish}`} />
-                          {spec.hingeMode === "hidden" && <MiniBadge text="cerniere a scomparsa" />}
-                          {spec.hingeMode === "visible" && <MiniBadge text={`${spec.hingesPerSash} cerniere per anta`} />}
-                          {spec.hingeMode === "visible" && <MiniBadge text="cerniere uniformi come maniglia" />}
-                          {spec.compositionChange && <MiniBadge text="composizione aggiornata" intent="warning" />}
-                          {spec.transomRule && <MiniBadge text={`traverso ${WIZARD_TRAVERSO_OPTIONS.find((option) => option.id === traverso)?.label ?? traverso}`} />}
-                          {spec.cassonetto.replace && <MiniBadge text={`cassonetto ${spec.cassonetto.colorLabel ?? ""}`.trim()} />}
-                          {spec.cassonetto.replace && <MiniBadge text="ingombro cassonetto come esistente" />}
-                          {spec.shutter.replace && <MiniBadge text={spec.shutter.isMotorized ? "tapparella motorizzata" : "tapparella nuova"} />}
-                          {spec.shutter.electricButton?.install && <MiniBadge text="pulsante elettrico coerente" />}
-                          {spec.shutter.replace && spec.shutter.visibilityState === "fully_raised_hidden" && <MiniBadge text="tapparella aperta nascosta nel cassonetto" />}
-                          {spec.manualControlCleanupRule && <MiniBadge text="rimozione totale comando manuale" intent="warning" />}
-                          {spec.reducedNode && <MiniBadge text="profilo ridotto" />}
+                          {spec.hingeMode === "hidden" && <MiniBadge text={t("cerniere a scomparsa")} />}
+                          {spec.hingeMode === "visible" && <MiniBadge text={t("{n} cerniere per anta", { n: spec.hingesPerSash })} />}
+                          {spec.hingeMode === "visible" && <MiniBadge text={t("cerniere uniformi come maniglia")} />}
+                          {spec.compositionChange && <MiniBadge text={t("composizione aggiornata")} intent="warning" />}
+                          {spec.transomRule && <MiniBadge text={t("traverso {tipo}", { tipo: (() => { const etichetta = WIZARD_TRAVERSO_OPTIONS.find((option) => option.id === traverso)?.label; return etichetta ? t(etichetta) : traverso; })() })} />}
+                          {spec.cassonetto.replace && <MiniBadge text={t("cassonetto {colore}", { colore: spec.cassonetto.colorLabel ?? "" }).trim()} />}
+                          {spec.cassonetto.replace && <MiniBadge text={t("ingombro cassonetto come esistente")} />}
+                          {spec.shutter.replace && <MiniBadge text={spec.shutter.isMotorized ? t("tapparella motorizzata") : t("tapparella nuova")} />}
+                          {spec.shutter.electricButton?.install && <MiniBadge text={t("pulsante elettrico coerente")} />}
+                          {spec.shutter.replace && spec.shutter.visibilityState === "fully_raised_hidden" && <MiniBadge text={t("tapparella aperta nascosta nel cassonetto")} />}
+                          {spec.manualControlCleanupRule && <MiniBadge text={t("rimozione totale comando manuale")} intent="warning" />}
+                          {spec.reducedNode && <MiniBadge text={t("profilo ridotto")} />}
                         </div>
                       </div>
                     ))}
@@ -2677,7 +2661,7 @@ function StepRender({
 
               <Card className="border-slate-200 max-md:hidden">
                 <CardContent className="space-y-4 p-4">
-                  <div className="text-sm font-semibold">Regole di sostituzione</div>
+                  <div className="text-sm font-semibold">{t("Regole di sostituzione")}</div>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     {preview.replacement_manifest.removals.length > 0 ? (
                       preview.replacement_manifest.removals.map((rule) => (
@@ -2688,12 +2672,12 @@ function StepRender({
                       ))
                     ) : (
                       <div className="rounded-xl border bg-slate-50 p-3">
-                        Nessuna rimozione critica oltre alla sostituzione del serramento.
+                        {t("Nessuna rimozione critica oltre alla sostituzione del serramento.")}
                       </div>
                     )}
                   </div>
 
-                  <div className="text-sm font-semibold">Elementi da preservare</div>
+                  <div className="text-sm font-semibold">{t("Elementi da preservare")}</div>
                   <div className="flex flex-wrap gap-2">
                     {preview.replacement_manifest.keepExactly.slice(0, 12).map((item) => (
                       <Badge key={item} variant="outline">{item}</Badge>
@@ -2704,7 +2688,7 @@ function StepRender({
             </div>
           ) : (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Completa i passaggi precedenti per costruire un payload render completo.
+              {t("Completa i passaggi precedenti per costruire un payload render completo.")}
             </div>
           )}
 
@@ -2713,11 +2697,11 @@ function StepRender({
             <div className="flex flex-col gap-3 sm:flex-row max-md:flex-row-reverse max-md:gap-2">
               <Button size="lg" className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600 max-md:min-w-0" onClick={() => onGenerate()} disabled={!preview}>
                 <Sparkles className="h-4 w-4" />
-                Genera render AI
+                {t("Genera render AI")}
               </Button>
-              <Button size="lg" variant="outline" onClick={onBack} aria-label="Torna ai dettagli" className="max-md:w-11 max-md:shrink-0 max-md:px-0">
+              <Button size="lg" variant="outline" onClick={onBack} aria-label={t("Torna ai dettagli")} className="max-md:w-11 max-md:shrink-0 max-md:px-0">
                 <ArrowLeft className="hidden h-4 w-4 max-md:block" />
-                <span className="max-md:hidden">Torna ai dettagli</span>
+                <span className="max-md:hidden">{t("Torna ai dettagli")}</span>
               </Button>
             </div>
           )}
@@ -2730,16 +2714,16 @@ function StepRender({
           <CardContent className="space-y-3 p-5 max-md:p-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
               <RefreshCw className="h-4 w-4" />
-              Render non riuscito
+              {t("Render non riuscito")}
             </div>
             <div className="text-sm text-muted-foreground">{error}</div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={onRetry} className="gap-2">
                 <RefreshCw className="h-4 w-4" />
-                Riprova
+                {t("Riprova")}
               </Button>
               <Button variant="outline" onClick={onBack}>
-                Rivedi configurazione
+                {t("Rivedi configurazione")}
               </Button>
               {/* v8.6.33 — Recovery CTA: copia errore per supporto */}
               <Button
@@ -2748,13 +2732,13 @@ function StepRender({
                 onClick={() => {
                   try {
                     void navigator.clipboard.writeText(error);
-                    toast.success("Dettagli errore copiati. Inviali al supporto se il problema persiste.");
+                    toast.success(t("Dettagli errore copiati. Inviali al supporto se il problema persiste."));
                   } catch {
-                    toast.error("Impossibile copiare. Annota manualmente il messaggio sopra.");
+                    toast.error(t("Impossibile copiare. Annota manualmente il messaggio sopra."));
                   }
                 }}
               >
-                Copia dettagli
+                {t("Copia dettagli")}
               </Button>
             </div>
           </CardContent>
@@ -2765,11 +2749,11 @@ function StepRender({
           elapsedSec={elapsedSec}
           serverStage={serverStage}
           accent="orange"
-          subjectLabel="L'AI sostituisce gli infissi mantenendo l'ambiente originale"
+          subjectLabel={t("L'AI sostituisce gli infissi mantenendo l'ambiente originale")}
           tips={[
-            "L'AI individua le aperture target e preserva intatti gli elementi non selezionati.",
-            "Più la foto è frontale e ben illuminata, più il render risulterà fedele.",
-            "Una volta pronto, potrai confrontare prima/dopo e collegare il render al CRM.",
+            t("L'AI individua le aperture target e preserva intatti gli elementi non selezionati."),
+            t("Più la foto è frontale e ben illuminata, più il render risulterà fedele."),
+            t("Una volta pronto, potrai confrontare prima/dopo e collegare il render al CRM."),
           ]}
         />
       ) : resultUrl ? (
@@ -2778,9 +2762,9 @@ function StepRender({
             <CardContent className="flex items-center gap-3 p-4 text-emerald-900">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               <div>
-                <div className="font-semibold">Render completato</div>
+                <div className="font-semibold">{t("Render completato")}</div>
                 <div className="text-sm text-emerald-800">
-                  Il risultato è pronto per confronto, download e collegamento CRM.
+                  {t("Il risultato è pronto per confronto, download e collegamento CRM.")}
                 </div>
               </div>
             </CardContent>
@@ -2790,9 +2774,9 @@ function StepRender({
             <div className="space-y-1">
               <div className="flex items-center justify-between max-md:hidden">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Prima / Dopo
+                  {t("Prima / Dopo")}
                 </div>
-                <Badge className="bg-orange-500 text-white hover:bg-orange-600">RENDER AI</Badge>
+                <Badge className="bg-orange-500 text-white hover:bg-orange-600">{t("RENDER AI")}</Badge>
               </div>
               <BeforeAfterSlider
                 beforeUrl={originalSignedUrl ?? localPreview ?? ""}
@@ -2813,19 +2797,19 @@ function StepRender({
                 {downloading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Scaricamento…
+                    {t("Scaricamento…")}
                   </>
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    Scarica render
+                    {t("Scarica render")}
                   </>
                 )}
               </Button>
             )}
-            <Button variant="outline" onClick={onReset} className="gap-2 max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label="Nuovo render">
+            <Button variant="outline" onClick={onReset} className="gap-2 max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label={t("Nuovo render")}>
               {isMobile ? <ImagePlus className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="max-md:hidden">Nuovo render</span>
+              <span className="max-md:hidden">{t("Nuovo render")}</span>
             </Button>
           </div>
 
@@ -2844,8 +2828,8 @@ function StepRender({
             onEditChoices={onBack}
             onRegenerate={() => onGenerate({ refine: true })}
             disabled={generating}
-            regenerateLabel={isMobile ? "Correggi il render" : "Correggi questo render (1ª correzione entro 10 min inclusa)"}
-            regenerateNote={isMobile ? "La prima correzione entro 10 minuti è inclusa." : undefined}
+            regenerateLabel={isMobile ? t("Correggi il render") : t("Correggi questo render (1ª correzione entro 10 min inclusa)")}
+            regenerateNote={isMobile ? t("La prima correzione entro 10 minuti è inclusa.") : undefined}
           />
 
           {!isMobile && creaPreventivo}
@@ -3201,7 +3185,7 @@ function NavButtons({
   onBack,
   onNext,
   nextDisabled,
-  nextLabel = "Avanti",
+  nextLabel,
   nextIcon,
   nextAccent = false,
 }: {
@@ -3212,21 +3196,22 @@ function NavButtons({
   nextIcon?: React.ReactNode;
   nextAccent?: boolean;
 }) {
+  const t = useT();
   // Telefono: una riga in fondo al passo — indietro a icona, avanti che prende
   // il resto (prima erano due pulsanti a tutta larghezza impilati, con
   // «Indietro» sopra). Niente barra fissa: copriva le scelte.
   return (
     <div className="flex flex-col gap-2 sm:flex-row max-md:flex-row">
-      <Button variant="outline" onClick={onBack} className="gap-1 max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label="Indietro">
+      <Button variant="outline" onClick={onBack} className="gap-1 max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label={t("Indietro")}>
         <ArrowLeft className="h-4 w-4" />
-        <span className="max-md:hidden">Indietro</span>
+        <span className="max-md:hidden">{t("Indietro")}</span>
       </Button>
       <Button
         onClick={onNext}
         disabled={nextDisabled}
         className={cn("flex-1 gap-2 max-md:min-w-0", nextAccent ? "bg-orange-500 hover:bg-orange-600" : "bg-slate-800 hover:bg-slate-700")}
       >
-        {nextLabel}
+        {nextLabel ?? t("Avanti")}
         {nextIcon ?? <ArrowRight className="h-4 w-4" />}
       </Button>
     </div>

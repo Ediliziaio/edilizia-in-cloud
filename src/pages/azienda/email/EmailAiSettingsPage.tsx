@@ -18,22 +18,24 @@ import { DeliverabilityPanel } from "@/components/email-ai/DeliverabilityPanel";
 import { SequenzeManager } from "@/components/email-ai/SequenzeManager";
 import { SilvioHub } from "@/components/silvio/SilvioHub";
 import { EmailPipelineStatus } from "@/components/email-ai/EmailPipelineStatus";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function EmailAiSettingsPage({ backPath = "/azienda/email" }: { backPath?: string } = {}) {
+  const t = useT();
   return (
     <div className="mx-auto w-full max-w-5xl px-3 py-4 sm:px-4 sm:py-6">
       <div className="mb-4 flex items-center gap-3">
         <Link
           to={backPath}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-blue-100 text-blue-700 transition-colors hover:bg-blue-50"
-          aria-label="Torna alla casella"
+          aria-label={t("Torna alla casella")}
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">AI della casella email</h1>
+          <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">{t("AI della casella email")}</h1>
           <p className="text-xs text-slate-500 sm:text-sm">
-            Apprendimento, metriche e regole di instradamento automatico.
+            {t("Apprendimento, metriche e regole di instradamento automatico.")}
           </p>
         </div>
       </div>
@@ -41,28 +43,28 @@ export default function EmailAiSettingsPage({ backPath = "/azienda/email" }: { b
       <Tabs defaultValue="giornata" className="w-full">
         <TabsList className="mb-4 grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-8">
           <TabsTrigger value="giornata" className="gap-1.5">
-            <Sun className="h-4 w-4" /> Giornata
+            <Sun className="h-4 w-4" /> {t("Giornata")}
           </TabsTrigger>
           <TabsTrigger value="silvio" className="gap-1.5">
             <Bot className="h-4 w-4" /> Silvio
           </TabsTrigger>
           <TabsTrigger value="sequenze" className="gap-1.5">
-            <Send className="h-4 w-4" /> Sequenze
+            <Send className="h-4 w-4" /> {t("Sequenze")}
           </TabsTrigger>
           <TabsTrigger value="apprendimento" className="gap-1.5">
-            <Brain className="h-4 w-4" /> Apprendimento
+            <Brain className="h-4 w-4" /> {t("Apprendimento")}
           </TabsTrigger>
           <TabsTrigger value="regole" className="gap-1.5">
-            <Filter className="h-4 w-4" /> Regole
+            <Filter className="h-4 w-4" /> {t("Regole")}
           </TabsTrigger>
           <TabsTrigger value="bonifica" className="gap-1.5">
-            <Inbox className="h-4 w-4" /> Bonifica
+            <Inbox className="h-4 w-4" /> {t("Bonifica")}
           </TabsTrigger>
           <TabsTrigger value="recapito" className="gap-1.5">
-            <ShieldCheck className="h-4 w-4" /> Recapito
+            <ShieldCheck className="h-4 w-4" /> {t("Recapito")}
           </TabsTrigger>
           <TabsTrigger value="sistema" className="gap-1.5">
-            <Activity className="h-4 w-4" /> Sistema
+            <Activity className="h-4 w-4" /> {t("Sistema")}
           </TabsTrigger>
         </TabsList>
 

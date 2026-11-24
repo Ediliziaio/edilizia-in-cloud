@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SilvioConversazione, type ConversazioneSilvio } from "@/components/silvio/SilvioConversazione";
 import { quadroPerSilvio, type AzioneSilvio, type PuntoSilvio } from "@/lib/orders/silvioControlli";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Apre la chat di Silvio sopra la pagina (SilvioFAB ascolta «silvio:open-chat»). */
 export function apriChatSilvio(draft: string) {
@@ -44,6 +45,7 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
   /** Con questo Silvio risponde dentro il popup e propone modifiche da applicare; senza, si apre la chat. */
   conversazione?: ConversazioneSilvio;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [testo, setTesto] = useState("");
   const chiedi = (domanda: string) => {
@@ -56,7 +58,7 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
   return (
     <>
       <SilvioBottone etichetta={etichetta} className={className} onClick={() => setAperto(true)}
-        aria-label={punti.length ? `${etichetta ?? "Silvio"}: ${punti.length} cose da sistemare` : etichetta ?? "Silvio"} />
+        aria-label={punti.length ? t("{nome}: {n} cose da sistemare", { nome: etichetta ?? "Silvio", n: punti.length }) : etichetta ?? "Silvio"} />
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className={cn("max-h-[90dvh] overflow-y-auto", conversazione ? "sm:max-w-2xl" : "sm:max-w-xl")}>
           <DialogHeader>
@@ -64,7 +66,7 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
             <DialogDescription>{descrizione}</DialogDescription>
           </DialogHeader>
           {punti.length ? (
-            <ul className="space-y-2" aria-label="Cosa sistemare">
+            <ul className="space-y-2" aria-label={t("Cosa sistemare")}>
               {punti.map((p) => (
                 <li key={p.chiave} className={cn("flex flex-wrap items-start gap-3 rounded-lg border p-3", p.gravita === "alta" ? "border-orange-200 bg-orange-50/50" : "bg-background")}>
                   <AlertTriangle className={cn("mt-0.5 h-4 w-4 shrink-0", p.gravita === "alta" ? "text-orange-600" : "text-slate-400")} aria-hidden="true" />
@@ -80,18 +82,18 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
             </ul>
           ) : (
             <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-              <CheckCircle2 className="h-4 w-4" />Non vedo niente che manca.
+              <CheckCircle2 className="h-4 w-4" />{t("Non vedo niente che manca.")}
             </p>
           )}
-          {alti > 0 && <p className="text-xs text-muted-foreground">Prima i punti in arancione: bloccano il cantiere o il conto della commessa.</p>}
+          {alti > 0 && <p className="text-xs text-muted-foreground">{t("Prima i punti in arancione: bloccano il cantiere o il conto della commessa.")}</p>}
           {conversazione ? (
             <div className="space-y-2 border-t pt-3">
-              <p className="text-sm font-medium">Chiedi a Silvio</p>
+              <p className="text-sm font-medium">{t("Chiedi a Silvio")}</p>
               <SilvioConversazione conversazione={conversazione} domande={domande} />
             </div>
           ) : (
           <div className="space-y-2 border-t pt-3">
-            <p className="text-sm font-medium">Chiedi a Silvio</p>
+            <p className="text-sm font-medium">{t("Chiedi a Silvio")}</p>
             <div className="flex flex-wrap gap-1.5">
               {domande.map((d) => (
                 <button key={d} type="button" onClick={() => chiedi(d)}
@@ -101,13 +103,13 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
               ))}
             </div>
             <div className="flex items-end gap-2">
-              <Textarea rows={2} value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Scrivi cosa vuoi sistemare…" aria-label="Domanda per Silvio"
+              <Textarea rows={2} value={testo} onChange={(e) => setTesto(e.target.value)} placeholder={t("Scrivi cosa vuoi sistemare…")} aria-label={t("Domanda per Silvio")}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chiedi(testo); } }} />
-              <Button size="icon" className="h-10 w-10 shrink-0 bg-orange-600 hover:bg-orange-700" aria-label="Manda a Silvio" disabled={!testo.trim()} onClick={() => chiedi(testo)}>
+              <Button size="icon" className="h-10 w-10 shrink-0 bg-orange-600 hover:bg-orange-700" aria-label={t("Manda a Silvio")} disabled={!testo.trim()} onClick={() => chiedi(testo)}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">La chat si apre sopra la commessa, con quello che Silvio ha già visto qui.</p>
+            <p className="text-xs text-muted-foreground">{t("La chat si apre sopra la commessa, con quello che Silvio ha già visto qui.")}</p>
           </div>
           )}
         </DialogContent>

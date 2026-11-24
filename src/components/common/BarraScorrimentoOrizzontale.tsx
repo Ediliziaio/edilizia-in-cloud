@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Barra di scorrimento orizzontale "vera" da mettere sotto una board larga
@@ -19,6 +20,7 @@ export function BarraScorrimentoOrizzontale({
   contenitore: HTMLElement | null;
   className?: string;
 }) {
+  const t = useT();
   const [barra, setBarra] = useState({ visibile: false, sinistraPct: 0, larghezzaPct: 100 });
   const pistaRef = useRef<HTMLDivElement | null>(null);
   const trascina = useRef<{ startX: number; startScroll: number; larghezzaPista: number } | null>(null);
@@ -117,7 +119,7 @@ export function BarraScorrimentoOrizzontale({
       >
         <div
           role="scrollbar"
-          aria-label="Scorri le colonne"
+          aria-label={t("Scorri le colonne")}
           aria-orientation="horizontal"
           aria-valuemin={0}
           aria-valuemax={100}

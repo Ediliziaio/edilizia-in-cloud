@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Package } from "lucide-react";
 import type { ArticlePro } from "@/hooks/usePreventivoCosti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ListinoCategoria {
   id: string;
@@ -52,6 +53,7 @@ export function ProductSearchDialog({
   calcolaPrezzoProdotto,
   onConfirm,
 }: Props) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [pending, setPending] = useState<ArticlePro | null>(null);
@@ -146,13 +148,13 @@ export function ProductSearchDialog({
 
   const modalitaBadge = (m: string) => {
     const map: Record<string, { label: string; className: string }> = {
-      pz: { label: "A pezzo", className: "bg-gray-100 text-gray-700" },
-      mq: { label: "Al mq", className: "bg-blue-100 text-blue-700" },
+      pz: { label: t("A pezzo"), className: "bg-gray-100 text-gray-700" },
+      mq: { label: t("Al mq"), className: "bg-blue-100 text-blue-700" },
       misura_libera: {
-        label: "Misura libera",
+        label: t("Misura libera"),
         className: "bg-purple-100 text-purple-700",
       },
-      griglia: { label: "Griglia", className: "bg-orange-100 text-orange-700" },
+      griglia: { label: t("Griglia"), className: "bg-orange-100 text-orange-700" },
     };
     const b = map[m] || { label: m, className: "bg-gray-100 text-gray-700" };
     return (
@@ -166,23 +168,23 @@ export function ProductSearchDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Aggiungi dal listino</DialogTitle>
+          <DialogTitle>{t("Aggiungi dal listino")}</DialogTitle>
         </DialogHeader>
         {!pending ? (
           <>
             <div className="flex gap-2">
               <Input
-                placeholder="Cerca per nome o SKU..."
+                placeholder={t("Cerca per nome o SKU...")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="flex-1"
               />
               <Select value={cat} onValueChange={setCat}>
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Categoria" />
+                  <SelectValue placeholder={t("Categoria")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
+                  <SelectItem value="all">{t("Tutte")}</SelectItem>
                   {categorie.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome}
@@ -195,7 +197,7 @@ export function ProductSearchDialog({
               <div className="space-y-2 pr-2">
                 {filtered.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-8">
-                    Nessun prodotto trovato
+                    {t("Nessun prodotto trovato")}
                   </p>
                 ) : (
                   filtered.map((a) => (
@@ -247,14 +249,14 @@ export function ProductSearchDialog({
                 onClick={() => setPending(null)}
                 className="text-xs text-muted-foreground hover:text-foreground"
               >
-                ← Torna
+                {t("← Torna")}
               </button>
               <span className="font-medium">{pending.name}</span>
               {modalitaBadge(pending.modalita_prezzo || "pz")}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Quantità</Label>
+                <Label>{t("Quantità")}</Label>
                 <Input
                   type="number"
                   min="1"
@@ -269,8 +271,8 @@ export function ProductSearchDialog({
                 <div>
                   <Label>
                     {pending.modalita_prezzo === "mq"
-                      ? "Larghezza (m)"
-                      : "Larghezza (mm)"}
+                      ? t("Larghezza (m)")
+                      : t("Larghezza (mm)")}
                   </Label>
                   <Input
                     type="number"
@@ -284,8 +286,8 @@ export function ProductSearchDialog({
                 <div>
                   <Label>
                     {pending.modalita_prezzo === "mq"
-                      ? "Altezza (m)"
-                      : "Altezza (mm)"}
+                      ? t("Altezza (m)")
+                      : t("Altezza (mm)")}
                   </Label>
                   <Input
                     type="number"
@@ -300,7 +302,7 @@ export function ProductSearchDialog({
             )}
             {pending.modalita_prezzo === "mq" && mqPreview != null && (
               <div className="text-sm text-muted-foreground bg-blue-50 rounded p-3">
-                Superficie: <b>{mqPreview.toFixed(2)} mq</b> — Prezzo:{" "}
+                {t("Superficie:")} <b>{t("{planMq} mq", { planMq: mqPreview.toFixed(2) })}</b> {t("— Prezzo:")}{" "}
                 <b>
                   €
                   {(
@@ -321,17 +323,17 @@ export function ProductSearchDialog({
               >
                 {preview.trovato ? (
                   <>
-                    Prezzo trovato in griglia:{" "}
+                    {t("Prezzo trovato in griglia:")}{" "}
                     <b>€{preview.pv.toFixed(2)}</b>
                   </>
                 ) : (
-                  "Dimensioni non trovate in griglia — verrà usata la cella più vicina"
+                  t("Dimensioni non trovate in griglia — verrà usata la cella più vicina")
                 )}
               </div>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setPending(null)}>
-                Indietro
+                {t("Indietro")}
               </Button>
               <Button
                 onClick={handleConfirm}
@@ -339,7 +341,7 @@ export function ProductSearchDialog({
                   pending.modalita_prezzo === "griglia" && (!mx || !my)
                 }
               >
-                Conferma e aggiungi
+                {t("Conferma e aggiungi")}
               </Button>
             </DialogFooter>
           </div>

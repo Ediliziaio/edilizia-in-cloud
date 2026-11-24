@@ -5,6 +5,7 @@ import { GitCompareArrows } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { VendorKPI } from "@/hooks/useVendorReport";
 import { giorniTesto, tassoTesto } from "@/lib/reporting/venditoriRegole";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CompareField {
   key: keyof VendorKPI;
@@ -30,6 +31,7 @@ const FIELDS: CompareField[] = [
 ];
 
 const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareField; a: VendorKPI; b: VendorKPI }) {
+  const t = useT();
   const okA = field.disponibile ? field.disponibile(a) : true;
   const okB = field.disponibile ? field.disponibile(b) : true;
   const valA = okA ? Number(a[field.key]) || 0 : 0;
@@ -60,7 +62,7 @@ const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareFie
       </div>
 
       <span className="text-xs font-medium text-muted-foreground text-center min-w-[110px]">
-        {field.label}
+        {t(field.label)}
       </span>
 
       <div className="flex items-center gap-2">
@@ -81,6 +83,7 @@ const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareFie
 });
 
 export const VenditoriConfronto = memo(function VenditoriConfronto({ kpiList }: { kpiList: VendorKPI[] }) {
+  const t = useT();
   const [agentA, setAgentA] = useState<string>("");
   const [agentB, setAgentB] = useState<string>("");
 
@@ -92,7 +95,7 @@ export const VenditoriConfronto = memo(function VenditoriConfronto({ kpiList }: 
       <Card>
         <CardContent className="py-12 text-center">
           <p className="text-muted-foreground">
-            Servono almeno 2 agenti con dati per il confronto.
+            {t("Servono almeno 2 agenti con dati per il confronto.")}
           </p>
         </CardContent>
       </Card>
@@ -104,14 +107,14 @@ export const VenditoriConfronto = memo(function VenditoriConfronto({ kpiList }: 
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <GitCompareArrows className="h-5 w-5" />
-          Confronto Agenti
+          {t("Confronto Agenti")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <Select value={agentA} onValueChange={setAgentA}>
             <SelectTrigger>
-              <SelectValue placeholder="Seleziona Agente A" />
+              <SelectValue placeholder={t("Seleziona Agente A")} />
             </SelectTrigger>
             <SelectContent>
               {kpiList
@@ -128,7 +131,7 @@ export const VenditoriConfronto = memo(function VenditoriConfronto({ kpiList }: 
 
           <Select value={agentB} onValueChange={setAgentB}>
             <SelectTrigger>
-              <SelectValue placeholder="Seleziona Agente B" />
+              <SelectValue placeholder={t("Seleziona Agente B")} />
             </SelectTrigger>
             <SelectContent>
               {kpiList
@@ -155,7 +158,7 @@ export const VenditoriConfronto = memo(function VenditoriConfronto({ kpiList }: 
           </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Seleziona due agenti per confrontare i KPI.
+            {t("Seleziona due agenti per confrontare i KPI.")}
           </p>
         )}
       </CardContent>

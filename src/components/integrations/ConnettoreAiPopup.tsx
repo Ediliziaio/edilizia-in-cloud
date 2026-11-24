@@ -37,8 +37,10 @@ import {
   type AssistenteAi,
   type LivelloConnettore,
 } from "@/lib/aiConnector";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function BloccoCopia({ testo, etichetta }: { testo: string; etichetta?: string }) {
+  const t = useT();
   const [fatto, setFatto] = useState(false);
   const copia = async () => {
     try {
@@ -46,7 +48,7 @@ function BloccoCopia({ testo, etichetta }: { testo: string; etichetta?: string }
       setFatto(true);
       setTimeout(() => setFatto(false), 1500);
     } catch {
-      toast.error("Copia non riuscita: selezionala a mano.");
+      toast.error(t("Copia non riuscita: selezionala a mano."));
     }
   };
   return (
@@ -61,7 +63,7 @@ function BloccoCopia({ testo, etichetta }: { testo: string; etichetta?: string }
         variant="ghost"
         className="tap-compact absolute right-1.5 top-1.5 h-8 w-8"
         onClick={copia}
-        aria-label="Copia"
+        aria-label={t("Copia")}
       >
         {fatto ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
       </Button>
@@ -89,6 +91,7 @@ function useGestioneAzienda() {
 
 /** I collegamenti OAuth di QUESTO assistente, ognuno revocabile. */
 function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
+  const t = useT();
   const { companyId, puoGestire } = useGestioneAzienda();
   const { data: tutti = [] } = useOAuthGrants(companyId);
   const revoca = useRevokeOAuthGrant(companyId);
@@ -99,23 +102,23 @@ function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
   );
   if (collegati.length === 0) return null;
 
-  const nomeDiRiserva = assistente === "chatgpt" ? "ChatGPT" : "Assistente AI";
+  const nomeDiRiserva = assistente === "chatgpt" ? "ChatGPT" : t("Assistente AI");
   const revocaCollegamento = async (g: OAuthGrant) => {
     if (!puoGestire) return;
     try {
       const outcome = await revoca.mutateAsync(g.id);
-      toast.success(`Collegamento revocato: ${g.client_name ?? nomeDiRiserva}`);
-      if (outcome.needsProviderRevocation) toast.info("MCP è bloccato. Per ricollegare, il titolare deve revocare anche il consenso dell'app nel proprio account e avviare una nuova connessione.");
+      toast.success(t("Collegamento revocato: {nome}", { nome: String(g.client_name ?? nomeDiRiserva) }));
+      if (outcome.needsProviderRevocation) toast.info(t("MCP è bloccato. Per ricollegare, il titolare deve revocare anche il consenso dell'app nel proprio account e avviare una nuova connessione."));
     } catch (e) {
-      toast.error("Revoca non riuscita", {
-        description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
+      toast.error(t("Revoca non riuscita"), {
+        description: e instanceof Error ? e.message : t("Riprova tra qualche secondo."),
       });
     }
   };
 
   return (
     <div className="rounded-xl border p-2">
-      <p className="px-1 pb-1 text-xs font-medium text-muted-foreground">Consensi configurati {assistente === "claude" ? "(Claude e altri client MCP)" : "(ChatGPT)"} · {collegati.length}</p>
+      <p className="px-1 pb-1 text-xs font-medium text-muted-foreground">{t("Consensi configurati")} {assistente === "claude" ? t("(Claude e altri client MCP)") : t("(ChatGPT)")} · {collegati.length}</p>
       <ul className="space-y-1">
         {collegati.map((g) => (
           <li key={g.id} className="flex items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5">
@@ -123,9 +126,9 @@ function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">{g.client_name ?? nomeDiRiserva}</span>
               <span className="block text-[11px] text-muted-foreground">
-                {g.livello === "operativo" ? "Operativo" : "Consulente"}
-                {g.invii ? " · invii" : ""}
-                {g.last_used_at ? ` · usato il ${new Date(g.last_used_at).toLocaleDateString("it-IT")}` : " · mai usato"}
+                {g.livello === "operativo" ? t("Operativo") : t("Consulente")}
+                {g.invii ? ` ${t("· invii")}` : ""}
+                {g.last_used_at ? ` ${t("· usato il {valore}", { valore: new Date(g.last_used_at).toLocaleDateString(intlCampo()) })}` : ` ${t("· mai usato")}`}
               </span>
             </span>
             {puoGestire && (
@@ -137,7 +140,7 @@ function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
                 onClick={() => revocaCollegamento(g)}
                 disabled={revoca.isPending}
               >
-                <Unlink className="h-3.5 w-3.5" /> Revoca
+                <Unlink className="h-3.5 w-3.5" /> {t("Revoca")}
               </Button>
             )}
           </li>
@@ -148,22 +151,23 @@ function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
 }
 
 function SoloAmministratori() {
+  const t = useT();
   return (
     <Alert>
       <ShieldCheck className="h-4 w-4" />
-      <AlertDescription className="text-xs">Il collegamento lo autorizza un amministratore dell'azienda.</AlertDescription>
+      <AlertDescription className="text-xs">{t("Il collegamento lo autorizza un amministratore dell'azienda.")}</AlertDescription>
     </Alert>
   );
 }
 
 // ── ChatGPT: solo accesso OAuth ─────────────────────────────────────────────
 export function ConnettoreChatGptPopup({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const { puoGestire } = useGestioneAzienda();
   return (
     <div className="min-w-0 space-y-4">
       <p className="text-sm text-muted-foreground max-sm:hidden">
-        Collega il gestionale a <strong>ChatGPT</strong>: chiedi i dati della tua azienda direttamente in chat. Nessuna
-        chiave da copiare — ChatGPT ti fa entrare in Edilizia in Cloud e scegli tu cosa può fare.
+        {t("Collega il gestionale a")} <strong>ChatGPT</strong>{t(": chiedi i dati della tua azienda direttamente in chat. Nessuna chiave da copiare — ChatGPT ti fa entrare in Edilizia in Cloud e scegli tu cosa può fare.")}
       </p>
 
       <CollegamentiAttivi assistente="chatgpt" />
@@ -176,15 +180,14 @@ export function ConnettoreChatGptPopup({ onClose }: { onClose: () => void }) {
       {!puoGestire && <SoloAmministratori />}
 
       <ElencoPassi passi={PASSI_CHATGPT} />
-      <BloccoCopia testo={MCP_ENDPOINT} etichetta="URL del server MCP" />
+      <BloccoCopia testo={MCP_ENDPOINT} etichetta={t("URL del server MCP")} />
 
       <p className="text-[11px] text-muted-foreground">
-        Nella pagina di accesso scegli <strong>Consulente</strong> (solo lettura) o <strong>Operativo</strong> (anche
-        azioni); gli invii veri partono solo se li attivi.
+        {t("Nella pagina di accesso scegli")} <strong>{t("Consulente")}</strong> {t("(solo lettura) o")} <strong>{t("Operativo")}</strong> {t("(anche azioni); gli invii veri partono solo se li attivi.")}
       </p>
 
       <div className="flex justify-end">
-        <Button onClick={onClose}>Fatto</Button>
+        <Button onClick={onClose}>{t("Fatto")}</Button>
       </div>
     </div>
   );
@@ -192,6 +195,7 @@ export function ConnettoreChatGptPopup({ onClose }: { onClose: () => void }) {
 
 // ── Claude: accesso OAuth (sito, app, telefono) o chiave (Code, Desktop) ────
 export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const { companyId, puoGestire } = useGestioneAzienda();
   const navigate = useNavigate();
   const { data: chiavi = [] } = useApiKeys(companyId);
@@ -233,8 +237,8 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
       const raw = await creaChiave.mutateAsync({ name: nome, scopes: scopePerLivello(livello, invii), expiryOption: "90d" });
       setChiaveNuova(raw);
     } catch (e) {
-      toast.error("Chiave non creata", {
-        description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
+      toast.error(t("Chiave non creata"), {
+        description: e instanceof Error ? e.message : t("Riprova tra qualche secondo."),
       });
     }
   };
@@ -246,12 +250,11 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
         <Alert className="border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20">
           <ShieldCheck className="h-4 w-4 text-emerald-600" />
           <AlertDescription className="text-xs text-emerald-900 dark:text-emerald-200">
-            Chiave creata e limitata alla tua azienda. <strong>Copiala ora</strong>: dopo la chiusura non sarà più
-            visibile (potrai sempre crearne un'altra).
+            {t("Chiave creata e limitata alla tua azienda.")} <strong>{t("Copiala ora")}</strong>{t(": dopo la chiusura non sarà più visibile (potrai sempre crearne un'altra).")}
           </AlertDescription>
         </Alert>
 
-        <BloccoCopia testo={chiaveNuova} etichetta="La tua chiave" />
+        <BloccoCopia testo={chiaveNuova} etichetta={t("La tua chiave")} />
 
         <Tabs defaultValue="code">
           <TabsList className="grid w-full grid-cols-2">
@@ -260,20 +263,20 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
           </TabsList>
 
           <TabsContent value="code" className="mt-3 space-y-2">
-            <p className="text-xs text-muted-foreground">Incolla questo comando nel terminale (una volta):</p>
+            <p className="text-xs text-muted-foreground">{t("Incolla questo comando nel terminale (una volta):")}</p>
             <BloccoCopia testo={comandoClaudeCode(chiaveNuova)} />
           </TabsContent>
 
           <TabsContent value="desktop" className="mt-3 space-y-2">
             <p className="text-xs text-muted-foreground">
-              Claude Desktop → Impostazioni → Sviluppatore → Modifica config. Aggiungi (serve Node.js sul computer):
+              {t("Claude Desktop → Impostazioni → Sviluppatore → Modifica config. Aggiungi (serve Node.js sul computer):")}
             </p>
             <BloccoCopia testo={configClaudeDesktop(chiaveNuova)} />
           </TabsContent>
         </Tabs>
 
         <div className="flex justify-end">
-          <Button onClick={onClose}>Ho copiato la chiave</Button>
+          <Button onClick={onClose}>{t("Ho copiato la chiave")}</Button>
         </div>
       </div>
     );
@@ -283,7 +286,7 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
   return (
     <div className="min-w-0 space-y-4">
       <p className="text-sm text-muted-foreground max-sm:hidden">
-        Collega il gestionale a <strong>Claude</strong>: l'assistente lavora solo sui dati della tua azienda.
+        {t("Collega il gestionale a")} <strong>Claude</strong>{t(": l'assistente lavora solo sui dati della tua azienda.")}
       </p>
 
       <CollegamentiAttivi assistente="claude" />
@@ -294,16 +297,16 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
       <section className="space-y-2 rounded-xl border p-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-          <span className="text-sm font-semibold">Sito Claude, app e telefono</span>
+          <span className="text-sm font-semibold">{t("Sito Claude, app e telefono")}</span>
           <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary max-sm:hidden">
-            Consigliato
+            {t("Consigliato")}
           </span>
         </div>
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Nessuna chiave da copiare: entri con il tuo account e scegli azienda e livello.
+          {t("Nessuna chiave da copiare: entri con il tuo account e scegli azienda e livello.")}
         </p>
         <ElencoPassi passi={PASSI_CLAUDE_CONNETTORE} />
-        <BloccoCopia testo={MCP_ENDPOINT} etichetta="URL del connettore" />
+        <BloccoCopia testo={MCP_ENDPOINT} etichetta={t("URL del connettore")} />
       </section>
 
       {/* 2. Claude Code e Claude Desktop: serve una chiave limitata all'azienda. */}
@@ -313,16 +316,17 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
           <span className="text-sm font-semibold">Claude Code e Claude Desktop</span>
         </div>
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Qui serve una chiave limitata alla tua azienda: scegli cosa può fare l'assistente e creala. Scade dopo 90 giorni; puoi rinnovarla in Impostazioni → API.
+          {t("Qui serve una chiave limitata alla tua azienda: scegli cosa può fare l'assistente e creala. Scade dopo 90 giorni; puoi rinnovarla in Impostazioni → API.")}
         </p>
 
         {chiaviAttive.length > 0 && (
           <Alert>
             <KeyRound className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Hai già {chiaviAttive.length === 1 ? "una chiave attiva" : `${chiaviAttive.length} chiavi attive`}. Puoi
-              crearne un'altra qui sotto, oppure gestirle (revoca, rinnovo) in{" "}
-              <button className="underline" onClick={vaiAdApi}>Impostazioni → API</button>.
+              {chiaviAttive.length === 1
+                ? t("Hai già una chiave attiva. Puoi crearne un'altra qui sotto, oppure gestirle (revoca, rinnovo) in")
+                : t("Hai già {n} chiavi attive. Puoi crearne un'altra qui sotto, oppure gestirle (revoca, rinnovo) in", { n: chiaviAttive.length })}{" "}
+              <button className="underline" onClick={vaiAdApi}>{t("Impostazioni → API")}</button>.
             </AlertDescription>
           </Alert>
         )}
@@ -331,8 +335,7 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
           <Alert className="border-amber-200 bg-amber-50/60 dark:bg-amber-950/20">
             <RefreshCw className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
-              Una chiave è attiva da oltre {mesiChiavePiuVecchia} mesi. Per sicurezza conviene ogni tanto crearne una
-              nuova e revocare la vecchia in <button className="underline" onClick={vaiAdApi}>Impostazioni → API</button>.
+              {t("Una chiave è attiva da oltre {mesi} mesi. Per sicurezza conviene ogni tanto crearne una nuova e revocare la vecchia in", { mesi: mesiChiavePiuVecchia })} <button className="underline" onClick={vaiAdApi}>{t("Impostazioni → API")}</button>.
             </AlertDescription>
           </Alert>
         )}
@@ -376,10 +379,9 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
               onChange={(e) => setInvii(e.target.checked)}
             />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">Permetti invii reali e strumenti a pagamento</span>
+              <span className="block text-sm font-medium">{t("Permetti invii reali e strumenti a pagamento")}</span>
               <span className="block text-xs text-muted-foreground">
-                Manda email, follow-up e solleciti veri e usa gli strumenti con costo AI. Spento di serie: lascialo così
-                se vuoi che l'assistente prepari ma non invii nulla.
+                {t("Manda email, follow-up e solleciti veri e usa gli strumenti con costo AI. Spento di serie: lascialo così se vuoi che l'assistente prepari ma non invii nulla.")}
               </span>
             </span>
           </label>
@@ -389,14 +391,14 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
           <div className="flex justify-end">
             <Button onClick={creaLaChiave} disabled={creaChiave.isPending} className="gap-2">
               {creaChiave.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-              Crea la chiave
+              {t("Crea la chiave")}
             </Button>
           </div>
         )}
       </section>
 
       <div className="flex justify-end">
-        <Button variant="ghost" onClick={onClose}>Chiudi</Button>
+        <Button variant="ghost" onClick={onClose}>{t("Chiudi")}</Button>
       </div>
     </div>
   );

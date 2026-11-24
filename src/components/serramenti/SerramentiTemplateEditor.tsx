@@ -107,6 +107,7 @@ import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage"
 import { findSerramentiTemplateModule, type SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import { createFullSerramentiTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
@@ -130,6 +131,7 @@ function PlaceholderChips({
   targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
   label?: string;
 }) {
+  const t = useT();
   const insert = (name: string) => {
     const token = `{${name}}`;
     const el = targetRef?.current;
@@ -144,7 +146,7 @@ function PlaceholderChips({
   };
   return (
     <div className="mt-1.5">
-      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <p className="text-[10px] text-muted-foreground mb-1">{t(label)}</p>
       <div className="flex flex-wrap gap-1">
         {SR_PLACEHOLDERS.map((n) => (
           <button
@@ -407,6 +409,7 @@ interface SerramentiTemplateEditorProps {
 }
 
 export function SerramentiTemplateEditor({ embedded: _embedded = false, localModule }: SerramentiTemplateEditorProps) {
+  const tr = useT();
   const { data: template, isLoading } = useTemplatePdf();
   const upsertMut = useUpsertTemplatePdf();
   // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata).
@@ -443,7 +446,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
   const qualityItems = useMemo(() => {
     const items = buildTemplateQualityItems(form, companyAnagrafica);
     if (localModule && (!form.condizioni_legali_attivo || !form.condizioni_legali_testo?.trim())) {
-      items.unshift({ level: "critical", title: "Condizioni dell'offerta da completare", detail: "Prima dell'invio, inserisci e verifica i testi approvati dall'azienda: pagamenti, validità, inclusioni, esclusioni e condizioni applicabili.", section: "Condizioni contrattuali" });
+      items.unshift({ level: "critical", title: tr("Condizioni dell'offerta da completare"), detail: tr("Prima dell'invio, inserisci e verifica i testi approvati dall'azienda: pagamenti, validità, inclusioni, esclusioni e condizioni applicabili."), section: "Condizioni contrattuali" });
     }
     return items;
   }, [form, companyAnagrafica, !!localModule]);
@@ -553,13 +556,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
   const handleSave = () => {
     if (localModule) {
       try {
-        if (companyId !== localModule.template.company_id) throw new Error("L'azienda è cambiata. Riapri il modulo.");
-        if (!form.pdf_cover_hero?.trim()) throw new Error("Inserisci un titolo di copertina.");
+        if (companyId !== localModule.template.company_id) throw new Error(tr("L'azienda è cambiata. Riapri il modulo."));
+        if (!form.pdf_cover_hero?.trim()) throw new Error(tr("Inserisci un titolo di copertina."));
         localModule.save(form);
         setLocalSaved(true);
         setDirty(false);
-        toast.success("Modello salvato");
-      } catch (error) { toast.error(error instanceof Error ? error.message : "Salvataggio non riuscito."); }
+        toast.success(tr("Modello salvato"));
+      } catch (error) { toast.error(error instanceof Error ? error.message : tr("Salvataggio non riuscito.")); }
       return;
     }
     upsertMut.mutate(form, {
@@ -614,28 +617,28 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
     items: Array<{ id: EditorSection; label: string; emoji: string; descr?: string }>;
   }> = [
     {
-      label: "Azienda",
+      label: tr("Azienda"),
       items: [
-        { id: "brand", label: "Azienda e stile", emoji: "🏢", descr: "Logo, colori, anagrafica" },
+        { id: "brand", label: tr("Azienda e stile"), emoji: "🏢", descr: tr("Logo, colori, anagrafica") },
       ],
     },
     {
-      label: "Pagine del PDF",
+      label: tr("Pagine del PDF"),
       // Una sezione per pagina, nell'ordine in cui escono nel documento: le pagine nuove
       // stanno qui come le altre, non solo in «Ordine pagine» (vedi pagineEditor.ts).
       items: PAGINE_EDITOR_SERRAMENTI.map((p) => ({ id: p.id as EditorSection,
         label: p.voce,
         emoji: p.emoji,
-        descr: localModule && p.id === "page_come_funziona" ? "Caratteristiche e scelte di questo intervento" : p.descrizione })),
+        descr: localModule && p.id === "page_come_funziona" ? tr("Caratteristiche e scelte di questo intervento") : p.descrizione })),
     },
     {
-      label: "Dati & contenuti",
+      label: tr("Dati & contenuti"),
       items: [
-        { id: "contenuti", label: "Contenuti commerciali", emoji: "📝", descr: "Esigenze, USP, incluso" },
-        { id: "macro",     label: "Linee prodotto",        emoji: "📦", descr: "Pagine dedicate macrocategoria" },
-        { id: "garanzie",  label: "Metriche & perché noi",  emoji: "📊", descr: "Numeri e USP della pagina proposta" },
-        { id: "condizioni", label: "Condizioni contrattuali", emoji: "📜", descr: "Termini di vendita nel PDF" },
-        { id: "default",   label: "Impostazioni tecniche", emoji: "⚙️", descr: "IVA, anticipo, validità" },
+        { id: "contenuti", label: tr("Contenuti commerciali"), emoji: "📝", descr: tr("Esigenze, USP, incluso") },
+        { id: "macro",     label: tr("Linee prodotto"),        emoji: "📦", descr: tr("Pagine dedicate macrocategoria") },
+        { id: "garanzie",  label: tr("Metriche & perché noi"),  emoji: "📊", descr: tr("Numeri e USP della pagina proposta") },
+        { id: "condizioni", label: tr("Condizioni contrattuali"), emoji: "📜", descr: tr("Termini di vendita nel PDF") },
+        { id: "default",   label: tr("Impostazioni tecniche"), emoji: "⚙️", descr: tr("IVA, anticipo, validità") },
       ],
     },
   ];
@@ -681,7 +684,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
     setForm((prev) => ({ ...prev, pdf_cover_image_url: img.url }));
     setDirty(true);
     setStockDialogOpen(false);
-    toast.success(`Immagine "${img.label}" impostata`);
+    toast.success(tr("Immagine \"{label}\" impostata", { label: String(img.label ?? "") }));
   }, []);
 
   // ─── Logo upload ──────────────────────────────────────────────────────────
@@ -691,11 +694,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      toast.error(tr("Carica un file immagine (PNG, JPG, WebP)"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File troppo grande (max 5 MB)");
+      toast.error(tr("File troppo grande (max 5 MB)"));
       return;
     }
     setUploadingLogo(true);
@@ -713,10 +716,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       // Nel modello il percorso del file, non un link firmato che scade: si
       // firma quando serve (supabase/functions/_shared/immaginiModelloPdf.ts).
       update("logo_url", riferimentoImmagine("sr-progetti", storagePath));
-      toast.success("Logo caricato. Salva per applicare.");
+      toast.success(tr("Logo caricato. Salva per applicare."));
     } catch (e) {
       console.error("[serramenti-template-editor] logo upload", e);
-      toast.error("Errore upload logo", { description: String(e) });
+      toast.error(tr("Errore upload logo"), { description: String(e) });
     } finally {
       setUploadingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = "";
@@ -733,11 +736,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      toast.error(tr("Carica un file immagine (PNG, JPG, WebP)"));
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      toast.error("File troppo grande (max 8 MB)");
+      toast.error(tr("File troppo grande (max 8 MB)"));
       return;
     }
     setUploadingChiSiamo(true);
@@ -753,10 +756,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
       update("chi_siamo_foto_url", riferimentoImmagine("sr-progetti", storagePath));
-      toast.success("Foto azienda caricata. Salva per applicare.");
+      toast.success(tr("Foto azienda caricata. Salva per applicare."));
     } catch (e) {
       console.error("[serramenti-template-editor] chi-siamo upload", e);
-      toast.error("Errore upload foto", { description: String(e) });
+      toast.error(tr("Errore upload foto"), { description: String(e) });
     } finally {
       setUploadingChiSiamo(false);
       if (chiSiamoInputRef.current) chiSiamoInputRef.current.value = "";
@@ -771,8 +774,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       try { updateTestimonianza(idx, "foto_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
       return;
     }
-    if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine (PNG, JPG, WebP)"); return; }
-    if (file.size > 8 * 1024 * 1024) { toast.error("File troppo grande (max 8 MB)"); return; }
+    if (!file.type.startsWith("image/")) { toast.error(tr("Carica un file immagine (PNG, JPG, WebP)")); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error(tr("File troppo grande (max 8 MB)")); return; }
     setUploadingTestFoto(idx);
     try {
       if (!companyId) throw new Error("Profilo senza azienda");
@@ -782,10 +785,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
         .from("sr-progetti").upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
       updateTestimonianza(idx, "foto_url", riferimentoImmagine("sr-progetti", storagePath));
-      toast.success("Foto recensione caricata. Salva per applicare.");
+      toast.success(tr("Foto recensione caricata. Salva per applicare."));
     } catch (e) {
       console.error("[serramenti-template-editor] testimonianza foto upload", e);
-      toast.error("Errore upload foto", { description: String(e) });
+      toast.error(tr("Errore upload foto"), { description: String(e) });
     } finally {
       setUploadingTestFoto(null);
     }
@@ -801,11 +804,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      toast.error(tr("Carica un file immagine (PNG, JPG, WebP)"));
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      toast.error("File troppo grande (max 8 MB)");
+      toast.error(tr("File troppo grande (max 8 MB)"));
       return;
     }
     setUploadingCover(true);
@@ -821,10 +824,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
       update("pdf_cover_image_url", riferimentoImmagine("sr-progetti", storagePath));
-      toast.success("Immagine cover caricata. Salva per applicare.");
+      toast.success(tr("Immagine cover caricata. Salva per applicare."));
     } catch (e) {
       console.error("[serramenti-template-editor] cover upload", e);
-      toast.error("Errore upload cover", { description: String(e) });
+      toast.error(tr("Errore upload cover"), { description: String(e) });
     } finally {
       setUploadingCover(false);
       if (coverInputRef.current) coverInputRef.current.value = "";
@@ -837,11 +840,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      toast.error(tr("Carica un file immagine (PNG, JPG, WebP)"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File troppo grande (max 5 MB)");
+      toast.error(tr("File troppo grande (max 5 MB)"));
       return;
     }
     setUploadingCoverLogo(true);
@@ -857,10 +860,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
       update("pdf_cover_logo_url", riferimentoImmagine("sr-progetti", storagePath));
-      toast.success("Logo copertina caricato. Salva per applicare.");
+      toast.success(tr("Logo copertina caricato. Salva per applicare."));
     } catch (e) {
       console.error("[serramenti-template-editor] cover logo upload", e);
-      toast.error("Errore upload logo copertina", { description: String(e) });
+      toast.error(tr("Errore upload logo copertina"), { description: String(e) });
     } finally {
       setUploadingCoverLogo(false);
       if (coverLogoInputRef.current) coverLogoInputRef.current.value = "";
@@ -892,8 +895,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
     onApply: (v: T) => void;
     moduleField?: keyof SrTemplatePdfRow;
   }) => {
+  const t = useT();
     const choices = moduleDefaults && moduleField
-      ? [{ label: "Testi dedicati a questo intervento", value: moduleDefaults[moduleField] as T }]
+      ? [{ label: t("Testi dedicati a questo intervento"), value: moduleDefaults[moduleField] as T }]
       : presets;
     const hasContent = Array.isArray(currentValue) && (currentValue as unknown as unknown[]).length > 0;
     return (
@@ -905,16 +909,16 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuLabel className="text-xs">Scegli un template</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-xs">{t("Scegli un template")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {choices.map((p, i) => (
             <DropdownMenuItem
               key={i}
               className="cursor-pointer text-xs"
               onClick={() => {
-                if (hasContent && !confirm(`Sovrascrivere il contenuto attuale con il template "${p.label}"?`)) return;
+                if (hasContent && !confirm(t("Sovrascrivere il contenuto attuale con il template \"{label}\"?", { label: String(p.label ?? "") }))) return;
                 onApply(p.value);
-                toast.success(`Template "${p.label}" applicato`);
+                toast.success(t("Template \"{nome}\" applicato", { nome: String(p.label ?? "") }));
               }}
             >
               {p.label}
@@ -989,7 +993,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
           </div>
         ))}
         <Button onClick={addItem} variant="outline" size="sm" className="w-full border-dashed gap-1">
-          <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}
+          <Plus className="h-3.5 w-3.5" /> {tr("Aggiungi")} {label.toLowerCase()}
         </Button>
       </div>
     );
@@ -1019,28 +1023,28 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
         {items.map((item, idx) => (
           <div key={getListItemUid(key, idx, items.length)} className="border-l-4 border-orange-200 pl-3 py-1">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs">Titolo</Label>
+              <Label className="text-xs">{tr("Titolo")}</Label>
               <Button size="sm" variant="ghost" onClick={() => removeItem(idx)} className="h-7 px-2 text-xs text-rose-600">
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> {tr("Rimuovi")}
               </Button>
             </div>
             <Input
               value={item.titolo ?? ""}
               onChange={(e) => updateItem(idx, "titolo", e.target.value)}
-              placeholder={`Titolo ${label.toLowerCase()} ${idx + 1}`}
+              placeholder={tr("Titolo {label} {idx}", { label: label.toLowerCase(), idx: idx + 1 })}
               className="h-9 mb-2"
             />
-            <Label className="text-xs">Descrizione</Label>
+            <Label className="text-xs">{tr("Descrizione")}</Label>
             <Textarea
               value={item.descrizione ?? ""}
               onChange={(e) => updateItem(idx, "descrizione", e.target.value)}
-              placeholder="Cosa risolve / vantaggio"
+              placeholder={tr("Cosa risolve / vantaggio")}
               rows={2}
             />
           </div>
         ))}
         <Button onClick={addItem} variant="outline" size="sm" className="w-full border-dashed gap-1">
-          <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}
+          <Plus className="h-3.5 w-3.5" /> {tr("Aggiungi")} {label.toLowerCase()}
         </Button>
       </div>
     );
@@ -1058,68 +1062,65 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
           onChange={(e) => update("recensioni_attivo", e.target.checked)}
           className="h-3.5 w-3.5"
         />
-        Mostra le parole dei clienti (spento, la pagina mostra solo il voto)
+        {tr("Mostra le parole dei clienti (spento, la pagina mostra solo il voto)")}
       </label>
       <SrCard
-        title="Recensioni e testimonianze"
-        description="Escono nella pagina «Dicono di noi» del PDF, sotto il voto su Google o Trustpilot."
+        title={tr("Recensioni e testimonianze")}
+        description={tr("Escono nella pagina «Dicono di noi» del PDF, sotto il voto su Google o Trustpilot.")}
         icon={<Quote className="h-4 w-4" />}
         variant="highlight"
       >
         <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
-          lasciala vuota o nascondila: è più professionale di una recensione generica.
+          {tr("Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili, lasciala vuota o nascondila: è più professionale di una recensione generica.")}
         </div>
         <div className="space-y-3">
           {testimonianze.length === 0 && (
             <SrCallout variant="info">
-              Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
+              {tr("Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.")}
             </SrCallout>
           )}
           {testimonianze.map((t, idx) => (
             <Card key={idx} className="bg-orange-50/30 border-orange-200">
               <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
-                  Recensione {idx + 1}
-                </CardTitle>
+                <CardTitle className="text-xs uppercase tracking-wide text-orange-600">{tr("Recensione {idx}", { idx: idx + 1 })}</CardTitle>
                 <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> {tr("Rimuovi")}
                 </Button>
               </CardHeader>
               <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
                 <div className="col-span-12">
-                  <Label className="text-xs">Citazione</Label>
+                  <Label className="text-xs">{tr("Citazione")}</Label>
                   <Textarea
                     value={t.quote ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
-                    placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
+                    placeholder={tr("\"Ci hanno spiegato bene materiali, tempi e posa prima della firma...\"")}
                     rows={3}
                   />
                 </div>
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Autore</Label>
+                  <Label className="text-xs">{tr("Autore")}</Label>
                   <Input
                     value={t.autore ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
-                    placeholder="Nome cliente o iniziali reali"
+                    placeholder={tr("Nome cliente o iniziali reali")}
                     className="h-9 text-xs"
                   />
                 </div>
                 <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs">Città</Label>
+                  <Label className="text-xs">{tr("Città")}</Label>
                   <Input
                     value={t.citta ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
-                    placeholder="Città"
+                    placeholder={tr("Città")}
                     className="h-9 text-xs"
                   />
                 </div>
                 <div className="col-span-6 md:col-span-5">
-                  <Label className="text-xs">Tipo intervento</Label>
+                  <Label className="text-xs">{tr("Tipo intervento")}</Label>
                   <Input
                     value={t.intervento ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
-                    placeholder="Tipo intervento"
+                    placeholder={tr("Tipo intervento")}
                     className="h-9 text-xs"
                   />
                 </div>
@@ -1134,7 +1135,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   <label className="text-xs">
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded border cursor-pointer hover:bg-muted">
                       {uploadingTestFoto === idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      {t.foto_url ? "Cambia foto" : "Foto cliente (opzionale)"}
+                      {t.foto_url ? tr("Cambia foto") : tr("Foto cliente (opzionale)")}
                     </span>
                     <input
                       type="file"
@@ -1145,7 +1146,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   </label>
                   {t.foto_url && (
                     <button type="button" onClick={() => updateTestimonianza(idx, "foto_url", "")} className="text-xs text-rose-600 hover:underline">
-                      Rimuovi
+                      {tr("Rimuovi")}
                     </button>
                   )}
                 </div>
@@ -1157,7 +1158,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
             variant="outline"
             className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
           >
-            <Plus className="h-4 w-4" /> Aggiungi recensione
+            <Plus className="h-4 w-4" /> {tr("Aggiungi recensione")}
           </Button>
         </div>
       </SrCard>
@@ -1179,7 +1180,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
   // La sezione aperta, se è una pagina del documento, e se la pagina esce.
   const paginaSrBase = paginaEditor("serramenti", activeSection);
   const paginaSr = localModule && paginaSrBase?.id === "page_come_funziona"
-    ? { ...paginaSrBase, descrizione: "Caratteristiche e scelte di questo intervento" }
+    ? { ...paginaSrBase, descrizione: tr("Caratteristiche e scelte di questo intervento") }
     : paginaSrBase;
   const IconaPaginaSr = paginaSr?.icona ?? ImageIcon;
   const ordinePagineSr = normalizePdfPagesOrder(form.pdf_pages_order ?? null);
@@ -1193,7 +1194,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       <div data-template-topbar className="-mx-1 px-1 py-2.5 bg-background/95 backdrop-blur border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <div className="text-xs hidden sm:flex items-center gap-1.5 min-w-0">
-            <span className="text-muted-foreground">{localModule ? findSerramentiTemplateModule(localModule.id)?.title : "Template PDF Serramenti"}</span>
+            <span className="text-muted-foreground">{localModule ? findSerramentiTemplateModule(localModule.id)?.title : tr("Template PDF Serramenti")}</span>
             <span className="text-muted-foreground/40">/</span>
             <span className="font-semibold text-orange-700 truncate">
               {SECTIONS.find(s => s.id === activeSection)?.emoji} {SECTIONS.find(s => s.id === activeSection)?.label}
@@ -1201,11 +1202,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
           </div>
           {dirty ? (
             <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
-              ● Modifiche non salvate
+              {tr("● Modifiche non salvate")}
             </span>
           ) : (
             <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium hidden sm:inline-block">
-              {localSaved ? "✓ Salvato" : "Modello pronto · non ancora salvato"}
+              {localSaved ? tr("✓ Salvato") : tr("Modello pronto · non ancora salvato")}
             </span>
           )}
           <span
@@ -1219,11 +1220,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
             }
           >
             {qualityCriticalCount > 0 ? "!" : qualityWarningCount > 0 ? "!" : "✓"}
-            Qualità: {qualityCriticalCount > 0 ? `${qualityCriticalCount} da sistemare` : qualityWarningCount > 0 ? `${qualityWarningCount} avvisi` : "pronto"}
+            {tr("Qualità:")} {qualityCriticalCount > 0 ? tr("{n} da sistemare", { n: String(qualityCriticalCount ?? "") }) : qualityWarningCount > 0 ? tr("{n} avvisi", { n: String(qualityWarningCount ?? "") }) : tr("pronto")}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {localModule && moduleDefaults && <InterventionTextPicker title={moduleDefaults.pdf_cover_eyebrow || "Serramenti"} choices={serramentiCopyChoices(localModule.id, moduleDefaults)} onApply={patch => { setForm(prev => ({ ...prev, ...patch })); setDirty(true); }} />}
+          {localModule && moduleDefaults && <InterventionTextPicker title={moduleDefaults.pdf_cover_eyebrow || tr("Serramenti")} choices={serramentiCopyChoices(localModule.id, moduleDefaults)} onApply={patch => { setForm(prev => ({ ...prev, ...patch })); setDirty(true); }} />}
           {!localModule && <AiTemplateGenerator
             settoreFn="ai-genera-template-serramenti"
             onApply={applyGeneratedSr}
@@ -1242,8 +1243,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
             className="gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50"
           >
             <Eye className="h-4 w-4" />
-            <span className="hidden sm:inline">Anteprima PDF</span>
-            <span className="sm:hidden">Anteprima</span>
+            <span className="hidden sm:inline">{tr("Anteprima PDF")}</span>
+            <span className="sm:hidden">{tr("Anteprima")}</span>
           </Button>
           <Button
             onClick={handleSave}
@@ -1252,7 +1253,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
             size="sm"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva
+            {tr("Salva")}
           </Button>
         </div>
       </div>
@@ -1283,7 +1284,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                 className="w-full gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50 h-8"
               >
                 <Eye className="h-3.5 w-3.5" />
-                Anteprima PDF
+                {tr("Anteprima PDF")}
               </Button>
             </div>
           </nav>
@@ -1295,21 +1296,21 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       {/* === SEZIONE: BRAND === */}
       {activeSection === "brand" && (<>
       <SectionHeader
-        title="🏢 Azienda e stile"
-        description="Logo, dati anagrafici, colori e linee prodotto che compaiono in ogni PDF."
+        title={tr("🏢 Azienda e stile")}
+        description={tr("Logo, dati anagrafici, colori e linee prodotto che compaiono in ogni PDF.")}
         number={1}
       />
 
       {/* Anagrafica + branding */}
       <SrCard
-        title="Anagrafica e branding azienda"
-        description="Logo, dati e colore primario che compaiono nell'header e footer di ogni preventivo PDF."
+        title={tr("Anagrafica e branding azienda")}
+        description={tr("Logo, dati e colore primario che compaiono nell'header e footer di ogni preventivo PDF.")}
         icon={<Building2 className="h-4 w-4" />}
       >
         <div className="grid grid-cols-12 gap-3">
           {/* Logo */}
           <div className="col-span-12 md:col-span-3">
-            <Label className="text-xs mb-1 block">Logo PDF</Label>
+            <Label className="text-xs mb-1 block">{tr("Logo PDF")}</Label>
             <input
               ref={logoInputRef}
               type="file"
@@ -1326,7 +1327,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
               ) : (
                 <div className="text-center p-3">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                  <p className="text-[10px] text-muted-foreground">{tr("Clicca per caricare")}</p>
                 </div>
               )}
               {uploadingLogo && (
@@ -1343,7 +1344,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                 className="flex-1 h-7 text-[11px]"
               >
                 <Upload className="h-3 w-3 mr-1" />
-                {form.logo_url ? "Cambia" : "Carica"}
+                {form.logo_url ? tr("Cambia") : tr("Carica")}
               </Button>
               {form.logo_url && (
                 <Button
@@ -1355,7 +1356,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                 </Button>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">PNG/JPG, max 5 MB. Sfondo trasparente consigliato.</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{tr("PNG/JPG, max 5 MB. Sfondo trasparente consigliato.")}</p>
           </div>
 
           <div className="col-span-12 md:col-span-9 grid grid-cols-12 gap-3">
@@ -1363,32 +1364,31 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
             <div className="col-span-12 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/60 p-2.5 text-[11px] text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
               <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                Questi dati arrivano dal{" "}
-                <Link to="/azienda/impostazioni/profilo" className="font-medium underline">Profilo azienda</Link>.
-                Lascia un campo vuoto per usarli in automatico; compila solo per sovrascriverli.
+                {tr("Questi dati arrivano dal")}{" "}
+                <Link to="/azienda/impostazioni/profilo" className="font-medium underline">{tr("Profilo azienda")}</Link>{tr(". Lascia un campo vuoto per usarli in automatico; compila solo per sovrascriverli.")}
               </span>
             </div>
             <div className="col-span-12">
-              <Label className="text-xs">Ragione sociale</Label>
+              <Label className="text-xs">{tr("Ragione sociale")}</Label>
               <Input
                 value={form.ragione_sociale ?? ""}
                 onChange={(e) => update("ragione_sociale", e.target.value)}
-                placeholder={inheritedPlaceholder(companyAnagrafica?.ragione_sociale, "Es. Showroom Demo Srl")}
+                placeholder={inheritedPlaceholder(companyAnagrafica?.ragione_sociale, tr("Es. Showroom Demo Srl"))}
                 className="h-9"
               />
             </div>
             <div className="col-span-12">
-              <Label htmlFor="modello-indirizzo-completo" className="text-xs">Indirizzo completo</Label>
+              <Label htmlFor="modello-indirizzo-completo" className="text-xs">{tr("Indirizzo completo")}</Label>
               <CampoIndirizzo
                 id="modello-indirizzo-completo"
                 value={form.indirizzo_completo ?? ""}
                 onChange={(v) => update("indirizzo_completo", v)}
-                placeholder={inheritedPlaceholder(companyAnagrafica?.indirizzo_completo, "Es. Via Roma 42 · 20121 Milano (MI)")}
+                placeholder={inheritedPlaceholder(companyAnagrafica?.indirizzo_completo, tr("Es. Via Roma 42 · 20121 Milano (MI)"))}
                 className="h-9"
               />
             </div>
             <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Telefono</Label>
+              <Label className="text-xs">{tr("Telefono")}</Label>
               <Input
                 value={form.telefono ?? ""}
                 onChange={(e) => update("telefono", e.target.value)}
@@ -1416,7 +1416,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
               />
             </div>
             <div className="col-span-12 md:col-span-6">
-              <Label className="text-xs">Colore primario (verde elegante consigliato)</Label>
+              <Label className="text-xs">{tr("Colore primario (verde elegante consigliato)")}</Label>
               <div className="flex gap-2">
                 <Input
                   type="color"
@@ -1440,10 +1440,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label className="text-sm font-medium block">Mostra info versione nel footer</Label>
+                  <Label className="text-sm font-medium block">{tr("Mostra info versione nel footer")}</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Aggiunge su ogni pagina del PDF: <code className="font-mono text-[10px] bg-white px-1 rounded">Preventivo SR-001 · v2 · pagina 3/8 · data</code>.
-                    Utile per distinguere tra revisioni multiple dello stesso preventivo.
+                    {tr("Aggiunge su ogni pagina del PDF:")} <code className="font-mono text-[10px] bg-white px-1 rounded">Preventivo SR-001 · v2 · pagina 3/8 · data</code>{tr(". Utile per distinguere tra revisioni multiple dello stesso preventivo.")}
                   </p>
                 </div>
               </div>
@@ -1457,10 +1456,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label className="text-sm font-medium block">Mostra footer legale esteso (B2B)</Label>
+                  <Label className="text-sm font-medium block">{tr("Mostra footer legale esteso (B2B)")}</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Aggiunge in fondo a ogni pagina: <code className="font-mono text-[10px] bg-white px-1 rounded">Cap. Soc. €X · REA Y · PEC: ...</code>.
-                    I dati sono presi da <strong>Impostazioni → Profilo aziendale</strong>: compila prima REA, capitale sociale e PEC. Default off.
+                    {tr("Aggiunge in fondo a ogni pagina:")} <code className="font-mono text-[10px] bg-white px-1 rounded">Cap. Soc. €X · REA Y · PEC: ...</code>{tr(". I dati sono presi da")} <strong>{tr("Impostazioni → Profilo aziendale")}</strong>{tr(": compila prima REA, capitale sociale e PEC. Default off.")}
                   </p>
                 </div>
               </div>
@@ -1474,10 +1472,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label className="text-sm font-medium block">Mostra rata mensile nel box prezzo</Label>
+                  <Label className="text-sm font-medium block">{tr("Mostra rata mensile nel box prezzo")}</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Sotto al totale, in piccolo: <code className="font-mono text-[10px] bg-white px-1 rounded">≈ da € 89/mese in 60 mesi</code>.
-                    Richiede almeno un piano di finanziamento configurato sul preventivo. Off di default.
+                    {tr("Sotto al totale, in piccolo:")} <code className="font-mono text-[10px] bg-white px-1 rounded">≈ da € 89/mese in 60 mesi</code>{tr(". Richiede almeno un piano di finanziamento configurato sul preventivo. Off di default.")}
                   </p>
                 </div>
               </div>
@@ -1490,10 +1487,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label className="text-sm font-medium block">Mostra netto dopo recupero fiscale</Label>
+                  <Label className="text-sm font-medium block">{tr("Mostra netto dopo recupero fiscale")}</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Sotto al totale, in evidenza: <code className="font-mono text-[10px] bg-white px-1 rounded">Netto dopo detrazione 50% (prima casa): € 7.450</code>.
-                    Richiede aliquota detrazione configurata sul preventivo. <strong>On di default</strong>.
+                    {tr("Sotto al totale, in evidenza:")} <code className="font-mono text-[10px] bg-white px-1 rounded">Netto dopo detrazione 50% (prima casa): € 7.450</code>{tr(". Richiede aliquota detrazione configurata sul preventivo.")} <strong>{tr("On di default")}</strong>.
                   </p>
                 </div>
               </div>
@@ -1507,11 +1503,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label className="text-sm font-medium block">Mostra tabella detrazione 10 anni</Label>
+                  <Label className="text-sm font-medium block">{tr("Mostra tabella detrazione 10 anni")}</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Sotto la card "Detrazione fiscale" del PDF compare una mini-tabella 5×2 con
-                    quota annuale e cumulato per ogni anno. <strong>Off di default</strong> — utile per
-                    clienti residenziali che chiedono esplicitamente il calendario fiscale.
+                    {tr("Sotto la card \"Detrazione fiscale\" del PDF compare una mini-tabella 5×2 con quota annuale e cumulato per ogni anno.")} <strong>{tr("Off di default")}</strong> {tr("— utile per clienti residenziali che chiedono esplicitamente il calendario fiscale.")}
                   </p>
                 </div>
               </div>
@@ -1525,13 +1519,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label className="text-sm font-medium block">Pagine foto-tecniche dedicate per articolo</Label>
+                  <Label className="text-sm font-medium block">{tr("Pagine foto-tecniche dedicate per articolo")}</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Per ogni gruppo serramento con almeno una foto di sopralluogo o render AI,
-                    il PDF aggiunge una pagina A4 dedicata: layout 2 colonne (Prima | Dopo) +
-                    scheda tecnica completa (modello, materiale, vetro, dimensioni, colori, quantità) +
-                    note tecniche libere. <strong>Off di default</strong> — aumenta il numero di pagine.
-                    Le foto vanno caricate sul preventivo legate al singolo serramento.
+                    {tr("Per ogni gruppo serramento con almeno una foto di sopralluogo o render AI, il PDF aggiunge una pagina A4 dedicata: layout 2 colonne (Prima | Dopo) + scheda tecnica completa (modello, materiale, vetro, dimensioni, colori, quantità) + note tecniche libere.")} <strong>{tr("Off di default")}</strong> {tr("— aumenta il numero di pagine. Le foto vanno caricate sul preventivo legate al singolo serramento.")}
                   </p>
                 </div>
               </div>
@@ -1544,144 +1534,144 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       {/* === SEZIONE: CONTENUTI COMMERCIALI === */}
       {activeSection === "contenuti" && (<>
       <SectionHeader
-        title="📝 Contenuti commerciali"
-        description="Le librerie da cui pesca il consulente: esigenze, soluzioni, USP, incluso, prossimi passi."
+        title={tr("📝 Contenuti commerciali")}
+        description={tr("Le librerie da cui pesca il consulente: esigenze, soluzioni, USP, incluso, prossimi passi.")}
         number={2}
       />
 
       {/* Esigenze */}
       <SrCard
-        title="Libreria esigenze tipiche del cliente"
-        description="Aggiungi qui tutte le esigenze più comuni dei tuoi clienti. Nel preventivo sceglierai quali includere per ogni cliente specifico."
+        title={tr("Libreria esigenze tipiche del cliente")}
+        description={tr("Aggiungi qui tutte le esigenze più comuni dei tuoi clienti. Nel preventivo sceglierai quali includere per ogni cliente specifico.")}
         icon={<MessageCircle className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<SrEsigenza[]>
             moduleField="esigenze_default"
-            label="Applica template standard"
+            label={tr("Applica template standard")}
             currentValue={(form.esigenze_default ?? []) as SrEsigenza[]}
             presets={[
-              { label: "🏠 Comfort termico — Spifferi · Condensa · Estetica", value: PRESET_ESIGENZE },
-              { label: "💰 Risparmio + sicurezza — Bollette · Rumore · Punti accessibili", value: PRESET_ESIGENZE_ALT },
-              { label: "👶 Famiglia — Sicurezza · Comfort estivo · Manutenzione ridotta", value: PRESET_ESIGENZE_FAMIGLIA },
+              { label: tr("🏠 Comfort termico — Spifferi · Condensa · Estetica"), value: PRESET_ESIGENZE },
+              { label: tr("💰 Risparmio + sicurezza — Bollette · Rumore · Punti accessibili"), value: PRESET_ESIGENZE_ALT },
+              { label: tr("👶 Famiglia — Sicurezza · Comfort estivo · Manutenzione ridotta"), value: PRESET_ESIGENZE_FAMIGLIA },
             ]}
             onApply={(v) => update("esigenze_default", v)}
           />
         </div>
-        {renderBulletObjectEditor("esigenza", "esigenze_default")}
+        {renderBulletObjectEditor(tr("esigenza"), "esigenze_default")}
       </SrCard>
 
       {/* Soluzione */}
       <SrCard
-        title="Libreria soluzioni / argomenti di vendita"
-        description={localModule ? "Prodotti, componenti e lavorazioni di questo intervento. Personalizza le descrizioni in base a ciò che l'azienda propone realmente." : "Tutte le soluzioni che proponi (su misura, posa qualificata, vetri premium...). Le sceglierai una per una per ogni preventivo."}
+        title={tr("Libreria soluzioni / argomenti di vendita")}
+        description={localModule ? tr("Prodotti, componenti e lavorazioni di questo intervento. Personalizza le descrizioni in base a ciò che l'azienda propone realmente.") : tr("Tutte le soluzioni che proponi (su misura, posa qualificata, vetri premium...). Le sceglierai una per una per ogni preventivo.")}
         icon={<Sparkles className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<SrSoluzioneItem[]>
             moduleField="soluzione_default"
-            label="Applica template standard"
+            label={tr("Applica template standard")}
             currentValue={(form.soluzione_default ?? []) as SrSoluzioneItem[]}
             presets={[
-              { label: "💎 Standard (Rilievo tecnico + posa chiara)", value: PRESET_SOLUZIONE },
-              { label: "🏆 Premium (Vetri, profili e posa documentata)", value: PRESET_SOLUZIONE_PREMIUM },
+              { label: tr("💎 Standard (Rilievo tecnico + posa chiara)"), value: PRESET_SOLUZIONE },
+              { label: tr("🏆 Premium (Vetri, profili e posa documentata)"), value: PRESET_SOLUZIONE_PREMIUM },
             ]}
             onApply={(v) => update("soluzione_default", v)}
           />
         </div>
-        {renderBulletObjectEditor("soluzione", "soluzione_default")}
+        {renderBulletObjectEditor(tr("soluzione"), "soluzione_default")}
       </SrCard>
 
       {/* Perché noi */}
       <SrCard
-        title="Libreria USP — Perché scegliere noi"
-        description="Tutti i punti forti della tua azienda. Nel preventivo selezionerai quelli più rilevanti per ogni cliente."
+        title={tr("Libreria USP — Perché scegliere noi")}
+        description={tr("Tutti i punti forti della tua azienda. Nel preventivo selezionerai quelli più rilevanti per ogni cliente.")}
         icon={<ListChecks className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<string[]>
             moduleField="perche_noi_default"
-            label="Applica template standard"
+            label={tr("Applica template standard")}
             currentValue={(form.perche_noi_default ?? []) as string[]}
             presets={[
-              { label: "✅ Servizio chiaro (referente unico · documenti · passaggi scritti)", value: PRESET_PERCHE_NOI },
-              { label: "🏆 Metodo operativo (showroom · rilievo · posa · assistenza)", value: PRESET_PERCHE_NOI_ALT },
-              { label: "🛡️ Fiducia verificabile (dati aziendali · certificazioni · recensioni reali)", value: PRESET_PERCHE_NOI_TRUST },
+              { label: tr("✅ Servizio chiaro (referente unico · documenti · passaggi scritti)"), value: PRESET_PERCHE_NOI },
+              { label: tr("🏆 Metodo operativo (showroom · rilievo · posa · assistenza)"), value: PRESET_PERCHE_NOI_ALT },
+              { label: tr("🛡️ Fiducia verificabile (dati aziendali · certificazioni · recensioni reali)"), value: PRESET_PERCHE_NOI_TRUST },
             ]}
             onApply={(v) => update("perche_noi_default", v)}
           />
         </div>
-        {renderListEditor("USP", "perche_noi_default", "Es. Posa eseguita a regola d'arte con sigillature certificate")}
+        {renderListEditor("USP", "perche_noi_default", tr("Es. Posa eseguita a regola d'arte con sigillature certificate"))}
       </SrCard>
 
       {/* Incluso */}
       <SrCard
-        title="Libreria 'Cosa è incluso nel preventivo'"
-        description="Tutte le voci che possono essere incluse nelle tue offerte. Nel preventivo scegli quali sono attive per quel cliente."
+        title={tr("Libreria 'Cosa è incluso nel preventivo'")}
+        description={tr("Tutte le voci che possono essere incluse nelle tue offerte. Nel preventivo scegli quali sono attive per quel cliente.")}
         icon={<ListChecks className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<string[]>
             moduleField="incluso_default"
-            label="Applica template standard"
+            label={tr("Applica template standard")}
             currentValue={(form.incluso_default ?? []) as string[]}
             presets={[
-              { label: "📦 Standard (5 voci — rilievo, posa, sigillature, collaudo)", value: PRESET_INCLUSO },
-              { label: "⭐ Plus (8 voci — documenti, foto, pulizia e assistenza)", value: PRESET_INCLUSO_PLUS },
+              { label: tr("📦 Standard (5 voci — rilievo, posa, sigillature, collaudo)"), value: PRESET_INCLUSO },
+              { label: tr("⭐ Plus (8 voci — documenti, foto, pulizia e assistenza)"), value: PRESET_INCLUSO_PLUS },
             ]}
             onApply={(v) => update("incluso_default", v)}
           />
         </div>
-        {renderListEditor("voce", "incluso_default", "Es. Rilievo dimensionale a casa tua senza costi aggiuntivi")}
+        {renderListEditor(tr("voce"), "incluso_default", tr("Es. Rilievo dimensionale a casa tua senza costi aggiuntivi"))}
       </SrCard>
 
-      {localModule && <SrCard title="Esclusioni e opere da confermare" description="Questo testo compare vicino al prezzo nel PDF. Indica cosa non è compreso o richiede una voce separata; non sostituisce le condizioni contrattuali." icon={<ListChecks className="h-4 w-4" />}>
-        <Label htmlFor="module-exclusions">Esclusioni del modulo</Label>
+      {localModule && <SrCard title={tr("Esclusioni e opere da confermare")} description={tr("Questo testo compare vicino al prezzo nel PDF. Indica cosa non è compreso o richiede una voce separata; non sostituisce le condizioni contrattuali.")} icon={<ListChecks className="h-4 w-4" />}>
+        <Label htmlFor="module-exclusions">{tr("Esclusioni del modulo")}</Label>
         <Textarea id="module-exclusions" className="mt-2" rows={4} value={serramentiModuleExclusions(form)} onChange={event => update("pdf_blocchi", { ...form.pdf_blocchi, modulo_esclusioni: event.target.value })} />
         <Button className="mt-2" variant="outline" size="sm" onClick={() => {
-          if (window.confirm("Ripristinare le esclusioni di questo intervento? Il testo corrente verrà sostituito nella bozza.")) update("pdf_blocchi", { ...form.pdf_blocchi, modulo_esclusioni: serramentiModuleExclusions(moduleDefaults) });
-        }}>Ripristina testo del modulo</Button>
+          if (window.confirm(tr("Ripristinare le esclusioni di questo intervento? Il testo corrente verrà sostituito nella bozza."))) update("pdf_blocchi", { ...form.pdf_blocchi, modulo_esclusioni: serramentiModuleExclusions(moduleDefaults) });
+        }}>{tr("Ripristina testo del modulo")}</Button>
       </SrCard>}
 
       {/* Prossimi passi */}
       <SrCard
-        title="Libreria 'Prossimi passi' (chiusura PDF)"
-        description="Tutti i possibili step del tuo processo di vendita. Nel preventivo scegli quali mostrare al cliente specifico."
+        title={tr("Libreria 'Prossimi passi' (chiusura PDF)")}
+        description={tr("Tutti i possibili step del tuo processo di vendita. Nel preventivo scegli quali mostrare al cliente specifico.")}
         icon={<ListChecks className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<string[]>
             moduleField="prossimi_passi_default"
-            label="Applica template standard"
+            label={tr("Applica template standard")}
             currentValue={(form.prossimi_passi_default ?? []) as string[]}
             presets={[
-              { label: "👋 Standard (4 step — Chiamata → Sopralluogo → Piano → Firma)", value: PRESET_PROSSIMI_PASSI },
-              { label: "🏆 Premium (5 step con showroom e prezzo bloccato)", value: PRESET_PROSSIMI_PASSI_PREMIUM },
+              { label: tr("👋 Standard (4 step — Chiamata → Sopralluogo → Piano → Firma)"), value: PRESET_PROSSIMI_PASSI },
+              { label: tr("🏆 Premium (5 step con showroom e prezzo bloccato)"), value: PRESET_PROSSIMI_PASSI_PREMIUM },
             ]}
             onApply={(v) => update("prossimi_passi_default", v)}
           />
         </div>
-        {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica")}
+        {renderListEditor(tr("step"), "prossimi_passi_default", tr("Es. Ci vediamo a casa tua per la consulenza tecnica"))}
       </SrCard>
       </>)}{/* === END SEZIONE CONTENUTI === */}
 
       {/* === SEZIONE: MACROCATEGORIE === */}
       {activeSection === "macro" && (<>
       <SectionHeader
-        title="📦 Linee prodotto (macrocategorie)"
-        description="Le pagine dedicate macrocategoria che vengono inserite nel PDF dopo la composizione tecnica."
+        title={tr("📦 Linee prodotto (macrocategorie)")}
+        description={tr("Le pagine dedicate macrocategoria che vengono inserite nel PDF dopo la composizione tecnica.")}
         number={3}
       />
 
       {/* Pagine dedicate macrocategoria — sincronizzate con il listino */}
       <SrCard
-        title="Pagine dedicate macrocategoria"
+        title={tr("Pagine dedicate macrocategoria")}
         description={localModule
-          ? "Le pagine prodotto del PDF usano le schede del listino del preventivo. Questo modello non modifica il catalogo condiviso."
-          : "Quando un articolo di una macro attivata è nel preventivo, il PDF aggiunge una pagina dedicata (foto + descrizione estesa). Le modifiche qui sono sincronizzate con il listino."}
+          ? tr("Le pagine prodotto del PDF usano le schede del listino del preventivo. Questo modello non modifica il catalogo condiviso.")
+          : tr("Quando un articolo di una macro attivata è nel preventivo, il PDF aggiunge una pagina dedicata (foto + descrizione estesa). Le modifiche qui sono sincronizzate con il listino.")}
         icon={<FileText className="h-4 w-4" />}
       >
-        {localModule ? <p className="text-sm text-muted-foreground">Le schede prodotto vengono dal listino del preventivo. Questo modello non modifica il catalogo condiviso.</p> : <MacroPagineDedicateManager vertical="serramentista" />}
+        {localModule ? <p className="text-sm text-muted-foreground">{tr("Le schede prodotto vengono dal listino del preventivo. Questo modello non modifica il catalogo condiviso.")}</p> : <MacroPagineDedicateManager vertical="serramentista" />}
       </SrCard>
       </>)}{/* === END SEZIONE MACRO === */}
 
@@ -1698,8 +1688,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
 
       {/* Editor pagina specifica del PDF — Tabs controllata dall'esterno */}
       <SrCard
-        title="Editor pagina PDF"
-        description="Modifica i contenuti della pagina selezionata dalla sidebar."
+        title={tr("Editor pagina PDF")}
+        description={tr("Modifica i contenuti della pagina selezionata dalla sidebar.")}
         icon={<FileText className="h-4 w-4" />}
       >
         <Tabs
@@ -1724,14 +1714,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
           {/* The sidebar owns keyboard navigation. These labels only retain
               Radix panel associations; no second invisible focusable menu. */}
           <TabsList className="hidden" aria-hidden="true">
-            <TabsTrigger value="cover">Copertina</TabsTrigger>
-            <TabsTrigger value="chi-siamo">Chi siamo</TabsTrigger>
-            <TabsTrigger value="percorso">Come lavoriamo</TabsTrigger>
-            <TabsTrigger value="consulente">Consulente</TabsTrigger>
-            <TabsTrigger value="render">Simulazione prima e dopo</TabsTrigger>
-            <TabsTrigger value="cta">I prossimi passi</TabsTrigger>
-            <TabsTrigger value="conversione">⚡ Conversione</TabsTrigger>
-            <TabsTrigger value="ordine-pagine">Ordine e pagine</TabsTrigger>
+            <TabsTrigger value="cover">{tr("Copertina")}</TabsTrigger>
+            <TabsTrigger value="chi-siamo">{tr("Chi siamo")}</TabsTrigger>
+            <TabsTrigger value="percorso">{tr("Come lavoriamo")}</TabsTrigger>
+            <TabsTrigger value="consulente">{tr("Consulente")}</TabsTrigger>
+            <TabsTrigger value="render">{tr("Simulazione prima e dopo")}</TabsTrigger>
+            <TabsTrigger value="cta">{tr("I prossimi passi")}</TabsTrigger>
+            <TabsTrigger value="conversione">{tr("⚡ Conversione")}</TabsTrigger>
+            <TabsTrigger value="ordine-pagine">{tr("Ordine e pagine")}</TabsTrigger>
           </TabsList>
 
           {/* ═══ COVER ═══════════════════════════════════════════════════════ */}
@@ -1739,7 +1729,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
             <SerramentiCoverLayoutPicker value={form.pdf_blocchi} onChange={aggiornaBlocchi} />
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
-                Editor visuale · anteprima in tempo reale · tutti i parametri sotto
+                {tr("Editor visuale · anteprima in tempo reale · tutti i parametri sotto")}
               </div>
             </div>
 
@@ -1769,8 +1759,8 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   (Sfondo · Testi); la card "Tipografia & layout" è subito sotto. */}
               <div className="col-span-12 md:order-1 space-y-3">
                 {/* ══ Card: Sfondo copertina ══ */}
-                <div data-cover-media className="space-y-3"><TemplateImageFieldView imageComponent={ImgRiservata} label="Immagine copertina" value={form.pdf_cover_image_url ?? null} busy={uploadingCover} localOnly={!!localModule} inputRef={coverInputRef} onFile={file => { if (file) return handleCoverUpload(file); }} onRemove={() => update("pdf_cover_image_url", null)} /><Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>Scegli dalla libreria</Button><div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block">Logo copertina</Label>
+                <div data-cover-media className="space-y-3"><TemplateImageFieldView imageComponent={ImgRiservata} label={tr("Immagine copertina")} value={form.pdf_cover_image_url ?? null} busy={uploadingCover} localOnly={!!localModule} inputRef={coverInputRef} onFile={file => { if (file) return handleCoverUpload(file); }} onRemove={() => update("pdf_cover_image_url", null)} /><Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>{tr("Scegli dalla libreria")}</Button><div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] mb-1 block">{tr("Logo copertina")}</Label>
                   <input
                     ref={coverLogoInputRef}
                     type="file"
@@ -1785,7 +1775,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                           <ImgRiservata
                             loading="lazy"
                             src={logoDellaCopertina({ logoCopertinaModello: form.pdf_cover_logo_url, logoChiaroAzienda: brand?.brand_logo_dark_url, logoModello: form.logo_url, logoAzienda: brand?.logo_url }) ?? ""}
-                            alt="Logo copertina"
+                            alt={tr("Logo copertina")}
                             className="h-full w-full object-contain"
                           />
                         ) : (
@@ -1798,8 +1788,8 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                         )}
                       </div>
                       <p className="text-[10px] text-blue-900 dark:text-blue-200 leading-snug flex-1 min-w-0">
-                        Il logo e la sua <strong>versione chiara</strong> (per sfondo scuro) si impostano in{" "}
-                        <strong>Brand&nbsp;&amp;&nbsp;Azienda</strong>. La copertina li eredita.
+                        {tr("Il logo e la sua")} <strong>{tr("versione chiara")}</strong> {tr("(per sfondo scuro) si impostano in")}{" "}
+                        <strong>{tr("Brand & Azienda")}</strong>{tr(". La copertina li eredita.")}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1807,7 +1797,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                         to="/azienda/impostazioni/branding"
                         className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 hover:underline"
                       >
-                        Gestisci in Brand &amp; Azienda →
+                        {tr("Gestisci in Brand & Azienda →")}
                       </Link>
                       <button
                         type="button"
@@ -1815,18 +1805,18 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                         disabled={uploadingCoverLogo}
                         className="ml-auto text-[10px] text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
                       >
-                        Logo solo qui
+                        {tr("Logo solo qui")}
                       </button>
                     </div>
                     {form.pdf_cover_logo_url && (
                       <div className="flex items-center justify-between gap-1 pt-1 border-t border-blue-200/60 dark:border-blue-900/40">
-                        <span className="text-[9px] text-amber-700 dark:text-amber-400">Override specifico attivo</span>
+                        <span className="text-[9px] text-amber-700 dark:text-amber-400">{tr("Override specifico attivo")}</span>
                         <button
                           type="button"
                           onClick={() => update("pdf_cover_logo_url", null)}
                           className="text-[10px] text-rose-600 hover:underline"
                         >
-                          Rimuovi override
+                          {tr("Rimuovi override")}
                         </button>
                       </div>
                     )}
@@ -1860,9 +1850,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                       {/* Brand palette: 4 variazioni dal colore_primario aziendale */}
                       {form.colore_primario && (
                         <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                            🎨 Brand · variazioni da {form.colore_primario}
-                          </div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{tr("🎨 Brand · variazioni da {colore_primario}", { colore_primario: String(form.colore_primario ?? "") })}</div>
                           <div className="flex gap-1 flex-wrap">
                             {generateBrandPalette(form.colore_primario).map((c) => (
                               <button
@@ -1922,7 +1910,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                     }}
                     className="h-7 text-[11px] text-muted-foreground"
                   >
-                    Ripristina default tipografia
+                    {tr("Ripristina default tipografia")}
                   </Button>
                 </div></TemplateCoverDesignControls>
               </div>{/* ══ fine colonna sinistra controlli ══ */}
@@ -1932,8 +1920,8 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           {/* ═══ CHI SIAMO ═══════════════════════════════════════════════════ */}
           <TabsContent value="chi-siamo" className="mt-4 space-y-3">
             <SrCard
-              title={'Pagina "Chi siamo"'}
-              description="Pagina opzionale mostrata subito dopo la copertina."
+              title={tr("Pagina \"Chi siamo\"")}
+              description={tr("Pagina opzionale mostrata subito dopo la copertina.")}
               icon={<Building2 className="h-4 w-4" />}
             >
               <label className="flex items-center gap-2 cursor-pointer text-xs mb-3 pb-3 border-b">
@@ -1943,13 +1931,13 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   onChange={(e) => update("chi_siamo_attivo", e.target.checked)}
                   className="h-4 w-4"
                 />
-                <span className="font-medium">Attiva questa pagina nel PDF</span>
+                <span className="font-medium">{tr("Attiva questa pagina nel PDF")}</span>
               </label>
             {form.chi_siamo_attivo && (
               <div className="grid grid-cols-12 gap-3">
                 {/* Foto azienda — upload diretto (no più URL incollato) */}
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs mb-1 block">Foto azienda</Label>
+                  <Label className="text-xs mb-1 block">{tr("Foto azienda")}</Label>
                   <input
                     ref={chiSiamoInputRef}
                     type="file"
@@ -1964,14 +1952,14 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                     {form.chi_siamo_foto_url ? (
                       <ImgRiservata loading="lazy"
                         src={form.chi_siamo_foto_url}
-                        alt="Foto azienda"
+                        alt={tr("Foto azienda")}
                         className="w-full h-auto max-h-[280px] object-contain"
                       />
                     ) : (
                       <div className="text-center p-3">
                         <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
-                        <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
-                        <p className="text-[9px] text-muted-foreground/70 mt-0.5">orizzontale, verticale o panoramica</p>
+                        <p className="text-[10px] text-muted-foreground">{tr("Clicca per caricare")}</p>
+                        <p className="text-[9px] text-muted-foreground/70 mt-0.5">{tr("orizzontale, verticale o panoramica")}</p>
                       </div>
                     )}
                     {uploadingChiSiamo && (
@@ -1989,7 +1977,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                       className="flex-1 h-7 text-[11px]"
                     >
                       <Upload className="h-3 w-3 mr-1" />
-                      {form.chi_siamo_foto_url ? "Cambia" : "Carica"}
+                      {form.chi_siamo_foto_url ? tr("Cambia") : tr("Carica")}
                     </Button>
                     {form.chi_siamo_foto_url && (
                       <Button
@@ -1998,24 +1986,23 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                         onClick={() => update("chi_siamo_foto_url", null)}
                         className="h-7 text-[11px] text-rose-600"
                       >
-                        Rimuovi
+                        {tr("Rimuovi")}
                       </Button>
                     )}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    PNG/JPG/WebP fino a 8 MB · qualsiasi proporzione (l'immagine viene
-                    mostrata intera nel PDF, senza ritagli).
+                    {tr("PNG/JPG/WebP fino a 8 MB · qualsiasi proporzione (l'immagine viene mostrata intera nel PDF, senza ritagli).")}
                   </p>
                 </div>
 
                 {/* Titolo + testo a destra */}
                 <div className="col-span-12 md:col-span-8 space-y-2">
                   <div>
-                    <Label className="text-xs">Titolo pagina</Label>
+                    <Label className="text-xs">{tr("Titolo pagina")}</Label>
                     <Input
                       value={form.chi_siamo_titolo ?? ""}
                       onChange={(e) => update("chi_siamo_titolo", e.target.value || null)}
-                      placeholder="Es. Serramenti su misura, posati con metodo"
+                      placeholder={tr("Es. Serramenti su misura, posati con metodo")}
                       className="h-9 text-xs"
                     />
                     <PlaceholderChips
@@ -2024,15 +2011,15 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Testo descrizione azienda</Label>
+                    <Label className="text-xs">{tr("Testo descrizione azienda")}</Label>
                     <RichTextEditor
                       value={form.chi_siamo_testo ?? ""}
                       onChange={(html) => update("chi_siamo_testo", html || null)}
-                      placeholder="Racconta in poche righe chi siete, che tipo di lavori seguite, come gestite rilievo, posa e assistenza. Inserisci solo dati reali: anni di attività, certificazioni, zona servita e punti di forza verificabili."
+                      placeholder={tr("Racconta in poche righe chi siete, che tipo di lavori seguite, come gestite rilievo, posa e assistenza. Inserisci solo dati reali: anni di attività, certificazioni, zona servita e punti di forza verificabili.")}
                       minHeight={160}
                     />
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Usa la toolbar per cambiare dimensione testo, font, grassetto, allineamento, liste.
+                      {tr("Usa la toolbar per cambiare dimensione testo, font, grassetto, allineamento, liste.")}
                     </p>
                   </div>
                 </div>
@@ -2044,21 +2031,19 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           {/* ═══ CONSULENTE ══════════════════════════════════════════════════ */}
           <TabsContent value="consulente" className="mt-4 space-y-3">
             <SrCard
-              title={'Sezione "La tua consulenza"'}
-              description="Frase personale mostrata sotto nome e ruolo del consulente."
+              title={tr("Sezione \"La tua consulenza\"")}
+              description={tr("Frase personale mostrata sotto nome e ruolo del consulente.")}
               icon={<MessageCircle className="h-4 w-4" />}
             >
-            <Label className="text-xs">Descrizione del consulente (mostrata sotto nome + ruolo)</Label>
+            <Label className="text-xs">{tr("Descrizione del consulente (mostrata sotto nome + ruolo)")}</Label>
             <RichTextEditor
               value={form.consulente_descrizione_default ?? ""}
               onChange={(html) => update("consulente_descrizione_default", html || null)}
-              placeholder="Es. Ti accompagnerò personalmente dal primo sopralluogo fino al collaudo finale. Per qualunque domanda o necessità, sono il tuo punto di riferimento."
+              placeholder={tr("Es. Ti accompagnerò personalmente dal primo sopralluogo fino al collaudo finale. Per qualunque domanda o necessità, sono il tuo punto di riferimento.")}
               minHeight={100}
             />
             <p className="text-[10px] text-muted-foreground">
-              Frase generica per dare un tono personale. Nome e foto del consulente
-              vengono presi automaticamente dal profilo dell'utente che fa il preventivo
-              (Impostazioni → Mio profilo → Foto).
+              {tr("Frase generica per dare un tono personale. Nome e foto del consulente vengono presi automaticamente dal profilo dell'utente che fa il preventivo (Impostazioni → Mio profilo → Foto).")}
             </p>
             </SrCard>
           </TabsContent>
@@ -2067,15 +2052,15 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           {/* ═══ RENDER AI ═══════════════════════════════════════════════════ */}
           <TabsContent value="render" className="mt-4 space-y-3">
             <SrCard
-              title="Disclaimer Render AI"
-              description="Testo legale mostrato sotto i render generati con l'AI."
+              title={tr("Disclaimer Render AI")}
+              description={tr("Testo legale mostrato sotto i render generati con l'AI.")}
               icon={<Sparkles className="h-4 w-4" />}
             >
-            <Label className="text-xs">Testo legale sotto i render AI (lascia vuoto per il default)</Label>
+            <Label className="text-xs">{tr("Testo legale sotto i render AI (lascia vuoto per il default)")}</Label>
             <RichTextEditor
               value={form.render_disclaimer ?? ""}
               onChange={(html) => update("render_disclaimer", html || null)}
-              placeholder="Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità."
+              placeholder={tr("Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità.")}
               minHeight={120}
             />
             </SrCard>
@@ -2084,17 +2069,17 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           {/* ═══ CTA FINALE ══════════════════════════════════════════════════ */}
           <TabsContent value="cta" className="mt-4 space-y-3">
             <SrCard
-              title={'Box CTA finale "Cosa fare adesso"'}
-              description="Chiusura del preventivo con i prossimi passi per il cliente."
+              title={tr("Box CTA finale \"Cosa fare adesso\"")}
+              description={tr("Chiusura del preventivo con i prossimi passi per il cliente.")}
               icon={<ListChecks className="h-4 w-4" />}
             >
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-12">
-                <Label className="text-xs">Titolo del box</Label>
+                <Label className="text-xs">{tr("Titolo del box")}</Label>
                 <Input
                   value={form.pdf_cta_finale_titolo ?? ""}
                   onChange={(e) => update("pdf_cta_finale_titolo", e.target.value || null)}
-                  placeholder="Cosa fare adesso (default)"
+                  placeholder={tr("Cosa fare adesso (default)")}
                   className="h-9 text-xs"
                 />
                 <PlaceholderChips
@@ -2103,7 +2088,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 />
               </div>
               <div className="col-span-12">
-                <Label className="text-xs">Passi (uno per riga)</Label>
+                <Label className="text-xs">{tr("Passi (uno per riga)")}</Label>
                 <Textarea
                   value={(form.pdf_cta_finale_passi ?? []).join("\n")}
 	                  onChange={(e) => {
@@ -2117,7 +2102,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
 	                  className="text-xs"
 	                />
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Ogni riga è uno step numerato. Lascia vuoto per usare i 4 step default.
+                  {tr("Ogni riga è uno step numerato. Lascia vuoto per usare i 4 step default.")}
                 </p>
               </div>
             </div>
@@ -2129,11 +2114,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             const percorso = (form.percorso_cliente as SrPercorsoCliente | null) ?? SR_PERCORSO_DEFAULT;
             const updatePercorso = (next: SrPercorsoCliente) => update("percorso_cliente", next);
             const ICONE: Array<{ value: SrPercorsoFase["icona"]; label: string }> = [
-              { value: "chiamata", label: "📞 Consulenza" },
-              { value: "proposta", label: "📄 Proposta" },
-              { value: "produzione", label: "🏭 Produzione" },
-              { value: "montaggio", label: "🔧 Montaggio" },
-              { value: "custom", label: "✦ Generica" },
+              { value: "chiamata", label: tr("📞 Consulenza") },
+              { value: "proposta", label: tr("📄 Proposta") },
+              { value: "produzione", label: tr("🏭 Produzione") },
+              { value: "montaggio", label: tr("🔧 Montaggio") },
+              { value: "custom", label: tr("✦ Generica") },
             ];
             const totalStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
             return (
@@ -2142,7 +2127,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 <input type="checkbox" checked={percorso.immagini_illustrative !== false && (percorso.immagini_illustrative === true || percorso.fasi.some(f => f.attivita_azienda?.trim() || f.conferma_cliente?.trim() || f.tempistiche?.trim()))}
                   onChange={e => updatePercorso({ ...percorso, immagini_illustrative: e.target.checked })}
                   className="h-4 w-4" />
-                Immagini illustrative nelle fasi personalizzate
+                {tr("Immagini illustrative nelle fasi personalizzate")}
               </label>
               {/* Toggle attivo + titolo + sottotitolo + counter */}
               <div className="flex items-center justify-between gap-2 pb-3 border-b">
@@ -2153,11 +2138,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                     onChange={(e) => updatePercorso({ ...percorso, attivo: e.target.checked })}
                     className="h-4 w-4"
                   />
-                  <span className="text-sm font-medium">Mostra pagina nel PDF</span>
+                  <span className="text-sm font-medium">{tr("Mostra pagina nel PDF")}</span>
                 </label>
                 <span className="text-xs text-muted-foreground">
-                  {percorso.fasi.length} {percorso.fasi.length === 1 ? "fase" : "fasi"} ·{" "}
-                  {totalStep} {totalStep === 1 ? "passaggio" : "passaggi"}
+                  {tr(percorso.fasi.length === 1 ? "{n} fase" : "{n} fasi", { n: percorso.fasi.length })} ·{" "}
+                  {tr(totalStep === 1 ? "{n} passaggio" : "{n} passaggi", { n: totalStep })}
                 </span>
               </div>
 
@@ -2165,7 +2150,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 <>
                   <div className="grid grid-cols-12 gap-3">
                     <div className="col-span-12 md:col-span-5">
-                      <Label className="text-xs">Titolo pagina</Label>
+                      <Label className="text-xs">{tr("Titolo pagina")}</Label>
                       <Input
                         value={percorso.titolo}
                         onChange={(e) => updatePercorso({ ...percorso, titolo: e.target.value })}
@@ -2173,12 +2158,12 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                       />
                     </div>
                     <div className="col-span-12 md:col-span-7">
-                      <Label className="text-xs">Sottotitolo</Label>
+                      <Label className="text-xs">{tr("Sottotitolo")}</Label>
                       <Input
                         value={percorso.sottotitolo}
                         onChange={(e) => updatePercorso({ ...percorso, sottotitolo: e.target.value })}
                         className="h-9 text-xs"
-                        placeholder="Frase breve sotto al titolo"
+                        placeholder={tr("Frase breve sotto al titolo")}
                       />
                     </div>
                   </div>
@@ -2199,7 +2184,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                               updatePercorso({ ...percorso, fasi: next });
                             }}
                             className="h-8 text-sm font-semibold flex-1 min-w-[180px]"
-                            placeholder="Nome fase"
+                            placeholder={tr("Nome fase")}
                           />
                           <UniformSelect
                             value={fase.icona}
@@ -2223,7 +2208,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                             }}
                             disabled={percorso.fasi.length <= 1}
                             className="h-8 w-8 text-rose-600"
-                            title="Elimina fase"
+                            title={tr("Elimina fase")}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -2234,7 +2219,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                             ["conferma_cliente", "Conferma del cliente"],
                             ["tempistiche", "Tempi e condizioni"],
                           ] as const).map(([campo, label]) => <label key={campo} className="space-y-1 text-xs text-muted-foreground">
-                            <span>{label}</span>
+                            <span>{tr(label)}</span>
                             <Input value={fase[campo] ?? ""} onChange={e => {
                               const fasi = percorso.fasi.map((f, i) => i === fi ? { ...f, [campo]: e.target.value } : f);
                               updatePercorso({ ...percorso, fasi });
@@ -2258,7 +2243,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                                   updatePercorso({ ...percorso, fasi: nextFasi });
                                 }}
                                 className="h-7 text-xs"
-                                placeholder="Es. Chiamata conoscitiva"
+                                placeholder={tr("Es. Chiamata conoscitiva")}
                               />
                               <Button
                                 size="icon"
@@ -2273,7 +2258,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                                 }}
                                 disabled={fase.step.length <= 1}
                                 className="h-7 w-7 text-rose-600"
-                                title="Elimina step"
+                                title={tr("Elimina step")}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -2289,7 +2274,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                             }}
                             className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
                           >
-                            <Plus className="h-3 w-3 mr-1" /> Aggiungi step
+                            <Plus className="h-3 w-3 mr-1" /> {tr("Aggiungi step")}
                           </Button>
                         </div>
                       </div>
@@ -2309,7 +2294,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                       }}
                       className="w-full gap-1 border-dashed border-2"
                     >
-                      <Plus className="h-4 w-4" /> Aggiungi fase
+                      <Plus className="h-4 w-4" /> {tr("Aggiungi fase")}
                     </Button>
 
                     <Button
@@ -2318,7 +2303,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                       onClick={() => updatePercorso(SR_PERCORSO_DEFAULT)}
                       className="text-xs text-muted-foreground"
                     >
-                      Ripristina template di default
+                      {tr("Ripristina template di default")}
                     </Button>
                   </div>
                 </>
@@ -2329,7 +2314,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
 
           {/* ═══ CONVERSIONE (CRO playbook) ═════════════════════════════════ */}
           <TabsContent value="conversione" className="mt-4">
-            <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Caricamento…</div>}>
+            <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />{tr("Caricamento…")}</div>}>
               <SerramentiConversionEditor
                 defaults={moduleDefaults}
                 form={form}
@@ -2344,15 +2329,14 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           <TabsContent value="ordine-pagine" className="mt-4">
             <div className="space-y-2">
               <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
-                Ordine e visibilità delle pagine
+                {tr("Ordine e visibilità delle pagine")}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Definisci la sequenza delle pagine del PDF preventivo cliente
-                e quali mostrare/nascondere. Modifiche visibili in Anteprima PDF.
+                {tr("Definisci la sequenza delle pagine del PDF preventivo cliente e quali mostrare/nascondere. Modifiche visibili in Anteprima PDF.")}
               </p>
             </div>
             <div className="mt-3">
-              <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Caricamento…</div>}>
+              <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />{tr("Caricamento…")}</div>}>
                 <SerramentiPagesOrderEditor
                   defaults={moduleDefaults?.pdf_pages_order ?? undefined}
                   intervention={!!localModule}
@@ -2396,7 +2380,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       </SrCard>
       </>)}
       {paginaSr?.esistente && paginaSr.foto ? (
-        <SrCard title="Foto della pagina" icon={<ImageIcon className="h-4 w-4" />}>
+        <SrCard title={tr("Foto della pagina")} icon={<ImageIcon className="h-4 w-4" />}>
           <ContenutoPagina pagina={paginaSr} motore="serramenti" settore="serramenti" blocchi={form.pdf_blocchi} onBlocchi={aggiornaBlocchi} campoFoto={campoFotoBlocco} soloFoto />
         </SrCard>
       ) : null}
@@ -2404,8 +2388,8 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {/* === SEZIONE: METRICHE & PERCHÉ NOI === */}
       {activeSection === "garanzie" && (<>
       <SectionHeader
-        title="📊 Metriche & perché noi"
-        description="I numeri 'Perché noi' mostrati come big-number nella pagina Proposta del PDF. Le garanzie si modificano nella sezione Conversione."
+        title={tr("📊 Metriche & perché noi")}
+        description={tr("I numeri 'Perché noi' mostrati come big-number nella pagina Proposta del PDF. Le garanzie si modificano nella sezione Conversione.")}
         number={5}
       />
 
@@ -2414,8 +2398,8 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           motivi di layout A4. La metrica "anni di esperienza" può essere
           auto-derivata dall'anno_fondazione dell'azienda. */}
       <SrCard
-        title='Metriche "Perché noi" (PDF)'
-        description="Big-number card mostrate sopra la lista USP nella pagina 'Proposta'. Max 4. Vuoto = non mostrate. La metrica con auto_anni_fondazione viene calcolata dall'anno di fondazione (sul profilo azienda)."
+        title={tr("Metriche \"Perché noi\" (PDF)")}
+        description={tr("Big-number card mostrate sopra la lista USP nella pagina 'Proposta'. Max 4. Vuoto = non mostrate. La metrica con auto_anni_fondazione viene calcolata dall'anno di fondazione (sul profilo azienda).")}
         icon={<FileText className="h-4 w-4" />}
       >
         <div className="space-y-2">
@@ -2432,7 +2416,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             return (
               <div key={idx} className="rounded-md border p-3 grid grid-cols-12 gap-2 bg-slate-50/50 relative">
                 <div className="col-span-12 md:col-span-1">
-                  <Label className="text-[10px]">Icona</Label>
+                  <Label className="text-[10px]">{tr("Icona")}</Label>
                   <Input
                     value={m.icon ?? ""}
                     onChange={(e) => setField("icon", e.target.value || null)}
@@ -2442,7 +2426,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   />
                 </div>
                 <div className="col-span-6 md:col-span-2">
-                  <Label className="text-[10px]">Valore</Label>
+                  <Label className="text-[10px]">{tr("Valore")}</Label>
                   <Input
                     value={m.value}
                     onChange={(e) => setField("value", e.target.value)}
@@ -2452,37 +2436,37 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   />
                 </div>
                 <div className="col-span-6 md:col-span-2">
-                  <Label className="text-[10px]">Suffisso</Label>
+                  <Label className="text-[10px]">{tr("Suffisso")}</Label>
                   <Input
                     value={m.suffix ?? ""}
                     onChange={(e) => setField("suffix", e.target.value || null)}
                     className="h-9 text-xs"
-                    placeholder="+ oppure /10"
+                    placeholder={tr("+ oppure /10")}
                   />
                 </div>
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[10px]">Etichetta</Label>
+                  <Label className="text-[10px]">{tr("Etichetta")}</Label>
                   <Input
                     value={m.label}
                     onChange={(e) => setField("label", e.target.value)}
                     className="h-9 text-xs"
-                    placeholder="cantieri completati"
+                    placeholder={tr("cantieri completati")}
                   />
                 </div>
                 <div className="col-span-9 md:col-span-2">
-                  <Label className="text-[10px]">Tipo</Label>
+                  <Label className="text-[10px]">{tr("Tipo")}</Label>
                   <UniformSelect
                     value={m.auto_kind ?? ""}
                     onChange={(e) => setField("auto_kind", (e.target.value || null) as SrPercheNoiMetrica["auto_kind"])}
                     className="h-9 w-full text-xs rounded-md border bg-background px-2"
                   >
-                    <option value="">Manuale</option>
-                    <option value="auto_anni_fondazione">Auto · anni fondazione</option>
+                    <option value="">{tr("Manuale")}</option>
+                    <option value="auto_anni_fondazione">{tr("Auto · anni fondazione")}</option>
                   </UniformSelect>
                 </div>
                 <div className="col-span-3 md:col-span-1 flex items-end">
                   <Button type="button" variant="ghost" size="sm" onClick={removeMetrica} className="h-9 w-full text-xs text-red-600 hover:text-red-700">
-                    Elimina
+                    {tr("Elimina")}
                   </Button>
                 </div>
               </div>
@@ -2502,7 +2486,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 disabled={((form.pdf_perche_noi_metriche ?? []) as SrPercheNoiMetrica[]).length >= 4}
                 className="text-xs"
               >
-                + Aggiungi metrica
+                {tr("+ Aggiungi metrica")}
               </Button>
               <Button
                 type="button"
@@ -2511,7 +2495,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 onClick={() => update("pdf_perche_noi_metriche", SR_PERCHE_NOI_METRICHE_DEFAULT)}
                 className="text-xs"
               >
-                Usa preset suggerito
+                {tr("Usa preset suggerito")}
               </Button>
               {((form.pdf_perche_noi_metriche ?? []) as SrPercheNoiMetrica[]).length > 0 && (
                 <Button
@@ -2521,12 +2505,12 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   onClick={() => update("pdf_perche_noi_metriche", [])}
                   className="text-xs text-red-600 hover:text-red-700"
                 >
-                  Svuota
+                  {tr("Svuota")}
                 </Button>
               )}
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Compila <strong>anno di fondazione</strong> nel profilo azienda per usare la metrica auto.
+              {tr("Compila")} <strong>{tr("anno di fondazione")}</strong> {tr("nel profilo azienda per usare la metrica auto.")}
             </p>
           </div>
         </div>
@@ -2536,9 +2520,9 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {/* === SEZIONE: CONDIZIONI CONTRATTUALI === */}
       {activeSection === "condizioni" && (<>
       <SectionHeader
-        title="📜 Condizioni contrattuali"
+        title={tr("📜 Condizioni contrattuali")}
         number={5}
-        description="La pagina delle condizioni in fondo al preventivo PDF. Il testo si scrive una volta sola, in Contratti e condizioni."
+        description={tr("La pagina delle condizioni in fondo al preventivo PDF. Il testo si scrive una volta sola, in Contratti e condizioni.")}
       />
 
       {/* ── Testo condizioni ───────────────────────────────────────────── */}
@@ -2567,9 +2551,9 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 onCheckedChange={(checked) => update("pdf_mostra_firma_online", checked)}
               />
               <div>
-                <span className="text-sm font-medium">Mostra blocco &ldquo;Firma e conferma online&rdquo; nel PDF</span>
+                <span className="text-sm font-medium">{tr("Mostra blocco “Firma e conferma online” nel PDF")}</span>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Aggiunge nel preventivo il link alla pagina pubblica per la conferma digitale. Disattivo di default.
+                  {tr("Aggiunge nel preventivo il link alla pagina pubblica per la conferma digitale. Disattivo di default.")}
                 </p>
               </div>
             </label>
@@ -2581,15 +2565,15 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       {/* === SEZIONE: DEFAULT TECNICI === */}
       {activeSection === "default" && (<>
       <SectionHeader
-        title="⚙️ Default tecnici"
-        description="Valori di partenza usati su ogni nuovo preventivo: validità offerta, anticipo, IVA."
+        title={tr("⚙️ Default tecnici")}
+        description={tr("Valori di partenza usati su ogni nuovo preventivo: validità offerta, anticipo, IVA.")}
         number={6}
       />
 
-      <SrCard title="Default economia" icon={<Clock className="h-4 w-4" />}>
+      <SrCard title={tr("Default economia")} icon={<Clock className="h-4 w-4" />}>
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-4">
-            <Label className="text-xs">Validità offerta (giorni)</Label>
+            <Label className="text-xs">{tr("Validità offerta (giorni)")}</Label>
             <Input
               type="number"
               value={form.valido_giorni_default ?? 15}
@@ -2597,11 +2581,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               className="h-9 text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Numero giorni di validità del preventivo dopo l'invio al cliente.
+              {tr("Numero giorni di validità del preventivo dopo l'invio al cliente.")}
             </p>
           </div>
           <div className="col-span-12 md:col-span-4">
-            <Label className="text-xs">Anticipo % default</Label>
+            <Label className="text-xs">{tr("Anticipo % default")}</Label>
             <Input
               type="number" min={0} max={100} step={5}
               value={form.anticipo_pct_default ?? 40}
@@ -2609,11 +2593,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               className="h-9 text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Percentuale di acconto pre-impostata in ogni nuovo preventivo.
+              {tr("Percentuale di acconto pre-impostata in ogni nuovo preventivo.")}
             </p>
           </div>
           <div className="col-span-12 md:col-span-4">
-            <Label className="text-xs">IVA % default</Label>
+            <Label className="text-xs">{tr("IVA % default")}</Label>
             <Input
               type="number"
               value={form.iva_percentuale_default ?? IVA_PREDEFINITA_PCT}
@@ -2621,7 +2605,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               className="h-9 text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Aliquota IVA standard (22% in Italia). Personalizzabile per ristrutturazioni 10%.
+              {tr("Aliquota IVA standard (22% in Italia). Personalizzabile per ristrutturazioni 10%.")}
             </p>
           </div>
           {/* Campi giorni produzione/posa/collaudo rimossi: dopo aver tolto
@@ -2681,10 +2665,9 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-4 pb-3 border-b">
-            <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
+            <DialogTitle className="text-base">{tr("📷 Galleria immagini stock")}</DialogTitle>
             <DialogDescription className="text-xs">
-              Click su un'immagine per usarla come sfondo cover. Sono immagini
-              curate e incluse nella libreria locale del modulo.
+              {tr("Click su un'immagine per usarla come sfondo cover. Sono immagini curate e incluse nella libreria locale del modulo.")}
             </DialogDescription>
             {/* Filtri categoria */}
             <div className="flex flex-wrap gap-1 pt-2">
@@ -2748,7 +2731,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             </div>
             {stockFiltered.length === 0 && (
               <p className="text-center text-sm text-muted-foreground py-8">
-                Nessuna immagine in questa categoria.
+                {tr("Nessuna immagine in questa categoria.")}
               </p>
             )}
           </div>
@@ -2758,18 +2741,18 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       <AlertDialog open={delTestIdx !== null} onOpenChange={(o) => !o && setDelTestIdx(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere la recensione?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Rimuovere la recensione?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Non comparirà più nei nuovi preventivi. I preventivi già generati non saranno modificati.
+              {tr("Non comparirà più nei nuovi preventivi. I preventivi già generati non saranno modificati.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
               onClick={() => delTestIdx !== null && removeTestimonianza(delTestIdx)}
             >
-              Rimuovi
+              {tr("Rimuovi")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2779,6 +2762,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
 }
 
 function TemplateQualityPanel({ items }: { items: TemplateQualityItem[] }) {
+  const t = useT();
   const critical = items.filter((item) => item.level === "critical");
   const warnings = items.filter((item) => item.level === "warning");
   const isReady = critical.length === 0 && warnings.length === 0;
@@ -2811,15 +2795,15 @@ function TemplateQualityPanel({ items }: { items: TemplateQualityItem[] }) {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-slate-900">Controllo qualità template</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Controllo qualità template")}</p>
               <Badge variant="outline" className={isReady ? "border-emerald-300 text-emerald-700" : critical.length > 0 ? "border-rose-300 text-rose-700" : "border-amber-300 text-amber-700"}>
-                {isReady ? "Pronto" : `${critical.length} errori · ${warnings.length} avvisi`}
+                {isReady ? t("Pronto") : t("{n} errori · {n2} avvisi", { n: critical.length, n2: warnings.length })}
               </Badge>
             </div>
             <p className="mt-0.5 text-xs text-slate-600">
               {isReady
-                ? "I blocchi principali sono compilati e non risultano bozze evidenti."
-                : "Prima di inviare un preventivo, controlla questi punti: non bloccano il lavoro, ma evitano PDF generici o poco credibili."}
+                ? t("I blocchi principali sono compilati e non risultano bozze evidenti.")
+                : t("Prima di inviare un preventivo, controlla questi punti: non bloccano il lavoro, ma evitano PDF generici o poco credibili.")}
             </p>
           </div>
         </div>
@@ -2838,22 +2822,20 @@ function TemplateQualityPanel({ items }: { items: TemplateQualityItem[] }) {
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="text-xs font-semibold text-slate-900">{item.title}</p>
+                    <p className="text-xs font-semibold text-slate-900">{t(item.title)}</p>
                     {item.section && (
                       <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                        {item.section}
+                        {t(item.section)}
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">{item.detail}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">{t(item.detail)}</p>
                 </div>
               </div>
             </div>
           ))}
           {[...critical, ...warnings].length > visibleItems.length && (
-            <div className="rounded-md border border-white/80 bg-white/60 px-3 py-2 text-[11px] text-slate-600">
-              + {[...critical, ...warnings].length - visibleItems.length} altri punti da controllare nelle sezioni laterali.
-            </div>
+            <div className="rounded-md border border-white/80 bg-white/60 px-3 py-2 text-[11px] text-slate-600">{t("+ {n} altri punti da controllare nelle sezioni laterali.", { n: [...critical, ...warnings].length - visibleItems.length })}</div>
           )}
         </div>
       )}

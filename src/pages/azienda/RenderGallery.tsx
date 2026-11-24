@@ -11,6 +11,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type InfissiGalleryRow = {
   id: string;
@@ -30,10 +31,6 @@ type InfissiGalleryRow = {
 const compactStrings = (items: Array<string | null | undefined>) =>
   items.map((item) => item?.trim()).filter((item): item is string => Boolean(item));
 
-function getDisplayTitle(item: InfissiGalleryRow) {
-  return item.title || item.config_summary?.materiale || "Render infissi";
-}
-
 function getSummaryBadges(item: InfissiGalleryRow) {
   return compactStrings([
     item.config_summary?.materiale,
@@ -44,6 +41,7 @@ function getSummaryBadges(item: InfissiGalleryRow) {
 }
 
 export default function RenderGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -95,7 +93,7 @@ export default function RenderGallery() {
 
   const items = useMemo<UnifiedRenderGalleryItem[]>(() => gallery.map((item) => ({
     id: item.id,
-    title: getDisplayTitle(item),
+    title: item.title || item.config_summary?.materiale || t("Render infissi"),
     date: item.created_at,
     detailPath: item.session_id ? `/azienda/render/infissi/gallery/${item.session_id}` : null,
     imageUrl: item.render_url,
@@ -111,14 +109,14 @@ export default function RenderGallery() {
     contactName: item.meta.contactName,
     opportunityId: item.opportunity_id,
     opportunityName: item.meta.opportunityName,
-  })), [gallery]);
+  })), [gallery, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Infissi"
-      badgeLabel="Galleria infissi"
-      title="Render infissi salvati, filtrabili per data e CRM."
-      description="Trova subito il render giusto per cliente, opportunita, autore, materiale o intervallo di date. Ogni card mostra chi lo ha generato e se e collegato al CRM."
+      moduleName={t("Infissi")}
+      badgeLabel={t("Galleria infissi")}
+      title={t("Render infissi salvati, filtrabili per data e CRM.")}
+      description={t("Trova subito il render giusto per cliente, opportunita, autore, materiale o intervallo di date. Ogni card mostra chi lo ha generato e se e collegato al CRM.")}
       backPath="/azienda/render/infissi"
       newPath="/azienda/render/infissi/new"
       items={items}
@@ -126,9 +124,9 @@ export default function RenderGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render infissi completati appariranno qui."
-      searchPlaceholder="Cerca render, materiale, autore, contatto..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render infissi completati appariranno qui.")}
+      searchPlaceholder={t("Cerca render, materiale, autore, contatto...")}
       accentClassName="text-blue-600"
     />
   );

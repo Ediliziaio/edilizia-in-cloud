@@ -4,6 +4,7 @@ import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardT
 import { calcDelta, fmt, fmtCur } from "@/components/marketing/dashboard/utils";
 import { cn } from "@/lib/utils";
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   data: DashboardStats | undefined;
@@ -16,16 +17,17 @@ interface Props {
  * andando meglio o peggio senza fare i conti a mano.
  */
 export const TabTrend = memo(function TabTrend({ data, isLoading }: Props) {
+  const t = useT();
   const k = data?.kpi;
   const p = data?.kpi_prev;
   const voci = k
     ? [
-        { label: "Lead nuovi", ora: k.leads_new, prima: p?.leads_new, f: fmt },
-        { label: "Appuntamenti", ora: k.appointments_set, prima: p?.appointments_set, f: fmt },
-        { label: "Vendite", ora: k.contracts_won, prima: p?.contracts_won, f: fmt },
-        { label: "Fatturato", ora: k.revenue, prima: p?.revenue, f: fmtCur },
-        { label: "Show rate", ora: k.show_rate, prima: p?.show_rate, f: (v: number) => `${v}%` },
-        { label: "Chiusura", ora: k.close_rate, prima: p?.close_rate, f: (v: number) => `${v}%` },
+        { label: t("Lead nuovi"), ora: k.leads_new, prima: p?.leads_new, f: fmt },
+        { label: t("Appuntamenti"), ora: k.appointments_set, prima: p?.appointments_set, f: fmt },
+        { label: t("Vendite"), ora: k.contracts_won, prima: p?.contracts_won, f: fmt },
+        { label: t("Fatturato"), ora: k.revenue, prima: p?.revenue, f: fmtCur },
+        { label: t("Show rate"), ora: k.show_rate, prima: p?.show_rate, f: (v: number) => `${v}%` },
+        { label: t("Chiusura"), ora: k.close_rate, prima: p?.close_rate, f: (v: number) => `${v}%` },
       ]
     : [];
 
@@ -46,7 +48,7 @@ export const TabTrend = memo(function TabTrend({ data, isLoading }: Props) {
                     </span>
                   )}
                 </div>
-                <div className="truncate text-[11px] text-muted-foreground">prima: {v.prima == null ? "—" : v.f(Number(v.prima))}</div>
+                <div className="truncate text-[11px] text-muted-foreground">{t("prima:")} {v.prima == null ? "—" : v.f(Number(v.prima))}</div>
               </div>
             );
           })}

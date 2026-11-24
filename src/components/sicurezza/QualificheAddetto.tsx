@@ -30,6 +30,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string;
@@ -51,6 +52,7 @@ export function QualificheAddetto({
   personaId,
   apertoIniziale = false,
 }: Props) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(apertoIniziale),
     [storico, setStorico] = useState(false),
@@ -114,12 +116,12 @@ export function QualificheAddetto({
         f.path.includes("\\") ||
         f.path.split("/").some((x) => !x || x === "." || x === "..")
       )
-        throw new Error("Originale non pertinente alla persona");
+        throw new Error(t("Originale non pertinente alla persona"));
       setConfermata(null);
       await apriFileRiservato(bucket, f.path);
       setLetto(f.foto.impronta);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Originale non disponibile");
+      toast.error(e instanceof Error ? e.message : t("Originale non disponibile"));
     }
   };
   const registra = async () => {
@@ -151,14 +153,14 @@ export function QualificheAddetto({
       setForm(null);
       toast.success(
         form.revoca
-          ? "Revoca registrata nello storico"
-          : "Riesame della qualifica registrato",
+          ? t("Revoca registrata nello storico")
+          : t("Riesame della qualifica registrato"),
       );
     } catch (e) {
       toast.error(
         e instanceof Error
           ? e.message
-          : "Registrazione non completata: riprova con la stessa richiesta",
+          : t("Registrazione non completata: riprova con la stessa richiesta"),
       );
     }
   };
@@ -172,31 +174,29 @@ export function QualificheAddetto({
         aria-expanded={aperto}
         onClick={() => setAperto(!aperto)}
       >
-        Formazione, abilitazioni e addestramento {aperto ? "−" : "+"}
+        {t("Formazione, abilitazioni e addestramento")} {aperto ? "−" : "+"}
       </button>
       {aperto && (
         <>
           <p className="text-xs text-muted-foreground">
-            Registra ciò che l’originale documenta, con ambito e limiti. Il
-            riesame non attesta l’idoneità alla mansione o l’autorizzazione al
-            cantiere. Le scadenze non sono dedotte dal titolo.
+            {t("Registra ciò che l’originale documenta, con ambito e limiti. Il riesame non attesta l’idoneità alla mansione o l’autorizzazione al cantiere. Le scadenze non sono dedotte dal titolo.")}
           </p>
           {q.isLoading ? (
             <p role="status" className="text-sm">
-              Lettura qualifiche…
+              {t("Lettura qualifiche…")}
             </p>
           ) : q.isError ? (
             <div role="alert" className="text-sm">
-              Qualifiche non disponibili.{" "}
+              {t("Qualifiche non disponibili.")}{" "}
               <Button variant="link" onClick={() => q.refetch()}>
-                Riprova qualifiche
+                {t("Riprova qualifiche")}
               </Button>
             </div>
           ) : (
             <>
               <div className="flex flex-wrap items-end gap-3">
                 <div>
-                  <Label htmlFor={`qual-dal-${personaId}`}>Periodo dal</Label>
+                  <Label htmlFor={`qual-dal-${personaId}`}>{t("Periodo dal")}</Label>
                   <Input
                     id={`qual-dal-${personaId}`}
                     type="date"
@@ -205,7 +205,7 @@ export function QualificheAddetto({
                   />
                 </div>
                 <div>
-                  <Label htmlFor={`qual-al-${personaId}`}>al</Label>
+                  <Label htmlFor={`qual-al-${personaId}`}>{t("al")}</Label>
                   <Input
                     id={`qual-al-${personaId}`}
                     type="date"
@@ -219,7 +219,7 @@ export function QualificheAddetto({
                     checked={storico}
                     onChange={(e) => setStorico(e.target.checked)}
                   />
-                  Mostra revisioni precedenti
+                  {t("Mostra revisioni precedenti")}
                 </label>
                 {scrive && (
                   <Button
@@ -228,20 +228,18 @@ export function QualificheAddetto({
                     variant="outline"
                     onClick={() => inizia()}
                   >
-                    Registra qualifica
+                    {t("Registra qualifica")}
                   </Button>
                 )}
               </div>
               {!q.data?.persona.attivo && (
                 <p className="text-xs text-amber-900">
-                  Persona non attiva: queste registrazioni restano uno storico e
-                  non ne determinano l’assegnabilità.
+                  {t("Persona non attiva: queste registrazioni restano uno storico e non ne determinano l’assegnabilità.")}
                 </p>
               )}
               {righe.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nessuna qualifica riesaminata. Gli attestati caricati restano
-                  documenti da classificare.
+                  {t("Nessuna qualifica riesaminata. Gli attestati caricati restano documenti da classificare.")}
                 </p>
               ) : (
                 <ul className="space-y-2">
@@ -250,32 +248,25 @@ export function QualificheAddetto({
                       key={r.id}
                       className="rounded border p-3 space-y-1 text-sm"
                     >
-                      <p className="font-medium">
-                        {r.dati.titolo} · Rev. {r.versione}
-                      </p>
+                      <p className="font-medium">{t("{titolo} · Rev. {versione}", { titolo: String(r.dati.titolo ?? ""), versione: String(r.versione ?? "") })}</p>
                       <p>
                         {r.dati.tipologia} · {r.dati.ambito}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {r.dati.ente} · {r.dati.validita_dal} →{" "}
-                        {r.dati.validita_al || "Scadenza non indicata"}
+                        {r.dati.validita_al || t("Scadenza non indicata")}
                       </p>
                       {r.dati.motivazione_senza_scadenza && (
-                        <p className="text-xs">
-                          Assenza di scadenza:{" "}
-                          {r.dati.motivazione_senza_scadenza}
-                        </p>
+                        <p className="text-xs">{t("Assenza di scadenza: {motivazione_senza_scadenza}", { motivazione_senza_scadenza: String(r.dati.motivazione_senza_scadenza ?? "") })}</p>
                       )}
                       {r.dati.limitazioni && (
-                        <p className="text-xs">Limiti: {r.dati.limitazioni}</p>
+                        <p className="text-xs">{t("Limiti: {limitazioni}", { limitazioni: String(r.dati.limitazioni ?? "") })}</p>
                       )}
                       <p className="text-xs">{statoQualifica(r, dal, al)}</p>
                       {r.motivo && (
-                        <p className="text-xs">Motivo: {r.motivo}</p>
+                        <p className="text-xs">{t("Motivo: {voce}", { voce: String(r.motivo ?? "") })}</p>
                       )}
-                      <p className="text-xs text-muted-foreground">
-                        Registrata il {r.registrato_il.slice(0, 10)}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{t("Registrata il {valore}", { valore: r.registrato_il.slice(0, 10) })}</p>
                       {fonti.some((f) => f.foto?.id === r.fonte_id) && (
                         <Button
                           type="button"
@@ -288,7 +279,7 @@ export function QualificheAddetto({
                             if (f) void apri(f);
                           }}
                         >
-                          Apri originale corrente
+                          {t("Apri originale corrente")}
                         </Button>
                       )}
                       {scrive && !storico && (
@@ -298,7 +289,7 @@ export function QualificheAddetto({
                             size="sm"
                             onClick={() => inizia(r)}
                           >
-                            Nuova revisione
+                            {t("Nuova revisione")}
                           </Button>
                           {r.stato !== "revocata" && (
                             <Button
@@ -306,7 +297,7 @@ export function QualificheAddetto({
                               size="sm"
                               onClick={() => inizia(r, true)}
                             >
-                              Revoca qualifica
+                              {t("Revoca qualifica")}
                             </Button>
                           )}
                         </div>
@@ -330,20 +321,17 @@ export function QualificheAddetto({
             <DialogHeader>
               <DialogTitle>
                 {form.revoca
-                  ? "Revoca della qualifica"
+                  ? t("Revoca della qualifica")
                   : form.precedente
-                    ? "Nuova revisione della qualifica"
-                    : "Qualifica documentata dell’addetto"}
+                    ? t("Nuova revisione della qualifica")
+                    : t("Qualifica documentata dell’addetto")}
               </DialogTitle>
-              <DialogDescription>
-                {q.data?.persona.nome} {q.data?.persona.cognome} · Nessuna
-                modifica dell’originale o delle revisioni precedenti.
-              </DialogDescription>
+              <DialogDescription>{t("{nome} {cognome} · Nessuna modifica dell’originale o delle revisioni precedenti.", { nome: String(q.data?.persona.nome ?? ""), cognome: String(q.data?.persona.cognome ?? "") })}</DialogDescription>
             </DialogHeader>
             {form.revoca ? (
               <>
                 <p className="text-sm">{form.precedente?.dati.titolo}</p>
-                <Label htmlFor="qual-motivo">Motivo della revoca</Label>
+                <Label htmlFor="qual-motivo">{t("Motivo della revoca")}</Label>
                 <Textarea
                   id="qual-motivo"
                   maxLength={2000}
@@ -353,7 +341,7 @@ export function QualificheAddetto({
               </>
             ) : (
               <>
-                <Label htmlFor="qual-fonte">Originale della persona</Label>
+                <Label htmlFor="qual-fonte">{t("Originale della persona")}</Label>
                 <UniformSelect
                   id="qual-fonte"
                   className="h-10 rounded border bg-background px-2 text-sm w-full"
@@ -364,27 +352,24 @@ export function QualificheAddetto({
                     setForm({ ...form, fonte: e.target.value });
                   }}
                 >
-                  <option value="">Scegli un documento formativo</option>
+                  <option value="">{t("Scegli un documento formativo")}</option>
                   {fonti
                     .filter((f) => f.foto)
                     .map((f) => (
                       <option key={f.foto!.id} value={f.foto!.id}>
                         {f.foto!.titolo || f.foto!.file_name} ·{" "}
-                        {f.foto!.data_scadenza || "senza data di scadenza"}
+                        {f.foto!.data_scadenza || t("senza data di scadenza")}
                       </option>
                     ))}
                 </UniformSelect>
                 {fonti.some((f) => f.non_disponibile) && (
                   <p className="text-xs text-amber-900">
-                    Alcuni documenti non hanno un originale disponibile o
-                    pertinente: correggili nell’archivio prima di selezionarli.
+                    {t("Alcuni documenti non hanno un originale disponibile o pertinente: correggili nell’archivio prima di selezionarli.")}
                   </p>
                 )}
                 {fonti.filter((f) => f.foto).length === 0 && (
                   <p className="text-sm">
-                    Carica prima un corso/attestato nei Documenti della persona.
-                    Visite mediche, contratti e identità non sono utilizzabili
-                    qui.
+                    {t("Carica prima un corso/attestato nei Documenti della persona. Visite mediche, contratti e identità non sono utilizzabili qui.")}
                   </p>
                 )}
                 <Button
@@ -393,11 +378,11 @@ export function QualificheAddetto({
                   disabled={!fonte || q.isFetching || q.isError}
                   onClick={() => fonte && apri(fonte)}
                 >
-                  Apri originale da riesaminare
+                  {t("Apri originale da riesaminare")}
                 </Button>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="qual-tipologia">Tipo di evidenza</Label>
+                    <Label htmlFor="qual-tipologia">{t("Tipo di evidenza")}</Label>
                     <UniformSelect
                       id="qual-tipologia"
                       className="h-10 w-full rounded border bg-background px-2 text-sm"
@@ -421,7 +406,7 @@ export function QualificheAddetto({
                     </UniformSelect>
                   </div>
                   <div>
-                    <Label htmlFor="qual-titolo">Titolo della qualifica</Label>
+                    <Label htmlFor="qual-titolo">{t("Titolo della qualifica")}</Label>
                     <Input
                       id="qual-titolo"
                       maxLength={180}
@@ -432,7 +417,7 @@ export function QualificheAddetto({
                   </div>
                 </div>
                 <Label htmlFor="qual-ambito">
-                  Ambito documentato (attività, ruolo, attrezzatura)
+                  {t("Ambito documentato (attività, ruolo, attrezzatura)")}
                 </Label>
                 <Textarea
                   id="qual-ambito"
@@ -441,7 +426,7 @@ export function QualificheAddetto({
                   readOnly={!!form.precedente}
                   onChange={(e) => cambia("ambito", e.target.value)}
                 />
-                <Label htmlFor="qual-ente">Soggetto/ente attestante</Label>
+                <Label htmlFor="qual-ente">{t("Soggetto/ente attestante")}</Label>
                 <Input
                   id="qual-ente"
                   maxLength={300}
@@ -450,7 +435,7 @@ export function QualificheAddetto({
                 />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="qual-inizio">Decorrenza documentata</Label>
+                    <Label htmlFor="qual-inizio">{t("Decorrenza documentata")}</Label>
                     <Input
                       id="qual-inizio"
                       type="date"
@@ -459,7 +444,7 @@ export function QualificheAddetto({
                     />
                   </div>
                   <div>
-                    <Label htmlFor="qual-fine">Scadenza documentata</Label>
+                    <Label htmlFor="qual-fine">{t("Scadenza documentata")}</Label>
                     <Input
                       id="qual-fine"
                       type="date"
@@ -469,7 +454,7 @@ export function QualificheAddetto({
                   </div>
                 </div>
                 <Label htmlFor="qual-senza">
-                  Motivazione documentata se manca la scadenza
+                  {t("Motivazione documentata se manca la scadenza")}
                 </Label>
                 <Textarea
                   id="qual-senza"
@@ -479,7 +464,7 @@ export function QualificheAddetto({
                     cambia("motivazione_senza_scadenza", e.target.value)
                   }
                 />
-                <Label htmlFor="qual-limiti">Limitazioni e condizioni</Label>
+                <Label htmlFor="qual-limiti">{t("Limitazioni e condizioni")}</Label>
                 <Textarea
                   id="qual-limiti"
                   maxLength={2000}
@@ -487,7 +472,7 @@ export function QualificheAddetto({
                   onChange={(e) => cambia("limitazioni", e.target.value)}
                 />
                 <Label htmlFor="qual-riferimento">
-                  Riferimento e metodo del riesame
+                  {t("Riferimento e metodo del riesame")}
                 </Label>
                 <Textarea
                   id="qual-riferimento"
@@ -506,15 +491,13 @@ export function QualificheAddetto({
                       setConfermata(e.target.checked ? hash || null : null)
                     }
                   />
-                  Ho letto l’originale di questa persona e controllato ambito,
-                  date e limiti. Non sto registrando dati sanitari o
-                  un’autorizzazione al cantiere.
+                  {t("Ho letto l’originale di questa persona e controllato ambito, date e limiti. Non sto registrando dati sanitari o un’autorizzazione al cantiere.")}
                 </label>
               </>
             )}
             {(q.isError || q.isFetching) && (
               <p role="alert" className="text-sm">
-                Attendi la rilettura delle fonti prima di registrare.
+                {t("Attendi la rilettura delle fonti prima di registrare.")}
               </p>
             )}
             <DialogFooter>
@@ -523,7 +506,7 @@ export function QualificheAddetto({
                 disabled={salva.isPending}
                 onClick={() => setForm(null)}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button
                 disabled={
@@ -538,10 +521,10 @@ export function QualificheAddetto({
                 onClick={registra}
               >
                 {salva.isPending
-                  ? "Registrazione…"
+                  ? t("Registrazione…")
                   : form.revoca
-                    ? "Registra revoca"
-                    : "Registra riesame"}
+                    ? t("Registra revoca")
+                    : t("Registra riesame")}
               </Button>
             </DialogFooter>
           </DialogContent>

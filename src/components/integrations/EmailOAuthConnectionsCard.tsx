@@ -31,6 +31,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { JSX } from "react";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 import { GoogleEmailPrivacyNotice } from "./GoogleEmailPrivacyNotice";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Brand SVG icons per Gmail / Outlook / IMAP (no extra deps)
 function GmailIcon({ className }: { className?: string }) {
@@ -110,6 +111,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof 
 };
 
 export function EmailOAuthConnectionsCard() {
+  const t = useT();
   const qc = useQueryClient();
   const [adesso, setAdesso] = useState(Date.now);
   useEffect(() => {
@@ -191,7 +193,7 @@ export function EmailOAuthConnectionsCard() {
         { body: { provider, redirect_uri: redirectUri, company_id: effectiveCompany.id } },
       );
       if (error || !data?.auth_url) {
-        throw new Error(data?.error ?? error?.message ?? "Errore nell'avvio OAuth");
+        throw new Error(data?.error ?? error?.message ?? t("Errore nell'avvio OAuth"));
       }
       // Salva state in sessionStorage per re-check lato callback
       sessionStorage.setItem("oauth_state", data.state);
@@ -203,8 +205,8 @@ export function EmailOAuthConnectionsCard() {
     onError: (e) => {
       setConnecting(null);
       console.error("[email-oauth-start]", e);
-      toast.error("Non siamo riusciti ad aprire il collegamento", {
-        description: dettaglioTecnico(e) ?? "Riprova tra qualche minuto; se succede ancora, scrivici e lo sistemiamo noi.",
+      toast.error(t("Non siamo riusciti ad aprire il collegamento"), {
+        description: dettaglioTecnico(e) ?? t("Riprova tra qualche minuto; se succede ancora, scrivici e lo sistemiamo noi."),
       });
     },
   });
@@ -224,11 +226,11 @@ export function EmailOAuthConnectionsCard() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Connessione rimossa");
+      toast.success(t("Connessione rimossa"));
       void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
     },
-    onError: (e) => toast.error("Non siamo riusciti a scollegare la casella", {
-      description: dettaglioTecnico(e) ?? "Riprova tra qualche minuto.",
+    onError: (e) => toast.error(t("Non siamo riusciti a scollegare la casella"), {
+      description: dettaglioTecnico(e) ?? t("Riprova tra qualche minuto."),
     }),
   });
 
@@ -246,16 +248,16 @@ export function EmailOAuthConnectionsCard() {
         : null;
       const pending = emailSyncPending(data);
       const notify = pending ? toast.info : toast.success;
-      notify(pending ? "Recupero email in corso" : "Email aggiornate", {
-        description: pending ? "La pagina disponibile è salvata. Il recupero delle altre email prosegue nei prossimi giri." : stored == null ? "Aggiorno la lista email." : `${stored} nuove email salvate nel client personale.`,
+      notify(pending ? t("Recupero email in corso") : t("Email aggiornate"), {
+        description: pending ? t("La pagina disponibile è salvata. Il recupero delle altre email prosegue nei prossimi giri.") : stored == null ? t("Aggiorno la lista email.") : t("{stored} nuove email salvate nel client personale.", { stored: String(stored ?? "") }),
       });
       void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
       void qc.invalidateQueries({ queryKey: ["email-client-connections"] });
       void qc.invalidateQueries({ queryKey: ["email-threads"] });
       void qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
     },
-    onError: (e) => toast.error("Aggiornamento non riuscito", {
-      description: dettaglioTecnico(e) ?? "Riprova tra qualche minuto: nel frattempo le email si aggiornano comunque da sole.",
+    onError: (e) => toast.error(t("Aggiornamento non riuscito"), {
+      description: dettaglioTecnico(e) ?? t("Riprova tra qualche minuto: nel frattempo le email si aggiornano comunque da sole."),
     }),
   });
 
@@ -264,11 +266,10 @@ export function EmailOAuthConnectionsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Mail className="h-4 w-4 text-violet-600" />
-          Le mie email collegate
+          {t("Le mie email collegate")}
         </CardTitle>
         <CardDescription className="text-xs">
-          Collega il tuo Gmail, Outlook o un'altra casella (Aruba, Libero, iCloud…): le connessioni sono visibili solo a te.
-          Se un collega collega la stessa casella, avrà una connessione separata sul suo utente.
+          {t("Collega il tuo Gmail, Outlook o un'altra casella (Aruba, Libero, iCloud…): le connessioni sono visibili solo a te. Se un collega collega la stessa casella, avrà una connessione separata sul suo utente.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -279,23 +280,23 @@ export function EmailOAuthConnectionsCard() {
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-slate-900">Cosa fa l'AI con le tue email</p>
+              <p className="text-xs font-semibold text-slate-900">{t("Cosa fa l'AI con le tue email")}</p>
               <ul className="mt-1 grid gap-0.5 text-[11px] text-slate-600 sm:grid-cols-2">
                 <li className="flex items-start gap-1">
                   <span className="text-emerald-600">✓</span>
-                  <span>Triage automatico ticket (priorità + categoria)</span>
+                  <span>{t("Triage automatico ticket (priorità + categoria)")}</span>
                 </li>
                 <li className="flex items-start gap-1">
                   <span className="text-emerald-600">✓</span>
-                  <span>Bozze risposta intelligenti</span>
+                  <span>{t("Bozze risposta intelligenti")}</span>
                 </li>
                 <li className="flex items-start gap-1">
                   <span className="text-emerald-600">✓</span>
-                  <span>Riepiloghi thread lunghi</span>
+                  <span>{t("Riepiloghi thread lunghi")}</span>
                 </li>
                 <li className="flex items-start gap-1">
                   <span className="text-emerald-600">✓</span>
-                  <span>Task & azioni operative</span>
+                  <span>{t("Task & azioni operative")}</span>
                 </li>
               </ul>
             </div>
@@ -314,10 +315,10 @@ export function EmailOAuthConnectionsCard() {
                 <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    Setup OAuth non completo · {diag.missing_steps.length} step{diag.missing_steps.length === 1 ? "" : "s"} mancante
+                    {t(diag.missing_steps.length === 1 ? "Setup OAuth non completo · {n} step mancante" : "Setup OAuth non completo · {n} steps mancante", { n: diag.missing_steps.length })}
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300 truncate">
-                    {diag.next_action ?? "Vedi dettagli"}
+                    {diag.next_action ?? t("Vedi dettagli")}
                   </p>
                 </div>
               </div>
@@ -337,7 +338,7 @@ export function EmailOAuthConnectionsCard() {
                       <div className="flex-1 min-w-0">
                         <code className="bg-background px-1 rounded text-[10px]">{key}</code>
                         {val.preview ? <span className="ml-1 text-muted-foreground">({val.preview})</span> : null}
-                        {val.latency_ms != null ? <span className="ml-1 text-muted-foreground">({val.latency_ms}ms)</span> : null}
+                        {val.latency_ms != null ? <span className="ml-1 text-muted-foreground">{t("({latency_ms}ms)", { latency_ms: String(val.latency_ms ?? "") })}</span> : null}
                         {val.error ? (
                           <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">{val.error}</p>
                         ) : null}
@@ -347,7 +348,7 @@ export function EmailOAuthConnectionsCard() {
                 })}
                 <div className="pt-2 flex items-center justify-between">
                   <p className="text-[10px] text-muted-foreground">
-                    Vedi <code className="bg-background px-1 rounded">scripts/SETUP-EMAIL-OAUTH.md</code> per la guida completa
+                    {t("Vedi")} <code className="bg-background px-1 rounded">scripts/SETUP-EMAIL-OAUTH.md</code> {t("per la guida completa")}
                   </p>
                   <button
                     type="button"
@@ -355,20 +356,20 @@ export function EmailOAuthConnectionsCard() {
                     className="text-[10px] text-primary hover:underline inline-flex items-center gap-1"
                   >
                     <RefreshCw className="h-3 w-3" />
-                    Re-check
+                    {t("Re-check")}
                   </button>
                 </div>
                 <div className="pt-2 border-t border-amber-200 dark:border-amber-900">
                   <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                    💡 Nel frattempo puoi comunque collegare la tua casella usando{" "}
+                    {t("💡 Nel frattempo puoi comunque collegare la tua casella usando")}{" "}
                     <button
                       type="button"
                       onClick={() => setImapDialogOpen(true)}
                       className="underline font-medium hover:text-amber-900"
                     >
-                      Altro provider (IMAP)
+                      {t("Altro provider (IMAP)")}
                     </button>{" "}
-                    — funziona con Aruba, Libero, iCloud, Yahoo, Register e qualsiasi server custom senza bisogno di OAuth.
+                    {t("— funziona con Aruba, Libero, iCloud, Yahoo, Register e qualsiasi server custom senza bisogno di OAuth.")}
                   </p>
                 </div>
               </div>
@@ -380,7 +381,7 @@ export function EmailOAuthConnectionsCard() {
           <div className="rounded-lg border border-emerald-300 bg-emerald-50/30 dark:bg-emerald-950/10 dark:border-emerald-900 p-2 flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             <p className="text-xs text-emerald-800 dark:text-emerald-300">
-              Setup OAuth completo. Pronto per connettere account.
+              {t("Setup OAuth completo. Pronto per connettere account.")}
             </p>
             <button
               type="button"
@@ -388,7 +389,7 @@ export function EmailOAuthConnectionsCard() {
               className="ml-auto text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
             >
               <Settings className="h-3 w-3" />
-              Diagnostica
+              {t("Diagnostica")}
             </button>
           </div>
         )}
@@ -408,7 +409,7 @@ export function EmailOAuthConnectionsCard() {
             && diag.checklist?.ms_oauth_client_secret?.configured !== false
           );
           const nonAttivo = (servizio: string) =>
-            `Il collegamento con ${servizio} non è ancora attivo. Intanto puoi usare «Altra casella email», oppure scriverci.`;
+            t("Il collegamento con {servizio} non è ancora attivo. Intanto puoi usare «Altra casella email», oppure scriverci.", { servizio });
           const gmailTitle = gmailReady
             ? undefined
             : isSuperAdmin
@@ -424,7 +425,7 @@ export function EmailOAuthConnectionsCard() {
               <Button
                 onClick={() => {
                   if (!gmailReady) {
-                    toast.error("Gmail non ancora disponibile", { description: gmailTitle });
+                    toast.error(t("Gmail non ancora disponibile"), { description: gmailTitle });
                     return;
                   }
                   startOAuth.mutate("gmail");
@@ -439,12 +440,12 @@ export function EmailOAuthConnectionsCard() {
                 ) : (
                   <GmailIcon className="h-4 w-4" />
                 )}
-                Connetti Gmail
+                {t("Connetti Gmail")}
               </Button>
               <Button
                 onClick={() => {
                   if (!outlookReady) {
-                    toast.error("Outlook non ancora disponibile", { description: outlookTitle });
+                    toast.error(t("Outlook non ancora disponibile"), { description: outlookTitle });
                     return;
                   }
                   startOAuth.mutate("outlook");
@@ -459,16 +460,16 @@ export function EmailOAuthConnectionsCard() {
                 ) : (
                   <OutlookIcon className="h-4 w-4" />
                 )}
-                Connetti Outlook
+                {t("Connetti Outlook")}
               </Button>
               <Button
                 onClick={() => setImapDialogOpen(true)}
                 variant={!gmailReady && !outlookReady ? "default" : "outline"}
                 className="gap-2"
-                title="Per Aruba, Libero, iCloud, Yahoo, Register e le altre caselle — sempre disponibile"
+                title={t("Per Aruba, Libero, iCloud, Yahoo, Register e le altre caselle — sempre disponibile")}
               >
                 <Server className="h-4 w-4" />
-                Altra casella email
+                {t("Altra casella email")}
               </Button>
             </div>
           );
@@ -477,8 +478,8 @@ export function EmailOAuthConnectionsCard() {
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/10 dark:border-emerald-900 p-2.5">
             <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
             <div className="text-xs text-emerald-800 dark:text-emerald-300 flex-1">
-              <strong>{connections.length}</strong> casell{connections.length === 1 ? "a connessa" : "e connesse"} ·{" "}
-              <span className="text-emerald-700 dark:text-emerald-400">l'AI legge le tue email per supporto, triage e bozze</span>
+              <strong>{connections.length}</strong> {connections.length === 1 ? t("casella connessa") : t("caselle connesse")} ·{" "}
+              <span className="text-emerald-700 dark:text-emerald-400">{t("l'AI legge le tue email per supporto, triage e bozze")}</span>
             </div>
             <Button
               asChild
@@ -488,7 +489,7 @@ export function EmailOAuthConnectionsCard() {
             >
               <Link to={typeof window !== "undefined" && window.location.pathname.startsWith("/admin/") ? "/admin/email" : "/azienda/email"}>
                 <Inbox className="h-3.5 w-3.5" />
-                Apri inbox
+                {t("Apri inbox")}
                 <ArrowRight className="h-3 w-3" />
               </Link>
             </Button>
@@ -498,14 +499,14 @@ export function EmailOAuthConnectionsCard() {
               variant="ghost"
               size="sm"
               className="gap-1.5"
-              title="Controlla subito se ci sono email nuove"
+              title={t("Controlla subito se ci sono email nuove")}
             >
               {forceSync.isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
-              Sync ora
+              {t("Sync ora")}
             </Button>
           </div>
         )}
@@ -521,16 +522,15 @@ export function EmailOAuthConnectionsCard() {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white border border-violet-200 shadow-sm">
               <Plug className="h-6 w-6 text-violet-600" />
             </div>
-            <p className="text-sm font-medium text-slate-900">Nessuna casella ancora collegata</p>
+            <p className="text-sm font-medium text-slate-900">{t("Nessuna casella ancora collegata")}</p>
             <p className="text-xs mt-1 text-slate-600 max-w-md mx-auto">
-              Collega Gmail, Outlook o un'altra casella: <strong>solo tu vedrai le tue email</strong>.
-              L'AI Silvio ti aiuterà a smistarle, rispondere e creare attività.
+              {t("Collega Gmail, Outlook o un'altra casella:")} <strong>{t("solo tu vedrai le tue email")}</strong>{t(". L'AI Silvio ti aiuterà a smistarle, rispondere e creare attività.")}
             </p>
             <div className="mt-4 flex flex-wrap gap-2 justify-center text-[10px] text-slate-500">
               <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5">Gmail</span>
               <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5">Outlook</span>
-              <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5">Aruba/Libero/iCloud</span>
-              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Altre caselle</span>
+              <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5">{t("Aruba/Libero/iCloud")}</span>
+              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">{t("Altre caselle")}</span>
             </div>
           </div>
         ) : (
@@ -557,30 +557,30 @@ export function EmailOAuthConnectionsCard() {
                         </Badge>
                         <Badge variant="outline" className={cn("text-[10px] gap-1", status.color)}>
                           <StatusIcon className="h-2.5 w-2.5" />
-                          {status.label}
+                          {t(status.label)}
                         </Badge>
-                        {ricezioneDaVerificare && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[10px] text-amber-800 dark:bg-amber-950 dark:text-amber-200">Ricezione da verificare</Badge>}
+                        {ricezioneDaVerificare && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[10px] text-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("Ricezione da verificare")}</Badge>}
                         {(c.signature_html?.trim() || c.signature_text?.trim()) && (
                           <Badge variant="outline" className="text-[10px] gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            Firma attiva
+                            {t("Firma attiva")}
                           </Badge>
                         )}
                       </div>
                       <div className="text-[11px] text-muted-foreground space-x-2">
-                        <span>{c.emails_fetched_total} email totali</span>
+                        <span>{t("{emails_fetched_total} email totali", { emails_fetched_total: String(c.emails_fetched_total ?? "") })}</span>
                         <span>·</span>
                         <span>
-                          Ultimo controllo: {c.last_synced_at
+                          {t("Ultimo controllo:")} {c.last_synced_at
                             ? new Date(c.last_synced_at).toLocaleString("it-IT", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
-                            : "mai"}
+                            : t("mai")}
                         </span>
                         <span>·</span>
-                        <span>controllo ogni {c.poll_interval_minutes} min</span>
+                        <span>{t("controllo ogni {poll_interval_minutes} min", { poll_interval_minutes: String(c.poll_interval_minutes ?? "") })}</span>
                       </div>
                       {c.status === "active" && (
                         <p className="text-[10px] text-muted-foreground">
-                          Collegata indica che la casella è abilitata. Verifica la data dell’ultimo controllo per sapere se la ricezione è aggiornata.
+                          {t("Collegata indica che la casella è abilitata. Verifica la data dell’ultimo controllo per sapere se la ricezione è aggiornata.")}
                         </p>
                       )}
                       {c.last_sync_error && c.status === "active" && (
@@ -588,8 +588,8 @@ export function EmailOAuthConnectionsCard() {
                           className="text-[10px] text-amber-700 dark:text-amber-500"
                           title={spiegaErroreCasella(c.last_sync_error, c.provider)}
                         >
-                          Ultimo tentativo non riuscito, ci riproviamo da soli
-                          {c.consecutive_errors >= 3 ? ` (${c.consecutive_errors} di fila)` : ""}
+                          {t("Ultimo tentativo non riuscito, ci riproviamo da soli")}
+                          {c.consecutive_errors >= 3 ? ` ${t("({consecutive_errors} di fila)", { consecutive_errors: String(c.consecutive_errors ?? "") })}` : ""}
                         </p>
                       )}
                     </div>
@@ -597,12 +597,12 @@ export function EmailOAuthConnectionsCard() {
                       size="icon"
                       variant="ghost"
                       onClick={() => {
-                        if (confirm(`Disconnettere ${c.email_address}? L'AI non leggerà più le email da questo account.`)) {
+                        if (confirm(t("Disconnettere {email_address}? L'AI non leggerà più le email da questo account.", { email_address: String(c.email_address ?? "") }))) {
                           disconnect.mutate(c.id);
                         }
                       }}
                       disabled={disconnect.isPending}
-                      title="Disconnetti"
+                      title={t("Disconnetti")}
                     >
                       <Trash2 className="h-4 w-4 text-rose-500" />
                     </Button>
@@ -617,11 +617,11 @@ export function EmailOAuthConnectionsCard() {
                     <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 dark:border-amber-700/60 dark:bg-amber-950/30">
                       <p className="text-[11px] font-medium text-amber-900 dark:text-amber-200">
                         {c.provider === "imap"
-                          ? "Il server rifiuta le credenziali: di solito è la password, cambiata o scaduta."
-                          : `${c.provider === "outlook" ? "Microsoft" : "Google"} non autorizza più Edilizia in Cloud a usare questa casella.`}
+                          ? t("Il server rifiuta le credenziali: di solito è la password, cambiata o scaduta.")
+                          : t("{servizio} non autorizza più Edilizia in Cloud a usare questa casella.", { servizio: c.provider === "outlook" ? "Microsoft" : "Google" })}
                       </p>
                       <p className="mt-0.5 text-[10px] text-amber-800/80 dark:text-amber-300/80">
-                        Finché resta così non arriva posta nuova e non si può inviare da questo indirizzo.
+                        {t("Finché resta così non arriva posta nuova e non si può inviare da questo indirizzo.")}
                       </p>
                       <Button
                         size="sm"
@@ -652,7 +652,7 @@ export function EmailOAuthConnectionsCard() {
                         ) : (
                           <RefreshCw className="h-3 w-3" />
                         )}
-                        Ricollega {c.email_address}
+                        {t("Ricollega")} {c.email_address}
                       </Button>
                     </div>
                   )}
@@ -661,9 +661,9 @@ export function EmailOAuthConnectionsCard() {
                   <Collapsible>
                     <CollapsibleTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full justify-start group">
                       <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-                      <span className="font-medium">Firma email personale</span>
+                      <span className="font-medium">{t("Firma email personale")}</span>
                       {(c.signature_text?.trim() || c.signature_html?.trim()) && (
-                        <span className="text-[10px] text-emerald-700 ml-1">(impostata)</span>
+                        <span className="text-[10px] text-emerald-700 ml-1">{t("(impostata)")}</span>
                       )}
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-2">

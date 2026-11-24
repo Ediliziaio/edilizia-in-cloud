@@ -17,6 +17,7 @@ import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { leggiDDTdaAI } from "@/lib/ddt/letturaAI";
 import { completaBolla, type Completamento, type TestataBolla } from "@/lib/ddt/rileggiBolla";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const ETICHETTE: Record<keyof TestataBolla, string> = {
   targa_mezzo: "Targa", autista_nome: "Autista", corriere: "Vettore", trasporto_a_cura_di: "Chi l'ha portata", porto: "Porto",
@@ -34,6 +35,7 @@ export function RileggiOriginaleBolla({ ddt, fileUrl }: {
   ddt: TestataBolla & { id: string; company_id: string; ddt_file_name?: string | null; ddt_file_mime?: string | null };
   fileUrl: string | null | undefined;
 }) {
+  const t = useT();
   const p = usePermissions();
   const qc = useQueryClient();
   const righe = useDDTRighe(ddt.id);
@@ -47,19 +49,19 @@ export function RileggiOriginaleBolla({ ddt, fileUrl }: {
   const leggi = async () => {
     setStato("leggo");
     try {
-      const file = await fetch(fileUrl).then((r) => { if (!r.ok) throw new Error("Originale non scaricabile"); return r.blob(); });
-      if (file.size > 18 * 1024 * 1024) throw new Error("Originale troppo grande per la lettura (max 18 MB)");
+      const file = await fetch(fileUrl).then((r) => { if (!r.ok) throw new Error(t("Originale non scaricabile")); return r.blob(); });
+      if (file.size > 18 * 1024 * 1024) throw new Error(t("Originale troppo grande per la lettura (max 18 MB)"));
       const { data, error } = await supabase.functions.invoke("ddt-ai-extract", {
         body: { image_base64: await inBase64(file), mime_type: file.type || ddt.ddt_file_mime || "application/pdf", file_name: ddt.ddt_file_name ?? "bolla", company_id: ddt.company_id },
       });
-      if (error) throw new Error(await edgeErrorMessage(error, "Lettura non riuscita"));
-      if (!data?.success) throw new Error(data?.error ?? "Lettura non riuscita");
+      if (error) throw new Error(await edgeErrorMessage(error, t("Lettura non riuscita")));
+      if (!data?.success) throw new Error(data?.error ?? t("Lettura non riuscita"));
       setProposta(completaBolla(leggiDDTdaAI(data.ddt ?? {}), righe.data ?? [], ddt));
       setTogliRighe(new Set());
       setTogliCampi(new Set());
       setStato("proposta");
     } catch (e) {
-      toast.error("Lettura non riuscita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Lettura non riuscita"), { description: e instanceof Error ? e.message : String(e) });
       setStato("pronto");
     }
   };
@@ -74,63 +76,63 @@ export function RileggiOriginaleBolla({ ddt, fileUrl }: {
       if (Object.keys(campi).length) {
         const { data, error } = await supabase.from("ddt_ricezione").update(campi as never).eq("id", ddt.id).eq("company_id", ddt.company_id).select("id");
         if (error) throw error;
-        if (!data?.length) throw new Error("Non hai il permesso di modificare questa bolla");
+        if (!data?.length) throw new Error(t("Non hai il permesso di modificare questa bolla"));
       }
-      toast.success("Bolla completata dall'originale");
+      toast.success(t("Bolla completata dall'originale"));
       void qc.invalidateQueries({ queryKey: queryKeys.ddtRicezione.detail(ddt.id) });
       refreshMaterialQueries(qc);
       setProposta(null);
       setStato("pronto");
     } catch (e) {
-      toast.error("Bolla non completata", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Bolla non completata"), { description: e instanceof Error ? e.message : String(e) });
       setStato("proposta");
     }
   };
 
   const vuota = proposta && proposta.righe.length === 0 && Object.keys(proposta.campi).length === 0;
   return (
-    <section aria-label="Rileggi l'originale" className="space-y-2 rounded-lg border p-3 text-sm">
+    <section aria-label={t("Rileggi l'originale")} className="space-y-2 rounded-lg border p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">L'AI legge la bolla allegata e propone solo quello che manca. Consuma credito AI.</p>
+        <p className="text-xs text-muted-foreground">{t("L'AI legge la bolla allegata e propone solo quello che manca. Consuma credito AI.")}</p>
         {stato !== "proposta" && (
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" disabled={stato !== "pronto" || righe.isLoading} onClick={() => void leggi()}>
             {stato === "leggo" || stato === "salvo" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {stato === "leggo" ? "Leggo…" : "Rileggi l'originale"}
+            {stato === "leggo" ? t("Leggo…") : t("Rileggi l'originale")}
           </Button>
         )}
       </div>
-      {proposta && vuota && <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">Sulla bolla c'è già tutto quello che l'AI ha letto.</p>}
+      {proposta && vuota && <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">{t("Sulla bolla c'è già tutto quello che l'AI ha letto.")}</p>}
       {proposta && !vuota && (
         <div className="space-y-2">
           {proposta.righe.length > 0 && (
             <fieldset className="space-y-1">
-              <legend className="text-xs font-medium">Righe sull'originale che mancano</legend>
+              <legend className="text-xs font-medium">{t("Righe sull'originale che mancano")}</legend>
               {proposta.righe.map((r) => (
                 <label key={r.posizione} className="flex items-center gap-2 text-xs">
                   <input type="checkbox" checked={!togliRighe.has(r.posizione)}
                     onChange={(e) => { const s = new Set(togliRighe); if (e.target.checked) s.delete(r.posizione); else s.add(r.posizione); setTogliRighe(s); }} />
-                  {r.descrizione}{r.quantita != null ? ` · ${r.quantita.toLocaleString("it-IT")}${r.unita_misura ? ` ${r.unita_misura}` : ""}` : ""}
+                  {r.descrizione}{r.quantita != null ? ` · ${r.quantita.toLocaleString(intlCampo())}${r.unita_misura ? ` ${r.unita_misura}` : ""}` : ""}
                 </label>
               ))}
             </fieldset>
           )}
           {Object.keys(proposta.campi).length > 0 && (
             <fieldset className="space-y-1">
-              <legend className="text-xs font-medium">Trasporto</legend>
+              <legend className="text-xs font-medium">{t("Trasporto")}</legend>
               {(Object.entries(proposta.campi) as Array<[keyof TestataBolla, string]>).map(([k, v]) => (
                 <label key={k} className="flex items-center gap-2 text-xs">
                   <input type="checkbox" checked={!togliCampi.has(k)}
                     onChange={(e) => { const s = new Set(togliCampi); if (e.target.checked) s.delete(k); else s.add(k); setTogliCampi(s); }} />
-                  {ETICHETTE[k]}: {k === "trasporto_a_cura_di" ? TRASPORTO[v] ?? v : v}
+                  {t(ETICHETTE[k])}: {k === "trasporto_a_cura_di" ? (TRASPORTO[v] ? t(TRASPORTO[v]) : v) : v}
                 </label>
               ))}
             </fieldset>
           )}
           <div className="flex gap-2">
             <Button type="button" size="sm" className="h-8" disabled={stato === "salvo"} onClick={() => void aggiungi()}>
-              {stato === "salvo" && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Aggiungi alla bolla
+              {stato === "salvo" && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{t("Aggiungi alla bolla")}
             </Button>
-            <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setProposta(null); setStato("pronto"); }}>Lascia com'è</Button>
+            <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setProposta(null); setStato("pronto"); }}>{t("Lascia com'è")}</Button>
           </div>
         </div>
       )}

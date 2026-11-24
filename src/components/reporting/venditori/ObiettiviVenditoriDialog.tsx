@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Target, Save, Loader2 } from "lucide-react";
 import { addMonths, format } from "date-fns";
-import { it } from "date-fns/locale";
 import { useObiettiviDelMese, useSalvaObiettivi, type ObiettivoMese } from "@/hooks/useObiettiviVenditori";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /*
  * Gli obiettivi del mese, uno per venditore: quanto deve fatturare e quanti
@@ -33,6 +33,7 @@ export function ObiettiviVenditoriDialog({
   onCambiaApertura: (v: boolean) => void;
   venditori: Venditore[];
 }) {
+  const t = useT();
   const oggi = new Date();
   const mesiScelta = useMemo(
     () =>
@@ -40,10 +41,11 @@ export function ObiettiviVenditoriDialog({
         chiave: `${d.getFullYear()}-${d.getMonth() + 1}`,
         anno: d.getFullYear(),
         mese: d.getMonth() + 1,
-        etichetta: format(d, "MMMM yyyy", { locale: it }),
+        etichetta: format(d, "MMMM yyyy", { locale: dateFnsCampo() }),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [oggi.getFullYear(), oggi.getMonth()],
+    // `t` cambia con la lingua: i nomi dei mesi si rifanno.
+    [oggi.getFullYear(), oggi.getMonth(), t],
   );
   const [scelto, setScelto] = useState(`${oggi.getFullYear()}-${oggi.getMonth() + 1}`);
   const mese = mesiScelta.find((m) => m.chiave === scelto) ?? mesiScelta[MESI_INTORNO];
@@ -86,16 +88,15 @@ export function ObiettiviVenditoriDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Target className="h-5 w-5" />
-            Obiettivi del mese
+            {t("Obiettivi del mese")}
           </DialogTitle>
           <DialogDescription>
-            Fatturato e contratti che ogni venditore deve chiudere nel mese. Si confrontano con le opportunità vinte
-            nello stesso mese; lasciare vuoto vuol dire «nessun obiettivo».
+            {t("Fatturato e contratti che ogni venditore deve chiudere nel mese. Si confrontano con le opportunità vinte nello stesso mese; lasciare vuoto vuol dire «nessun obiettivo».")}
           </DialogDescription>
         </DialogHeader>
 
         <Select value={scelto} onValueChange={setScelto}>
-          <SelectTrigger className="w-[220px]" aria-label="Mese">
+          <SelectTrigger className="w-[220px]" aria-label={t("Mese")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -111,14 +112,14 @@ export function ObiettiviVenditoriDialog({
           </div>
         ) : venditori.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
-            Nessun venditore con opportunità o appuntamenti nel periodo.
+            {t("Nessun venditore con opportunità o appuntamenti nel periodo.")}
           </p>
         ) : (
           <div className="space-y-3">
             <div className="grid grid-cols-[1fr_120px_100px] gap-2 px-1 text-xs font-medium text-muted-foreground">
-              <span>Venditore</span>
-              <span className="text-right">Fatturato €</span>
-              <span className="text-right">Contratti</span>
+              <span>{t("Venditore")}</span>
+              <span className="text-right">{t("Fatturato €")}</span>
+              <span className="text-right">{t("Contratti")}</span>
             </div>
             {venditori.map((v) => (
               <div key={v.id} className="grid grid-cols-[1fr_120px_100px] items-center gap-2">
@@ -131,7 +132,7 @@ export function ObiettiviVenditoriDialog({
                   onChange={(e) => cambia(v.id, "fatturato", e.target.value)}
                   className="h-8 text-right text-sm"
                   placeholder="—"
-                  aria-label={`Fatturato obiettivo di ${v.nome}`}
+                  aria-label={t("Fatturato obiettivo di {nome}", { nome: String(v.nome ?? "") })}
                 />
                 <Input
                   type="number"
@@ -141,7 +142,7 @@ export function ObiettiviVenditoriDialog({
                   onChange={(e) => cambia(v.id, "contratti", e.target.value)}
                   className="h-8 text-right text-sm"
                   placeholder="—"
-                  aria-label={`Contratti obiettivo di ${v.nome}`}
+                  aria-label={t("Contratti obiettivo di {nome}", { nome: String(v.nome ?? "") })}
                 />
               </div>
             ))}
@@ -149,10 +150,10 @@ export function ObiettiviVenditoriDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onCambiaApertura(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onCambiaApertura(false)}>{t("Annulla")}</Button>
           <Button onClick={onSalva} disabled={salva.isPending || isLoading}>
             {salva.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-            Salva
+            {t("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>

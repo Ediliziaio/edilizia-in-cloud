@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { SimContactPicker, type SimContactLite } from "./SimContactPicker";
 import { useSimulazioniMutations } from "@/hooks/useSimulazioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface NuovaSimulazioneDialogProps {
   open: boolean;
@@ -31,6 +32,7 @@ interface NuovaSimulazioneDialogProps {
 }
 
 export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneDialogProps) {
+  const t = useT();
   const navigate = useNavigate();
   const { create } = useSimulazioniMutations();
   const [nome, setNome] = useState("");
@@ -48,16 +50,16 @@ export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneD
   const handleSubmit = async () => {
     const trimmed = nome.trim();
     if (!trimmed) {
-      toast.error("Inserisci un nome per la simulazione");
+      toast.error(t("Inserisci un nome per la simulazione"));
       return;
     }
     try {
       const id = await create.mutateAsync({ nome: trimmed, contact_id: contatto?.id ?? null });
-      toast.success("Simulazione creata");
+      toast.success(t("Simulazione creata"));
       handleOpenChange(false);
       navigate(`/azienda/marketing/simulatore/${id}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore nella creazione");
+      toast.error(err instanceof Error ? err.message : t("Errore nella creazione"));
     }
   };
 
@@ -67,21 +69,20 @@ export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneD
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Nuova simulazione
+            {t("Nuova simulazione")}
           </DialogTitle>
           <DialogDescription>
-            Dai un nome alla simulazione. Voci, IVA, tempistiche e finanziamenti
-            li aggiungi nell'editor.
+            {t("Dai un nome alla simulazione. Voci, IVA, tempistiche e finanziamenti li aggiungi nell'editor.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-1">
           <div className="space-y-2">
-            <Label htmlFor="sim-nome">Nome simulazione</Label>
+            <Label htmlFor="sim-nome">{t("Nome simulazione")}</Label>
             <Input
               id="sim-nome"
               autoFocus
-              placeholder="Es. Ristrutturazione appartamento Rossi"
+              placeholder={t("Es. Ristrutturazione appartamento Rossi")}
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               onKeyDown={(e) => {
@@ -94,7 +95,7 @@ export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneD
           </div>
 
           <div className="space-y-2">
-            <Label className="text-muted-foreground">Cliente <span className="font-normal">(opzionale)</span></Label>
+            <Label className="text-muted-foreground">{t("Cliente")} <span className="font-normal">{t("(opzionale)")}</span></Label>
             <SimContactPicker
               value={contatto}
               onSelect={setContatto}
@@ -105,16 +106,16 @@ export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneD
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={create.isPending}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={() => void handleSubmit()} disabled={create.isPending || !nome.trim()}>
             {create.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creazione…
+                {t("Creazione…")}
               </>
             ) : (
-              "Crea e apri"
+              t("Crea e apri")
             )}
           </Button>
         </DialogFooter>

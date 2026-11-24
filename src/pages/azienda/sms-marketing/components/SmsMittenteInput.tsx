@@ -7,6 +7,7 @@
  */
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsMittenteInputProps {
   value: string;
@@ -17,6 +18,7 @@ interface SmsMittenteInputProps {
 const ALFANUMERICO = /^[A-Za-z0-9]*$/;
 
 export function SmsMittenteInput({ value, onChange, error }: SmsMittenteInputProps) {
+  const t = useT();
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     if (ALFANUMERICO.test(v) && v.length <= 11) onChange(v);
@@ -28,14 +30,14 @@ export function SmsMittenteInput({ value, onChange, error }: SmsMittenteInputPro
   return (
     <div className="space-y-1.5">
       <Label htmlFor="mittente" className="text-sm font-medium">
-        Mittente (Sender ID)
+        {t("Mittente (Sender ID)")}
       </Label>
       <div className="relative">
         <Input
           id="mittente"
           value={value}
           onChange={handleChange}
-          placeholder="Es: Edilizia"
+          placeholder={t("Es: Edilizia")}
           maxLength={11}
           className={error ? "border-destructive" : ""}
         />
@@ -49,7 +51,7 @@ export function SmsMittenteInput({ value, onChange, error }: SmsMittenteInputPro
         <p className="text-xs text-destructive">{error}</p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Solo lettere e numeri, massimo 11 caratteri. Verrà mostrato come mittente dell'SMS.
+          {t("Solo lettere e numeri, massimo 11 caratteri. Verrà mostrato come mittente dell'SMS.")}
         </p>
       )}
     </div>

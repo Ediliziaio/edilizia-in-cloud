@@ -11,6 +11,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Analytics {
   chiamate: { totali: number; completate: number; durata_media_sec: number; tasso_risposta: number };
@@ -36,6 +37,7 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export function StatisticheTab() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const [giorni, setGiorni] = useState("30");
@@ -88,25 +90,25 @@ export function StatisticheTab() {
 
   if (isError) {
     return <div role="alert" className="rounded-lg border p-4 space-y-2">
-      <p>Impossibile caricare le statistiche. I contatori non sono disponibili.</p>
-      <Button variant="outline" onClick={() => refetch()}>Riprova</Button>
+      <p>{t("Impossibile caricare le statistiche. I contatori non sono disponibili.")}</p>
+      <Button variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>
     </div>;
   }
   if (!analytics) {
     return (
       <div className="py-12 text-center">
-        <p className="text-muted-foreground">Nessun dato disponibile</p>
+        <p className="text-muted-foreground">{t("Nessun dato disponibile")}</p>
       </div>
     );
   }
 
   const kpis = [
-    { label: "Chiamate", value: analytics.chiamate.totali, icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
-    { label: "Completamento", value: `${Math.round(analytics.chiamate.tasso_risposta)}%`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
-    { label: "Chat", value: analytics.chat.totali, icon: MessageSquare, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
-    { label: "Durata media conv.", value: `${Math.round(analytics.chiamate.durata_media_sec)}s`, icon: Clock, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
-    { label: "Costo addebitato", value: analytics.crediti.totale_consumato.toLocaleString("it-IT", { style: "currency", currency: "EUR" }), icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
-    { label: "Agenti Attivi", value: analytics.agenti.reduce((s, a) => s + a.count, 0), icon: Bot, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
+    { label: t("Chiamate"), value: analytics.chiamate.totali, icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: t("Completamento"), value: `${Math.round(analytics.chiamate.tasso_risposta)}%`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: t("Chat"), value: analytics.chat.totali, icon: MessageSquare, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
+    { label: t("Durata media conv."), value: `${Math.round(analytics.chiamate.durata_media_sec)}s`, icon: Clock, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
+    { label: t("Costo addebitato"), value: analytics.crediti.totale_consumato.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" }), icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: t("Agenti Attivi"), value: analytics.agenti.reduce((s, a) => s + a.count, 0), icon: Bot, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
   ];
 
   const pieData = analytics.agenti.map((a) => ({
@@ -120,23 +122,23 @@ export function StatisticheTab() {
     <div className="space-y-6">
       {noEventData && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Nessuna conversazione o sessione chat registrata nel periodo selezionato.
+          {t("Nessuna conversazione o sessione chat registrata nel periodo selezionato.")}
         </p>
       )}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-foreground">Statistiche AI</h2>
+        <h2 className="text-xl font-bold text-foreground">{t("Statistiche AI")}</h2>
         <Select value={giorni} onValueChange={setGiorni}>
           <SelectTrigger className="w-[140px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Ultimi 7 giorni</SelectItem>
-            <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-            <SelectItem value="90">Ultimi 90 giorni</SelectItem>
+            <SelectItem value="7">{t("Ultimi 7 giorni")}</SelectItem>
+            <SelectItem value="30">{t("Ultimi 30 giorni")}</SelectItem>
+            <SelectItem value="90">{t("Ultimi 90 giorni")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      <p className="text-xs text-muted-foreground">Chiamate vocali e chat sono conteggiate separatamente. Le chat includono il widget del sito; i costi riportano gli importi addebitati, senza sommare due volte lo storico delle chiamate.</p>
+      <p className="text-xs text-muted-foreground">{t("Chiamate vocali e chat sono conteggiate separatamente. Le chat includono il widget del sito; i costi riportano gli importi addebitati, senza sommare due volte lo storico delle chiamate.")}</p>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -164,7 +166,7 @@ export function StatisticheTab() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" /> Chiamate per giorno
+              <MessageSquare className="h-4 w-4" /> {t("Chiamate per giorno")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -182,7 +184,7 @@ export function StatisticheTab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">Nessun dato</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("Nessun dato")}</p>
             )}
           </CardContent>
         </Card>
@@ -191,7 +193,7 @@ export function StatisticheTab() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" /> Chat per Giorno
+              <MessageSquare className="h-4 w-4" /> {t("Chat per Giorno")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -209,7 +211,7 @@ export function StatisticheTab() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">Nessun dato</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("Nessun dato")}</p>
             )}
           </CardContent>
         </Card>
@@ -220,7 +222,7 @@ export function StatisticheTab() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Bot className="h-4 w-4" /> Distribuzione Agenti per Tipo
+              <Bot className="h-4 w-4" /> {t("Distribuzione Agenti per Tipo")}
             </CardTitle>
           </CardHeader>
           <CardContent>

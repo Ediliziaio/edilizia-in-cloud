@@ -9,6 +9,7 @@ import { FlowBuilderConfigPanel } from "./FlowBuilderConfigPanel";
 import { TriggerCatalogList } from "./catalog/TriggerCatalogList";
 import { ActionCatalogList } from "./catalog/ActionCatalogList";
 import type { Node } from "@xyflow/react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PanelMode = "catalog" | "config";
 type CatalogTab = "trigger" | "action" | "condition";
@@ -108,6 +109,7 @@ function CatalogPanel({
   onSelectItem?: (item: CatalogItem) => void;
   isAdmin?: boolean;
 }) {
+  const tr = useT();
   const [search, setSearch] = useState("");
 
   const visibleTabs = catalogContext === "trigger" ? TRIGGER_TABS : ACTION_TABS;
@@ -120,10 +122,10 @@ function CatalogPanel({
   };
 
   const headerLabel = catalogContext === "trigger"
-    ? "Aggiungi Trigger"
+    ? tr("Aggiungi Trigger")
     : effectiveTab === "condition"
-      ? "Aggiungi Condizione"
-      : "Aggiungi Azione";
+      ? tr("Aggiungi Condizione")
+      : tr("Aggiungi Azione");
 
   return (
     <div className="flex h-full w-[380px] flex-col border-l bg-background max-md:fixed max-md:inset-0 max-md:z-50 max-md:w-full max-md:border-l-0 max-md:shadow-2xl">
@@ -133,7 +135,7 @@ function CatalogPanel({
           <Zap className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold">{headerLabel}</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} aria-label="Chiudi catalogo">
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} aria-label={tr("Chiudi catalogo")}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -143,8 +145,8 @@ function CatalogPanel({
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder={catalogContext === "trigger" ? "Cerca un evento di avvio…" : "Cerca un’azione o una condizione…"}
-            aria-label="Cerca nel catalogo"
+            placeholder={catalogContext === "trigger" ? tr("Cerca un evento di avvio…") : tr("Cerca un’azione o una condizione…")}
+            aria-label={tr("Cerca nel catalogo")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-7 pl-8 text-xs"
@@ -167,7 +169,7 @@ function CatalogPanel({
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {tab.label}
+              {tr(tab.label)}
             </button>
           ))}
         </div>

@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, MessageCircle, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   agentId: string;
@@ -58,6 +59,7 @@ function leggiCfg(toolsConfig: unknown): LeadWhatsAppCfg {
 }
 
 export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -116,10 +118,10 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
       const { data: agg, error } = await db.from("ai_agents_v2").update({ stato: "attivo" })
         .eq("id", agentId).eq("company_id", companyId).select("id");
       if (error) throw new Error(error.message);
-      if (!agg?.length) throw new Error("Non hai il permesso di attivare questo agente.");
+      if (!agg?.length) throw new Error(t("Non hai il permesso di attivare questo agente."));
     },
     onSuccess: () => {
-      toast.success("Agente attivo: risponde ai messaggi WhatsApp");
+      toast.success(t("Agente attivo: risponde ai messaggi WhatsApp"));
       qc.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
       qc.invalidateQueries({ queryKey: ["unified-ai-agents"] });
     },
@@ -128,10 +130,10 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
 
   const salva = useMutation({
     mutationFn: async () => {
-      if (!numeroId && numeroScritto !== SCOLLEGA) throw new Error("Scegli il numero WhatsApp su cui risponde l'agente.");
-      if (numeroId && !calendarioId) throw new Error("Scegli il calendario su cui l'agente fissa le chiamate.");
+      if (!numeroId && numeroScritto !== SCOLLEGA) throw new Error(t("Scegli il numero WhatsApp su cui risponde l'agente."));
+      if (numeroId && !calendarioId) throw new Error(t("Scegli il calendario su cui l'agente fissa le chiamate."));
       if (numeroScelto?.agent_id && numeroScelto.agent_id !== agentId) {
-        throw new Error("Questo numero è già collegato a un altro agente: scollegalo prima da quello.");
+        throw new Error(t("Questo numero è già collegato a un altro agente: scollegalo prima da quello."));
       }
       // tools_config fresco dal database: gli altri rami (voce, strumenti) restano com'erano.
       const showroomValidi = showroom
@@ -140,8 +142,8 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
       const senzaCalendario = showroomValidi.find((x) => !x.nome || !x.calendari.length);
       if (senzaCalendario) {
         throw new Error(senzaCalendario.nome
-          ? `Scegli almeno un calendario per lo showroom «${senzaCalendario.nome}».`
-          : "Ogni showroom ha bisogno di un nome.");
+          ? t("Scegli almeno un calendario per lo showroom «{nome}».", { nome: senzaCalendario.nome })
+          : t("Ogni showroom ha bisogno di un nome."));
       }
       const { data: attuale, error: e1 } = await db.from("ai_agents_v2").select("tools_config").eq("id", agentId).eq("company_id", companyId).single();
       if (e1) throw new Error(e1.message);
@@ -164,7 +166,7 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
         .update({ tools_config: { ...(attuale?.tools_config ?? {}), lead_whatsapp } })
         .eq("id", agentId).eq("company_id", companyId).select("id");
       if (e2) throw new Error(e2.message);
-      if (!agg?.length) throw new Error("Non hai il permesso di modificare questo agente.");
+      if (!agg?.length) throw new Error(t("Non hai il permesso di modificare questo agente."));
 
       // Un agente, un numero: si scollega da eventuali altri numeri e si collega a quello scelto.
       let scollega = db.from("ai_whatsapp_numbers").update({ agent_id: null })
@@ -176,11 +178,11 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
         const { data: collegati, error: e4 } = await db.from("ai_whatsapp_numbers").update({ agent_id: agentId })
           .eq("company_id", companyId).eq("id", numeroId).select("id");
         if (e4) throw new Error(e4.message);
-        if (!collegati?.length) throw new Error("Numero non collegato: serve il permesso di gestire i numeri WhatsApp.");
+        if (!collegati?.length) throw new Error(t("Numero non collegato: serve il permesso di gestire i numeri WhatsApp."));
       }
     },
     onSuccess: () => {
-      toast.success("Agente WhatsApp configurato");
+      toast.success(t("Agente WhatsApp configurato"));
       qc.invalidateQueries({ queryKey: ["agente-whatsapp-lead-opzioni", companyId] });
       qc.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
     },
@@ -189,11 +191,11 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
 
   const sceltaFase = (valore: string, cambia: (v: string) => void, etichetta: string) => (
     <div>
-      <label className="text-xs font-medium mb-1 block">{etichetta}</label>
+      <label className="text-xs font-medium mb-1 block">{t(etichetta)}</label>
       <Select value={valore || NESSUNA} onValueChange={(v) => cambia(v === NESSUNA ? "" : v)} disabled={!pipelineId}>
-        <SelectTrigger className="h-9"><SelectValue placeholder="Nessuna" /></SelectTrigger>
+        <SelectTrigger className="h-9"><SelectValue placeholder={t("Nessuna")} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value={NESSUNA}>Non spostare</SelectItem>
+          <SelectItem value={NESSUNA}>{t("Non spostare")}</SelectItem>
           {fasiPipeline.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
         </SelectContent>
       </Select>
@@ -204,64 +206,62 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-1.5">
-          <MessageCircle className="h-4 w-4" /> Risposte su WhatsApp ai lead
+          <MessageCircle className="h-4 w-4" /> {t("Risposte su WhatsApp ai lead")}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Chi scrive al numero scelto parla con questo agente: fa le domande del prompt, propone gli orari liberi del
-          calendario, fissa la chiamata (o lo showroom, se il cliente lo chiede), sposta l'opportunità e scrive negli appunti
-          il riepilogo della chat. Se un collega mette in pausa la conversazione, l'agente tace.
+          {t("Chi scrive al numero scelto parla con questo agente: fa le domande del prompt, propone gli orari liberi del calendario, fissa la chiamata (o lo showroom, se il cliente lo chiede), sposta l'opportunità e scrive negli appunti il riepilogo della chat. Se un collega mette in pausa la conversazione, l'agente tace.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
         {stato !== "attivo" && (
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-center justify-between gap-3">
-            <span>L'agente è in bozza: finché non lo attivi, chi scrive al numero collegato non riceve risposta.</span>
+            <span>{t("L'agente è in bozza: finché non lo attivi, chi scrive al numero collegato non riceve risposta.")}</span>
             <Button size="sm" variant="outline" onClick={() => attiva.mutate()} disabled={attiva.isPending}>
-              {attiva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Attiva l'agente"}
+              {attiva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Attiva l'agente")}
             </Button>
           </div>
         )}
         {isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Caricamento…</div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento…")}</div>
         ) : (
           <>
             <div>
-              <label className="text-xs font-medium mb-1 block">Numero WhatsApp</label>
+              <label className="text-xs font-medium mb-1 block">{t("Numero WhatsApp")}</label>
               <Select value={numeroScritto === SCOLLEGA ? SCOLLEGA : (numeroId || NESSUNA)} onValueChange={(v) => setNumeroId(v === NESSUNA ? "" : v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Scegli il numero" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder={t("Scegli il numero")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NESSUNA}>Scegli il numero</SelectItem>
-                  {numeroCollegato && <SelectItem value={SCOLLEGA}>Nessun numero (scollega l'agente)</SelectItem>}
+                  <SelectItem value={NESSUNA}>{t("Scegli il numero")}</SelectItem>
+                  {numeroCollegato && <SelectItem value={SCOLLEGA}>{t("Nessun numero (scollega l'agente)")}</SelectItem>}
                   {(dati?.numeri ?? []).map((n) => (
                     <SelectItem key={n.id} value={n.id}>
-                      {(n.display_name || "Numero").trim()} · {n.numero ?? ""}{n.agent_id && n.agent_id !== agentId ? " (collegato a un altro agente)" : ""}
+                      {(n.display_name || t("Numero")).trim()} · {n.numero ?? ""}{n.agent_id && n.agent_id !== agentId ? ` ${t("(collegato a un altro agente)")}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {numeroScelto && numeroScelto.purpose !== "lead" && (
                 <p className="text-xs text-amber-700 mt-1">
-                  Questo numero non è impostato come «Lead»: l'agente risponde solo sui numeri lead.
+                  {t("Questo numero non è impostato come «Lead»: l'agente risponde solo sui numeri lead.")}
                 </p>
               )}
             </div>
             <div>
-              <label className="text-xs font-medium mb-1 block">Calendario delle chiamate</label>
+              <label className="text-xs font-medium mb-1 block">{t("Calendario delle chiamate")}</label>
               <Select value={calendarioId || NESSUNA} onValueChange={(v) => setCalendarioId(v === NESSUNA ? "" : v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Scegli il calendario" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder={t("Scegli il calendario")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NESSUNA}>Scegli il calendario</SelectItem>
+                  <SelectItem value={NESSUNA}>{t("Scegli il calendario")}</SelectItem>
                   {(dati?.calendari ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">L'agente propone solo gli orari liberi di questo calendario: fasce, margini, preavviso e impegni su Google.</p>
+              <p className="text-xs text-muted-foreground mt-1">{t("L'agente propone solo gli orari liberi di questo calendario: fasce, margini, preavviso e impegni su Google.")}</p>
             </div>
             <div>
-              <label className="text-xs font-medium mb-1 block">Pipeline</label>
+              <label className="text-xs font-medium mb-1 block">{t("Pipeline")}</label>
               <Select value={pipelineId || NESSUNA} onValueChange={(v) => { setPipelineId(v === NESSUNA ? "" : v); setFasePrenotato(""); setFaseFuoriZona(""); setFaseOperatore(""); setFaseShowroom(""); }}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Nessuna" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder={t("Nessuna")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NESSUNA}>Nessuna</SelectItem>
+                  <SelectItem value={NESSUNA}>{t("Nessuna")}</SelectItem>
                   {(dati?.pipeline ?? []).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -273,38 +273,37 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="text-xs font-medium mb-1 block">Tag quando prenota (facoltativo)</label>
-                <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="es. appuntamento fissato" className="h-9" />
+                <label className="text-xs font-medium mb-1 block">{t("Tag quando prenota (facoltativo)")}</label>
+                <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder={t("es. appuntamento fissato")} className="h-9" />
               </div>
               <div>
-                <label className="text-xs font-medium mb-1 block">Giorni in cui cercare orari</label>
+                <label className="text-xs font-medium mb-1 block">{t("Giorni in cui cercare orari")}</label>
                 <Input type="number" min={1} max={21} value={giorni} onChange={(e) => setGiorni(Number(e.target.value))} className="h-9 w-24" />
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={soloFeriali} onCheckedChange={(v) => setSoloFeriali(v === true)} />
-              Proponi solo orari dal lunedì al venerdì
+              {t("Proponi solo orari dal lunedì al venerdì")}
             </label>
             <div className="rounded-md border p-3 space-y-3">
               <div>
-                <p className="text-sm font-medium">Appuntamenti in showroom (facoltativo)</p>
+                <p className="text-sm font-medium">{t("Appuntamenti in showroom (facoltativo)")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Se il cliente chiede di venire di persona, l'agente gli fa scegliere lo showroom e fissa sul primo calendario
-                  libero dei suoi consulenti. Senza showroom l'agente fissa solo telefonate.
+                  {t("Se il cliente chiede di venire di persona, l'agente gli fa scegliere lo showroom e fissa sul primo calendario libero dei suoi consulenti. Senza showroom l'agente fissa solo telefonate.")}
                 </p>
               </div>
               {showroom.map((x, i) => (
                 <div key={i} className="rounded-md border bg-muted/30 p-2 space-y-2">
                   <div className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
-                    <Input value={x.nome} onChange={(e) => cambiaShowroom(i, { nome: e.target.value })} placeholder="Nome (es. Lissone)" className="h-9" />
+                    <Input value={x.nome} onChange={(e) => cambiaShowroom(i, { nome: e.target.value })} placeholder={t("Nome (es. Lissone)")} className="h-9" />
                     <CampoIndirizzo
-                      aria-label="Indirizzo dello showroom"
+                      aria-label={t("Indirizzo dello showroom")}
                       value={x.indirizzo ?? ""}
                       onChange={(v) => cambiaShowroom(i, { indirizzo: v })}
-                      placeholder="Indirizzo che l'agente scrive al cliente"
+                      placeholder={t("Indirizzo che l'agente scrive al cliente")}
                       className="h-9"
                     />
-                    <Button type="button" variant="ghost" size="icon" aria-label="Togli lo showroom" onClick={() => setShowroom((prev) => prev.filter((_, j) => j !== i))}>
+                    <Button type="button" variant="ghost" size="icon" aria-label={t("Togli lo showroom")} onClick={() => setShowroom((prev) => prev.filter((_, j) => j !== i))}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -323,21 +322,21 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
               ))}
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowroom((prev) => [...prev, { nome: "", indirizzo: "", calendari: [] }])}>
-                  <Plus className="h-4 w-4 mr-1" /> Aggiungi showroom
+                  <Plus className="h-4 w-4 mr-1" /> {t("Aggiungi showroom")}
                 </Button>
                 {showroom.length === 0 && (dati?.sedi.length ?? 0) > 0 && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowroom((dati?.sedi ?? []).map((s) => ({ nome: s.nome, indirizzo: s.indirizzo ?? "", calendari: [] as string[] })))}>
-                    Parti dalle sedi dell'azienda
+                    {t("Parti dalle sedi dell'azienda")}
                   </Button>
                 )}
               </div>
               {showroom.length > 0 && sceltaFase(faseShowroom, setFaseShowroom, "Quando fissa in showroom (se vuoto, come la chiamata)")}
             </div>
             <div>
-              <label className="text-xs font-medium mb-1 block">Chi avvisare (prenotazioni e passaggi a una persona)</label>
+              <label className="text-xs font-medium mb-1 block">{t("Chi avvisare (prenotazioni e passaggi a una persona)")}</label>
               <div className="max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
                 {(dati?.utenti ?? []).map((u) => {
-                  const nome = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Utente";
+                  const nome = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || t("Utente");
                   const scelto = utenti.includes(u.id);
                   return (
                     <label key={u.id} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -353,7 +352,7 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
             </div>
             <Button onClick={() => salva.mutate()} disabled={salva.isPending}>
               {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
-              Salva il collegamento WhatsApp
+              {t("Salva il collegamento WhatsApp")}
             </Button>
           </>
         )}

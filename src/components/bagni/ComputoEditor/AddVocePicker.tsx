@@ -13,6 +13,7 @@ import { useComputoReview } from "./ComputoReviewContext";
 import { nativeBagniUnit } from "@/lib/preventivi/quoteBagniBridge";
 import { toast } from "sonner";
 import type { PickedVoce } from "./types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -35,12 +36,13 @@ const FONTI = {
 } as unknown as FontiModulo;
 
 export default function AddVocePicker({ onPick, ...resto }: Props) {
+  const t = useT();
   const review = useComputoReview();
   const scegli = (scelte: VoceScelta[]) => {
     const voci = scelte as unknown as (PickedVoce & { sourceUnit?: string | null })[];
     if (review) {
       const senzaUnita = voci.find((v) => v.sourceUnit !== undefined && !nativeBagniUnit(v.sourceUnit ?? ""));
-      if (senzaUnita) { toast.error("Unità non supportata dal computo Bagni: scegli il riferimento in chat senza convertirla."); return false; }
+      if (senzaUnita) { toast.error(t("Unità non supportata dal computo Bagni: scegli il riferimento in chat senza convertirla.")); return false; }
     }
     return onPick(voci.map((v) => (review && v.sourceUnit !== undefined ? { ...v, unita_misura: nativeBagniUnit(v.sourceUnit ?? "")! } : v)));
   };

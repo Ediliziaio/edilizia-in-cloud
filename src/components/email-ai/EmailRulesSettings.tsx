@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, Pencil, Zap, GitBranch } from "lucide-react";
 import { CATEGORIA_LABELS, type EmailCategoria } from "@/lib/email-ai/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CAMPI: { value: CampoCondizione; label: string }[] = [
   { value: "indirizzo", label: "Indirizzo mittente" },
@@ -60,6 +61,7 @@ const emptyRegola = (): Partial<EmailRegola> => ({
 });
 
 export function EmailRulesSettings() {
+  const t = useT();
   const { data: regole, isLoading } = useEmailRegole();
   const save = useSaveEmailRegola();
   const del = useDeleteEmailRegola();
@@ -90,16 +92,16 @@ export function EmailRulesSettings() {
         <div>
           <h3 className="text-base font-semibold flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-violet-500" />
-            Regole di smistamento
+            {t("Regole di smistamento")}
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Quando un'email corrisponde alle condizioni, applica le azioni. Girano a costo zero (Livello 1).
+            {t("Quando un'email corrisponde alle condizioni, applica le azioni. Girano a costo zero (Livello 1).")}
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" onClick={() => openEditor()} className="gap-1.5">
-              <Plus className="h-4 w-4" /> Nuova regola
+              <Plus className="h-4 w-4" /> {t("Nuova regola")}
             </Button>
           </DialogTrigger>
           <RuleEditorDialog editing={editing} setEditing={setEditing} onSave={handleSave} saving={save.isPending} />
@@ -110,7 +112,7 @@ export function EmailRulesSettings() {
         <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
       ) : !regole || regole.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
-          Nessuna regola. Creane una per smistare automaticamente le email (es. fornitore con più indirizzi).
+          {t("Nessuna regola. Creane una per smistare automaticamente le email (es. fornitore con più indirizzi).")}
         </CardContent></Card>
       ) : (
         <div className="space-y-2">
@@ -125,16 +127,16 @@ export function EmailRulesSettings() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm truncate">{r.nome}</span>
                     {r.origine === "auto" && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">auto</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{t("auto")}</span>
                     )}
-                    <span className="text-[10px] text-muted-foreground">priorità {r.priorita}</span>
+                    <span className="text-[10px] text-muted-foreground">{t("priorità {priorita}", { priorita: String(r.priorita ?? "") })}</span>
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
-                    {r.condizioni.length} condizion{r.condizioni.length === 1 ? "e" : "i"} ({r.combinatore}) → {r.azioni.length} azion{r.azioni.length === 1 ? "e" : "i"}
-                    {r.match_count > 0 && <span className="ml-1 text-emerald-600">· {r.match_count} match</span>}
+                    {t(r.condizioni.length === 1 ? "{n} condizione" : "{n} condizioni", { n: r.condizioni.length })} ({r.combinatore}) → {t(r.azioni.length === 1 ? "{n} azione" : "{n} azioni", { n: r.azioni.length })}
+                    {r.match_count > 0 && <span className="ml-1 text-emerald-600">{t("· {match_count} match", { match_count: String(r.match_count ?? "") })}</span>}
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditor(r)} aria-label="Modifica">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditor(r)} aria-label={t("Modifica")}>
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button
@@ -144,16 +146,16 @@ export function EmailRulesSettings() {
                   onClick={async () => {
                     if (
                       await confirm({
-                        title: "Eliminare la regola email?",
-                        description: `La regola "${r.nome}" verrà rimossa definitivamente e non verrà più applicata alle email in arrivo.`,
-                        confirmLabel: "Elimina",
+                        title: t("Eliminare la regola email?"),
+                        description: t("La regola \"{nome}\" verrà rimossa definitivamente e non verrà più applicata alle email in arrivo.", { nome: String(r.nome ?? "") }),
+                        confirmLabel: t("Elimina"),
                         variant: "destructive",
                       })
                     ) {
                       del.mutate(r.id);
                     }
                   }}
-                  aria-label={`Elimina regola ${r.nome}`}
+                  aria-label={t("Elimina regola {nome}", { nome: String(r.nome ?? "") })}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -174,6 +176,7 @@ function RuleEditorDialog({
   onSave: () => void;
   saving: boolean;
 }) {
+  const tr = useT();
   if (!editing) return null;
   const condizioni = editing.condizioni ?? [];
   const azioni = editing.azioni ?? [];
@@ -189,28 +192,28 @@ function RuleEditorDialog({
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Zap className="h-5 w-5 text-violet-500" />
-          {editing.id ? "Modifica regola" : "Nuova regola"}
+          {editing.id ? tr("Modifica regola") : tr("Nuova regola")}
         </DialogTitle>
       </DialogHeader>
 
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Nome regola</label>
+            <label className="text-xs font-medium text-muted-foreground">{tr("Nome regola")}</label>
             <Input value={editing.nome ?? ""} onChange={(e) => upd({ nome: e.target.value })}
-              placeholder="es. Preventivi Edil Forniture" className="mt-1" />
+              placeholder={tr("es. Preventivi Edil Forniture")} className="mt-1" />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Priorità (basso = prima)</label>
+            <label className="text-xs font-medium text-muted-foreground">{tr("Priorità (basso = prima)")}</label>
             <Input type="number" value={editing.priorita ?? 100} onChange={(e) => upd({ priorita: Number(e.target.value) })} className="mt-1" />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Combinatore condizioni</label>
+            <label className="text-xs font-medium text-muted-foreground">{tr("Combinatore condizioni")}</label>
             <Select value={editing.combinatore ?? "AND"} onValueChange={(v) => upd({ combinatore: v as "AND" | "OR" })}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="AND">Tutte (AND)</SelectItem>
-                <SelectItem value="OR">Almeno una (OR)</SelectItem>
+                <SelectItem value="AND">{tr("Tutte (AND)")}</SelectItem>
+                <SelectItem value="OR">{tr("Almeno una (OR)")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -219,10 +222,10 @@ function RuleEditorDialog({
         {/* Condizioni */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Se l'email…</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Se l'email…")}</label>
             <Button variant="ghost" size="sm" className="h-7 gap-1"
               onClick={() => upd({ condizioni: [...condizioni, { campo: "oggetto", operatore: "contiene", valore: "" }] })}>
-              <Plus className="h-3.5 w-3.5" /> Condizione
+              <Plus className="h-3.5 w-3.5" /> {tr("Condizione")}
             </Button>
           </div>
           <div className="space-y-2">
@@ -230,13 +233,13 @@ function RuleEditorDialog({
               <div key={i} className="flex items-center gap-2">
                 <Select value={c.campo} onValueChange={(v) => updCond(i, { campo: v as CampoCondizione })}>
                   <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>{CAMPI.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{CAMPI.map((f) => <SelectItem key={f.value} value={f.value}>{tr(f.label)}</SelectItem>)}</SelectContent>
                 </Select>
                 <Select value={c.operatore} onValueChange={(v) => updCond(i, { operatore: v as OperatoreCondizione })}>
                   <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
-                  <SelectContent>{OPERATORI.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{OPERATORI.map((o) => <SelectItem key={o.value} value={o.value}>{tr(o.label)}</SelectItem>)}</SelectContent>
                 </Select>
-                <Input value={c.valore} onChange={(e) => updCond(i, { valore: e.target.value })} placeholder="valore" className="h-9 flex-1" />
+                <Input value={c.valore} onChange={(e) => updCond(i, { valore: e.target.value })} placeholder={tr("valore")} className="h-9 flex-1" />
                 {condizioni.length > 1 && (
                   <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive shrink-0"
                     onClick={() => upd({ condizioni: condizioni.filter((_, idx) => idx !== i) })}>
@@ -252,12 +255,12 @@ function RuleEditorDialog({
         <div>
           <div className="flex items-center justify-between mb-2">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">…allora fai</label>
-              <p className="text-[11px] text-muted-foreground">Senza «Assegna categoria» la categoria la sceglie la classificazione automatica.</p>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("…allora fai")}</label>
+              <p className="text-[11px] text-muted-foreground">{tr("Senza «Assegna categoria» la categoria la sceglie la classificazione automatica.")}</p>
             </div>
             <Button variant="ghost" size="sm" className="h-7 gap-1"
               onClick={() => upd({ azioni: [...azioni, { tipo: "priorita", valore: "alta" }] })}>
-              <Plus className="h-3.5 w-3.5" /> Azione
+              <Plus className="h-3.5 w-3.5" /> {tr("Azione")}
             </Button>
           </div>
           <div className="space-y-2">
@@ -265,27 +268,27 @@ function RuleEditorDialog({
               <div key={i} className="flex items-center gap-2">
                 <Select value={a.tipo} onValueChange={(v) => updAz(i, { tipo: v as TipoAzione, valore: defaultAzValue(v as TipoAzione) })}>
                   <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>{TIPI_AZIONE.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{TIPI_AZIONE.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}</SelectContent>
                 </Select>
                 {a.tipo === "categoria" ? (
                   <Select value={String(a.valore ?? "fornitore")} onValueChange={(v) => updAz(i, { valore: v })}>
                     <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(Object.keys(CATEGORIA_LABELS) as EmailCategoria[]).map((cat) =>
-                        <SelectItem key={cat} value={cat}>{CATEGORIA_LABELS[cat]}</SelectItem>)}
+                        <SelectItem key={cat} value={cat}>{tr(CATEGORIA_LABELS[cat])}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : a.tipo === "priorita" ? (
                   <Select value={String(a.valore ?? "alta")} onValueChange={(v) => updAz(i, { valore: v })}>
                     <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="media">Media</SelectItem>
-                      <SelectItem value="bassa">Bassa</SelectItem>
+                      <SelectItem value="alta">{tr("Alta")}</SelectItem>
+                      <SelectItem value="media">{tr("Media")}</SelectItem>
+                      <SelectItem value="bassa">{tr("Bassa")}</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
-                  <span className="flex-1 text-xs text-muted-foreground px-2">nessun parametro</span>
+                  <span className="flex-1 text-xs text-muted-foreground px-2">{tr("nessun parametro")}</span>
                 )}
                 {azioni.length > 1 && (
                   <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive shrink-0"
@@ -301,7 +304,7 @@ function RuleEditorDialog({
 
       <DialogFooter>
         <Button onClick={onSave} disabled={saving || !editing.nome?.trim()}>
-          {saving ? "Salvataggio…" : "Salva regola"}
+          {saving ? tr("Salvataggio…") : tr("Salva regola")}
         </Button>
       </DialogFooter>
     </DialogContent>

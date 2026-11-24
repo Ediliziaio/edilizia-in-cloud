@@ -704,11 +704,11 @@ export default function MappaOperativa({
                 {haRientro && <dl className="space-y-1 rounded-md border px-2 py-1.5 text-xs">
                   {valoriTratte.slice(0, -1).some(Boolean) && <div className="flex flex-wrap justify-between gap-x-2">
                     <dt>{valoriTratte.slice(0, -1).some(tr => !tr) ? t("Fino all’ultima tappa · parziale") : t("Fino all’ultima tappa")}</dt>
-                    <dd className="font-medium tabular-nums">{formatoKm(totali.metri - (ultimaTratta?.metri ?? 0))} · {Math.round((totali.secondi - (ultimaTratta?.secondi ?? 0)) / 60)} min</dd>
+                    <dd className="font-medium tabular-nums">{t("{km} · {minuti} min", { km: formatoKm(totali.metri - (ultimaTratta?.metri ?? 0)), minuti: Math.round((totali.secondi - (ultimaTratta?.secondi ?? 0)) / 60) })}</dd>
                   </div>}
                   <div className="flex flex-wrap justify-between gap-x-2 text-pink-800 dark:text-pink-300">
                     <dt className="break-words">{t("Rientro a {nome}", { nome: baseRientro?.nome ?? "" })}</dt>
-                    <dd className="font-medium tabular-nums">{ultimaTratta ? `${formatoKm(ultimaTratta.metri)} · ${Math.round(ultimaTratta.secondi / 60)} min` : t("Stima non disponibile")}</dd>
+                    <dd className="font-medium tabular-nums">{ultimaTratta ? t("{km} · {minuti} min", { km: formatoKm(ultimaTratta.metri), minuti: Math.round(ultimaTratta.secondi / 60) }) : t("Stima non disponibile")}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-2 text-muted-foreground">
                     <dt>{arrivoRientro != null ? t("Arrivo stimato in sede") : t("Arrivo in sede da verificare")}</dt>
@@ -716,7 +716,7 @@ export default function MappaOperativa({
                     {arrivoRientro == null && <dd>{t("Completa orari e tratte del giro")}</dd>}
                   </div>
                   {!!stimaArrivo?.ritardoMinuti && <div className="flex justify-between gap-2 text-amber-800 dark:text-amber-300">
-                    <dt>{t("Ritardi inclusi nel rientro")}</dt><dd className="tabular-nums">+{stimaArrivo.ritardoMinuti} min</dd>
+                    <dt>{t("Ritardi inclusi nel rientro")}</dt><dd className="tabular-nums">{t("+{ritardoMinuti} min", { ritardoMinuti: String(stimaArrivo.ritardoMinuti ?? "") })}</dd>
                   </div>}
                 </dl>}
                 {!!linee.length && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -745,7 +745,7 @@ export default function MappaOperativa({
                       onClick={() => preferisci({ trattaScelta: attiva ? null : { firma, indice: i - 1 } })}
                       className="flex w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-r-md px-2 py-1.5 text-left text-xs hover:enabled:bg-muted aria-pressed:bg-primary/10">
                       <span className="font-semibold">{etichettaTratta}</span>
-                      <span className="tabular-nums">{segmento.tratta ? `${formatoKm(segmento.tratta.metri)} · ${Math.round(segmento.tratta.secondi / 60)} min` :
+                      <span className="tabular-nums">{segmento.tratta ? t("{km} · {minuti} min", { km: formatoKm(segmento.tratta.metri), minuti: Math.round(segmento.tratta.secondi / 60) }) :
                         percorso.problemiTratte[i - 1] === "fuori_copertura" ? t("Verifica la copertura dei pin") :
                           percorso.problemiTratte[i - 1] === "nessun_percorso" ? t("Collegamento stradale assente") : t("Tratta mancante")}</span>
                       <span className="w-full break-words text-muted-foreground">{nomeTappa(segmento.da, t)} → {nomeTappa(segmento.a, t)}</span>

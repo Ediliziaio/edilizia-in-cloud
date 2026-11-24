@@ -19,6 +19,7 @@ import {
   ASSISTANCE_REASON_LABELS,
   ASSISTANCE_STAGE_LABELS,
 } from "../../../shared/fish/assistance";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const cancelled = (row: FishAssistanceActivity) =>
   (row.stage === "scheduled" && !row.appointment_id) ||
@@ -28,10 +29,11 @@ const cancelled = (row: FishAssistanceActivity) =>
     ));
 const needsOffice = (row: FishAssistanceActivity) =>
   row.stage === "needs_office" || cancelled(row);
-function dateLabel(date: string, time: string | null) {
+function dateLabel(date: string, time: string | null, t: ReturnType<typeof useT>) {
   const parsed = new Date(`${date}T12:00:00`);
-  if (!Number.isFinite(parsed.getTime())) return "Data da verificare";
-  return `${new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(parsed)}${time ? ` alle ${time.slice(0, 5)}` : ""}`;
+  if (!Number.isFinite(parsed.getTime())) return t("Data da verificare");
+  const data = new Intl.DateTimeFormat(intlCampo(), { day: "numeric", month: "long", year: "numeric" }).format(parsed);
+  return time ? t("{data} alle {ora}", { data, ora: time.slice(0, 5) }) : data;
 }
 export function SilvioAssistanceActivitiesView({
   activities,
@@ -52,6 +54,7 @@ export function SilvioAssistanceActivitiesView({
   canConfigure?: boolean;
   showRecordLinks?: boolean;
 }) {
+  const t = useT();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const filtered = activities.filter(
@@ -62,18 +65,17 @@ export function SilvioAssistanceActivitiesView({
         .includes(search.trim().toLocaleLowerCase("it")),
   );
   return (
-    <section className="space-y-5" aria-label="Assistenza dal centralino">
+    <section className="space-y-5" aria-label={t("Assistenza dal centralino")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-emerald-700">
-            <Phone className="h-3.5 w-3.5" /> Centralino + Silvio
+            <Phone className="h-3.5 w-3.5" /> {t("Centralino + Silvio")}
           </div>
           <h2 className="text-lg font-semibold">
-            Ogni richiesta, fino al prossimo passo
+            {t("Ogni richiesta, fino al prossimo passo")}
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Cliente, ticket e appuntamento nello stesso percorso. Qui trovi
-            anche le richieste che hanno bisogno dell’ufficio.
+            {t("Cliente, ticket e appuntamento nello stesso percorso. Qui trovi anche le richieste che hanno bisogno dell’ufficio.")}
           </p>
         </div>
         <Button
@@ -85,7 +87,7 @@ export function SilvioAssistanceActivitiesView({
           <RefreshCw
             className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`}
           />
-          Aggiorna
+          {t("Aggiorna")}
         </Button>
       </div>
       {error ? (
@@ -93,42 +95,36 @@ export function SilvioAssistanceActivitiesView({
           role="alert"
           className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
         >
-          Non riesco a caricare le attività di assistenza. Controlla che il
-          collegamento a Silvio sia disponibile e riprova. Lo storico delle
-          chiamate resta nel centralino.
+          {t("Non riesco a caricare le attività di assistenza. Controlla che il collegamento a Silvio sia disponibile e riprova. Lo storico delle chiamate resta nel centralino.")}
         </div>
       ) : loading ? (
         <p role="status" className="p-5 text-sm text-muted-foreground">
-          Carico i percorsi di assistenza…
+          {t("Carico i percorsi di assistenza…")}
         </p>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
             <div
               className="flex rounded-lg border p-1"
-              aria-label="Filtra attività"
+              aria-label={t("Filtra attività")}
             >
               <Button
                 size="sm"
                 variant={filter === "all" ? "secondary" : "ghost"}
                 aria-pressed={filter === "all"}
                 onClick={() => setFilter("all")}
-              >
-                Tutte ({activities.length})
-              </Button>
+              >{t("Tutte ({n})", { n: activities.length })}</Button>
               <Button
                 size="sm"
                 variant={filter === "office" ? "secondary" : "ghost"}
                 aria-pressed={filter === "office"}
                 onClick={() => setFilter("office")}
-              >
-                Da seguire ({activities.filter(needsOffice).length})
-              </Button>
+              >{t("Da seguire ({n})", { n: activities.filter(needsOffice).length })}</Button>
             </div>
             <Input
               className="min-w-48 flex-1 sm:max-w-sm"
-              aria-label="Cerca attività di assistenza"
-              placeholder="Cliente, problema o riferimento ticket"
+              aria-label={t("Cerca attività di assistenza")}
+              placeholder={t("Cliente, problema o riferimento ticket")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -138,18 +134,18 @@ export function SilvioAssistanceActivitiesView({
               <ClipboardList className="mx-auto mb-3 h-7 w-7 text-muted-foreground" />
               <p className="font-medium">
                 {activities.length
-                  ? "Nessuna richiesta con questi filtri"
-                  : "Le richieste di assistenza arriveranno qui"}
+                  ? t("Nessuna richiesta con questi filtri")
+                  : t("Le richieste di assistenza arriveranno qui")}
               </p>
               <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
                 {activities.length
-                  ? "Cambia filtro o cerca un altro riferimento."
-                  : "Configura il flusso Assistenza completa. Quando riceve una chiamata, Silvio segue la verifica del cliente, la segnalazione e l’appuntamento."}
+                  ? t("Cambia filtro o cerca un altro riferimento.")
+                  : t("Configura il flusso Assistenza completa. Quando riceve una chiamata, Silvio segue la verifica del cliente, la segnalazione e l’appuntamento.")}
               </p>
               {!activities.length && canConfigure && (
                 <Button asChild className="mt-4" variant="outline">
                   <Link to="/azienda/agenti-ai?crea=assistenza">
-                    Configura l’assistenza
+                    {t("Configura l’assistenza")}
                   </Link>
                 </Button>
               )}
@@ -168,19 +164,19 @@ export function SilvioAssistanceActivitiesView({
                         <Bot className="h-4 w-4 shrink-0 text-emerald-700" />
                         {row.customerName ||
                           (row.identity_verified_at
-                            ? "Cliente verificato"
-                            : "Chiamante da verificare")}
+                            ? t("Cliente verificato")
+                            : t("Chiamante da verificare"))}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {new Intl.DateTimeFormat("it-IT", {
+                        {new Intl.DateTimeFormat(intlCampo(), {
                           day: "2-digit",
                           month: "short",
                           hour: "2-digit",
                           minute: "2-digit",
                         }).format(new Date(row.created_at))}
                         {row.ticket_id
-                          ? ` · Ticket ${row.ticket_id.slice(0, 8).toUpperCase()}`
-                          : " · Richiesta dal centralino"}
+                          ? ` · ${t("Ticket {codice}", { codice: row.ticket_id.slice(0, 8).toUpperCase() })}`
+                          : ` · ${t("Richiesta dal centralino")}`}
                       </p>
                     </div>
                     <Badge
@@ -194,8 +190,8 @@ export function SilvioAssistanceActivitiesView({
                       }
                     >
                       {cancelled(row)
-                        ? "Appuntamento da verificare"
-                        : ASSISTANCE_STAGE_LABELS[row.stage]}
+                        ? t("Appuntamento da verificare")
+                        : t(ASSISTANCE_STAGE_LABELS[row.stage])}
                     </Badge>
                   </div>
                   {row.problem && (
@@ -205,41 +201,42 @@ export function SilvioAssistanceActivitiesView({
                   )}
                   <ol
                     className="grid gap-2 p-5 sm:grid-cols-3"
-                    aria-label="Avanzamento della richiesta"
+                    aria-label={t("Avanzamento della richiesta")}
                   >
                     {[
                       {
                         icon: UserRound,
-                        label: "Cliente verificato",
+                        label: t("Cliente verificato"),
                         done: !!row.identity_verified_at,
                         note: row.identity_verified_at
-                          ? "Nome e indirizzo verificati"
-                          : "Dati da verificare",
+                          ? t("Nome e indirizzo verificati")
+                          : t("Dati da verificare"),
                       },
                       {
                         icon: Ticket,
-                        label: "Segnalazione",
+                        label: t("Segnalazione"),
                         done: !!row.ticket_id,
                         note: row.ticket_id
                           ? row.ticket_action === "updated"
-                            ? "Pratica esistente aggiornata"
-                            : "Ticket salvato"
-                          : "In attesa della conferma",
+                            ? t("Pratica esistente aggiornata")
+                            : t("Ticket salvato")
+                          : t("In attesa della conferma"),
                       },
                       {
                         icon: CalendarDays,
-                        label: "Appuntamento",
+                        label: t("Appuntamento"),
                         done: !!row.appointment_id && !cancelled(row),
                         note: cancelled(row)
-                          ? "Da verificare in agenda"
+                          ? t("Da verificare in agenda")
                           : row.appointment
                             ? dateLabel(
                                 row.appointment.date,
                                 row.appointment.time,
+                                t,
                               )
                             : row.appointment_id
-                              ? "Prenotazione salvata"
-                              : "Da concordare con il cliente",
+                              ? t("Prenotazione salvata")
+                              : t("Da concordare con il cliente"),
                       },
                     ].map((step) => (
                       <li
@@ -263,12 +260,12 @@ export function SilvioAssistanceActivitiesView({
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-5 py-3">
                     <p className="max-w-xl text-xs leading-5 text-muted-foreground">
                       {cancelled(row)
-                        ? "La prenotazione richiede una verifica. Concordare il seguito senza riprenotare automaticamente."
+                        ? t("La prenotazione richiede una verifica. Concordare il seguito senza riprenotare automaticamente.")
                         : row.reason
                           ? ASSISTANCE_REASON_LABELS[row.reason]
                           : row.stage === "scheduled"
-                            ? "Percorso completato. Il ticket resta disponibile per seguire l’intervento."
-                            : "La richiesta resta salvata anche se la chiamata si interrompe."}
+                            ? t("Percorso completato. Il ticket resta disponibile per seguire l’intervento.")
+                            : t("La richiesta resta salvata anche se la chiamata si interrompe.")}
                     </p>
                     <div
                       className={
@@ -282,7 +279,7 @@ export function SilvioAssistanceActivitiesView({
                           className="underline underline-offset-4"
                           to={`/azienda/clienti/${row.customer_id}`}
                         >
-                          Scheda cliente
+                          {t("Scheda cliente")}
                         </Link>
                       )}
                       {row.ticket_id && (
@@ -290,7 +287,7 @@ export function SilvioAssistanceActivitiesView({
                           className="underline underline-offset-4"
                           to={`/azienda/assistenza/${row.ticket_id}`}
                         >
-                          Ticket e conversazione
+                          {t("Ticket e conversazione")}
                         </Link>
                       )}
                       {row.appointment_id && canViewCalendar && (
@@ -298,7 +295,7 @@ export function SilvioAssistanceActivitiesView({
                           className="underline underline-offset-4"
                           to="/azienda/calendario"
                         >
-                          Apri calendario
+                          {t("Apri calendario")}
                         </Link>
                       )}
                     </div>

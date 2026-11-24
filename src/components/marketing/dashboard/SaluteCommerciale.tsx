@@ -5,6 +5,7 @@
  */
 
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   leadsNew: number;
@@ -91,6 +92,7 @@ function getScoreConfig(score: number) {
 }
 
 export function SaluteCommerciale(props: Props) {
+  const t = useT();
   if (props.isLoading) {
     return (
       <div className="flex items-center justify-center gap-6 rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -129,16 +131,16 @@ export function SaluteCommerciale(props: Props) {
         {/* Label */}
         <div className="flex-1 min-w-0 space-y-1.5">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Salute commerciale</p>
-            <h3 className={cn("text-lg font-bold", config.color)}>{config.label}</h3>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{t("Salute commerciale")}</p>
+            <h3 className={cn("text-lg font-bold", config.color)}>{t(config.label)}</h3>
           </div>
-          <p className="text-sm text-muted-foreground leading-relaxed">{config.message}</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">{t(config.message)}</p>
 
           <div className="flex flex-wrap gap-1.5 pt-1">
             <ScorePill label="Lead" value={props.staleLeads === 0 ? "ok" : `${props.staleLeads} fermi`} />
-            <ScorePill label="Show" value={props.showRate >= 70 ? "ok" : `${props.showRate.toFixed(0)}%`} />
-            <ScorePill label="Close" value={props.closeRate >= 15 ? "ok" : `${props.closeRate.toFixed(0)}%`} />
-            <ScorePill label="Pipeline" value={!props.pipelineDeclining ? "ok" : "in calo"} />
+            <ScorePill label={t("Show")} value={props.showRate >= 70 ? "ok" : `${props.showRate.toFixed(0)}%`} />
+            <ScorePill label={t("Close")} value={props.closeRate >= 15 ? "ok" : `${props.closeRate.toFixed(0)}%`} />
+            <ScorePill label={t("Pipeline")} value={!props.pipelineDeclining ? "ok" : "in calo"} />
           </div>
         </div>
       </div>

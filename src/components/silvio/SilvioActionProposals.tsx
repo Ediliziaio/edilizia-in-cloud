@@ -31,6 +31,7 @@ import { readSilvioActionOutcome, type SilvioActionOutcome } from "@/lib/silvio/
 import { SilvioActionVerification } from "./SilvioActionVerification";
 import { SilvioActionSummary } from "./SilvioActionSummary";
 import { SilvioCompletedActions } from "./SilvioCompletedActions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Proposal {
   id: string;
@@ -128,6 +129,7 @@ function sanitizePayloadForDisplay(value: unknown): unknown {
 }
 
 export function SilvioActionProposals({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -187,7 +189,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
 
   const dismissMut = useMutation({
     mutationFn: async (proposalId: string) => {
-      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!companyId) throw new Error(t("Azienda non selezionata"));
       const { error } = await supabase.rpc("silvio_tool_reject_proposal" as never, {
         p_company_id: companyId,
         p_proposal_id: proposalId,
@@ -197,7 +199,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["silvio_action_proposals_pending"] });
-      toast.success("Proposta annullata");
+      toast.success(t("Proposta annullata"));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -212,7 +214,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
       overridePayload?: Record<string, unknown>;
       confirmationText?: string;
     }) => {
-      if (executionLock.current) throw new Error("Attendi la conclusione dell'azione in corso.");
+      if (executionLock.current) throw new Error(t("Attendi la conclusione dell'azione in corso."));
       executionLock.current = true;
       try {
         const outcome = await invokeAction({ proposal_id: proposalId, override_payload: overridePayload, confirmation_text: confirmationText });
@@ -238,7 +240,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
   // reale è N invocazioni di silvio-execute-action, come fa il bottone Conferma.
   const approveAllMut = useMutation({
     mutationFn: async (batch: Proposal[]) => {
-      if (executionLock.current) throw new Error("Attendi la conclusione dell'azione in corso.");
+      if (executionLock.current) throw new Error(t("Attendi la conclusione dell'azione in corso."));
       executionLock.current = true;
       let ok = 0;
       let failed = 0;
@@ -255,11 +257,11 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
       } finally { executionLock.current = false; }
     },
     onSuccess: ({ ok, failed, review, remaining }) => {
-      if (review) toast.warning(`Applicate ${ok}, non applicate ${failed}, da verificare ${review}. ${remaining} non avviate. Controlla il risultato prima di proseguire.`);
-      else if (failed === 0) toast.success(`${ok} ${ok === 1 ? "azione applicata" : "azioni applicate"}`);
-      else toast.warning(`Applicate ${ok}, non applicate ${failed}. Controlla le rimaste.`);
+      if (review) toast.warning(t("Applicate {ok}, non applicate {failed}, da verificare {review}. {remaining} non avviate. Controlla il risultato prima di proseguire.", { ok, failed, review, remaining }));
+      else if (failed === 0) toast.success(t(ok === 1 ? "{n} azione applicata" : "{n} azioni applicate", { n: ok }));
+      else toast.warning(t("Applicate {ok}, non applicate {failed}. Controlla le rimaste.", { ok, failed }));
     },
-    onError: (e: Error) => toast.error(`Errore batch: ${e.message}`),
+    onError: (e: Error) => toast.error(t("Errore batch: {message}", { message: String(e.message ?? "") })),
     onSettled: refreshActions,
   });
 
@@ -272,17 +274,17 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Azioni proposte</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("Azioni proposte")}</CardTitle></CardHeader>
         <CardContent><Skeleton className="h-24" /></CardContent>
       </Card>
     );
   }
 
-  if (isError) return <div role="alert" className="rounded-lg border p-3 text-sm">Impossibile verificare lo stato delle azioni. Non ripeterle senza controllare il risultato.<Button variant="outline" size="sm" onClick={() => refetch()}>Riprova caricamento</Button></div>;
+  if (isError) return <div role="alert" className="rounded-lg border p-3 text-sm">{t("Impossibile verificare lo stato delle azioni. Non ripeterle senza controllare il risultato.")}<Button variant="outline" size="sm" onClick={() => refetch()}>{t("Riprova caricamento")}</Button></div>;
   const reviewMessages = Object.entries(reviews).filter(([key]) => key.startsWith(`${companyId}:${userId}:`));
   const checks = new Map(reviewMessages.map(([key, warning]) => [key.split(":").pop()!, warning]));
   for (const p of proposals ?? []) {
-    if (p.status === "confirmed" && !checks.has(p.id)) checks.set(p.id, "Esito non ancora registrato: controlla lo stato senza ripetere l’azione.");
+    if (p.status === "confirmed" && !checks.has(p.id)) checks.set(p.id, t("Esito non ancora registrato: controlla lo stato senza ripetere l’azione."));
   }
   if ((!proposals || proposals.length === 0) && reviewMessages.length === 0) return <SilvioCompletedActions companyId={companyId} userId={userId} />;
 
@@ -292,10 +294,10 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
         <CardHeader className={cn("pb-3", compact && "px-3 py-3")}>
           <CardTitle className={cn("flex items-center gap-2", compact ? "text-sm" : "text-base")}>
             <Sparkles className="h-4 w-4 text-orange-500" />
-            Azioni proposte da Silvio
+            {t("Azioni proposte da Silvio")}
           </CardTitle>
           <CardDescription className="text-xs">
-            Verifica le proposte prima di applicarle. Le azioni già avviate non possono essere reinviate.
+            {t("Verifica le proposte prima di applicarle. Le azioni già avviate non possono essere reinviate.")}
           </CardDescription>
           {batchEligible.length >= 2 && (
             <Button
@@ -306,15 +308,15 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
               disabled={anyRunning}
             >
               {bulkRunning
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applico {batchEligible.length}…</>
-                : <><ListChecks className="h-3.5 w-3.5" /> Approva tutte ({batchEligible.length})</>}
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Applico {n}…", { n: batchEligible.length })}</>
+                : <><ListChecks className="h-3.5 w-3.5" /> {t("Approva tutte ({n})", { n: batchEligible.length })}</>}
             </Button>
           )}
         </CardHeader>
         <CardContent className={cn("space-y-2", compact && "px-3 pb-3")}>
           {companyId && userId && [...checks].map(([id, warning]) => <SilvioActionVerification
             key={reviewKey(id)} companyId={companyId} userId={userId} proposalId={id}
-            summary={(proposals ?? []).find(p => p.id === id)?.summary ?? `Verifica azione ${id.slice(0, 8)}`}
+            summary={(proposals ?? []).find(p => p.id === id)?.summary ?? t("Verifica azione {codice}", { codice: id.slice(0, 8) })}
             warning={warning} onCheck={() => setReviews(previous => ({ ...previous, [reviewKey(id)]: warning }))}
           />)}
           {(proposals ?? []).map(p => (
@@ -385,8 +387,9 @@ function ProposalRow({
   disabled?: boolean;
   compact: boolean;
 }) {
+  const t = useT();
   const Icon = ACTION_ICON[proposal.action_type] ?? Send;
-  const label = ACTION_LABEL[proposal.action_type] ?? proposal.action_type;
+  const label = ACTION_LABEL[proposal.action_type] ? t(ACTION_LABEL[proposal.action_type]) : proposal.action_type;
   const isHighRisk = proposal.risk_level === "red";
   const needsStrongConfirmation = requiresStrongConfirmation(proposal);
   const expiry = new Date(proposal.expires_at).getTime();
@@ -408,12 +411,12 @@ function ProposalRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="text-sm font-medium leading-tight">{label}</div>
-            {isHighRisk && <Badge variant="destructive" className="text-[10px]">RISCHIO ALTO</Badge>}
+            {isHighRisk && <Badge variant="destructive" className="text-[10px]">{t("RISCHIO ALTO")}</Badge>}
           </div>
           <p className="mt-0.5 break-words text-xs leading-relaxed text-muted-foreground">{proposal.summary}</p>
           {needsStrongConfirmation && (
             <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
-              Richiede conferma forte prima dell'esecuzione.
+              {t("Richiede conferma forte prima dell'esecuzione.")}
             </p>
           )}
           {recipient && (
@@ -422,7 +425,7 @@ function ProposalRow({
             </p>
           )}
           <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-            <Clock className="h-2.5 w-2.5" /> {proposal.status === "confirmed" ? "Azione già avviata. Verifica il risultato prima di ripeterla." : expired ? "Proposta scaduta" : `Scade in ${expiresIn}h`}
+            <Clock className="h-2.5 w-2.5" /> {proposal.status === "confirmed" ? t("Azione già avviata. Verifica il risultato prima di ripeterla.") : expired ? t("Proposta scaduta") : t("Scade in {expiresIn}h", { expiresIn: String(expiresIn ?? "") })}
           </p>
         </div>
       </div>
@@ -434,8 +437,8 @@ function ProposalRow({
           disabled={isApplying || isDismissing || disabled || expired}
         >
           {isApplying
-            ? <><Loader2 className="h-3 w-3 animate-spin" /> Applico…</>
-            : <><CheckCircle2 className="h-3 w-3" /> {needsStrongConfirmation ? "Conferma forte" : "Conferma e applica"}</>
+            ? <><Loader2 className="h-3 w-3 animate-spin" /> {t("Applico…")}</>
+            : <><CheckCircle2 className="h-3 w-3" /> {needsStrongConfirmation ? t("Conferma forte") : t("Conferma e applica")}</>
           }
         </Button>
         <Button
@@ -443,14 +446,14 @@ function ProposalRow({
           onClick={onEdit}
           disabled={isApplying || isDismissing || disabled || expired}
         >
-          <Pencil className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>Modifica</span>
+          <Pencil className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>{t("Modifica")}</span>
         </Button>
         <Button
           size="sm" variant="ghost" className="min-h-9 px-2 text-xs gap-1 text-rose-600 hover:bg-rose-50"
           onClick={onDismiss}
           disabled={isApplying || isDismissing || disabled}
         >
-          <X className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>Annulla</span>
+          <X className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>{t("Annulla")}</span>
         </Button>
       </div>
     </div>
@@ -467,6 +470,7 @@ function ProposalEditDialog({
   onApply: (override: Record<string, unknown>, confirmationText?: string) => void;
   isApplying: boolean;
 }) {
+  const t = useT();
   // Genera form basato sul tipo di azione
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const initial = getActionPayload(proposal.payload) as any;
@@ -501,48 +505,48 @@ function ProposalEditDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Modifica proposta</DialogTitle>
+          <DialogTitle>{t("Modifica proposta")}</DialogTitle>
           <DialogDescription>
-            {ACTION_LABEL[proposal.action_type] ?? proposal.action_type}: {proposal.summary}
+            {ACTION_LABEL[proposal.action_type] ? t(ACTION_LABEL[proposal.action_type]) : proposal.action_type}: {proposal.summary}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           {isEmail && (
             <>
               <div>
-                <Label>Destinatario</Label>
+                <Label>{t("Destinatario")}</Label>
                 <Input value={to} onChange={(e) => setTo(e.target.value)} type="email" placeholder="cliente@email.it" />
               </div>
               <div>
-                <Label>Oggetto</Label>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Sollecito pagamento" />
+                <Label>{t("Oggetto")}</Label>
+                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t("Sollecito pagamento")} />
               </div>
               <div>
-                <Label>Testo (HTML)</Label>
+                <Label>{t("Testo (HTML)")}</Label>
                 <Textarea
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={10}
-                  placeholder="(lascia vuoto per usare il template predefinito)"
+                  placeholder={t("(lascia vuoto per usare il template predefinito)")}
                   className="text-xs font-mono"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Lasciato vuoto: Silvio userà il template predefinito basato sul payload.
+                  {t("Lasciato vuoto: Silvio userà il template predefinito basato sul payload.")}
                 </p>
               </div>
             </>
           )}
           {isPO && (
             <div>
-              <Label>Quantità riordino</Label>
+              <Label>{t("Quantità riordino")}</Label>
               <Input value={reorderQty} onChange={(e) => setReorderQty(e.target.value)} type="number" min="1" />
             </div>
           )}
           {needsStrongConfirmation && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-              <Label>Conferma forte</Label>
+              <Label>{t("Conferma forte")}</Label>
               <p className="mb-2 text-xs text-amber-800">
-                Per applicare questa azione scrivi: <strong>{expectedConfirmation}</strong>
+                {t("Per applicare questa azione scrivi:")} <strong>{expectedConfirmation}</strong>
               </p>
               <Input
                 value={confirmation}
@@ -552,18 +556,18 @@ function ProposalEditDialog({
             </div>
           )}
           <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground">Vedi dati tecnici usati da Silvio</summary>
+            <summary className="cursor-pointer text-muted-foreground">{t("Vedi dati tecnici usati da Silvio")}</summary>
             <pre className="mt-2 p-2 bg-muted rounded text-[10px] overflow-auto">
               {JSON.stringify(sanitizePayloadForDisplay(proposal.payload), null, 2)}
             </pre>
           </details>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={handleApply} disabled={isApplying || !confirmationOk} className="gap-1">
             {isApplying
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applico…</>
-              : <><CheckCircle2 className="h-3.5 w-3.5" /> Conferma e applica</>
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Applico…")}</>
+              : <><CheckCircle2 className="h-3.5 w-3.5" /> {t("Conferma e applica")}</>
             }
           </Button>
         </DialogFooter>
@@ -580,40 +584,41 @@ function StrongConfirmDialog({
   onConfirm: (confirmationText: string) => void;
   isApplying: boolean;
 }) {
+  const t = useT();
   const [confirmation, setConfirmation] = useState("");
   const expected = confirmationPhrase(proposal);
-  const label = ACTION_LABEL[proposal.action_type] ?? proposal.action_type;
+  const label = ACTION_LABEL[proposal.action_type] ? t(ACTION_LABEL[proposal.action_type]) : proposal.action_type;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Conferma forte richiesta</DialogTitle>
+          <DialogTitle>{t("Conferma forte richiesta")}</DialogTitle>
           <DialogDescription>
             {label}: {proposal.summary}
           </DialogDescription>
         </DialogHeader>
         <SilvioActionSummary payload={proposal.payload} actionType={proposal.action_type} />
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Questa azione modifica dati economici o invia comunicazioni esterne. Scrivi esattamente:
+          {t("Questa azione modifica dati economici o invia comunicazioni esterne. Scrivi esattamente:")}
           <div className="mt-2 rounded bg-white px-2 py-1 font-mono text-xs">{expected}</div>
         </div>
         <Input
-          aria-label="Testo di conferma dell’azione"
+          aria-label={t("Testo di conferma dell’azione")}
           value={confirmation}
           onChange={(e) => setConfirmation(e.target.value)}
           placeholder={expected}
         />
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button
             onClick={() => onConfirm(confirmation.trim())}
             disabled={isApplying || confirmation.trim() !== expected}
             className="gap-1"
           >
             {isApplying
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applico…</>
-              : <><CheckCircle2 className="h-3.5 w-3.5" /> Conferma e applica</>
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Applico…")}</>
+              : <><CheckCircle2 className="h-3.5 w-3.5" /> {t("Conferma e applica")}</>
             }
           </Button>
         </DialogFooter>

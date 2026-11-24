@@ -26,6 +26,7 @@ import { BulkScheduleWizard } from "@/components/automazioni/BulkScheduleWizard"
 import { CreaAutomazioneAIDialog } from "@/components/automazioni/CreaAutomazioneAIDialog";
 import { CalendarClock } from "lucide-react";
 import type { ReactNode } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type CategoriaFiltro = "tutte" | "crm" | "marketing" | "cantieri" | "task" | "generale" | "notifiche" | "preventivi" | "fatturazione" | "assistenza" | "ordini" | "magazzino" | "hr";
 
@@ -46,6 +47,7 @@ const CATEGORIE: { value: CategoriaFiltro; label: string; icon: ReactNode }[] = 
 ];
 
 export default function AutomazioniUnified() {
+  const t = useT();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
@@ -62,9 +64,9 @@ export default function AutomazioniUnified() {
 
   const createFolderMutation = useMutation({
     mutationFn: async (name: string) => {
-      if (!effectiveCompany?.id) throw new Error("Azienda non disponibile. Riprova dopo il caricamento.");
+      if (!effectiveCompany?.id) throw new Error(t("Azienda non disponibile. Riprova dopo il caricamento."));
       const safeName = name.trim().slice(0, 100);
-      if (!safeName) throw new Error("Il nome della cartella non può essere vuoto.");
+      if (!safeName) throw new Error(t("Il nome della cartella non può essere vuoto."));
       const { error } = await supabase.from("automation_folders").insert({
         company_id: effectiveCompany!.id,
         name: safeName,
@@ -74,10 +76,10 @@ export default function AutomazioniUnified() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automation-folders-all"] });
-      toast({ title: "Cartella creata" });
+      toast({ title: t("Cartella creata") });
       setFolderDialogOpen(false);
     },
-    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   return (
@@ -92,7 +94,7 @@ export default function AutomazioniUnified() {
           lunga, li mandava a capo sotto il titolo a 768 e a 1024. */}
       <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
         <div className="min-w-0 sm:flex-1">
-          <h1 className="text-xl font-semibold tracking-tight max-md:text-lg">Flussi di lavoro</h1>
+          <h1 className="text-xl font-semibold tracking-tight max-md:text-lg">{t("Flussi di lavoro")}</h1>
           {/* 19/09/2026 — Sotto il titolo i numeri del motore, al posto della
               fascia di sei riquadri. Solo desktop: su mobile le cinque query di
               conteggio non valgono lo spazio, resta la descrizione. */}
@@ -101,36 +103,36 @@ export default function AutomazioniUnified() {
           {effectiveCompany?.id && !isMobile ? (
             <AutomationOverviewStats companyId={effectiveCompany.id} />
           ) : isMobile ? (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">si creano e si modificano da computer o tablet</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("si creano e si modificano da computer o tablet")}</p>
           ) : (
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Automazioni per CRM, cantieri, preventivi e notifiche.
+              {t("Automazioni per CRM, cantieri, preventivi e notifiche.")}
             </p>
           )}
         </div>
         <div className={cn("flex shrink-0 items-center gap-2", isMobile && "hidden")}>
           <Button size="sm" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
             <Plus className="mr-1.5 h-4 w-4" />
-            Crea flusso
+            {t("Crea flusso")}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="px-2" aria-label="Altre azioni" disabled={!effectiveCompany?.id}>
+              <Button size="sm" variant="outline" className="px-2" aria-label={t("Altre azioni")} disabled={!effectiveCompany?.id}>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem onSelect={() => setAiDialogOpen(true)}>
                 <Sparkles className="mr-2 h-4 w-4" />
-                Crea con l'assistente
+                {t("Crea con l'assistente")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setBulkScheduleWizardOpen(true)}>
                 <CalendarClock className="mr-2 h-4 w-4" />
-                Messaggio programmato
+                {t("Messaggio programmato")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setFolderDialogOpen(true)}>
                 <FolderPlus className="mr-2 h-4 w-4" />
-                Nuova cartella
+                {t("Nuova cartella")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -144,8 +146,8 @@ export default function AutomazioniUnified() {
         <div className="relative w-full max-w-xs max-md:max-w-none">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            aria-label={vistaTemplates ? "Cerca template" : "Cerca flusso"}
-            placeholder={vistaTemplates ? "Cerca template..." : "Cerca flusso..."}
+            aria-label={vistaTemplates ? t("Cerca template") : t("Cerca flusso")}
+            placeholder={vistaTemplates ? t("Cerca template...") : t("Cerca flusso...")}
             className="h-9 pl-9"
             value={vistaTemplates ? cercaTemplate : searchQuery}
             onChange={(e) => (vistaTemplates ? setCercaTemplate : setSearchQuery)(e.target.value)}
@@ -156,15 +158,15 @@ export default function AutomazioniUnified() {
           value={categoriaAttiva}
           onValueChange={(v) => setCategoriaAttiva(v as CategoriaFiltro)}
         >
-          <SelectTrigger aria-label="Categoria automazioni" className="h-9 w-full shrink-0 sm:w-[190px] max-md:hidden">
-            <SelectValue placeholder="Categoria" />
+          <SelectTrigger aria-label={t("Categoria automazioni")} className="h-9 w-full shrink-0 sm:w-[190px] max-md:hidden">
+            <SelectValue placeholder={t("Categoria")} />
           </SelectTrigger>
           <SelectContent>
             {CATEGORIE.map((cat) => (
               <SelectItem key={cat.value} value={cat.value}>
                 <span className="flex items-center gap-2">
                   {cat.icon}
-                  <span>{cat.label}</span>
+                  <span>{t(cat.label)}</span>
                 </span>
               </SelectItem>
             ))}
@@ -173,20 +175,20 @@ export default function AutomazioniUnified() {
 
         {vistaTemplates && (
           <Select value={livelloTemplate} onValueChange={setLivelloTemplate}>
-            <SelectTrigger className="h-9 w-[150px] shrink-0 max-md:hidden" aria-label="Livello">
+            <SelectTrigger className="h-9 w-[150px] shrink-0 max-md:hidden" aria-label={t("Livello")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti i livelli</SelectItem>
-              <SelectItem value="base">Base</SelectItem>
-              <SelectItem value="intermedio">Intermedio</SelectItem>
-              <SelectItem value="avanzato">Avanzato</SelectItem>
+              <SelectItem value="tutti">{t("Tutti i livelli")}</SelectItem>
+              <SelectItem value="base">{t("Base")}</SelectItem>
+              <SelectItem value="intermedio">{t("Intermedio")}</SelectItem>
+              <SelectItem value="avanzato">{t("Avanzato")}</SelectItem>
             </SelectContent>
           </Select>
         )}
 
         {(categoriaAttiva !== "tutte" || (vistaTemplates ? cercaTemplate.trim() || livelloTemplate !== "tutti" : searchQuery.trim())) && (
-          <Button variant="ghost" size="sm" onClick={() => { setCategoriaAttiva("tutte"); setSearchQuery(""); setCercaTemplate(""); setLivelloTemplate("tutti"); }}>Azzera filtri</Button>
+          <Button variant="ghost" size="sm" onClick={() => { setCategoriaAttiva("tutte"); setSearchQuery(""); setCercaTemplate(""); setLivelloTemplate("tutti"); }}>{t("Azzera filtri")}</Button>
         )}
         <div className="flex-1" />
 
@@ -201,7 +203,7 @@ export default function AutomazioniUnified() {
           `}
         >
           <LayoutTemplate className="w-4 h-4" />
-          Template
+          {t("Template")}
         </button>
       </div>
 

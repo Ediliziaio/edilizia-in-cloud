@@ -17,8 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import {
   bilancio, centesimi, chiaveDocumento, combinazioniEsatte, daCentesimi, ETICHETTA_TIPO, euro, filtraDocumenti, importoProposto,
-  meseStipendi, MESI, nettoBonificoParlante, type DipendenteDaPagare, type DocumentoAperto, type Quota,
+  meseStipendi, nettoBonificoParlante, type DipendenteDaPagare, type DocumentoAperto, type Quota,
 } from "@/lib/primaNota/quoteMovimento";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export const CATEGORIE_QUOTA = {
   entrata: [
@@ -40,6 +41,8 @@ export const CATEGORIE_QUOTA = {
 } as const;
 
 const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : "");
+/** Il nome del mese nella lingua di chi guarda (1 = gennaio). */
+const nomeMese = (mese: number) => new Date(2024, mese - 1, 1).toLocaleDateString(intlCampo(), { month: "long" });
 let progressivo = 0;
 const nuovaChiave = () => `q${++progressivo}`;
 
@@ -67,6 +70,7 @@ interface Props {
 }
 
 export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }: Props) {
+  const t = useT();
   const documenti = useDocumentiAperti(companyId, direction, true);
   const [cerca, setCerca] = useState("");
   const usati = useMemo(() => new Set(quote.flatMap(q => (q.tipo === "libera" || q.tipo === "dipendente" || q.tipo === "f24" ? [] : [chiaveDocumento(q.documento)]))), [quote]);
@@ -107,21 +111,21 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
   const cambia = (chiave: string, campi: Partial<Quota>) => onQuote(quote.map(q => (q.chiave === chiave ? ({ ...q, ...campi } as Quota) : q)));
   const togli = (chiave: string) => onQuote(quote.filter(q => q.chiave !== chiave));
 
-  const chi = direction === "entrata" ? "cliente" : "fornitore";
+  const chi = direction === "entrata" ? t("cliente") : t("fornitore");
   return (
-    <section aria-label="A cosa si riferisce" className="space-y-3 rounded-lg border p-3">
+    <section aria-label={t("A cosa si riferisce")} className="space-y-3 rounded-lg border p-3">
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold">A cosa si riferisce</h3>
-        <span className="text-xs text-muted-foreground">{direction === "entrata" ? "fatture emesse da incassare" : "fatture ricevute da pagare"}</span>
+        <h3 className="text-sm font-semibold">{t("A cosa si riferisce")}</h3>
+        <span className="text-xs text-muted-foreground">{direction === "entrata" ? t("fatture emesse da incassare") : t("fatture ricevute da pagare")}</span>
       </div>
 
       <div className="relative">
-        <Input value={cerca} onChange={e => setCerca(e.target.value)} placeholder={`Cerca ${chi}, numero fattura o commessa`} aria-label={`Cerca ${chi} o fattura`} />
+        <Input value={cerca} onChange={e => setCerca(e.target.value)} placeholder={t("Cerca {chi}, numero fattura o commessa", { chi })} aria-label={t("Cerca {chi} o fattura", { chi })} />
         {cerca.trim() && (
           <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover shadow-md" role="listbox">
-            {documenti.isPending && <li className="px-3 py-2 text-sm text-muted-foreground">Carico le fatture aperte…</li>}
-            {documenti.isError && <li className="px-3 py-2 text-sm text-destructive">Fatture non caricate: {(documenti.error as Error).message}</li>}
-            {documenti.isSuccess && risultati.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">Nessuna fattura aperta trovata.</li>}
+            {documenti.isPending && <li className="px-3 py-2 text-sm text-muted-foreground">{t("Carico le fatture aperte…")}</li>}
+            {documenti.isError && <li className="px-3 py-2 text-sm text-destructive">{t("Fatture non caricate: {message}", { message: (documenti.error as Error).message })}</li>}
+            {documenti.isSuccess && risultati.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">{t("Nessuna fattura aperta trovata.")}</li>}
             {risultati.map(d => (
               <li key={chiaveDocumento(d)}>
                 <button type="button" role="option" aria-selected={false} onClick={() => aggiungi(d)}
@@ -129,7 +133,7 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
                   <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">
                     <span className="font-medium">{d.controparte ?? "—"}</span>
-                    <span className="text-muted-foreground"> · {d.tipo === "nota_credito" ? "nota di credito " : ""}n. {d.numero} del {dataIt(d.data)}{d.order_code ? ` · ${d.order_code}` : ""}</span>
+                    <span className="text-muted-foreground"> · {d.tipo === "nota_credito" ? t("nota di credito n. {numero} del {data}", { numero: d.numero ?? "", data: dataIt(d.data) }) : t("n. {numero} del {data}", { numero: d.numero ?? "", data: dataIt(d.data) })}{d.order_code ? ` · ${d.order_code}` : ""}</span>
                   </span>
                   <span className={cn("shrink-0 tabular-nums", d.tipo === "nota_credito" && "text-emerald-700 dark:text-emerald-400")}>{d.tipo === "nota_credito" ? "−" : ""}{euro(d.residuo)}</span>
                 </button>
@@ -146,7 +150,7 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
               className="flex w-full items-start gap-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-left text-sm hover:bg-primary/10">
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <span className="min-w-0">
-                <span className="font-medium">{p.length === 1 ? "Questa fattura fa" : `Queste ${p.length} fatture fanno`} esattamente {euro(conti.totale / 100)}</span>
+                <span className="font-medium">{p.length === 1 ? t("Questa fattura fa esattamente {importo}", { importo: euro(conti.totale / 100) }) : t("Queste {n} fatture fanno esattamente {importo}", { n: p.length, importo: euro(conti.totale / 100) })}</span>
                 <span className="block truncate text-xs text-muted-foreground">{p[0].controparte} · {p.map(d => d.numero).join(", ")}</span>
               </span>
             </button>
@@ -161,81 +165,79 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
               {q.tipo === "f24" ? (
                 <div className="min-w-0 text-sm">
                   <span className="font-medium">{q.f24.descrizione}</span>
-                  <span className="block text-xs text-muted-foreground">La quietanza del versamento si registra nel modulo F24.</span>
+                  <span className="block text-xs text-muted-foreground">{t("La quietanza del versamento si registra nel modulo F24.")}</span>
                 </div>
               ) : q.tipo === "dipendente" ? (
                 <div className="min-w-0 text-sm">
                   <span className="font-medium">{q.dipendente.nome}</span>
-                  <span className="text-muted-foreground"> · stipendio di {MESI[q.mese - 1]} {q.anno}</span>
-                  {q.dipendente.origine && <span className="block text-xs text-muted-foreground">Netto proposto dal{q.dipendente.origine === "cedolino" ? " cedolino" : "la scheda del dipendente"}</span>}
+                  <span className="text-muted-foreground">{" · "}{t("stipendio di {mese} {anno}", { mese: nomeMese(q.mese), anno: String(q.anno) })}</span>
+                  {q.dipendente.origine && <span className="block text-xs text-muted-foreground">{q.dipendente.origine === "cedolino" ? t("Netto proposto dal cedolino") : t("Netto proposto dalla scheda del dipendente")}</span>}
                 </div>
               ) : q.tipo === "libera" ? (
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <Select value={q.categoria} onValueChange={v => cambia(q.chiave, { categoria: v })}>
-                    <SelectTrigger aria-label="Categoria della voce"><SelectValue placeholder="Categoria" /></SelectTrigger>
-                    <SelectContent>{CATEGORIE_QUOTA[direction].map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                    <SelectTrigger aria-label={t("Categoria della voce")}><SelectValue placeholder={t("Categoria")} /></SelectTrigger>
+                    <SelectContent>{CATEGORIE_QUOTA[direction].map(c => <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>)}</SelectContent>
                   </Select>
-                  <CommessaCombobox value={q.orderId} onChange={id => cambia(q.chiave, { orderId: id ?? null })} ariaLabel="Commessa della voce" nessunaLabel="Nessuna commessa" />
-                  <Input className="sm:col-span-2" value={q.descrizione} onChange={e => cambia(q.chiave, { descrizione: e.target.value })} placeholder="Descrizione (es. commissioni RiBa)" aria-label="Descrizione della voce" />
+                  <CommessaCombobox value={q.orderId} onChange={id => cambia(q.chiave, { orderId: id ?? null })} ariaLabel={t("Commessa della voce")} nessunaLabel={t("Nessuna commessa")} />
+                  <Input className="sm:col-span-2" value={q.descrizione} onChange={e => cambia(q.chiave, { descrizione: e.target.value })} placeholder={t("Descrizione (es. commissioni RiBa)")} aria-label={t("Descrizione della voce")} />
                 </div>
               ) : q.tipo === "nota_credito" ? (
                 <div className="min-w-0 space-y-1 text-sm">
                   <div>
                     <span className="font-medium">{q.documento.controparte ?? "—"}</span>
-                    <span className="text-muted-foreground"> · nota di credito n. {q.documento.numero} del {dataIt(q.documento.data)}</span>
+                    <span className="text-muted-foreground">{" · "}{t("nota di credito n. {numero} del {data}", { numero: q.documento.numero ?? "", data: dataIt(q.documento.data) })}</span>
                   </div>
                   {(() => {
                     const fatture = quote.filter(x => x.tipo === "fattura_ricevuta" && stessoFornitore(x.documento, q.documento));
                     return fatture.length ? (
                       <Select value={q.fatturaChiave ?? ""} onValueChange={v => cambia(q.chiave, { fatturaChiave: v } as Partial<Quota>)}>
-                        <SelectTrigger className="h-8" aria-label="Fattura ridotta dalla nota"><SelectValue placeholder="Riduce la fattura…" /></SelectTrigger>
-                        <SelectContent>{fatture.map(f => <SelectItem key={f.chiave} value={f.chiave}>Riduce la fattura n. {"documento" in f ? f.documento.numero : ""}</SelectItem>)}</SelectContent>
+                        <SelectTrigger className="h-8" aria-label={t("Fattura ridotta dalla nota")}><SelectValue placeholder={t("Riduce la fattura…")} /></SelectTrigger>
+                        <SelectContent>{fatture.map(f => <SelectItem key={f.chiave} value={f.chiave}>{t("Riduce la fattura n. {numero}", { numero: ("documento" in f ? f.documento.numero : "") ?? "" })}</SelectItem>)}</SelectContent>
                       </Select>
-                    ) : <p className="text-xs text-amber-700 dark:text-amber-400">Aggiungi una fattura dello stesso fornitore: la nota ne riduce il pagamento.</p>;
+                    ) : <p className="text-xs text-amber-700 dark:text-amber-400">{t("Aggiungi una fattura dello stesso fornitore: la nota ne riduce il pagamento.")}</p>;
                   })()}
-                  <p className="text-xs text-muted-foreground">Non è denaro: non entra nel totale, riduce quanto si paga su quella fattura.</p>
+                  <p className="text-xs text-muted-foreground">{t("Non è denaro: non entra nel totale, riduce quanto si paga su quella fattura.")}</p>
                 </div>
               ) : (
                 <div className="min-w-0 text-sm">
                   <span className="font-medium">{q.documento.controparte ?? "—"}</span>
-                  <span className="text-muted-foreground"> · {ETICHETTA_TIPO[q.tipo]} n. {q.documento.numero} del {dataIt(q.documento.data)}</span>
+                  <span className="text-muted-foreground">{" · "}{t("{tipo} n. {numero} del {data}", { tipo: t(ETICHETTA_TIPO[q.tipo]), numero: q.documento.numero ?? "", data: dataIt(q.documento.data) })}</span>
                   <span className="block text-xs text-muted-foreground">
-                    Residuo {euro(q.documento.residuo)}{q.documento.order_code ? ` · commessa ${q.documento.order_code}` : ""}
+                    {t("Residuo {importo}", { importo: euro(q.documento.residuo) })}{q.documento.order_code ? ` · ${t("commessa {order_code}", { order_code: q.documento.order_code })}` : ""}
                   </span>
                   {q.tipo === "documento" && direction === "entrata" && (
                     <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs">
-                      <Checkbox checked={!!q.ritenuta} aria-label="Bonifico parlante con ritenuta"
+                      <Checkbox checked={!!q.ritenuta} aria-label={t("Bonifico parlante con ritenuta")}
                         onCheckedChange={v => (v === true
                           ? conRitenuta(q.chiave, daCentesimi(Math.min(centesimi(q.documento.residuo), Math.max(centesimi(q.importo), 0)) || centesimi(q.documento.residuo)))
                           : cambia(q.chiave, { ritenuta: false, importo: q.lordo ?? q.importo } as Partial<Quota>))} />
-                      Bonifico parlante: la banca ha trattenuto la ritenuta dell'11%
+                      {t("Bonifico parlante: la banca ha trattenuto la ritenuta dell'11%")}
                     </label>
                   )}
                 </div>
               )}
               {"ritenuta" in q && q.ritenuta && (
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  Lordo saldato {euro(centesimi(q.lordo) / 100)} · ritenuta {euro(nettoBonificoParlante(q.lordo ?? "0").ritenuta)} · in banca {euro(centesimi(q.importo) / 100)}
-                </p>
+                <p className="text-xs text-muted-foreground tabular-nums">{t("Lordo saldato {valore} · ritenuta {ritenuta} · in banca {valore2}", { valore: euro(centesimi(q.lordo) / 100), ritenuta: euro(nettoBonificoParlante(q.lordo ?? "0").ritenuta), valore2: euro(centesimi(q.importo) / 100) })}</p>
               )}
               <div className="flex items-center gap-2">
                 <div className="flex h-9 flex-1 items-center gap-1 rounded-md border px-2">
                   {q.tipo === "nota_credito" && <span className="text-sm text-emerald-700 dark:text-emerald-400">−</span>}
                   {"ritenuta" in q && q.ritenuta ? (
-                    <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={q.lordo ?? ""} aria-label="Lordo saldato"
+                    <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={q.lordo ?? ""} aria-label={t("Lordo saldato")}
                       onWheel={e => e.currentTarget.blur()} onChange={e => conRitenuta(q.chiave, e.target.value)}
                       className="h-full border-0 px-0 text-right tabular-nums shadow-none focus-visible:ring-0 focus-visible:ring-offset-0" />
                   ) : (
-                    <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={q.importo} aria-label="Importo della quota"
+                    <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={q.importo} aria-label={t("Importo della quota")}
                       onWheel={e => e.currentTarget.blur()} onChange={e => cambia(q.chiave, { importo: e.target.value })}
                       className="h-full border-0 px-0 text-right tabular-nums shadow-none focus-visible:ring-0 focus-visible:ring-offset-0" />
                   )}
                   <span className="text-sm text-muted-foreground">€</span>
                 </div>
                 {q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito" && q.tipo !== "f24" && !q.ritenuta && Math.round(Number(q.importo) * 100) < Math.round(q.documento.residuo * 100) && Number(q.importo) > 0 && (
-                  <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">acconto</span>
+                  <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">{t("acconto")}</span>
                 )}
-                <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="Togli la quota" onClick={() => togli(q.chiave)}><X className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label={t("Togli la quota")} onClick={() => togli(q.chiave)}><X className="h-4 w-4" /></Button>
               </div>
             </li>
           ))}
@@ -244,18 +246,18 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => aggiungiLibera()}>
-          <Plus className="mr-1 h-3.5 w-3.5" />Voce senza fattura
+          <Plus className="mr-1 h-3.5 w-3.5" />{t("Voce senza fattura")}
         </Button>
         {direction === "uscita" && (
           <Button type="button" variant="outline" size="sm" aria-expanded={stipendiAperti} onClick={() => setStipendiAperti(v => !v)}>
-            <Users className="mr-1 h-3.5 w-3.5" />Stipendi
+            <Users className="mr-1 h-3.5 w-3.5" />{t("Stipendi")}
           </Button>
         )}
         {direction === "uscita" && (
           <Button type="button" variant="outline" size="sm" aria-expanded={f24Aperto} onClick={() => setF24Aperto(v => !v)}>F24</Button>
         )}
         {conti.mancano > 0 && quote.length > 0 && (
-          <span className="text-xs text-muted-foreground">es. commissioni, arrotondamento, una commessa</span>
+          <span className="text-xs text-muted-foreground">{t("es. commissioni, arrotondamento, una commessa")}</span>
         )}
       </div>
 
@@ -279,6 +281,7 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
  * superano l'accredito, la differenza resta da incassare sull'ultima fattura (acconto).
  */
 function AggiustaResto({ quote, mancano, direction, onQuote }: { quote: Quota[]; mancano: number; direction: "entrata" | "uscita"; onQuote: (q: Quota[]) => void }) {
+  const t = useT();
   const documenti = quote.filter(q => q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito" && q.tipo !== "f24");
   if (!documenti.length || mancano === 0) return null;
   if (mancano > 0 && mancano <= 1000) {
@@ -286,7 +289,7 @@ function AggiustaResto({ quote, mancano, direction, onQuote }: { quote: Quota[];
       <button type="button" className="text-left text-xs text-primary underline-offset-2 hover:underline"
         onClick={() => onQuote([...quote, { chiave: `c${Date.now()}`, tipo: "libera", categoria: direction === "uscita" ? "commissioni" : "altro", orderId: null,
           descrizione: direction === "uscita" ? "Commissioni bancarie" : "Arrotondamento", importo: daCentesimi(mancano) }])}>
-        Metti i {euro(mancano / 100)} che mancano su «{direction === "uscita" ? "Commissioni bancarie" : "Arrotondamento"}»
+        {t("Metti i {importo} che mancano su «{voce}»", { importo: euro(mancano / 100), voce: direction === "uscita" ? t("Commissioni bancarie") : t("Arrotondamento") })}
       </button>
     );
   }
@@ -295,7 +298,7 @@ function AggiustaResto({ quote, mancano, direction, onQuote }: { quote: Quota[];
     return (
       <button type="button" className="text-left text-xs text-primary underline-offset-2 hover:underline"
         onClick={() => onQuote(quote.map(q => (q.chiave === ultima.chiave ? { ...q, importo: daCentesimi(centesimi(q.importo) + mancano) } : q)))}>
-        Lascia {euro(-mancano / 100)} {direction === "entrata" ? "da incassare" : "da pagare"} sull'ultima fattura
+        {direction === "entrata" ? t("Lascia {importo} da incassare sull'ultima fattura", { importo: euro(-mancano / 100) }) : t("Lascia {importo} da pagare sull'ultima fattura", { importo: euro(-mancano / 100) })}
       </button>
     );
   }
@@ -303,7 +306,8 @@ function AggiustaResto({ quote, mancano, direction, onQuote }: { quote: Quota[];
 }
 
 function Barra({ totale, assegnato }: { totale: number; assegnato: number }) {
-  if (totale <= 0) return <p className="text-xs text-muted-foreground">Scrivi prima l'importo del movimento.</p>;
+  const t = useT();
+  if (totale <= 0) return <p className="text-xs text-muted-foreground">{t("Scrivi prima l'importo del movimento.")}</p>;
   const mancano = totale - assegnato;
   const perc = Math.min(100, Math.max(0, (assegnato / totale) * 100));
   return (
@@ -312,8 +316,8 @@ function Barra({ totale, assegnato }: { totale: number; assegnato: number }) {
         <div className={cn("h-full transition-all", mancano === 0 ? "bg-emerald-600" : mancano < 0 ? "bg-destructive" : "bg-primary")} style={{ width: `${perc}%` }} />
       </div>
       <p className={cn("text-xs tabular-nums", mancano === 0 ? "text-emerald-700 dark:text-emerald-400" : mancano < 0 ? "text-destructive" : "text-muted-foreground")}>
-        Assegnati {euro(assegnato / 100)} di {euro(totale / 100)}
-        {mancano > 0 ? ` · mancano ${euro(mancano / 100)}` : mancano < 0 ? ` · ${euro(-mancano / 100)} in più` : " · tutto assegnato"}
+        {t("Assegnati {assegnato} di {totale}", { assegnato: euro(assegnato / 100), totale: euro(totale / 100) })}
+        {" · "}{mancano > 0 ? t("mancano {valore}", { valore: euro(mancano / 100) }) : mancano < 0 ? t("{valore} in più", { valore: euro(-mancano / 100) }) : t("tutto assegnato")}
       </p>
     </div>
   );
@@ -328,6 +332,7 @@ function PannelloStipendi({ companyId, quote, onAggiungi }: {
   quote: Quota[];
   onAggiungi: (q: Quota[]) => void;
 }) {
+  const t = useT();
   const [periodo, setPeriodo] = useState(meseStipendi);
   const [scelti, setScelti] = useState<Set<string>>(new Set());
   const dipendenti = useQuery({
@@ -358,36 +363,36 @@ function PannelloStipendi({ companyId, quote, onAggiungi }: {
   return (
     <div className="space-y-2 rounded-md border bg-muted/20 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium">Stipendi di</p>
+        <p className="text-sm font-medium">{t("Stipendi di")}</p>
         <Select value={`${periodo.anno}-${periodo.mese}`} onValueChange={v => { const [a, m] = v.split("-").map(Number); setPeriodo({ anno: a, mese: m }); setScelti(new Set()); }}>
-          <SelectTrigger className="h-8 w-44" aria-label="Mese degli stipendi"><SelectValue /></SelectTrigger>
-          <SelectContent>{mesi.map(m => <SelectItem key={`${m.anno}-${m.mese}`} value={`${m.anno}-${m.mese}`}>{MESI[m.mese - 1]} {m.anno}</SelectItem>)}</SelectContent>
+          <SelectTrigger className="h-8 w-44" aria-label={t("Mese degli stipendi")}><SelectValue /></SelectTrigger>
+          <SelectContent>{mesi.map(m => <SelectItem key={`${m.anno}-${m.mese}`} value={`${m.anno}-${m.mese}`}>{nomeMese(m.mese)} {m.anno}</SelectItem>)}</SelectContent>
         </Select>
       </div>
-      {dipendenti.isPending && <p className="text-xs text-muted-foreground">Carico i dipendenti…</p>}
-      {dipendenti.isError && <p className="text-xs text-destructive">Dipendenti non caricati: {(dipendenti.error as Error).message}</p>}
-      {dipendenti.isSuccess && elenco.length === 0 && <p className="text-xs text-muted-foreground">Nessun dipendente da aggiungere per questo mese.</p>}
+      {dipendenti.isPending && <p className="text-xs text-muted-foreground">{t("Carico i dipendenti…")}</p>}
+      {dipendenti.isError && <p className="text-xs text-destructive">{t("Dipendenti non caricati: {message}", { message: (dipendenti.error as Error).message })}</p>}
+      {dipendenti.isSuccess && elenco.length === 0 && <p className="text-xs text-muted-foreground">{t("Nessun dipendente da aggiungere per questo mese.")}</p>}
       {elenco.length > 0 && (
         <>
           <button type="button" className="text-xs text-primary underline-offset-2 hover:underline"
-            onClick={() => setScelti(new Set(daPagare.map(d => d.id)))}>Spunta tutti quelli ancora da pagare ({daPagare.length})</button>
+            onClick={() => setScelti(new Set(daPagare.map(d => d.id)))}>{t("Spunta tutti quelli ancora da pagare ({n})", { n: daPagare.length })}</button>
           <ul className="max-h-56 divide-y overflow-y-auto rounded-md border bg-background">
             {elenco.map(d => (
               <li key={d.id}>
                 <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm">
-                  <Checkbox checked={scelti.has(d.id)} onCheckedChange={() => alterna(d.id)} aria-label={`Paga ${d.nome}`} />
+                  <Checkbox checked={scelti.has(d.id)} onCheckedChange={() => alterna(d.id)} aria-label={t("Paga {nome}", { nome: d.nome })} />
                   <span className="min-w-0 flex-1 truncate">{d.nome}</span>
-                  {d.pagato_il && <span className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400">pagato il {d.pagato_il.split("-").reverse().join("/")}</span>}
+                  {d.pagato_il && <span className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400">{t("pagato il {valore}", { valore: d.pagato_il.split("-").reverse().join("/") })}</span>}
                   <span className="shrink-0 tabular-nums text-muted-foreground">{d.netto_proposto == null ? "—" : euro(d.netto_proposto)}</span>
                 </label>
               </li>
             ))}
           </ul>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground tabular-nums">{scelti.size} scelti{totale > 0 ? ` · ${euro(totale / 100)}` : ""}</span>
-            <Button type="button" size="sm" disabled={!scelti.size} onClick={aggiungi}>Aggiungi {scelti.size || ""} stipendi</Button>
+            <span className="text-xs text-muted-foreground tabular-nums">{t("{n} scelti", { n: scelti.size })}{totale > 0 ? ` · ${euro(totale / 100)}` : ""}</span>
+            <Button type="button" size="sm" disabled={!scelti.size} onClick={aggiungi}>{scelti.size ? t(scelti.size === 1 ? "Aggiungi {n} stipendio" : "Aggiungi {n} stipendi", { n: scelti.size }) : t("Aggiungi stipendi")}</Button>
           </div>
-          <p className="text-xs text-muted-foreground">Gli stipendi non vanno sulle commesse: la manodopera ci arriva già dai rapportini.</p>
+          <p className="text-xs text-muted-foreground">{t("Gli stipendi non vanno sulle commesse: la manodopera ci arriva già dai rapportini.")}</p>
         </>
       )}
     </div>
@@ -398,6 +403,7 @@ interface RigaF24 { id: string; tributo_code: string | null; tributo_descrizione
 
 /** Le righe dell'F24 ancora da versare: spuntate, diventano quote del movimento. */
 function PannelloF24({ companyId, quote, onAggiungi }: { companyId: string | undefined; quote: Quota[]; onAggiungi: (q: Quota[]) => void }) {
+  const t = useT();
   const [scelti, setScelti] = useState<Set<string>>(new Set());
   const righe = useQuery({
     queryKey: ["prima-nota-f24", companyId],
@@ -416,11 +422,11 @@ function PannelloF24({ companyId, quote, onAggiungi }: { companyId: string | und
   const nome = (r: RigaF24) => `F24 ${r.tributo_code ?? ""} ${r.tributo_descrizione ?? ""} · ${String(r.mese).padStart(2, "0")}/${r.anno}`.replace(/\s+/g, " ").trim();
   return (
     <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-      <p className="text-sm font-medium">F24 da versare</p>
-      {righe.isPending && <p className="text-xs text-muted-foreground">Carico l'F24…</p>}
-      {righe.isError && <p className="text-xs text-destructive">F24 non caricato.</p>}
+      <p className="text-sm font-medium">{t("F24 da versare")}</p>
+      {righe.isPending && <p className="text-xs text-muted-foreground">{t("Carico l'F24…")}</p>}
+      {righe.isError && <p className="text-xs text-destructive">{t("F24 non caricato.")}</p>}
       {righe.isSuccess && elenco.length === 0 && (
-        <p className="text-xs text-muted-foreground">Nessuna riga F24 da versare nell'app: usa «Voce senza fattura» con la categoria «Tasse / F24».</p>
+        <p className="text-xs text-muted-foreground">{t("Nessuna riga F24 da versare nell'app: usa «Voce senza fattura» con la categoria «Tasse / F24».")}</p>
       )}
       {elenco.length > 0 && (
         <>
@@ -428,7 +434,7 @@ function PannelloF24({ companyId, quote, onAggiungi }: { companyId: string | und
             {elenco.map(r => (
               <li key={r.id}>
                 <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm">
-                  <Checkbox checked={scelti.has(r.id)} aria-label={`Versa ${nome(r)}`}
+                  <Checkbox checked={scelti.has(r.id)} aria-label={t("Versa {r}", { r: nome(r) })}
                     onCheckedChange={() => setScelti(v => { const n = new Set(v); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })} />
                   <span className="min-w-0 flex-1 truncate">{nome(r)}</span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">{euro(r.importo)}</span>
@@ -440,7 +446,7 @@ function PannelloF24({ companyId, quote, onAggiungi }: { companyId: string | und
             onClick={() => onAggiungi(elenco.filter(r => scelti.has(r.id)).map(r => ({
               chiave: `f${r.id}`, tipo: "f24" as const, f24: { id: r.id, descrizione: nome(r) }, importo: daCentesimi(centesimi(r.importo)),
             })))}>
-            Aggiungi {scelti.size || ""} F24
+            {scelti.size ? t("Aggiungi {n} F24", { n: scelti.size }) : t("Aggiungi F24")}
           </Button>
         </>
       )}

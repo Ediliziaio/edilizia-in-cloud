@@ -11,6 +11,7 @@ import { ProviderIcon } from '@/components/ai/ProviderIcon';
 import { formatCost, formatLatency } from '@/lib/ai/openrouter-models';
 import { parseProvider, PROVIDER_LABELS } from '@/lib/ai/models.config';
 import { cn } from '@/lib/utils';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AIRunMeta {
   model_id: string;
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function AIRunFooter({ meta, compact = false, className, onRate }: Props) {
+  const t = useT();
   if (!meta) return null;
   const provider = parseProvider(meta.model_id);
   const providerLabel = PROVIDER_LABELS[provider] ?? provider;
@@ -58,18 +60,18 @@ export function AIRunFooter({ meta, compact = false, className, onRate }: Props)
       {isFallback && requestedTail && (
         <span
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 font-semibold"
-          title={`Hai richiesto ${meta.requested_model_id} ma è fallito → fallback automatico a ${meta.model_id}`}
+          title={t("Hai richiesto {requested_model_id} ma è fallito → fallback automatico a {model_id}", { requested_model_id: String(meta.requested_model_id ?? ""), model_id: String(meta.model_id ?? "") })}
         >
           <AlertTriangle className="h-2.5 w-2.5" />
-          Fallback: {requestedTail} non disponibile
+          {t("Fallback: {modello} non disponibile", { modello: String(requestedTail ?? "") })}
         </span>
       )}
-      <span className="inline-flex items-center gap-0.5" title="Tempo di risposta">
+      <span className="inline-flex items-center gap-0.5" title={t("Tempo di risposta")}>
         <Clock className="h-2.5 w-2.5" />
         {formatLatency(meta.latency_ms)}
       </span>
       {meta.cost_usd !== null && meta.cost_usd !== undefined && (
-        <span className="inline-flex items-center gap-0.5" title="Costo OpenRouter">
+        <span className="inline-flex items-center gap-0.5" title={t("Costo OpenRouter")}>
           <DollarSign className="h-2.5 w-2.5" />
           {formatCost(meta.cost_usd)}
         </span>
@@ -84,7 +86,7 @@ export function AIRunFooter({ meta, compact = false, className, onRate }: Props)
         </span>
       )}
       {meta.input_tokens !== null && meta.input_tokens !== undefined && (
-        <span className="text-[10px] text-slate-400 font-mono" title="Token in / out">
+        <span className="text-[10px] text-slate-400 font-mono" title={t("Token in / out")}>
           {meta.input_tokens}↗{meta.output_tokens ?? 0}
         </span>
       )}
@@ -98,8 +100,8 @@ export function AIRunFooter({ meta, compact = false, className, onRate }: Props)
                 type="button"
                 onClick={() => onRate(n)}
                 className="hover:scale-110 transition-transform"
-                title={`Valuta ${n}/5`}
-                aria-label={`Valuta ${n} stelle`}
+                title={t("Valuta {n}/5", { n: String(n ?? "") })}
+                aria-label={t("Valuta {n} stelle", { n: String(n ?? "") })}
               >
                 <Star
                   className={cn(

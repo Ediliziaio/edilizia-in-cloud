@@ -2,6 +2,7 @@ import { ArrowLeft, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RenderWizardHeaderProps {
   /** Optional handler for the "Indietro" link. If omitted, the link is hidden. */
@@ -57,10 +58,11 @@ export function RenderWizardHeader({
   currentStep,
   accent = "orange",
 }: RenderWizardHeaderProps) {
+  const t = useT();
   const dotClass = ACCENT_DOT[accent];
   const totalSteps = Math.max(stepLabels.length, 1);
   const safeCurrentStep = Math.min(Math.max(currentStep, 1), totalSteps);
-  const visibleStepLabels = stepLabels.length > 0 ? stepLabels : ["Step"];
+  const visibleStepLabels = stepLabels.length > 0 ? stepLabels : [t("Step")];
   const progressValue = visibleStepLabels.length > 1
     ? ((safeCurrentStep - 1) / (visibleStepLabels.length - 1)) * 100
     : 0;
@@ -75,7 +77,7 @@ export function RenderWizardHeader({
             className="flex min-h-9 items-center gap-1 rounded-md px-1 text-xs opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Indietro
+            {t("Indietro")}
           </button>
         ) : (
           <span />
@@ -100,7 +102,7 @@ export function RenderWizardHeader({
           )}
         </div>
         <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80 shrink-0 max-md:rounded-full max-md:bg-muted max-md:px-2.5 max-md:py-1 max-md:text-[11px] max-md:font-medium max-md:text-muted-foreground">
-          <span className="max-md:hidden">Step {safeCurrentStep} / {totalSteps}</span>
+          <span className="max-md:hidden">{t("Step {safeCurrentStep} / {totalSteps}", { safeCurrentStep: String(safeCurrentStep ?? ""), totalSteps: String(totalSteps ?? "") })}</span>
           <span className="md:hidden">
             {visibleStepLabels[safeCurrentStep - 1]} · {safeCurrentStep}/{totalSteps}
           </span>

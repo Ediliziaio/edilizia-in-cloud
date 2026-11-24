@@ -40,6 +40,7 @@ import {
   type IndicePiano,
 } from "@/lib/controlloGestione/indiciBanca";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TabPianoIndustrialeProps {
   scenarioId: string | null;
@@ -84,6 +85,7 @@ function ratingTone(classe?: string): { bg: string; text: string } {
 }
 
 export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPianoIndustrialeProps) {
+  const t = useT();
   const scenariQuery = useScenari();
   const [whatIf, setWhatIf] = useState<PianoResult | null>(null);
   const [scenarioAttivo, setScenarioAttivo] = useState<PianoScenario>("base");
@@ -141,15 +143,15 @@ export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPi
       }>("cg-bootstrap-scenari", { body: { orizzonte: 5 } });
       if (error) throw error;
       if (data?.already_bootstrapped) {
-        toast.info("Scenari già presenti — ricarico");
+        toast.info(t("Scenari già presenti — ricarico"));
       } else {
-        toast.success(`Creati ${data?.scenari_creati ?? 3} scenari di base`);
+        toast.success(t("Creati {n} scenari di base", { n: data?.scenari_creati ?? 3 }));
       }
       // Prefisso ["cg","piano"]: invalida la proiezione di TUTTI gli scenari.
       await qc.invalidateQueries({ queryKey: ["cg", "piano"] });
       await baseQuery.refetch();
     } catch (e) {
-      toast.error(`Errore creazione scenari: ${(e as Error).message ?? "sconosciuto"}`);
+      toast.error(t("Errore creazione scenari: {errore}", { errore: (e as Error).message ?? t("sconosciuto") }));
     } finally {
       setBootstrapping(false);
     }
@@ -172,9 +174,9 @@ export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPi
       <Card className="rounded-2xl">
         <CardContent className="pt-6">
           <EmptyState
-            title="Nessuno scenario configurato"
-            description="Per generare le proiezioni servono almeno 3 scenari di base (prudente, base, aggressivo). Possiamo crearli automaticamente partendo dai tuoi dati storici."
-            ctaLabel={bootstrapping ? "Creazione in corso…" : "Crea scenari di base"}
+            title={t("Nessuno scenario configurato")}
+            description={t("Per generare le proiezioni servono almeno 3 scenari di base (prudente, base, aggressivo). Possiamo crearli automaticamente partendo dai tuoi dati storici.")}
+            ctaLabel={bootstrapping ? t("Creazione in corso…") : t("Crea scenari di base")}
             onCta={bootstrapping ? undefined : handleBootstrap}
             icon={
               bootstrapping ? (
@@ -196,8 +198,8 @@ export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPi
   if (!piano || piano.periodi.length === 0) {
     return (
       <EmptyState
-        title="Nessuna proiezione disponibile"
-        description="Configura uno scenario di piano industriale per generare la proiezione."
+        title={t("Nessuna proiezione disponibile")}
+        description={t("Configura uno scenario di piano industriale per generare la proiezione.")}
       />
     );
   }
@@ -234,7 +236,7 @@ export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPi
       <IndiciPrev periodi={piano.periodi} />
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Andamento grafico</CardTitle>
+          <CardTitle className="text-base">{t("Andamento grafico")}</CardTitle>
         </CardHeader>
         <CardContent>
           <PianoChart periodi={piano.periodi} />
@@ -246,7 +248,7 @@ export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPi
           <Accordion type="single" collapsible>
             <AccordionItem value="assumptions" className="border-0">
               <AccordionTrigger className="text-base font-semibold hover:no-underline">
-                Personalizza assunzioni
+                {t("Personalizza assunzioni")}
               </AccordionTrigger>
               <AccordionContent>
                 <div className="pt-2">
@@ -291,6 +293,7 @@ function PianoHeader({
   onChangeAnno: (a: number | null) => void;
   isWhatIf: boolean;
 }) {
+  const t = useT();
   const periodi = piano.periodi;
   const annoBase = periodi[0];
   const annoFinale = periodi[periodi.length - 1];
@@ -308,8 +311,8 @@ function PianoHeader({
   const spNonQuadra = piano.meta.sp_base_quadrato === false;
 
   const nomeScenario = isWhatIf
-    ? "Simulazione personalizzata"
-    : `Scenario ${scenarioCustomNome ?? scenarioLabel(scenarioAttivo).toLowerCase()}`;
+    ? t("Simulazione personalizzata")
+    : t("Scenario {nome}", { nome: scenarioCustomNome ?? t(scenarioLabel(scenarioAttivo)).toLowerCase() });
   const valoreAnno = annoPartenza === annoCorrente ? "corrente" : "scenario";
 
   return (
@@ -317,11 +320,11 @@ function PianoHeader({
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-base">
-              {nomeScenario} · {piano.meta.orizzonte} anni
-            </CardTitle>
+            <CardTitle className="text-base">{t("{nomeScenario} · {orizzonte} anni", { nomeScenario, orizzonte: piano.meta.orizzonte })}</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Dal {piano.meta.anno_base}{stimata ? " stimato a fine anno" : ""} al {annoFinale.anno}, con le ipotesi dello scenario.
+              {stimata
+                ? t("Dal {da} stimato a fine anno al {a}, con le ipotesi dello scenario.", { da: piano.meta.anno_base, a: annoFinale.anno })
+                : t("Dal {da} al {a}, con le ipotesi dello scenario.", { da: piano.meta.anno_base, a: annoFinale.anno })}
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -330,11 +333,11 @@ function PianoHeader({
               value={scenarioCustomNome ? "" : scenarioAttivo}
               onValueChange={(v) => v && onChangeScenario(v as PianoScenario)}
               className="justify-start"
-              aria-label="Scenario"
+              aria-label={t("Scenario")}
             >
               {scenariDisponibili.map((s) => (
                 <ToggleGroupItem key={s} value={s} variant="outline" size="sm">
-                  {scenarioLabel(s)}
+                  {t(scenarioLabel(s))}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -343,14 +346,12 @@ function PianoHeader({
               value={valoreAnno}
               onValueChange={(v) => v && onChangeAnno(v === "corrente" ? annoCorrente : null)}
               className="flex-wrap justify-start"
-              aria-label="Anno di partenza"
+              aria-label={t("Anno di partenza")}
             >
               <ToggleGroupItem value="scenario" variant="outline" size="sm">
-                Parti dall'ultimo anno chiuso
+                {t("Parti dall'ultimo anno chiuso")}
               </ToggleGroupItem>
-              <ToggleGroupItem value="corrente" variant="outline" size="sm">
-                Parti dal {annoCorrente} stimato
-              </ToggleGroupItem>
+              <ToggleGroupItem value="corrente" variant="outline" size="sm">{t("Parti dal {annoCorrente} stimato", { annoCorrente: String(annoCorrente ?? "") })}</ToggleGroupItem>
             </ToggleGroup>
           </div>
         </div>
@@ -358,45 +359,44 @@ function PianoHeader({
       <CardContent className="space-y-3">
         {spNonQuadra && (
           <p role="status" className="text-xs text-amber-700">
-            Stato patrimoniale {piano.meta.anno_base} non in quadratura
-            {piano.meta.sp_base_differenza !== undefined ? ` (${formatEuro(piano.meta.sp_base_differenza)})` : ""}: patrimonio, debiti e rating sono provvisori.
+            {piano.meta.sp_base_differenza !== undefined
+              ? t("Stato patrimoniale {anno} non in quadratura ({differenza}): patrimonio, debiti e rating sono provvisori.", { anno: piano.meta.anno_base, differenza: formatEuro(piano.meta.sp_base_differenza) })
+              : t("Stato patrimoniale {anno} non in quadratura: patrimonio, debiti e rating sono provvisori.", { anno: piano.meta.anno_base })}
           </p>
         )}
         {annoBase && annoBase.ebitda < 0 && (
-          <p className="text-xs text-muted-foreground">
-            MOL {annoBase.anno} negativo ({formatEuroBreve(annoBase.ebitda)}): il piano parte da una perdita. Prova «Parti dal {annoCorrente} stimato».
-          </p>
+          <p className="text-xs text-muted-foreground">{t("MOL {anno} negativo ({ebitda}): il piano parte da una perdita. Prova «Parti dal {annoCorrente} stimato».", { anno: String(annoBase.anno ?? ""), ebitda: formatEuroBreve(annoBase.ebitda), annoCorrente: String(annoCorrente ?? "") })}</p>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiSint
-            label={`Ricavi ${annoFinale.anno}`}
+            label={t("Ricavi {anno}", { anno: String(annoFinale.anno ?? "") })}
             value={formatEuroBreve(annoFinale.ricavi)}
-            sub={annoBase ? `${variazioneLeggibile(annoFinale.ricavi, annoBase.ricavi) ?? "—"} rispetto al ${annoBase.anno}` : undefined}
+            sub={annoBase ? t("{variazione} rispetto al {anno}", { variazione: variazioneLeggibile(annoFinale.ricavi, annoBase.ricavi) ?? "—", anno: annoBase.anno }) : undefined}
             tone={annoFinale.ricavi >= (annoBase?.ricavi ?? 0) ? "green" : "neutral"}
           />
           <KpiSint
-            label="Margine operativo lordo nel piano"
+            label={t("Margine operativo lordo nel piano")}
             value={formatEuroBreve(ebitdaCumulato)}
-            sub={ebitdaMediaPct !== null ? `Somma degli anni di piano · in media ${formatNumero(ebitdaMediaPct, 1)}% dei ricavi` : undefined}
+            sub={ebitdaMediaPct !== null ? t("Somma degli anni di piano · in media {valore}% dei ricavi", { valore: formatNumero(ebitdaMediaPct, 1) }) : undefined}
             tone={ebitdaCumulato >= 0 ? "green" : "red"}
           />
           <KpiSint
-            label="Investimenti nel piano"
+            label={t("Investimenti nel piano")}
             value={formatEuroBreve(investimentiTotali)}
-            sub={`${proiezioni.length} anni`}
+            sub={t("{n} anni", { n: proiezioni.length })}
             tone="blue"
           />
           <KpiSint
-            label={`Mezzi propri ${annoFinale.anno}`}
+            label={t("Mezzi propri {anno}", { anno: String(annoFinale.anno ?? "") })}
             value={formatEuroBreve(annoFinale.mezzi_propri)}
-            sub={annoBase ? `${variazioneLeggibile(annoFinale.mezzi_propri, annoBase.mezzi_propri) ?? "—"} rispetto al ${annoBase.anno}` : undefined}
+            sub={annoBase ? t("{variazione} rispetto al {anno}", { variazione: variazioneLeggibile(annoFinale.mezzi_propri, annoBase.mezzi_propri) ?? "—", anno: annoBase.anno }) : undefined}
             tone={annoFinale.mezzi_propri < 0 ? "red" : annoFinale.mezzi_propri >= (annoBase?.mezzi_propri ?? 0) ? "green" : "neutral"}
           />
           <div className={cn("rounded-xl border px-4 py-3", tone.bg)}>
-            <div className="text-xs text-muted-foreground">Rating {annoFinale.anno}</div>
+            <div className="text-xs text-muted-foreground">{t("Rating {anno}", { anno: String(annoFinale.anno ?? "") })}</div>
             <div className={cn("mt-0.5 text-lg font-bold", tone.text)}>{ratingClasse}</div>
             <div className="text-xs text-muted-foreground">
-              {ratingScore !== null ? `${Math.round(ratingScore)} punti su 100` : "—"} · stesse regole del Rating bancario
+              {ratingScore !== null ? t("{valore} punti su 100", { valore: Math.round(ratingScore) }) : "—"} {t("· stesse regole del Rating bancario")}
             </div>
           </div>
         </div>
@@ -457,6 +457,7 @@ const SP_RIGHE: RigaPrev[] = [
 ];
 
 function AnnoHeader({ periodo, stimata }: { periodo: PianoPeriodo; stimata: boolean }) {
+  const t = useT();
   const etichetta = periodo.tipo === "consuntivo" ? (stimata ? "Stima fine anno" : "Consuntivo") : "Proiezione";
   return (
     <th className="min-w-[110px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">
@@ -471,7 +472,7 @@ function AnnoHeader({ periodo, stimata }: { periodo: PianoPeriodo; stimata: bool
               : "border-orange-300 bg-orange-50 text-orange-700",
           )}
         >
-          {etichetta}
+          {t(etichetta)}
         </Badge>
       </div>
     </th>
@@ -481,6 +482,7 @@ function AnnoHeader({ periodo, stimata }: { periodo: PianoPeriodo; stimata: bool
 function TabellaPrev({ titolo, righe, periodi, stimata, nota }: {
   titolo: string; righe: RigaPrev[]; periodi: PianoPeriodo[]; stimata: boolean; nota?: string;
 }) {
+  const tr = useT();
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
@@ -493,7 +495,7 @@ function TabellaPrev({ titolo, righe, periodi, stimata, nota }: {
             <thead className="bg-muted/40">
               <tr>
                 <th className="sticky left-0 z-10 min-w-[170px] bg-muted px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Voce
+                  {tr("Voce")}
                 </th>
                 {periodi.map((p) => <AnnoHeader key={p.t} periodo={p} stimata={stimata} />)}
               </tr>
@@ -508,7 +510,7 @@ function TabellaPrev({ titolo, righe, periodi, stimata, nota }: {
                     riga.livello === "subtot_grasso" && "bg-primary/5 font-bold",
                   )}
                 >
-                  <td className="sticky left-0 z-10 bg-card px-3 py-2">{riga.label}</td>
+                  <td className="sticky left-0 z-10 bg-card px-3 py-2">{tr(riga.label)}</td>
                   {periodi.map((p, i) => {
                     const val = riga.pick(p);
                     const varz = riga.variazione && i > 0 ? variazioneLeggibile(val, riga.pick(periodi[i - 1])) : null;
@@ -530,25 +532,27 @@ function TabellaPrev({ titolo, righe, periodi, stimata, nota }: {
 }
 
 function CETablePrev({ periodi, stimata }: { periodi: PianoPeriodo[]; stimata: boolean }) {
+  const t = useT();
   return (
     <TabellaPrev
-      titolo="Conto economico previsionale"
+      titolo={t("Conto economico previsionale")}
       righe={CE_RIGHE}
       periodi={periodi}
       stimata={stimata}
-      nota="Sotto ogni numero la variazione sull'anno prima: in percentuale tra valori positivi, in euro quando c'è una perdita."
+      nota={t("Sotto ogni numero la variazione sull'anno prima: in percentuale tra valori positivi, in euro quando c'è una perdita.")}
     />
   );
 }
 
 function SPTablePrev({ periodi, stimata }: { periodi: PianoPeriodo[]; stimata: boolean }) {
+  const t = useT();
   return (
     <TabellaPrev
-      titolo="Stato patrimoniale previsionale"
+      titolo={t("Stato patrimoniale previsionale")}
       righe={SP_RIGHE}
       periodi={periodi}
       stimata={stimata}
-      nota="I debiti scendono con le rate dei mutui in corso e salgono con i nuovi finanziamenti dello scenario."
+      nota={t("I debiti scendono con le rate dei mutui in corso e salgono con i nuovi finanziamenti dello scenario.")}
     />
   );
 }
@@ -598,6 +602,7 @@ const INDICI: IndicePrevDef[] = [
 ];
 
 function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
+  const tr = useT();
   const calcolati = useMemo(
     () => INDICI.map((ind) => ({ ...ind, valori: periodi.map((p) => ind.calc(p)) })),
     [periodi],
@@ -609,7 +614,7 @@ function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Indici previsionali</CardTitle>
+        <CardTitle className="text-base">{tr("Indici previsionali")}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto rounded-xl border">
@@ -617,7 +622,7 @@ function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
             <thead className="bg-muted/40">
               <tr>
                 <th className="sticky left-0 z-10 min-w-[170px] bg-muted px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Indice
+                  {tr("Indice")}
                 </th>
                 {periodi.map((p) => (
                   <th key={p.t} className="min-w-[90px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">
@@ -630,8 +635,8 @@ function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
               {calcolati.map((ind) => (
                 <tr key={ind.label} className="border-t">
                   <td className="sticky left-0 z-10 bg-card px-3 py-2">
-                    <p className="font-medium">{ind.label}</p>
-                    <p className="text-[11px] text-muted-foreground">{ind.spiegazione}</p>
+                    <p className="font-medium">{tr(ind.label)}</p>
+                    <p className="text-[11px] text-muted-foreground">{tr(ind.spiegazione)}</p>
                   </td>
                   {ind.valori.map((v, i) => (
                     <td
@@ -648,9 +653,7 @@ function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
           </table>
         </div>
         {motivi.length > 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            n.c. = non calcolabile. {motivi.join(" · ")}.
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">{tr("n.c. = non calcolabile. {motivi}.", { motivi: motivi.join(" · ") })}</p>
         )}
       </CardContent>
     </Card>

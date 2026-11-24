@@ -21,6 +21,7 @@ import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { RIGHE_SENZA_COSTO } from "@/hooks/usePreventivoCosti";
 import { ricavoNettoPreventivo } from "@/lib/preventivi/ricavoNetto";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface QuoteSummary {
   id: string;
@@ -59,6 +60,7 @@ interface Props {
 }
 
 export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const navigate = useNavigate();
   const [duplicando, setDuplicando] = useState(false);
@@ -69,13 +71,13 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
       const { id: nuovoId, nonAllegate } = await duplicaPreventivo(quoteId, companyId, { comeRevisione: false });
       const avviso = avvisoSchedeNonAllegate(nonAllegate);
       if (avviso) {
-        toast.warning(`Preventivo duplicato: ${avviso.conteggio}`, { description: avviso.descrizione, duration: 10000 });
+        toast.warning(t("Preventivo duplicato: {conteggio}", { conteggio: String(avviso.conteggio ?? "") }), { description: avviso.descrizione, duration: 10000 });
       } else {
-        toast.success("Preventivo duplicato", { description: "La copia parte in bozza: aprila e adattala." });
+        toast.success(t("Preventivo duplicato"), { description: t("La copia parte in bozza: aprila e adattala.") });
       }
       navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
     } catch (e) {
-      toast.error("Duplicazione non riuscita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Duplicazione non riuscita"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setDuplicando(false);
     }
@@ -192,34 +194,34 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
         <SheetHeader className="border-b p-4">
           <SheetTitle className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-primary" />
-            Dettaglio preventivo
-            <Badge variant="outline" className="text-xs font-medium">Admin</Badge>
+            {t("Dettaglio preventivo")}
+            <Badge variant="outline" className="text-xs font-medium">{t("Admin")}</Badge>
           </SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto">
           {isLoading || !quote ? (
-            <div className="p-6 text-sm text-muted-foreground">Caricamento...</div>
+            <div className="p-6 text-sm text-muted-foreground">{t("Caricamento...")}</div>
           ) : (
             <>
               <div className="p-4 space-y-3 border-b bg-muted/20">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-xs text-muted-foreground">{quote.quote_number}</div>
-                    <div className="font-medium text-sm mt-0.5">{quote.title || "Preventivo"}</div>
+                    <div className="font-medium text-sm mt-0.5">{quote.title || t("Preventivo")}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {quote.client_name || "Cliente non specificato"}
+                      {quote.client_name || t("Cliente non specificato")}
                     </div>
                   </div>
                   <Badge variant="outline" className={`whitespace-nowrap ${statusCfg.className}`}>{statusCfg.label}</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />
-                    {format(new Date(quote.created_at), "dd MMM yyyy", { locale: it })}
+                    {format(new Date(quote.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
                   </span>
                   {quote.expires_at && (
                     <span className="flex items-center gap-1"><Clock className="h-3 w-3" />
-                      Scade {format(new Date(quote.expires_at), "dd MMM", { locale: it })}
+                      {t("Scade")} {format(new Date(quote.expires_at), "dd MMM", { locale: dateFnsCampo() })}
                     </span>
                   )}
                   {quote.tipo_lavoro && (
@@ -232,19 +234,19 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
               <div className="p-4 grid grid-cols-2 gap-3 border-b">
                 <KpiBox
                   icon={<Banknote className="h-3.5 w-3.5" />}
-                  label="Totale cliente"
+                  label={t("Totale cliente")}
                   value={formatCurrency(quote.total ?? 0)}
                   sub={`IVA ${formatCurrency(quote.vat_amount ?? 0)}`}
                 />
                 <KpiBox
                   icon={<Banknote className="h-3.5 w-3.5" />}
-                  label="Netto pre-IVA"
+                  label={t("Netto pre-IVA")}
                   value={formatCurrency(ricavoNetto)}
                   sub={quote.discount_percent ? `Sconto ${quote.discount_percent}%` : undefined}
                 />
                 <KpiBox
                   icon={<TrendingDown className="h-3.5 w-3.5 text-orange-600" />}
-                  label="Costo prodotti"
+                  label={t("Costo prodotti")}
                   value={formatCurrency(costoTotale)}
                   sub={quote.totale_overhead ? `+overhead ${formatCurrency(quote.totale_overhead)}` : undefined}
                   accent="orange"
@@ -252,14 +254,14 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
                 {righeSenzaCosto > 0 ? (
                   <KpiBox
                     icon={<TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />}
-                    label="Margine"
+                    label={t("Margine")}
                     value="—"
-                    sub={`Costi incompleti · ${righeSenzaCosto === 1 ? "1 riga" : `${righeSenzaCosto} righe`} senza costo`}
+                    sub={t(righeSenzaCosto === 1 ? "Costi incompleti · 1 riga senza costo" : "Costi incompleti · {n} righe senza costo", { n: righeSenzaCosto })}
                   />
                 ) : (
                   <KpiBox
                     icon={<TrendingUp className={`h-3.5 w-3.5 ${marginePct >= 20 ? "text-green-600" : marginePct >= 10 ? "text-yellow-600" : "text-red-600"}`} />}
-                    label="Margine"
+                    label={t("Margine")}
                     value={`${marginePct.toFixed(1)}%`}
                     sub={formatCurrency(margineEur)}
                     accent={marginePct >= 20 ? "green" : marginePct >= 10 ? "yellow" : "red"}
@@ -271,22 +273,22 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
               {salesperson && (
                 <div className="p-4 border-b space-y-2">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <User className="h-3 w-3" /> Commerciale assegnato
+                    <User className="h-3 w-3" /> {t("Commerciale assegnato")}
                   </h4>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-medium">{salesperson.first_name} {salesperson.last_name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {salesperson.compensation_mode === "fixed_only" ? "Solo fisso" :
-                          salesperson.compensation_mode === "fixed_plus_commission" ? "Fisso + provvigioni" : "Solo provvigioni"}
+                        {salesperson.compensation_mode === "fixed_only" ? t("Solo fisso") :
+                          salesperson.compensation_mode === "fixed_plus_commission" ? t("Fisso + provvigioni") : t("Solo provvigioni")}
                         {" · "}
-                        {salesperson.commission_type === "fixed" ? `${salesperson.commission_value}€ fissi` :
-                          salesperson.commission_type === "percentage_sold" ? `${salesperson.commission_value}% su venduto` :
-                          `${salesperson.commission_value}% su incassato`}
+                        {salesperson.commission_type === "fixed" ? t("{commission_value}€ fissi", { commission_value: String(salesperson.commission_value ?? "") }) :
+                          salesperson.commission_type === "percentage_sold" ? t("{perc}% su venduto", { perc: String(salesperson.commission_value ?? "") }) :
+                          t("{perc}% su incassato", { perc: String(salesperson.commission_value ?? "") })}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Provvigione teorica</div>
+                      <div className="text-xs text-muted-foreground">{t("Provvigione teorica")}</div>
                       <div className="text-sm font-medium text-violet-700">
                         {quote.commission_amount_snapshot != null
                           ? formatCurrency(quote.commission_amount_snapshot)
@@ -301,44 +303,40 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
               {approvals.length > 0 && (
                 <div className="p-4 border-b space-y-3">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Percent className="h-3 w-3" /> Storico approvazioni sconto
+                    <Percent className="h-3 w-3" /> {t("Storico approvazioni sconto")}
                   </h4>
                   {approvals.map((a) => (
                     <div key={a.id} className="text-xs border-l-2 border-muted pl-3 py-1 space-y-1">
                       <div className="flex items-center gap-2">
                         <Send className="h-3 w-3 text-muted-foreground" />
-                        <span className="font-medium">
-                          Richiesto sconto {a.sconto_richiesto_pct}%
-                        </span>
+                        <span className="font-medium">{t("Richiesto sconto {sconto_richiesto_pct}%", { sconto_richiesto_pct: String(a.sconto_richiesto_pct ?? "") })}</span>
                         <span className="text-muted-foreground">
-                          · {format(new Date(a.requested_at), "dd MMM HH:mm", { locale: it })}
+                          · {format(new Date(a.requested_at), "dd MMM HH:mm", { locale: dateFnsCampo() })}
                         </span>
                       </div>
                       {a.note_richiesta && <p className="text-muted-foreground italic">"{a.note_richiesta}"</p>}
                       {a.decision === "approved" && (
                         <div className="flex items-center gap-1 text-green-700">
-                          <CheckCircle2 className="h-3 w-3" /> Approvato{a.decided_at ? ` il ${format(new Date(a.decided_at), "dd MMM", { locale: it })}` : ""}
+                          <CheckCircle2 className="h-3 w-3" /> {t("Approvato")}{a.decided_at ? t(" il {valore}", { valore: format(new Date(a.decided_at), "dd MMM", { locale: dateFnsCampo() }) }) : ""}
                         </div>
                       )}
                       {a.decision === "rejected" && (
                         <div className="flex items-center gap-1 text-red-700">
-                          <XCircle className="h-3 w-3" /> Rifiutato{a.note_decisione ? ` — ${a.note_decisione}` : ""}
+                          <XCircle className="h-3 w-3" /> {t("Rifiutato")}{a.note_decisione ? ` — ${a.note_decisione}` : ""}
                         </div>
                       )}
                       {a.decision === "counter_proposed" && (
                         <div className="flex items-center gap-1 text-blue-700">
-                          <Send className="h-3 w-3" /> Contro-proposta {a.sconto_autorizzato_pct}%
+                          <Send className="h-3 w-3" /> {t("Contro-proposta")} {a.sconto_autorizzato_pct}%
                         </div>
                       )}
                       {!a.decision && (
                         <div className="flex items-center gap-1 text-orange-600">
-                          <Clock className="h-3 w-3" /> In attesa di decisione admin
+                          <Clock className="h-3 w-3" /> {t("In attesa di decisione admin")}
                         </div>
                       )}
                       {a.margine_stimato_pct != null && (
-                        <div className="text-[11px] text-muted-foreground">
-                          Margine stimato al momento della richiesta: {a.margine_stimato_pct}%
-                        </div>
+                        <div className="text-[11px] text-muted-foreground">{t("Margine stimato al momento della richiesta: {margine_stimato_pct}%", { margine_stimato_pct: String(a.margine_stimato_pct ?? "") })}</div>
                       )}
                     </div>
                   ))}
@@ -347,21 +345,19 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
 
               {/* Timeline eventi */}
               <div className="p-4 border-b space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cronologia</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("Cronologia")}</h4>
                 <div className="space-y-1 text-xs">
-                  <TimelineEvent label="Creato" date={quote.created_at} done />
-                  <TimelineEvent label="Inviato" date={quote.sent_at} done={!!quote.sent_at} />
-                  <TimelineEvent label="Visualizzato dal cliente" date={quote.viewed_at} done={!!quote.viewed_at} />
-                  <TimelineEvent label="Firmato" date={quote.signed_at} done={!!quote.signed_at}
+                  <TimelineEvent label={t("Creato")} date={quote.created_at} done />
+                  <TimelineEvent label={t("Inviato")} date={quote.sent_at} done={!!quote.sent_at} />
+                  <TimelineEvent label={t("Visualizzato dal cliente")} date={quote.viewed_at} done={!!quote.viewed_at} />
+                  <TimelineEvent label={t("Firmato")} date={quote.signed_at} done={!!quote.signed_at}
                     sub={quote.signed_by_name || undefined} />
                 </div>
               </div>
 
               {/* Righe (preview) */}
               <div className="p-4 space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Righe ({items.length})
-                </h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("Righe ({n})", { n: items.length })}</h4>
                 <div className="space-y-1 text-xs">
                   {items.slice(0, 8).map((it) => (
                     <div key={it.id} className="flex items-start justify-between gap-2 py-1 border-b border-muted/50 last:border-0">
@@ -375,17 +371,13 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
                       <div className="text-right">
                         <div className="font-medium">{formatCurrency(it.line_total ?? (it.quantity * it.unit_price))}</div>
                         {it.prezzo_acquisto != null && it.prezzo_acquisto > 0 && (
-                          <div className="text-[10px] text-muted-foreground">
-                            costo {formatCurrency(it.prezzo_acquisto * it.quantity)}
-                          </div>
+                          <div className="text-[10px] text-muted-foreground">{t("costo {valore}", { valore: formatCurrency(it.prezzo_acquisto * it.quantity) })}</div>
                         )}
                       </div>
                     </div>
                   ))}
                   {items.length > 8 && (
-                    <div className="text-[11px] text-muted-foreground italic pt-1">
-                      + altre {items.length - 8} righe
-                    </div>
+                    <div className="text-[11px] text-muted-foreground italic pt-1">{t("+ altre {n} righe", { n: items.length - 8 })}</div>
                   )}
                 </div>
               </div>
@@ -399,24 +391,24 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
             <>
               <Button asChild size="sm" variant="outline" className="flex-1">
                 <Link to={`/azienda/marketing/preventivi/${quote.id}`}>
-                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Apri
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> {t("Apri")}
                 </Link>
               </Button>
               <Button size="sm" variant="outline" className="flex-1" onClick={duplica} disabled={duplicando}>
                 {duplicando ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Copy className="h-3.5 w-3.5 mr-1.5" />}
-                Duplica
+                {t("Duplica")}
               </Button>
               {quote.contact_id && (
                 <Button asChild size="sm" variant="outline" className="flex-1">
                   <Link to={`/azienda/marketing/contatti/${quote.contact_id}`}>
-                    Contatto
+                    {t("Contatto")}
                   </Link>
                 </Button>
               )}
               {quote.opportunity_id && (
                 <Button asChild size="sm" variant="outline" className="flex-1">
                   <Link to={`/azienda/marketing/opportunita?id=${quote.opportunity_id}`}>
-                    Opportunità
+                    {t("Opportunità")}
                   </Link>
                 </Button>
               )}
@@ -459,7 +451,7 @@ function TimelineEvent({
         <span>{label}</span>
       </div>
       <div className="text-[11px] text-muted-foreground">
-        {date ? format(new Date(date), "dd MMM yyyy", { locale: it }) : "—"}
+        {date ? format(new Date(date), "dd MMM yyyy", { locale: dateFnsCampo() }) : "—"}
         {sub && <span className="block text-right">{sub}</span>}
       </div>
     </div>

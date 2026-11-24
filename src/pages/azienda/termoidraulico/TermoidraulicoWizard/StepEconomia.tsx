@@ -32,6 +32,7 @@ import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
 import { FullElectricEconomia } from "@/components/termoidraulico/fullElectric/FullElectricEconomia";
 import { leggiDatiFullElectric } from "@/lib/fullElectric/dati";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   form: Partial<IdrProgetto>;
@@ -53,6 +54,7 @@ const toPct = (raw: string): number => {
 };
 
 export default function StepEconomia({ form, onChange, computo, model, onVaiAlPasso }: Props) {
+  const t = useT();
   const contoTermico = model?.id === "conto-termico";
   const fullElectric = model?.id === "full-electric";
   // Prezzo scritto a mano e incentivi propri: la detrazione generica non serve.
@@ -93,9 +95,9 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
       {/* Header */}
       {/* Telefono: il titolo lo dice già il passo in alto. */}
       <div className="max-sm:hidden">
-        <h2 className="text-sm font-semibold text-slate-900">Economia</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t("Economia")}</h2>
         <p className="text-[11px] text-muted-foreground max-sm:hidden">
-          Sconto, IVA ed eventuale detrazione fiscale. I totali sono nell'anteprima del preventivo.
+          {t("Sconto, IVA ed eventuale detrazione fiscale. I totali sono nell'anteprima del preventivo.")}
         </p>
       </div>
 
@@ -103,9 +105,8 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
           <p className="flex-1 text-[11px] text-amber-900">
-            <span className="max-sm:hidden">Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
-            aggiungere le lavorazioni.</span>
-            <span className="sm:hidden">Computo vuoto: le lavorazioni si aggiungono nel passo Computo.</span>
+            <span className="max-sm:hidden">{t("Il computo è ancora vuoto: torna allo step Computo per aggiungere le lavorazioni.")}</span>
+            <span className="sm:hidden">{t("Computo vuoto: le lavorazioni si aggiungono nel passo Computo.")}</span>
           </p>
           {onVaiAlPasso && (
             <Button
@@ -115,7 +116,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
               className="h-7 shrink-0 self-center border-amber-200 bg-white px-2.5 text-[11px] text-amber-900 hover:bg-amber-50"
               onClick={() => onVaiAlPasso("computo")}
             >
-              Vai al Computo
+              {t("Vai al Computo")}
             </Button>
           )}
         </div>
@@ -127,7 +128,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
-              <Percent className="h-4 w-4 text-orange-600" /> Parametri
+              <Percent className="h-4 w-4 text-orange-600" /> {t("Parametri")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -155,7 +156,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
                 label="IVA"
                 value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
-                hint="In edilizia spesso 10% (termoidraulico) o 4% (prima casa)."
+                hint={t("In edilizia spesso 10% (termoidraulico) o 4% (prima casa).")}
               />
             </div>
             {/* Rata nel PDF: compare solo se la promo è configurata nel template,
@@ -200,15 +201,15 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
               <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">
                 <PctField
                   id="idr-detrazione"
-                  label="Detrazione / bonus"
+                  label={t("Detrazione / bonus")}
                   value={form.detrazione_pct ?? 0}
                   onCommit={(v) => onChange("detrazione_pct", v)}
-                  hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
+                  hint={t("Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo.")}
                   icon={BadgePercent}
                 />
                 {/* Preset incentivi termoidraulico: 1-click → imposta detrazione + massimale di spesa */}
                 <div>
-                  <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">Incentivi rapidi (termoidraulico):</p>
+                  <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">{t("Incentivi rapidi (termoidraulico):")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {INCENTIVI_TERMOIDRAULICO.map((inc) => {
                       const active =
@@ -218,7 +219,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
                         <button
                           key={inc.key}
                           type="button"
-                          title={inc.hint}
+                          title={t(inc.hint)}
                           onClick={() => {
                             onChange("detrazione_pct", inc.pct);
                             onChange("massimale_detrazione", inc.massimale);
@@ -230,7 +231,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
                               : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
                           )}
                         >
-                          {inc.label}
+                          {t(inc.label)}
                         </button>
                       );
                     })}

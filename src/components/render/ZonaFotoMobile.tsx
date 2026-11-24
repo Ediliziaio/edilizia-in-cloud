@@ -1,5 +1,6 @@
 import { Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Accento = "orange" | "cyan" | "blue" | "amber" | "emerald" | "violet" | "rose" | "red" | "sky" | "teal";
 
@@ -35,6 +36,7 @@ interface ZonaFotoMobileProps {
  * rimette `border-style: solid` su ogni <button>.
  */
 export function ZonaFotoMobile({ onScegli, suggerimento, accento = "orange", className }: ZonaFotoMobileProps) {
+  const t = useT();
   const a = ACCENTI[accento];
   return (
     <button
@@ -50,7 +52,7 @@ export function ZonaFotoMobile({ onScegli, suggerimento, accento = "orange", cla
         <Camera className="h-6 w-6" />
       </span>
       <span className="space-y-1 text-center">
-        <span className="block text-sm font-semibold text-foreground">Scatta o scegli una foto</span>
+        <span className="block text-sm font-semibold text-foreground">{t("Scatta o scegli una foto")}</span>
         {suggerimento && <span className="block text-[11px] text-muted-foreground">{suggerimento}</span>}
       </span>
     </button>

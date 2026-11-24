@@ -2,15 +2,17 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { AlertTriangle, Clock } from "lucide-react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function DelayNodeComponent({ data, selected }: NodeProps) {
+  const t = useT();
   const catalog = getCatalogItem(data.itemId as string);
 
   // Build duration label from config
   const cfg = (data as any);
-  let label = (cfg.label as string) || catalog?.label || "Attesa";
+  let label = (cfg.label as string) || (catalog?.label ? t(catalog.label) : t("Attesa"));
   if (cfg.delay_durata && cfg.delay_unita) {
-    const unitaMap: Record<string, string> = { minuti: "min", ore: "ore", giorni: "g", settimane: "sett" };
+    const unitaMap: Record<string, string> = { minuti: t("min"), ore: t("ore"), giorni: t("g"), settimane: t("sett") };
     label = `${cfg.delay_durata} ${unitaMap[cfg.delay_unita] || cfg.delay_unita}`;
   }
 

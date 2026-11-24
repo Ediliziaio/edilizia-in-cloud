@@ -5,6 +5,7 @@ import { Lightbulb, TrendingDown, TrendingUp, AlertTriangle, Award } from "lucid
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { KpiData, SalesPerformance, SourceAnalysis, AlertsData } from "@/hooks/useMarketingDashboard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   kpi: KpiData | undefined;
@@ -160,6 +161,7 @@ function generateInsights(kpi: KpiData, kpiPrev: KpiData, tutteLeVendite: SalesP
 }
 
 export const DashboardInsights = memo(function DashboardInsights({ kpi, kpiPrev, sales, sources, alerts, isLoading }: Props) {
+  const t = useT();
   const safeAlerts = useMemo(() => alerts ? { ...EMPTY_ALERTS, ...alerts } : EMPTY_ALERTS, [alerts]);
   const insights = useMemo(
     () => (kpi && kpiPrev) ? generateInsights(kpi, kpiPrev, sales || [], sources || [], safeAlerts) : [],
@@ -169,7 +171,7 @@ export const DashboardInsights = memo(function DashboardInsights({ kpi, kpiPrev,
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Sintesi Strategica</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("Sintesi Strategica")}</CardTitle></CardHeader>
         <CardContent><Skeleton className="h-24 w-full" /></CardContent>
       </Card>
     );
@@ -182,7 +184,7 @@ export const DashboardInsights = memo(function DashboardInsights({ kpi, kpiPrev,
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Lightbulb className="h-4 w-4 text-amber-500" />
-          <CardTitle className="text-base">Sintesi Strategica</CardTitle>
+          <CardTitle className="text-base">{t("Sintesi Strategica")}</CardTitle>
         </div>
       </CardHeader>
       <CardContent>

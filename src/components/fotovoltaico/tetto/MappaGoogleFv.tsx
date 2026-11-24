@@ -7,6 +7,7 @@ import {
   type LibreriaMapsFv,
 } from "./googleMapsJsFv";
 import { massimoZoomGoogleFv } from "./massimoZoomGoogleFv";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type StatoMappaGoogleFv = {
   caricando: boolean;
@@ -26,6 +27,7 @@ type Props = {
   onStato: (stato: StatoMappaGoogleFv) => void;
 };
 export function MappaGoogleFv(props: Props) {
+  const t = useT();
   const host = useRef<HTMLDivElement>(null),
     mappa = useRef<MappaGoogleFvApi | null>(null),
     correnti = useRef(props);
@@ -43,7 +45,7 @@ export function MappaGoogleFv(props: Props) {
     };
     if (!api.MaxZoomService) applica(20);
     else void massimoZoomGoogleFv(api, p.centro).then(applica).catch(e => {
-      if (mappa.current === map && versione === versioneVista.current) correnti.current.onStato({caricando:false,pronto:false,errore:e instanceof Error ? e.message : "Dettaglio satellitare non disponibile. Riprova."});
+      if (mappa.current === map && versione === versioneVista.current) correnti.current.onStato({caricando:false,pronto:false,errore:e instanceof Error ? e.message : t("Dettaglio satellitare non disponibile. Riprova.")});
     });
   }, []);
   useEffect(() => {
@@ -62,7 +64,7 @@ export function MappaGoogleFv(props: Props) {
           caricando: false,
           pronto: false,
           errore:
-            "Google non ha autorizzato la mappa. Chiedi all’amministratore di verificare la chiave browser e i domini consentiti.",
+            t("Google non ha autorizzato la mappa. Chiedi all’amministratore di verificare la chiave browser e i domini consentiti."),
         });
       }
     });
@@ -110,7 +112,7 @@ export function MappaGoogleFv(props: Props) {
               caricando: false,
               pronto: false,
               errore:
-                "Le immagini del tetto non sono arrivate. Controlla la connessione e riprova.",
+                t("Le immagini del tetto non sono arrivate. Controlla la connessione e riprova."),
             });
           }
         }, 20000);
@@ -137,7 +139,7 @@ export function MappaGoogleFv(props: Props) {
             pronto: false,
             errore: errore instanceof Error
               ? errore.message
-              : "Mappa Google non disponibile. Riprova.",
+              : t("Mappa Google non disponibile. Riprova."),
           });
         }
       });
@@ -185,7 +187,7 @@ export function MappaGoogleFv(props: Props) {
       ref={host}
       className="absolute inset-0"
       role="region"
-      aria-label="Google Maps: vista satellitare interattiva"
+      aria-label={t("Google Maps: vista satellitare interattiva")}
     />
   );
 }

@@ -17,8 +17,10 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { ListinoCliente } from "@/hooks/useListinoCliente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ListinoClienteCard({ contactId }: { contactId: string }) {
+  const t = useT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["listino-cliente", contactId],
     queryFn: async (): Promise<ListinoCliente | null> => {
@@ -37,7 +39,7 @@ export function ListinoClienteCard({ contactId }: { contactId: string }) {
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 py-4 justify-center text-muted-foreground text-xs">
-        <Loader2 className="h-3 w-3 animate-spin" /> Carico…
+        <Loader2 className="h-3 w-3 animate-spin" /> {t("Carico…")}
       </div>
     );
   }
@@ -46,7 +48,7 @@ export function ListinoClienteCard({ contactId }: { contactId: string }) {
     return (
       <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900">
         <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-        <span>Tabella listino cliente non ancora attiva (migration da applicare).</span>
+        <span>{t("Tabella listino cliente non ancora attiva (migration da applicare).")}</span>
       </div>
     );
   }
@@ -67,6 +69,7 @@ function ListinoClienteEditor({
   contactId: string;
   esistente: ListinoCliente | null;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
 
@@ -78,7 +81,7 @@ function ListinoClienteEditor({
 
   const salva = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Contesto azienda mancante");
+      if (!companyId) throw new Error(t("Contesto azienda mancante"));
       const payload = {
         company_id: companyId,
         contact_id: contactId,
@@ -102,14 +105,14 @@ function ListinoClienteEditor({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listino-cliente", contactId] });
-      toast.success("Listino cliente salvato", {
+      toast.success(t("Listino cliente salvato"), {
         description:
           attivo && sconto > 0
-            ? `Il preventivatore proporrà lo sconto del ${sconto}% quando selezioni questo cliente.`
-            : "Nessuno sconto attivo per questo cliente.",
+            ? t("Il preventivatore proporrà lo sconto del {sconto}% quando selezioni questo cliente.", { sconto: String(sconto ?? "") })
+            : t("Nessuno sconto attivo per questo cliente."),
       });
     },
-    onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Salvataggio non riuscito"), { description: e.message }),
   });
 
   // Rimozione vera della riga (non solo disattivazione): i preventivi gia'
@@ -125,34 +128,34 @@ function ListinoClienteEditor({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listino-cliente", contactId] });
-      toast.success("Listino rimosso", {
-        description: "Nessuno sconto verrà più proposto per questo cliente.",
+      toast.success(t("Listino rimosso"), {
+        description: t("Nessuno sconto verrà più proposto per questo cliente."),
       });
     },
-    onError: (e: Error) => toast.error("Rimozione non riuscita", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Rimozione non riuscita"), { description: e.message }),
   });
 
   return (
     <div className="space-y-2 text-xs">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Sconto concordato</span>
+        <span className="text-muted-foreground">{t("Sconto concordato")}</span>
         <div className="flex items-center gap-1">
           <Input
             type="number" min={0} max={100} step="0.5"
             value={sconto}
             onChange={(e) => setSconto(parseFloat(e.target.value) || 0)}
             className="h-7 w-16 text-right text-xs"
-            aria-label="Sconto concordato %"
+            aria-label={t("Sconto concordato %")}
           />
           <span className="text-muted-foreground">%</span>
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Attivo</span>
-        <Switch checked={attivo} onCheckedChange={setAttivo} aria-label="Listino attivo" />
+        <span className="text-muted-foreground">{t("Attivo")}</span>
+        <Switch checked={attivo} onCheckedChange={setAttivo} aria-label={t("Listino attivo")} />
       </div>
       <Textarea
-        placeholder="Perché questo sconto (es. porta tre cantieri l'anno)…"
+        placeholder={t("Perché questo sconto (es. porta tre cantieri l'anno)…")}
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
@@ -171,18 +174,17 @@ function ListinoClienteEditor({
             }}
           >
             {rimuovi.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-            {confermaRimuovi ? "Confermi la rimozione?" : "Rimuovi"}
+            {confermaRimuovi ? t("Confermi la rimozione?") : t("Rimuovi")}
           </Button>
         )}
         <div className="flex-1" />
         <Button size="sm" className="h-7 text-xs" disabled={salva.isPending || rimuovi.isPending} onClick={() => salva.mutate()}>
           {salva.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-          Salva
+          {t("Salva")}
         </Button>
       </div>
       <p className="text-[11px] text-muted-foreground leading-snug">
-        Quando crei un preventivo per questo cliente, lo sconto viene proposto
-        — mai applicato da solo.
+        {t("Quando crei un preventivo per questo cliente, lo sconto viene proposto — mai applicato da solo.")}
       </p>
     </div>
   );

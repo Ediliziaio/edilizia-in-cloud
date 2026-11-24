@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const rows = [
   { aspetto: 'Valore legale', fes: 'Valutato dal giudice caso per caso', fea: 'Forma scritta (CAD art. 20)' },
@@ -18,6 +19,7 @@ interface FEABannerEsVsFeaProps {
 }
 
 export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsVsFeaProps) {
+  const t = useT();
   const [dismissed, setDismissed] = useState(false);
 
   if (dismissed) return null;
@@ -30,7 +32,7 @@ export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsV
           size="sm"
           className="absolute top-2 right-2 h-7 w-7 p-0 text-gray-400 hover:text-gray-600"
           onClick={() => setDismissed(true)}
-          aria-label="Chiudi"
+          aria-label={t("Chiudi")}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -38,7 +40,7 @@ export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsV
 
       <CardHeader className={cn("pb-3", dismissible && "pr-10")}>
         <CardTitle className="text-base">
-          Firma Elettronica Avanzata vs Firma Elettronica Semplice
+          {t("Firma Elettronica Avanzata vs Firma Elettronica Semplice")}
         </CardTitle>
       </CardHeader>
 
@@ -48,7 +50,7 @@ export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsV
             <thead>
               <tr className="bg-gray-50">
                 <th className="text-left px-3 py-2 font-medium text-gray-600 border border-gray-200 rounded-tl">
-                  Aspetto
+                  {t("Aspetto")}
                 </th>
                 <th className="text-left px-3 py-2 font-medium text-gray-600 border border-gray-200">
                   FES
@@ -62,11 +64,11 @@ export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsV
               {rows.map((row, i) => (
                 <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                   <td className="px-3 py-2 font-medium text-gray-700 border border-gray-200">
-                    {row.aspetto}
+                    {t(row.aspetto)}
                   </td>
-                  <td className="px-3 py-2 text-gray-600 border border-gray-200">{row.fes}</td>
+                  <td className="px-3 py-2 text-gray-600 border border-gray-200">{t(row.fes)}</td>
                   <td className="px-3 py-2 text-gray-800 font-medium border border-gray-200">
-                    {row.fea}
+                    {t(row.fea)}
                   </td>
                 </tr>
               ))}
@@ -77,7 +79,7 @@ export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsV
         <Alert className="border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800 text-sm">
-            Per contratti e preventivi accendi la firma elettronica avanzata: chi firma si identifica con un documento d'identità.
+            {t("Per contratti e preventivi accendi la firma elettronica avanzata: chi firma si identifica con un documento d'identità.")}
           </AlertDescription>
         </Alert>
       </CardContent>

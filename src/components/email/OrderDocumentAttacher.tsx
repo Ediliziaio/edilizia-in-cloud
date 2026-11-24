@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useOrderDocuments } from "@/hooks/useOrderDocuments";
 import { Loader2, Paperclip, Check } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface OrderDocumentAttacherProps {
   orderId: string;
@@ -16,6 +17,7 @@ function formatSize(bytes: number | null): string {
 }
 
 export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDetach }: OrderDocumentAttacherProps) {
+  const t = useT();
   const { data: tutti = [], isLoading, isError, refetch } = useOrderDocuments(orderId);
   const [cerca, setCerca] = useState("");
   const docs = cerca.trim() ? tutti.filter((d) => d.file_name.toLowerCase().includes(cerca.trim().toLowerCase())) : tutti;
@@ -24,7 +26,7 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
     return (
       <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Caricamento documenti commessa…
+        {t("Caricamento documenti commessa…")}
       </div>
     );
   }
@@ -33,30 +35,30 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
         <Paperclip className="h-3.5 w-3.5" />
-        Documenti commessa
+        {t("Documenti commessa")}
       </div>
       {tutti.length > 5 && (
         <input
           type="search" value={cerca} onChange={(e) => setCerca(e.target.value)}
-          placeholder={`Cerca tra ${tutti.length} documenti…`} aria-label="Cerca tra i documenti"
+          placeholder={t("Cerca tra {n} documenti…", { n: tutti.length })} aria-label={t("Cerca tra i documenti")}
           className="h-7 w-full rounded-md border bg-white px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
         />
       )}
 
       {isError ? (
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="italic">Impossibile caricare i documenti.</span>
+          <span className="italic">{t("Impossibile caricare i documenti.")}</span>
           <button
             type="button"
             className="text-blue-600 hover:text-blue-800 font-medium"
             onClick={() => refetch()}
           >
-            Riprova
+            {t("Riprova")}
           </button>
         </div>
       ) : docs.length === 0 ? (
         <p className="text-[11px] text-muted-foreground italic">
-          Nessun documento collegato alla commessa.
+          {t("Nessun documento collegato alla commessa.")}
         </p>
       ) : (
         <ul className="max-h-48 space-y-1 overflow-y-auto">
@@ -78,18 +80,18 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
                     type="button"
                     className="flex items-center gap-1 text-emerald-600 hover:text-rose-600 font-medium shrink-0 text-[11px]"
                     onClick={() => onDetach(doc.file_url)}
-                    title="Rimuovi allegato"
+                    title={t("Rimuovi allegato")}
                   >
-                    <Check className="h-3.5 w-3.5" /> Rimuovi
+                    <Check className="h-3.5 w-3.5" /> {t("Rimuovi")}
                   </button>
                 ) : (
                   <button
                     type="button"
                     className="text-blue-600 hover:text-blue-800 font-medium shrink-0 text-[11px]"
                     onClick={() => onAttach({ name: doc.file_name, size: doc.file_size, mime: doc.file_type, file_url: doc.file_url, bucket: "order-attachments" })}
-                    title="Allega"
+                    title={t("Allega")}
                   >
-                    Allega
+                    {t("Allega")}
                   </button>
                 )}
               </li>

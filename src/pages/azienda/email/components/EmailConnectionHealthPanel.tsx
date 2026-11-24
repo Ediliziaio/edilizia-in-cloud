@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type EmailConnectionHealth = {
   consecutive_errors?: number | null;
@@ -105,25 +106,25 @@ function statusTone(connection: EmailConnectionHealth) {
   return { label: "Da controllare", cls: "border-rose-200 bg-rose-50 text-rose-700", icon: AlertTriangle };
 }
 
-function formatRelativeDate(value: string | null | undefined) {
-  if (!value) return "mai";
+function formatRelativeDate(value: string | null | undefined, t: (testo: string, valori?: Record<string, string | number>) => string) {
+  if (!value) return t("mai");
   const when = new Date(value).getTime();
-  if (!Number.isFinite(when)) return "data non valida";
+  if (!Number.isFinite(when)) return t("data non valida");
   const diff = Date.now() - when;
   const minutes = Math.round(diff / 60_000);
-  if (minutes < 1) return "adesso";
-  if (minutes < 60) return `${minutes} min fa`;
+  if (minutes < 1) return t("adesso");
+  if (minutes < 60) return t("{n} min fa", { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h fa`;
-  return new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+  if (hours < 24) return t("{n} h fa", { n: hours });
+  return new Date(value).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" });
 }
 
-function bestSyncLabel(connections: EmailConnectionHealth[]) {
+function bestSyncLabel(connections: EmailConnectionHealth[], t: (testo: string, valori?: Record<string, string | number>) => string) {
   const last = connections
     .map((connection) => connection.last_synced_at)
     .filter((value): value is string => Boolean(value))
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
-  return formatRelativeDate(last);
+  return formatRelativeDate(last, t);
 }
 
 function normalizeConnections(rows: unknown): EmailConnectionHealth[] {
@@ -138,6 +139,7 @@ export function EmailConnectionHealthPanel({
   settingsPath = "/azienda/impostazioni/mio-profilo",
   variant = "full",
 }: EmailConnectionHealthPanelProps) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = companyIdOverride ?? effectiveCompany?.id;
   const userId = user?.id;
@@ -199,7 +201,7 @@ export function EmailConnectionHealthPanel({
           },
         }),
         25_000,
-        "Sync email troppo lenta. Controlla lo stato della casella o riprova.",
+        t("Sync email troppo lenta. Controlla lo stato della casella o riprova."),
       );
       if (error) throw error;
 
@@ -224,12 +226,12 @@ export function EmailConnectionHealthPanel({
       const processed = Number(triage.processed ?? 0);
       const pending = emailSyncPending(sync);
       const notify = pending ? toast.info : toast.success;
-      notify(pending ? "Recupero email in corso" : "Email aggiornate", {
-        description: `${stored} nuove email salvate, ${processed} classificate dalla Regia AI.${pending ? " Lo storico continua nei prossimi giri." : ""}`,
+      notify(pending ? t("Recupero email in corso") : t("Email aggiornate"), {
+        description: pending ? t("{salvate} nuove email salvate, {classificate} classificate dalla Regia AI. Lo storico continua nei prossimi giri.", { salvate: stored, classificate: processed }) : t("{salvate} nuove email salvate, {classificate} classificate dalla Regia AI.", { salvate: stored, classificate: processed }),
       });
     },
     onError: (error: Error) => {
-      toast.error("Sync email non riuscito", { description: error.message });
+      toast.error(t("Sync email non riuscito"), { description: error.message });
     },
   });
 
@@ -244,8 +246,8 @@ export function EmailConnectionHealthPanel({
   const active = rows.filter((connection) => connection.status === "active").length;
   const fetchedTotal = rows.reduce((sum, connection) => sum + Number(connection.emails_fetched_total ?? 0), 0);
   const panelTitle = rows.length > 0
-    ? `${active}/${rows.length} caselle attive`
-    : "Nessuna casella collegata";
+    ? t("{attive}/{n} caselle attive", { attive: active, n: rows.length })
+    : t("Nessuna casella collegata");
 
   const diagRows = useMemo(() => Object.entries(diagnostic.data?.checklist ?? {}), [diagnostic.data]);
   const compactHealthy = variant === "compact" && rows.length > 0 && unhealthy.length === 0 && !hasLoadIssue;
@@ -282,8 +284,8 @@ export function EmailConnectionHealthPanel({
             <p className="text-sm font-bold text-slate-950">{panelTitle}</p>
             <p className="mt-0.5 text-xs leading-5 text-slate-500">
               {rows.length > 0
-                ? `Ultimo controllo ${bestSyncLabel(rows)} · ${fetchedTotal} email lette`
-                : "Collega Gmail, Outlook o un'altra casella per ricevere qui le tue email, con l'AI che ti aiuta a smistarle e rispondere."}
+                ? t("Ultimo controllo {rows} · {fetchedTotal} email lette", { rows: bestSyncLabel(rows, t), fetchedTotal })
+                : t("Collega Gmail, Outlook o un'altra casella per ricevere qui le tue email, con l'AI che ti aiuta a smistarle e rispondere.")}
             </p>
             {(loadError || fallbackConnections.error) && (
               <p className="mt-1 line-clamp-2 text-[11px] font-medium text-amber-700">
@@ -294,9 +296,7 @@ export function EmailConnectionHealthPanel({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {unhealthy.length > 0 && (
-            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-800">
-              {unhealthy.length} avvisi
-            </Badge>
+            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-800">{t("{n} avvisi", { n: unhealthy.length })}</Badge>
           )}
           {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </div>
@@ -313,7 +313,7 @@ export function EmailConnectionHealthPanel({
               disabled={syncInbox.isPending || rows.length === 0}
             >
               {syncInbox.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Sync + AI
+              {t("Sync + AI")}
             </Button>
             <Button
               type="button"
@@ -324,12 +324,12 @@ export function EmailConnectionHealthPanel({
               disabled={diagnostic.isFetching}
             >
               {diagnostic.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              Diagnostica
+              {t("Diagnostica")}
             </Button>
             <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 rounded-xl border-blue-200 text-xs">
               <Link to={settingsPath}>
                 <Settings2 className="h-3.5 w-3.5" />
-                Impostazioni
+                {t("Impostazioni")}
               </Link>
             </Button>
           </div>
@@ -339,7 +339,7 @@ export function EmailConnectionHealthPanel({
               <div className="flex items-start gap-2">
                 <Plug className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                 <span>
-                  Non vediamo nessuna casella collegata al tuo utente. Se l'hai già collegata e non compare, scrivici e controlliamo noi.
+                  {t("Non vediamo nessuna casella collegata al tuo utente. Se l'hai già collegata e non compare, scrivici e controlliamo noi.")}
                 </span>
               </div>
             </div>
@@ -353,10 +353,10 @@ export function EmailConnectionHealthPanel({
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-slate-900">{connection.email_address || "Casella senza email"}</p>
+                          <p className="truncate text-sm font-semibold text-slate-900">{connection.email_address || t("Casella senza email")}</p>
                           <Badge variant="outline" className={cn("h-5 rounded-full px-2 text-[10px]", tone.cls)}>
                             <StatusIcon className="mr-1 h-3 w-3" />
-                            {tone.label}
+                            {t(tone.label)}
                           </Badge>
                           <Badge variant="outline" className="h-5 rounded-full border-blue-100 bg-white px-2 text-[10px] text-blue-700">
                             {providerLabel(connection.provider, connection.provider_label)}
@@ -365,10 +365,10 @@ export function EmailConnectionHealthPanel({
                         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
                           <span className="inline-flex items-center gap-1">
                             <Clock3 className="h-3 w-3" />
-                            Controllata {formatRelativeDate(connection.last_synced_at)}
+                            {t("Controllata {quando}", { quando: formatRelativeDate(connection.last_synced_at, t) })}
                           </span>
-                          <span>{connection.emails_fetched_total ?? 0} email lette</span>
-                          <span>{connection.poll_enabled === false ? "Controllo automatico spento" : `Controllo ogni ${connection.poll_interval_minutes ?? 10} min`}</span>
+                          <span>{connection.emails_fetched_total ?? 0} {t("email lette")}</span>
+                          <span>{connection.poll_enabled === false ? t("Controllo automatico spento") : t("Controllo ogni {n} min", { n: connection.poll_interval_minutes ?? 10 })}</span>
                         </div>
                         {(connection.last_sync_error || connection.last_test_error) && (
                           <p className="mt-2 rounded-lg border border-amber-100 bg-white px-2 py-1.5 text-[11px] leading-4 text-amber-800" title={connection.last_sync_error || connection.last_test_error || undefined}>
@@ -385,7 +385,7 @@ export function EmailConnectionHealthPanel({
                         disabled={syncInbox.isPending || !connection.id}
                       >
                         {syncInbox.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                        Sync
+                        {t("Sync")}
                       </Button>
                     </div>
                   </div>
@@ -403,7 +403,7 @@ export function EmailConnectionHealthPanel({
                 "text-xs font-bold",
                 diagnostic.data.ready ? "text-emerald-800" : "text-amber-800",
               )}>
-                {diagnostic.data.ready ? "Setup email pronto" : "Setup email da completare"}
+                {diagnostic.data.ready ? t("Setup email pronto") : t("Setup email da completare")}
               </p>
               {diagnostic.data.next_action && (
                 <p className="mt-1 text-[11px] leading-4 text-slate-600">{diagnostic.data.next_action}</p>

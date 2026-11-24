@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Testata dello spazio Planimetrie; le pagine interne tornano al progetto o all'elenco. */
 export function TestataPlanimetrie({ indietro, titolo, sottotitolo, azioni, compatta }: {
@@ -9,9 +10,10 @@ export function TestataPlanimetrie({ indietro, titolo, sottotitolo, azioni, comp
   /** Sul telefono lascia solo i pulsanti: nell'editor il titolo rubava 90 px al disegno (24/11/2026). */
   compatta?: boolean;
 }) {
+  const t = useT();
   return (
     <div className={`flex flex-wrap items-start gap-3${compatta ? " max-md:flex-nowrap max-md:items-center max-md:gap-1.5" : ""}`}>
-      {indietro && <Button asChild variant="ghost" size="icon" className="shrink-0" aria-label="Indietro">
+      {indietro && <Button asChild variant="ghost" size="icon" className="shrink-0" aria-label={t("Indietro")}>
         <Link to={indietro}>
           <ArrowLeft className="h-5 w-5" />
         </Link>

@@ -2,9 +2,10 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import type { SedeAnalyticsData } from '@/hooks/useSediAnalytics'
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function formatCurrency(v: number) {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+  return new Intl.NumberFormat(intlCampo(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
 }
 function formatPercent(v: number) {
   return `${v.toFixed(1)}%`
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function SedeMargineCard({ sede }: Props) {
+  const t = useT();
   const colors = getSemaforoColor(sede.margine_pct)
   const conversione =
     sede.n_preventivi > 0
@@ -52,19 +54,19 @@ export function SedeMargineCard({ sede }: Props) {
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div>
-            <p className="text-muted-foreground text-xs">Ricavi</p>
+            <p className="text-muted-foreground text-xs">{t("Ricavi")}</p>
             <p className="font-semibold">{formatCurrency(sede.ricavi)}</p>
           </div>
           <div>
-            <p className="text-muted-foreground text-xs">Margine €</p>
+            <p className="text-muted-foreground text-xs">{t("Margine €")}</p>
             <p className="font-semibold">{formatCurrency(sede.margine)}</p>
           </div>
           <div>
-            <p className="text-muted-foreground text-xs">N. Preventivi</p>
+            <p className="text-muted-foreground text-xs">{t("N. Preventivi")}</p>
             <p className="font-semibold">{sede.n_preventivi}</p>
           </div>
           <div>
-            <p className="text-muted-foreground text-xs">Conversione</p>
+            <p className="text-muted-foreground text-xs">{t("Conversione")}</p>
             <p className="font-semibold">{conversione}</p>
           </div>
         </div>
@@ -72,7 +74,7 @@ export function SedeMargineCard({ sede }: Props) {
         {/* Barra incidenza ricavi */}
         <div>
           <div className="flex justify-between text-xs text-muted-foreground mb-1">
-            <span>Incidenza sui ricavi azienda</span>
+            <span>{t("Incidenza sui ricavi azienda")}</span>
             <span className="font-medium text-eic-navy">
               {formatPercent(sede.incidenza_ricavi)}
             </span>
@@ -88,10 +90,10 @@ export function SedeMargineCard({ sede }: Props) {
             <TrendingDown className="h-4 w-4 text-red-600 flex-shrink-0" />
           )}
           <span className="text-xs text-muted-foreground">
-            Delta incidenza:{' '}
+            {t("Delta incidenza:")}{' '}
             {sede.delta_incidenza > 0 ? '+' : ''}
             {sede.delta_incidenza.toFixed(1)}pp{' '}
-            {sede.delta_incidenza > 0 ? '— Sede premium ✓' : '— Da analizzare ⚠'}
+            {sede.delta_incidenza > 0 ? t("— Sede premium ✓") : t("— Da analizzare ⚠")}
           </span>
         </div>
       </CardContent>

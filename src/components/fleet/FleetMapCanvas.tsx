@@ -2,21 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 type Point = { lat: number; lng: number; label?: string; color?: string; radius?: number; onClick?: () => void };
 type Props = { points?: Point[]; route?: Point[]; height?: string; onMapClick?: (lat: number, lng: number) => void };
 const valid = (p: Point) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180;
 
 /** React-18 compatible map. Names go through textContent, never interpolated HTML. */
 export function FleetMapCanvas(props: Props) {
+  const t = useT();
   const [enabled, setEnabled] = useState(false);
   return <div className="space-y-2">
     {!enabled ? <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border bg-slate-50 p-4 text-center text-sm">
-      <p>La cartografia usa OpenStreetMap. Nessuna posizione viene inviata a servizi di ricerca indirizzi.</p>
-      <Button variant="outline" size="sm" onClick={() => setEnabled(true)}>Carica cartografia</Button>
+      <p>{t("La cartografia usa OpenStreetMap. Nessuna posizione viene inviata a servizi di ricerca indirizzi.")}</p>
+      <Button variant="outline" size="sm" onClick={() => setEnabled(true)}>{t("Carica cartografia")}</Button>
     </div> : <ActiveMap {...props} />}
   </div>;
 }
 function ActiveMap({ points = [], route = [], height = "320px", onMapClick }: Props) {
+  const t = useT();
   const container = useRef<HTMLDivElement>(null), map = useRef<L.Map | null>(null), shapes = useRef<L.LayerGroup | null>(null);
   const [tileError, setTileError] = useState(false);
   const fitted = useRef(false);
@@ -54,6 +57,6 @@ function ActiveMap({ points = [], route = [], height = "320px", onMapClick }: Pr
     const handler=(event:L.LeafletMouseEvent)=>onMapClick(event.latlng.lat,event.latlng.lng);
     instance.on("click",handler); return ()=>{instance.off("click",handler);};
   },[onMapClick]);
-  return <><div ref={container} role="region" aria-label="Mappa GPS" className="relative isolate overflow-hidden rounded-lg border" style={{height}} />
-    {tileError && <p role="status" className="text-xs text-orange-700">Cartografia non disponibile. I dati GPS restano consultabili nell’elenco.</p>}</>;
+  return <><div ref={container} role="region" aria-label={t("Mappa GPS")} className="relative isolate overflow-hidden rounded-lg border" style={{height}} />
+    {tileError && <p role="status" className="text-xs text-orange-700">{t("Cartografia non disponibile. I dati GPS restano consultabili nell’elenco.")}</p>}</>;
 }

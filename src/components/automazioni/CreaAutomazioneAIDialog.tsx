@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { TRIGGER_CATALOG_ITEMS, ACTION_CATALOG_ITEMS } from "@/lib/flow-node-catalog";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -54,6 +55,7 @@ const ESEMPI = [
 ];
 
 export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
+  const tr = useT();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const companyId = useEffectiveCompanyId();
@@ -65,12 +67,12 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
 
   const handleGenera = async () => {
     if (!companyId || !user?.id) {
-      toast.error("Devi essere autenticato");
+      toast.error(tr("Devi essere autenticato"));
       return;
     }
     const desc = descrizione.trim();
     if (desc.length < 10) {
-      toast.error("Descrivi l'automazione in modo più completo");
+      toast.error(tr("Descrivi l'automazione in modo più completo"));
       return;
     }
 
@@ -141,7 +143,7 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
         } as never)
         .select("id")
         .single();
-      if (flowErr || !flow) throw flowErr ?? new Error("Impossibile creare il flusso");
+      if (flowErr || !flow) throw flowErr ?? new Error(tr("Impossibile creare il flusso"));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const flowId = (flow as any).id as string;
       createdFlowId = flowId;
@@ -183,9 +185,9 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
       void queryClient.invalidateQueries({ queryKey: ["automation-overview-stats"] });
       void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
 
-      toast.success("Bozza generata! Apro il builder per rifinirla…");
+      toast.success(tr("Bozza generata! Apro il builder per rifinirla…"));
       if (azioniDaCompletare) {
-        toast.warning("Alcune azioni vanno completate nel builder prima di pubblicare");
+        toast.warning(tr("Alcune azioni vanno completate nel builder prima di pubblicare"));
       }
       onOpenChange(false);
       setDescrizione("");
@@ -202,7 +204,7 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
       // Il messaggio dell'edge function (es. carta mancante, descrizione vaga)
       // è già parlante: mostralo quando presente.
       const msg = (err as { message?: string })?.message;
-      toast.error(msg && msg.length < 160 ? msg : "Non sono riuscito a generare l'automazione. Riprova con una descrizione più precisa.");
+      toast.error(msg && msg.length < 160 ? msg : tr("Non sono riuscito a generare l'automazione. Riprova con una descrizione più precisa."));
     } finally {
       setLoading(false);
     }
@@ -214,11 +216,10 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-orange-500" />
-            Crea automazione con l'AI
+            {tr("Crea automazione con l'AI")}
           </DialogTitle>
           <DialogDescription>
-            Descrivi cosa deve fare l'automazione. L'AI sceglie trigger e azioni dal catalogo
-            e prepara una bozza che potrai rifinire nel builder.
+            {tr("Descrivi cosa deve fare l'automazione. L'AI sceglie trigger e azioni dal catalogo e prepara una bozza che potrai rifinire nel builder.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -226,14 +227,14 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
           <Textarea
             value={descrizione}
             onChange={(e) => setDescrizione(e.target.value)}
-            placeholder="Es: quando arriva un nuovo lead dal sito, assegnalo a un agente e crea un task di chiamata entro un'ora"
+            placeholder={tr("Es: quando arriva un nuovo lead dal sito, assegnalo a un agente e crea un task di chiamata entro un'ora")}
             rows={4}
             maxLength={2000}
             disabled={loading}
             className="resize-none"
           />
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Esempi:</p>
+            <p className="text-xs font-medium text-muted-foreground">{tr("Esempi:")}</p>
             <div className="flex flex-col gap-1">
               {ESEMPI.map((ex) => (
                 <button
@@ -243,7 +244,7 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
                   onClick={() => setDescrizione(ex)}
                   className="text-left text-xs text-muted-foreground hover:text-foreground rounded border bg-muted/40 px-2 py-1 transition-colors disabled:opacity-50"
                 >
-                  {ex}
+                  {tr(ex)}
                 </button>
               ))}
             </div>
@@ -252,11 +253,11 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button onClick={handleGenera} disabled={loading || descrizione.trim().length < 10}>
             {loading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
-            {loading ? "Genero…" : "Genera bozza"}
+            {loading ? tr("Genero…") : tr("Genera bozza")}
           </Button>
         </DialogFooter>
       </DialogContent>

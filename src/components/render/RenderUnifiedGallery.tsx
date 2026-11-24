@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RenderBeforeAfterPreview } from "@/components/render/RenderBeforeAfterPreview";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface UnifiedRenderGalleryItem {
   id: string;
@@ -74,7 +74,7 @@ const getDateValue = (value: string) => {
 
 const formatGalleryDate = (value: string, pattern = "d MMM yyyy, HH:mm") => {
   const date = getDateValue(value);
-  return date ? format(date, pattern, { locale: it }) : "Data non disponibile";
+  return date ? format(date, pattern, { locale: dateFnsCampo() }) : null;
 };
 
 const normalizeInputDate = (value: string, endOfDay = false) => {
@@ -104,10 +104,13 @@ export function RenderUnifiedGallery({
   onRetry,
   emptyTitle,
   emptyDescription,
-  searchPlaceholder = "Cerca render, autore, contatto, opportunita...",
+  searchPlaceholder: searchPlaceholderProp,
   emptyIcon: EmptyIcon = Image,
   accentClassName = "text-primary",
 }: RenderUnifiedGalleryProps) {
+  const t = useT();
+  const searchPlaceholder = searchPlaceholderProp ?? t("Cerca render, autore, contatto, opportunita...");
+  const dataGalleria = (value: string, pattern?: string) => formatGalleryDate(value, pattern) ?? t("Data non disponibile");
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [creatorFilter, setCreatorFilter] = useState("all");
@@ -133,7 +136,7 @@ export function RenderUnifiedGallery({
         item.createdByName,
         item.contactName,
         item.opportunityName,
-        formatGalleryDate(item.date, "d MMMM yyyy"),
+        formatGalleryDate(item.date, "d MMMM yyyy") ?? "",
       ].filter(Boolean).join(" ").toLowerCase();
 
       return (!needle || haystack.includes(needle)) &&
@@ -189,10 +192,10 @@ export function RenderUnifiedGallery({
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="min-w-0 truncate text-lg font-bold">Galleria {moduleName}</h1>
+          <h1 className="min-w-0 truncate text-lg font-bold">{t("Galleria {moduleName}", { moduleName: String(moduleName ?? "") })}</h1>
           <Button size="sm" className="h-9 shrink-0 gap-1.5" onClick={() => navigate(newPath)}>
             <Plus className="h-4 w-4" />
-            Nuovo
+            {t("Nuovo")}
           </Button>
         </div>
 
@@ -201,7 +204,7 @@ export function RenderUnifiedGallery({
             <CercaConFiltri
               valore={search}
               onCambia={setSearch}
-              segnaposto="Cerca render, cliente…"
+              segnaposto={t("Cerca render, cliente…")}
               filtriAttivi={filtriAttivi}
               onApriFiltri={() => setFiltriAperti(true)}
             />
@@ -213,37 +216,37 @@ export function RenderUnifiedGallery({
               risultati={filtered.length}
             >
               <PilloleFiltro
-                titolo="Collegamento CRM"
+                titolo={t("Collegamento CRM")}
                 valore={linkFilter}
                 onScegli={setLinkFilter}
                 scelte={[
-                  { value: "all", label: "Tutti" },
-                  { value: "linked", label: "Collegati" },
-                  { value: "unlinked", label: "Da collegare" },
+                  { value: "all", label: t("Tutti") },
+                  { value: "linked", label: t("Collegati") },
+                  { value: "unlinked", label: t("Da collegare") },
                 ]}
               />
               {creatorOptions.length > 1 && (
                 <PilloleFiltro
-                  titolo="Creato da"
+                  titolo={t("Creato da")}
                   valore={creatorFilter}
                   onScegli={setCreatorFilter}
-                  scelte={[{ value: "all", label: "Tutti" }, ...creatorOptions.map(([id, label]) => ({ value: id, label }))]}
+                  scelte={[{ value: "all", label: t("Tutti") }, ...creatorOptions.map(([id, label]) => ({ value: id, label }))]}
                 />
               )}
               {contactOptions.length > 0 && (
                 <PilloleFiltro
-                  titolo="Contatto"
+                  titolo={t("Contatto")}
                   valore={contactFilter}
                   onScegli={setContactFilter}
-                  scelte={[{ value: "all", label: "Tutti" }, ...contactOptions.map(([id, label]) => ({ value: id, label }))]}
+                  scelte={[{ value: "all", label: t("Tutti") }, ...contactOptions.map(([id, label]) => ({ value: id, label }))]}
                 />
               )}
               {opportunityOptions.length > 0 && (
                 <PilloleFiltro
-                  titolo="Opportunità"
+                  titolo={t("Opportunità")}
                   valore={opportunityFilter}
                   onScegli={setOpportunityFilter}
-                  scelte={[{ value: "all", label: "Tutte" }, ...opportunityOptions.map(([id, label]) => ({ value: id, label }))]}
+                  scelte={[{ value: "all", label: t("Tutte") }, ...opportunityOptions.map(([id, label]) => ({ value: id, label }))]}
                 />
               )}
             </PannelloFiltri>
@@ -256,11 +259,11 @@ export function RenderUnifiedGallery({
           </div>
         ) : error ? (
           <div className="rounded-lg border px-3 py-3 text-[13px]" role="alert" aria-live="assertive">
-            <p className="font-medium">Impossibile caricare la galleria</p>
+            <p className="font-medium">{t("Impossibile caricare la galleria")}</p>
             {onRetry && (
               <Button variant="outline" size="sm" className="mt-2 gap-2" onClick={() => void onRetry()} disabled={isRefetching}>
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} aria-hidden="true" />
-                Riprova
+                {t("Riprova")}
               </Button>
             )}
           </div>
@@ -271,10 +274,10 @@ export function RenderUnifiedGallery({
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-lg border border-dashed px-4 py-6 text-center">
-            <p className="text-[13px] font-medium">Nessun render con questi filtri</p>
+            <p className="text-[13px] font-medium">{t("Nessun render con questi filtri")}</p>
             <Button variant="outline" size="sm" className="mt-2 gap-2" onClick={resetFilters}>
               <RotateCcw className="h-3.5 w-3.5" />
-              Mostra tutto
+              {t("Mostra tutto")}
             </Button>
           </div>
         ) : (
@@ -295,7 +298,7 @@ export function RenderUnifiedGallery({
                   </div>
                 }
                 titolo={item.title}
-                sottotitolo={`${formatGalleryDate(item.date, "d MMM yyyy")} · ${item.contactName ?? "da collegare"}`}
+                sottotitolo={`${dataGalleria(item.date, "d MMM yyyy")} · ${item.contactName ?? t("da collegare")}`}
                 stato={item.detailPath ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : undefined}
               />
             ))}
@@ -310,7 +313,7 @@ export function RenderUnifiedGallery({
       <section className="rounded-2xl border bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_52%,#ffffff_100%)] p-5 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
-            <Button variant="ghost" size="icon" aria-label="Torna alla panoramica render" onClick={() => navigate(backPath)}>
+            <Button variant="ghost" size="icon" aria-label={t("Torna alla panoramica render")} onClick={() => navigate(backPath)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -324,21 +327,21 @@ export function RenderUnifiedGallery({
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="gap-2 bg-white/80" onClick={() => navigate(backPath)}>
-              Panoramica
+              {t("Panoramica")}
             </Button>
             <Button className="gap-2" onClick={() => navigate(newPath)}>
               <Plus className="h-4 w-4" />
-              Nuovo render
+              {t("Nuovo render")}
             </Button>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            { label: "Totali", value: stats.total, icon: GalleryHorizontalEnd },
-            { label: "Visibili", value: stats.visible, icon: Search },
-            { label: "Collegati CRM", value: stats.linked, icon: Link2 },
-            { label: "Contatti", value: stats.contacts, icon: UserRound },
+            { label: t("Totali"), value: stats.total, icon: GalleryHorizontalEnd },
+            { label: t("Visibili"), value: stats.visible, icon: Search },
+            { label: t("Collegati CRM"), value: stats.linked, icon: Link2 },
+            { label: t("Contatti"), value: stats.contacts, icon: UserRound },
           ].map(({ label, value, icon: Icon }) => (
             <div key={label} role="group" aria-label={label} className="rounded-xl border bg-white/85 p-3 shadow-sm">
               <Icon className={`mb-2 h-4 w-4 ${accentClassName}`} />
@@ -355,12 +358,12 @@ export function RenderUnifiedGallery({
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className={`h-4 w-4 ${accentClassName}`} />
-                <p className="text-sm font-semibold">Filtri galleria</p>
+                <p className="text-sm font-semibold">{t("Filtri galleria")}</p>
               </div>
               {hasFilters && (
                 <Button variant="ghost" size="sm" className="gap-2" onClick={resetFilters}>
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reset
+                  {t("Reset")}
                 </Button>
               )}
             </div>
@@ -368,7 +371,7 @@ export function RenderUnifiedGallery({
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  aria-label="Cerca nella galleria render"
+                  aria-label={t("Cerca nella galleria render")}
                   placeholder={searchPlaceholder}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -376,36 +379,36 @@ export function RenderUnifiedGallery({
                 />
               </div>
               <Select value={creatorFilter} onValueChange={setCreatorFilter}>
-                <SelectTrigger aria-label="Filtra render per autore"><SelectValue placeholder="Creato da" /></SelectTrigger>
+                <SelectTrigger aria-label={t("Filtra render per autore")}><SelectValue placeholder={t("Creato da")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli autori</SelectItem>
+                  <SelectItem value="all">{t("Tutti gli autori")}</SelectItem>
                   {creatorOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={contactFilter} onValueChange={setContactFilter}>
-                <SelectTrigger aria-label="Filtra render per contatto"><SelectValue placeholder="Contatto" /></SelectTrigger>
+                <SelectTrigger aria-label={t("Filtra render per contatto")}><SelectValue placeholder={t("Contatto")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i contatti</SelectItem>
+                  <SelectItem value="all">{t("Tutti i contatti")}</SelectItem>
                   {contactOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={opportunityFilter} onValueChange={setOpportunityFilter}>
-                <SelectTrigger aria-label="Filtra render per opportunità"><SelectValue placeholder="Opportunita" /></SelectTrigger>
+                <SelectTrigger aria-label={t("Filtra render per opportunità")}><SelectValue placeholder={t("Opportunita")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte opportunita</SelectItem>
+                  <SelectItem value="all">{t("Tutte opportunita")}</SelectItem>
                   {opportunityOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={linkFilter} onValueChange={setLinkFilter}>
-                <SelectTrigger aria-label="Filtra render per collegamento CRM"><SelectValue placeholder="CRM" /></SelectTrigger>
+                <SelectTrigger aria-label={t("Filtra render per collegamento CRM")}><SelectValue placeholder="CRM" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti CRM</SelectItem>
-                  <SelectItem value="linked">Collegati</SelectItem>
-                  <SelectItem value="unlinked">Non collegati</SelectItem>
+                  <SelectItem value="all">{t("Tutti CRM")}</SelectItem>
+                  <SelectItem value="linked">{t("Collegati")}</SelectItem>
+                  <SelectItem value="unlinked">{t("Non collegati")}</SelectItem>
                 </SelectContent>
               </Select>
-              <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} aria-label="Data da" />
-              <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} aria-label="Data a" />
+              <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} aria-label={t("Data da")} />
+              <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} aria-label={t("Data a")} />
             </div>
           </CardContent>
         </Card>
@@ -420,13 +423,13 @@ export function RenderUnifiedGallery({
           <CardContent className="flex flex-col items-center gap-4 py-12 text-center" role="alert" aria-live="assertive">
             <AlertTriangle className="h-12 w-12 text-destructive/70" aria-hidden="true" />
             <div>
-              <p className="font-medium">Impossibile caricare la galleria</p>
-              <p className="mt-1 text-sm text-muted-foreground">Problema temporaneo. Riprova tra qualche secondo.</p>
+              <p className="font-medium">{t("Impossibile caricare la galleria")}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t("Problema temporaneo. Riprova tra qualche secondo.")}</p>
             </div>
             {onRetry && (
               <Button variant="outline" onClick={() => void onRetry()} disabled={isRefetching}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} aria-hidden="true" />
-                Riprova
+                {t("Riprova")}
               </Button>
             )}
           </CardContent>
@@ -441,7 +444,7 @@ export function RenderUnifiedGallery({
             </div>
             <Button onClick={() => navigate(newPath)}>
               <Plus className="mr-2 h-4 w-4" />
-              Crea primo render
+              {t("Crea primo render")}
             </Button>
           </CardContent>
         </Card>
@@ -449,11 +452,11 @@ export function RenderUnifiedGallery({
         <Card>
           <CardContent className="py-14 text-center">
             <SlidersHorizontal className="mx-auto h-12 w-12 text-muted-foreground/35" />
-            <p className="mt-3 font-medium">Nessun render con questi filtri</p>
-            <p className="mt-1 text-sm text-muted-foreground">Prova a rimuovere qualche filtro o cerca un altro cliente.</p>
+            <p className="mt-3 font-medium">{t("Nessun render con questi filtri")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("Prova a rimuovere qualche filtro o cerca un altro cliente.")}</p>
             <Button variant="outline" className="mt-4 gap-2" onClick={resetFilters}>
               <RotateCcw className="h-4 w-4" />
-              Mostra tutto
+              {t("Mostra tutto")}
             </Button>
           </CardContent>
         </Card>
@@ -490,7 +493,7 @@ export function RenderUnifiedGallery({
                     )}
                     {item.originalUrl && (
                       <div className="absolute left-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] font-medium text-white">
-                        Prima / dopo disponibile
+                        {t("Prima / dopo disponibile")}
                       </div>
                     )}
                     <div className="absolute right-3 top-3 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-800 shadow-sm">
@@ -504,7 +507,7 @@ export function RenderUnifiedGallery({
                         <h2 className="truncate text-sm font-semibold">{item.title}</h2>
                         <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                           <Calendar className="h-3.5 w-3.5" />
-                          {formatGalleryDate(item.date)}
+                          {dataGalleria(item.date)}
                         </p>
                       </div>
                       <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -522,16 +525,16 @@ export function RenderUnifiedGallery({
 
                     <div className="grid gap-2 rounded-xl border bg-muted/20 p-3 text-xs">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">Creato da</span>
-                        <span className="truncate font-medium">{item.createdByName ?? "Non disponibile"}</span>
+                        <span className="text-muted-foreground">{t("Creato da")}</span>
+                        <span className="truncate font-medium">{item.createdByName ?? t("Non disponibile")}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">Contatto</span>
-                        <span className="truncate font-medium">{item.contactName ?? "Non collegato"}</span>
+                        <span className="text-muted-foreground">{t("Contatto")}</span>
+                        <span className="truncate font-medium">{item.contactName ?? t("Non collegato")}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">Opportunita</span>
-                        <span className="truncate font-medium">{item.opportunityName ?? "Non collegata"}</span>
+                        <span className="text-muted-foreground">{t("Opportunita")}</span>
+                        <span className="truncate font-medium">{item.opportunityName ?? t("Non collegata")}</span>
                       </div>
                     </div>
 
@@ -539,15 +542,15 @@ export function RenderUnifiedGallery({
                       {linked ? (
                         <Badge variant="secondary" className="gap-1 text-[10px]">
                           <CheckCircle2 className="h-3 w-3" />
-                          Collegato CRM
+                          {t("Collegato CRM")}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="gap-1 text-[10px] text-muted-foreground">
                           <Link2 className="h-3 w-3" />
-                          Da collegare
+                          {t("Da collegare")}
                         </Badge>
                       )}
-                      <span className="text-xs font-medium text-primary">Apri dettaglio</span>
+                      <span className="text-xs font-medium text-primary">{t("Apri dettaglio")}</span>
                     </div>
                   </div>
                 </button>

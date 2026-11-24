@@ -58,6 +58,7 @@ import {
   createDefaultInstallments,
   installmentsToLegacyColumns,
 } from "@/lib/orderUtils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type LavoroPaymentMode = "single" | "installments";
 type Valorizzazione = "a_corpo" | "a_misura";
@@ -98,6 +99,7 @@ export default function CreateLavoroAppaltatore() {
 }
 
 function ModuloLavoroAppaltatore() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const { toast } = useToast();
@@ -133,11 +135,11 @@ function ModuloLavoroAppaltatore() {
   const daPreventivo = useMutation({
     mutationFn: async (quoteId: string) => convertiPreventivoInCantiere(quoteId),
     onSuccess: (esito) => {
-      if (esito.avviso) toast({ title: "Commessa creata, ma non completa", description: esito.avviso });
-      else toast({ title: "Commessa creata dal preventivo" });
+      if (esito.avviso) toast({ title: t("Commessa creata, ma non completa"), description: esito.avviso });
+      else toast({ title: t("Commessa creata dal preventivo") });
       navigate(`/azienda/ordini/${esito.orderId}`);
     },
-    onError: (e) => toast({ title: "Commessa non creata", description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("Commessa non creata"), description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
   });
   const [originaleAi, setOriginaleAi] = useState<StoredContractFile | null>(scritturaIniziale?.documento ?? null);
   const [avvisiAi, setAvvisiAi] = useState<string[]>([]);
@@ -314,10 +316,10 @@ function ModuloLavoroAppaltatore() {
   // ── Validazione date (soft) ────────────────────────────────────
   const dateError = useMemo(() => {
     if (workStartDate && workEndDate && workEndDate < workStartDate) {
-      return "La data di fine lavori non può precedere quella di inizio.";
+      return t("La data di fine lavori non può precedere quella di inizio.");
     }
     return null;
-  }, [workStartDate, workEndDate]);
+  }, [workStartDate, workEndDate, t]);
 
   // ── Importi pagamento (saldo = totale - somma acconti) ──────────
   const totalNum = useMemo(() => {
@@ -345,20 +347,20 @@ function ModuloLavoroAppaltatore() {
   const balanceComputed = saldoDichiarato?.amount ?? Math.max(0, Math.round((totalGross - depositsSum) * 100) / 100);
 
   const paymentError = useMemo(() => {
-    if (rateCorrenti.some(i => !Number.isFinite(i.amount) || i.amount < 0)) return "Controlla gli importi delle rate: devono essere numeri non negativi.";
+    if (rateCorrenti.some(i => !Number.isFinite(i.amount) || i.amount < 0)) return t("Controlla gli importi delle rate: devono essere numeri non negativi.");
     if (totalNum > 0 && depositsSum > totalGross + 0.005) {
-      return "La somma degli acconti supera l'importo totale.";
+      return t("La somma degli acconti supera l'importo totale.");
     }
     if (originaleAi) return contractInstallmentWarning(rateCorrenti.map(i => ({ amount: i.type === "balance" ? balanceComputed : i.amount })), totalGross);
     return null;
-  }, [totalNum, totalGross, depositsSum, rateCorrenti, originaleAi, balanceComputed]);
+  }, [totalNum, totalGross, depositsSum, rateCorrenti, originaleAi, balanceComputed, t]);
 
   const aMisura = valorizzazione === "a_misura";
 
   const importiError = totalAmount.trim() && (!Number.isFinite(parseDecimalITStrict(totalAmount)) || parseDecimalITStrict(totalAmount) < 0)
-    ? "Inserisci un importo valido, per esempio 1.000,50."
+    ? t("Inserisci un importo valido, per esempio 1.000,50.")
     : aMisura && tetto.trim() && (!Number.isFinite(parseDecimalITStrict(tetto)) || parseDecimalITStrict(tetto) < 0)
-      ? "Inserisci un tetto valido, maggiore o uguale a zero." : null;
+      ? t("Inserisci un tetto valido, maggiore o uguale a zero.") : null;
 
   /**
    * A misura il contratto serve davvero: l'importo nasce dalle tariffe del
@@ -380,16 +382,16 @@ function ModuloLavoroAppaltatore() {
   // ── Mutation: insert orders + installments + redirect ──────────
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || !user?.id) throw new Error("Sessione o azienda non disponibile.");
+      if (!companyId || !user?.id) throw new Error(t("Sessione o azienda non disponibile."));
       if (scritturaRef.current) {
         return { id: await salvaLavoroConRate(supabase, scritturaRef.current) };
       }
-      if (!customerId) throw new Error("Seleziona un appaltatore.");
-      if (originaleAi && (!scelteAiConfermate || !vatRate.trim() || !statoImportAi || (!aMisura && paymentError))) throw new Error(paymentError || "Conferma committente, contratto/listino, modalità, IVA e stato iniziale letti dal documento.");
+      if (!customerId) throw new Error(t("Seleziona un appaltatore."));
+      if (originaleAi && (!scelteAiConfermate || !vatRate.trim() || !statoImportAi || (!aMisura && paymentError))) throw new Error(paymentError || t("Conferma committente, contratto/listino, modalità, IVA e stato iniziale letti dal documento."));
 
       const totalVal = totalAmount ? parseDecimalITStrict(totalAmount) : 0;
       if (Number.isNaN(totalVal) || totalVal < 0) {
-        throw new Error("Importo non valido.");
+        throw new Error(t("Importo non valido."));
       }
 
       /**
@@ -436,7 +438,7 @@ function ModuloLavoroAppaltatore() {
         if (originaleAi) queryStato = queryStato.eq("id", statoImportAi);
         const stato = await queryStato.order("is_default", { ascending: false, nullsFirst: false }).order("position", { ascending: true }).limit(1).maybeSingle();
         if (stato.error) throw stato.error;
-        if (!stato.data) throw new Error("Configura almeno uno stato commessa prima di creare il lavoro.");
+        if (!stato.data) throw new Error(t("Configura almeno uno stato commessa prima di creare il lavoro."));
         const orderId = crypto.randomUUID();
         scritturaRef.current = {
           ordine: { ...payload, id: orderId, current_status_id: stato.data.id, created_by: user?.id },
@@ -455,7 +457,7 @@ function ModuloLavoroAppaltatore() {
       } catch {
         scritturaRef.current = null;
         setSalvataggioIniziato(false);
-        throw new Error("Non riesco a conservare il tentativo in questo browser. Il lavoro non è stato inviato: abilita il salvataggio locale e riprova.");
+        throw new Error(t("Non riesco a conservare il tentativo in questo browser. Il lavoro non è stato inviato: abilita il salvataggio locale e riprova."));
       }
       const orderId = await salvaLavoroConRate(supabase, scritturaRef.current);
 
@@ -481,8 +483,8 @@ function ModuloLavoroAppaltatore() {
       }
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
-        title: "Lavoro creato",
-        description: "Il lavoro per appaltatore è stato registrato.",
+        title: t("Lavoro creato"),
+        description: t("Il lavoro per appaltatore è stato registrato."),
       });
       navigate(`/azienda/ordini/${order.id}`);
     },
@@ -499,8 +501,8 @@ function ModuloLavoroAppaltatore() {
       }
       logger.error("Create lavoro appaltatore error:", err);
       toast({
-        title: "Errore",
-        description: (err as { message?: string })?.message || "Errore durante la creazione. Riprova per completare lo stesso lavoro.",
+        title: t("Errore"),
+        description: (err as { message?: string })?.message || t("Errore durante la creazione. Riprova per completare lo stesso lavoro."),
         variant: "destructive",
       });
     },
@@ -513,7 +515,7 @@ function ModuloLavoroAppaltatore() {
   };
 
   const applicaContratto = (ex: ContractExtract, _file?: File | null, source?: StoredContractFile | null) => {
-    if (ex.valuta && ex.valuta !== "EUR") { toast({ title: "Valuta da convertire", description: "Converti il documento in euro prima di applicarlo.", variant: "destructive" }); return; }
+    if (ex.valuta && ex.valuta !== "EUR") { toast({ title: t("Valuta da convertire"), description: t("Converti il documento in euro prima di applicarlo."), variant: "destructive" }); return; }
     const proposta = lavoroDaContratto(ex, valorizzazione);
     const modo = proposta.rate.length > 1 ? "installments" : "single";
     const numero = Math.max(2, proposta.rate.length);
@@ -539,7 +541,7 @@ function ModuloLavoroAppaltatore() {
     ? parseDecimalITStrict(totalAmount)
     : 0;
   const formattedTotal = !Number.isNaN(totalForSummary) && totalForSummary > 0
-    ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalForSummary)
+    ? new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalForSummary)
     : null;
   const durationDays = useMemo(() => {
     if (!workStartDate || !workEndDate || dateError) return null;
@@ -555,13 +557,12 @@ function ModuloLavoroAppaltatore() {
       <div className="space-y-4 max-w-xl">
         <Alert variant="destructive">
           <AlertDescription>
-            Il Modulo Appaltatori non è attivo per questa azienda. Chiedi al
-            superadmin di abilitarlo dal pannello feature flag.
+            {t("Il Modulo Appaltatori non è attivo per questa azienda. Chiedi al superadmin di abilitarlo dal pannello feature flag.")}
           </AlertDescription>
         </Alert>
         <Button variant="outline" onClick={() => navigate("/azienda/ordini")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Torna alle commesse
+          {t("Torna alle commesse")}
         </Button>
       </div>
     );
@@ -571,36 +572,36 @@ function ModuloLavoroAppaltatore() {
     <div className="space-y-6">
       <QuotePageHeader
         icon={<HardHat className="h-5 w-5" />}
-        title="Nuovo lavoro in appalto"
-        subtitle="Il lavoro che un'impresa committente ti passa."
+        title={t("Nuovo lavoro in appalto")}
+        subtitle={t("Il lavoro che un'impresa committente ti passa.")}
         chips={
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 max-md:hidden text-[11px] font-semibold uppercase tracking-wide">
             <HardHat className="h-3 w-3" />
-            Modulo Appaltatori
+            {t("Modulo Appaltatori")}
           </span>
         }
         actions={
           <Button variant="outline" size="sm" className="max-md:hidden" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Annulla
+            {t("Annulla")}
           </Button>
         }
       />
 
       <div className="space-y-3 rounded-lg border bg-card p-4">
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" disabled={salvataggioIniziato} onClick={() => setImportAi(true)}>Carica contratto (AI)</Button>
+          <Button type="button" variant="outline" disabled={salvataggioIniziato} onClick={() => setImportAi(true)}>{t("Carica contratto (AI)")}</Button>
           {/* Da un preventivo accettato del committente (14/11/2026): la commessa nasce dal preventivo come dalla sua
               scheda, in appalto a corpo col contratto in corso (converti-preventivo-cantiere). */}
           <ImportFromQuotePicker customerId={customerId || null} disabled={salvataggioIniziato || !customerId || daPreventivo.isPending}
             onSelect={(qid) => daPreventivo.mutate(qid)} />
-          {!customerId && <span className="self-center text-xs text-muted-foreground">Scegli il committente per importare un suo preventivo.</span>}
-          {daPreventivo.isPending && <span role="status" className="self-center text-xs text-muted-foreground">Creo la commessa dal preventivo…</span>}
+          {!customerId && <span className="self-center text-xs text-muted-foreground">{t("Scegli il committente per importare un suo preventivo.")}</span>}
+          {daPreventivo.isPending && <span role="status" className="self-center text-xs text-muted-foreground">{t("Creo la commessa dal preventivo…")}</span>}
         </div>
-        {originaleAi && <><p className="text-sm">Originale da conservare: <strong>{originaleAi.name}</strong></p><ul className="list-disc pl-5 text-sm text-muted-foreground">{avvisiAi.map(a => <li key={a}>{a}</li>)}</ul><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={scelteAiConfermate} disabled={salvataggioIniziato} onChange={e => setScelteAiConfermate(e.target.checked)} className="mt-1"/>Ho verificato committente, contratto/listino, corpo o misura e regime IVA nel modulo.</label></>}
+        {originaleAi && <><p className="text-sm">{t("Originale da conservare:")} <strong>{originaleAi.name}</strong></p><ul className="list-disc pl-5 text-sm text-muted-foreground">{avvisiAi.map(a => <li key={a}>{a}</li>)}</ul><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={scelteAiConfermate} disabled={salvataggioIniziato} onChange={e => setScelteAiConfermate(e.target.checked)} className="mt-1"/>{t("Ho verificato committente, contratto/listino, corpo o misura e regime IVA nel modulo.")}</label></>}
       </div>
-      {originaleAi && <div className="max-w-md space-y-1"><Label htmlFor="stato-import-ai">Stato iniziale da confermare</Label><Select value={statoImportAi} onValueChange={setStatoImportAi} disabled={salvataggioIniziato}><SelectTrigger id="stato-import-ai"><SelectValue placeholder="Scegli lo stato del lavoro"/></SelectTrigger><SelectContent>{statiImportAi.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">La data del documento non prova la firma. Nessuno stato viene scelto automaticamente dall’importazione.</p></div>}
-      {importAi && <Suspense fallback={<p role="status">Apertura lettore…</p>}><ContractImportDialog open companyId={companyId} destinazione="appaltatore" onOpenChange={setImportAi} onApply={applicaContratto}/></Suspense>}
+      {originaleAi && <div className="max-w-md space-y-1"><Label htmlFor="stato-import-ai">{t("Stato iniziale da confermare")}</Label><Select value={statoImportAi} onValueChange={setStatoImportAi} disabled={salvataggioIniziato}><SelectTrigger id="stato-import-ai"><SelectValue placeholder={t("Scegli lo stato del lavoro")}/></SelectTrigger><SelectContent>{statiImportAi.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">{t("La data del documento non prova la firma. Nessuno stato viene scelto automaticamente dall’importazione.")}</p></div>}
+      {importAi && <Suspense fallback={<p role="status">{t("Apertura lettore…")}</p>}><ContractImportDialog open companyId={companyId} destinazione="appaltatore" onOpenChange={setImportAi} onApply={applicaContratto}/></Suspense>}
 
       <form
         onSubmit={(e) => {
@@ -611,30 +612,30 @@ function ModuloLavoroAppaltatore() {
       >
         <div className="lg:col-span-8 space-y-6">
         {importiError && <Alert variant="destructive" role="alert"><AlertDescription>{importiError}</AlertDescription></Alert>}
-        {salvataggioIniziato && !createMutation.isPending && <Alert><AlertDescription>È conservato un tentativo per questo lavoro. Premi «Verifica e completa» per recuperare la commessa già creata o completare il salvataggio con le sue rate, senza duplicarla.</AlertDescription></Alert>}
+        {salvataggioIniziato && !createMutation.isPending && <Alert><AlertDescription>{t("È conservato un tentativo per questo lavoro. Premi «Verifica e completa» per recuperare la commessa già creata o completare il salvataggio con le sue rate, senza duplicarla.")}</AlertDescription></Alert>}
         <fieldset disabled={salvataggioIniziato} className="min-w-0 space-y-6">
         {/* ── Cliente appaltatore ────────────────────────────────── */}
         <QuoteCard
-          title="Committente"
+          title={t("Committente")}
           icon={<HardHat className="h-4 w-4" />}
-          subtitle="L'impresa che ti passa il lavoro, e il contratto da cui scendono listino e condizioni."
+          subtitle={t("L'impresa che ti passa il lavoro, e il contratto da cui scendono listino e condizioni.")}
         >
           <div className="space-y-3">
-            <Label htmlFor="customer">Committente *</Label>
+            <Label htmlFor="customer">{t("Committente *")}</Label>
             <Select value={customerId} onValueChange={setCustomerId}>
               <SelectTrigger id="customer" disabled={loadingAppaltatori}>
                 <SelectValue placeholder={
                   loadingAppaltatori
-                    ? "Caricamento..."
+                    ? t("Caricamento...")
                     : appaltatori.length === 0
-                      ? "Nessun appaltatore in anagrafica"
-                      : "Seleziona un appaltatore"
+                      ? t("Nessun appaltatore in anagrafica")
+                      : t("Seleziona un appaltatore")
                 } />
               </SelectTrigger>
               <SelectContent>
                 {appaltatori.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
-                    {a.business_name || "(senza ragione sociale)"}
+                    {a.business_name || t("(senza ragione sociale)")}
                     {a.fiscal_code ? ` · ${a.fiscal_code}` : ""}
                   </SelectItem>
                 ))}
@@ -645,42 +646,42 @@ function ModuloLavoroAppaltatore() {
             {customerId && (
               <div className="space-y-2 pt-2">
                 <Label htmlFor="contratto">
-                  Contratto {aMisura ? "*" : <span className="text-muted-foreground font-normal">(consigliato)</span>}
+                  {t("Contratto")} {aMisura ? "*" : <span className="text-muted-foreground font-normal">{t("(consigliato)")}</span>}
                 </Label>
                 {loadingContratti ? (
-                  <p className="text-xs text-muted-foreground">Caricamento contratti…</p>
+                  <p className="text-xs text-muted-foreground">{t("Caricamento contratti…")}</p>
                 ) : contratti.length === 0 ? (
                   <Alert>
                     <AlertDescription className="text-xs">
-                      Questo committente non ha ancora un contratto con il suo listino.
+                      {t("Questo committente non ha ancora un contratto con il suo listino.")}
                       <Button variant="link" className="px-1 h-auto"
                         onClick={() => navigate(`/azienda/committenti/${customerId}`)}>
-                        Aprine uno dalla sua scheda
+                        {t("Aprine uno dalla sua scheda")}
                       </Button>
-                      — a misura serve, perché l'importo nasce dalle tariffe.
+                      {t("— a misura serve, perché l'importo nasce dalle tariffe.")}
                     </AlertDescription>
                   </Alert>
                 ) : (
                   <>
                     <Select value={contrattoId} onValueChange={setContrattoManuale}>
                       <SelectTrigger id="contratto">
-                        <SelectValue placeholder="Seleziona il contratto" />
+                        <SelectValue placeholder={t("Seleziona il contratto")} />
                       </SelectTrigger>
                       <SelectContent>
                         {contratti.map((k) => (
                           <SelectItem key={k.id} value={k.id}>
-                            {k.nome} · dal {giornoIT(k.valido_dal)}{k.attivo ? "" : " (non attivo)"}
+                            {k.nome} {t("· dal")} {giornoIT(k.valido_dal)}{k.attivo ? "" : ` ${t("(non attivo)")}`}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {contrattoScelto && (
                       <p className="text-[11px] text-muted-foreground">
-                        Pagamento a {contrattoScelto.giorni_pagamento} giorni ·{" "}
+                        {t("Pagamento a {n} giorni ·", { n: String(contrattoScelto.giorni_pagamento ?? "") })}{" "}
                         {contrattoScelto.modo_fatturazione === "mensile_cumulativa"
-                          ? "fattura mensile con le altre commesse"
-                          : "fattura per commessa"}{" "}
-                        · {contrattoScelto.include_fornitura ? "fornitura compresa" : "sola manodopera"}
+                          ? t("fattura mensile con le altre commesse")
+                          : t("fattura per commessa")}{" "}
+                        · {contrattoScelto.include_fornitura ? t("fornitura compresa") : t("sola manodopera")}
                       </p>
                     )}
                   </>
@@ -691,14 +692,14 @@ function ModuloLavoroAppaltatore() {
             {appaltatori.length === 0 && !loadingAppaltatori && (
               <Alert>
                 <AlertDescription className="text-xs">
-                  Per creare un lavoro in appalto serve almeno un
-                  <strong> committente </strong>in anagrafica. Vai su
+                  {t("Per creare un lavoro in appalto serve almeno un")}
+                  <strong> {t("committente")} </strong>{t("in anagrafica. Vai su")}
                   <Button
                     variant="link"
                     className="px-1 h-auto"
                     onClick={() => navigate("/azienda/clienti/nuovo?tipo=committente")}
                   >
-                    Nuovo committente
+                    {t("Nuovo committente")}
                   </Button>
                   .
                 </AlertDescription>
@@ -709,23 +710,23 @@ function ModuloLavoroAppaltatore() {
 
         {/* ── Come si valorizza: la scelta che decide tutto il resto ── */}
         <QuoteCard
-          title="Come viene pagato questo lavoro"
+          title={t("Come viene pagato questo lavoro")}
           icon={<Wallet className="h-4 w-4" />}
-          subtitle="Da qui cambia il resto della pagina: non si può dedurre dopo."
+          subtitle={t("Da qui cambia il resto della pagina: non si può dedurre dopo.")}
         >
           <div className="grid gap-3 sm:grid-cols-2">
             {([
               {
                 v: "a_corpo" as const,
-                titolo: "A corpo",
-                riga: "L'importo è concordato: 1.450 € e basta.",
-                sotto: "Importo certo e rate. Il lavoro in più si rendiconta a parte.",
+                titolo: t("A corpo"),
+                riga: t("L'importo è concordato: 1.450 € e basta."),
+                sotto: t("Importo certo e rate. Il lavoro in più si rendiconta a parte."),
               },
               {
                 v: "a_misura" as const,
-                titolo: "A misura",
-                riga: "A giornata, al km, al metro quadro: si sa alla fine.",
-                sotto: "Una stima, un tetto, e l'importo dal rendiconto.",
+                titolo: t("A misura"),
+                riga: t("A giornata, al km, al metro quadro: si sa alla fine."),
+                sotto: t("Una stima, un tetto, e l'importo dal rendiconto."),
               },
             ]).map((opz) => (
               <button
@@ -752,29 +753,23 @@ function ModuloLavoroAppaltatore() {
           </div>
           {aMisura ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              L'importo che inserisci sotto resta una <strong>stima</strong>: serve a te per
-              sapere se il lavoro conviene, non è quello che fatturerai. Quello che fatturi
-              esce dal rendiconto: le giornate, i viaggi, i chilometri, i metri quadri che
-              hai segnato, ai prezzi del listino concordato.
+              {t("L'importo che inserisci sotto resta una")} <strong>{t("stima")}</strong>{t(": serve a te per sapere se il lavoro conviene, non è quello che fatturerai. Quello che fatturi esce dal rendiconto: le giornate, i viaggi, i chilometri, i metri quadri che hai segnato, ai prezzi del listino concordato.")}
             </p>
           ) : (
             /* Il caso misto non e' una terza scelta: e' questa, piu' le righe
                fuori contratto. Senza dirlo, chi prende un lavoro a corpo con
                degli extra non sa dove metterli e li perde. */
             <p className="mt-3 text-xs text-muted-foreground">
-              L'importo concordato resta quello. Il lavoro <strong>in più</strong> — la
-              giornata non prevista, il viaggio in più, l'imprevisto sotto il massetto — si
-              aggiunge nel rendiconto segnato <strong>fuori contratto</strong>: è quello che
-              si discute a fine lavori, e così resta scritto con la sua data.
+              {t("L'importo concordato resta quello. Il lavoro")} <strong>{t("in più")}</strong> {t("— la giornata non prevista, il viaggio in più, l'imprevisto sotto il massetto — si aggiunge nel rendiconto segnato")} <strong>{t("fuori contratto")}</strong>{t(": è quello che si discute a fine lavori, e così resta scritto con la sua data.")}
             </p>
           )}
         </QuoteCard>
 
         {/* ── Identificazione lavoro ─────────────────────────────── */}
-        <QuoteCard title="Identificazione" icon={<FileText className="h-4 w-4" />}>
+        <QuoteCard title={t("Identificazione")} icon={<FileText className="h-4 w-4" />}>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="orderCode">Codice lavoro</Label>
+              <Label htmlFor="orderCode">{t("Codice lavoro")}</Label>
               <Input
                 id="orderCode"
                 value={orderCode}
@@ -784,12 +779,12 @@ function ModuloLavoroAppaltatore() {
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="description">Descrizione breve *</Label>
+              <Label htmlFor="description">{t("Descrizione breve *")}</Label>
               <Input
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Es. Posa serramenti palazzo via Roma — lotto 3"
+                placeholder={t("Es. Posa serramenti palazzo via Roma — lotto 3")}
                 maxLength={200}
                 required
               />
@@ -798,12 +793,12 @@ function ModuloLavoroAppaltatore() {
         </QuoteCard>
 
         {/* ── Dettagli operativi del cantiere ─────────────────────── */}
-        <QuoteCard title="Cantiere e materiali" icon={<MapPin className="h-4 w-4" />}>
+        <QuoteCard title={t("Cantiere e materiali")} icon={<MapPin className="h-4 w-4" />}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="workAddress" className="flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5" />
-                Indirizzo del cantiere
+                {t("Indirizzo del cantiere")}
               </Label>
               <CampoIndirizzo
                 id="workAddress"
@@ -813,7 +808,7 @@ function ModuloLavoroAppaltatore() {
                   setWorkAddress(a.testo);
                   setWorkCoords(a.lat != null && a.lng != null ? { testo: a.testo, lat: a.lat, lng: a.lng } : null);
                 }}
-                placeholder="Via del cantiere, 5 — 20100 Milano"
+                placeholder={t("Via del cantiere, 5 — 20100 Milano")}
                 maxLength={250}
               />
             </div>
@@ -821,13 +816,13 @@ function ModuloLavoroAppaltatore() {
             <div className="space-y-2">
               <Label htmlFor="workDescription" className="flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5" />
-                Cosa va fatto (briefing operativo)
+                {t("Cosa va fatto (briefing operativo)")}
               </Label>
               <Textarea
                 id="workDescription"
                 value={workDescription}
                 onChange={(e) => setWorkDescription(e.target.value)}
-                placeholder="Smontaggio infissi vecchi, posa nuovi serramenti PVC, sigillature, ripristino imbotti..."
+                placeholder={t("Smontaggio infissi vecchi, posa nuovi serramenti PVC, sigillature, ripristino imbotti...")}
                 rows={4}
                 maxLength={2000}
               />
@@ -836,28 +831,27 @@ function ModuloLavoroAppaltatore() {
             <div className="space-y-2">
               <Label htmlFor="materialsLocation" className="flex items-center gap-1.5">
                 <Package className="h-3.5 w-3.5" />
-                Posizione materiali
+                {t("Posizione materiali")}
               </Label>
               <Input
                 id="materialsLocation"
                 value={materialsLocation}
                 onChange={(e) => setMaterialsLocation(e.target.value)}
-                placeholder="Magazzino appaltatore in via X / cantiere stesso / deposito Y"
+                placeholder={t("Magazzino appaltatore in via X / cantiere stesso / deposito Y")}
                 maxLength={200}
               />
               <p className="text-xs text-muted-foreground">
-                Da dove prelevare la merce: deposito dell'appaltatore, cantiere
-                stesso, magazzino esterno.
+                {t("Da dove prelevare la merce: deposito dell'appaltatore, cantiere stesso, magazzino esterno.")}
               </p>
             </div>
           </div>
         </QuoteCard>
 
         {/* ── Tempistiche ─────────────────────────────────────────── */}
-        <QuoteCard title="Tempistiche" icon={<CalendarDays className="h-4 w-4" />}>
+        <QuoteCard title={t("Tempistiche")} icon={<CalendarDays className="h-4 w-4" />}>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="workStartDate">Data inizio lavori</Label>
+              <Label htmlFor="workStartDate">{t("Data inizio lavori")}</Label>
               <Input
                 id="workStartDate"
                 type="date"
@@ -866,7 +860,7 @@ function ModuloLavoroAppaltatore() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="workEndDate">Data fine lavori</Label>
+              <Label htmlFor="workEndDate">{t("Data fine lavori")}</Label>
               <Input
                 id="workEndDate"
                 type="date"
@@ -880,14 +874,13 @@ function ModuloLavoroAppaltatore() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            Le date alimentano il calendario lavori e l'assegnazione operai
-            (gestibili dal dettaglio del lavoro dopo la creazione).
+            {t("Le date alimentano il calendario lavori e l'assegnazione operai (gestibili dal dettaglio del lavoro dopo la creazione).")}
           </p>
         </QuoteCard>
 
         {/* ── Compenso pattuito + piano pagamenti ─────────────────── */}
         <QuoteCard
-          title={aMisura ? "Stima e tetto" : "Compenso e pagamenti"}
+          title={aMisura ? t("Stima e tetto") : t("Compenso e pagamenti")}
           icon={<Wallet className="h-4 w-4" />}
         >
           <div className="space-y-5">
@@ -895,7 +888,7 @@ function ModuloLavoroAppaltatore() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="totalAmount">
-                  {aMisura ? "Importo stimato (€)" : "Importo totale (€) — netto"}
+                  {aMisura ? t("Importo stimato (€)") : t("Importo totale (€) — netto")}
                 </Label>
                 <Input
                   id="totalAmount"
@@ -913,8 +906,8 @@ function ModuloLavoroAppaltatore() {
                 />
                 <p className="text-[11px] text-muted-foreground">
                   {aMisura
-                    ? "Quanto pensi di fare. Non è quello che fatturerai: quello esce dal rendiconto."
-                    : "Compenso pattuito con il committente (IVA esclusa)."}
+                    ? t("Quanto pensi di fare. Non è quello che fatturerai: quello esce dal rendiconto.")
+                    : t("Compenso pattuito con il committente (IVA esclusa).")}
                 </p>
               </div>
 
@@ -922,7 +915,7 @@ function ModuloLavoroAppaltatore() {
                   avvisare. Senza, si lavora oltre l'accordo in silenzio. */}
               {aMisura && (
                 <div className="space-y-2">
-                  <Label htmlFor="tetto">Tetto concordato (€)</Label>
+                  <Label htmlFor="tetto">{t("Tetto concordato (€)")}</Label>
                   <Input
                     id="tetto"
                     type="text"
@@ -936,21 +929,21 @@ function ModuloLavoroAppaltatore() {
                     placeholder="0,00"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Oltre questa cifra la commessa avvisa. Lascialo vuoto se non c'è un limite.
+                    {t("Oltre questa cifra la commessa avvisa. Lascialo vuoto se non c'è un limite.")}
                   </p>
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="lavoro-iva">Aliquota IVA</Label>
+                <Label htmlFor="lavoro-iva">{t("Aliquota IVA")}</Label>
                 <Select value={vatRate} onValueChange={setVatRate}>
                   <SelectTrigger id="lavoro-iva"><SelectValue /></SelectTrigger>
                   <SelectContent>{["0", "4", "10", "22"].map((v) => <SelectItem key={v} value={v}>{v}%</SelectItem>)}</SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">Conferma l'aliquota applicabile. Rate e incassi includono l'IVA; il compenso resta netto.</p>
+                <p className="text-[11px] text-muted-foreground">{t("Conferma l'aliquota applicabile. Rate e incassi includono l'IVA; il compenso resta netto.")}</p>
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="rifCommittente">Loro numero d'ordine</Label>
+                <Label htmlFor="rifCommittente">{t("Loro numero d'ordine")}</Label>
                 <Input
                   id="rifCommittente"
                   value={rifCommittente}
@@ -959,10 +952,9 @@ function ModuloLavoroAppaltatore() {
                   maxLength={100}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Va in testa alla fattura. Molti committenti senza il loro riferimento non pagano.
+                  {t("Va in testa alla fattura. Molti committenti senza il loro riferimento non pagano.")}
                   {contrattoScelto?.riferimento_committente && (
-                    <> Sul contratto c'è <strong>{contrattoScelto.riferimento_committente}</strong>:
-                    se questo cantiere ha un ordine suo, scrivi quello.</>
+                    <> {t("Sul contratto c'è")} <strong>{contrattoScelto.riferimento_committente}</strong>{t(": se questo cantiere ha un ordine suo, scrivi quello.")}</>
                   )}
                 </p>
               </div>
@@ -971,17 +963,14 @@ function ModuloLavoroAppaltatore() {
             {aMisura ? (
               <Alert>
                 <AlertDescription className="text-xs">
-                  Niente rate adesso: su una commessa a misura una scadenza
-                  sull'importo stimato diventerebbe una previsione di incasso
-                  falsa. La scadenza arriva con la fattura del rendiconto, calcolata
-                  sui giorni di pagamento del contratto.
+                  {t("Niente rate adesso: su una commessa a misura una scadenza sull'importo stimato diventerebbe una previsione di incasso falsa. La scadenza arriva con la fattura del rendiconto, calcolata sui giorni di pagamento del contratto.")}
                 </AlertDescription>
               </Alert>
             ) : (<>
             {/* Modalità pagamento */}
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Modalità di pagamento
+                {t("Modalità di pagamento")}
               </Label>
               <Tabs
                 value={paymentMode}
@@ -990,11 +979,11 @@ function ModuloLavoroAppaltatore() {
                 <TabsList className="grid grid-cols-2 w-full sm:max-w-md">
                   <TabsTrigger value="single">
                     <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                    Unica rata (saldo)
+                    {t("Unica rata (saldo)")}
                   </TabsTrigger>
                   <TabsTrigger value="installments">
                     <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-                    Rateale
+                    {t("Rateale")}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -1002,7 +991,7 @@ function ModuloLavoroAppaltatore() {
               {paymentMode === "installments" && (
                 <div className="flex items-center gap-3 pt-2">
                   <Label htmlFor="numInstallments" className="text-xs text-muted-foreground shrink-0">
-                    Numero rate
+                    {t("Numero rate")}
                   </Label>
                   <Select
                     value={String(numInstallments)}
@@ -1012,9 +1001,9 @@ function ModuloLavoroAppaltatore() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="2">2 (acconto + saldo)</SelectItem>
-                      <SelectItem value="3">3 (2 acconti + saldo)</SelectItem>
-                      <SelectItem value="4">4 (3 acconti + saldo)</SelectItem>
+                      <SelectItem value="2">{t("2 (acconto + saldo)")}</SelectItem>
+                      <SelectItem value="3">{t("3 (2 acconti + saldo)")}</SelectItem>
+                      <SelectItem value="4">{t("4 (3 acconti + saldo)")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1045,7 +1034,7 @@ function ModuloLavoroAppaltatore() {
                             {inst.label}
                             {isBalance && (
                               <span className="ml-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                                Calcolato
+                                {t("Calcolato")}
                               </span>
                             )}
                           </span>
@@ -1057,7 +1046,7 @@ function ModuloLavoroAppaltatore() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 ml-7">
                       <div className="space-y-1">
                         <Label htmlFor={`rata-importo-${inst.position}`} className="text-[11px] text-muted-foreground">
-                          Importo IVA inclusa (€)
+                          {t("Importo IVA inclusa (€)")}
                         </Label>
                         <Input
                           id={`rata-importo-${inst.position}`}
@@ -1087,7 +1076,7 @@ function ModuloLavoroAppaltatore() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground">
-                          Data prevista
+                          {t("Data prevista")}
                         </Label>
                         <Input
                           type="date"
@@ -1106,7 +1095,7 @@ function ModuloLavoroAppaltatore() {
               })}
             </div>
 
-            <p className="text-sm text-muted-foreground">Qui pianifichi le scadenze. Registra gli incassi dal dettaglio della commessa e conferma il collegamento alla prima nota.</p>
+            <p className="text-sm text-muted-foreground">{t("Qui pianifichi le scadenze. Registra gli incassi dal dettaglio della commessa e conferma il collegamento alla prima nota.")}</p>
             {/* Validation banner */}
             {paymentError && (
               <Alert variant="destructive" className="py-2">
@@ -1119,21 +1108,21 @@ function ModuloLavoroAppaltatore() {
             {totalNum > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100 text-xs">
                 <div>
-                  <div className="text-slate-500">Totale IVA inclusa</div>
+                  <div className="text-slate-500">{t("Totale IVA inclusa")}</div>
                   <div className="font-semibold text-slate-800">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalGross)}
+                    {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalGross)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-500">Acconti</div>
+                  <div className="text-slate-500">{t("Acconti")}</div>
                   <div className="font-semibold text-slate-800">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(depositsSum)}
+                    {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(depositsSum)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-500">Saldo residuo</div>
+                  <div className="text-slate-500">{t("Saldo residuo")}</div>
                   <div className="font-semibold text-orange-600">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(balanceComputed)}
+                    {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(balanceComputed)}
                   </div>
                 </div>
 
@@ -1144,12 +1133,12 @@ function ModuloLavoroAppaltatore() {
         </QuoteCard>
 
         {/* ── Note interne ────────────────────────────────────────── */}
-        <QuoteCard title="Note interne" icon={<FileText className="h-4 w-4" />}>
+        <QuoteCard title={t("Note interne")} icon={<FileText className="h-4 w-4" />}>
           <Textarea
             id="internalNotes"
             value={internalNotes}
             onChange={(e) => setInternalNotes(e.target.value)}
-            placeholder="Riferimenti, contatti del responsabile cantiere, vincoli operativi..."
+            placeholder={t("Riferimenti, contatti del responsabile cantiere, vincoli operativi...")}
             rows={3}
             maxLength={1000}
           />
@@ -1159,41 +1148,41 @@ function ModuloLavoroAppaltatore() {
 
         {/* ── Sidebar: riepilogo + actions (sticky su desktop) ─────── */}
         <aside className="lg:col-span-4 space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <QuoteCard title="Riepilogo lavoro" icon={<HardHat className="h-4 w-4" />} compact>
+          <QuoteCard title={t("Riepilogo lavoro")} icon={<HardHat className="h-4 w-4" />} compact>
             <dl className="space-y-2.5 text-xs">
               <div className="flex items-start justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">Committente</dt>
+                <dt className="text-slate-500 shrink-0">{t("Committente")}</dt>
                 <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
-                  {selectedAppaltatore?.business_name || <em className="text-muted-foreground font-normal">Da selezionare</em>}
+                  {selectedAppaltatore?.business_name || <em className="text-muted-foreground font-normal">{t("Da selezionare")}</em>}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">Contratto</dt>
+                <dt className="text-slate-500 shrink-0">{t("Contratto")}</dt>
                 <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
-                  {contrattoScelto?.nome || <em className="text-muted-foreground font-normal">Nessuno</em>}
+                  {contrattoScelto?.nome || <em className="text-muted-foreground font-normal">{t("Nessuno")}</em>}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">Valorizzazione</dt>
+                <dt className="text-slate-500 shrink-0">{t("Valorizzazione")}</dt>
                 <dd className="font-medium text-right text-slate-800">
-                  {aMisura ? "A misura" : "A corpo"}
+                  {aMisura ? t("A misura") : t("A corpo")}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">Codice</dt>
+                <dt className="text-slate-500 shrink-0">{t("Codice")}</dt>
                 <dd className="font-medium text-right text-slate-800 truncate font-mono text-[11px]">
-                  {orderCode.trim() || <em className="text-muted-foreground font-normal font-sans">Auto</em>}
+                  {orderCode.trim() || <em className="text-muted-foreground font-normal font-sans">{t("Auto")}</em>}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">Descrizione</dt>
+                <dt className="text-slate-500 shrink-0">{t("Descrizione")}</dt>
                 <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
                   {description.trim() || <em className="text-slate-400 font-normal">—</em>}
                 </dd>
               </div>
               {workAddress.trim() && (
                 <div className="flex items-start justify-between gap-3">
-                  <dt className="text-slate-500 shrink-0">Cantiere</dt>
+                  <dt className="text-slate-500 shrink-0">{t("Cantiere")}</dt>
                   <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
                     {workAddress.trim()}
                   </dd>
@@ -1201,20 +1190,20 @@ function ModuloLavoroAppaltatore() {
               )}
               {durationDays !== null && (
                 <div className="flex items-start justify-between gap-3">
-                  <dt className="text-slate-500 shrink-0">Durata</dt>
+                  <dt className="text-slate-500 shrink-0">{t("Durata")}</dt>
                   <dd className="font-medium text-right text-slate-800">
-                    {durationDays} {durationDays === 1 ? "giorno" : "giorni"}
+                    {t(durationDays === 1 ? "{n} giorno" : "{n} giorni", { n: durationDays })}
                   </dd>
                 </div>
               )}
               {formattedTotal && (
                 <div className="flex items-start justify-between gap-3 pt-2 border-t border-slate-100">
-                  <dt className="text-slate-500 shrink-0">{aMisura ? "Stima" : "Compenso"}</dt>
+                  <dt className="text-slate-500 shrink-0">{aMisura ? t("Stima") : t("Compenso")}</dt>
                   <dd className="font-bold text-right text-orange-600">
                     {formattedTotal}
                     {aMisura && (
                       <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                        stimato
+                        {t("stimato")}
                       </span>
                     )}
                   </dd>
@@ -1222,11 +1211,11 @@ function ModuloLavoroAppaltatore() {
               )}
               {!aMisura && totalNum > 0 && (
                 <div className="flex items-start justify-between gap-3">
-                  <dt className="text-slate-500 shrink-0">Pagamento</dt>
+                  <dt className="text-slate-500 shrink-0">{t("Pagamento")}</dt>
                   <dd className="font-medium text-right text-slate-800">
                     {paymentMode === "single"
-                      ? "Unica rata"
-                      : `${numInstallments} rate`}
+                      ? t("Unica rata")
+                      : t("{n} rate", { n: String(numInstallments ?? "") })}
                   </dd>
                 </div>
               )}
@@ -1249,12 +1238,12 @@ function ModuloLavoroAppaltatore() {
                         <span className="truncate">{inst.label}</span>
                         {inst.expected_date && (
                           <span className="text-slate-400 hidden sm:inline">
-                            · {new Date(inst.expected_date).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+                            · {new Date(inst.expected_date).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" })}
                           </span>
                         )}
                       </span>
                       <span className="font-medium text-slate-800 shrink-0">
-                        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(amt)}
+                        {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(amt)}
                       </span>
                     </div>
                   );
@@ -1273,12 +1262,12 @@ function ModuloLavoroAppaltatore() {
                 {createMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Creazione...
+                    {t("Creazione...")}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    {salvataggioIniziato ? "Verifica e completa" : "Crea il lavoro"}
+                    {salvataggioIniziato ? t("Verifica e completa") : t("Crea il lavoro")}
                   </>
                 )}
               </QuotePrimaryButton>
@@ -1289,21 +1278,21 @@ function ModuloLavoroAppaltatore() {
                 disabled={createMutation.isPending}
                 className="w-full"
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               {!canSubmit && !createMutation.isPending && (
                 <p className="text-[11px] text-slate-500 text-center pt-1">
                   {!customerId
-                    ? "Scegli il committente per continuare."
+                    ? t("Scegli il committente per continuare.")
                     : contrattoMancante
-                      ? "A misura serve il contratto: l'importo nasce dalle sue tariffe."
+                      ? t("A misura serve il contratto: l'importo nasce dalle sue tariffe.")
                       : !description.trim()
-                        ? "Inserisci una descrizione breve."
+                        ? t("Inserisci una descrizione breve.")
                         : dateError
-                          ? "Correggi le date dei lavori."
+                          ? t("Correggi le date dei lavori.")
                           : paymentError
-                            ? "Acconti superiori al totale."
-                            : "Compila i campi obbligatori."}
+                            ? t("Acconti superiori al totale.")
+                            : t("Compila i campi obbligatori.")}
                 </p>
               )}
             </div>

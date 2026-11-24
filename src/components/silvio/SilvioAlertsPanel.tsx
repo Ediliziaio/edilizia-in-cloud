@@ -29,6 +29,7 @@ import {
   ArrowRight, Bell, Wallet, Package, FileText, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SilvioAlert {
   id: string;
@@ -113,6 +114,7 @@ export function SilvioAlertsPanel({
   enableAutoPropose = true,
   maxItems = 10,
 }: SilvioAlertsPanelProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
@@ -173,7 +175,7 @@ export function SilvioAlertsPanel({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Scansione completata");
+      toast.success(t("Scansione completata"));
       qc.invalidateQueries({ queryKey: ["silvio_alerts_open"] });
       qc.invalidateQueries({ queryKey: ["silvio_alerts_stats"] });
     },
@@ -188,7 +190,7 @@ export function SilvioAlertsPanel({
       return data as string;
     },
     onSuccess: () => {
-      toast.success("Bozza creata. Verifica e applica nel pannello azioni.");
+      toast.success(t("Bozza creata. Verifica e applica nel pannello azioni."));
       qc.invalidateQueries({ queryKey: ["silvio_action_proposals_pending"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -226,7 +228,7 @@ export function SilvioAlertsPanel({
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Cose da sapere</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("Cose da sapere")}</CardTitle></CardHeader>
         <CardContent className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /></CardContent>
       </Card>
     );
@@ -237,12 +239,12 @@ export function SilvioAlertsPanel({
       <Card className="border-emerald-200 bg-emerald-50/30">
         <CardHeader className={cn("pb-2", isCompact && "py-2")}>
           <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-emerald-600" /> Tutto sotto controllo
+            <Sparkles className="h-4 w-4 text-emerald-600" /> {t("Tutto sotto controllo")}
           </CardTitle>
         </CardHeader>
         <CardContent className={cn(isCompact && "py-2")}>
           <p className="text-sm text-muted-foreground">
-            Nessuna criticità rilevata. Silvio sta monitorando tutto in autonomia.
+            {t("Nessuna criticità rilevata. Silvio sta monitorando tutto in autonomia.")}
           </p>
           <Button
             size="sm" variant="ghost" className="mt-2 gap-2"
@@ -250,7 +252,7 @@ export function SilvioAlertsPanel({
             disabled={detectMut.isPending}
           >
             <RefreshCw className={cn("h-3 w-3", detectMut.isPending && "animate-spin")} />
-            Scansiona ora
+            {t("Scansiona ora")}
           </Button>
         </CardContent>
       </Card>
@@ -270,7 +272,7 @@ export function SilvioAlertsPanel({
                 sev === "warning" && "text-amber-700",
                 sev === "info" && "text-sky-700"
               )}>
-                {sev === "critical" ? "🔴 Critici" : sev === "warning" ? "🟡 Importanti" : "🔵 Info"}
+                {sev === "critical" ? t("🔴 Critici") : sev === "warning" ? t("🟡 Importanti") : t("🔵 Info")}
               </div>
             )}
             {list.map(alert => (
@@ -295,31 +297,29 @@ export function SilvioAlertsPanel({
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className={cn("flex items-center gap-2", isCompact ? "text-sm" : "text-base")}>
-              <Bell className="h-4 w-4 text-orange-500" /> Cose da sapere
+              <Bell className="h-4 w-4 text-orange-500" /> {t("Cose da sapere")}
             </CardTitle>
             {/* NB: <div> e non CardDescription (che renderizza <p>): Badge è un
                 <div>, mettere <div> in <p> viola HTML5 e causa hydration warning
                 (validateDOMNesting). Stesso styling muted+text-xs di CardDescription. */}
             <div className="mt-1 flex flex-wrap gap-1 text-xs text-muted-foreground">
               {(stats?.critical ?? 0) > 0 && (
-                <Badge variant="destructive" className="h-5 rounded-full px-2 text-[11px]">{stats!.critical} critici</Badge>
+                <Badge variant="destructive" className="h-5 rounded-full px-2 text-[11px]">{t("{critical} critici", { critical: String(stats!.critical ?? "") })}</Badge>
               )}
               {(stats?.warning ?? 0) > 0 && (
-                <Badge variant="secondary" className="h-5 rounded-full bg-amber-100 px-2 text-[11px] text-amber-800">
-                  {stats!.warning} avvisi
-                </Badge>
+                <Badge variant="secondary" className="h-5 rounded-full bg-amber-100 px-2 text-[11px] text-amber-800">{t("{n} avvisi", { n: String(stats!.warning ?? "") })}</Badge>
               )}
               {(stats?.info ?? 0) > 0 && (
-                <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">{stats!.info} info</Badge>
+                <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">{t("{info} info", { info: String(stats!.info ?? "") })}</Badge>
               )}
-              {totalOpen === 0 && "Nessun problema"}
+              {totalOpen === 0 && t("Nessun problema")}
             </div>
           </div>
           <Button
             size="icon" variant="ghost"
             onClick={() => { detectMut.mutate(); refetch(); }}
             disabled={isFetching || detectMut.isPending}
-            title="Aggiorna"
+            title={t("Aggiorna")}
             className="h-7 w-7"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", (isFetching || detectMut.isPending) && "animate-spin")} />
@@ -343,6 +343,7 @@ function AlertRow({
   isDismissing: boolean;
   compact: boolean;
 }) {
+  const t = useT();
   const TypeIcon = ALERT_TYPE_ICON[alert.alert_type] ?? Bell;
   const colors = alertColorClasses(alert.severity);
 
@@ -368,7 +369,7 @@ function AlertRow({
                 "rounded-sm text-muted-foreground transition hover:bg-background/70 hover:text-foreground",
                 compact ? "opacity-70" : "opacity-0 group-hover:opacity-100",
               )}
-              title="Ignora"
+              title={t("Ignora")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -396,6 +397,7 @@ function AlertRow({
 // Compact badge for sidebar / nav
 
 export function SilvioAlertsBadge({ onClick }: { onClick?: () => void }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -424,7 +426,7 @@ export function SilvioAlertsBadge({ onClick }: { onClick?: () => void }) {
         "relative inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-full text-[10px] font-bold transition",
         isCritical ? "bg-rose-500 text-white animate-pulse" : "bg-amber-500 text-white",
       )}
-      title={`${total} cose da sapere`}
+      title={t("{total} cose da sapere", { total: String(total ?? "") })}
     >
       {total > 99 ? "99+" : total}
     </button>

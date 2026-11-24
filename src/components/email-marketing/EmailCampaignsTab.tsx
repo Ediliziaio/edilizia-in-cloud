@@ -24,7 +24,7 @@ import { useEmailMarketingBase } from "./useEmailMarketingBase";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
   // La bozza è la più quieta (prima era il badge più scuro della pagina); la
@@ -48,20 +48,21 @@ const FILTRI_STATO = [
 const GIA_PARTITE = new Set(["sent", "sending", "completed"]);
 
 /** «120 inviate · 3 non partite» per chi è partita, «—» per il resto. */
-function esitoInvio(c: { status: string; sent_count?: number | null; failed_count?: number | null; total_recipients?: number | null }): string {
+function esitoInvio(c: { status: string; sent_count?: number | null; failed_count?: number | null; total_recipients?: number | null }, t: (testo: string, valori?: Record<string, string | number>) => string): string {
   if (c.status === "sending") {
     const tot = c.total_recipients ?? 0;
-    return tot > 0 ? `in corso · ${(c.sent_count ?? 0).toLocaleString("it-IT")} di ${tot.toLocaleString("it-IT")}` : "in corso";
+    return tot > 0 ? t("in corso · {inviate} di {totale}", { inviate: (c.sent_count ?? 0).toLocaleString(intlCampo()), totale: tot.toLocaleString(intlCampo()) }) : t("in corso");
   }
   if (!GIA_PARTITE.has(c.status) && c.status !== "failed") return "—";
   const inviate = c.sent_count ?? 0;
   const fallite = c.failed_count ?? 0;
-  const pezzi = [`${inviate.toLocaleString("it-IT")} inviate`];
-  if (fallite > 0) pezzi.push(`${fallite.toLocaleString("it-IT")} non partite`);
+  const pezzi = [t("{n} inviate", { n: inviate.toLocaleString(intlCampo()) })];
+  if (fallite > 0) pezzi.push(t("{n} non partite", { n: fallite.toLocaleString(intlCampo()) }));
   return pezzi.join(" · ");
 }
 
 export function EmailCampaignsTab() {
+  const t = useT();
   // Telefono: le campagne si guardano (stato e risultati); crearle e
   // modificarle (editor e builder a blocchi) si fa da computer o tablet.
   const isMobile = useIsMobile();
@@ -135,7 +136,7 @@ export function EmailCampaignsTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Cartella creata");
+      toast.success(t("Cartella creata"));
       qc.invalidateQueries({ queryKey: queryKeys.emailFolders.all });
       setFolderDialogOpen(false);
     },
@@ -153,7 +154,7 @@ export function EmailCampaignsTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Campagna eliminata");
+      toast.success(t("Campagna eliminata"));
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       setDeleteTarget(null);
     },
@@ -206,7 +207,7 @@ export function EmailCampaignsTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Campagna duplicata");
+      toast.success(t("Campagna duplicata"));
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
     },
     onError: (e: any) => toast.error(e.message),
@@ -223,7 +224,7 @@ export function EmailCampaignsTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Campagna rinominata");
+      toast.success(t("Campagna rinominata"));
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       setRenameTarget(null);
     },
@@ -241,7 +242,7 @@ export function EmailCampaignsTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Campagna spostata");
+      toast.success(t("Campagna spostata"));
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       setMoveTarget(null);
     },
@@ -279,18 +280,18 @@ export function EmailCampaignsTab() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] max-w-sm flex-1 max-md:max-w-none max-md:basis-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Cerca in tutte le cartelle…" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
+          <Input className="pl-9" placeholder={t("Cerca in tutte le cartelle…")} value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
         </div>
         {/* Tra 768 e 1280 le sei pillole non stavano in riga con ricerca e
             bottoni (i bottoni finivano su una riga tutta loro): lì lo stato si
             sceglie da un menu. Sul telefono e da 1280 restano le pillole. */}
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
-          <SelectTrigger className="hidden h-10 w-[150px] shrink-0 md:flex xl:hidden" aria-label="Stato">
+          <SelectTrigger className="hidden h-10 w-[150px] shrink-0 md:flex xl:hidden" aria-label={t("Stato")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {FILTRI_STATO.map(([v, lbl]) => (
-              <SelectItem key={v} value={v}>{v === "all" ? "Tutti gli stati" : lbl}</SelectItem>
+              <SelectItem key={v} value={v}>{v === "all" ? t("Tutti gli stati") : t(lbl)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -304,14 +305,14 @@ export function EmailCampaignsTab() {
                 statusFilter === v ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted/50"
               }`}
             >
-              {lbl}
+              {t(lbl)}
             </button>
           ))}
         </div>
         <div className="ml-auto flex gap-2 max-md:hidden">
           {/* Sotto 1280 solo l'icona: la scritta mandava a capo la riga. */}
-          <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)} title="Crea cartella" aria-label="Crea cartella">
-            <FolderPlus className="h-4 w-4 xl:mr-1" /> <span className="hidden xl:inline">Crea cartella</span>
+          <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)} title={t("Crea cartella")} aria-label={t("Crea cartella")}>
+            <FolderPlus className="h-4 w-4 xl:mr-1" /> <span className="hidden xl:inline">{t("Crea cartella")}</span>
           </Button>
           <CampaignCreateDropdown />
         </div>
@@ -347,27 +348,27 @@ export function EmailCampaignsTab() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="py-12 text-center text-muted-foreground">Caricamento...</div>
+        <div className="py-12 text-center text-muted-foreground">{t("Caricamento...")}</div>
       ) : campaigns.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <Send className="h-9 w-9 text-muted-foreground" />
             {filtriAttivi ? (
               <>
-                <p className="font-medium text-foreground">Nessuna campagna con questi filtri</p>
-                <Button variant="outline" size="sm" onClick={azzeraFiltri}>Mostra tutte</Button>
+                <p className="font-medium text-foreground">{t("Nessuna campagna con questi filtri")}</p>
+                <Button variant="outline" size="sm" onClick={azzeraFiltri}>{t("Mostra tutte")}</Button>
               </>
             ) : dentroCartella ? (
-              <p className="font-medium text-foreground">Questa cartella è vuota</p>
+              <p className="font-medium text-foreground">{t("Questa cartella è vuota")}</p>
             ) : (
               <>
-                <p className="font-medium text-foreground">Ancora nessuna campagna</p>
+                <p className="font-medium text-foreground">{t("Ancora nessuna campagna")}</p>
                 {isMobile ? (
-                  <p className="text-[11px] text-muted-foreground">si crea da computer o tablet</p>
+                  <p className="text-[11px] text-muted-foreground">{t("si crea da computer o tablet")}</p>
                 ) : (
                   <>
                     <p className="max-w-md text-sm text-muted-foreground">
-                      Scegli a chi scrivere, prepara il messaggio e mandalo subito o pianificalo: la trovi qui con i risultati.
+                      {t("Scegli a chi scrivere, prepara il messaggio e mandalo subito o pianificalo: la trovi qui con i risultati.")}
                     </p>
                     <CampaignCreateDropdown />
                   </>
@@ -383,13 +384,13 @@ export function EmailCampaignsTab() {
           <Table className="md:[&_td]:py-3">
             <TableHeader>
               <TableRow>
-                <TableHead>Titolo</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead className="hidden md:table-cell">Invio</TableHead>
+                <TableHead>{t("Titolo")}</TableHead>
+                <TableHead>{t("Stato")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("Invio")}</TableHead>
                 {/* Date su una riga (a 1024 andavano a capo in tre: «31 lug / 2026 /
                     07:36») e «Ultima modifica» solo da 1280, per lasciare spazio al titolo. */}
-                <TableHead className="hidden whitespace-nowrap sm:table-cell">Data di invio</TableHead>
-                <TableHead className="hidden whitespace-nowrap xl:table-cell">Ultima modifica</TableHead>
+                <TableHead className="hidden whitespace-nowrap sm:table-cell">{t("Data di invio")}</TableHead>
+                <TableHead className="hidden whitespace-nowrap xl:table-cell">{t("Ultima modifica")}</TableHead>
                 <TableHead className="w-10 max-md:hidden" />
               </TableRow>
             </TableHeader>
@@ -416,21 +417,21 @@ export function EmailCampaignsTab() {
                         <span className="md:line-clamp-1" title={c.name}>{c.name}</span>
                         {c.subject && <span className="text-xs font-normal text-muted-foreground line-clamp-1">{c.subject}</span>}
                         {isIncomplete && (
-                          <span className="text-xs font-normal text-amber-600">Da completare prima dell'invio</span>
+                          <span className="text-xs font-normal text-amber-600">{t("Da completare prima dell'invio")}</span>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={badge.variant} className={badge.className}>{badge.label}</Badge>
+                      <Badge variant={badge.variant} className={badge.className}>{t(badge.label)}</Badge>
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
-                      {esitoInvio(c)}
+                      {esitoInvio(c, t)}
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
-                      {dataInvio ? format(new Date(dataInvio), "dd MMM yyyy HH:mm", { locale: it }) : "—"}
+                      {dataInvio ? format(new Date(dataInvio), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() }) : "—"}
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap text-muted-foreground xl:table-cell">
-                      {format(new Date(c.updated_at), "dd MMM yyyy", { locale: it })}
+                      {format(new Date(c.updated_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
                     </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()} className="max-md:hidden">
                         <DropdownMenu>
@@ -441,19 +442,19 @@ export function EmailCampaignsTab() {
                             {["sent", "sending", "completed"].includes(c.status) && (
                               <>
                                 <DropdownMenuItem onClick={() => setDetailTarget({ id: c.id, name: c.name })}>
-                                  <BarChart3 className="h-4 w-4 mr-2" /> Risultati
+                                  <BarChart3 className="h-4 w-4 mr-2" /> {t("Risultati")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                               </>
                             )}
                             <DropdownMenuItem onClick={() => { setRenameTarget({ id: c.id, name: c.name }); setRenameValue(c.name); }}>
-                              <Pencil className="h-4 w-4 mr-2" /> Rinomina
+                              <Pencil className="h-4 w-4 mr-2" /> {t("Rinomina")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => duplicateMutation.mutate(c)}>
-                              <Copy className="h-4 w-4 mr-2" /> Duplica
+                              <Copy className="h-4 w-4 mr-2" /> {t("Duplica")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setMoveTarget(c.id); setMoveFolderId(c.folder_id || null); }}>
-                              <FolderInput className="h-4 w-4 mr-2" /> Sposta in cartella
+                              <FolderInput className="h-4 w-4 mr-2" /> {t("Sposta in cartella")}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -461,7 +462,7 @@ export function EmailCampaignsTab() {
                               disabled={c.status === "sending"}
                               onClick={() => setDeleteTarget(c.id)}
                             >
-                              <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                              <Trash2 className="h-4 w-4 mr-2" /> {t("Elimina")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -478,17 +479,17 @@ export function EmailCampaignsTab() {
               <span>{showing}</span>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                  <ChevronLeft className="h-4 w-4" /> Precedente
+                  <ChevronLeft className="h-4 w-4" /> {t("Precedente")}
                 </Button>
                 <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-                  Successivo <ChevronRight className="h-4 w-4" />
+                  {t("Successivo")} <ChevronRight className="h-4 w-4" />
                 </Button>
                 <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(0); }}>
                   <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="10">10 / pagina</SelectItem>
-                    <SelectItem value="25">25 / pagina</SelectItem>
-                    <SelectItem value="50">50 / pagina</SelectItem>
+                    <SelectItem value="10">{t("10 / pagina")}</SelectItem>
+                    <SelectItem value="25">{t("25 / pagina")}</SelectItem>
+                    <SelectItem value="50">{t("50 / pagina")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -514,18 +515,18 @@ export function EmailCampaignsTab() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina campagna</AlertDialogTitle>
+            <AlertDialogTitle>{t("Elimina campagna")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare questa campagna? L'azione non può essere annullata e verrà applicata solo ai dati della tua azienda.
+              {t("Sei sicuro di voler eliminare questa campagna? L'azione non può essere annullata e verrà applicata solo ai dati della tua azienda.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+              {deleteMutation.isPending ? t("Eliminazione...") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -535,10 +536,10 @@ export function EmailCampaignsTab() {
       <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Rinomina campagna</DialogTitle>
+            <DialogTitle>{t("Rinomina campagna")}</DialogTitle>
           </DialogHeader>
           <div>
-            <Label>Nome</Label>
+            <Label>{t("Nome")}</Label>
             <Input
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
@@ -551,12 +552,12 @@ export function EmailCampaignsTab() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameTarget(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>{t("Annulla")}</Button>
             <Button
               onClick={() => renameTarget && renameMutation.mutate({ id: renameTarget.id, name: renameValue.trim() })}
               disabled={!renameValue.trim() || renameMutation.isPending}
             >
-              {renameMutation.isPending ? "Salvataggio..." : "Salva"}
+              {renameMutation.isPending ? t("Salvataggio...") : t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -566,14 +567,14 @@ export function EmailCampaignsTab() {
       <Dialog open={!!moveTarget} onOpenChange={(open) => !open && setMoveTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Sposta in cartella</DialogTitle>
+            <DialogTitle>{t("Sposta in cartella")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Cartella di destinazione</Label>
+            <Label>{t("Cartella di destinazione")}</Label>
             <Select value={moveFolderId || "__home__"} onValueChange={(v) => setMoveFolderId(v === "__home__" ? null : v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__home__">Home (nessuna cartella)</SelectItem>
+                <SelectItem value="__home__">{t("Home (nessuna cartella)")}</SelectItem>
                 {folders.map((f: any) => (
                   <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                 ))}
@@ -581,12 +582,12 @@ export function EmailCampaignsTab() {
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMoveTarget(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setMoveTarget(null)}>{t("Annulla")}</Button>
             <Button
               onClick={() => moveTarget && moveMutation.mutate({ id: moveTarget, folder_id: moveFolderId })}
               disabled={moveMutation.isPending}
             >
-              {moveMutation.isPending ? "Spostamento..." : "Sposta"}
+              {moveMutation.isPending ? t("Spostamento...") : t("Sposta")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -21,6 +21,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const CAMPI: { chiave: keyof ParametriCosto; etichetta: string; aiuto: string; unita: string; min: number; max: number }[] = [
   { chiave: "mensilita", etichetta: "Mensilità", aiuto: "12 per l'operaio edile (13ª e ferie le paga la Cassa Edile), 14 per l'impiegato", unita: "", min: 12, max: 16 },
@@ -39,6 +40,7 @@ function uguali(a: ParametriCosto, b: ParametriCosto) {
 }
 
 export function ValoriCostoPersonale() {
+  const t = useT();
   const { role } = useAuth();
   const puoModificare = role === "company_admin" || role === "super_admin";
   const { data: parametri } = useParametriCostoPersonale();
@@ -68,7 +70,7 @@ export function ValoriCostoPersonale() {
   const conferma = (nuovi: ParametriCosto | null, messaggio: string) =>
     salva.mutate({ profilo, valori: nuovi }, {
       onSuccess: () => toast.success(messaggio),
-      onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a salvare. Riprova.")),
+      onError: (e) => toast.error(messaggioErrore(e, t("Non sono riuscito a salvare. Riprova."))),
     });
 
   return (
@@ -76,19 +78,18 @@ export function ValoriCostoPersonale() {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <Calculator className="h-4 w-4" aria-hidden="true" />
-          Valori del costo
+          {t("Valori del costo")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Quanto costa davvero un’ora</DialogTitle>
+          <DialogTitle>{t("Quanto costa davvero un’ora")}</DialogTitle>
           <DialogDescription>
-            Dallo stipendio lordo al costo per l’azienda. Partono dai valori dell’edilizia:
-            controllali col consulente del lavoro. Valgono per i rapportini approvati da adesso.
+            {t("Dallo stipendio lordo al costo per l’azienda. Partono dai valori dell’edilizia: controllali col consulente del lavoro. Valgono per i rapportini approvati da adesso.")}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="Tipo di dipendente">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label={t("Tipo di dipendente")}>
           {PROFILI_COSTO.map((k) => (
             <button
               key={k} type="button" role="tab" aria-selected={profilo === k}
@@ -98,8 +99,8 @@ export function ValoriCostoPersonale() {
                 profilo === k ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {ETICHETTA_PROFILO[k]}
-              {parametri?.[k] && <span className="sr-only"> (valori dell’azienda)</span>}
+              {t(ETICHETTA_PROFILO[k])}
+              {parametri?.[k] && <span className="sr-only"> {t("(valori dell’azienda)")}</span>}
               {parametri?.[k] && <span aria-hidden="true" className="ml-1 text-primary">•</span>}
             </button>
           ))}
@@ -113,8 +114,8 @@ export function ValoriCostoPersonale() {
             return (
               <div key={chiave} className="grid grid-cols-[1fr_7.5rem] items-center gap-3">
                 <div className="text-sm">
-                  <label htmlFor={id} className="font-medium">{etichetta}</label>
-                  <p id={`${id}-aiuto`} className="text-xs text-muted-foreground">{aiuto}</p>
+                  <label htmlFor={id} className="font-medium">{t(etichetta)}</label>
+                  <p id={`${id}-aiuto`} className="text-xs text-muted-foreground">{t(aiuto)}</p>
                 </div>
                 <div className="relative">
                   <Input
@@ -135,15 +136,13 @@ export function ValoriCostoPersonale() {
           {esempio != null && valori ? (
             <>
               <p>
-                Esempio: {formatCurrency(ESEMPIO.gross_salary)} lordi al mese, {ESEMPIO.monthly_hours} ore →{" "}
+                {t("Esempio: {lordo} lordi al mese, {ore} ore →", { lordo: formatCurrency(ESEMPIO.gross_salary), ore: ESEMPIO.monthly_hours })}{" "}
                 <strong className="tabular-nums">{formatCurrency(esempio)}/h</strong>
               </p>
-              <p className="text-xs text-muted-foreground">
-                Oneri {oneriPercento(valori).toLocaleString("it-IT")}% · {valori.mensilita} mensilità · {valori.ore_produttive}% di ore produttive
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Oneri {valore}% · {mensilita} mensilità · {ore_produttive}% di ore produttive", { valore: oneriPercento(valori).toLocaleString(intlCampo()), mensilita: String(valori.mensilita ?? ""), ore_produttive: String(valori.ore_produttive ?? "") })}</p>
             </>
           ) : (
-            <p className="text-destructive">Controlla i valori segnati in rosso.</p>
+            <p className="text-destructive">{t("Controlla i valori segnati in rosso.")}</p>
           )}
         </div>
 
@@ -152,19 +151,19 @@ export function ValoriCostoPersonale() {
             <>
               <Button
                 variant="ghost" disabled={!personalizzato || salva.isPending}
-                onClick={() => conferma(null, `${ETICHETTA_PROFILO[profilo]}: tornati i valori dell’edilizia`)}
+                onClick={() => conferma(null, t("{profilo}: tornati i valori dell’edilizia", { profilo: t(ETICHETTA_PROFILO[profilo]) }))}
               >
-                Torna ai valori edili
+                {t("Torna ai valori edili")}
               </Button>
               <Button
                 disabled={!valido || !modificato || salva.isPending}
-                onClick={() => valori && conferma(valori, `${ETICHETTA_PROFILO[profilo]}: valori salvati`)}
+                onClick={() => valori && conferma(valori, t("{profilo}: valori salvati", { profilo: t(ETICHETTA_PROFILO[profilo]) }))}
               >
-                {salva.isPending ? "Salvo…" : "Salva"}
+                {salva.isPending ? t("Salvo…") : t("Salva")}
               </Button>
             </>
           ) : (
-            <p className="text-xs text-muted-foreground">Solo il titolare può cambiare questi valori.</p>
+            <p className="text-xs text-muted-foreground">{t("Solo il titolare può cambiare questi valori.")}</p>
           )}
         </DialogFooter>
       </DialogContent>

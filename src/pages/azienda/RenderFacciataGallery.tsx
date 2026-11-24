@@ -13,6 +13,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type FacciataGalleryRow = {
   id: string;
@@ -29,6 +30,7 @@ type FacciataGalleryRow = {
 };
 
 export default function RenderFacciataGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -69,7 +71,7 @@ export default function RenderFacciataGallery() {
 
     return {
       id: item.id,
-      title: config.scene_analysis.buildingType || "Render facciata",
+      title: config.scene_analysis.buildingType || t("Render facciata"),
       date: item.created_at,
       detailPath: `/azienda/render/facciata/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -90,14 +92,14 @@ export default function RenderFacciataGallery() {
       opportunityName: item.meta.opportunityName,
       imageFit: "contain",
     };
-  }), [sessions]);
+  }), [sessions, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Facciata"
-      badgeLabel="Galleria facciate"
-      title="Render facciata salvati, filtrabili per zona e CRM."
-      description="Ogni proposta di facciata mostra intervento, zone target, autore e collegamenti commerciali senza dover aprire il dettaglio."
+      moduleName={t("Facciata")}
+      badgeLabel={t("Galleria facciate")}
+      title={t("Render facciata salvati, filtrabili per zona e CRM.")}
+      description={t("Ogni proposta di facciata mostra intervento, zone target, autore e collegamenti commerciali senza dover aprire il dettaglio.")}
       backPath="/azienda/render/facciata"
       newPath="/azienda/render/facciata/new"
       items={items}
@@ -105,9 +107,9 @@ export default function RenderFacciataGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render facciata completati appariranno qui."
-      searchPlaceholder="Cerca intervento, zona, autore, contatto..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render facciata completati appariranno qui.")}
+      searchPlaceholder={t("Cerca intervento, zona, autore, contatto...")}
       emptyIcon={Building2}
       accentClassName="text-orange-600"
     />

@@ -81,6 +81,7 @@ import { FISH_FLOW_PRESETS, fishFlowPrompt } from "@/lib/fishFlows";
 import { toast } from "sonner";
 import { FishOperatorRules } from "./FishOperatorRules";
 import { validateFishRouting } from "../../../supabase/functions/_shared/fishOperatorRouting";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const GIULIA = "0e36e185d0654d5bac3d24331562a0cc";
 const TOOLS = [
@@ -197,13 +198,14 @@ export function FishAgentWorkspace({
   backLabel?: string;
   historyHref?: string;
 }) {
+  const t = useT();
   const client = useQueryClient();
   const { isAdmin } = usePermissions();
   const auth = useAuth();
   const isSuperAdmin = auth.role === "super_admin" && !auth.viewAsRole;
   const canManage = isAdmin || isSuperAdmin;
   const [localTab, setLocalTab] = useState<FishWorkspaceTab>(initialTab);
-  const tabs = NAV.filter(({ id }) => !historyHref || id !== "chiamate");
+  const tabs = NAV.filter(({ id }) => !historyHref || id !== "chiamate").map((voce) => ({ ...voce, label: t(voce.label) }));
   const routeTab = requestedTab === "conversazioni" ? "chiamate" : requestedTab;
   const tab = requestedTab === undefined ? localTab : tabs.find(({ id }) => id === routeTab)?.id ?? initialTab;
 
@@ -338,23 +340,23 @@ export function FishAgentWorkspace({
     for (const item of voices.data?.voices || [])
       if (!map.has(item.id)) map.set(item.id, item);
     if (voice && !map.has(voice))
-      map.set(voice, { id: voice, name: "Voce personalizzata" });
+      map.set(voice, { id: voice, name: t("Voce personalizzata") });
     return [...map.values()];
-  }, [voices.data, voice]);
+  }, [voices.data, voice, t]);
   const dirty = saved !== JSON.stringify(form) || voice !== savedVoice;
   const save = useMutation({
     mutationFn: async () => {
       if (!canManage)
-        throw new Error("Solo l’amministratore può modificare l’agente.");
+        throw new Error(t("Solo l’amministratore può modificare l’agente."));
       if (!form.name.trim() || form.prompt.trim().length < 20 || !voice.trim())
-        throw new Error("Completa nome, istruzioni e voce dell’agente.");
+        throw new Error(t("Completa nome, istruzioni e voce dell’agente."));
       if (
         !Number.isFinite(form.duration) ||
         form.duration < 30 ||
         form.duration > 3600
       )
         throw new Error(
-          "La durata massima deve essere compresa fra 0,5 e 60 minuti.",
+          t("La durata massima deve essere compresa fra 0,5 e 60 minuti."),
         );
       if (
         form.transfer &&
@@ -362,34 +364,34 @@ export function FishAgentWorkspace({
         !/^\+\d{8,15}$/.test(onboardingPhone(form.operator))
       )
         throw new Error(
-          "Indica il numero dell’operatore con prefisso internazionale.",
+          t("Indica il numero dell’operatore con prefisso internazionale."),
         );
       if (
         form.transfer &&
         (!form.tools.passa_a_operatore || !form.tools.assign_to_user)
       )
         throw new Error(
-          "Per il passaggio abilita Trova un operatore e Richiesta di richiamo.",
+          t("Per il passaggio abilita Trova un operatore e Richiesta di richiamo."),
         );
       if (
         form.flowId === "support_appointment" &&
         (!assistance.data?.ready || assistance.data.version < 1)
       )
         throw new Error(
-          "Il collegamento a Silvio deve essere pronto prima di salvare il flusso completo.",
+          t("Il collegamento a Silvio deve essere pronto prima di salvare il flusso completo."),
         );
       if (
         form.flowId === "support_appointment" &&
         (!form.calendarId ||
           !calendars.data?.some((c) => c.id === form.calendarId))
       )
-        throw new Error("Scegli un calendario attivo per l’assistenza.");
+        throw new Error(t("Scegli un calendario attivo per l’assistenza."));
       if (
         form.flowId === "support_appointment" &&
         FISH_ASSISTANCE_TOOLS.some((id) => !form.tools[id])
       )
         throw new Error(
-          "Riapplica il flusso Assistenza completa per ripristinare gli strumenti richiesti.",
+          t("Riapplica il flusso Assistenza completa per ripristinare gli strumenti richiesti."),
         );
       const routing = {
         routing_member_ids:
@@ -477,7 +479,7 @@ export function FishAgentWorkspace({
         .eq("company_id", companyId)
         .select("id")
         .single();
-      if (error || !data) throw error || new Error("Bozza non salvata.");
+      if (error || !data) throw error || new Error(t("Bozza non salvata."));
       if (localPreview) return { formSnapshot: JSON.stringify(form), voiceSnapshot: voice };
       try {
         await callFishAgent(companyId, agent.id, "configure", {
@@ -485,7 +487,7 @@ export function FishAgentWorkspace({
         });
       } catch (error) {
         throw new Error(
-          `Bozza salvata nel gestionale; sincronizzazione Fish da ripetere. ${error instanceof Error ? error.message : ""}`,
+          t("Bozza salvata nel gestionale; sincronizzazione Fish da ripetere. {dettaglio}", { dettaglio: error instanceof Error ? error.message : "" }),
           { cause: error },
         );
       }
@@ -495,7 +497,7 @@ export function FishAgentWorkspace({
       setSaved(result.formSnapshot);
       setSavedVoice(result.voiceSnapshot);
       toast.success(
-        localPreview ? "Bozza salvata nel gestionale locale." : "Bozza salvata e sincronizzata. Puoi provarla dalle simulazioni.",
+        localPreview ? t("Bozza salvata nel gestionale locale.") : t("Bozza salvata e sincronizzata. Puoi provarla dalle simulazioni."),
       );
     },
     onError: (error: Error) => toast.error(error.message),
@@ -541,31 +543,31 @@ export function FishAgentWorkspace({
     {
       id: "flussi",
       icon: Bot,
-      title: "Flusso",
-      detail: activeFlow?.title ?? "Personalizzato",
-      action: "Scegli il flusso",
+      title: t("Flusso"),
+      detail: activeFlow?.title ? t(activeFlow.title) : t("Personalizzato"),
+      action: t("Scegli il flusso"),
     },
     {
       id: "simulazioni",
       icon: Mic,
-      title: "Voce e prova",
+      title: t("Voce e prova"),
       detail: localPreview
         ? "Giulia · Drama 3"
         : dirty
-        ? "Salva le modifiche prima della prova"
+        ? t("Salva le modifiche prima della prova")
         : ready
-          ? "Pronta da provare"
+          ? t("Pronta da provare")
           : status.isPending
-            ? "Verifica in corso…"
-            : "Da preparare",
-      action: "Apri le prove",
+            ? t("Verifica in corso…")
+            : t("Da preparare"),
+      action: t("Apri le prove"),
     },
     {
       id: "telefonia",
       icon: Phone,
-      title: "Numero aziendale",
-      detail: line ? line.number + " · " + lineLabel : lineLabel,
-      action: "Vedi il collegamento",
+      title: t("Numero aziendale"),
+      detail: line ? line.number + " · " + t(lineLabel) : t(lineLabel),
+      action: t("Vedi il collegamento"),
     },
   ];
 
@@ -613,7 +615,7 @@ export function FishAgentWorkspace({
     setFlowPreviewId(null);
     setTab("configurazione");
     toast.success(
-      "Flusso caricato nella bozza. Personalizza e salva prima della prova.",
+      t("Flusso caricato nella bozza. Personalizza e salva prima della prova."),
     );
   }
   return (
@@ -626,30 +628,29 @@ export function FishAgentWorkspace({
               variant="ghost"
               className="size-9 shrink-0"
               onClick={onBack}
-              aria-label={backLabel}
+              aria-label={t(backLabel)}
             >
               <ArrowLeft className="size-4" />
             </Button>
             <span className="eic-workspace-icon"><AudioLines aria-hidden="true" className="size-5" /></span>
             <div className="min-w-0">
               <h1 className="break-words text-lg font-semibold leading-tight tracking-tight sm:text-xl">
-                {form.name || "Il tuo agente"}
+                {form.name || t("Il tuo agente")}
               </h1>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Agente vocale · Fish Audio ·{" "}
-                {binding?.enabled ? "Attivo" : "Bozza"}
+                {t("Agente vocale · Fish Audio · {stato}", { stato: binding?.enabled ? t("Attivo") : t("Bozza") })}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 max-sm:pl-1">
             {tab !== "simulazioni" && (
               <Button size="sm" variant="outline" onClick={() => setTab("simulazioni")}>
-                <FlaskConical className="mr-1.5 size-3.5" /> Prova agente
+                <FlaskConical className="mr-1.5 size-3.5" /> {t("Prova agente")}
               </Button>
             )}
             {historyHref && (
               <Button asChild size="sm" variant="outline">
-                <Link to={historyHref}><MessageSquare className="mr-1.5 size-3.5" /> Chiamate nel Centralino</Link>
+                <Link to={historyHref}><MessageSquare className="mr-1.5 size-3.5" /> {t("Chiamate nel Centralino")}</Link>
               </Button>
             )}
             <span
@@ -661,18 +662,18 @@ export function FishAgentWorkspace({
               }
             >
               {save.isPending
-                ? "Salvataggio…"
+                ? t("Salvataggio…")
                 : dirty
-                  ? "Modifiche da salvare"
+                  ? t("Modifiche da salvare")
                   : status.isPending
-                    ? "Caricamento…"
+                    ? t("Caricamento…")
                     : localPreview
-                      ? "Bozza locale"
+                      ? t("Bozza locale")
                       : binding?.fish_agent_id
                       ? status.data?.synchronized === false
-                        ? "Da preparare"
-                        : "Bozza sincronizzata"
-                      : "Da collegare"}
+                        ? t("Da preparare")
+                        : t("Bozza sincronizzata")
+                      : t("Da collegare")}
             </span>
             <Button
               size="sm"
@@ -690,20 +691,19 @@ export function FishAgentWorkspace({
               ) : (
                 <Save className="mr-2 size-4" />
               )}
-              {binding?.enabled ? "Metti in pausa e salva" : "Salva bozza"}
+              {binding?.enabled ? t("Metti in pausa e salva") : t("Salva bozza")}
             </Button>
           </div>
         </div>
         {binding?.enabled && dirty && (
           <p className="mx-auto mt-3 max-w-[1432px] rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-950/50 dark:text-orange-200">
-            Salvando, metti in pausa l’agente sulla linea. Dopo la prova, la
-            versione aggiornata va pubblicata e riattivata.
+            {t("Salvando, metti in pausa l’agente sulla linea. Dopo la prova, la versione aggiornata va pubblicata e riattivata.")}
           </p>
         )}
       </header>
       <Tabs value={tab} onValueChange={setTab}>
         <div className="mt-3 min-w-0 overflow-x-auto px-1 pb-1 pt-0.5">
-          <WorkspaceTabs items={tabs} selected={tab} label="Gestione dell’agente" />
+          <WorkspaceTabs items={tabs} selected={tab} label={t("Gestione dell’agente")} />
         </div>
         <div className="mx-auto max-w-[1464px] p-2.5 sm:p-4">
           {status.isError && (
@@ -713,7 +713,7 @@ export function FishAgentWorkspace({
             >
               <span>{status.error.message}</span>
               <Button variant="outline" onClick={() => status.refetch()}>
-                Riprova
+                {t("Riprova")}
               </Button>
             </div>
           )}
@@ -722,13 +722,12 @@ export function FishAgentWorkspace({
               role="status"
               className="mb-4 rounded-xl border bg-background p-4 text-sm"
             >
-              Collega la chiave Fish nel backend per provare la voce e le
-              simulazioni. La chiave resta sul server.
+              {t("Collega la chiave Fish nel backend per provare la voce e le simulazioni. La chiave resta sul server.")}
             </div>
           )}
           {localPreview && (
             <p className="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-100">
-              Collaudo locale di Giulia · Drama 3. Voce di prova Fish, numero e bozza dimostrativi.
+              {t("Collaudo locale di Giulia · Drama 3. Voce di prova Fish, numero e bozza dimostrativi.")}
             </p>
           )}
           <TabsContent value="configurazione" className="eic-motion-enter mt-0">
@@ -771,14 +770,14 @@ export function FishAgentWorkspace({
                 )}
                 <section className={panel}>
                   <div className="mb-2 flex items-center justify-between">
-                    <h2 className="font-semibold">Primo messaggio</h2>
+                    <h2 className="font-semibold">{t("Primo messaggio")}</h2>
                     <Badge variant="secondary" className="font-normal">
-                      Saluto fisso
+                      {t("Saluto fisso")}
                     </Badge>
                   </div>
 
                   <Textarea
-                    aria-label="Primo messaggio"
+                    aria-label={t("Primo messaggio")}
                     value={form.first}
                     onChange={(e) => set("first", e.target.value)}
                     disabled={!canManage}
@@ -791,13 +790,13 @@ export function FishAgentWorkspace({
                   open={form.flowId !== "support_appointment"}
                 >
                   <summary className="cursor-pointer text-sm font-semibold">
-                    Istruzioni dell’agente
+                    {t("Istruzioni dell’agente")}
                   </summary>
                   <p className="mb-2 mt-2 text-xs text-muted-foreground">
-                    Obiettivi, domande e regole per passare a una persona.
+                    {t("Obiettivi, domande e regole per passare a una persona.")}
                   </p>
                   <Textarea
-                    aria-label="Prompt di sistema"
+                    aria-label={t("Prompt di sistema")}
                     value={form.prompt}
                     onChange={(e) => set("prompt", e.target.value)}
                     disabled={!canManage}
@@ -805,7 +804,7 @@ export function FishAgentWorkspace({
                     className="min-h-36 resize-y border-border/60 bg-background p-2.5 text-sm leading-5 shadow-none sm:min-h-52"
                   />
                   <p className="mt-1 text-right text-xs tabular-nums text-muted-foreground">
-                    {form.prompt.length.toLocaleString("it-IT")} / 32.000
+                    {form.prompt.length.toLocaleString(intlCampo())} / 32.000
                   </p>
                 </details>
                 {form.flowId === "lead_qualification" && (
@@ -819,10 +818,9 @@ export function FishAgentWorkspace({
                 )}
                 {form.flowId !== "support_appointment" && (
                   <section className={panel}>
-                    <h2 className="mb-2 font-semibold">Agenda dell’agente</h2>
+                    <h2 className="mb-2 font-semibold">{t("Agenda dell’agente")}</h2>
                     <p className="mb-4 text-sm leading-6 text-muted-foreground">
-                      Le prenotazioni rispettano orari, durata, margini e
-                      impegni del titolare del calendario.
+                      {t("Le prenotazioni rispettano orari, durata, margini e impegni del titolare del calendario.")}
                     </p>
                     <Select
                       value={form.calendarId || "none"}
@@ -831,40 +829,36 @@ export function FishAgentWorkspace({
                       }
                       disabled={!canManage}
                     >
-                      <SelectTrigger aria-label="Calendario per gli appuntamenti">
+                      <SelectTrigger aria-label={t("Calendario per gli appuntamenti")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">
-                          Scegli un calendario
+                          {t("Scegli un calendario")}
                         </SelectItem>
                         {calendars.data?.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name} · {c.duration_minutes} min
-                          </SelectItem>
+                          <SelectItem key={c.id} value={c.id}>{t("{name} · {duration_minutes} min", { name: String(c.name ?? ""), duration_minutes: String(c.duration_minutes ?? "") })}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {calendars.isError ? (
                       <p className="mt-2 text-xs text-destructive">
-                        Impossibile leggere i calendari. Riprova ricaricando la
-                        pagina.
+                        {t("Impossibile leggere i calendari. Riprova ricaricando la pagina.")}
                       </p>
                     ) : !form.calendarId ? (
                       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        Puoi già fare le simulazioni. Prima delle prenotazioni
-                        reali scegli un calendario attivo dell’azienda.
+                        {t("Puoi già fare le simulazioni. Prima delle prenotazioni reali scegli un calendario attivo dell’azienda.")}
                       </p>
                     ) : null}
                   </section>
                 )}
                 <details className={panel}>
                   <summary className="cursor-pointer text-sm font-medium">
-                    Nome e descrizione
+                    {t("Nome e descrizione")}
                   </summary>
                   <div className="mt-4 space-y-4">
                     <div>
-                      <Label htmlFor="fish-agent-name">Nome agente</Label>
+                      <Label htmlFor="fish-agent-name">{t("Nome agente")}</Label>
                       <Input
                         id="fish-agent-name"
                         value={form.name}
@@ -874,7 +868,7 @@ export function FishAgentWorkspace({
                     </div>
                     <div>
                       <Label htmlFor="fish-agent-description">
-                        Descrizione
+                        {t("Descrizione")}
                       </Label>
                       <Textarea
                         id="fish-agent-description"
@@ -888,26 +882,26 @@ export function FishAgentWorkspace({
               </div>
               <aside
                 className="order-1 space-y-3 lg:order-2"
-                aria-label="Impostazioni vocali e conversazione"
+                aria-label={t("Impostazioni vocali e conversazione")}
               >
                 <section className={panel}>
                   <div className="mb-4 flex items-center justify-between">
-                    <h2 className="font-semibold">Voce</h2>
+                    <h2 className="font-semibold">{t("Voce")}</h2>
                     <AudioLines className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 p-2.5">
                     <span className="text-xs font-medium">Fish Audio · {form.ttsModel === "drama-3" ? "Drama 3" : "S2.1 Pro"}</span>
                     <Button size="sm" variant="outline" disabled={!voiceReady} onClick={() => setVoiceOpen(true)}>
-                      <AudioLines className="mr-1.5 size-4" /> Ascolta
+                      <AudioLines className="mr-1.5 size-4" /> {t("Ascolta")}
                     </Button>
                   </div>
-                  <Label>Voce dell’agente</Label>
+                  <Label>{t("Voce dell’agente")}</Label>
                   <Select
                     value={voice || GIULIA}
                     onValueChange={setVoice}
                     disabled={!canManage}
                   >
-                    <SelectTrigger aria-label="Voce dell’agente">
+                    <SelectTrigger aria-label={t("Voce dell’agente")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -919,9 +913,9 @@ export function FishAgentWorkspace({
                     </SelectContent>
                   </Select>
                   <details className="mt-3 rounded-md border px-2.5 py-2">
-                    <summary className="cursor-pointer text-xs font-medium">Lingua e modello vocale</summary>
+                    <summary className="cursor-pointer text-xs font-medium">{t("Lingua e modello vocale")}</summary>
                   <div className="mt-3">
-                    <Label>Modello vocale</Label>
+                    <Label>{t("Modello vocale")}</Label>
                     <Select
                       value={form.ttsModel}
                       onValueChange={(v) =>
@@ -929,7 +923,7 @@ export function FishAgentWorkspace({
                       }
                       disabled={!canManage}
                     >
-                      <SelectTrigger aria-label="Modello vocale">
+                      <SelectTrigger aria-label={t("Modello vocale")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -938,18 +932,17 @@ export function FishAgentWorkspace({
                       </SelectContent>
                     </Select>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Usato nella conversazione e nella prova voce dopo il
-                      salvataggio.
+                      {t("Usato nella conversazione e nella prova voce dopo il salvataggio.")}
                     </p>
                   </div>
                   <div className="mt-4">
-                    <Label>Lingua parlata</Label>
+                    <Label>{t("Lingua parlata")}</Label>
                     <Select
                       value={form.language}
                       onValueChange={(v) => set("language", v)}
                       disabled={!canManage}
                     >
-                      <SelectTrigger aria-label="Lingua parlata">
+                      <SelectTrigger aria-label={t("Lingua parlata")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -970,15 +963,13 @@ export function FishAgentWorkspace({
                   </details>
                   <details className="mt-3 text-xs text-muted-foreground">
                     <summary className="cursor-pointer">
-                      Collega un’altra voce
+                      {t("Collega un’altra voce")}
                     </summary>
                     <p className="my-3">
-                      Qui trovi le voci disponibili per la tua azienda. Per un
-                      clone privato, chiedi alla piattaforma di associarlo
-                      all’agente.
+                      {t("Qui trovi le voci disponibili per la tua azienda. Per un clone privato, chiedi alla piattaforma di associarlo all’agente.")}
                     </p>
                     <Input
-                      aria-label="ID di un’altra voce Fish"
+                      aria-label={t("ID di un’altra voce Fish")}
                       value={voice}
                       onChange={(e) => setVoice(e.target.value)}
                       disabled={!canManage}
@@ -989,7 +980,7 @@ export function FishAgentWorkspace({
                       className="mt-2"
                       onClick={() => voices.refetch()}
                     >
-                      Aggiorna le mie voci
+                      {t("Aggiorna le mie voci")}
                     </Button>
                     {voices.isError && (
                       <p className="mt-2">{voices.error.message}</p>
@@ -997,9 +988,9 @@ export function FishAgentWorkspace({
                   </details>
                 </section>
                 <details className={panel}>
-                  <summary className="cursor-pointer text-sm font-medium">Naturalezza ed effetti</summary>
+                  <summary className="cursor-pointer text-sm font-medium">{t("Naturalezza ed effetti")}</summary>
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <Label htmlFor="fish-expressive">Voce espressiva</Label>
+                    <Label htmlFor="fish-expressive">{t("Voce espressiva")}</Label>
                     <Switch
                       id="fish-expressive"
                       checked={form.expressive}
@@ -1008,15 +999,12 @@ export function FishAgentWorkspace({
                     />
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Pause, enfasi e intonazione adattate al dialogo. Per il
-                    centralino conviene uno stile naturale e sobrio.
+                    {t("Pause, enfasi e intonazione adattate al dialogo. Per il centralino conviene uno stile naturale e sobrio.")}
                   </p>
-                  <Label htmlFor="fish-speed" className="mt-3 block">
-                    Velocità · {form.speed.toFixed(2)}×
-                  </Label>
+                  <Label htmlFor="fish-speed" className="mt-3 block">{t("Velocità · {speed}×", { speed: form.speed.toFixed(2) })}</Label>
                   <input
                     id="fish-speed"
-                    aria-label="Velocità della voce"
+                    aria-label={t("Velocità della voce")}
                     type="range"
                     min="0.5"
                     max="2"
@@ -1027,52 +1015,49 @@ export function FishAgentWorkspace({
                     className="mt-3 w-full accent-emerald-700"
                   />
                   <div className="mt-3">
-                    <Label>Filtro audio web</Label>
+                    <Label>{t("Filtro audio web")}</Label>
                     <Select
                       value={form.effect}
                       onValueChange={(v) => set("effect", v)}
                       disabled={!canManage}
                     >
-                      <SelectTrigger aria-label="Filtro audio web">
+                      <SelectTrigger aria-label={t("Filtro audio web")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Voce pulita</SelectItem>
-                        <SelectItem value="phone">Telefono</SelectItem>
-                        <SelectItem value="intercom">Interfono</SelectItem>
+                        <SelectItem value="none">{t("Voce pulita")}</SelectItem>
+                        <SelectItem value="phone">{t("Telefono")}</SelectItem>
+                        <SelectItem value="intercom">{t("Interfono")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="mt-4">
-                    <Label>Sottofondo</Label>
+                    <Label>{t("Sottofondo")}</Label>
                     <Select
                       value={form.ambience}
                       onValueChange={(v) => set("ambience", v)}
                       disabled={!canManage}
                     >
-                      <SelectTrigger aria-label="Sottofondo vocale">
+                      <SelectTrigger aria-label={t("Sottofondo vocale")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="off">Nessuno</SelectItem>
-                        <SelectItem value="office">Ufficio</SelectItem>
-                        <SelectItem value="call_center">Centralino</SelectItem>
-                        <SelectItem value="cafe">Bar</SelectItem>
+                        <SelectItem value="off">{t("Nessuno")}</SelectItem>
+                        <SelectItem value="office">{t("Ufficio")}</SelectItem>
+                        <SelectItem value="call_center">{t("Centralino")}</SelectItem>
+                        <SelectItem value="cafe">{t("Bar")}</SelectItem>
                         <SelectItem value="phone_line">
-                          Linea analogica
+                          {t("Linea analogica")}
                         </SelectItem>
                         <SelectItem value="phone_line_digital">
-                          Linea digitale
+                          {t("Linea digitale")}
                         </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   {form.ambience !== "off" && (
                     <div className="mt-4">
-                      <Label htmlFor="fish-ambience-volume">
-                        Volume sottofondo ·{" "}
-                        {Math.round(form.ambienceVolume * 100)}%
-                      </Label>
+                      <Label htmlFor="fish-ambience-volume">{t("Volume sottofondo · {valore}%", { valore: Math.round(form.ambienceVolume * 100) })}</Label>
                       <input
                         id="fish-ambience-volume"
                         type="range"
@@ -1089,22 +1074,20 @@ export function FishAgentWorkspace({
                     </div>
                   )}
                   <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                    Salva e avvia una nuova conversazione per sentire gli
-                    effetti. Pause e sospiri specifici si possono confrontare
-                    nella Prova voce.
+                    {t("Salva e avvia una nuova conversazione per sentire gli effetti. Pause e sospiri specifici si possono confrontare nella Prova voce.")}
                   </p>
                 </details>
                 <section className={panel}>
-                  <h2 className="mb-2 font-semibold">Modello</h2>
+                  <h2 className="mb-2 font-semibold">{t("Modello")}</h2>
                   <p className="mb-4 text-sm text-muted-foreground">
-                    Il modello che comprende la richiesta e prepara la risposta.
+                    {t("Il modello che comprende la richiesta e prepara la risposta.")}
                   </p>
                   <Select
                     value={form.model}
                     onValueChange={(v) => set("model", v)}
                     disabled={!canManage}
                   >
-                    <SelectTrigger aria-label="Modello dell’agente">
+                    <SelectTrigger aria-label={t("Modello dell’agente")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1117,8 +1100,8 @@ export function FishAgentWorkspace({
                   </Select>
                 </section>
                 <section className={panel}>
-                  <h2 className="mb-4 font-semibold">Conversazione</h2>
-                  <Label htmlFor="fish-call-minutes">Durata massima</Label>
+                  <h2 className="mb-4 font-semibold">{t("Conversazione")}</h2>
+                  <Label htmlFor="fish-call-minutes">{t("Durata massima")}</Label>
                   <div className="mt-2 flex items-center gap-3">
                     <Input
                       id="fish-call-minutes"
@@ -1134,20 +1117,20 @@ export function FishAgentWorkspace({
                       className="w-24"
                     />
                     <span className="text-sm text-muted-foreground">
-                      minuti
+                      {t("minuti")}
                     </span>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    La chiamata termina quando raggiunge questo limite.
+                    {t("La chiamata termina quando raggiunge questo limite.")}
                   </p>
                   <div className="mt-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <Label htmlFor="fish-record-audio">
-                          Registra audio
+                          {t("Registra audio")}
                         </Label>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Conserva la registrazione della chiamata.
+                          {t("Conserva la registrazione della chiamata.")}
                         </p>
                       </div>
                       <Switch
@@ -1160,10 +1143,10 @@ export function FishAgentWorkspace({
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <Label htmlFor="fish-save-transcript">
-                          Salva trascrizione
+                          {t("Salva trascrizione")}
                         </Label>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Mostra il dialogo nello storico.
+                          {t("Mostra il dialogo nello storico.")}
                         </p>
                       </div>
                       <Switch
@@ -1177,22 +1160,22 @@ export function FishAgentWorkspace({
                 </section>
                 <section className={panel}>
                   <div className="mb-4 flex items-center justify-between">
-                    <h2 className="font-semibold">Contesto</h2>
+                    <h2 className="font-semibold">{t("Contesto")}</h2>
                     <Globe2 className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <Label>Fuso orario</Label>
+                  <Label>{t("Fuso orario")}</Label>
                   <Select
                     value={form.timezone}
                     onValueChange={(v) => set("timezone", v)}
                     disabled={!canManage}
                   >
-                    <SelectTrigger aria-label="Fuso orario">
+                    <SelectTrigger aria-label={t("Fuso orario")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Europe/Rome">Europa / Roma</SelectItem>
+                      <SelectItem value="Europe/Rome">{t("Europa / Roma")}</SelectItem>
                       <SelectItem value="Europe/London">
-                        Europa / Londra
+                        {t("Europa / Londra")}
                       </SelectItem>
                       <SelectItem value="UTC">UTC</SelectItem>
                     </SelectContent>
@@ -1205,10 +1188,10 @@ export function FishAgentWorkspace({
             <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_17rem]">
               <section className={panel}>
                 <h2 className="text-lg font-semibold">
-                  Cosa deve fare l’agente?
+                  {t("Cosa deve fare l’agente?")}
                 </h2>
                 <p className="mb-3 mt-1 text-sm text-muted-foreground">
-                  In bozza: <strong>{activeFlow?.title ?? "Personalizzato"}</strong>
+                  {t("In bozza:")} <strong>{activeFlow?.title ? t(activeFlow.title) : t("Personalizzato")}</strong>
                 </p>
                 <FishFlowPicker
                   value={previewFlow.id}
@@ -1222,7 +1205,7 @@ export function FishAgentWorkspace({
                 </h2>
                 {previewFlow.id === form.flowId && (
                   <p className="mt-1 text-xs font-medium text-sky-800 dark:text-sky-300">
-                    Flusso della bozza
+                    {t("Flusso della bozza")}
                   </p>
                 )}
                 <p className="mt-1 text-xs leading-4 text-muted-foreground">
@@ -1234,15 +1217,14 @@ export function FishAgentWorkspace({
                   ))}
                 </ol>
                 <p className="mb-3 text-xs leading-5 text-muted-foreground">
-                  Applicare il flusso sostituisce le istruzioni e la selezione
-                  degli strumenti nella bozza.
+                  {t("Applicare il flusso sostituisce le istruzioni e la selezione degli strumenti nella bozza.")}
                 </p>
                 <Button
                   className="eic-motion-button"
                   disabled={!canManage}
                   onClick={applyFlow}
                 >
-                  Applica alla bozza
+                  {t("Applica alla bozza")}
                   <ArrowRight className="ml-2 size-4" />
                 </Button>
               </section>
@@ -1252,14 +1234,11 @@ export function FishAgentWorkspace({
             <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_17rem] xl:grid-cols-[minmax(0,1fr)_19rem]">
               <section className={panel}>
                 <div className="mb-2 flex items-center justify-between">
-                  <h2 className="font-semibold">Strumenti del gestionale</h2>
-                  <Badge variant="secondary">
-                    {Object.values(form.tools).filter(Boolean).length} attivi
-                  </Badge>
+                  <h2 className="font-semibold">{t("Strumenti del gestionale")}</h2>
+                  <Badge variant="secondary">{t("{n} attivi", { n: Object.values(form.tools).filter(Boolean).length })}</Badge>
                 </div>
                 <p className="mb-3 text-sm text-muted-foreground">
-                  Scegli le azioni che l’agente può eseguire. Salva la bozza,
-                  poi prova il flusso nelle simulazioni.
+                  {t("Scegli le azioni che l’agente può eseguire. Salva la bozza, poi prova il flusso nelle simulazioni.")}
                 </p>
                 <div className="divide-y">
                   {TOOLS.map(([id, label, description]) => (
@@ -1272,10 +1251,10 @@ export function FishAgentWorkspace({
                           htmlFor={`fish-tool-${id}`}
                           className="text-sm font-medium"
                         >
-                          {label}
+                          {t(label)}
                         </Label>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {description}
+                          {t(description)}
                         </p>
                       </div>
                       <Switch
@@ -1291,14 +1270,13 @@ export function FishAgentWorkspace({
                 </div>
               </section>
               <section className={panel}>
-                <h2 className="mb-2 font-semibold">Passaggio a una persona</h2>
+                <h2 className="mb-2 font-semibold">{t("Passaggio a una persona")}</h2>
                 <p className="mb-3 text-sm text-muted-foreground">
-                  L’agente verifica la disponibilità, presenta il motivo e
-                  attende l’accettazione dell’operatore.
+                  {t("L’agente verifica la disponibilità, presenta il motivo e attende l’accettazione dell’operatore.")}
                 </p>
                 <div className="flex items-center justify-between gap-3">
                   <Label htmlFor="fish-human-transfer">
-                    Abilita il passaggio
+                    {t("Abilita il passaggio")}
                   </Label>
                   <Switch
                     id="fish-human-transfer"
@@ -1310,38 +1288,33 @@ export function FishAgentWorkspace({
                 {form.transfer && (
                   <div className="mt-3 space-y-4">
                     <div>
-                      <Label>Chi deve rispondere?</Label>
+                      <Label>{t("Chi deve rispondere?")}</Label>
                       <Select
                         value={form.routing}
                         onValueChange={(value) => set("routing", value)}
                         disabled={!canManage}
                       >
-                        <SelectTrigger aria-label="Modalità passaggio operatore">
+                        <SelectTrigger aria-label={t("Modalità passaggio operatore")}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="fixed">
-                            Un numero specifico
+                            {t("Un numero specifico")}
                           </SelectItem>
                           <SelectItem value="first_available">
-                            Primo operatore disponibile
+                            {t("Primo operatore disponibile")}
                           </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     {form.routing === "first_available" ? (
                       <p className="text-sm leading-6 text-muted-foreground">
-                        Usa i numeri con prefisso internazionale già configurati
-                        dagli operatori nel centralino. Sceglie un collega
-                        libero e presente, evita doppie assegnazioni e gli
-                        mostra il motivo. Se nessuno risponde torna
-                        all’assistente per il richiamo. Dopo una modifica ai
-                        numeri salva di nuovo questa bozza.
+                        {t("Usa i numeri con prefisso internazionale già configurati dagli operatori nel centralino. Sceglie un collega libero e presente, evita doppie assegnazioni e gli mostra il motivo. Se nessuno risponde torna all’assistente per il richiamo. Dopo una modifica ai numeri salva di nuovo questa bozza.")}
                       </p>
                     ) : (
                       <div>
                         <Label htmlFor="fish-human-number">
-                          Numero dell’operatore
+                          {t("Numero dell’operatore")}
                         </Label>
                         <Input
                           id="fish-human-number"
@@ -1364,9 +1337,7 @@ export function FishAgentWorkspace({
                       />
                     )}
                     <p className="text-xs leading-5 text-muted-foreground">
-                      Attiva anche Trova un operatore e Richiesta di richiamo.
-                      Il trasferimento effettivo richiede una linea collegata
-                      che lo supporti.
+                      {t("Attiva anche Trova un operatore e Richiesta di richiamo. Il trasferimento effettivo richiede una linea collegata che lo supporti.")}
                     </p>
                   </div>
                 )}
@@ -1381,20 +1352,19 @@ export function FishAgentWorkspace({
                     <FlaskConical aria-hidden="true" className="size-4" />
                   </span>
                   <h2 className="text-base font-semibold">
-                    Prova il tuo agente
+                    {t("Prova il tuo agente")}
                   </h2>
                 </div>
                 {dirty && (
                   <p className="mb-2 rounded-md bg-orange-50 px-2.5 py-2 text-xs text-orange-900 dark:bg-orange-950/50 dark:text-orange-200">
-                    L’anteprima usa la bozza corrente. Salva per provare il
-                    dialogo con Fish.
+                    {t("L’anteprima usa la bozza corrente. Salva per provare il dialogo con Fish.")}
                   </p>
                 )}
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   {localPreview ? (
                     <Button asChild size="sm" variant="outline">
                       <Link to={`/azienda/centralino/collaudo-locale?agente=${encodeURIComponent(agent.id)}`}>
-                        <Mic className="mr-1.5 size-4" /> Dialogo di collaudo
+                        <Mic className="mr-1.5 size-4" /> {t("Dialogo di collaudo")}
                       </Link>
                     </Button>
                   ) : <Button
@@ -1404,7 +1374,7 @@ export function FishAgentWorkspace({
                     className="eic-motion-button"
                   >
                     <Mic className="mr-1.5 size-4" />
-                    Parla con l’agente
+                    {t("Parla con l’agente")}
                   </Button>}
                   <Button
                     variant="outline"
@@ -1413,12 +1383,12 @@ export function FishAgentWorkspace({
                     disabled={!voiceReady}
                   >
                     <AudioLines className="mr-1.5 size-4" />
-                    Ascolta la voce
+                    {t("Ascolta la voce")}
                   </Button>
                 </div>
                 <details className="mb-3 rounded-lg border px-2.5 py-2">
                   <summary className="cursor-pointer text-xs font-medium">
-                    Altre opzioni di prova
+                    {t("Altre opzioni di prova")}
                   </summary>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Button
@@ -1427,7 +1397,7 @@ export function FishAgentWorkspace({
                       onClick={() => setCrmOpen(true)}
                       disabled={!ready || dirty}
                     >
-                      Prova con un cliente del gestionale
+                      {t("Prova con un cliente del gestionale")}
                     </Button>
                     {canManage && !binding?.enabled && (
                       <Button
@@ -1436,7 +1406,7 @@ export function FishAgentWorkspace({
                         disabled={dirty}
                         onClick={() => setOnboardingOpen(true)}
                       >
-                        Completa configurazione
+                        {t("Completa configurazione")}
                       </Button>
                     )}
                   </div>
@@ -1468,7 +1438,7 @@ export function FishAgentWorkspace({
               {isSuperAdmin && (
                 <details className="mt-3">
                   <summary className="cursor-pointer text-sm font-medium">
-                    Configurazione tecnica della piattaforma
+                    {t("Configurazione tecnica della piattaforma")}
                   </summary>
                   <div className="mt-4">
                     <FishAgentPanel companyId={companyId} agentId={agent.id} />
@@ -1501,7 +1471,7 @@ export function FishAgentWorkspace({
       <Dialog open={crmOpen} onOpenChange={setCrmOpen}>
         <DialogContent className="max-h-[94vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Prova con un cliente del gestionale</DialogTitle>
+            <DialogTitle>{t("Prova con un cliente del gestionale")}</DialogTitle>
           </DialogHeader>
           {crmOpen && (
             <FishCrmTrialPanel
@@ -1518,9 +1488,9 @@ export function FishAgentWorkspace({
       }}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Parla con il tuo agente</DialogTitle>
+            <DialogTitle>{t("Parla con il tuo agente")}</DialogTitle>
             <DialogDescription>
-              Prova la conversazione al microfono con uno scenario dimostrativo.
+              {t("Prova la conversazione al microfono con uno scenario dimostrativo.")}
             </DialogDescription>
           </DialogHeader>
           {liveOpen && (
@@ -1563,12 +1533,12 @@ export function FishAgentWorkspace({
       }}>
         <DialogContent className="eic-workspace-dialog max-h-[85vh] overflow-y-auto rounded-2xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{localPreview ? "Ascolta Giulia · Drama 3" : "Prova la voce dell’agente"}</DialogTitle>
-            <DialogDescription className="sr-only">Genera e ascolta un esempio di voce Fish Audio.</DialogDescription>
+            <DialogTitle>{localPreview ? t("Ascolta Giulia · Drama 3") : t("Prova la voce dell’agente")}</DialogTitle>
+            <DialogDescription className="sr-only">{t("Genera e ascolta un esempio di voce Fish Audio.")}</DialogDescription>
           </DialogHeader>
           {dirty && !localPreview && (
             <p className="text-sm text-muted-foreground">
-              La prova usa la voce dell’ultima bozza salvata.
+              {t("La prova usa la voce dell’ultima bozza salvata.")}
             </p>
           )}
           <FishVoicePreview

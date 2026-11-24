@@ -47,6 +47,7 @@ import type { TipoAgente, UnifiedAgentInsert } from "@/types/unifiedAgent.types"
 import { LANGUAGE_OPTIONS } from "@/modules/ai-agents/types/agent.types";
 import { Badge } from "@/components/ui/badge";
 import { FishOnboardingWizard } from "./FishOnboardingWizard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Type card definitions ───
 const TIPO_OPTIONS: { value: TipoAgente; label: string; icon: typeof Phone; desc: string; examples: string }[] = [
@@ -159,6 +160,7 @@ interface Props {
 }
 
 export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess }: Props) {
+  const t = useT();
   const [fishWizard,setFishWizard]=useState(tipoPreselezionato==="vocale");
   const [currentStep, setCurrentStep] = useState(0);
   const [state, setState] = useState<WizardState>(() => ({
@@ -260,7 +262,7 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
-            Nuovo agente AI
+            {t("Nuovo agente AI")}
           </DialogTitle>
         </DialogHeader>
 
@@ -281,7 +283,7 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
                 }`}
               >
                 {i < currentStep ? <Check className="h-3 w-3" /> : <span>{i + 1}</span>}
-                <span className="hidden sm:inline">{STEP_LABELS[s]}</span>
+                <span className="hidden sm:inline">{t(STEP_LABELS[s])}</span>
               </button>
             ))}
           </div>
@@ -300,15 +302,15 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
         <DialogFooter className="gap-2">
           {currentStep > 0 && (
             <Button variant="outline" onClick={handleBack} disabled={createAgent.isPending}>
-              <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+              <ArrowLeft className="h-4 w-4 mr-1" /> {t("Indietro")}
             </Button>
           )}
           <Button onClick={handleNext} disabled={!canNext() || createAgent.isPending}>
             {createAgent.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
             {isLastStep ? (
-              <>Crea agente</>
+              <>{t("Crea agente")}</>
             ) : (
-              <>Avanti <ArrowRight className="h-4 w-4 ml-1" /></>
+              <>{t("Avanti")} <ArrowRight className="h-4 w-4 ml-1" /></>
             )}
           </Button>
         </DialogFooter>
@@ -322,9 +324,10 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
 // ═══════════════════════════════════════
 
 function StepTipo({ state, update, onSelectAndNext }: { state: WizardState; update: (p: Partial<WizardState>) => void; onSelectAndNext: () => void }) {
+  const t = useT();
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Seleziona il tipo di agente che vuoi creare.</p>
+      <p className="text-sm text-muted-foreground">{t("Seleziona il tipo di agente che vuoi creare.")}</p>
       <div className="grid grid-cols-1 gap-2">
         {TIPO_OPTIONS.map((opt) => {
           const Icon = opt.icon;
@@ -347,9 +350,9 @@ function StepTipo({ state, update, onSelectAndNext }: { state: WizardState; upda
                 <Icon className={`h-5 w-5 ${selected ? "text-primary" : "text-muted-foreground"}`} />
               </div>
               <div className="min-w-0">
-                <span className="font-semibold text-sm text-foreground">{opt.label}</span>
-                <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
-                <p className="text-[10px] text-muted-foreground/70 mt-1 italic">{opt.examples}</p>
+                <span className="font-semibold text-sm text-foreground">{t(opt.label)}</span>
+                <p className="text-xs text-muted-foreground mt-0.5">{t(opt.desc)}</p>
+                <p className="text-[10px] text-muted-foreground/70 mt-1 italic">{t(opt.examples)}</p>
               </div>
             </button>
           );
@@ -360,6 +363,7 @@ function StepTipo({ state, update, onSelectAndNext }: { state: WizardState; upda
 }
 
 function StepIdentita({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
+  const tr = useT();
   // Per gli agenti che parlano al telefono i preset generici producono agenti
   // generici: qui entrano i 6 mestieri edilizia gia' scritti coi 6 blocchi
   // ElevenLabs, che portano con se' primo messaggio e strumenti da abilitare.
@@ -387,10 +391,10 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
     <div className="space-y-4">
       {/* Name */}
       <div>
-        <Label htmlFor="wizard-name">Nome agente *</Label>
+        <Label htmlFor="wizard-name">{tr("Nome agente *")}</Label>
         <Input
           id="wizard-name"
-          placeholder="Es: Assistente Clienti"
+          placeholder={tr("Es: Assistente Clienti")}
           value={state.nome}
           onChange={(e) => update({ nome: e.target.value })}
           autoFocus
@@ -399,7 +403,7 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
 
       {/* Purpose chips */}
       <div>
-        <Label>Scopo</Label>
+        <Label>{tr("Scopo")}</Label>
         <div className="flex flex-wrap gap-1.5 mt-1">
           {purposes.map((p) => (
             <button
@@ -412,7 +416,7 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
                   : "bg-card border-border text-muted-foreground hover:border-primary/30"
               }`}
             >
-              {p.label}
+              {tr(p.label)}
             </button>
           ))}
         </div>
@@ -420,29 +424,29 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
 
       {/* System prompt */}
       <div>
-        <Label>Prompt di sistema</Label>
+        <Label>{tr("Prompt di sistema")}</Label>
         <Textarea
-          placeholder="Istruzioni per il comportamento dell'agente..."
+          placeholder={tr("Istruzioni per il comportamento dell'agente...")}
           value={state.system_prompt}
           onChange={(e) => update({ system_prompt: e.target.value })}
           rows={4}
           className="text-xs"
         />
         <p className="text-[10px] text-muted-foreground mt-1">
-          Usa {"{{nome_azienda}}"}, {"{{nome_cliente}}"} come variabili dinamiche.
+          {tr("Usa")} {"{{nome_azienda}}"}, {"{{nome_cliente}}"} {tr("come variabili dinamiche.")}
         </p>
         {!promptReady && (
           <p className="text-[10px] text-destructive mt-1">
-            Inserisci almeno 20 caratteri di istruzioni: evita agenti senza comportamento definito.
+            {tr("Inserisci almeno 20 caratteri di istruzioni: evita agenti senza comportamento definito.")}
           </p>
         )}
       </div>
 
       {/* First message */}
       <div>
-        <Label>Primo messaggio</Label>
+        <Label>{tr("Primo messaggio")}</Label>
         <Input
-          placeholder="Ciao! Come posso aiutarti?"
+          placeholder={tr("Ciao! Come posso aiutarti?")}
           value={state.primo_messaggio}
           onChange={(e) => update({ primo_messaggio: e.target.value })}
         />
@@ -450,7 +454,7 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
 
       {/* Language */}
       <div>
-        <Label>Lingua</Label>
+        <Label>{tr("Lingua")}</Label>
         <Select value={state.lingua} onValueChange={(v) => update({ lingua: v })}>
           <SelectTrigger>
             <SelectValue />
@@ -465,9 +469,9 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
 
       {/* Description */}
       <div>
-        <Label>Descrizione (opzionale)</Label>
+        <Label>{tr("Descrizione (opzionale)")}</Label>
         <Input
-          placeholder="Breve descrizione..."
+          placeholder={tr("Breve descrizione...")}
           value={state.descrizione}
           onChange={(e) => update({ descrizione: e.target.value })}
         />
@@ -477,11 +481,12 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
 }
 
 function StepVoce({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
+  const t = useT();
   const voices = ELEVENLABS_VOICES_IT;
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Seleziona la voce per il tuo agente.</p>
+      <p className="text-sm text-muted-foreground">{t("Seleziona la voce per il tuo agente.")}</p>
 
       <div className="grid grid-cols-2 gap-2">
         {voices.map((v) => (
@@ -508,7 +513,7 @@ function StepVoce({ state, update }: { state: WizardState; update: (p: Partial<W
 
       {/* Temperatura */}
       <div>
-        <Label>Temperatura: {state.temperatura.toFixed(1)}</Label>
+        <Label>{t("Temperatura: {temperatura}", { temperatura: state.temperatura.toFixed(1) })}</Label>
         <Slider
           value={[state.temperatura]}
           onValueChange={([v]) => update({ temperatura: v })}
@@ -518,8 +523,8 @@ function StepVoce({ state, update }: { state: WizardState; update: (p: Partial<W
           className="mt-2"
         />
         <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-          <span>Preciso</span>
-          <span>Creativo</span>
+          <span>{t("Preciso")}</span>
+          <span>{t("Creativo")}</span>
         </div>
       </div>
     </div>
@@ -527,21 +532,22 @@ function StepVoce({ state, update }: { state: WizardState; update: (p: Partial<W
 }
 
 function StepComportamento({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
+  const t = useT();
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Configura il comportamento avanzato dell'agente vocale.</p>
+      <p className="text-sm text-muted-foreground">{t("Configura il comportamento avanzato dell'agente vocale.")}</p>
 
       <div className="space-y-3">
-        <ToggleRow label="Risposta alle chiamate" desc="Si abilita assegnando il numero all'agente nella scheda Telefonia" checked={state.risposta_automatica} onChange={(v) => update({ risposta_automatica: v })} disabled />
-        <ToggleRow label="Registra chiamate" desc="Salva audio delle conversazioni" checked={state.registra_chiamate} onChange={(v) => update({ registra_chiamate: v })} />
-        <ToggleRow label="Trascrizione automatica" desc="Necessaria al servizio vocale; conservazione da configurare nel provider" checked={state.trascrivi_chiamate} onChange={(v) => update({ trascrivi_chiamate: v })} disabled />
-        <ToggleRow label="Rileva segreteria" desc="Riconosce e gestisce le segreterie telefoniche" checked={state.rileva_segreteria} onChange={(v) => update({ rileva_segreteria: v })} />
+        <ToggleRow label={t("Risposta alle chiamate")} desc={t("Si abilita assegnando il numero all'agente nella scheda Telefonia")} checked={state.risposta_automatica} onChange={(v) => update({ risposta_automatica: v })} disabled />
+        <ToggleRow label={t("Registra chiamate")} desc={t("Salva audio delle conversazioni")} checked={state.registra_chiamate} onChange={(v) => update({ registra_chiamate: v })} />
+        <ToggleRow label={t("Trascrizione automatica")} desc={t("Necessaria al servizio vocale; conservazione da configurare nel provider")} checked={state.trascrivi_chiamate} onChange={(v) => update({ trascrivi_chiamate: v })} disabled />
+        <ToggleRow label={t("Rileva segreteria")} desc={t("Riconosce e gestisce le segreterie telefoniche")} checked={state.rileva_segreteria} onChange={(v) => update({ rileva_segreteria: v })} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Squilli max</Label>
-          <p className="text-[11px] text-muted-foreground">Gestiti dal provider telefonico, non da questo campo.</p>
+          <Label>{t("Squilli max")}</Label>
+          <p className="text-[11px] text-muted-foreground">{t("Gestiti dal provider telefonico, non da questo campo.")}</p>
           <Input
             disabled
             type="number"
@@ -552,7 +558,7 @@ function StepComportamento({ state, update }: { state: WizardState; update: (p: 
           />
         </div>
         <div>
-          <Label>Durata max (sec)</Label>
+          <Label>{t("Durata max (sec)")}</Label>
           <Input
             type="number"
             value={state.durata_max}
@@ -567,23 +573,24 @@ function StepComportamento({ state, update }: { state: WizardState; update: (p: 
 }
 
 function StepChatConfig({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
+  const t = useT();
   const colorPresets = ["#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EF4444", "#EC4899"];
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Configura l'aspetto del widget chat.</p>
+      <p className="text-sm text-muted-foreground">{t("Configura l'aspetto del widget chat.")}</p>
 
       <div>
-        <Label>Titolo widget</Label>
+        <Label>{t("Titolo widget")}</Label>
         <Input
           value={state.widget_titolo}
           onChange={(e) => update({ widget_titolo: e.target.value })}
-          placeholder="Assistente AI"
+          placeholder={t("Assistente AI")}
         />
       </div>
 
       <div>
-        <Label>Colore</Label>
+        <Label>{t("Colore")}</Label>
         <div className="flex items-center gap-2 mt-1">
           {colorPresets.map((c) => (
             <button
@@ -609,14 +616,14 @@ function StepChatConfig({ state, update }: { state: WizardState; update: (p: Par
       </div>
 
       <div>
-        <Label>Posizione</Label>
+        <Label>{t("Posizione")}</Label>
         <Select value={state.widget_posizione} onValueChange={(v) => update({ widget_posizione: v })}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="bottom-right">In basso a destra</SelectItem>
-            <SelectItem value="bottom-left">In basso a sinistra</SelectItem>
+            <SelectItem value="bottom-right">{t("In basso a destra")}</SelectItem>
+            <SelectItem value="bottom-left">{t("In basso a sinistra")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -625,13 +632,14 @@ function StepChatConfig({ state, update }: { state: WizardState; update: (p: Par
 }
 
 function StepReview({ state }: { state: WizardState }) {
+  const tr = useT();
   const tipoCfg = TIPO_OPTIONS.find((t) => t.value === state.tipo)!;
   const Icon = tipoCfg.icon;
   const promptReady = state.system_prompt.trim().length >= 20;
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Rivedi la configurazione prima di creare l'agente.</p>
+      <p className="text-sm text-muted-foreground">{tr("Rivedi la configurazione prima di creare l'agente.")}</p>
 
       <div className="rounded-xl border border-border p-4 space-y-3">
         <div className="flex items-center gap-3">
@@ -647,25 +655,25 @@ function StepReview({ state }: { state: WizardState }) {
         </div>
 
         {state.scopo && (
-          <ReviewRow label="Scopo" value={state.scopo} />
+          <ReviewRow label={tr("Scopo")} value={state.scopo} />
         )}
         {state.system_prompt && (
-          <ReviewRow label="Prompt" value={state.system_prompt.substring(0, 120) + (state.system_prompt.length > 120 ? "..." : "")} />
+          <ReviewRow label={tr("Prompt")} value={state.system_prompt.substring(0, 120) + (state.system_prompt.length > 120 ? "..." : "")} />
         )}
         {state.voice_nome && (
-          <ReviewRow label="Voce" value={state.voice_nome} />
+          <ReviewRow label={tr("Voce")} value={state.voice_nome} />
         )}
         {state.descrizione && (
-          <ReviewRow label="Descrizione" value={state.descrizione} />
+          <ReviewRow label={tr("Descrizione")} value={state.descrizione} />
         )}
 
         <div className="pt-2 border-t border-border">
           <p className="text-[11px] text-muted-foreground">
-            L'agente verrà creato come <strong>bozza</strong>. Potrai attivarlo dopo aver completato la configurazione.
+            {tr("L'agente verrà creato come")} <strong>{tr("bozza")}</strong>{tr(". Potrai attivarlo dopo aver completato la configurazione.")}
           </p>
           {!promptReady && (
             <p className="text-[11px] text-destructive mt-1">
-              Completa il prompt di sistema prima di creare l'agente.
+              {tr("Completa il prompt di sistema prima di creare l'agente.")}
             </p>
           )}
         </div>

@@ -23,6 +23,7 @@ import type { IdrProgetto } from "@/types/termoidraulico";
 import type { IdrFormPatch } from "./types";
 import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
 import { InterventoScelto } from "@/components/moduli/InterventoScelto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   form: Partial<IdrProgetto>;
@@ -76,6 +77,7 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange, model }: Props) {
+  const tr = useT();
   const isMobile = useIsMobile();
   return (
     <Card>
@@ -87,9 +89,9 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             <Flame className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Dati impianto</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{tr("Dati impianto")}</h2>
             <p className="text-[11px] text-muted-foreground max-sm:hidden">
-              Tipo di intervento, generatore e n. terminali.
+              {tr("Tipo di intervento, generatore e n. terminali.")}
             </p>
           </div>
         </div>
@@ -97,33 +99,33 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         {/* Tipo intervento + generatore */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 sm:col-span-6">
-            <Label className="text-xs">Tipo di intervento</Label>
+            <Label className="text-xs">{tr("Tipo di intervento")}</Label>
             {model ? <InterventoScelto intervento={model} /> : <Select
               value={form.tipo_intervento ?? ""}
               onValueChange={(v) => onChange("tipo_intervento", v)}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Seleziona il tipo di intervento" />
+                <SelectValue placeholder={tr("Seleziona il tipo di intervento")} />
               </SelectTrigger>
               <SelectContent>
                 {TIPI_INTERVENTO.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>}
           </div>
           <div className="col-span-12 sm:col-span-6">
-            <Label className="text-xs">Tipo di generatore</Label>
+            <Label className="text-xs">{tr("Tipo di generatore")}</Label>
             <Select
               value={form.tipo_generatore ?? ""}
               onValueChange={(v) => onChange("tipo_generatore", v)}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Caldaia / pompa di calore / ibrido" />
+                <SelectValue placeholder={tr("Caldaia / pompa di calore / ibrido")} />
               </SelectTrigger>
               <SelectContent>
                 {TIPI_GENERATORE.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -133,23 +135,23 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         {/* Immobile + impianto */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 sm:col-span-6">
-            <Label className="text-xs">Tipo immobile</Label>
+            <Label className="text-xs">{tr("Tipo immobile")}</Label>
             <Select
               value={form.immobile_tipo ?? ""}
               onValueChange={(v) => onChange("immobile_tipo", v)}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Seleziona" />
+                <SelectValue placeholder={tr("Seleziona")} />
               </SelectTrigger>
               <SelectContent>
                 {TIPI_IMMOBILE.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">N. terminali<span className="max-sm:hidden"> (radiatori/fan coil)</span></Label>
+            <Label className="text-xs">{tr("N. terminali")}<span className="max-sm:hidden"> {tr("(radiatori/fan coil)")}</span></Label>
             <Input
               type="number"
               step={1}
@@ -162,7 +164,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Superficie (m²)</Label>
+            <Label className="text-xs">{tr("Superficie (m²)")}</Label>
             <Input
               type="number"
               inputMode="decimal"
@@ -174,7 +176,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Anno immobile</Label>
+            <Label className="text-xs">{tr("Anno immobile")}</Label>
             <Input
               type="number"
               step={1}
@@ -186,7 +188,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Piani</Label>
+            <Label className="text-xs">{tr("Piani")}</Label>
             <Input
               type="number"
               step={1}
@@ -202,15 +204,15 @@ export default function StepImmobile({ form, onChange, model }: Props) {
 
         {/* Vincoli / note */}
         <div>
-          <Label className="text-xs">Vincoli e note</Label>
+          <Label className="text-xs">{tr("Vincoli e note")}</Label>
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. posizione caldaia/canna fumaria, scarico condensa, distanze di sicurezza, allaccio gas, condominio con orari cantiere…"}
+            placeholder={isMobile ? tr("Vincoli, accessi, orari…") : tr("Es. posizione caldaia/canna fumaria, scarico condensa, distanze di sicurezza, allaccio gas, condominio con orari cantiere…")}
             className="min-h-20 text-sm max-sm:min-h-16"
           />
           <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
-            Vincoli edilizi/condominiali e annotazioni utili (es. libretto impianto, dichiarazione di conformità DM 37/08).
+            {tr("Vincoli edilizi/condominiali e annotazioni utili (es. libretto impianto, dichiarazione di conformità DM 37/08).")}
           </p>
         </div>
       </CardContent>

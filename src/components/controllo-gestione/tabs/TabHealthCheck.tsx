@@ -35,6 +35,7 @@ import {
   ArrowRight, Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
@@ -75,6 +76,7 @@ function scrollAncora(hash: string) {
 }
 
 export function TabHealthCheck({ anno }: Props) {
+  const t = useT();
   const h = useHealthCheck(anno);
   const r = useRiconciliazione(anno);
   const location = useLocation();
@@ -118,10 +120,10 @@ export function TabHealthCheck({ anno }: Props) {
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <HeartPulse className="h-4 w-4" /> Salute dei dati del {anno}
+            <HeartPulse className="h-4 w-4" /> {t("Salute dei dati del {anno}", { anno })}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Controlla che ci siano tutti i dati per avere numeri affidabili in questa pagina.
+            {t("Controlla che ci siano tutti i dati per avere numeri affidabili in questa pagina.")}
           </p>
         </CardHeader>
         <CardContent>
@@ -136,7 +138,7 @@ export function TabHealthCheck({ anno }: Props) {
                     h.data.percentuale >= 80 ? "bg-emerald-50" : h.data.percentuale >= 50 ? "bg-amber-50" : "bg-rose-50",
                   )}
                 >
-                  <p className="text-xs text-muted-foreground">Punteggio</p>
+                  <p className="text-xs text-muted-foreground">{t("Punteggio")}</p>
                   <p
                     className={cn(
                       "mt-1 text-4xl font-bold tabular-nums",
@@ -149,19 +151,19 @@ export function TabHealthCheck({ anno }: Props) {
                   <Progress value={h.data.percentuale} className="mt-2 h-2" />
                 </div>
                 <div className="rounded-2xl border bg-card p-4 lg:col-span-2">
-                  <p className="text-xs font-medium text-muted-foreground">In breve</p>
+                  <p className="text-xs font-medium text-muted-foreground">{t("In breve")}</p>
                   <ul className="mt-2 space-y-1 text-sm">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> {nOk} controlli a posto</li>
-                    <li className="flex items-center gap-2"><AlertCircle className="h-4 w-4 text-amber-600" /> {nWarn} da migliorare</li>
-                    <li className="flex items-center gap-2"><XCircle className="h-4 w-4 text-rose-600" /> {nCrit} da sistemare</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> {t("{n} controlli a posto", { n: nOk })}</li>
+                    <li className="flex items-center gap-2"><AlertCircle className="h-4 w-4 text-amber-600" /> {t("{n} da migliorare", { n: nWarn })}</li>
+                    <li className="flex items-center gap-2"><XCircle className="h-4 w-4 text-rose-600" /> {t("{n} da sistemare", { n: nCrit })}</li>
                   </ul>
                   {h.data.report_ready === true ? (
                     <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-700">
-                      Tutti i controlli necessari sono superati: rating e pacchetto banca sono utilizzabili.
+                      {t("Tutti i controlli necessari sono superati: rating e pacchetto banca sono utilizzabili.")}
                     </p>
                   ) : (
                     <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
-                      Finché i controlli in rosso non sono a posto, rating, Z-score e pacchetto banca restano provvisori.
+                      {t("Finché i controlli in rosso non sono a posto, rating, Z-score e pacchetto banca restano provvisori.")}
                     </p>
                   )}
                 </div>
@@ -174,7 +176,7 @@ export function TabHealthCheck({ anno }: Props) {
                   return (
                     <div key={c.codice} className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-start sm:gap-3">
                       <div className="flex flex-1 items-start gap-3">
-                        <span className={cn("rounded-md p-1.5", cfg.color)} title={cfg.label}>{cfg.icon}</span>
+                        <span className={cn("rounded-md p-1.5", cfg.color)} title={t(cfg.label)}>{cfg.icon}</span>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium">{c.label}</p>
                           <p className="text-xs text-muted-foreground">{c.descrizione}</p>
@@ -182,16 +184,16 @@ export function TabHealthCheck({ anno }: Props) {
                       </div>
                       <div className="flex items-center justify-between gap-3 pl-10 sm:block sm:pl-0 sm:text-right">
                         <p className="text-sm font-semibold tabular-nums">{formatValoreCheck(c.codice, c.valore, c.unita)}</p>
-                        <p className="text-[11px] text-muted-foreground">obiettivo: {c.target}</p>
+                        <p className="text-[11px] text-muted-foreground">{t("obiettivo: {target}", { target: String(c.target ?? "") })}</p>
                       </div>
                       {href && c.status !== "ok" && (
                         href.startsWith("#") ? (
                           <Button variant="ghost" size="sm" className="h-7 shrink-0 self-end sm:self-start" onClick={() => scrollAncora(href)}>
-                            Sistema <ArrowRight className="ml-1 h-3 w-3" />
+                            {t("Sistema")} <ArrowRight className="ml-1 h-3 w-3" />
                           </Button>
                         ) : (
                           <Button asChild variant="ghost" size="sm" className="h-7 shrink-0 self-end sm:self-start">
-                            <Link to={href}>Vai <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                            <Link to={href}>{t("Vai")} <ArrowRight className="ml-1 h-3 w-3" /></Link>
                           </Button>
                         )
                       )}
@@ -209,19 +211,19 @@ export function TabHealthCheck({ anno }: Props) {
         <Card className="rounded-2xl border-amber-200 bg-amber-50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4" /> Primi passi
+              <Sparkles className="h-4 w-4" /> {t("Primi passi")}
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Quattro passi, in quest'ordine, per avere numeri affidabili:</p>
+            <p className="text-xs text-muted-foreground">{t("Quattro passi, in quest'ordine, per avere numeri affidabili:")}</p>
           </CardHeader>
           <CardContent>
             <ol className="space-y-2 text-sm">
-              <PassoGuida done={statoCheck("classificazioni")} label="1. Carica le voci di classificazione predefinite"
+              <PassoGuida done={statoCheck("classificazioni")} label={t("1. Carica le voci di classificazione predefinite")}
                 href="/azienda/controllo-gestione/configurazione" />
-              <PassoGuida done={statoCheck("patrimonio_netto")} label="2. Inserisci il patrimonio netto (capitale, riserve)"
+              <PassoGuida done={statoCheck("patrimonio_netto")} label={t("2. Inserisci il patrimonio netto (capitale, riserve)")}
                 ancora="#patrimonio" />
-              <PassoGuida done={statoCheck("cespiti")} label="3. Inserisci mezzi e attrezzature per gli ammortamenti"
+              <PassoGuida done={statoCheck("cespiti")} label={t("3. Inserisci mezzi e attrezzature per gli ammortamenti")}
                 ancora="#cespiti" />
-              <PassoGuida done={statoCheck("loans")} label="4. Aggiungi i mutui e i finanziamenti in corso"
+              <PassoGuida done={statoCheck("loans")} label={t("4. Aggiungi i mutui e i finanziamenti in corso")}
                 href="/azienda/controllo-gestione/pfn-debiti" />
             </ol>
           </CardContent>
@@ -238,11 +240,9 @@ export function TabHealthCheck({ anno }: Props) {
       {/* D. Riconciliazione */}
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Confronto con il bilancio del commercialista · {anno}</CardTitle>
+          <CardTitle className="text-base">{t("Confronto con il bilancio del commercialista · {anno}", { anno: String(anno ?? "") })}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Copia qui i numeri del bilancio depositato (o della situazione contabile del commercialista). Importi in
-            euro, per esempio 1.234.567 oppure 1234567,50. Puoi lasciare vuoti quelli che non hai: vedrai quanto e
-            dove i numeri del gestionale si discostano.
+            {t("Copia qui i numeri del bilancio depositato (o della situazione contabile del commercialista). Importi in euro, per esempio 1.234.567 oppure 1234567,50. Puoi lasciare vuoti quelli che non hai: vedrai quanto e dove i numeri del gestionale si discostano.")}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -264,10 +264,10 @@ export function TabHealthCheck({ anno }: Props) {
               <table className="w-full min-w-[520px] text-sm">
                 <thead className="bg-muted/40">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Voce</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Bilancio</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Gestionale</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Differenza</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t("Voce")}</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Bilancio")}</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Gestionale")}</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Differenza")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -275,8 +275,7 @@ export function TabHealthCheck({ anno }: Props) {
                 </tbody>
               </table>
               <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">
-                Differenza = gestionale − bilancio. Entro il 5% è normale (arrotondamenti, scritture di chiusura); oltre,
-                manca qualcosa nel gestionale o è registrato in un'altra voce.
+                {t("Differenza = gestionale − bilancio. Entro il 5% è normale (arrotondamenti, scritture di chiusura); oltre, manca qualcosa nel gestionale o è registrato in un'altra voce.")}
               </p>
             </div>
           )}
@@ -287,10 +286,11 @@ export function TabHealthCheck({ anno }: Props) {
 }
 
 function FormRiconciliazione({ anno, dichiarato }: { anno: number; dichiarato: RiconciliazioneDichiarato | null }) {
+  const tr = useT();
   const upsert = useUpsertRiconciliazione();
   const { toast } = useToast();
   const t = (v: number | null | undefined) =>
-    v === null || v === undefined ? "" : new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(v);
+    v === null || v === undefined ? "" : new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 }).format(v);
   const [form, setForm] = useState<Record<CampoRic | "note", string>>(() => ({
     ricavi: t(dichiarato?.ricavi),
     costi: t(dichiarato?.costi),
@@ -305,13 +305,13 @@ function FormRiconciliazione({ anno, dichiarato }: { anno: number; dichiarato: R
     for (const c of CAMPI_RIC) {
       const n = parseImportoIt(form[c.campo]);
       if (Number.isNaN(n)) {
-        toast({ title: "Importo non valido", description: `Controlla «${c.label}» (es. 1.234.567 oppure 1234567,50).`, variant: "destructive" });
+        toast({ title: tr("Importo non valido"), description: tr("Controlla «{label}» (es. 1.234.567 oppure 1234567,50).", { label: tr(c.label) }), variant: "destructive" });
         return;
       }
       numeri[c.campo] = n;
     }
     if (CAMPI_RIC.every((c) => numeri[c.campo] === null)) {
-      toast({ title: "Nessun numero inserito", description: "Inserisci almeno un valore dal bilancio.", variant: "destructive" });
+      toast({ title: tr("Nessun numero inserito"), description: tr("Inserisci almeno un valore dal bilancio."), variant: "destructive" });
       return;
     }
     try {
@@ -324,11 +324,11 @@ function FormRiconciliazione({ anno, dichiarato }: { anno: number; dichiarato: R
         imposte_dichiarate: numeri.imposte ?? null,
         note: form.note.trim() || null,
       });
-      toast({ title: "Bilancio salvato", description: "Sotto vedi le differenze con i numeri del gestionale." });
+      toast({ title: tr("Bilancio salvato"), description: tr("Sotto vedi le differenze con i numeri del gestionale.") });
     } catch (e) {
       toast({
-        title: "Bilancio non salvato",
-        description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
+        title: tr("Bilancio non salvato"),
+        description: e instanceof Error ? e.message : tr("Riprova tra qualche secondo."),
         variant: "destructive",
       });
     }
@@ -339,36 +339,37 @@ function FormRiconciliazione({ anno, dichiarato }: { anno: number; dichiarato: R
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {CAMPI_RIC.map((c) => (
           <div key={c.campo}>
-            <Label className="text-xs" htmlFor={`ric-${c.campo}`}>{c.label} (€)</Label>
+            <Label className="text-xs" htmlFor={`ric-${c.campo}`}>{tr(c.label)} (€)</Label>
             <Input
               id={`ric-${c.campo}`}
               inputMode="decimal"
-              placeholder={c.esempio}
+              placeholder={tr(c.esempio)}
               value={form[c.campo]}
               onChange={(e) => setForm((f) => ({ ...f, [c.campo]: e.target.value }))}
             />
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{c.aiuto}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{tr(c.aiuto)}</p>
           </div>
         ))}
       </div>
       <div>
-        <Label className="text-xs" htmlFor="ric-note">Note</Label>
+        <Label className="text-xs" htmlFor="ric-note">{tr("Note")}</Label>
         <Textarea
           id="ric-note"
           rows={2}
           value={form.note}
           onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-          placeholder="es. Bilancio depositato il 30/04, firmato dott. Rossi"
+          placeholder={tr("es. Bilancio depositato il 30/04, firmato dott. Rossi")}
         />
       </div>
       <Button onClick={handleSave} disabled={upsert.isPending}>
-        {upsert.isPending ? "Salvataggio…" : "Salva e confronta"}
+        {upsert.isPending ? tr("Salvataggio…") : tr("Salva e confronta")}
       </Button>
     </>
   );
 }
 
 function PassoGuida({ done, label, href, ancora }: { done: boolean; label: string; href?: string; ancora?: string }) {
+  const t = useT();
   return (
     <li className="flex items-center gap-3 rounded-xl border bg-card p-3">
       {done ? (
@@ -379,11 +380,11 @@ function PassoGuida({ done, label, href, ancora }: { done: boolean; label: strin
       <span className={cn("flex-1", done && "text-muted-foreground line-through")}>{label}</span>
       {!done && (ancora ? (
         <Button size="sm" variant="outline" onClick={() => scrollAncora(ancora)}>
-          Vai <ArrowRight className="ml-1 h-3 w-3" />
+          {t("Vai")} <ArrowRight className="ml-1 h-3 w-3" />
         </Button>
       ) : href ? (
         <Button asChild size="sm" variant="outline">
-          <Link to={href}>Vai <ArrowRight className="ml-1 h-3 w-3" /></Link>
+          <Link to={href}>{t("Vai")} <ArrowRight className="ml-1 h-3 w-3" /></Link>
         </Button>
       ) : null)}
     </li>
@@ -391,13 +392,14 @@ function PassoGuida({ done, label, href, ancora }: { done: boolean; label: strin
 }
 
 function RigaConfronto({ label, dich, sist }: { label: string; dich: number | null; sist: number }) {
+  const t = useT();
   const d = Number(dich ?? 0);
   const diff = sist - d;
   const pct = d !== 0 ? (diff / Math.abs(d)) * 100 : null;
   const dentro = Math.abs(diff) <= Math.abs(d) * 0.05;
   return (
     <tr className="border-t">
-      <td className="px-3 py-2 font-medium">{label}</td>
+      <td className="px-3 py-2 font-medium">{t(label)}</td>
       <td className="px-3 py-2 text-right tabular-nums">{formatEuro(d)}</td>
       <td className="px-3 py-2 text-right tabular-nums">{formatEuro(sist)}</td>
       <td className={cn(
@@ -407,7 +409,7 @@ function RigaConfronto({ label, dich, sist }: { label: string; dich: number | nu
         {Math.round(diff) > 0 ? "+" : ""}{formatEuro(diff)}
         {pct !== null && (
           <span className="ml-1 text-xs font-normal">
-            ({pct > 0 ? "+" : ""}{formatNumero(pct, 1)}%) {dentro ? "ok" : "da verificare"}
+            ({pct > 0 ? "+" : ""}{formatNumero(pct, 1)}%) {dentro ? t("ok") : t("da verificare")}
           </span>
         )}
       </td>

@@ -16,6 +16,7 @@ import {
   type TecnicaLavorazionePos,
 } from "../../../../supabase/functions/_shared/posTecnica";
 import type { PosContenuto } from "../../../../supabase/functions/_shared/posModello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function TecnicaLavorazionePos({
   d,
@@ -32,6 +33,7 @@ export function TecnicaLavorazionePos({
   ro: boolean;
   modifica: (fn: (v: PosContenuto) => void) => void;
 }) {
+  const tr = useT();
   const t = d.lavorazioni[n].tecnica || tecnicaPosVuota();
   const edit = (fn: (v: TecnicaLavorazionePos) => void) => {
     if (!ro)
@@ -62,27 +64,24 @@ export function TecnicaLavorazionePos({
   return (
     <section
       className="space-y-3 rounded-lg border bg-white p-3 sm:col-span-2"
-      aria-label={`Dettaglio tecnico della lavorazione ${n + 1}`}
+      aria-label={tr("Dettaglio tecnico della lavorazione {n}", { n: n + 1 })}
     >
       <div>
-        <h4 className="font-medium">Scheda tecnica di dettaglio</h4>
+        <h4 className="font-medium">{tr("Scheda tecnica di dettaglio")}</h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          Descrivi le condizioni effettive del cantiere. I testi di riepilogo
-          restano conservati. Non sono calcolati rischi o attestazioni
-          automatiche: le valutazioni e i riferimenti vanno verificati dal
-          responsabile competente.
+          {tr("Descrivi le condizioni effettive del cantiere. I testi di riepilogo restano conservati. Non sono calcolati rischi o attestazioni automatiche: le valutazioni e i riferimenti vanno verificati dal responsabile competente.")}
         </p>
       </div>
       <details open className="rounded-md border p-3">
         <summary className="cursor-pointer text-sm font-medium">
-          Organizzazione e sequenza operativa
+          {tr("Organizzazione e sequenza operativa")}
         </summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {Object.entries(CAMPI_CONTESTO_TECNICO).map(([k, label]) => (
             <div key={k}>
               {area(
                 `${base}-${k}`,
-                label,
+                tr(label),
                 t[k as keyof typeof CAMPI_CONTESTO_TECNICO],
                 (v) =>
                   edit((x) => {
@@ -94,13 +93,9 @@ export function TecnicaLavorazionePos({
         </div>
       </details>
       <details className="rounded-md border p-3">
-        <summary className="cursor-pointer text-sm font-medium">
-          Rischi, misure e valutazioni · {t.rischi.length}
-        </summary>
+        <summary className="cursor-pointer text-sm font-medium">{tr("Rischi, misure e valutazioni · {n}", { n: t.rischi.length })}</summary>
         <p className="mt-2 text-xs text-muted-foreground">
-          Una scheda per ogni rischio specifico. Se una protezione non è
-          pertinente, indica il motivo. Non inserire valori di esposizione o
-          valutazioni senza una fonte.
+          {tr("Una scheda per ogni rischio specifico. Se una protezione non è pertinente, indica il motivo. Non inserire valori di esposizione o valutazioni senza una fonte.")}
         </p>
         <div className="mt-3 space-y-3">
           {t.rischi.map((r, i) => (
@@ -108,15 +103,13 @@ export function TecnicaLavorazionePos({
               key={r.id}
               className="min-w-0 space-y-3 rounded-md border p-3"
             >
-              <legend className="px-1 text-sm font-medium">
-                Rischio {i + 1}
-              </legend>
+              <legend className="px-1 text-sm font-medium">{tr("Rischio {livello}", { livello: i + 1 })}</legend>
               <div className="grid gap-3 sm:grid-cols-2">
                 {Object.entries(CAMPI_RISCHIO_TECNICO).map(([k, label]) => (
                   <div key={k}>
                     {area(
                       `${base}-r-${i}-${k}`,
-                      `${label} · rischio ${i + 1}`,
+                      tr("{label} · rischio {i}", { label: tr(label), i: i + 1 }),
                       r[k as keyof typeof CAMPI_RISCHIO_TECNICO],
                       (v) =>
                         edit((x) => {
@@ -154,9 +147,7 @@ export function TecnicaLavorazionePos({
                       x.rischi.splice(i, 1);
                     })
                   }
-                >
-                  Rimuovi rischio {i + 1}
-                </Button>
+                >{tr("Rimuovi rischio {i}", { i: i + 1 })}</Button>
               )}
             </fieldset>
           ))}
@@ -173,16 +164,14 @@ export function TecnicaLavorazionePos({
               })
             }
           >
-            Aggiungi rischio specifico
+            {tr("Aggiungi rischio specifico")}
           </Button>
         )}
       </details>
       <details className="rounded-md border p-3">
-        <summary className="cursor-pointer text-sm font-medium">
-          Attrezzature e opere provvisionali · {t.attrezzature.length}
-        </summary>
+        <summary className="cursor-pointer text-sm font-medium">{tr("Attrezzature e opere provvisionali · {n}", { n: t.attrezzature.length })}</summary>
         <Label htmlFor={`${base}-attrezzature`} className="mt-3 block">
-          Sono previste attrezzature, macchine, impianti o opere provvisionali?
+          {tr("Sono previste attrezzature, macchine, impianti o opere provvisionali?")}
         </Label>
         <UniformSelect
           id={`${base}-attrezzature`}
@@ -196,15 +185,15 @@ export function TecnicaLavorazionePos({
             })
           }
         >
-          <option value="da_verificare">Da verificare</option>
-          <option value="si">Sì, identificale nelle schede</option>
-          <option value="no">No, indica il motivo</option>
+          <option value="da_verificare">{tr("Da verificare")}</option>
+          <option value="si">{tr("Sì, identificale nelle schede")}</option>
+          <option value="no">{tr("No, indica il motivo")}</option>
         </UniformSelect>
         {t.attrezzature_previste === "no" && (
           <div className="mt-3">
             {area(
               `${base}-motivo`,
-              "Motivo dell’assenza di attrezzature",
+              tr("Motivo dell’assenza di attrezzature"),
               t.motivo_senza_attrezzature,
               (v) =>
                 edit((x) => {
@@ -214,9 +203,7 @@ export function TecnicaLavorazionePos({
           </div>
         )}
         <p className="mt-2 text-xs text-muted-foreground">
-          I riferimenti ai manuali e alla formazione sono testi da controllare:
-          non attestano da soli la presenza o la validità dei documenti nel
-          fascicolo.
+          {tr("I riferimenti ai manuali e alla formazione sono testi da controllare: non attestano da soli la presenza o la validità dei documenti nel fascicolo.")}
         </p>
         <div className="mt-3 space-y-3">
           {t.attrezzature.map((a, i) => (
@@ -224,16 +211,14 @@ export function TecnicaLavorazionePos({
               key={a.id}
               className="min-w-0 space-y-3 rounded-md border p-3"
             >
-              <legend className="px-1 text-sm font-medium">
-                Attrezzatura {i + 1}
-              </legend>
+              <legend className="px-1 text-sm font-medium">{tr("Attrezzatura {i}", { i: i + 1 })}</legend>
               <div className="grid gap-3 sm:grid-cols-2">
                 {Object.entries(CAMPI_ATTREZZATURA_TECNICA).map(
                   ([k, label]) => (
                     <div key={k}>
                       {area(
                         `${base}-a-${i}-${k}`,
-                        `${label} · attrezzatura ${i + 1}`,
+                        tr("{label} · attrezzatura {i}", { label: tr(label), i: i + 1 }),
                         a[k as keyof typeof CAMPI_ATTREZZATURA_TECNICA],
                         (v) =>
                           edit((x) => {
@@ -306,9 +291,7 @@ export function TecnicaLavorazionePos({
                       x.attrezzature.splice(i, 1);
                     })
                   }
-                >
-                  Rimuovi attrezzatura {i + 1}
-                </Button>
+                >{tr("Rimuovi attrezzatura {i}", { i: i + 1 })}</Button>
               )}
             </fieldset>
           ))}
@@ -327,7 +310,7 @@ export function TecnicaLavorazionePos({
               })
             }
           >
-            Aggiungi attrezzatura effettiva
+            {tr("Aggiungi attrezzatura effettiva")}
           </Button>
         )}
       </details>
@@ -344,17 +327,12 @@ export function TecnicaLavorazionePos({
           }
         />
         <span>
-          Ho riesaminato rischi, misure, sequenza e attrezzature per questa
-          lavorazione e per questo cantiere. Le modifiche ai contenuti o al
-          contesto richiedono un nuovo riesame.
+          {tr("Ho riesaminato rischi, misure, sequenza e attrezzature per questa lavorazione e per questo cantiere. Le modifiche ai contenuti o al contesto richiedono un nuovo riesame.")}
         </span>
       </label>
       {!!errori.length && (
         <details className="text-xs text-amber-900">
-          <summary className="cursor-pointer">
-            {errori.length} elementi del dettaglio tecnico da completare o
-            riesaminare
-          </summary>
+          <summary className="cursor-pointer">{tr("{n} elementi del dettaglio tecnico da completare o riesaminare", { n: errori.length })}</summary>
           <ul className="mt-2 list-disc pl-4">
             {errori.map((e, i) => (
               <li key={i}>{e}</li>

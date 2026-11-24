@@ -26,6 +26,7 @@ import { ContrattoFirmatoCard, FirmatoSuCartaDialog } from "@/components/marketi
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ModuleConversionSummary } from "./ModuleConversionSummary";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   modulo: ModuloCommessa;
@@ -47,6 +48,7 @@ interface Props {
 }
 
 export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMotivo, onConvertito, capitoli = 0, fasiPianificate = 0, codice, clientName, firmaInAttesa = false }: Props) {
+  const t = useT();
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -82,13 +84,13 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
       setVociScelte(new Set((anteprima.voci_materiale ?? []).filter((v) => v.proposta).map((v) => v.id)));
       setDialog(true);
     } catch (e) {
-      toast.error("Riepilogo non disponibile", { description: e instanceof Error ? e.message : "Riprova." });
+      toast.error(t("Riepilogo non disponibile"), { description: e instanceof Error ? e.message : t("Riprova.") });
     } finally { setInCorso(false); }
   };
 
   const converti = async () => {
     if (!riepilogo) return;
-    if (!user?.id) { toast.error("Sessione scaduta: accedi di nuovo"); return; }
+    if (!user?.id) { toast.error(t("Sessione scaduta: accedi di nuovo")); return; }
     setInCorso(true);
     try {
       const opzioni = {
@@ -101,8 +103,8 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
         : modulo === "rst"
           ? await convertiRstInCommessa(progettoId, user.id, opzioni)
           : await convertiModuloInCommessa(modulo, progettoId, user.id, opzioni);
-      toast.success("Commessa creata", {
-        description: `Lavorazioni trasferite: ${esito.lavorazioni} · Materiali da ordinare: ${esito.righe}.`,
+      toast.success(t("Commessa creata"), {
+        description: t("Lavorazioni trasferite: {lavorazioni} · Materiali da ordinare: {righe}.", { lavorazioni: String(esito.lavorazioni ?? ""), righe: String(esito.righe ?? "") }),
       });
       void queryClient.invalidateQueries({ queryKey: chiaveContrattoModulo(modulo, progettoId) });
       // Segnala l'eventuale problema nell'avvio delle rate della commessa già creata.
@@ -111,7 +113,7 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
       onConvertito?.(esito.orderId);
       navigate(`/azienda/ordini/${esito.orderId}`);
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Conversione non riuscita. Riprova.");
+      setErrore(e instanceof Error ? e.message : t("Conversione non riuscita. Riprova."));
     } finally {
       setInCorso(false);
     }
@@ -123,14 +125,14 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
         <CardContent className="flex flex-wrap items-center gap-3 p-4 max-md:flex-nowrap max-md:gap-2 max-md:px-3 max-md:py-2">
           <HardHat className="h-5 w-5 shrink-0 text-emerald-600 max-md:h-4 max-md:w-4" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 max-md:truncate max-md:text-[13px]">Commessa già aperta</p>
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 max-md:truncate max-md:text-[13px]">{t("Commessa già aperta")}</p>
             <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 max-md:hidden">
-              Il preventivo è collegato alla commessa.
+              {t("Il preventivo è collegato alla commessa.")}
             </p>
           </div>
           <Button variant="outline" size="sm" className="min-h-11 gap-1.5 shrink-0" onClick={() => navigate(`/azienda/ordini/${ordineAperto}`)}>
-            <span className="max-md:hidden">Apri la commessa</span>
-            <span className="md:hidden">Apri</span>
+            <span className="max-md:hidden">{t("Apri la commessa")}</span>
+            <span className="md:hidden">{t("Apri")}</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </CardContent>
@@ -148,23 +150,23 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
         <HardHat className="h-5 w-5 shrink-0 text-orange-600 max-md:hidden" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-orange-900 dark:text-orange-200 max-md:truncate max-md:text-[13px]">
-            {!contratto ? "Verifica della firma…" : contratto.firmato
-              ? motivo ? "Commessa da verificare" : "Crea la commessa" : (firmaInAttesa || contratto.quote_status === "inviata") ? "In attesa della firma" : "Firma necessaria"}
+            {!contratto ? t("Verifica della firma…") : contratto.firmato
+              ? motivo ? t("Commessa da verificare") : t("Crea la commessa") : (firmaInAttesa || contratto.quote_status === "inviata") ? t("In attesa della firma") : t("Firma necessaria")}
           </p>
           <p className={cn("text-xs text-orange-800/80 dark:text-orange-300/80", !bloccoMotivo && !contratto?.famiglia && "max-md:hidden")}>
-            {motivo ?? "Verifica lavorazioni, materiali e rate."}
+            {motivo ?? t("Verifica lavorazioni, materiali e rate.")}
           </p>
-          {contratto?.firmato && fasiPianificate > 0 && <p className="mt-1 text-xs">Mantiene le {fasiPianificate} fasi pianificate nel preventivo, con le loro sottofasi.</p>}
+          {contratto?.firmato && fasiPianificate > 0 && <p className="mt-1 text-xs">{t("Mantiene le {fasiPianificate} fasi pianificate nel preventivo, con le loro sottofasi.", { fasiPianificate: String(fasiPianificate ?? "") })}</p>}
           {offriFasi && !bloccoMotivo && (
             <label className={cn("mt-1.5 flex min-h-11 items-center gap-2 text-xs text-orange-900 dark:text-orange-200", !contratto?.firmato && "max-lg:hidden")}>
-              <Checkbox checked={fasiCapitoli} onCheckedChange={(v) => setFasiCapitoli(v === true)} aria-label="Una fase per ogni capitolo" />
-              Una fase per capitolo ({capitoli})
+              <Checkbox checked={fasiCapitoli} onCheckedChange={(v) => setFasiCapitoli(v === true)} aria-label={t("Una fase per ogni capitolo")} />
+              {t("Una fase per capitolo ({n})", { n: capitoli })}
             </label>
           )}
         </div>
         {offriCarta && (
           <Button size="sm" variant="outline" className="min-h-11 shrink-0 gap-1.5 max-md:text-xs" onClick={() => setCartaAperta(true)}>
-            <FileSignature className="h-3.5 w-3.5 max-md:hidden" />Firmato su carta
+            <FileSignature className="h-3.5 w-3.5 max-md:hidden" />{t("Firmato su carta")}
           </Button>
         )}
         <Button
@@ -175,21 +177,21 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
           title={motivo ?? undefined}
         >
           {inCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HardHat className="h-3.5 w-3.5 max-md:hidden" />}
-          <span className="max-md:hidden">Controlla e crea commessa</span>
-          <span className="md:hidden">Crea commessa</span>
+          <span className="max-md:hidden">{t("Controlla e crea commessa")}</span>
+          <span className="md:hidden">{t("Crea commessa")}</span>
         </Button>
       </CardContent>
     </Card>
     <Dialog open={dialog} onOpenChange={(v) => { if (!inCorso) setDialog(v); }}>
       <DialogContent struttura="scorrevole" className="sm:max-w-2xl">
-        <DialogHeader><DialogTitle>Dal preventivo alla commessa</DialogTitle>
-          <DialogDescription>Verifica cosa verrà trasferito nel cantiere.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Dal preventivo alla commessa")}</DialogTitle>
+          <DialogDescription>{t("Verifica cosa verrà trasferito nel cantiere.")}</DialogDescription></DialogHeader>
         {riepilogo && <ModuleConversionSummary riepilogo={riepilogo} vociScelte={vociScelte} onCambiaVoci={setVociScelte} />}
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
         <DialogFooter>
-          <Button variant="outline" className="min-h-11" disabled={inCorso} onClick={() => setDialog(false)}>Torna al preventivo</Button>
-          {errore ? <Button className="min-h-11" disabled={inCorso} onClick={() => { void mostraRiepilogo(); }}>Aggiorna riepilogo</Button>
-            : <Button className="min-h-11 whitespace-normal" disabled={inCorso || !riepilogo} onClick={() => { void converti(); }}>{inCorso ? "Creazione…" : "Conferma e crea commessa"}</Button>}
+          <Button variant="outline" className="min-h-11" disabled={inCorso} onClick={() => setDialog(false)}>{t("Torna al preventivo")}</Button>
+          {errore ? <Button className="min-h-11" disabled={inCorso} onClick={() => { void mostraRiepilogo(); }}>{t("Aggiorna riepilogo")}</Button>
+            : <Button className="min-h-11 whitespace-normal" disabled={inCorso || !riepilogo} onClick={() => { void converti(); }}>{inCorso ? t("Creazione…") : t("Conferma e crea commessa")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

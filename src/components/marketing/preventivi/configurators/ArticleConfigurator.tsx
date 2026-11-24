@@ -35,6 +35,7 @@ import type {
   ModalitaPrezzoUnified,
 } from "@/types/catalogItem";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ArticleConfiguratorProps {
   confirmLabel?: string;
@@ -62,7 +63,7 @@ function needsMisureXY(modalita: ModalitaPrezzoUnified): boolean {
 }
 
 export function ArticleConfigurator({
-  confirmLabel = "Aggiungi al preventivo",
+  confirmLabel,
   item,
   tariffe,
   currentSortOrder,
@@ -71,6 +72,7 @@ export function ArticleConfigurator({
   inserimentoContinuo,
   nuovaMisura = 0,
 }: ArticleConfiguratorProps) {
+  const tr = useT();
   const article = item.article;
   const modalita = item.modalita_prezzo;
   const showMisure = needsMisureXY(modalita);
@@ -235,12 +237,10 @@ export function ArticleConfigurator({
         <>
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 text-muted-foreground max-sm:h-8">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Cambia prodotto
+          <ArrowLeft className="mr-1 h-4 w-4" /> {tr("Cambia prodotto")}
         </Button>
         {article.sku && (
-          <span className="text-xs text-muted-foreground max-sm:hidden">
-            Codice {article.sku}
-          </span>
+          <span className="text-xs text-muted-foreground max-sm:hidden">{tr("Codice {codice}", { codice: String(article.sku ?? "") })}</span>
         )}
       </div>
 
@@ -251,13 +251,13 @@ export function ArticleConfigurator({
 
       {showMisure && nuovaMisura > 0 && (
         <p className="text-sm font-medium text-primary">
-          Stesse scelte di prima: scrivi le misure del prossimo pezzo.
+          {tr("Stesse scelte di prima: scrivi le misure del prossimo pezzo.")}
         </p>
       )}
       {showMisure && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label htmlFor="larghezza">Larghezza (mm)</Label>
+            <Label htmlFor="larghezza">{tr("Larghezza (mm)")}</Label>
             <Input
               id="larghezza"
               ref={campoLarghezza}
@@ -269,7 +269,7 @@ export function ArticleConfigurator({
             />
           </div>
           <div>
-            <Label htmlFor="altezza">Altezza (mm)</Label>
+            <Label htmlFor="altezza">{tr("Altezza (mm)")}</Label>
             <Input
               id="altezza"
               type="number"
@@ -291,14 +291,14 @@ export function ArticleConfigurator({
           />
           <div className="space-y-0.5">
             <Label htmlFor="includi-posa" className="cursor-pointer">
-              Includi montaggio nel preventivo
+              {tr("Includi montaggio nel preventivo")}
             </Label>
             <p className="text-xs text-muted-foreground">
-              {tariffaPosa && `${tariffaPosa.nome} · Prezzo cliente ${formatCurrency(posaUnit)}/${posaUm}. `}
-              {item.posa_linked ? "Verrà aggiunta una riga di montaggio collegata al prodotto: quantità ed eliminazione seguiranno il prodotto." : "Verrà aggiunta una riga separata di montaggio, modificabile indipendentemente."}
+              {tariffaPosa && tr("{nome} · Prezzo cliente {prezzo}/{unita}.", { nome: tariffaPosa.nome, prezzo: formatCurrency(posaUnit), unita: posaUm }) + " "}
+              {item.posa_linked ? tr("Verrà aggiunta una riga di montaggio collegata al prodotto: quantità ed eliminazione seguiranno il prodotto.") : tr("Verrà aggiunta una riga separata di montaggio, modificabile indipendentemente.")}
             </p>
-            {!tariffaPosa && <p role="alert" className="text-xs text-destructive">La tariffa di montaggio non è disponibile o è inattiva. Correggi il collegamento oppure deseleziona il montaggio per inserire solo il prodotto.</p>}
-            {includePosa && tariffaPosa && posaUnit <= 0 && <p role="status" className="text-xs text-amber-800">Prezzo cliente del montaggio da completare sulla riga. Il costo d’acquisto resta interno.</p>}
+            {!tariffaPosa && <p role="alert" className="text-xs text-destructive">{tr("La tariffa di montaggio non è disponibile o è inattiva. Correggi il collegamento oppure deseleziona il montaggio per inserire solo il prodotto.")}</p>}
+            {includePosa && tariffaPosa && posaUnit <= 0 && <p role="status" className="text-xs text-amber-800">{tr("Prezzo cliente del montaggio da completare sulla riga. Il costo d’acquisto resta interno.")}</p>}
           </div>
         </div>
       )}
@@ -311,26 +311,26 @@ export function ArticleConfigurator({
 
       {unitPriceVendita <= 0 && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Prezzo non impostato nel listino: scrivilo nella riga del preventivo.
+          {tr("Prezzo non impostato nel listino: scrivilo nella riga del preventivo.")}
         </p>
       )}
 
       <Card>
         <CardContent className="space-y-1.5 p-3">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Prezzo unitario</span>
+            <span className="text-muted-foreground">{tr("Prezzo unitario")}</span>
             <span className="font-medium">
               {unitPriceVendita > 0 ? formatCurrency(unitPriceVendita) : "Da completare"}
             </span>
           </div>
           {includePosa && tariffaPosa && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Montaggio</span>
+              <span className="text-muted-foreground">{tr("Montaggio")}</span>
               <span className="font-medium">{formatCurrency(posaTotale)}</span>
             </div>
           )}
           <div className="flex justify-between border-t pt-2 text-base font-semibold">
-            <span>Totale</span>
+            <span>{tr("Totale")}</span>
             <span>{unitPriceVendita > 0 ? formatCurrency(totaleCompleto) : "Da completare"}</span>
           </div>
         </CardContent>
@@ -338,7 +338,7 @@ export function ArticleConfigurator({
 
       <AzioniProdotto
         disabled={!canConfirm}
-        confirmLabel={confirmLabel}
+        confirmLabel={confirmLabel ?? tr("Aggiungi al preventivo")}
         inserimentoContinuo={inserimentoContinuo}
         puoDuplicare={showMisure}
         onConferma={handleConfirm}

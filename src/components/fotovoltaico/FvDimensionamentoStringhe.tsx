@@ -12,6 +12,7 @@ import {
   type SpecInverter,
 } from "@/lib/fotovoltaico/stringhe";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Cell({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -36,6 +37,7 @@ export function FvDimensionamentoStringhe({
   inverter?: SpecInverter;
   className?: string;
 }) {
+  const t = useT();
   if (!numeroModuli || numeroModuli < 1) return null;
   const r = dimensionaStringhe(numeroModuli, modulo, inverter);
 
@@ -51,8 +53,8 @@ export function FvDimensionamentoStringhe({
       <div className="flex items-center justify-between mb-2 max-md:mb-0">
         <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
           <Cable className="h-4 w-4 text-orange-500" />
-          <span className="max-md:hidden">Dimensionamento stringhe</span>
-          <span className="md:hidden">Stringhe</span>
+          <span className="max-md:hidden">{t("Dimensionamento stringhe")}</span>
+          <span className="md:hidden">{t("Stringhe")}</span>
         </h4>
         <span
           className={cn(
@@ -63,26 +65,26 @@ export function FvDimensionamentoStringhe({
           )}
         >
           {r.valido ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-          {r.valido ? "Configurazione valida" : "Da rivedere"}
+          {r.valido ? t("Configurazione valida") : t("Da rivedere")}
         </span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-md:hidden">
         <Cell
-          label="Moduli per stringa"
+          label={t("Moduli per stringa")}
           value={r.moduli_per_stringa > 0 ? String(r.moduli_per_stringa) : "—"}
-          hint={`${r.numero_stringhe} stringa/he`}
+          hint={t("{numero_stringhe} stringa/he", { numero_stringhe: String(r.numero_stringhe ?? "") })}
         />
-        <Cell label="Range ammesso" value={`${r.moduli_min_stringa}–${r.moduli_max_stringa}`} hint="moduli/stringa" />
+        <Cell label={t("Range ammesso")} value={`${r.moduli_min_stringa}–${r.moduli_max_stringa}`} hint={t("moduli/stringa")} />
         <Cell
-          label="Tensione a freddo"
+          label={t("Tensione a freddo")}
           value={`${Math.round(r.voc_stringa_freddo_v)} V`}
-          hint={`max ${INVERTER_DEFAULT.vMaxDc} V`}
+          hint={t("max {vMaxDc} V", { vMaxDc: String(INVERTER_DEFAULT.vMaxDc ?? "") })}
         />
         <Cell
-          label="Tensione a caldo"
+          label={t("Tensione a caldo")}
           value={`${Math.round(r.vmp_stringa_caldo_v)} V`}
-          hint={`min MPPT ${INVERTER_DEFAULT.vMpptMin} V`}
+          hint={t("min MPPT {vMpptMin} V", { vMpptMin: String(INVERTER_DEFAULT.vMpptMin ?? "") })}
         />
       </div>
 
@@ -98,8 +100,7 @@ export function FvDimensionamentoStringhe({
       )}
 
       <p className="text-[10px] text-slate-400 mt-2 leading-snug max-md:hidden">
-        Stima con modulo ~540 Wp e inverter residenziale standard. I valori esatti verranno dalle
-        specifiche reali di modulo e inverter (catalogo prodotti in arrivo).
+        {t("Stima con modulo ~540 Wp e inverter residenziale standard. I valori esatti verranno dalle specifiche reali di modulo e inverter (catalogo prodotti in arrivo).")}
       </p>
     </div>
   );

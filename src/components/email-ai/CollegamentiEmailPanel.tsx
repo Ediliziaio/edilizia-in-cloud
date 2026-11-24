@@ -16,8 +16,10 @@ import {
   useCollegaEmail,
   useScollegaEmail,
 } from "@/lib/email-ai/hooks";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CollegamentiEmailPanel({ emailId, threadId }: { emailId: string; threadId?: string | null }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { data: collegamenti } = useCollegamentiPerEmail(emailId);
@@ -37,18 +39,18 @@ export function CollegamentiEmailPanel({ emailId, threadId }: { emailId: string;
     <div className="px-3 pb-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-          <Link2 className="h-3.5 w-3.5" /> Collegata a:
+          <Link2 className="h-3.5 w-3.5" /> {t("Collegata a:")}
         </span>
 
         {(collegamenti ?? []).length === 0 && (
-          <span className="text-[11px] text-muted-foreground/70">nessun cantiere/pratica</span>
+          <span className="text-[11px] text-muted-foreground/70">{t("nessun cantiere/pratica")}</span>
         )}
 
         {(collegamenti ?? []).map((c) => (
           <Badge key={c.id} variant="outline" className="gap-1 bg-white text-[10px]">
             {c.oggetto_tipo === "cantiere" ? <Building2 className="h-3 w-3" /> : <FileBadge className="h-3 w-3" />}
-            <span className="max-w-[180px] truncate">{labelById.get(`${c.oggetto_tipo}:${c.oggetto_id}`) || (c.oggetto_tipo === "cantiere" ? "Commessa" : "Pratica")}</span>
-            <button onClick={() => scollega.mutate({ id: c.id, email_id: emailId })} aria-label="Scollega" className="ml-0.5 rounded-full hover:bg-rose-100">
+            <span className="max-w-[180px] truncate">{labelById.get(`${c.oggetto_tipo}:${c.oggetto_id}`) || (c.oggetto_tipo === "cantiere" ? t("Commessa") : t("Pratica"))}</span>
+            <button onClick={() => scollega.mutate({ id: c.id, email_id: emailId })} aria-label={t("Scollega")} className="ml-0.5 rounded-full hover:bg-rose-100">
               <X className="h-3 w-3 text-rose-600" />
             </button>
           </Badge>
@@ -63,17 +65,17 @@ export function CollegamentiEmailPanel({ emailId, threadId }: { emailId: string;
           }}
         >
           <SelectTrigger className="h-7 w-auto gap-1 border-dashed text-[11px]">
-            <SelectValue placeholder="+ Collega" />
+            <SelectValue placeholder={t("+ Collega")} />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel>Cantieri / Commesse</SelectLabel>
+              <SelectLabel>{t("Cantieri / Commesse")}</SelectLabel>
               {(opzioni ?? []).filter((o) => o.tipo === "cantiere" && !linkedKeys.has(`cantiere:${o.id}`)).map((o) => (
                 <SelectItem key={o.id} value={`cantiere:${o.id}`} className="text-xs">{o.label}</SelectItem>
               ))}
             </SelectGroup>
             <SelectGroup>
-              <SelectLabel>Pratiche</SelectLabel>
+              <SelectLabel>{t("Pratiche")}</SelectLabel>
               {(opzioni ?? []).filter((o) => o.tipo === "pratica" && !linkedKeys.has(`pratica:${o.id}`)).map((o) => (
                 <SelectItem key={o.id} value={`pratica:${o.id}`} className="text-xs">{o.label}</SelectItem>
               ))}

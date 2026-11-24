@@ -8,6 +8,7 @@ import { Variable, Zap, Sparkles } from "lucide-react";
 import { TRIGGER_MAP } from "@/lib/flow-node-catalog";
 import { buildVariableCategories } from "./emailVariableCatalog";
 import { emailCustomFieldKey } from "../../../../supabase/functions/_shared/automationEmail";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface VarEntry {
   key: string;
@@ -56,6 +57,7 @@ interface VariablePickerProps {
 }
 
 export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, extraVariables = [], allowCustomFields = true }: VariablePickerProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -81,7 +83,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, ex
     if (purpose) {
       const availableCustom = allowCustomFields ? customFields.filter((f: { field_type?: string }) => purpose !== "recipient" || f.field_type === "email") : [];
       const categories = buildVariableCategories([...extraVariables, ...availableCustom.map((f: { id: string; name: string }) => ({ key: emailCustomFieldKey(f.id), label: f.name }))], triggerItemId);
-      return categories.map(c => ({ label: c.label, vars: c.variables.filter(v => purpose !== "recipient" || /(?:^|\.)(?:email|client_email)$/.test(v.key) || v.key.startsWith("contact.custom_")) })).filter(g => g.vars.length > 0);
+      return categories.map(c => ({ label: t(c.label), vars: c.variables.filter(v => purpose !== "recipient" || /(?:^|\.)(?:email|client_email)$/.test(v.key) || v.key.startsWith("contact.custom_")) })).filter(g => g.vars.length > 0);
     }
     const out: VarGroup[] = [];
     // Le variabili del TRIGGER sono le più utili (si risolvono sempre dal
@@ -89,15 +91,15 @@ export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, ex
     const trigger = triggerItemId ? TRIGGER_MAP[triggerItemId] : undefined;
     if (trigger?.outputVariables?.length) {
       out.push({
-        label: `Dal trigger: ${trigger.label}`,
+        label: t("Dal trigger: {nome}", { nome: t(trigger.label) }),
         icon: "trigger",
-        vars: trigger.outputVariables.map((v) => ({ key: v.id, label: v.label })),
+        vars: trigger.outputVariables.map((v) => ({ key: v.id, label: t(v.label) })),
       });
     }
-    out.push({ label: "Contatto", vars: CONTACT_VARIABLES });
+    out.push({ label: t("Contatto"), vars: CONTACT_VARIABLES.map((v) => ({ ...v, label: t(v.label) })) });
     if (allowCustomFields && customFields.length > 0) {
       out.push({
-        label: "Campi personalizzati",
+        label: t("Campi personalizzati"),
         icon: "custom",
         vars: customFields.map((f: { id: string; name: string }) => ({
           key: emailCustomFieldKey(f.id),
@@ -105,9 +107,9 @@ export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, ex
         })),
       });
     }
-    out.push({ label: "Altro", vars: OTHER_VARIABLES });
+    out.push({ label: t("Altro"), vars: OTHER_VARIABLES.map((v) => ({ ...v, label: t(v.label) })) });
     return out;
-  }, [triggerItemId, customFields, purpose, extraVariables, allowCustomFields]);
+  }, [triggerItemId, customFields, purpose, extraVariables, allowCustomFields, t]);
 
   const q = search.trim().toLowerCase();
   const filtered = groups
@@ -122,7 +124,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, ex
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Inserisci variabile" aria-label="Inserisci variabile">
+        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title={t("Inserisci variabile")} aria-label={t("Inserisci variabile")}>
           <Variable className="h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>
@@ -130,7 +132,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, ex
         <div className="border-b p-2">
           <Input
             autoFocus
-            placeholder="Cerca variabile… (es. nome, città, campagna)"
+            placeholder={t("Cerca variabile… (es. nome, città, campagna)")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 text-xs"
@@ -159,7 +161,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, ex
             </div>
           ))}
           {filtered.length === 0 && (
-            <p className="py-6 text-center text-xs text-muted-foreground">Nessuna variabile trovata</p>
+            <p className="py-6 text-center text-xs text-muted-foreground">{t("Nessuna variabile trovata")}</p>
           )}
         </div>
       </PopoverContent>

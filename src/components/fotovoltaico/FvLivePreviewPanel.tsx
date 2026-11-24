@@ -28,6 +28,7 @@ import { useFileRiservato, useImmaginiModelloFirmate } from "@/hooks/useFileRise
 import { CAMPI_IMMAGINE_FOTOVOLTAICO } from "@/lib/storage/immaginiModelloPdf";
 import { buildFvPreviewBase } from "@/lib/moduli-vendita/fvPreviewData";
 import { fvEditorPreviewSection, fvPreviewTarget } from "./fvSemanticPreview";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Stato corrente del template FV in editing. */
@@ -49,6 +50,7 @@ interface Props {
 // disallineate". L'adattamento ora vive in useFitScale, condiviso.
 
 export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: logoSalvato, activeSection, debounceMs = 350, renderCampione }: Props) {
+  const t = useT();
   // Le immagini del modello sono percorsi nel bucket privato: l'anteprima usa i
   // link firmati (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
   const form = useImmaginiModelloFirmate(formSalvato, CAMPI_IMMAGINE_FOTOVOLTAICO);
@@ -172,36 +174,36 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
         <div className="flex items-center gap-1.5 min-w-0">
           <Eye className="h-3.5 w-3.5 text-sky-500 shrink-0" />
           <span className="text-[11px] font-semibold uppercase tracking-wide text-sky-600 truncate">
-            Anteprima live HTML
+            {t("Anteprima live HTML")}
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <div className="flex items-center gap-0.5 mr-1 rounded-md border bg-white px-0.5">
-            <Button size="icon" variant="ghost" onClick={fit.riduci} disabled={!fit.puoRidurre} title="Riduci" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={fit.riduci} disabled={!fit.puoRidurre} title={t("Riduci")} className="h-6 w-6">
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
             {/* La percentuale mostra la scala REALE del foglio, non un 100%
                 che non corrispondeva a nulla di visibile. */}
-            <button type="button" onClick={fit.adatta} title="Adatta alla larghezza" className="text-[10px] tabular-nums text-slate-600 hover:text-sky-600 min-w-[34px] text-center">
+            <button type="button" onClick={fit.adatta} title={t("Adatta alla larghezza")} className="text-[10px] tabular-nums text-slate-600 hover:text-sky-600 min-w-[34px] text-center">
               {fit.percentuale}%
             </button>
-            <Button size="icon" variant="ghost" onClick={fit.aumenta} disabled={!fit.puoAumentare} title="Ingrandisci" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={fit.aumenta} disabled={!fit.puoAumentare} title={t("Ingrandisci")} className="h-6 w-6">
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={fit.adatta} title="Adatta larghezza" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={fit.adatta} title={t("Adatta larghezza")} className="h-6 w-6">
               <Maximize2 className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <Button size="icon" variant="ghost" onClick={openInTab} title="Apri in nuova scheda" className="h-7 w-7">
+          <Button size="icon" variant="ghost" onClick={openInTab} title={t("Apri in nuova scheda")} className="h-7 w-7">
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
       <p className="px-3 py-1.5 text-[10px] text-muted-foreground border-b shrink-0">
-        Vista HTML del modello. Verifica l'impaginazione nel PDF esportato.
+        {t("Vista HTML del modello. Verifica l'impaginazione nel PDF esportato.")}
       </p>
       {mappe.errore && <p role="alert" className="border-b bg-amber-50 px-3 py-2 text-xs">{mappe.errore}</p>}
-      {pagineFuoriBordo.length>0&&<p role="alert" className="shrink-0 border-b bg-amber-50 px-3 py-2 text-xs text-amber-900">Contenuto oltre il margine nelle pagine {pagineFuoriBordo.join(", ")}. Riduci il testo o rivedi le immagini prima di esportare.</p>}
+      {pagineFuoriBordo.length>0&&<p role="alert" className="shrink-0 border-b bg-amber-50 px-3 py-2 text-xs text-amber-900">{t("Contenuto oltre il margine nelle pagine {pagineFuoriBordo}. Riduci il testo o rivedi le immagini prima di esportare.", { pagineFuoriBordo: pagineFuoriBordo.join(", ") })}</p>}
       {sectionNotice?.section === activeSection && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionNotice.text}</p>}
       <div ref={fit.ref} className="flex-1 overflow-auto bg-muted/40">
         {/* DUE livelli, e servono entrambi:
@@ -224,7 +226,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
               ref={iframeRef}
               srcDoc={html}
               onLoad={handleIframeLoad}
-              title="Anteprima preventivo Fotovoltaico"
+              title={t("Anteprima preventivo Fotovoltaico")}
               className="border-0 bg-white"
               style={{ width: LARGHEZZA_A4_PX, height: "100%", border: 0 }}
             />

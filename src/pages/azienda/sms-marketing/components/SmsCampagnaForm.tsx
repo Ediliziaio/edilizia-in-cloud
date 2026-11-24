@@ -26,6 +26,7 @@ import { SmsMessaggioEditor } from "./SmsMessaggioEditor";
 import { useSmsCampagne } from "@/hooks/useSmsCampagne";
 import { calcolaPartiSms } from "@/lib/sms-utils";
 import type { SmsCampagnaFormData, SmsCampagnaTipo } from "@/types/sms-marketing";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const COSTO_PER_SMS_EUR = 0.05; // stima Brevo ~0.05€/SMS
 
@@ -54,6 +55,7 @@ const defaultForm: SmsCampagnaFormData = {
 };
 
 export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
+  const tr = useT();
   const { create, avvia, countDestinatari, isCreating, isAvviando } = useSmsCampagne();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<SmsCampagnaFormData>(defaultForm);
@@ -79,24 +81,24 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
   const validateStep = useCallback((): boolean => {
     const newErrors: FormErrors = {};
     if (step === 1) {
-      if (!form.nome.trim()) newErrors.nome = "Il nome della campagna è obbligatorio";
-      if (!form.mittente.trim()) newErrors.mittente = "Il mittente è obbligatorio";
-      else if (!/^[A-Za-z0-9]{1,11}$/.test(form.mittente)) newErrors.mittente = "Solo lettere e numeri, max 11 caratteri";
+      if (!form.nome.trim()) newErrors.nome = tr("Il nome della campagna è obbligatorio");
+      if (!form.mittente.trim()) newErrors.mittente = tr("Il mittente è obbligatorio");
+      else if (!/^[A-Za-z0-9]{1,11}$/.test(form.mittente)) newErrors.mittente = tr("Solo lettere e numeri, max 11 caratteri");
     }
     if (step === 2) {
-      if (!form.messaggio.trim()) newErrors.messaggio = "Il messaggio è obbligatorio";
+      if (!form.messaggio.trim()) newErrors.messaggio = tr("Il messaggio è obbligatorio");
     }
     if (step === 3) {
       if (nDestinatari !== null && nDestinatari <= 0) {
-        newErrors.destinatari = "Nessun destinatario valido con consenso SMS. Modifica filtri o contatti.";
+        newErrors.destinatari = tr("Nessun destinatario valido con consenso SMS. Modifica filtri o contatti.");
       }
     }
     if (step === 4) {
       if (form.tipo === "pianificata") {
         if (!form.programmata_per) {
-          newErrors.programmata_per = "Se pianifichi l'invio devi indicare data e ora.";
+          newErrors.programmata_per = tr("Se pianifichi l'invio devi indicare data e ora.");
         } else if (new Date(form.programmata_per).getTime() <= Date.now() + 60_000) {
-          newErrors.programmata_per = "La data di invio deve essere futura.";
+          newErrors.programmata_per = tr("La data di invio deve essere futura.");
         }
       }
     }
@@ -142,19 +144,19 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
           />
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">Passo {step} di {TOTAL_STEPS}</p>
+      <p className="text-xs text-muted-foreground">{tr("Passo {step} di {totale}", { step, totale: TOTAL_STEPS })}</p>
 
       {/* Step 1: Nome + Mittente */}
       {step === 1 && (
         <div className="space-y-4">
-          <h3 className="font-semibold">Dettagli campagna</h3>
+          <h3 className="font-semibold">{tr("Dettagli campagna")}</h3>
           <div className="space-y-1">
-            <Label htmlFor="nome-campagna" className="text-sm font-medium">Nome campagna *</Label>
+            <Label htmlFor="nome-campagna" className="text-sm font-medium">{tr("Nome campagna *")}</Label>
             <Input
               id="nome-campagna"
               value={form.nome}
               onChange={(e) => set("nome", e.target.value)}
-              placeholder="Es: Promozione estate 2025"
+              placeholder={tr("Es: Promozione estate 2025")}
               className={errors.nome ? "border-destructive" : ""}
             />
             {errors.nome && <p className="text-xs text-destructive">{errors.nome}</p>}
@@ -166,7 +168,7 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
       {/* Step 2: Messaggio */}
       {step === 2 && (
         <div className="space-y-4">
-          <h3 className="font-semibold">Messaggio SMS</h3>
+          <h3 className="font-semibold">{tr("Messaggio SMS")}</h3>
           <SmsMessaggioEditor value={form.messaggio} onChange={(v) => set("messaggio", v)} error={errors.messaggio} />
         </div>
       )}
@@ -174,20 +176,20 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
       {/* Step 3: Destinatari */}
       {step === 3 && (
         <div className="space-y-4">
-          <h3 className="font-semibold">Destinatari</h3>
+          <h3 className="font-semibold">{tr("Destinatari")}</h3>
           <div className="space-y-1">
-            <Label className="text-sm font-medium">Filtra per tag (vuoto = tutti)</Label>
+            <Label className="text-sm font-medium">{tr("Filtra per tag (vuoto = tutti)")}</Label>
             <Input
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
               placeholder="clienti, vip, cantiere-roma"
             />
-            <p className="text-xs text-muted-foreground">Separati da virgola. Lascia vuoto per inviare a tutti i contatti con consenso.</p>
+            <p className="text-xs text-muted-foreground">{tr("Separati da virgola. Lascia vuoto per inviare a tutti i contatti con consenso.")}</p>
           </div>
           <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30">
-            <span className="text-sm text-muted-foreground">Destinatari stimati:</span>
+            <span className="text-sm text-muted-foreground">{tr("Destinatari stimati:")}</span>
             <Badge variant="secondary" className="text-sm font-bold">
-              {nDestinatari === null ? "..." : nDestinatari.toLocaleString("it-IT")}
+              {nDestinatari === null ? "..." : nDestinatari.toLocaleString(intlCampo())}
             </Badge>
           </div>
           {errors.destinatari && <p className="text-xs text-destructive">{errors.destinatari}</p>}
@@ -197,7 +199,7 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
       {/* Step 4: Pianificazione */}
       {step === 4 && (
         <div className="space-y-4">
-          <h3 className="font-semibold">Pianificazione</h3>
+          <h3 className="font-semibold">{tr("Pianificazione")}</h3>
           <div className="flex gap-2">
             {(["immediata", "pianificata"] as SmsCampagnaTipo[]).map((t) => (
               <Button
@@ -207,13 +209,13 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
                 size="sm"
                 onClick={() => set("tipo", t)}
               >
-                {t === "immediata" ? "Invia subito" : "Pianifica"}
+                {t === "immediata" ? tr("Invia subito") : tr("Pianifica")}
               </Button>
             ))}
           </div>
           {form.tipo === "pianificata" && (
             <div className="space-y-1">
-              <Label className="text-sm">Data e ora di invio</Label>
+              <Label className="text-sm">{tr("Data e ora di invio")}</Label>
               <Input
                 type="datetime-local"
                 value={form.programmata_per?.slice(0, 16) ?? ""}
@@ -225,22 +227,22 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
           )}
           {/* Riepilogo */}
           <div className="rounded-lg border p-4 space-y-2 bg-muted/10">
-            <p className="text-sm font-medium">Riepilogo campagna</p>
+            <p className="text-sm font-medium">{tr("Riepilogo campagna")}</p>
             <div className="text-xs text-muted-foreground space-y-1">
-              <div className="flex justify-between"><span>Nome:</span><span className="font-medium text-foreground">{form.nome}</span></div>
-              <div className="flex justify-between"><span>Mittente:</span><span className="font-medium text-foreground">{form.mittente}</span></div>
-              <div className="flex justify-between"><span>Destinatari:</span><span className="font-medium text-foreground">{(nDestinatari ?? 0).toLocaleString("it-IT")}</span></div>
-              <div className="flex justify-between"><span>SMS per destinatario:</span><span className="font-medium text-foreground">{smsInfo.parti} ({smsInfo.tipoCharset})</span></div>
-              <div className="flex justify-between"><span>Stima costo:</span><span className="font-medium text-foreground">~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(stimaCosto)}</span></div>
+              <div className="flex justify-between"><span>{tr("Nome:")}</span><span className="font-medium text-foreground">{form.nome}</span></div>
+              <div className="flex justify-between"><span>{tr("Mittente:")}</span><span className="font-medium text-foreground">{form.mittente}</span></div>
+              <div className="flex justify-between"><span>{tr("Destinatari:")}</span><span className="font-medium text-foreground">{(nDestinatari ?? 0).toLocaleString(intlCampo())}</span></div>
+              <div className="flex justify-between"><span>{tr("SMS per destinatario:")}</span><span className="font-medium text-foreground">{smsInfo.parti} ({smsInfo.tipoCharset})</span></div>
+              <div className="flex justify-between"><span>{tr("Stima costo:")}</span><span className="font-medium text-foreground">~{new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(stimaCosto)}</span></div>
             </div>
           </div>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
             <div className="flex items-start gap-2">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-1">
-                <p className="font-medium">Checklist invio sicuro</p>
-                <p>Verranno considerati solo contatti del tenant corrente con consenso SMS, non in opt-out e con numero deduplicato.</p>
-                {form.tipo === "pianificata" && <p>La campagna verra' salvata come pianificata: non parte subito da questo form.</p>}
+                <p className="font-medium">{tr("Checklist invio sicuro")}</p>
+                <p>{tr("Verranno considerati solo contatti del tenant corrente con consenso SMS, non in opt-out e con numero deduplicato.")}</p>
+                {form.tipo === "pianificata" && <p>{tr("La campagna verra' salvata come pianificata: non parte subito da questo form.")}</p>}
               </div>
             </div>
           </div>
@@ -250,11 +252,11 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
       {/* Navigazione */}
       <div className="flex justify-between pt-2">
         <Button type="button" variant="outline" onClick={step === 1 ? onCancel : () => setStep((s) => s - 1)} disabled={isSaving}>
-          {step === 1 ? "Annulla" : <><ChevronLeft className="h-4 w-4 mr-1" />Indietro</>}
+          {step === 1 ? tr("Annulla") : <><ChevronLeft className="h-4 w-4 mr-1" />{tr("Indietro")}</>}
         </Button>
         <Button type="button" onClick={handleNext} disabled={isSaving}>
           {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          {step < TOTAL_STEPS ? <><span>Avanti</span><ChevronRight className="h-4 w-4 ml-1" /></> : <><Send className="h-4 w-4 mr-1" />Avvia campagna</>}
+          {step < TOTAL_STEPS ? <><span>{tr("Avanti")}</span><ChevronRight className="h-4 w-4 ml-1" /></> : <><Send className="h-4 w-4 mr-1" />{tr("Avvia campagna")}</>}
         </Button>
       </div>
 
@@ -262,21 +264,21 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Avviare la campagna SMS?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Avviare la campagna SMS?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {form.tipo === "immediata" ? "Verranno inviati SMS a " : "La campagna verra' programmata per "}
-              <strong>{form.tipo === "immediata" ? (nDestinatari ?? 0).toLocaleString("it-IT") : new Date(form.programmata_per ?? "").toLocaleString("it-IT")}</strong>
-              {form.tipo === "immediata" ? " contatti." : "."}<br />
-              SMS stimati: <strong>{((nDestinatari ?? 0) * smsInfo.parti).toLocaleString("it-IT")}</strong>.<br />
-              Costo stimato: <strong>~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(stimaCosto)}</strong>.<br />
-              {form.tipo === "immediata" ? "L'azione non puo' essere interrotta una volta avviata." : "L'invio reale sara' gestito dalla pianificazione."}
+              {form.tipo === "immediata"
+                ? tr("Verranno inviati SMS a {n} contatti.", { n: (nDestinatari ?? 0).toLocaleString(intlCampo()) })
+                : tr("La campagna verra' programmata per {data}.", { data: new Date(form.programmata_per ?? "").toLocaleString(intlCampo()) })}<br />
+              {tr("SMS stimati: {n}.", { n: ((nDestinatari ?? 0) * smsInfo.parti).toLocaleString(intlCampo()) })}<br />
+              {tr("Costo stimato: ~{costo}.", { costo: new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(stimaCosto) })}<br />
+              {form.tipo === "immediata" ? tr("L'azione non puo' essere interrotta una volta avviata.") : tr("L'invio reale sara' gestito dalla pianificazione.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmAvvia} disabled={!canConfirm || isConfirming || isSaving}>
               {(isConfirming || isSaving) ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-              {form.tipo === "immediata" ? "Conferma e invia" : "Conferma pianificazione"}
+              {form.tipo === "immediata" ? tr("Conferma e invia") : tr("Conferma pianificazione")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,12 +6,14 @@ import { Wallet, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSmsWallet } from "@/hooks/useSmsWallet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsWalletBadgeProps {
   onRicarica: () => void;
 }
 
 export function SmsWalletBadge({ onRicarica }: SmsWalletBadgeProps) {
+  const t = useT();
   const { wallet, isLoadingWallet, creditiResidui, isSottoSoglia, isBlocco } = useSmsWallet();
 
   if (isLoadingWallet) return <Skeleton className="h-8 w-32" />;
@@ -34,7 +36,7 @@ export function SmsWalletBadge({ onRicarica }: SmsWalletBadgeProps) {
         <Wallet className="h-4 w-4 shrink-0" />
       )}
       <span className="font-medium tabular-nums">
-        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiResidui)}
+        {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiResidui)}
       </span>
       {isWarning && (
         <Button
@@ -43,7 +45,7 @@ export function SmsWalletBadge({ onRicarica }: SmsWalletBadgeProps) {
           className="h-6 text-xs px-2 ml-1"
           onClick={onRicarica}
         >
-          Ricarica
+          {t("Ricarica")}
         </Button>
       )}
     </div>

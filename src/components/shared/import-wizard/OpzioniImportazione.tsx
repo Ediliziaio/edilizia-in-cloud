@@ -10,6 +10,7 @@ import { useCompanyStaff } from "@/hooks/useOpportunitiesData";
 import {
   PROGRAMMAZIONE_PREDEFINITA, descriviProgrammazione, fineStimata, formatoData, type Programmazione,
 } from "@/lib/importazione/programmata";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type { AutomazioneScelta } from "@/lib/importazione/tipi";
 
@@ -28,14 +29,15 @@ function QuandoImportare({ programmazione, onChange, totale }: {
   onChange: (p: Programmazione | null) => void;
   totale?: number;
 }) {
+  const tr = useT();
   const p = programmazione;
   const cambia = (parziale: Partial<Programmazione>) => p && onChange({ ...p, ...parziale });
   const fine = p && totale ? fineStimata(totale, p) : null;
   return (
     <div>
-      <p className="flex items-center gap-2 text-sm font-medium"><Clock className="h-4 w-4 text-primary" /> Quando importare</p>
+      <p className="flex items-center gap-2 text-sm font-medium"><Clock className="h-4 w-4 text-primary" /> {tr("Quando importare")}</p>
       <div className="mt-2 flex flex-wrap gap-2">
-        {[{ v: false, t: "Subito, tutti insieme" }, { v: true, t: "A scaglioni, programmati" }].map(({ v, t }) => (
+        {[{ v: false, t: tr("Subito, tutti insieme") }, { v: true, t: tr("A scaglioni, programmati") }].map(({ v, t }) => (
           <button
             key={t} type="button" aria-pressed={!!p === v}
             onClick={() => onChange(v ? (p ?? PROGRAMMAZIONE_PREDEFINITA()) : null)}
@@ -48,37 +50,37 @@ function QuandoImportare({ programmazione, onChange, totale }: {
       {p && (
         <div className="mt-3 space-y-3 rounded-md border bg-background p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <span>Importa</span>
-            <Input aria-label="Quanti per volta" type="number" min={1} max={500} className="h-8 w-20"
+            <span>{tr("Importa")}</span>
+            <Input aria-label={tr("Quanti per volta")} type="number" min={1} max={500} className="h-8 w-20"
               value={p.perGiro} onChange={(e) => cambia({ perGiro: Math.min(500, Math.max(1, Number(e.target.value) || 1)) })} />
-            <span>ogni</span>
-            <select aria-label="Ogni quanti minuti" className="h-8 rounded-md border bg-background px-2"
+            <span>{tr("ogni")}</span>
+            <select aria-label={tr("Ogni quanti minuti")} className="h-8 rounded-md border bg-background px-2"
               value={p.ogniMinuti} onChange={(e) => cambia({ ogniMinuti: Number(e.target.value) })}>
-              {[1, 5, 10, 15, 30, 60, 120, 240].map((m) => <option key={m} value={m}>{m < 60 ? `${m} minuti` : `${m / 60} ${m === 60 ? "ora" : "ore"}`}</option>)}
+              {[1, 5, 10, 15, 30, 60, 120, 240].map((m) => <option key={m} value={m}>{m < 60 ? tr("{n} minuti", { n: m }) : tr(m === 60 ? "{n} ora" : "{n} ore", { n: m / 60 })}</option>)}
             </select>
           </div>
           <label className="flex flex-wrap items-center gap-2">
-            <span>A partire da</span>
-            <Input aria-label="A partire da" type="datetime-local" className="h-8 w-56"
+            <span>{tr("A partire da")}</span>
+            <Input aria-label={tr("A partire da")} type="datetime-local" className="h-8 w-56"
               value={perCampo(p.inizio)} onChange={(e) => e.target.value && cambia({ inizio: new Date(e.target.value) })} />
           </label>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2">
-              <Checkbox checked={!!p.fasciaDa} aria-label="Solo in una fascia oraria"
+              <Checkbox checked={!!p.fasciaDa} aria-label={tr("Solo in una fascia oraria")}
                 onCheckedChange={(v) => cambia(v ? { fasciaDa: "09:00", fasciaA: "18:00" } : { fasciaDa: undefined, fasciaA: undefined })} />
-              <span>Solo dalle</span>
+              <span>{tr("Solo dalle")}</span>
             </label>
-            <Input aria-label="Dalle" type="time" className="h-8 w-28" disabled={!p.fasciaDa} value={p.fasciaDa ?? ""} onChange={(e) => cambia({ fasciaDa: e.target.value })} />
-            <span>alle</span>
-            <Input aria-label="Alle" type="time" className="h-8 w-28" disabled={!p.fasciaA} value={p.fasciaA ?? ""} onChange={(e) => cambia({ fasciaA: e.target.value })} />
+            <Input aria-label={tr("Dalle")} type="time" className="h-8 w-28" disabled={!p.fasciaDa} value={p.fasciaDa ?? ""} onChange={(e) => cambia({ fasciaDa: e.target.value })} />
+            <span>{tr("alle")}</span>
+            <Input aria-label={tr("Alle")} type="time" className="h-8 w-28" disabled={!p.fasciaA} value={p.fasciaA ?? ""} onChange={(e) => cambia({ fasciaA: e.target.value })} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1">Nei giorni</span>
+            <span className="mr-1">{tr("Nei giorni")}</span>
             {GIORNI.map((g, i) => {
               const n = i + 1;
               const attivo = p.giorni.includes(n);
               return (
-                <button key={n} type="button" aria-pressed={attivo} aria-label={NOMI_GIORNI[i]}
+                <button key={n} type="button" aria-pressed={attivo} aria-label={tr(NOMI_GIORNI[i])}
                   onClick={() => cambia({ giorni: attivo ? p.giorni.filter((x) => x !== n) : [...p.giorni, n].sort() })}
                   className={`h-8 w-8 rounded-full border text-xs font-medium ${attivo ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}>
                   {g}
@@ -87,9 +89,9 @@ function QuandoImportare({ programmazione, onChange, totale }: {
             })}
           </div>
           <p className="rounded bg-primary/5 px-2 py-1.5 text-xs text-primary">
-            {p.giorni.length === 0 ? "Scegli almeno un giorno."
-              : p.fasciaDa && p.fasciaA && p.fasciaDa >= p.fasciaA ? "L'orario di fine deve venire dopo quello di inizio, nello stesso giorno."
-              : <>{descriviProgrammazione(p)}{fine ? <>. Finisce verso <strong>{formatoData(fine)}</strong></> : null}.</>}
+            {p.giorni.length === 0 ? tr("Scegli almeno un giorno.")
+              : p.fasciaDa && p.fasciaA && p.fasciaDa >= p.fasciaA ? tr("L'orario di fine deve venire dopo quello di inizio, nello stesso giorno.")
+              : <>{descriviProgrammazione(p)}{fine ? <>. {tr("Finisce verso")} <strong>{formatoData(fine)}</strong></> : null}.</>}
           </p>
         </div>
       )}
@@ -103,22 +105,29 @@ function QuandoImportare({ programmazione, onChange, totale }: {
  */
 /** A chi vanno i contatti nuovi: nessuno (come oggi), una persona, o più persone a turno. */
 function AChiAssegnarli({ assegnatari, onChange, opportunita }: { assegnatari: PersonaScelta[]; onChange: (v: PersonaScelta[]) => void; opportunita: boolean }) {
+  const t = useT();
   const { data: persone = [], isLoading } = useCompanyStaff();
   const scelte = new Set(assegnatari.map((a) => a.id));
-  const cosa = opportunita ? "Le opportunità" : "I contatti nuovi";
-  const spiegazione = assegnatari.length === 0
-    ? `${cosa} restano senza nessuno assegnato, come oggi.`
-    : assegnatari.length === 1
-      ? `${cosa} vanno tutti a ${assegnatari[0].nome}.`
-      : `${cosa} vanno a turno, uno a testa, tra ${assegnatari.map((a) => a.nome).join(", ")}.`;
+  const nomi = assegnatari.map((a) => a.nome).join(", ");
+  const spiegazione = opportunita
+    ? assegnatari.length === 0
+      ? t("Le opportunità restano senza nessuno assegnato, come oggi.")
+      : assegnatari.length === 1
+        ? t("Le opportunità vanno tutti a {nome}.", { nome: nomi })
+        : t("Le opportunità vanno a turno, uno a testa, tra {nomi}.", { nomi })
+    : assegnatari.length === 0
+      ? t("I contatti nuovi restano senza nessuno assegnato, come oggi.")
+      : assegnatari.length === 1
+        ? t("I contatti nuovi vanno tutti a {nome}.", { nome: nomi })
+        : t("I contatti nuovi vanno a turno, uno a testa, tra {nomi}.", { nomi });
   return (
     <div>
-      <p className="flex items-center gap-2 text-sm font-medium"><UserCheck className="h-4 w-4 text-primary" /> A chi assegnarli</p>
+      <p className="flex items-center gap-2 text-sm font-medium"><UserCheck className="h-4 w-4 text-primary" /> {t("A chi assegnarli")}</p>
       <p className="mb-2 text-xs text-muted-foreground">
-        {spiegazione} {opportunita ? "Un contatto nuovo va alla stessa persona della sua opportunità." : "I contatti che c'erano già tengono chi hanno."}
+        {spiegazione} {opportunita ? t("Un contatto nuovo va alla stessa persona della sua opportunità.") : t("I contatti che c'erano già tengono chi hanno.")}
       </p>
       {isLoading ? (
-        <p className="text-xs text-muted-foreground">Caricamento delle persone…</p>
+        <p className="text-xs text-muted-foreground">{t("Caricamento delle persone…")}</p>
       ) : (
         <div className="grid max-h-48 gap-1.5 overflow-y-auto sm:grid-cols-2">
           {persone.filter((p) => p.name).map((p) => (
@@ -150,6 +159,7 @@ export function OpzioniImportazione({ etichette, onEtichetteChange, automazioni,
   /** Si importano opportunità (cambia solo come lo si dice). */
   opportunita?: boolean;
 }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [testo, setTesto] = useState("");
@@ -186,40 +196,40 @@ export function OpzioniImportazione({ etichette, onEtichetteChange, automazioni,
       )}
 
       <div>
-        <p className="flex items-center gap-2 text-sm font-medium"><Tag className="h-4 w-4 text-primary" /> Etichette da aggiungere</p>
-        <p className="mb-2 text-xs text-muted-foreground">Vanno su tutti i contatti importati, insieme a quelle già nel file.</p>
+        <p className="flex items-center gap-2 text-sm font-medium"><Tag className="h-4 w-4 text-primary" /> {tr("Etichette da aggiungere")}</p>
+        <p className="mb-2 text-xs text-muted-foreground">{tr("Vanno su tutti i contatti importati, insieme a quelle già nel file.")}</p>
         <div className="flex flex-wrap items-center gap-1.5">
           {etichette.map((e) => (
             <span key={e} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
               {e}
-              <button type="button" aria-label={`Togli l'etichetta ${e}`} onClick={() => onEtichetteChange(etichette.filter((x) => x !== e))}>
+              <button type="button" aria-label={tr("Togli l'etichetta {e}", { e: String(e ?? "") })} onClick={() => onEtichetteChange(etichette.filter((x) => x !== e))}>
                 <X className="h-3 w-3" />
               </button>
             </span>
           ))}
           <Input
-            aria-label="Nuova etichetta"
+            aria-label={tr("Nuova etichetta")}
             value={testo}
             onChange={(ev) => setTesto(ev.target.value)}
             onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === ",") { ev.preventDefault(); aggiungi(); } }}
             onBlur={aggiungi}
-            placeholder={etichette.length ? "Aggiungi un'altra…" : "Scrivi un'etichetta e premi Invio"}
+            placeholder={etichette.length ? tr("Aggiungi un'altra…") : tr("Scrivi un'etichetta e premi Invio")}
             className="h-8 w-56 text-sm"
           />
         </div>
       </div>
 
       <div>
-        <p className="flex items-center gap-2 text-sm font-medium"><Workflow className="h-4 w-4 text-primary" /> Automazioni in cui farli entrare</p>
+        <p className="flex items-center gap-2 text-sm font-medium"><Workflow className="h-4 w-4 text-primary" /> {tr("Automazioni in cui farli entrare")}</p>
         <p className="mb-2 text-xs text-muted-foreground">
           {programmazione
-            ? "Ogni contatto entra nelle automazioni scelte appena viene importato, con il suo scaglione."
-            : "I contatti importati partono subito dal primo passaggio di ogni automazione scelta."}
+            ? tr("Ogni contatto entra nelle automazioni scelte appena viene importato, con il suo scaglione.")
+            : tr("I contatti importati partono subito dal primo passaggio di ogni automazione scelta.")}
         </p>
         {isLoading ? (
-          <p className="text-xs text-muted-foreground">Caricamento delle automazioni…</p>
+          <p className="text-xs text-muted-foreground">{tr("Caricamento delle automazioni…")}</p>
         ) : flussi.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Non ci sono automazioni attive.</p>
+          <p className="text-xs text-muted-foreground">{tr("Non ci sono automazioni attive.")}</p>
         ) : (
           <div className="grid gap-1.5 sm:grid-cols-2">
             {flussi.map((f) => (

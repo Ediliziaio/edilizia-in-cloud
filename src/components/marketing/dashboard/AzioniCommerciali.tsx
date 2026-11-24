@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface UrgentAction {
   id: string;
@@ -149,6 +150,7 @@ const severityStyles = {
 };
 
 export function AzioniCommerciali(props: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const allActions = buildActions(props, useMarketingRoutePrefix());
   const topActions = allActions.slice(0, 3);
@@ -161,8 +163,8 @@ export function AzioniCommerciali(props: Props) {
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Nessuna urgenza commerciale</h3>
-            <p className="text-xs text-emerald-600 dark:text-emerald-500">Nessuna azione urgente. Il team sta performando bene.</p>
+            <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{t("Nessuna urgenza commerciale")}</h3>
+            <p className="text-xs text-emerald-600 dark:text-emerald-500">{t("Nessuna azione urgente. Il team sta performando bene.")}</p>
           </div>
         </div>
       </div>
@@ -177,12 +179,12 @@ export function AzioniCommerciali(props: Props) {
           <Zap className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground max-sm:hidden">Priorità operative</p>
-          <h3 className="text-sm font-bold text-foreground">Cosa muovere ora</h3>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground max-sm:hidden">{t("Priorità operative")}</p>
+          <h3 className="text-sm font-bold text-foreground">{t("Cosa muovere ora")}</h3>
         </div>
         {allActions.length > 3 && (
           <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-            +{allActions.length - 3} altr{allActions.length - 3 === 1 ? "a" : "e"}
+            {t(allActions.length - 3 === 1 ? "+{n} altra" : "+{n} altre", { n: allActions.length - 3 })}
           </span>
         )}
       </div>

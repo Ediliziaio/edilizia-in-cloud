@@ -2,8 +2,10 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { AlertTriangle, Target } from "lucide-react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function GoalNodeComponent({ data, selected }: NodeProps) {
+  const t = useT();
   const catalog = getCatalogItem(data.itemId as string);
   const label = (data.label as string) || catalog?.label || "Obiettivo";
 
@@ -19,7 +21,7 @@ function GoalNodeComponent({ data, selected }: NodeProps) {
           <Target className="h-4 w-4" />
         </div>
         <span className="flex-1 text-[10px] font-semibold uppercase tracking-wide text-green-600 dark:text-green-400">
-          Obiettivo
+          {t("Obiettivo")}
         </span>
         {(data.hasError || data.hasWarning) && (
           <AlertTriangle className={`h-3.5 w-3.5 ${data.hasError ? "text-destructive" : "text-amber-600"}`} />

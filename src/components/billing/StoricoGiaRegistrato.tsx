@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const dataIt = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 
@@ -33,6 +34,7 @@ export function messaggioStorico(e: EsitoStorico): string {
 }
 
 export function StoricoGiaRegistrato({ integrazioneId, finoAl }: { integrazioneId: string; finoAl: string | null }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [data, setData] = useState(finoAl ?? "");
   const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
@@ -53,19 +55,18 @@ export function StoricoGiaRegistrato({ integrazioneId, finoAl }: { integrazioneI
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
     },
-    onError: (e) => toast.error(userErrorMessage(e, "Data di taglio non salvata. Riprova tra poco.")),
+    onError: (e) => toast.error(userErrorMessage(e, t("Data di taglio non salvata. Riprova tra poco."))),
   });
 
   return (
     <div className="rounded-md border bg-muted/30 p-3 text-sm">
-      <p className="flex items-center gap-2 font-medium"><History className="h-4 w-4 text-primary" aria-hidden="true" />Storico già registrato</p>
+      <p className="flex items-center gap-2 font-medium"><History className="h-4 w-4 text-primary" aria-hidden="true" />{t("Storico già registrato")}</p>
       <p className="mt-1 text-muted-foreground">
-        Le fatture fino a questa data sono già registrate, pagate e incassate nel gestionale che usavi prima:
-        le emesse entrano incassate e le ricevute contabilizzate, senza scadenze, costi, prima nota o invii allo SDI.
+        {t("Le fatture fino a questa data sono già registrate, pagate e incassate nel gestionale che usavi prima: le emesse entrano incassate e le ricevute contabilizzate, senza scadenze, costi, prima nota o invii allo SDI.")}
       </p>
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <div>
-          <Label htmlFor={`storico-${integrazioneId}`} className="text-xs">Già registrate fino al</Label>
+          <Label htmlFor={`storico-${integrazioneId}`} className="text-xs">{t("Già registrate fino al")}</Label>
           <Input
             id={`storico-${integrazioneId}`}
             type="date"
@@ -76,15 +77,15 @@ export function StoricoGiaRegistrato({ integrazioneId, finoAl }: { integrazioneI
           />
         </div>
         <Button size="sm" onClick={() => salva.mutate(data || null)} disabled={salva.isPending || (data || null) === (finoAl ?? null) || (!!data && data > oggi)}>
-          {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Salva
+          {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{t("Salva")}
         </Button>
         {finoAl && (
           <Button size="sm" variant="ghost" onClick={() => { setData(""); salva.mutate(null); }} disabled={salva.isPending}>
-            Togli la data
+            {t("Togli la data")}
           </Button>
         )}
       </div>
-      {finoAl && <p className="mt-1.5 text-xs text-muted-foreground">Attiva: fatture fino al {dataIt(finoAl)}. Togliendo la data, le fatture già chiuse restano chiuse.</p>}
+      {finoAl && <p className="mt-1.5 text-xs text-muted-foreground">{t("Attiva: fatture fino al {finoAl}. Togliendo la data, le fatture già chiuse restano chiuse.", { finoAl: String(dataIt(finoAl) ?? "") })}</p>}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   ritenute: RitenuteGaranzia[];
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function RitenuteTable({ ritenute, isLoading, onSvincola, isSvincolando }: Props) {
+  const t = useT();
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -33,7 +35,7 @@ export function RitenuteTable({ ritenute, isLoading, onSvincola, isSvincolando }
   if (ritenute.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
-        Nessuna ritenuta registrata
+        {t("Nessuna ritenuta registrata")}
       </p>
     );
   }
@@ -42,13 +44,13 @@ export function RitenuteTable({ ritenute, isLoading, onSvincola, isSvincolando }
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Data</TableHead>
-          <TableHead>Importo</TableHead>
-          <TableHead>Percentuale</TableHead>
-          <TableHead>Stato</TableHead>
-          <TableHead>Data Svincolo Prevista</TableHead>
-          <TableHead>Data Svincolo Effettiva</TableHead>
-          <TableHead>Azioni</TableHead>
+          <TableHead>{t("Data")}</TableHead>
+          <TableHead>{t("Importo")}</TableHead>
+          <TableHead>{t("Percentuale")}</TableHead>
+          <TableHead>{t("Stato")}</TableHead>
+          <TableHead>{t("Data Svincolo Prevista")}</TableHead>
+          <TableHead>{t("Data Svincolo Effettiva")}</TableHead>
+          <TableHead>{t("Azioni")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -76,7 +78,7 @@ export function RitenuteTable({ ritenute, isLoading, onSvincola, isSvincolando }
                   disabled={isSvincolando}
                   onClick={() => onSvincola(row.id)}
                 >
-                  Svincola
+                  {t("Svincola")}
                 </Button>
               )}
             </TableCell>

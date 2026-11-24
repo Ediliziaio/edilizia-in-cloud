@@ -1,7 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { partiOraRoma, oraRomaHM } from "@/lib/oraLocaleCalendario";
-import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon, Video } from "lucide-react";
@@ -10,6 +9,7 @@ import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin, computeOverlapLayout } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   date: Date;
@@ -52,6 +52,7 @@ export default function MarketingCalendarDayView({
   onClickBusySlot,
   colorMap: colorMapProp,
 }: Props) {
+  const tr = useT();
   const internalColorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const colorMap = colorMapProp ?? internalColorMap;
   const justDragged = useRef(false);
@@ -203,7 +204,7 @@ export default function MarketingCalendarDayView({
               "text-[10px] uppercase tracking-wide font-medium",
               todayFlag ? "text-primary" : "text-muted-foreground"
             )}>
-              {format(date, "EEEE", { locale: it })}
+              {format(date, "EEEE", { locale: dateFnsCampo() })}
             </div>
             <div
               className={cn(
@@ -290,7 +291,7 @@ export default function MarketingCalendarDayView({
                     const sMin = timeToMin(startHM);
                     const cellMin = timeToMin(slotTime);
                     const isStartCell = sMin >= cellMin && sMin < cellMin + slotDurationMinutes;
-                    const label = busy.summary || (isApple ? "Occupato (Apple)" : isOutlook ? "Occupato (Outlook)" : "Occupato (Google)");
+                    const label = busy.summary || (isApple ? tr("Occupato (Apple)") : isOutlook ? tr("Occupato (Outlook)") : tr("Occupato (Google)"));
                     // Il blocco condivide le colonne con gli appuntamenti: se si
                     // sovrappone a un appuntamento, occupa la sua colonna (affiancato)
                     // invece di stendersi a tutta larghezza dietro.
@@ -306,7 +307,7 @@ export default function MarketingCalendarDayView({
                         type="button"
                         key={`busy-${busy.id}-${bi}`}
                         onClick={(e) => { e.stopPropagation(); onClickBusySlot?.(busy); }}
-                        title={`${busy.summary || "Occupato"} · ${startHM}–${endHM} (${isApple ? "Apple" : isOutlook ? "Outlook" : "Google"} Calendar)`}
+                        title={`${busy.summary || tr("Occupato")} · ${startHM}–${endHM} (${isApple ? "Apple" : isOutlook ? "Outlook" : "Google"} Calendar)`}
                         style={busyStyle}
                         className={cn(
                           "absolute top-0 bottom-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-1 py-0.5 text-left transition-colors",
@@ -369,7 +370,7 @@ export default function MarketingCalendarDayView({
                               {leg.isLate && (
                                 <span className="flex items-center gap-0.5 ml-auto font-medium">
                                   <AlertTriangle className="h-3 w-3" />
-                                  +{leg.delayMinutes} min
+                                  +{leg.delayMinutes} {tr("min")}
                                 </span>
                               )}
                             </div>
@@ -392,9 +393,9 @@ export default function MarketingCalendarDayView({
                             )}
                             title={
                               isVideocall
-                                ? `${apt.title} · Videochiamata (Google Meet)`
+                                ? tr("{titolo} · Videochiamata (Google Meet)", { titolo: apt.title })
                                 : hasNoCoords && !apt.is_blocked_slot
-                                  ? `${apt.title} · Indirizzo mancante`
+                                  ? tr("{titolo} · Indirizzo mancante", { titolo: apt.title })
                                   : apt.title
                             }
                           >

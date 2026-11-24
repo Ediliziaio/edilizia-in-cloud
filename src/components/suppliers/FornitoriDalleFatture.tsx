@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -56,6 +57,7 @@ export function useCedentiMancanti(companyId: string | undefined) {
 }
 
 export function FornitoriDalleFatture({ companyId }: { companyId: string }) {
+  const t = useT();
   const { data: cedenti = [], isError } = useCedentiMancanti(companyId);
   const [aperto, setAperto] = useState(false);
   const [scelti, setScelti] = useState<Set<string>>(new Set());
@@ -78,14 +80,14 @@ export function FornitoriDalleFatture({ companyId }: { companyId: string }) {
       return tot;
     },
     onSuccess: (r) => {
-      toast.success(`${r.creati} fornitori creati, ${r.agganciati} agganciati, ${r.fatture} fatture collegate`, {
-        description: r.saltati.length ? `${r.saltati.length} da fare a mano: ${r.saltati.slice(0, 3).map((s) => `${s.nome ?? s.chiave} (${s.motivo})`).join("; ")}` : undefined,
+      toast.success(t("{creati} fornitori creati, {agganciati} agganciati, {fatture} fatture collegate", { creati: r.creati, agganciati: r.agganciati, fatture: r.fatture }), {
+        description: r.saltati.length ? t("{n} da fare a mano: {elenco}", { n: r.saltati.length, elenco: r.saltati.slice(0, 3).map((s) => `${s.nome ?? s.chiave} (${s.motivo})`).join("; ") }) : undefined,
       });
       setScelti(new Set());
       void qc.invalidateQueries({ queryKey: ["fornitori-dalle-fatture", companyId] });
       void invalidaFornitori(qc);
     },
-    onError: (e: Error) => toast.error("Fornitori non creati", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Fornitori non creati"), { description: e.message }),
   });
 
   if (isError || cedenti.length === 0) return null;
@@ -95,39 +97,37 @@ export function FornitoriDalleFatture({ companyId }: { companyId: string }) {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
         <p>
-          <strong>{fattureTot}</strong> fatture ricevute non hanno un fornitore: vengono da <strong>{cedenti.length}</strong> fornitori da creare
-          o da collegare.
+          {t("{fatture} fatture ricevute non hanno un fornitore: vengono da {fornitori} fornitori da creare o da collegare.", { fatture: fattureTot, fornitori: cedenti.length })}
         </p>
         <Button size="sm" variant="outline" onClick={() => setAperto(true)}>
-          <FileSearch className="mr-1 h-4 w-4" /> Rivedi e crea
+          <FileSearch className="mr-1 h-4 w-4" /> {t("Rivedi e crea")}
         </Button>
       </div>
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Fornitori dalle fatture</DialogTitle>
+            <DialogTitle>{t("Fornitori dalle fatture")}</DialogTitle>
             <DialogDescription>
-              Scegli chi creare: il fornitore nasce coi dati della sua fattura più recente e le sue fatture si collegano. Solo chi ha
-              una P.IVA o un codice fiscale valido; un nome uguale a un fornitore che hai già, con un'altra P.IVA, è segnalato.
+              {t("Scegli chi creare: il fornitore nasce coi dati della sua fattura più recente e le sue fatture si collegano. Solo chi ha una P.IVA o un codice fiscale valido; un nome uguale a un fornitore che hai già, con un'altra P.IVA, è segnalato.")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Button size="sm" variant="ghost" onClick={() => setScelti(tuttiScelti ? new Set() : new Set(ok.map((c) => c.chiave)))}>
-              {tuttiScelti ? "Deseleziona tutti" : `Seleziona tutti (${ok.length})`}
+              {tuttiScelti ? t("Deseleziona tutti") : t("Seleziona tutti ({n})", { n: ok.length })}
             </Button>
             <Button size="sm" disabled={!scelti.size || crea.isPending} onClick={() => crea.mutate([...scelti])}>
-              {crea.isPending ? "Creo…" : `Crea e collega ${scelti.size || ""}`}
+              {crea.isPending ? t("Creo…") : t("Crea e collega {n}", { n: scelti.size || "" })}
             </Button>
           </div>
           <table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr className="border-b">
                 <th className="w-8" />
-                <th className="py-2 text-left font-normal">Fornitore</th>
-                <th className="py-2 text-left font-normal">P.IVA / CF</th>
-                <th className="py-2 text-right font-normal">Fatture</th>
-                <th className="py-2 text-right font-normal">Totale</th>
-                <th className="py-2 text-right font-normal">Ultima</th>
+                <th className="py-2 text-left font-normal">{t("Fornitore")}</th>
+                <th className="py-2 text-left font-normal">{t("P.IVA / CF")}</th>
+                <th className="py-2 text-right font-normal">{t("Fatture")}</th>
+                <th className="py-2 text-right font-normal">{t("Totale")}</th>
+                <th className="py-2 text-right font-normal">{t("Ultima")}</th>
               </tr>
             </thead>
             <tbody>
@@ -135,15 +135,15 @@ export function FornitoriDalleFatture({ companyId }: { companyId: string }) {
                 <tr key={c.chiave} className="border-b last:border-b-0" data-cedente={c.chiave}>
                   <td>
                     <Checkbox
-                      aria-label={`Scegli ${c.nome ?? c.chiave}`}
+                      aria-label={t("Scegli {nome}", { nome: c.nome ?? c.chiave })}
                       checked={scelti.has(c.chiave)}
                       onCheckedChange={(v) => setScelti((s) => { const n = new Set(s); if (v === true) n.add(c.chiave); else n.delete(c.chiave); return n; })}
                     />
                   </td>
                   <td className="py-2">
                     {c.nome ?? "—"}
-                    {c.gia_in_rubrica && <span className="ml-2 text-xs text-muted-foreground">già in rubrica: si collegano solo le fatture</span>}
-                    {c.omonimi > 0 && <span className="ml-2 text-xs text-amber-700 dark:text-amber-400">nome uguale a un fornitore con altra P.IVA</span>}
+                    {c.gia_in_rubrica && <span className="ml-2 text-xs text-muted-foreground">{t("già in rubrica: si collegano solo le fatture")}</span>}
+                    {c.omonimi > 0 && <span className="ml-2 text-xs text-amber-700 dark:text-amber-400">{t("nome uguale a un fornitore con altra P.IVA")}</span>}
                   </td>
                   <td className="py-2 tabular-nums">{c.piva || c.codice_fiscale}</td>
                   <td className="py-2 text-right tabular-nums">{c.fatture}</td>
@@ -155,11 +155,11 @@ export function FornitoriDalleFatture({ companyId }: { companyId: string }) {
           </table>
           {altri.length > 0 && (
             <div className="space-y-1">
-              <p className="text-sm font-medium">Da creare a mano ({altri.length})</p>
+              <p className="text-sm font-medium">{t("Da creare a mano ({n})", { n: altri.length })}</p>
               <ul className="text-xs text-muted-foreground">
                 {altri.map((c) => (
                   <li key={c.chiave}>
-                    {c.nome ?? c.chiave} · {c.piva || c.codice_fiscale} · {c.paese && c.paese !== "IT" ? "fornitore estero" : "P.IVA o codice fiscale non valido"} · {c.fatture} fatture
+                    {c.nome ?? c.chiave} · {c.piva || c.codice_fiscale} · {c.paese && c.paese !== "IT" ? t("fornitore estero") : t("P.IVA o codice fiscale non valido")} · {t(c.fatture === 1 ? "{n} fattura" : "{n} fatture", { n: c.fatture })}
                   </li>
                 ))}
               </ul>

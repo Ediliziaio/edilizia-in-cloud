@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function NuovaRitenutaDialog({
   open,
@@ -24,6 +25,7 @@ export function NuovaRitenutaDialog({
   onCreated: () => void;
   initialOrderId?: string;
 }) {
+  const t = useT();
   const permissions = usePermissions();
   const qc = useQueryClient();
   const formId = useId();
@@ -84,39 +86,39 @@ export function NuovaRitenutaDialog({
   const salva = async () => {
     if (lock.current || saving) return;
     if (!companyId || !permissions.isAdmin || permissions.solaLettura) {
-      toast({ title: "Modifica non autorizzata", variant: "destructive" });
+      toast({ title: t("Modifica non autorizzata"), variant: "destructive" });
       return;
     }
     const imp = parseDecimalIT(importo);
     if (!imp || imp <= 0) {
       toast({
-        title: "Importo mancante",
-        description: "Inserisci l'importo trattenuto.",
+        title: t("Importo mancante"),
+        description: t("Inserisci l'importo trattenuto."),
         variant: "destructive",
       });
       return;
     }
     if (direzione === "passiva" && !contrattoId && !orderId) {
       toast({
-        title: "Commessa mancante",
+        title: t("Commessa mancante"),
         description:
-          "Scegli il contratto del subappaltatore o, se non c'è, la commessa.",
+          t("Scegli il contratto del subappaltatore o, se non c'è, la commessa."),
         variant: "destructive",
       });
       return;
     }
     if (direzione === "passiva" && !contrattoId && !controparte.trim()) {
       toast({
-        title: "Subappaltatore mancante",
-        description: "Senza contratto serve il nome del subappaltatore.",
+        title: t("Subappaltatore mancante"),
+        description: t("Senza contratto serve il nome del subappaltatore."),
         variant: "destructive",
       });
       return;
     }
     if (direzione === "attiva" && !orderId) {
       toast({
-        title: "Commessa mancante",
-        description: "Una ritenuta attiva vive su una commessa: scegli quale.",
+        title: t("Commessa mancante"),
+        description: t("Una ritenuta attiva vive su una commessa: scegli quale."),
         variant: "destructive",
       });
       return;
@@ -141,7 +143,7 @@ export function NuovaRitenutaDialog({
         fideiussione,
       });
       if (error) throw error;
-      toast({ title: "Ritenuta registrata" });
+      toast({ title: t("Ritenuta registrata") });
       refreshFinancialQueries(qc);
       onCreated();
       onOpenChange(false);
@@ -153,8 +155,8 @@ export function NuovaRitenutaDialog({
       setFideiussione(false);
     } catch (e) {
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Riprova.",
+        title: t("Errore"),
+        description: e instanceof Error ? e.message : t("Riprova."),
         variant: "destructive",
       });
     } finally {
@@ -167,14 +169,14 @@ export function NuovaRitenutaDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Nuova ritenuta di garanzia</DialogTitle>
+          <DialogTitle>{t("Nuova ritenuta di garanzia")}</DialogTitle>
           <DialogDescription>
-            Collega la garanzia alla commessa. Lo svincolo documentato e l’incasso restano operazioni distinte.
+            {t("Collega la garanzia alla commessa. Lo svincolo documentato e l’incasso restano operazioni distinte.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-direzione`}>Direzione</Label>
+            <Label htmlFor={`${formId}-direzione`}>{t("Direzione")}</Label>
             <Select
               value={direzione}
               onValueChange={(v) => setDirezione(v as "attiva" | "passiva")}
@@ -184,17 +186,17 @@ export function NuovaRitenutaDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="attiva">
-                  Trattenuta a me (dal committente)
+                  {t("Trattenuta a me (dal committente)")}
                 </SelectItem>
                 <SelectItem value="passiva">
-                  La trattengo io (al subappaltatore)
+                  {t("La trattengo io (al subappaltatore)")}
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
           {direzione === "passiva" && (
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-contratto`}>Contratto di subappalto</Label>
+              <Label htmlFor={`${formId}-contratto`}>{t("Contratto di subappalto")}</Label>
               <Select
                 value={contrattoId || "nessuno"}
                 onValueChange={(v) => {
@@ -219,7 +221,7 @@ export function NuovaRitenutaDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nessuno">Senza contratto</SelectItem>
+                  <SelectItem value="nessuno">{t("Senza contratto")}</SelectItem>
                   {contratti.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {[
@@ -228,7 +230,7 @@ export function NuovaRitenutaDialog({
                         c.numero_contratto,
                       ]
                         .filter(Boolean)
-                        .join(" · ") || "Contratto"}
+                        .join(" · ") || t("Contratto")}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -237,10 +239,10 @@ export function NuovaRitenutaDialog({
           )}
           {(direzione === "attiva" || !contrattoId) && (
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-commessa`}>Commessa</Label>
+              <Label htmlFor={`${formId}-commessa`}>{t("Commessa")}</Label>
               <Select value={orderId} onValueChange={setOrderId} disabled={!!initialOrderId}>
                 <SelectTrigger id={`${formId}-commessa`}>
-                  <SelectValue placeholder="Scegli la commessa" />
+                  <SelectValue placeholder={t("Scegli la commessa")} />
                 </SelectTrigger>
                 <SelectContent>
                   {commesse.map((c) => (
@@ -255,28 +257,28 @@ export function NuovaRitenutaDialog({
           )}
           <div className="space-y-1.5">
             <Label htmlFor={`${formId}-controparte`}>
-              {direzione === "attiva" ? "Committente" : "Subappaltatore"}
+              {direzione === "attiva" ? t("Committente") : t("Subappaltatore")}
             </Label>
             <Input
               id={`${formId}-controparte`}
               value={controparte}
               onChange={(e) => setControparte(e.target.value)}
-              placeholder="Nome"
+              placeholder={t("Nome")}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-importo`}>Importo trattenuto (€)</Label>
+              <Label htmlFor={`${formId}-importo`}>{t("Importo trattenuto (€)")}</Label>
               <Input
                 inputMode="decimal"
                 id={`${formId}-importo`}
                 value={importo}
                 onChange={(e) => setImporto(e.target.value)}
-                placeholder="es. 7.500"
+                placeholder={t("es. 7.500")}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-percentuale`}>% applicata</Label>
+              <Label htmlFor={`${formId}-percentuale`}>{t("% applicata")}</Label>
               <Input
                 inputMode="decimal"
                 id={`${formId}-percentuale`}
@@ -287,7 +289,7 @@ export function NuovaRitenutaDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-svincolo`}>Svincolo previsto</Label>
+            <Label htmlFor={`${formId}-svincolo`}>{t("Svincolo previsto")}</Label>
             <Input
               type="date"
               id={`${formId}-svincolo`}
@@ -295,7 +297,7 @@ export function NuovaRitenutaDialog({
               onChange={(e) => setSvincoloPrevisto(e.target.value)}
             />
             <p className="text-[11px] text-muted-foreground">
-              Usa la data prevista dal contratto o dal certificato: non viene confermata automaticamente.
+              {t("Usa la data prevista dal contratto o dal certificato: non viene confermata automaticamente.")}
             </p>
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -305,18 +307,18 @@ export function NuovaRitenutaDialog({
               onChange={(e) => setFideiussione(e.target.checked)}
               className="h-4 w-4"
             />
-            Sostituita da fideiussione (non registra un incasso)
+            {t("Sostituita da fideiussione (non registra un incasso)")}
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={salva}
             disabled={saving}
           >
-            {saving ? "Salvataggio…" : "Registra"}
+            {saving ? t("Salvataggio…") : t("Registra")}
           </Button>
         </DialogFooter>
       </DialogContent>

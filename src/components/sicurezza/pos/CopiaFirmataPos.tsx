@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { apriUrlDocumentoPos } from "@/lib/sicurezza/apriPdfPos";
 import { improntaSha256 } from "@/lib/sicurezza/posVerifica";
 import { readAllPages } from "@/lib/personale/readAllPages";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const LIMITE_COPIA_FIRMATA = 20 * 1024 * 1024;
 const BUCKET = "pos-firmati";
@@ -58,6 +59,7 @@ interface Props {
  * file sbagliato si sostituisce caricandone un altro, e restano entrambi con le date.
  */
 export function CopiaFirmataSezione({ companyId, posId, revisione, emissioneId, puoCaricare, onCaricata }: Props) {
+  const t = useT();
   const { user } = useAuth();
   const qc = useQueryClient();
   const elenco = useCopieFirmatePos(companyId, posId, true);
@@ -69,26 +71,26 @@ export function CopiaFirmataSezione({ companyId, posId, revisione, emissioneId, 
 
   const carica = useMutation({
     mutationFn: async () => {
-      if (!file || !user?.id || !emissioneId) throw new Error("Scegli prima il file della copia firmata");
+      if (!file || !user?.id || !emissioneId) throw new Error(t("Scegli prima il file della copia firmata"));
       const errore = await controllaCopiaFirmata(file);
-      if (errore) throw new Error(errore);
+      if (errore) throw new Error(t(errore));
       const sha256 = await improntaSha256(await file.arrayBuffer());
       const percorso = `${companyId}/${posId}/${crypto.randomUUID()}.pdf`;
       const su = await supabase.storage.from(BUCKET).upload(percorso, file, { contentType: "application/pdf", upsert: false });
-      if (su.error) throw new Error("Caricamento del file non riuscito: controlla la connessione e riprova");
+      if (su.error) throw new Error(t("Caricamento del file non riuscito: controlla la connessione e riprova"));
       const { error } = await supabase.from("pos_copie_firmate" as never).insert({
         company_id: companyId, pos_id: posId, emissione_id: emissioneId, revisione, file_path: percorso, file_name: file.name.slice(0, 200),
         sha256, dimensione: file.size, firmato_il: firmatoIl || null, note: note.trim() || null, caricata_da: user.id,
       } as never);
-      if (error) throw new Error(error.message?.includes("Il file") || error.message?.includes("copia firmata") ? error.message : "Copia firmata non registrata: riprova");
+      if (error) throw new Error(error.message?.includes("Il file") || error.message?.includes("copia firmata") ? error.message : t("Copia firmata non registrata: riprova"));
       return firmatoIl || null;
     },
     onSuccess: (data) => {
-      toast.success("Copia firmata conservata");
+      toast.success(t("Copia firmata conservata"));
       setFile(null); setNote(""); setFirmatoIl(""); if (campoFile.current) campoFile.current.value = "";
       onCaricata?.(data);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Copia firmata non registrata"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : t("Copia firmata non registrata")),
     onSettled: () => qc.invalidateQueries({ queryKey: ["pos", "copie-firmate", companyId, posId] }),
   });
 
@@ -97,56 +99,56 @@ export function CopiaFirmataSezione({ companyId, posId, revisione, emissioneId, 
     try {
       await apriUrlDocumentoPos(async () => {
         const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(c.file_path, 300);
-        if (error || !data?.signedUrl) throw new Error("Non riesco ad aprire la copia firmata");
+        if (error || !data?.signedUrl) throw new Error(t("Non riesco ad aprire la copia firmata"));
         return data.signedUrl;
       });
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Non riesco ad aprire la copia firmata"); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : t("Non riesco ad aprire la copia firmata")); }
     finally { setApertura(""); }
   };
 
   const copie = elenco.data ?? [];
   return (
-    <section className="space-y-3 rounded-lg border p-3" aria-label="Copia firmata">
+    <section className="space-y-3 rounded-lg border p-3" aria-label={t("Copia firmata")}>
       <div>
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold"><FileCheck2 className="h-4 w-4" aria-hidden="true" />Copia firmata</h3>
-        <p className="text-xs text-muted-foreground">Stampa il PDF approvato, fallo firmare (datore di lavoro, RLS/RLST, CSE) e carica qui la scansione: resta nell’app e non si può modificare.</p>
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold"><FileCheck2 className="h-4 w-4" aria-hidden="true" />{t("Copia firmata")}</h3>
+        <p className="text-xs text-muted-foreground">{t("Stampa il PDF approvato, fallo firmare (datore di lavoro, RLS/RLST, CSE) e carica qui la scansione: resta nell’app e non si può modificare.")}</p>
       </div>
 
       {elenco.isError
-        ? <p role="alert" className="text-sm text-destructive">Le copie firmate non sono disponibili. <button type="button" className="underline" onClick={() => void elenco.refetch()}>Riprova</button></p>
-        : elenco.isLoading ? <p className="text-sm text-muted-foreground">Caricamento…</p>
-        : copie.length === 0 ? <p className="text-sm text-muted-foreground">Nessuna copia firmata caricata.</p>
+        ? <p role="alert" className="text-sm text-destructive">{t("Le copie firmate non sono disponibili.")} <button type="button" className="underline" onClick={() => void elenco.refetch()}>{t("Riprova")}</button></p>
+        : elenco.isLoading ? <p className="text-sm text-muted-foreground">{t("Caricamento…")}</p>
+        : copie.length === 0 ? <p className="text-sm text-muted-foreground">{t("Nessuna copia firmata caricata.")}</p>
         : <ul className="divide-y rounded-md border">{copie.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{c.file_name}</p>
-                <p className="text-xs text-muted-foreground">Revisione {c.revisione}{c.firmato_il ? ` · firmata il ${dataIt(c.firmato_il)}` : ""} · caricata il {dataIt(c.caricata_il)} · {kb(c.dimensione)}</p>
+                <p className="text-xs text-muted-foreground">{t("Revisione {revisione}", { revisione: String(c.revisione ?? "") })}{c.firmato_il ? t(" · firmata il {firmato_il}", { firmato_il: String(dataIt(c.firmato_il) ?? "") }) : ""} {t("· caricata il {data}", { data: dataIt(c.caricata_il) })} · {kb(c.dimensione)}</p>
                 {c.note && <p className="text-xs text-muted-foreground">{c.note}</p>}
               </div>
               <Button type="button" size="sm" variant="outline" className="tap-compact" disabled={!!apertura} onClick={() => void scarica(c)}>
-                {apertura === c.id ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : null}Scarica
+                {apertura === c.id ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : null}{t("Scarica")}
               </Button>
             </li>))}</ul>}
 
       {puoCaricare && (
         <div className="space-y-2 rounded-md bg-slate-50 p-2.5">
-          {!emissioneId && <p className="text-xs text-amber-800">Il PDF approvato di questa revisione non è ancora pronto: appena lo è, qui si carica la copia firmata.</p>}
+          {!emissioneId && <p className="text-xs text-amber-800">{t("Il PDF approvato di questa revisione non è ancora pronto: appena lo è, qui si carica la copia firmata.")}</p>}
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="copia-firmata-file" className="text-xs font-medium text-slate-700">File PDF firmato</Label>
+              <Label htmlFor="copia-firmata-file" className="text-xs font-medium text-slate-700">{t("File PDF firmato")}</Label>
               <Input id="copia-firmata-file" ref={campoFile} type="file" accept="application/pdf" disabled={!emissioneId || carica.isPending} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="copia-firmata-data" className="text-xs font-medium text-slate-700">Firmata il (facoltativo)</Label>
+              <Label htmlFor="copia-firmata-data" className="text-xs font-medium text-slate-700">{t("Firmata il (facoltativo)")}</Label>
               <Input id="copia-firmata-data" type="date" className="h-9" value={firmatoIl} disabled={!emissioneId || carica.isPending} onChange={(e) => setFirmatoIl(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="copia-firmata-note" className="text-xs font-medium text-slate-700">Nota (facoltativa)</Label>
-            <Textarea id="copia-firmata-note" rows={2} value={note} maxLength={1000} disabled={!emissioneId || carica.isPending} placeholder="Es. firmata anche dal CSE, scansione a colori" onChange={(e) => setNote(e.target.value)} />
+            <Label htmlFor="copia-firmata-note" className="text-xs font-medium text-slate-700">{t("Nota (facoltativa)")}</Label>
+            <Textarea id="copia-firmata-note" rows={2} value={note} maxLength={1000} disabled={!emissioneId || carica.isPending} placeholder={t("Es. firmata anche dal CSE, scansione a colori")} onChange={(e) => setNote(e.target.value)} />
           </div>
           <Button type="button" size="sm" className="tap-compact" disabled={!file || !emissioneId || carica.isPending} onClick={() => carica.mutate()}>
-            {carica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="mr-1 h-4 w-4" aria-hidden="true" />}Carica la copia firmata
+            {carica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="mr-1 h-4 w-4" aria-hidden="true" />}{t("Carica la copia firmata")}
           </Button>
         </div>
       )}

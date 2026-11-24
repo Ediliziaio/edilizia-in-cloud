@@ -59,6 +59,7 @@ import {
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
 import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -106,6 +107,7 @@ function uniqueStrings(items: string[]): string[] {
 }
 
 export default function RenderPersianeNew() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -172,7 +174,7 @@ export default function RenderPersianeNew() {
       const file = e.target.files?.[0];
       if (!file) return;
       if (file.size > 20 * 1024 * 1024) {
-        toast.error("File troppo grande (max 20 MB)");
+        toast.error(t("File troppo grande (max 20 MB)"));
         return;
       }
 
@@ -191,7 +193,7 @@ export default function RenderPersianeNew() {
       setResultUrls([]);
       setStep(1);
     },
-    [photoPreview],
+    [photoPreview, t],
   );
 
   const runAnalysis = useCallback(
@@ -222,24 +224,24 @@ export default function RenderPersianeNew() {
             await resolveEdgeFunctionErrorMessage({
               error: fnErr,
               data: fnData,
-              fallback: "Analisi AI persiane fallita",
+              fallback: t("Analisi AI persiane fallita"),
             }),
           );
         }
 
         const normalized = normalizePersianeSceneAnalysis(fnData?.analisi_persiane, meta);
         setAnalysis(normalized);
-        toast.success("Analisi facciata completata");
+        toast.success(t("Analisi facciata completata"));
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Analisi AI persiane fallita";
+        const message = err instanceof Error ? err.message : t("Analisi AI persiane fallita");
         setAnalysis(normalizePersianeSceneAnalysis(null, meta));
         setAnalysisError(message);
-        toast.error(`${message}. Continuo con una lettura assistita di fallback.`);
+        toast.error(t("{message}. Continuo con una lettura assistita di fallback.", { message: String(message ?? "") }));
       } finally {
         setAnalyzing(false);
       }
     },
-    [],
+    [t],
   );
 
   const goToAnalysis = useCallback(async () => {
@@ -273,17 +275,17 @@ export default function RenderPersianeNew() {
         .select("id")
         .single();
 
-      if (sessErr || !sess) throw new Error("Creazione sessione fallita");
+      if (sessErr || !sess) throw new Error(t("Creazione sessione fallita"));
 
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
       await runAnalysis(sid, storagePath, meta ?? null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore durante il caricamento");
+      toast.error(err instanceof Error ? err.message : t("Errore durante il caricamento"));
     } finally {
       setUploading(false);
     }
-  }, [companyId, config, contactId, opportunityId, photo, photoMeta, photoPreview, runAnalysis, user]);
+  }, [companyId, config, contactId, opportunityId, photo, photoMeta, photoPreview, runAnalysis, user, t]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -315,7 +317,7 @@ export default function RenderPersianeNew() {
         if (elapsedRef.current >= MAX_POLL_SEC) {
           stopPolling();
           setGenerating(false);
-          toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
+          toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova."));
           setStep(3);
           return;
         }
@@ -347,7 +349,7 @@ export default function RenderPersianeNew() {
         if (statusRow?.status === "failed") {
           stopPolling();
           setGenerating(false);
-          toast.error(statusRow.error_message || "Render fallito. Controlliamo configurazione e prompt e riproviamo.");
+          toast.error(statusRow.error_message || t("Render fallito. Controlliamo configurazione e prompt e riproviamo."));
           setStep(3);
           return;
         }
@@ -364,7 +366,7 @@ export default function RenderPersianeNew() {
 
       poll();
     },
-    [companyId, queryClient, stopPolling],
+    [companyId, queryClient, stopPolling, t],
   );
 
   const startRender = useCallback(async () => {
@@ -404,11 +406,11 @@ export default function RenderPersianeNew() {
       const msg = await resolveEdgeFunctionErrorMessage({
         error: fnErr,
         data: fnData,
-        fallback: "Generazione fallita",
+        fallback: t("Generazione fallita"),
       });
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
-        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
+        toast.error(t("Crediti render insufficienti. Acquista nuovi crediti."));
       } else {
         toast.error(msg);
       }
@@ -430,7 +432,7 @@ export default function RenderPersianeNew() {
     }
 
     startPolling(sessionId);
-  }, [companyId, generating, photoMeta, queryClient, renderPlan, sessionId, startPolling]);
+  }, [companyId, generating, photoMeta, queryClient, renderPlan, sessionId, startPolling, t]);
 
   const downloadResult = useCallback(async () => {
     const url = resultUrls[0];
@@ -438,9 +440,9 @@ export default function RenderPersianeNew() {
     try {
       await downloadRenderImage(url, `render_persiane_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
-  }, [resultUrls]);
+  }, [resultUrls, t]);
 
   const shareWhatsApp = useCallback(() => {
     const url = resultUrls[0];
@@ -497,12 +499,12 @@ export default function RenderPersianeNew() {
           else if (step === 3) setStep(2);
           else if (step === 4 && !generating) setStep(3);
         }}
-        eyebrow="Sostituzione persiane fotorealistica"
-        title="Stessa casa, nuove persiane"
-        mobileTitle="Render Persiane"
-        description="L'AI sostituisce solo le persiane mantenendo serramenti, contorno e arredo della foto originale."
-        badgeLabel="Render AI — Persiane"
-        stepLabels={["Foto", "Analisi", "Configura", "Elaborazione", "Risultato"]}
+        eyebrow={t("Sostituzione persiane fotorealistica")}
+        title={t("Stessa casa, nuove persiane")}
+        mobileTitle={t("Render Persiane")}
+        description={t("L'AI sostituisce solo le persiane mantenendo serramenti, contorno e arredo della foto originale.")}
+        badgeLabel={t("Render AI — Persiane")}
+        stepLabels={[t("Foto"), t("Analisi"), t("Configura"), t("Elaborazione"), t("Risultato")]}
         currentStep={step}
         accent="rose"
       />
@@ -519,7 +521,7 @@ export default function RenderPersianeNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                Foto facciata / finestra con oscuranti esistenti
+                {t("Foto facciata / finestra con oscuranti esistenti")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -534,20 +536,20 @@ export default function RenderPersianeNew() {
               {!photoPreview && isMobile ? (
                 <ZonaFotoMobile
                   onScegli={() => fileRef.current?.click()}
-                  suggerimento="Frontale, con le finestre e gli oscuranti ben visibili"
+                  suggerimento={t("Frontale, con le finestre e gli oscuranti ben visibili")}
                   accento="emerald"
                 />
               ) : !photoPreview ? (
                 <button
                   type="button"
-                  aria-label="Carica una foto per le persiane"
+                  aria-label={t("Carica una foto per le persiane")}
                   className="w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-green-600/50 transition-colors"
                   onClick={() => fileRef.current?.click()}
                 >
                   <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-                  <p className="text-sm font-medium">Clicca per caricare una foto</p>
+                  <p className="text-sm font-medium">{t("Clicca per caricare una foto")}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Facciata o finestra, JPG/PNG/WEBP, max 20 MB.
+                    {t("Facciata o finestra, JPG/PNG/WEBP, max 20 MB.")}
                   </p>
                 </button>
               ) : (
@@ -555,7 +557,7 @@ export default function RenderPersianeNew() {
                   <div className="rounded-xl overflow-hidden border bg-muted/20">
                     <img loading="lazy"
                       src={photoPreview}
-                      alt="Anteprima"
+                      alt={t("Anteprima")}
                       className="w-full max-h-[420px] object-contain"
                     />
                   </div>
@@ -570,7 +572,7 @@ export default function RenderPersianeNew() {
                     <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
                       <RefreshCw className="h-3 w-3 mr-1.5 max-md:hidden" />
                       <Camera className="hidden h-3.5 w-3.5 mr-1.5 max-md:block" />
-                      Cambia foto
+                      {t("Cambia foto")}
                     </Button>
                   </div>
                 </div>
@@ -596,11 +598,11 @@ export default function RenderPersianeNew() {
             {uploading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Caricamento e preparazione analisi...
+                {t("Caricamento e preparazione analisi...")}
               </>
             ) : (
               <>
-                Avvia analisi facciata
+                {t("Avvia analisi facciata")}
                 <Wand2 className="h-4 w-4 ml-2" />
               </>
             )}
@@ -615,7 +617,7 @@ export default function RenderPersianeNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <ScanSearch className="h-4 w-4" />
-                Analisi facciata e aperture
+                {t("Analisi facciata e aperture")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 max-md:space-y-3 max-md:p-0">
@@ -623,7 +625,7 @@ export default function RenderPersianeNew() {
                 <div className="rounded-lg overflow-hidden border bg-muted/20">
                   <img loading="lazy"
                     src={photoPreview}
-                    alt="Foto originale"
+                    alt={t("Foto originale")}
                     className="w-full max-h-[360px] object-contain"
                   />
                 </div>
@@ -632,19 +634,17 @@ export default function RenderPersianeNew() {
               {analyzing ? (
                 <div className="rounded-xl border bg-muted/20 p-6 text-center">
                   <Loader2 className="h-8 w-8 mx-auto animate-spin text-green-600" />
-                  <p className="mt-3 font-medium max-md:text-[13px]">Sto leggendo facciata, aperture e oscuranti esistenti</p>
+                  <p className="mt-3 font-medium max-md:text-[13px]">{t("Sto leggendo facciata, aperture e oscuranti esistenti")}</p>
                   <p className="text-sm text-muted-foreground mt-1 max-md:hidden">
-                    Questa analisi serve a capire target, geometrie da preservare e dettagli da non contaminare.
+                    {t("Questa analisi serve a capire target, geometrie da preservare e dettagli da non contaminare.")}
                   </p>
                 </div>
               ) : analysis ? (
                 <>
                   {analysisError && (
                     <div className="rounded-xl border border-amber-400/40 bg-amber-50 p-4">
-                      <p className="text-sm font-medium text-amber-900">Analisi AI parziale</p>
-                      <p className="text-sm text-amber-800 mt-1">
-                        {analysisError}. Ho preparato comunque una base strutturata, così non restiamo bloccati.
-                      </p>
+                      <p className="text-sm font-medium text-amber-900">{t("Analisi AI parziale")}</p>
+                      <p className="text-sm text-amber-800 mt-1">{t("{analysisError}. Ho preparato comunque una base strutturata, così non restiamo bloccati.", { analysisError: String(analysisError ?? "") })}</p>
                     </div>
                   )}
 
@@ -652,13 +652,13 @@ export default function RenderPersianeNew() {
                     {/* Telefono: lo scenario (etichette dell'AI e nota lunga) resta al computer; restano le aperture. */}
                     <Card className="bg-muted/20 max-md:hidden">
                       <CardHeader className="pb-3">
-                        <CardTitle className="text-sm">Scenario rilevato</CardTitle>
+                        <CardTitle className="text-sm">{t("Scenario rilevato")}</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="secondary">{analysis.facadeType}</Badge>
                           <Badge variant="secondary">{analysis.buildingStyle}</Badge>
-                          <Badge variant="secondary">{analysis.openingsVisible} aperture visibili</Badge>
+                          <Badge variant="secondary">{t("{openingsVisible} aperture visibili", { openingsVisible: String(analysis.openingsVisible ?? "") })}</Badge>
                           <Badge variant="secondary">{etichettaAnalisiPersiane("orientamento", analysis.imageOrientation)}</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground leading-relaxed">
@@ -666,12 +666,12 @@ export default function RenderPersianeNew() {
                         </p>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="rounded-lg border bg-background p-3">
-                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Luce / camera</p>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("Luce / camera")}</p>
                             <p className="text-sm mt-1">{analysis.cameraAngle}</p>
                             <p className="text-xs text-muted-foreground mt-1">{analysis.lightingCondition}</p>
                           </div>
                           <div className="rounded-lg border bg-background p-3">
-                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Muro facciata</p>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("Muro facciata")}</p>
                             <p className="text-sm mt-1">{analysis.wallTexture}</p>
                             <p className="text-xs text-muted-foreground mt-1">{analysis.wallColor}</p>
                           </div>
@@ -681,13 +681,13 @@ export default function RenderPersianeNew() {
 
                     <Card className="bg-muted/20">
                       <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
-                        <CardTitle className="text-sm max-md:text-[13px]">Aperture rilevate</CardTitle>
+                        <CardTitle className="text-sm max-md:text-[13px]">{t("Aperture rilevate")}</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-2 max-md:p-3 max-md:pt-0">
                         {analysis.openings.map((opening) => (
                           <div key={opening.id} className="rounded-lg border bg-background p-3 max-md:px-3 max-md:py-2">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-medium max-md:text-[13px]">Apertura {opening.label}</p>
+                              <p className="text-sm font-medium max-md:text-[13px]">{t("Apertura {label}", { label: String(opening.label ?? "") })}</p>
                               <Badge variant="outline" className="max-md:px-1.5 max-md:py-0 max-md:text-[11px] max-md:font-normal">{etichettaAnalisiPersiane("posizione", opening.position)}</Badge>
                             </div>
                             <p className="text-sm mt-1 first-letter:uppercase max-md:mt-0.5 max-md:text-[13px]">
@@ -708,21 +708,21 @@ export default function RenderPersianeNew() {
 
           {/* Telefono: una riga — indietro e rianalizza a icona, «Continua» che prende il resto. */}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between max-md:flex-row max-md:gap-2">
-            <Button variant="outline" onClick={() => setStep(1)} disabled={analyzing} className="max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label="Torna alla foto">
+            <Button variant="outline" onClick={() => setStep(1)} disabled={analyzing} className="max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label={t("Torna alla foto")}>
               <ArrowLeft className="hidden h-4 w-4 max-md:block" />
-              <span className="max-md:hidden">Torna alla foto</span>
+              <span className="max-md:hidden">{t("Torna alla foto")}</span>
             </Button>
             <div className="flex gap-2 max-md:min-w-0 max-md:flex-1">
-              <Button variant="outline" onClick={rerunAnalysis} disabled={analyzing || !sessionId || !photoPath} className="max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label="Rianalizza">
+              <Button variant="outline" onClick={rerunAnalysis} disabled={analyzing || !sessionId || !photoPath} className="max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label={t("Rianalizza")}>
                 <RefreshCw className="h-4 w-4 mr-2 max-md:mr-0" />
-                <span className="max-md:hidden">Rianalizza</span>
+                <span className="max-md:hidden">{t("Rianalizza")}</span>
               </Button>
               <Button
                 className="bg-green-600 hover:bg-green-700 max-md:min-w-0 max-md:flex-1"
                 disabled={analyzing || !analysis}
                 onClick={() => setStep(3)}
               >
-                Continua alla configurazione
+                {t("Continua alla configurazione")}
                 <Wand2 className="h-4 w-4 ml-2" />
               </Button>
             </div>
@@ -736,7 +736,7 @@ export default function RenderPersianeNew() {
             <div className="rounded-xl overflow-hidden border bg-muted/20">
               <img loading="lazy"
                 src={photoPreview}
-                alt="Originale"
+                alt={t("Originale")}
                 className="w-full max-h-[260px] object-contain"
               />
             </div>
@@ -745,7 +745,7 @@ export default function RenderPersianeNew() {
           <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr] max-md:grid-cols-1 max-md:gap-3">
             <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardHeader className="max-md:hidden">
-                <CardTitle className="text-base">Configura persiane e dettagli tecnici</CardTitle>
+                <CardTitle className="text-base">{t("Configura persiane e dettagli tecnici")}</CardTitle>
               </CardHeader>
               <CardContent className="max-md:p-0">
                 <PersianeConfigForm
@@ -760,20 +760,20 @@ export default function RenderPersianeNew() {
             <div className="space-y-4 max-md:hidden">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Scope render</CardTitle>
+                  <CardTitle className="text-sm">{t("Scope render")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap gap-2">
                     {renderPlan?.target_selection.targetLabels.map((label) => (
-                      <Badge key={label}>Apertura {label}</Badge>
+                      <Badge key={label}>{t("Apertura {label}", { label: String(label ?? "") })}</Badge>
                     ))}
                   </div>
                   <div className="space-y-2">
                     {renderPlan?.technical_specification.map((spec) => (
                       <div key={spec.openingId} className="rounded-lg border bg-muted/20 p-3">
-                        <p className="text-sm font-medium">Apertura {spec.openingLabel}</p>
+                        <p className="text-sm font-medium">{t("Apertura {openingLabel}", { openingLabel: String(spec.openingLabel ?? "") })}</p>
                         <p className="text-sm text-muted-foreground mt-1 capitalize">
-                          {spec.targetType ? spec.targetType.replace(/_/g, " ") : "rimozione oscurante"}
+                          {spec.targetType ? spec.targetType.replace(/_/g, " ") : t("rimozione oscurante")}
                         </p>
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {spec.material && <Badge variant="secondary">{spec.material.replace(/_/g, " ")}</Badge>}
@@ -788,7 +788,7 @@ export default function RenderPersianeNew() {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Regole di sostituzione</CardTitle>
+                  <CardTitle className="text-sm">{t("Regole di sostituzione")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {renderPlan?.replacement_manifest.targetOpenings.map((item) => (
@@ -811,7 +811,7 @@ export default function RenderPersianeNew() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" />
-                    Elementi da preservare
+                    {t("Elementi da preservare")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2">
@@ -832,7 +832,7 @@ export default function RenderPersianeNew() {
             disabled={!renderPlan || generating}
           >
             <Zap className="h-4 w-4 mr-2" />
-            Genera render AI
+            {t("Genera render AI")}
           </Button>
         </div>
       )}
@@ -843,7 +843,7 @@ export default function RenderPersianeNew() {
           elapsedSec={pollState.elapsedSec}
           dots={pollState.dots}
           accent="rose"
-          subjectLabel="L'AI sta elaborando il render delle persiane"
+          subjectLabel={t("L'AI sta elaborando il render delle persiane")}
         />
       )}
 
@@ -854,9 +854,9 @@ export default function RenderPersianeNew() {
             <CardContent className="py-4 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <div>
-                <p className="text-sm font-medium text-green-700">Render completato con successo</p>
+                <p className="text-sm font-medium text-green-700">{t("Render completato con successo")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Confronta il prima/dopo e valida se il tipo persiana scelto risulta chiarissimo e credibile.
+                  {t("Confronta il prima/dopo e valida se il tipo persiana scelto risulta chiarissimo e credibile.")}
                 </p>
               </div>
             </CardContent>
@@ -865,9 +865,9 @@ export default function RenderPersianeNew() {
           {photoPreview && (
             <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardHeader className="pb-3 max-md:hidden">
-                <CardTitle className="text-base">Confronto prima / dopo</CardTitle>
+                <CardTitle className="text-base">{t("Confronto prima / dopo")}</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Il confronto mantiene il rapporto reale della foto originale.
+                  {t("Il confronto mantiene il rapporto reale della foto originale.")}
                 </p>
               </CardHeader>
               <CardContent className="max-md:p-0">
@@ -881,14 +881,14 @@ export default function RenderPersianeNew() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
-                Render finale
+                {t("Render finale")}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
               <div className="rounded-xl overflow-hidden border bg-muted/20">
                 <img loading="lazy"
                   src={resultUrls[0]}
-                  alt="Render persiane"
+                  alt={t("Render persiane")}
                   className="w-full max-h-[75vh] object-contain"
                 />
               </div>
@@ -898,7 +898,7 @@ export default function RenderPersianeNew() {
           {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
           {isMobile && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-persiane" className="min-w-0 flex-1" />
@@ -908,11 +908,11 @@ export default function RenderPersianeNew() {
           <div className="flex gap-2 max-md:hidden">
             <Button variant="outline" className="flex-1" onClick={shareWhatsApp}>
               <Share2 className="h-4 w-4 mr-2" />
-              Condividi
+              {t("Condividi")}
             </Button>
             <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={downloadResult}>
               <Download className="h-4 w-4 mr-2" />
-              Scarica
+              {t("Scarica")}
             </Button>
           </div>
 
@@ -923,7 +923,7 @@ export default function RenderPersianeNew() {
             onEditChoices={() => setStep(3)}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel="Genera nuova variante persiane"
+            regenerateLabel={t("Genera nuova variante persiane")}
           />
 
           <Button
@@ -932,7 +932,7 @@ export default function RenderPersianeNew() {
             onClick={nuovoRender}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
-            Nuovo render
+            {t("Nuovo render")}
           </Button>
         </div>
       )}

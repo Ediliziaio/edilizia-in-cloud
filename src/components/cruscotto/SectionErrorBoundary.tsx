@@ -1,5 +1,12 @@
 import { Component, ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Il titolo dell'errore, nella lingua di chi guarda (la classe non può usare gli hook). */
+function TitoloErrore({ sezione }: { sezione: string }) {
+  const t = useT();
+  return <>{t("Errore nel caricamento: {sezione}", { sezione })}</>;
+}
 
 interface Props {
   children: ReactNode;
@@ -25,7 +32,7 @@ export class SectionErrorBoundary extends Component<Props, State> {
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
             <span className="text-sm font-semibold text-destructive">
-              Errore nel caricamento: {this.props.sectionName}
+              <TitoloErrore sezione={this.props.sectionName} />
             </span>
           </div>
           <p className="text-xs text-muted-foreground">

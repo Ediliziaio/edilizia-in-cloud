@@ -11,6 +11,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MemoryLite {
   id: string;
@@ -42,6 +43,7 @@ function DonutChart({
   size?: number;
   strokeWidth?: number;
 }) {
+  const t = useT();
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   if (total === 0) {
     return (
@@ -49,7 +51,7 @@ function DonutChart({
         className="rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center text-[8px] text-slate-300"
         style={{ width: size, height: size }}
       >
-        Nessuna
+        {t("Nessuna")}
       </div>
     );
   }
@@ -107,13 +109,14 @@ function Sparkline({
   width?: number;
   height?: number;
 }) {
+  const t = useT();
   if (values.length === 0) {
     return (
       <div
         className="flex items-center justify-center text-[8px] text-slate-300 border-t border-dashed border-slate-700"
         style={{ width, height }}
       >
-        Nessun dato
+        {t("Nessun dato")}
       </div>
     );
   }
@@ -162,6 +165,7 @@ function Sparkline({
  * 14 settimane × 7 giorni (98 celle) — colorato per # memorie create quel giorno.
  */
 function ActivityHeatmap({ memories }: { memories: MemoryLite[] }) {
+  const t = useT();
   const data = useMemo(() => {
     const dayMs = 24 * 60 * 60 * 1000;
     const weeks = 14;
@@ -216,7 +220,7 @@ function ActivityHeatmap({ memories }: { memories: MemoryLite[] }) {
     <div className="pt-1.5 border-t border-slate-700">
       <div className="flex items-center justify-between mb-1">
         <span className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">
-          Attività 14 settimane
+          {t("Attività 14 settimane")}
         </span>
         <div className="flex items-center gap-0.5">
           <span className="text-[8px] text-slate-300">-</span>
@@ -243,7 +247,7 @@ function ActivityHeatmap({ memories }: { memories: MemoryLite[] }) {
               fill={cellColor(day.count)}
             >
               <title>
-                {day.date.toLocaleDateString("it-IT")} — {day.count} {day.count === 1 ? "memoria" : "memorie"}
+                {day.date.toLocaleDateString(intlCampo())} — {day.count} {day.count === 1 ? t("memoria") : t("memorie")}
               </title>
             </rect>
           )),
@@ -254,6 +258,7 @@ function ActivityHeatmap({ memories }: { memories: MemoryLite[] }) {
 }
 
 export function BrainPersonaStats({ memories, typeColors, typeLabels }: Props) {
+  const t = useT();
   const stats = useMemo(() => {
     const enabled = memories.filter((m) => m.enabled);
 
@@ -300,7 +305,7 @@ export function BrainPersonaStats({ memories, typeColors, typeLabels }: Props) {
   }, [memories, typeColors, typeLabels]);
 
   if (stats.total === 0) {
-    return <p className="text-[10px] text-slate-300 italic">Nessuna memoria attiva.</p>;
+    return <p className="text-[10px] text-slate-300 italic">{t("Nessuna memoria attiva.")}</p>;
   }
 
   return (
@@ -327,8 +332,8 @@ export function BrainPersonaStats({ memories, typeColors, typeLabels }: Props) {
       {/* Sparkline trend 30gg */}
       <div className="pt-1.5 border-t border-slate-700">
         <div className="flex items-center justify-between mb-0.5">
-          <span className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Trend 30gg</span>
-          <span className="text-[9px] text-slate-300">{stats.totalHits} richiami</span>
+          <span className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">{t("Trend 30gg")}</span>
+          <span className="text-[9px] text-slate-300">{t("{totalHits} richiami", { totalHits: String(stats.totalHits ?? "") })}</span>
         </div>
         <Sparkline values={stats.sparkline} color="#fb923c" width={228} height={26} />
       </div>
@@ -339,7 +344,7 @@ export function BrainPersonaStats({ memories, typeColors, typeLabels }: Props) {
       {/* Top 3 memorie più richiamate */}
       {stats.top.length > 0 && (
         <div className="pt-1.5 border-t border-slate-700">
-          <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1">Top richiamate</p>
+          <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1">{t("Top richiamate")}</p>
           <div className="space-y-1">
             {stats.top.map((m) => {
               const color = typeColors[m.memory_type] ?? "#94a3b8";

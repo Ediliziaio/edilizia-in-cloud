@@ -31,6 +31,7 @@ import {
 } from "@/lib/controlloGestione/prodottiMargine";
 import { cn } from "@/lib/utils";
 import { Package, TrendingUp, TrendingDown } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
@@ -123,6 +124,7 @@ async function leggiRighe(companyId: string, anno: number): Promise<RigaProdotto
 }
 
 export function TabProdotti({ anno }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [dim, setDim] = useState<DimensioneProdotti>("fase");
   // Vista: marginalità (dove guadagno/perdo) vs controllo costi (listino vs reale).
@@ -155,8 +157,8 @@ export function TabProdotti({ anno }: Props) {
     return (
       <EmptyState
         icon={<Package className="h-6 w-6 text-muted-foreground" />}
-        title="Nessun articolo nelle commesse dell'anno"
-        description={`Nelle commesse aperte nel ${anno} non ci sono articoli. Aggiungili alle commesse per vedere su quali materiali guadagni di più.`}
+        title={t("Nessun articolo nelle commesse dell'anno")}
+        description={t("Nelle commesse aperte nel {anno} non ci sono articoli. Aggiungili alle commesse per vedere su quali materiali guadagni di più.", { anno: String(anno ?? "") })}
       />
     );
   }
@@ -169,9 +171,7 @@ export function TabProdotti({ anno }: Props) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Articoli delle commesse aperte nel {anno} ({totali.righe} righe; commesse cancellate escluse).
-      </p>
+      <p className="text-xs text-muted-foreground">{t("Articoli delle commesse aperte nel {anno} ({righe} righe; commesse cancellate escluse).", { anno: String(anno ?? ""), righe: String(totali.righe ?? "") })}</p>
       {/* Switch vista: Marginalità (dove guadagno/perdo) vs Controllo costi */}
       <ToggleGroup
         type="single"
@@ -180,23 +180,23 @@ export function TabProdotti({ anno }: Props) {
         size="sm"
         className="flex-wrap justify-start"
       >
-        <ToggleGroupItem value="marginalita">Margine sui materiali</ToggleGroupItem>
-        <ToggleGroupItem value="costi">Costo di listino contro costo reale</ToggleGroupItem>
+        <ToggleGroupItem value="marginalita">{t("Margine sui materiali")}</ToggleGroupItem>
+        <ToggleGroupItem value="costi">{t("Costo di listino contro costo reale")}</ToggleGroupItem>
       </ToggleGroup>
 
       {vista === "marginalita" && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KPI label="Venduto (dai preventivi)" value={formatCurrency(totali.ricavo)} sub="Prezzo di vendita delle righe, sconti tolti" />
-            <KPI label="Costo materiali" value={formatCurrency(totali.costo_con_ricavo)} sub="Delle stesse righe" />
+            <KPI label={t("Venduto (dai preventivi)")} value={formatCurrency(totali.ricavo)} sub={t("Prezzo di vendita delle righe, sconti tolti")} />
+            <KPI label={t("Costo materiali")} value={formatCurrency(totali.costo_con_ricavo)} sub={t("Delle stesse righe")} />
             <KPI
-              label="Margine sui materiali"
+              label={t("Margine sui materiali")}
               value={formatCurrency(totali.margine)}
               valueClass={margTotColor}
-              sub={totali.margine_perc != null ? `${percIt(totali.margine_perc)} del venduto` : "—"}
+              sub={totali.margine_perc != null ? t("{valore} del venduto", { valore: percIt(totali.margine_perc) }) : "—"}
             />
             <KPI
-              label={dim === "prodotto" ? "Prodotto con meno margine" : "Gruppo con meno margine"}
+              label={dim === "prodotto" ? t("Prodotto con meno margine") : t("Gruppo con meno margine")}
               value={peggiore ? peggiore.label : "—"}
               title={peggiore?.label}
               valueClass="truncate text-lg"
@@ -206,34 +206,35 @@ export function TabProdotti({ anno }: Props) {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Margine sui soli materiali (vendita − acquisto): manodopera e spese di cantiere sono nella scheda Commesse.
-            {totali.righe_senza_ricavo > 0 && <> Fuori dal margine: {formatCurrency(totali.costo_senza_ricavo)} di costi senza prezzo di vendita ({totali.righe_senza_ricavo} {totali.righe_senza_ricavo === 1 ? "riga" : "righe"}).</>}
-            {totali.righe_senza_costo > 0 && <> Fuori dal margine: {formatCurrency(totali.ricavo_senza_costo)} di vendite senza costo ({totali.righe_senza_costo} {totali.righe_senza_costo === 1 ? "riga" : "righe"}).</>}
+            {t("Margine sui soli materiali (vendita − acquisto): manodopera e spese di cantiere sono nella scheda Commesse.")}
+            {totali.righe_senza_ricavo > 0 && <> {(totali.righe_senza_ricavo === 1 ? t("Fuori dal margine: {importo} di costi senza prezzo di vendita ({n} riga).", { importo: formatCurrency(totali.costo_senza_ricavo), n: totali.righe_senza_ricavo }) : t("Fuori dal margine: {importo} di costi senza prezzo di vendita ({n} righe).", { importo: formatCurrency(totali.costo_senza_ricavo), n: totali.righe_senza_ricavo }))}</>}
+            {totali.righe_senza_costo > 0 && <> {(totali.righe_senza_costo === 1 ? t("Fuori dal margine: {importo} di vendite senza costo ({n} riga).", { importo: formatCurrency(totali.ricavo_senza_costo), n: totali.righe_senza_costo }) : t("Fuori dal margine: {importo} di vendite senza costo ({n} righe).", { importo: formatCurrency(totali.ricavo_senza_costo), n: totali.righe_senza_costo }))}</>}
           </p>
         </>
       )}
 
       {vista === "costi" && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <KPI label="Costo reale" value={formatCurrency(totali.costo_reale)} sub="Tutte le righe" />
-          <KPI label="Costo di listino" value={formatCurrency(totali.costo_standard)} sub={`Sulle ${totali.con_baseline} righe che lo hanno`} />
+          <KPI label={t("Costo reale")} value={formatCurrency(totali.costo_reale)} sub={t("Tutte le righe")} />
+          <KPI label={t("Costo di listino")} value={formatCurrency(totali.costo_standard)} sub={t("Sulle {n} righe che lo hanno", { n: totali.con_baseline })} />
           <KPI
-            label="Differenza dal listino"
+            label={t("Differenza dal listino")}
             value={`${scostTot > 0 ? "+" : ""}${formatCurrency(scostTot)}`}
             valueClass={overColor}
             icon={scostTot > 0.005 ? <TrendingUp className="h-5 w-5" /> : scostTot < -0.005 ? <TrendingDown className="h-5 w-5" /> : null}
             sub={totali.scostamento_perc != null
-              ? `${totali.scostamento_perc > 0 ? "+" : ""}${percIt(totali.scostamento_perc)} rispetto al listino`
-              : "Nessuna riga con costo di listino"}
+              ? t("{valore} rispetto al listino", { valore: `${totali.scostamento_perc > 0 ? "+" : ""}${percIt(totali.scostamento_perc)}` })
+              : t("Nessuna riga con costo di listino")}
           />
-          <KPI label="Righe con costo di listino" value={`${baselinePerc}%`} sub={`${totali.con_baseline} su ${totali.righe} righe`} />
+          <KPI label={t("Righe con costo di listino")} value={`${baselinePerc}%`} sub={t("{n} su {totale} righe", { n: totali.con_baseline, totale: totali.righe })} />
         </div>
       )}
 
       {vista === "costi" && baselinePerc < 50 && (
         <p className="text-xs text-muted-foreground">
-          {totali.con_baseline === 0 ? "Nessuna riga ha un costo di listino" : `Solo il ${baselinePerc}% delle righe ha un costo di listino`}:
-          il confronto vale su quelle. Gli articoli presi dal listino lo salvano da soli.
+          {totali.con_baseline === 0
+            ? t("Nessuna riga ha un costo di listino: il confronto vale su quelle. Gli articoli presi dal listino lo salvano da soli.")
+            : t("Solo il {perc}% delle righe ha un costo di listino: il confronto vale su quelle. Gli articoli presi dal listino lo salvano da soli.", { perc: baselinePerc })}
         </p>
       )}
 
@@ -241,13 +242,13 @@ export function TabProdotti({ anno }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ToggleGroup type="single" value={dim} onValueChange={(v) => v && setDim(v as DimensioneProdotti)} size="sm" className="flex-wrap justify-start">
           {DIMENSIONI.map((d) => (
-            <ToggleGroupItem key={d.value} value={d.value}>{d.label}</ToggleGroupItem>
+            <ToggleGroupItem key={d.value} value={d.value}>{t(d.label)}</ToggleGroupItem>
           ))}
         </ToggleGroup>
         <div className="flex flex-wrap items-center gap-2">
           {Object.entries(fonteMix).map(([f, n]) => (
             <Badge key={f} variant="outline" className="text-[10px] font-normal">
-              {FONTE_LABEL[f] ?? f}: {n}
+              {FONTE_LABEL[f] ? t(FONTE_LABEL[f]) : f}: {n}
             </Badge>
           ))}
           <EsportaMenu anno={anno} sezioni={[]} titolo={vista === "marginalita" ? "Margine sui materiali" : "Costo di listino e costo reale"}
@@ -308,22 +309,22 @@ export function TabProdotti({ anno }: Props) {
       <Card>
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-sm">
-            <caption className="sr-only">{vista === "marginalita" ? "Margine sui materiali" : "Costo di listino e costo reale"} per {colonna.toLowerCase()}</caption>
+            <caption className="sr-only">{vista === "marginalita" ? t("Margine sui materiali per {colonna}", { colonna: t(colonna).toLowerCase() }) : t("Costo di listino e costo reale per {colonna}", { colonna: t(colonna).toLowerCase() })}</caption>
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
-                <th scope="col" className="p-3 font-medium">{colonna}</th>
-                <th scope="col" className="p-3 text-right font-medium">Righe</th>
+                <th scope="col" className="p-3 font-medium">{t(colonna)}</th>
+                <th scope="col" className="p-3 text-right font-medium">{t("Righe")}</th>
                 {vista === "marginalita" ? (
                   <>
-                    <th scope="col" className="p-3 text-right font-medium">Venduto</th>
-                    <th scope="col" className="p-3 text-right font-medium">Costo materiali</th>
-                    <th scope="col" className="p-3 text-right font-medium">Margine</th>
+                    <th scope="col" className="p-3 text-right font-medium">{t("Venduto")}</th>
+                    <th scope="col" className="p-3 text-right font-medium">{t("Costo materiali")}</th>
+                    <th scope="col" className="p-3 text-right font-medium">{t("Margine")}</th>
                   </>
                 ) : (
                   <>
-                    <th scope="col" className="p-3 text-right font-medium">Costo di listino</th>
-                    <th scope="col" className="p-3 text-right font-medium">Costo reale</th>
-                    <th scope="col" className="p-3 text-right font-medium">Differenza</th>
+                    <th scope="col" className="p-3 text-right font-medium">{t("Costo di listino")}</th>
+                    <th scope="col" className="p-3 text-right font-medium">{t("Costo reale")}</th>
+                    <th scope="col" className="p-3 text-right font-medium">{t("Differenza")}</th>
                   </>
                 )}
               </tr>
@@ -338,15 +339,15 @@ export function TabProdotti({ anno }: Props) {
                 return (
                   <tr key={a.key} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="p-3">
-                      <div className="max-w-[280px] truncate font-medium" title={a.label}>{a.label}</div>
+                      <div className="max-w-[280px] truncate font-medium" title={a.label}>{t(a.label)}</div>
                       {vista === "costi" && a.con_baseline < a.n_righe && (
                         <div className="text-[10px] text-muted-foreground">
-                          {a.con_baseline === 0 ? "Nessuna riga dal listino" : `${a.con_baseline} su ${a.n_righe} righe con costo di listino`}
+                          {a.con_baseline === 0 ? t("Nessuna riga dal listino") : t("{con_baseline} su {n_righe} righe con costo di listino", { con_baseline: String(a.con_baseline ?? ""), n_righe: String(a.n_righe ?? "") })}
                         </div>
                       )}
                       {vista === "marginalita" && a.righe_senza_ricavo > 0 && (
                         <div className="text-[10px] font-medium text-amber-700">
-                          {formatCurrency(a.costo_senza_ricavo)} di costi senza prezzo di vendita ({a.righe_senza_ricavo} {a.righe_senza_ricavo === 1 ? "riga" : "righe"})
+                          {(a.righe_senza_ricavo === 1 ? t("{importo} di costi senza prezzo di vendita ({n} riga)", { importo: formatCurrency(a.costo_senza_ricavo), n: a.righe_senza_ricavo }) : t("{importo} di costi senza prezzo di vendita ({n} righe)", { importo: formatCurrency(a.costo_senza_ricavo), n: a.righe_senza_ricavo }))}
                         </div>
                       )}
                     </td>
@@ -362,7 +363,7 @@ export function TabProdotti({ anno }: Props) {
                               {mp != null && <span className={cn("ml-1 text-[11px]", margColor)}>({percIt(mp, 0)})</span>}
                             </>
                           ) : (
-                            <span className="text-xs font-medium text-amber-700">Costo senza preventivo</span>
+                            <span className="text-xs font-medium text-amber-700">{t("Costo senza preventivo")}</span>
                           )}
                         </td>
                       </>

@@ -17,9 +17,10 @@ import {
 import { calcolaCassaCumulata, type InputCassaCumulata } from "@/lib/fotovoltaico/finanziaria";
 import { CassaCumulataChart } from "@/components/fotovoltaico/CassaCumulataChart";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const eur = (v: number) =>
-  new Intl.NumberFormat("it-IT", {
+  new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0, useGrouping: "always" }).format(v);
@@ -34,8 +35,6 @@ const AUTOCONSUMO_MIN = 0,
 const INFLAZIONE_MIN = 0,
   INFLAZIONE_MAX = 0.06;
 
-const anni = (v: number | null) =>
-  v == null ? "oltre 25 anni" : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })} anni`;
 
 function Slider({
   label,
@@ -112,6 +111,7 @@ export function FvSimulatoreInterattivo({
   conAccumulo: boolean;
   className?: string;
 }) {
+  const t = useT();
   // Stato iniziale clampato nei range degli slider: un valore base fuori range
   // altrimenti renderebbe lo slider incoerente e "modificato" sempre true.
   const costoMassimo=Math.max(COSTO_KWH_MAX,base.costo_kwh_attuale);
@@ -132,7 +132,7 @@ export function FvSimulatoreInterattivo({
     return {
       kpi: calcolaKpiVariante({
         id: "sim",
-        label: "Simulazione",
+        label: t("Simulazione"),
         potenza_kwp: potenzaKwp,
         con_accumulo: conAccumulo,
         cassa: input,
@@ -160,10 +160,10 @@ export function FvSimulatoreInterattivo({
         <div>
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-orange-500" />
-            Simula il tuo risparmio
+            {t("Simula il tuo risparmio")}
           </h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Muovi i parametri e guarda come cambiano risparmio e rientro dell'investimento.
+            {t("Muovi i parametri e guarda come cambiano risparmio e rientro dell'investimento.")}
           </p>
         </div>
         {modificato && (
@@ -172,15 +172,15 @@ export function FvSimulatoreInterattivo({
             onClick={reset}
             className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
           >
-            <RotateCcw className="h-3 w-3" /> Ripristina
+            <RotateCcw className="h-3 w-3" /> {t("Ripristina")}
           </button>
         )}
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-4">
         <Slider
-          label="Prezzo energia oggi"
-          display={`${costoKwh.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/kWh`}
+          label={t("Prezzo energia oggi")}
+          display={`${costoKwh.toLocaleString(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/kWh`}
           value={costoKwh}
           min={COSTO_KWH_MIN}
           max={costoMassimo}
@@ -188,7 +188,7 @@ export function FvSimulatoreInterattivo({
           onChange={setCostoKwh}
         />
         <Slider
-          label="Energia che usi quando produci"
+          label={t("Energia che usi quando produci")}
           display={`${Math.round(autoconsumo * 100)}%`}
           value={autoconsumo}
           min={AUTOCONSUMO_MIN}
@@ -197,8 +197,8 @@ export function FvSimulatoreInterattivo({
           onChange={setAutoconsumo}
         />
         <Slider
-          label="Aumento prezzo energia / anno"
-          display={`${(inflazione * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`}
+          label={t("Aumento prezzo energia / anno")}
+          display={`${(inflazione * 100).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`}
           value={inflazione}
           min={INFLAZIONE_MIN}
           max={INFLAZIONE_MAX}
@@ -210,24 +210,23 @@ export function FvSimulatoreInterattivo({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
         <KpiTile
           icon={PiggyBank}
-          label="Beneficio 1° anno, incluse detrazioni"
+          label={t("Beneficio 1° anno, incluse detrazioni")}
           value={`${eur(kpi.beneficio_lordo_anno_1_eur)}`}
           accent
         />
-        <KpiTile icon={Clock} label="Rientro" value={anni(kpi.payback_anni)} accent />
-        <KpiTile icon={TrendingUp} label="Guadagno netto 25 anni" value={eur(kpi.beneficio_totale_eur)} />
+        <KpiTile icon={Clock} label={t("Rientro")} value={kpi.payback_anni == null ? t("oltre 25 anni") : t("{n} anni", { n: kpi.payback_anni.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })} accent />
+        <KpiTile icon={TrendingUp} label={t("Guadagno netto 25 anni")} value={eur(kpi.beneficio_totale_eur)} />
         <KpiTile
           icon={Sun}
-          label="Costo kWh prodotto"
-          value={`${kpi.lcoe_eur_kwh.toLocaleString("it-IT", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/kWh`}
+          label={t("Costo kWh prodotto")}
+          value={`${kpi.lcoe_eur_kwh.toLocaleString(intlCampo(), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/kWh`}
         />
       </div>
 
       <CassaCumulataChart cassa={cassa} payback={kpi.payback_anni} />
 
       <p className="text-[10px] text-slate-400 mt-3 leading-snug">
-        Simulazione live indicativa basata sulla configurazione scelta. Il preventivo definitivo è
-        calcolato dal nostro sistema sui componenti e gli incentivi reali.
+        {t("Simulazione live indicativa basata sulla configurazione scelta. Il preventivo definitivo è calcolato dal nostro sistema sui componenti e gli incentivi reali.")}
       </p>
     </section>
   );

@@ -24,6 +24,7 @@ import {
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Periodo = "7d" | "30d" | "mese" | "90d";
 
@@ -69,6 +70,7 @@ interface BreakdownData {
 }
 
 export function ConsumptionByService() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [periodo, setPeriodo] = useState<Periodo>("30d");
@@ -106,7 +108,7 @@ export function ConsumptionByService() {
   const servizi = data?.servizi ?? [];
   const giorni = (data?.giorni ?? []).map((g) => ({
     ...g,
-    label: new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short" }).format(new Date(g.giorno)),
+    label: new Intl.DateTimeFormat(intlCampo(), { day: "2-digit", month: "short" }).format(new Date(g.giorno)),
   }));
 
   return (
@@ -116,10 +118,10 @@ export function ConsumptionByService() {
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <BarChart3 className="h-4 w-4 text-primary" />
-              Come stai usando i crediti
+              {t("Come stai usando i crediti")}
             </CardTitle>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Spesa per servizio e andamento nel periodo selezionato
+              {t("Spesa per servizio e andamento nel periodo selezionato")}
             </p>
           </div>
           <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
@@ -128,7 +130,7 @@ export function ConsumptionByService() {
             </SelectTrigger>
             <SelectContent>
               {(Object.keys(PERIOD_LABEL) as Periodo[]).map((p) => (
-                <SelectItem key={p} value={p}>{PERIOD_LABEL[p]}</SelectItem>
+                <SelectItem key={p} value={p}>{t(PERIOD_LABEL[p])}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -147,16 +149,16 @@ export function ConsumptionByService() {
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
               <div>
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Speso nel periodo
+                  {t("Speso nel periodo")}
                 </span>
                 <p className="text-2xl font-bold tabular-nums">{formatEur(totale)}</p>
               </div>
               <div>
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Operazioni
+                  {t("Operazioni")}
                 </span>
                 <p className="text-2xl font-bold tabular-nums">
-                  {(data?.totale_operazioni ?? 0).toLocaleString("it-IT")}
+                  {(data?.totale_operazioni ?? 0).toLocaleString(intlCampo())}
                 </p>
               </div>
             </div>
@@ -164,7 +166,7 @@ export function ConsumptionByService() {
             {/* Breakdown per servizio */}
             {servizi.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
-                Nessun consumo nel periodo selezionato.
+                {t("Nessun consumo nel periodo selezionato.")}
               </p>
             ) : (
               <div className="space-y-2">
@@ -178,10 +180,8 @@ export function ConsumptionByService() {
                       <div className="flex items-center justify-between text-sm">
                         <span className={`flex items-center gap-2 font-medium ${meta.color}`}>
                           {meta.icon}
-                          <span className="text-foreground">{meta.label}</span>
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {s.operations.toLocaleString("it-IT")} operazioni
-                          </span>
+                          <span className="text-foreground">{SERVICE_META[s.service] ? t(meta.label) : meta.label}</span>
+                          <span className="text-xs font-normal text-muted-foreground">{t("{operations} operazioni", { operations: s.operations.toLocaleString(intlCampo()) })}</span>
                         </span>
                         <span className="tabular-nums font-semibold">
                           {formatEur(s.spent_eur)}

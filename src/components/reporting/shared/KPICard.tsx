@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LucideIcon } from "lucide-react";
 import { AnelloPercentuale } from "@/components/charts/grafici/comune";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type ColorKey = "green" | "yellow" | "red" | "blue";
 
@@ -27,6 +28,7 @@ interface KPICardProps {
 }
 
 export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmark, isLoading, variazione, anello }: KPICardProps) {
+  const t = useT();
   const s = colorStyles[colorKey];
   // Telefono: della variazione resta la cifra («▲ +3 pt»), senza «vs periodo precedente».
   const vs = variazione ? variazione.testo.indexOf(" vs ") : -1;
@@ -72,7 +74,7 @@ export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmar
           </p>
         )}
         {benchmark && (
-          <p className="text-[11px] text-muted-foreground/70 mt-2 italic max-sm:hidden">Benchmark: {benchmark}</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-2 italic max-sm:hidden">{t("Benchmark: {benchmark}", { benchmark })}</p>
         )}
       </CardContent>
     </Card>

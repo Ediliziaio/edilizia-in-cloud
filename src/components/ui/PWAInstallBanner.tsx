@@ -2,10 +2,12 @@ import { useState } from "react";
 import { X, Download } from "lucide-react";
 import { usePWAInstallPrompt } from "@/hooks/usePWAInstallPrompt";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const DISMISSED_KEY = "pwa_install_banner_dismissed";
 
 export function PWAInstallBanner() {
+  const t = useT();
   const { canInstall, triggerInstall } = usePWAInstallPrompt();
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem(DISMISSED_KEY) === "true"; } catch { return false; }
@@ -26,7 +28,7 @@ export function PWAInstallBanner() {
     >
       <Download className="h-5 w-5 shrink-0" aria-hidden="true" />
       <p className="flex-1 text-sm font-medium leading-snug">
-        Installa l'app per un'esperienza migliore
+        {t("Installa l'app per un'esperienza migliore")}
       </p>
       <Button
         size="sm"
@@ -34,11 +36,11 @@ export function PWAInstallBanner() {
         className="shrink-0 h-8 text-xs"
         onClick={triggerInstall}
       >
-        Installa
+        {t("Installa")}
       </Button>
       <button
         onClick={handleDismiss}
-        aria-label="Chiudi banner installazione"
+        aria-label={t("Chiudi banner installazione")}
         className="shrink-0 p-1 rounded-full hover:bg-primary-foreground/20 transition-colors"
       >
         <X className="h-4 w-4" aria-hidden="true" />

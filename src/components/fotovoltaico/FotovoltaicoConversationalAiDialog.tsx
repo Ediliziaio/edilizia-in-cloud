@@ -21,6 +21,7 @@ import type { FvPdfTemplateData } from "../../../supabase/functions/_shared/fvHt
 import { nativeCatalogueCandidates } from "../../../supabase/functions/_shared/quoteNative";
 import { useAziendaPerPdf } from "@/lib/serramenti/queries";
 import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function Preview({
   data,
@@ -39,6 +40,7 @@ function Preview({
   createdAt?: string;
   azienda?: FvPdfTemplateData["azienda"];
 }) {
+  const t = useT();
   const form = useImmaginiModelloFirmate(template, CAMPI_IMMAGINE_FOTOVOLTAICO),
     rules = useDiscountRules();
   const { ref: previewRef, scala } = useFitScale(LARGHEZZA_A4_PX);
@@ -83,18 +85,14 @@ function Preview({
   return (
     <section className="overflow-hidden rounded-2xl border bg-white">
       <header className="border-b p-3">
-        <h2 className="font-semibold">Anteprima del modello Fotovoltaico</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Configurazione corrente · IVA{" "}
-          {(data.iva_aliquota * 100).toLocaleString("it-IT")}% inclusa. Rata,
-          detrazioni e risparmi verranno ricalcolati nel passo finanziario.
-        </p>
+        <h2 className="font-semibold">{t("Anteprima del modello Fotovoltaico")}</h2>
+        <p className="mt-1 text-xs text-slate-500">{t("Configurazione corrente · IVA {valore}% inclusa. Rata, detrazioni e risparmi verranno ricalcolati nel passo finanziario.", { valore: (data.iva_aliquota * 100).toLocaleString(intlCampo()) })}</p>
       </header>
       {mappe.errore && <p role="alert" className="bg-amber-50 px-3 py-2 text-xs">{mappe.errore}</p>}
       {error || rules.isError ? (
         <p role="alert" className="p-3 text-orange-800">
           {error ||
-            "Regole economiche non disponibili: anteprima non aggiornata."}
+            t("Regole economiche non disponibili: anteprima non aggiornata.")}
         </p>
       ) : (
         <div
@@ -104,7 +102,7 @@ function Preview({
           {view ? (
             <iframe
               sandbox="allow-same-origin"
-              title="Anteprima modello fotovoltaico"
+              title={t("Anteprima modello fotovoltaico")}
               srcDoc={view.html}
               onLoad={e => mappe.carica(e.currentTarget.contentDocument)}
               className="border-0"
@@ -117,15 +115,15 @@ function Preview({
             />
           ) : (
             <p className="p-4" role="status">
-              Preparo il modello…
+              {t("Preparo il modello…")}
             </p>
           )}
         </div>
       )}
       <footer className="border-t p-3 text-right font-semibold">
         {view
-          ? `${view.total.toLocaleString("it-IT", { style: "currency", currency: "EUR" })} IVA inclusa`
-          : "Nessun importo confermato"}
+          ? t("{total} IVA inclusa", { total: view.total.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" }) })
+          : t("Nessun importo confermato")}
       </footer>
     </section>
   );
@@ -157,6 +155,7 @@ export default function FotovoltaicoConversationalAiDialog({
   onApply: (next: WizardData) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const extra = useFamilies();
   const company = useAziendaPerPdf(companyId);
   const azienda = useMemo(
@@ -281,20 +280,10 @@ export default function FotovoltaicoConversationalAiDialog({
       )}
       summary={(draft) => (
         <ul className="space-y-1">
+          <li>{t("{prima} → {dopo} kWp · {pannelli} pannelli · accumulo {accumulo} kWh", { prima: String(data.potenza_kwp ?? ""), dopo: String(draft.potenza_kwp ?? ""), pannelli: String(draft.numero_pannelli_scelti ?? ""), accumulo: String(draft.capacita_accumulo_kwh ?? "") })}</li>
+          <li>{t("{prodotti} prodotti extra · {manodopera} righe di manodopera · {servizi} servizi", { prodotti: draft.prodotti_extra.length, manodopera: draft.manodopera_righe.length, servizi: draft.servizi_righe.length })}</li>
           <li>
-            {data.potenza_kwp} → {draft.potenza_kwp} kWp ·{" "}
-            {draft.numero_pannelli_scelti} pannelli · accumulo{" "}
-            {draft.capacita_accumulo_kwh} kWh
-          </li>
-          <li>
-            {draft.prodotti_extra.length} prodotti extra ·{" "}
-            {draft.manodopera_righe.length} righe di manodopera ·{" "}
-            {draft.servizi_righe.length} servizi
-          </li>
-          <li>
-            Cliente, tetto, IVA, sconti e modello invariati. Le modifiche sono
-            trasferite alla Fase 5: il salvataggio avviene con «Salva e
-            continua», in un’unica transazione sul preventivo.
+            {t("Cliente, tetto, IVA, sconti e modello invariati. Le modifiche sono trasferite alla Fase 5: il salvataggio avviene con «Salva e continua», in un’unica transazione sul preventivo.")}
           </li>
         </ul>
       )}

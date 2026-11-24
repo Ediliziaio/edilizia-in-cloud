@@ -31,6 +31,7 @@ import type { VerificaLettura } from "../../../../shared/planimetrie/letturaTipi
 import type { AnteprimaCad } from "./comandiCad";
 import type { ConfrontoTramezzoChat } from "./comandiChat";
 import { TracceChatPianta, type AnimazioneChatTela, type IstantaneaChat } from "./TracceChatPianta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type { AnimazioneChatTela } from "./TracceChatPianta";
 
@@ -136,6 +137,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
       sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
+  const tr = useT();
     const px = (n: number) => n / camera.s; // n pixel in cm
     const muri = pianta.muri.filter((m) => visibile(m.stato, vista));
     const aperture = pianta.aperture.filter((a) => visibile(a.stato, vista) && muri.some((m) => m.id === a.muroId));
@@ -468,7 +470,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             const ang = angoloTesto(a, b);
             return (
               <g key={q.id} data-tipo="quota" data-id={q.id} style={{ cursor: "pointer" }}>
-                {q.riferimenti && <title>{daRivedere ? "Aggancio da rivedere" : "Quota associativa"}</title>}
+                {q.riferimenti && <title>{daRivedere ? tr("Aggancio da rivedere") : tr("Quota associativa")}</title>}
                 <line x1={q.p1.x} y1={q.p1.y} x2={a.x} y2={a.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
                 <line x1={q.p2.x} y1={q.p2.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
                 <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(1.4)} />
@@ -542,9 +544,9 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                 pointerEvents="stroke" data-tipo="tratto-impianto" data-id={id} style={{ cursor: "pointer" }} />}
             </g>;
           })}
-          {tracciatoPrima && <polyline aria-label="Tracciato precedente" role="img" points={puntiPercorso(tracciatoPrima).map(p => `${p.x},${-p.y}`).join(" ")}
+          {tracciatoPrima && <polyline aria-label={tr("Tracciato precedente")} role="img" points={puntiPercorso(tracciatoPrima).map(p => `${p.x},${-p.y}`).join(" ")}
             fill="none" pointerEvents="none" stroke="#b45309" strokeWidth={px(3)} strokeDasharray={`${px(7)} ${px(4)}`} strokeLinejoin="round" />}
-          {tracciato && <g pointerEvents="none" role="img" aria-label="Tracciato selezionato sulla pianta">
+          {tracciato && <g pointerEvents="none" role="img" aria-label={tr("Tracciato selezionato sulla pianta")}>
             <polyline points={puntiPercorso(tracciato).map(p => `${p.x},${-p.y}`).join(" ")} fill="none" stroke="white"
               strokeWidth={px(6)} strokeLinecap="round" strokeLinejoin="round" />
             <polyline points={puntiPercorso(tracciato).map(p => `${p.x},${-p.y}`).join(" ")} fill="none"
@@ -558,7 +560,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                 fontSize={px(9)} fontWeight={700}>{i + 1}</text>
             </g>)}
             {attraversamentiTracciato?.map((a, i) => <g key={i}>
-              <title>{a.aperturaId ? `Interferenza in pianta · apertura ${a.aperturaId}` : `Interferenza in pianta · ${a.tipoMuro}`}</title>
+              <title>{a.aperturaId ? tr("Interferenza in pianta · apertura {aperturaId}", { aperturaId: String(a.aperturaId ?? "") }) : tr("Interferenza in pianta · {tipoMuro}", { tipoMuro: String(a.tipoMuro ?? "") })}</title>
               <circle cx={a.punto.x} cy={-a.punto.y} r={px(6)} fill="#fbbf24" stroke="#78350f" strokeWidth={px(1.2)} />
               <text x={a.punto.x} y={-a.punto.y} textAnchor="middle" dominantBaseline="central" fill="#451a03" fontSize={px(9)} fontWeight={700}>!</text>
             </g>)}
@@ -645,10 +647,11 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
   });
 
 function AnteprimaTramezzo({ confronto, px }: { confronto: ConfrontoTramezzoChat; px: (n: number) => number }) {
+  const t = useT();
   const { prima, dopo, interferenze } = confronto;
   const centro = (m: Muro) => ({ x: (m.p1.x + m.p2.x) / 2, y: (m.p1.y + m.p2.y) / 2 });
   const da = centro(prima), a = centro(dopo);
-  return <g pointerEvents="none" role="img" aria-label="Tramezzo prima e dopo lo spostamento">
+  return <g pointerEvents="none" role="img" aria-label={t("Tramezzo prima e dopo lo spostamento")}>
     <line x1={prima.p1.x} y1={prima.p1.y} x2={prima.p2.x} y2={prima.p2.y} stroke="#b45309" strokeWidth={px(2.5)} strokeDasharray={`${px(5)} ${px(4)}`} />
     <line x1={dopo.p1.x} y1={dopo.p1.y} x2={dopo.p2.x} y2={dopo.p2.y} stroke="#0f766e" strokeWidth={px(3)} />
     <line x1={da.x} y1={da.y} x2={a.x} y2={a.y} stroke="#0f766e" strokeWidth={px(1.5)} />
@@ -672,8 +675,9 @@ function AnteprimaModificaCad({ riferimento, esito, px }: NonNullable<Sovrapposi
 }
 
 function IndicatoreAggancio({ aggancio, px }: { aggancio: Aggancio; px: (n: number) => number }) {
+  const t = useT();
   const { punto: p, guida, riferimento } = aggancio;
-  const etichetta = guida === "medio" ? "Punto medio" : guida === "intersezione" ? "Intersezione" : null;
+  const etichetta = guida === "medio" ? t("Punto medio") : guida === "intersezione" ? t("Intersezione") : null;
   const r = px(6);
   return <g pointerEvents="none" data-aggancio={guida}>
     {riferimento && <line x1={riferimento.x} y1={riferimento.y} x2={p.x} y2={p.y} stroke={SELEZIONE}

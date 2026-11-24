@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Plus, MoreHorizontal, Pencil, Trash2, Users, List, ArrowLeft, Search, UserPlus, UserMinus, X, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -78,7 +77,7 @@ function descriviCondizione(r: RegolaLista): string | null {
     case "fonte":
       return `arriva da ${r.valori.join(" o ")}`;
     case "fatturato_minimo":
-      return `fattura almeno ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(r.euro)}`;
+      return `fattura almeno ${new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(r.euro)}`;
     case "email_contattabile":
       return "ha un'email e non si e' disiscritto";
     case "email_pec":
@@ -180,6 +179,7 @@ async function assertContactsBelongToCompany(contactIds: string[], companyId: st
 }
 
 export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters: ContactFilters) => void } = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -248,11 +248,11 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       }
     },
     onSuccess: () => {
-      toast.success(editingList ? "Lista aggiornata" : "Lista creata");
+      toast.success(editingList ? t("Lista aggiornata") : t("Lista creata"));
       invalidate();
       setEditingList(null);
     },
-    onError: () => toast.error("Errore nel salvataggio"),
+    onError: () => toast.error(t("Errore nel salvataggio")),
   });
 
   // Delete list
@@ -267,12 +267,12 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Lista eliminata");
+      toast.success(t("Lista eliminata"));
       invalidate();
       setDeleteConfirm(null);
       if (selectedList) setSelectedList(null);
     },
-    onError: () => toast.error("Errore nell'eliminazione"),
+    onError: () => toast.error(t("Errore nell'eliminazione")),
   });
 
   // Remove member(s)
@@ -290,11 +290,11 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       if (error) throw error;
     },
     onSuccess: (_, contactIds) => {
-      toast.success(`${contactIds.length} contatt${contactIds.length === 1 ? "o rimosso" : "i rimossi"} dalla lista`);
+      toast.success(t(contactIds.length === 1 ? "{n} contatto rimosso dalla lista" : "{n} contatti rimossi dalla lista", { n: contactIds.length }));
       setSelectedMemberIds(new Set());
       invalidate();
     },
-    onError: () => toast.error("Errore nella rimozione"),
+    onError: () => toast.error(t("Errore nella rimozione")),
   });
 
   // I trigger tengono tutto allineato riga per riga e di notte passa il
@@ -309,7 +309,7 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       return righe.reduce((somma, r) => somma + (r.aggiunti ?? 0) + (r.rimossi ?? 0), 0);
     },
     onSuccess: (mosse) => {
-      toast.success(mosse === 0 ? "Le liste erano già in pari" : `${mosse} contatti spostati fra le liste`);
+      toast.success(mosse === 0 ? t("Le liste erano già in pari") : t("{mosse} contatti spostati fra le liste", { mosse: String(mosse ?? "") }));
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -355,30 +355,31 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       {/* Mobile no: creare e riallineare le liste è lavoro da scrivania. */}
       <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <p className="text-sm text-muted-foreground">
-          {lists.length} {lists.length === 1 ? "lista" : "liste"}
-          {listeAutomatiche > 0 && `, di cui ${listeAutomatiche} che si aggiornano da sole`}
+          {listeAutomatiche > 0
+            ? t(lists.length === 1 ? "{n} lista, di cui {listeAutomatiche} che si aggiornano da sole" : "{n} liste, di cui {listeAutomatiche} che si aggiornano da sole", { n: lists.length, listeAutomatiche })
+            : t(lists.length === 1 ? "{n} lista" : "{n} liste", { n: lists.length })}
         </p>
         <div className="flex items-center gap-2">
           {listeAutomatiche > 0 && (
             <Button size="sm" variant="outline" disabled={riallinea.isPending} onClick={() => riallinea.mutate()}>
               <RefreshCw className={`h-4 w-4 mr-1 ${riallinea.isPending ? "animate-spin" : ""}`} />
-              {riallinea.isPending ? "Sto aggiornando…" : "Aggiorna adesso"}
+              {riallinea.isPending ? t("Sto aggiornando…") : t("Aggiorna adesso")}
             </Button>
           )}
           <Button size="sm" onClick={() => { setEditingList(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Nuova Lista
+            <Plus className="h-4 w-4 mr-1" /> {t("Nuova Lista")}
           </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
+        <div className="text-center py-12 text-muted-foreground">{t("Caricamento...")}</div>
       ) : lists.length === 0 ? (
         <div className="text-center py-16 space-y-3 max-sm:py-8">
           <List className="h-12 w-12 mx-auto text-muted-foreground/40 max-sm:hidden" />
-          <p className="text-muted-foreground max-sm:text-[13px]">Nessuna lista creata</p>
+          <p className="text-muted-foreground max-sm:text-[13px]">{t("Nessuna lista creata")}</p>
           <Button variant="outline" className="max-sm:hidden" onClick={() => { setEditingList(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Crea la tua prima lista
+            <Plus className="h-4 w-4 mr-1" /> {t("Crea la tua prima lista")}
           </Button>
         </div>
       ) : (
@@ -394,10 +395,10 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
                 list.filters
                   ? `Dinamica · ${countActiveContactFilters(list.filters)} ${countActiveContactFilters(list.filters) === 1 ? "filtro" : "filtri"}`
                   : list.regola
-                    ? "Si aggiorna da sola"
+                    ? t("Si aggiorna da sola")
                     : undefined
               }
-              valore={list.filters ? undefined : list.member_count.toLocaleString("it-IT")}
+              valore={list.filters ? undefined : list.member_count.toLocaleString(intlCampo())}
               onClick={() =>
                 list.filters
                   ? onApplyDynamic?.(list.filters)
@@ -433,18 +434,18 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
                     <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-muted-foreground">
                       {list.filters ? (
                         <Badge variant="outline" className="h-5 text-[10px] gap-1 border-primary/40 text-primary">
-                          <Search className="h-3 w-3" /> Dinamica · {countActiveContactFilters(list.filters)} {countActiveContactFilters(list.filters) === 1 ? "filtro" : "filtri"}
+                          <Search className="h-3 w-3" /> {t(countActiveContactFilters(list.filters) === 1 ? "Dinamica · {n} filtro" : "Dinamica · {n} filtri", { n: countActiveContactFilters(list.filters) })}
                         </Badge>
                       ) : (
                         <span className="flex items-center gap-1">
                           <Users className="h-3.5 w-3.5 shrink-0" />
-                          <span className="tabular-nums">{list.member_count.toLocaleString("it-IT")}</span> contatti
+                          <span className="tabular-nums">{t(list.member_count === 1 ? "{n} contatto" : "{n} contatti", { n: list.member_count.toLocaleString(intlCampo()) })}</span>
                         </span>
                       )}
                       {list.regola && (
-                        <Badge variant="secondary" className="h-5 text-[10px]">Si aggiorna da sola</Badge>
+                        <Badge variant="secondary" className="h-5 text-[10px]">{t("Si aggiorna da sola")}</Badge>
                       )}
-                      <span>{format(new Date(list.created_at), "dd MMM yyyy", { locale: it })}</span>
+                      <span>{format(new Date(list.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}</span>
                     </div>
                   </div>
                   <DropdownMenu>
@@ -455,10 +456,10 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenuItem onClick={() => { setEditingList(list); setDialogOpen(true); }}>
-                        <Pencil className="h-4 w-4 mr-2" /> Rinomina
+                        <Pencil className="h-4 w-4 mr-2" /> {t("Rinomina")}
                       </DropdownMenuItem>
                       <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm(list)}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                        <Trash2 className="h-4 w-4 mr-2" /> {t("Elimina")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -482,18 +483,18 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la lista "{deleteConfirm?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare la lista \"{name}\"?", { name: String(deleteConfirm?.name ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              I contatti al suo interno non verranno eliminati, verrà rimossa solo la lista e le associazioni.
+              {t("I contatti al suo interno non verranno eliminati, verrà rimossa solo la lista e le associazioni.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteConfirm && deleteMutation.mutate(deleteConfirm.id)}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -505,6 +506,7 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
 // ─── List Detail View ───────────────────────────────────────────────────────
 
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ListDetailViewProps {
   listId: string;
@@ -526,6 +528,7 @@ function ListDetailView({
   memberSearch, setMemberSearch, selectedMemberIds,
   onToggleMember, onToggleAll, onBack, onRemoveMembers,
 }: ListDetailViewProps) {
+  const t = useT();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [pagina, setPagina] = useState(0);
   const queryClient = useQueryClient();
@@ -599,10 +602,10 @@ function ListDetailView({
           <h2 className="text-lg font-semibold truncate">{listName}</h2>
           {listDescription && <p className="text-sm text-muted-foreground">{listDescription}</p>}
         </div>
-        <Badge variant="secondary">{totale.toLocaleString("it-IT")} contatti</Badge>
+        <Badge variant="secondary">{t("{totale} contatti", { totale: totale.toLocaleString(intlCampo()) })}</Badge>
         {!regola && (
           <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-1" /> Aggiungi contatti
+            <UserPlus className="h-4 w-4 mr-1" /> {t("Aggiungi contatti")}
           </Button>
         )}
       </div>
@@ -611,11 +614,8 @@ function ListDetailView({
         <div className="flex items-start gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
           <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <p className="font-medium">Questa lista si aggiorna da sola</p>
-            <p className="text-muted-foreground">
-              {descriviRegola(regola)}. I contatti entrano ed escono appena cambiano, quindi qui non si
-              aggiunge e non si toglie nessuno a mano: al primo aggiornamento tornerebbe come prima.
-            </p>
+            <p className="font-medium">{t("Questa lista si aggiorna da sola")}</p>
+            <p className="text-muted-foreground">{t("{regola}. I contatti entrano ed escono appena cambiano, quindi qui non si aggiunge e non si toglie nessuno a mano: al primo aggiornamento tornerebbe come prima.", { regola: String(descriviRegola(regola) ?? "") })}</p>
           </div>
         </div>
       )}
@@ -624,7 +624,7 @@ function ListDetailView({
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Cerca nella lista..."
+          placeholder={t("Cerca nella lista...")}
           className="pl-9"
           value={memberSearch}
           onChange={(e) => setMemberSearch(e.target.value)}
@@ -634,9 +634,9 @@ function ListDetailView({
       {/* Bulk actions */}
       {selectedMemberIds.size > 0 && !regola && (
         <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-2 text-sm">
-          <span className="font-medium">{selectedMemberIds.size} selezionati</span>
+          <span className="font-medium">{t("{size} selezionati", { size: String(selectedMemberIds.size ?? "") })}</span>
           <Button size="sm" variant="outline" onClick={() => onRemoveMembers(Array.from(selectedMemberIds))}>
-            <UserMinus className="h-4 w-4 mr-1" /> Rimuovi dalla lista
+            <UserMinus className="h-4 w-4 mr-1" /> {t("Rimuovi dalla lista")}
           </Button>
         </div>
       )}
@@ -649,23 +649,23 @@ function ListDetailView({
               <TableHead className="w-[40px]">
                 {!regola && <Checkbox checked={allSelected} onCheckedChange={() => onToggleAll(filtered)} />}
               </TableHead>
-              <TableHead>Nome del Contatto</TableHead>
-              <TableHead>Telefono</TableHead>
+              <TableHead>{t("Nome del Contatto")}</TableHead>
+              <TableHead>{t("Telefono")}</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Azienda</TableHead>
-              <TableHead>Tag</TableHead>
+              <TableHead>{t("Azienda")}</TableHead>
+              <TableHead>{t("Tag")}</TableHead>
               <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">Caricamento...</TableCell>
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">{t("Caricamento...")}</TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                  {ricerca ? "Nessun risultato" : "Nessun contatto in questa lista"}
+                  {ricerca ? t("Nessun risultato") : t("Nessun contatto in questa lista")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -704,7 +704,7 @@ function ListDetailView({
                           variant="ghost"
                           className="h-7 w-7 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
                           onClick={() => onRemoveMembers([m.contact_id])}
-                          title="Rimuovi dalla lista"
+                          title={t("Rimuovi dalla lista")}
                         >
                           <X className="h-3.5 w-3.5" />
                         </Button>
@@ -720,17 +720,13 @@ function ListDetailView({
 
       {totale > MEMBRI_PER_PAGINA && (
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            Da {(pagina * MEMBRI_PER_PAGINA + 1).toLocaleString("it-IT")} a{" "}
-            {Math.min((pagina + 1) * MEMBRI_PER_PAGINA, totale).toLocaleString("it-IT")} di{" "}
-            {totale.toLocaleString("it-IT")}
-          </span>
+          <span className="text-muted-foreground">{t("Da {valore} a {valore2} di {totale}", { valore: (pagina * MEMBRI_PER_PAGINA + 1).toLocaleString(intlCampo()), valore2: Math.min((pagina + 1) * MEMBRI_PER_PAGINA, totale).toLocaleString(intlCampo()), totale: totale.toLocaleString(intlCampo()) })}</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled={pagina === 0} onClick={() => setPagina(p => Math.max(0, p - 1))}>
-              Precedenti
+              {t("Precedenti")}
             </Button>
             <Button variant="outline" size="sm" disabled={pagina >= ultimaPagina} onClick={() => setPagina(p => p + 1)}>
-              Successivi
+              {t("Successivi")}
             </Button>
           </div>
         </div>
@@ -761,6 +757,7 @@ interface AddContactsToListDialogProps {
 }
 
 function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone }: AddContactsToListDialogProps) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -825,13 +822,13 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(`${selected.size} contatti aggiunti alla lista`);
+      toast.success(t("{size} contatti aggiunti alla lista", { size: String(selected.size ?? "") }));
       setSelected(new Set());
       setSearch("");
       handleOpenChange(false);
       onDone();
     },
-    onError: () => toast.error("Errore nell'aggiunta"),
+    onError: () => toast.error(t("Errore nell'aggiunta")),
   });
 
   const toggleContact = (id: string) => {
@@ -846,13 +843,13 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Aggiungi contatti alla lista</DialogTitle>
+          <DialogTitle>{t("Aggiungi contatti alla lista")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Cerca contatti..."
+              placeholder={t("Cerca contatti...")}
               className="pl-9"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -860,7 +857,7 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
           </div>
           <div className="max-h-72 overflow-y-auto border rounded-md divide-y">
             {contacts.length === 0 ? (
-              <p className="text-sm text-muted-foreground p-4 text-center">Nessun contatto trovato</p>
+              <p className="text-sm text-muted-foreground p-4 text-center">{t("Nessun contatto trovato")}</p>
             ) : (
               contacts.map((c) => {
                 const fullName = `${c.first_name} ${c.last_name || ""}`.trim();
@@ -886,16 +883,16 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
                         </p>
                       </div>
                     </div>
-                    {alreadyIn && <span className="text-xs text-muted-foreground shrink-0">Già nella lista</span>}
+                    {alreadyIn && <span className="text-xs text-muted-foreground shrink-0">{t("Già nella lista")}</span>}
                   </label>
                 );
               })
             )}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">{selected.size} selezionati</span>
+            <span className="text-sm text-muted-foreground">{t("{size} selezionati", { size: String(selected.size ?? "") })}</span>
             <Button onClick={() => addMutation.mutate()} disabled={selected.size === 0 || addMutation.isPending}>
-              <UserPlus className="h-4 w-4 mr-1" /> Aggiungi {selected.size > 0 ? `(${selected.size})` : ""}
+              <UserPlus className="h-4 w-4 mr-1" /> {t("Aggiungi")} {selected.size > 0 ? `(${selected.size})` : ""}
             </Button>
           </div>
         </div>

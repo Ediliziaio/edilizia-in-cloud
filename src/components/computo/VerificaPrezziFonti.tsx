@@ -11,8 +11,9 @@ import type { DbLettura } from "@/lib/preventivi/coordinatore/agenti";
 import { FASCIA_MARGINE_ABITUALE, margineValido, type VoceRichiesta } from "@/lib/preventivi/coordinatore/tipi";
 import { numeroEditor } from "@/lib/computo/editorNativo";
 import { Label } from "@/components/ui/label";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const euroFmt = () => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" });
 const oggiIso = () => new Date().toLocaleDateString("en-CA");
 const titolo = (v: VoceRichiesta) => (v.descrizione.trim().split("\n")[0] || "Voce senza descrizione").slice(0, 110);
 
@@ -38,6 +39,8 @@ export default function VerificaPrezziFonti({ open, onOpenChange, companyId, voc
   /** Solo per le prove: il client con cui leggere. */
   db?: DbLettura;
 }) {
+  const t = useT();
+  const euro = euroFmt();
   const [esito, setEsito] = useState<EsitoVerifica | null>(null);
   const [analizzate, setAnalizzate] = useState<VoceRichiesta[]>([]);
   const [errore, setErrore] = useState("");
@@ -108,95 +111,101 @@ export default function VerificaPrezziFonti({ open, onOpenChange, companyId, voc
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="flex max-h-[90dvh] max-w-3xl flex-col gap-3 max-sm:p-3">
       <DialogHeader>
-        <DialogTitle>Verifica prezzi e fonti</DialogTitle>
+        <DialogTitle>{t("Verifica prezzi e fonti")}</DialogTitle>
         <DialogDescription>
-          Confronto ogni voce con il listino dell'azienda, i preventivi già accettati{vediCosti ? ", i listini dei fornitori e gli acquisti" : ""}. Niente cambia finché non applichi.
+          {vediCosti
+            ? t("Confronto ogni voce con il listino dell'azienda, i preventivi già accettati, i listini dei fornitori e gli acquisti. Niente cambia finché non applichi.")
+            : t("Confronto ogni voce con il listino dell'azienda, i preventivi già accettati. Niente cambia finché non applichi.")}
         </DialogDescription>
       </DialogHeader>
-      {voci.length > MAX_VOCI_VERIFICA && <p role="alert" className="text-sm text-destructive">La verifica lavora fino a {MAX_VOCI_VERIFICA} voci: questo preventivo ne ha {voci.length}.</p>}
+      {voci.length > MAX_VOCI_VERIFICA && <p role="alert" className="text-sm text-destructive">{t("La verifica lavora fino a {max} voci: questo preventivo ne ha {n}.", { max: MAX_VOCI_VERIFICA, n: voci.length })}</p>}
       {vediCosti && <div className="flex flex-wrap items-end gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-2.5 py-2">
         <div className="space-y-1">
-          <Label htmlFor="margine-obiettivo" className="text-xs">Margine obiettivo %</Label>
+          <Label htmlFor="margine-obiettivo" className="text-xs">{t("Margine obiettivo %")}</Label>
           <Input id="margine-obiettivo" className="h-8 w-24" inputMode="decimal" maxLength={6} value={margine}
             placeholder={esito ? String(esito.profilo.margineObiettivoPct).replace(".", ",") : "30"} onChange={e => cambiaMargine(e.target.value)} />
         </div>
         <p className="min-w-0 flex-1 pb-1 text-xs text-muted-foreground" data-testid="margine-spiegazione">
-          {margine.trim() && !margineValido(margineScelto) ? <span className="text-destructive">Scrivi una percentuale tra 1 e 94.</span>
-            : esito ? <>Uso il <strong>{String(esito.profilo.margineObiettivoPct).replace(".", ",")}%</strong> ({ORIGINE[esito.profilo.margineOrigine]}): è margine diretto, sul prezzo. Dove c'è solo il costo, il prezzo nasce da qui: costo 100 € → {euro.format(100 / (1 - esito.profilo.margineObiettivoPct / 100))}.
-              {(esito.profilo.margineObiettivoPct < FASCIA_MARGINE_ABITUALE.da || esito.profilo.margineObiettivoPct > FASCIA_MARGINE_ABITUALE.a) && <span className="text-amber-700"> Di solito sta tra {FASCIA_MARGINE_ABITUALE.da}% e {FASCIA_MARGINE_ABITUALE.a}%.</span>}</>
-            : `Di solito tra ${FASCIA_MARGINE_ABITUALE.da}% e ${FASCIA_MARGINE_ABITUALE.a}%.`}
+          {margine.trim() && !margineValido(margineScelto) ? <span className="text-destructive">{t("Scrivi una percentuale tra 1 e 94.")}</span>
+            : esito ? <>{t("Uso il {margine}% ({origine}): è margine diretto, sul prezzo. Dove c'è solo il costo, il prezzo nasce da qui: costo 100 € → {prezzo}.", { margine: String(esito.profilo.margineObiettivoPct).replace(".", ","), origine: t(ORIGINE[esito.profilo.margineOrigine]), prezzo: euro.format(100 / (1 - esito.profilo.margineObiettivoPct / 100)) })}
+              {(esito.profilo.margineObiettivoPct < FASCIA_MARGINE_ABITUALE.da || esito.profilo.margineObiettivoPct > FASCIA_MARGINE_ABITUALE.a) && <span className="text-amber-700">{" "}{t("Di solito sta tra {da}% e {a}%.", { da: FASCIA_MARGINE_ABITUALE.da, a: FASCIA_MARGINE_ABITUALE.a })}</span>}</>
+            : t("Di solito tra {da}% e {a}%.", { da: FASCIA_MARGINE_ABITUALE.da, a: FASCIA_MARGINE_ABITUALE.a })}
         </p>
       </div>}
-      {inCorso && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Leggo listini e storico…</p>}
-      {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
+      {inCorso && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{t("Leggo listini e storico…")}</p>}
+      {errore && <p role="alert" className="text-sm text-destructive">{t(errore)}</p>}
       {esito && !inCorso && <>
         <p className="text-xs text-muted-foreground" data-testid="riepilogo-verifica">
-          {esito.misure.vociTotali} voci · {esito.misure.conFonte} con una fonte{esito.misure.percentualeConFonte !== null ? ` (${String(esito.misure.percentualeConFonte).replace(".", ",")}%)` : ""} · {proposte.length} proposte · {domande.length} da completare · {avvisi.length} da guardare · {esito.misure.letture} letture, nessun costo AI
+          {t("{voci} voci · {conFonte} con una fonte{percentuale} · {proposte} proposte · {domande} da completare · {avvisi} da guardare · {letture} letture, nessun costo AI", {
+            voci: esito.misure.vociTotali, conFonte: esito.misure.conFonte,
+            percentuale: esito.misure.percentualeConFonte !== null ? ` (${String(esito.misure.percentualeConFonte).replace(".", ",")}%)` : "",
+            proposte: proposte.length, domande: domande.length, avvisi: avvisi.length, letture: esito.misure.letture,
+          })}
         </p>
         {esito.economia && esito.economia.vociConCosto > 0 && <p className="text-sm" data-testid="economia-verifica">
-          Con queste proposte: ricavo {euro.format(esito.economia.ricavo)}, costo {euro.format(esito.economia.costo)}, margine{" "}
-          <strong className={esito.economia.marginePct !== null && esito.economia.marginePct < esito.profilo.margineObiettivoPct - 0.05 ? "text-amber-700" : "text-emerald-700"}>{esito.economia.marginePct === null ? "non calcolabile" : `${String(esito.economia.marginePct).replace(".", ",")}%`}</strong>
-          {" "}su {esito.economia.vociConCosto} {esito.economia.vociConCosto === 1 ? "voce" : "voci"} con costo{esito.economia.vociSenzaCosto ? ` · ${esito.economia.vociSenzaCosto} senza costo, fuori dal conto` : ""}.
+          {t("Con queste proposte: ricavo {ricavo}, costo {costo}, margine", { ricavo: euro.format(esito.economia.ricavo), costo: euro.format(esito.economia.costo) })}{" "}
+          <strong className={esito.economia.marginePct !== null && esito.economia.marginePct < esito.profilo.margineObiettivoPct - 0.05 ? "text-amber-700" : "text-emerald-700"}>{esito.economia.marginePct === null ? t("non calcolabile") : `${String(esito.economia.marginePct).replace(".", ",")}%`}</strong>
+          {" "}{(esito.economia.vociConCosto === 1 ? t("su {n} voce con costo", { n: esito.economia.vociConCosto }) : t("su {n} voci con costo", { n: esito.economia.vociConCosto }))}{esito.economia.vociSenzaCosto ? ` ${t("· {n} senza costo, fuori dal conto", { n: esito.economia.vociSenzaCosto })}` : ""}.
         </p>}
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-          {domande.length > 0 && <section aria-label="Da completare" className="space-y-2">
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><HelpCircle className="h-4 w-4 text-blue-700" />Da completare ({domande.length})</h3>
+          {domande.length > 0 && <section aria-label={t("Da completare")} className="space-y-2">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><HelpCircle className="h-4 w-4 text-blue-700" />{t("Da completare ({n})", { n: domande.length })}</h3>
             <ul className="space-y-1.5">{domande.map((d, i) => {
               const v = d.voceId ? perId.get(d.voceId) : undefined;
               const originale = d.voceId ? voci.find(x => x.id === d.voceId) : undefined;
               const campo = d.codice === "quantita_mancante" && originale && !originale.misure.length ? "quantita" as const : d.codice === "prezzo_senza_fonte" ? "prezzi" as const : null;
               return <li key={`${d.codice}-${d.voceId}-${i}`} className="flex flex-wrap items-center gap-2 rounded-md border bg-white px-2.5 py-1.5 text-sm">
                 <span className="min-w-0 flex-1">{d.testo}</span>
-                {campo && v && <Input className="h-8 w-28" inputMode="decimal" maxLength={20} placeholder={campo === "quantita" ? v.unita || "quantità" : "€ per unità"}
-                  aria-label={`${campo === "quantita" ? "Quantità" : "Prezzo"} di ${titolo(v)}`} value={risposte[campo][v.id] ?? ""}
+                {campo && v && <Input className="h-8 w-28" inputMode="decimal" maxLength={20} placeholder={campo === "quantita" ? v.unita || t("quantità") : t("€ per unità")}
+                  aria-label={(campo === "quantita" ? t("Quantità di {voce}", { voce: titolo(v) }) : t("Prezzo di {voce}", { voce: titolo(v) }))} value={risposte[campo][v.id] ?? ""}
                   onChange={e => setRisposte(r => ({ ...r, [campo]: { ...r[campo], [v.id]: e.target.value } }))} />}
-                {d.codice === "quantita_mancante" && originale && originale.misure.length > 0 && <span className="text-xs text-muted-foreground">Completa le misure nella voce.</span>}
+                {d.codice === "quantita_mancante" && originale && originale.misure.length > 0 && <span className="text-xs text-muted-foreground">{t("Completa le misure nella voce.")}</span>}
               </li>;
             })}</ul>
           </section>}
-          {proposte.length > 0 && <section aria-label="Proposte" className="space-y-2">
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Proposte ({proposte.length})</h3>
+          {proposte.length > 0 && <section aria-label={t("Proposte")} className="space-y-2">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><CheckCircle2 className="h-4 w-4 text-emerald-700" />{t("Proposte ({n})", { n: proposte.length })}</h3>
             <ul className="space-y-1.5">{proposte.map(e => {
               const v = perId.get(e.voceId); const p = e.proposta!;
               if (!v) return null;
               const altre = e.candidati.filter(c => c.id !== e.vendita?.id && c.id !== e.costo?.id);
               return <li key={e.voceId} className="rounded-md border bg-white px-2.5 py-1.5 text-sm">
                 <label className="flex cursor-pointer items-start gap-2">
-                  <Checkbox className="mt-0.5" checked={accettate.has(e.voceId)} onCheckedChange={si => cambia(e.voceId, si === true)} aria-label={`Applica la proposta per ${titolo(v)}`} />
+                  <Checkbox className="mt-0.5" checked={accettate.has(e.voceId)} onCheckedChange={si => cambia(e.voceId, si === true)} aria-label={t("Applica la proposta per {voce}", { voce: titolo(v) })} />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{titolo(v)}</span>
                     {p.prezzo !== undefined && <span className="block">
-                      Prezzo: {v.prezzo === null ? "nessuno" : <s className="text-muted-foreground">{euro.format(v.prezzo)}</s>} → <strong>{euro.format(p.prezzo)}</strong>{v.unita ? ` / ${v.unita}` : ""}
-                      {p.suManuale && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">sostituisce un prezzo scritto a mano</span>}
+                      {t("Prezzo:")} {v.prezzo === null ? t("nessuno") : <s className="text-muted-foreground">{euro.format(v.prezzo)}</s>} → <strong>{euro.format(p.prezzo)}</strong>{v.unita ? ` / ${v.unita}` : ""}
+                      {p.suManuale && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">{t("sostituisce un prezzo scritto a mano")}</span>}
                     </span>}
-                    {p.costo !== undefined && <span className="block text-muted-foreground">Costo stimato: {euro.format(p.costo)}{e.costo ? ` · ${e.costo.etichetta}` : ""}</span>}
+                    {p.costo !== undefined && <span className="block text-muted-foreground">{t("Costo stimato:")} {euro.format(p.costo)}{e.costo ? ` · ${e.costo.etichetta}` : ""}</span>}
                     <span className="block text-xs text-muted-foreground">
-                      {p.regola ? `Calcolato: ${p.regola}. Non viene da un listino: confermalo.` : e.vendita ? `Fonte: ${descriviCandidato(e.vendita)}${e.vendita.condizioni ? ` · ${e.vendita.condizioni}` : ""}` : p.fonte}
-                      {e.marginePct !== null ? ` · margine ${String(e.marginePct).replace(".", ",")}%` : ""}
+                      {p.regola ? t("Calcolato: {regola}. Non viene da un listino: confermalo.", { regola: p.regola }) : e.vendita ? t("Fonte: {fonte}", { fonte: `${descriviCandidato(e.vendita)}${e.vendita.condizioni ? ` · ${e.vendita.condizioni}` : ""}` }) : p.fonte}
+                      {e.marginePct !== null ? ` ${t("· margine {valore}%", { valore: String(e.marginePct).replace(".", ",") })}` : ""}
                     </span>
                   </span>
                 </label>
                 {altre.length > 0 && <details className="ml-6 mt-1 text-xs text-muted-foreground">
-                  <summary className="cursor-pointer">Altre fonti trovate ({altre.length})</summary>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-4">{altre.map(c => <li key={c.id}>{c.natura === "costo" ? "Costo · " : ""}{descriviCandidato(c)}{c.condizioni ? ` · ${c.condizioni}` : ""}{c.selezionabile ? "" : " · solo per confronto"}</li>)}</ul>
+                  <summary className="cursor-pointer">{t("Altre fonti trovate ({n})", { n: altre.length })}</summary>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">{altre.map(c => <li key={c.id}>{c.natura === "costo" ? `${t("Costo ·")} ` : ""}{descriviCandidato(c)}{c.condizioni ? ` · ${c.condizioni}` : ""}{c.selezionabile ? "" : ` ${t("· solo per confronto")}`}</li>)}</ul>
                 </details>}
               </li>;
             })}</ul>
           </section>}
-          {avvisi.length > 0 && <section aria-label="Da guardare" className="space-y-2">
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-600" />Da guardare ({avvisi.length})</h3>
+          {avvisi.length > 0 && <section aria-label={t("Da guardare")} className="space-y-2">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-600" />{t("Da guardare ({n})", { n: avvisi.length })}</h3>
             <ul className="list-disc space-y-1 pl-5 text-sm">{avvisi.map((a, i) => <li key={`${a.codice}-${a.voceId}-${i}`}>{a.testo}</li>)}</ul>
           </section>}
-          {!domande.length && !proposte.length && !avvisi.length && <p className="text-sm">Niente da proporre: ogni prezzo ha la sua fonte e i controlli non segnalano nulla.</p>}
-          <p className="text-xs text-muted-foreground">Sono controlli su ciò che è scritto: non dicono se manca una lavorazione che nessuno ha indicato.</p>
+          {!domande.length && !proposte.length && !avvisi.length && <p className="text-sm">{t("Niente da proporre: ogni prezzo ha la sua fonte e i controlli non segnalano nulla.")}</p>}
+          <p className="text-xs text-muted-foreground">{t("Sono controlli su ciò che è scritto: non dicono se manca una lavorazione che nessuno ha indicato.")}</p>
         </div>
       </>}
       <DialogFooter className="gap-2 sm:justify-between">
-        <Button type="button" variant="outline" size="sm" disabled={inCorso || voci.length > MAX_VOCI_VERIFICA} onClick={() => void avvia()}><RefreshCw className="mr-1 h-4 w-4" />Ricontrolla</Button>
+        <Button type="button" variant="outline" size="sm" disabled={inCorso || voci.length > MAX_VOCI_VERIFICA} onClick={() => void avvia()}><RefreshCw className="mr-1 h-4 w-4" />{t("Ricontrolla")}</Button>
         <span className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Chiudi</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
           <Button type="button" size="sm" disabled={inCorso || !esito || (!daApplicare && !risposteDate)} onClick={applica}>
-            {daApplicare || risposteDate ? `Applica ${daApplicare + risposteDate} ${daApplicare + risposteDate === 1 ? "modifica" : "modifiche"}` : "Niente da applicare"}
+            {daApplicare || risposteDate ? (daApplicare + risposteDate === 1 ? t("Applica {n} modifica", { n: daApplicare + risposteDate }) : t("Applica {n} modifiche", { n: daApplicare + risposteDate })) : t("Niente da applicare")}
           </Button>
         </span>
       </DialogFooter>

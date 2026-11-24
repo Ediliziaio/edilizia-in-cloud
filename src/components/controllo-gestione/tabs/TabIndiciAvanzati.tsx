@@ -39,6 +39,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Calendar, Shield, Banknote, Clock, TrendingUp, AlertTriangle, Receipt, Package } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
@@ -59,6 +60,7 @@ const TESTO_GIUDIZIO: Record<Giudizio, string> = {
 };
 
 export function TabIndiciAvanzati({ anno }: Props) {
+  const t = useT();
   const q = useIndiciAvanzati(anno);
   const imp = useImposte(anno);
   const sp = useStatoPatrimoniale(anno);
@@ -137,24 +139,21 @@ export function TabIndiciAvanzati({ anno }: Props) {
         <div role="alert" className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <p className="font-semibold">Indici provvisori</p>
+            <p className="font-semibold">{t("Indici provvisori")}</p>
             <p className="mt-1">
-              Lo Stato patrimoniale non quadra
-              {differenzaSp !== undefined ? <> (differenza di {formatEuro(differenzaSp)})</> : null}: Z-score,
-              giorni di incasso e di pagamento usano crediti e debiti ancora da riconciliare. Non usarli con la banca
-              prima di aver sistemato i dati.
+              {differenzaSp !== undefined
+                ? t("Lo Stato patrimoniale non quadra (differenza di {differenza}): Z-score, giorni di incasso e di pagamento usano crediti e debiti ancora da riconciliare. Non usarli con la banca prima di aver sistemato i dati.", { differenza: formatEuro(differenzaSp) })
+                : t("Lo Stato patrimoniale non quadra: Z-score, giorni di incasso e di pagamento usano crediti e debiti ancora da riconciliare. Non usarli con la banca prima di aver sistemato i dati.")}
             </p>
             <Link className="mt-2 inline-block font-medium underline" to="/azienda/controllo-gestione/health">
-              Apri Health-check
+              {t("Apri Health-check")}
             </Link>
           </div>
         </div>
       )}
 
       {annoInCorso && giorni !== null && (
-        <p className="text-xs text-muted-foreground">
-          Anno in corso: gli indici usano i {giorni} giorni trascorsi dal 1° gennaio, non l'anno intero.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("Anno in corso: gli indici usano i {giorni} giorni trascorsi dal 1° gennaio, non l'anno intero.", { giorni: String(giorni ?? "") })}</p>
       )}
 
       {/* Imposte IRES + IRAP */}
@@ -162,28 +161,27 @@ export function TabIndiciAvanzati({ anno }: Props) {
         <Card className="rounded-2xl">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Receipt className="h-4 w-4" /> Imposte stimate (IRES e IRAP)
+              <Receipt className="h-4 w-4" /> {t("Imposte stimate (IRES e IRAP)")}
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              IRES {formatPct(imp.data.aliquote.ires_pct)} sull'utile prima delle imposte · IRAP{" "}
-              {formatPct(imp.data.aliquote.irap_pct, 2)} sul risultato operativo (EBIT)
-              {personaleInIrap ? " più il costo del personale" : ""}. Il personale a tempo indeterminato è
-              deducibile dall'IRAP dal 2015: includilo solo se hai soprattutto tempo determinato o collaboratori.
-              L'opzione e l'aliquota regionale si impostano in Configurazione.
+              {t("IRES {ires} sull'utile prima delle imposte · IRAP {irap} sul risultato operativo (EBIT){personale}. Il personale a tempo indeterminato è deducibile dall'IRAP dal 2015: includilo solo se hai soprattutto tempo determinato o collaboratori. L'opzione e l'aliquota regionale si impostano in Configurazione.", {
+                ires: formatPct(imp.data.aliquote.ires_pct), irap: formatPct(imp.data.aliquote.irap_pct, 2),
+                personale: personaleInIrap ? ` ${t("più il costo del personale")}` : "",
+              })}
             </p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <BoxImposta titolo="IRES" valore={imp.data.ires.imposta} tono="bg-blue-50"
-                nota={`Base ${formatCurrency(imp.data.ires.base_imponibile)} × ${formatPct(imp.data.ires.aliquota)}`} />
+                nota={t("Base {base_imponibile} × {aliquota}", { base_imponibile: formatCurrency(imp.data.ires.base_imponibile), aliquota: formatPct(imp.data.ires.aliquota) })} />
               <BoxImposta titolo="IRAP" valore={imp.data.irap.imposta} tono="bg-violet-50"
-                nota={`Base ${formatCurrency(imp.data.irap.base_imponibile)} × ${formatPct(imp.data.irap.aliquota, 2)}`} />
-              <BoxImposta titolo="Imposte totali" valore={imp.data.totali.imposte_totali} tono="bg-rose-50"
+                nota={t("Base {base_imponibile} × {aliquota}", { base_imponibile: formatCurrency(imp.data.irap.base_imponibile), aliquota: formatPct(imp.data.irap.aliquota, 2) })} />
+              <BoxImposta titolo={t("Imposte totali")} valore={imp.data.totali.imposte_totali} tono="bg-rose-50"
                 testo="text-rose-700"
-                nota={`Peso sull'utile: ${formatPct(imp.data.totali.tax_rate_eff_pct)}`} />
-              <BoxImposta titolo="Utile dopo le imposte" valore={imp.data.totali.utile_post} tono="bg-emerald-50"
+                nota={t("Peso sull'utile: {tax_rate_eff_pct}", { tax_rate_eff_pct: formatPct(imp.data.totali.tax_rate_eff_pct) })} />
+              <BoxImposta titolo={t("Utile dopo le imposte")} valore={imp.data.totali.utile_post} tono="bg-emerald-50"
                 testo={imp.data.totali.utile_post < 0 ? "text-rose-700" : "text-emerald-700"}
-                nota={`Prima delle imposte: ${formatCurrency(imp.data.totali.utile_ante)}`} />
+                nota={t("Prima delle imposte: {utile_ante}", { utile_ante: formatCurrency(imp.data.totali.utile_ante) })} />
             </div>
           </CardContent>
         </Card>
@@ -193,17 +191,16 @@ export function TabIndiciAvanzati({ anno }: Props) {
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Clock className="h-4 w-4" /> Quanto restano fermi i soldi
+            <Clock className="h-4 w-4" /> {t("Quanto restano fermi i soldi")}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Giorni medi per incassare dai clienti, per pagare i fornitori e per usare il materiale in magazzino.
-            Meno giorni passano tra quando paghi e quando incassi, meno capitale ti serve.
+            {t("Giorni medi per incassare dai clienti, per pagare i fornitori e per usare il materiale in magazzino. Meno giorni passano tra quando paghi e quando incassi, meno capitale ti serve.")}
           </p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <BoxGiorni
-              titolo="Giorni medi di incasso"
+              titolo={t("Giorni medi di incasso")}
               sigla="DSO"
               giorni={rot.dso}
               giudizio={giudizioDso(rot.dso)}
@@ -215,7 +212,7 @@ export function TabIndiciAvanzati({ anno }: Props) {
               soglie="Fino a 60 giorni bene · oltre 90 critico"
             />
             <BoxGiorni
-              titolo="Giorni medi di pagamento"
+              titolo={t("Giorni medi di pagamento")}
               sigla="DPO"
               giorni={rot.dpo}
               giudizio={giudizioDpo(rot.dpo)}
@@ -228,7 +225,7 @@ export function TabIndiciAvanzati({ anno }: Props) {
               motivo={rot.motivoDpo}
             />
             <BoxGiorni
-              titolo="Giorni medi di magazzino"
+              titolo={t("Giorni medi di magazzino")}
               sigla="DSI"
               giorni={rot.dsi}
               giudizio={giudizioDsi(rot.dsi)}
@@ -243,30 +240,25 @@ export function TabIndiciAvanzati({ anno }: Props) {
             <Card className={cn("rounded-2xl border-0", TONO[giudizioCcc(rot.ccc)])}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium">Ciclo del circolante (CCC)</p>
+                  <p className="text-xs font-medium">{t("Ciclo del circolante (CCC)")}</p>
                   <TrendingUp className="h-4 w-4" />
                 </div>
                 <p className="mt-1 text-3xl font-bold tabular-nums">{formatGiorni(rot.ccc)}</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Incasso + magazzino − pagamento: i giorni in cui anticipi tu i soldi.
+                  {t("Incasso + magazzino − pagamento: i giorni in cui anticipi tu i soldi.")}
                 </p>
                 {rot.ccc !== null && rot.ccc > 0 && (
-                  <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-                    Il capitale gira {formatNumero(365 / rot.ccc, 1)} volte l'anno.
-                  </p>
+                  <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">{t("Il capitale gira {valore} volte l'anno.", { valore: formatNumero(365 / rot.ccc, 1) })}</p>
                 )}
                 {rot.ccc === null && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Non calcolabile senza i giorni di pagamento.
+                    {t("Non calcolabile senza i giorni di pagamento.")}
                   </p>
                 )}
                 {giorniPosa.data && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Durata media dei lavori: {giorniPosa.data.media} giorni su {giorniPosa.data.n} commesse chiuse.
-                    È la parte del ciclo che si accorcia organizzandosi.
-                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{t("Durata media dei lavori: {media} giorni su {n} commesse chiuse. È la parte del ciclo che si accorcia organizzandosi.", { media: String(giorniPosa.data.media ?? ""), n: String(giorniPosa.data.n ?? "") })}</p>
                 )}
-                <p className="mt-2 text-xs font-medium">{TESTO_GIUDIZIO[giudizioCcc(rot.ccc)]}</p>
+                <p className="mt-2 text-xs font-medium">{t(TESTO_GIUDIZIO[giudizioCcc(rot.ccc)])}</p>
               </CardContent>
             </Card>
           </div>
@@ -277,11 +269,10 @@ export function TabIndiciAvanzati({ anno }: Props) {
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Shield className="h-4 w-4" /> Z-score di Altman: rischio di insolvenza
+            <Shield className="h-4 w-4" /> {t("Z-score di Altman: rischio di insolvenza")}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Un voto unico che combina liquidità, utili accumulati, redditività, patrimonio e fatturato rispetto
-            alla dimensione dell'azienda. Più è alto, più l'azienda è solida.
+            {t("Un voto unico che combina liquidità, utili accumulati, redditività, patrimonio e fatturato rispetto alla dimensione dell'azienda. Più è alto, più l'azienda è solida.")}
           </p>
         </CardHeader>
         <CardContent>
@@ -296,7 +287,7 @@ export function TabIndiciAvanzati({ anno }: Props) {
                 !altman.classe && "bg-muted/40",
               )}
             >
-              <p className="text-xs text-muted-foreground">Z-score{zProvvisorio ? " · provvisorio" : ""}</p>
+              <p className="text-xs text-muted-foreground">{t("Z-score")}{zProvvisorio ? ` ${t("· provvisorio")}` : ""}</p>
               <p
                 className={cn(
                   "mt-1 text-4xl font-bold tabular-nums",
@@ -310,23 +301,21 @@ export function TabIndiciAvanzati({ anno }: Props) {
               <p className="mt-2 text-sm font-medium">{altman.descrizione}</p>
               {zProvvisorio && altman.z_score !== null && (
                 <p className="mt-2 text-xs text-amber-800">
-                  Calcolato su uno Stato patrimoniale che non quadra: non è un giudizio affidabile.
+                  {t("Calcolato su uno Stato patrimoniale che non quadra: non è un giudizio affidabile.")}
                 </p>
               )}
             </div>
 
             <div className="rounded-2xl border p-4 text-sm lg:col-span-2">
-              <p className="font-semibold">Come si legge</p>
+              <p className="font-semibold">{t("Come si legge")}</p>
               <ul className="mt-2 space-y-1.5">
-                <SogliaRiga colore="bg-emerald-500" testo="Area di sicurezza" soglia="da 2,90 in su" />
-                <SogliaRiga colore="bg-amber-500" testo="Area grigia: da tenere d'occhio" soglia="tra 1,23 e 2,90" />
-                <SogliaRiga colore="bg-rose-500" testo="Area di rischio" soglia="sotto 1,23" />
+                <SogliaRiga colore="bg-emerald-500" testo={t("Area di sicurezza")} soglia={t("da 2,90 in su")} />
+                <SogliaRiga colore="bg-amber-500" testo={t("Area grigia: da tenere d'occhio")} soglia={t("tra 1,23 e 2,90")} />
+                <SogliaRiga colore="bg-rose-500" testo={t("Area di rischio")} soglia={t("sotto 1,23")} />
               </ul>
               <p className="mt-3 text-xs text-muted-foreground">
-                Modello di Altman per società non quotate (1983): 0,717 × capitale circolante netto + 0,847 × utili
-                accumulati + 3,107 × risultato operativo + 0,420 × patrimonio / debiti + 0,998 × fatturato, ognuno
-                diviso per il totale attivo.
-                {annoInCorso ? " Risultato operativo e fatturato sono riportati all'anno intero." : ""}
+                {t("Modello di Altman per società non quotate (1983): 0,717 × capitale circolante netto + 0,847 × utili accumulati + 3,107 × risultato operativo + 0,420 × patrimonio / debiti + 0,998 × fatturato, ognuno diviso per il totale attivo.")}
+                {annoInCorso ? ` ${t("Risultato operativo e fatturato sono riportati all'anno intero.")}` : ""}
               </p>
             </div>
           </div>
@@ -337,11 +326,10 @@ export function TabIndiciAvanzati({ anno }: Props) {
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Banknote className="h-4 w-4" /> Copertura delle rate dei mutui (DSCR)
+            <Banknote className="h-4 w-4" /> {t("Copertura delle rate dei mutui (DSCR)")}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Quante volte la cassa prodotta dall'attività paga le rate dei mutui nello stesso periodo. La banca
-            vuole almeno 1,20: sotto 1 le rate si pagano con altri soldi.
+            {t("Quante volte la cassa prodotta dall'attività paga le rate dei mutui nello stesso periodo. La banca vuole almeno 1,20: sotto 1 le rate si pagano con altri soldi.")}
           </p>
         </CardHeader>
         <CardContent>
@@ -356,7 +344,7 @@ export function TabIndiciAvanzati({ anno }: Props) {
                 dscr.classe === "na" && "bg-muted/40",
               )}
             >
-              <p className="text-xs text-muted-foreground">DSCR{spNonQuadra && dscr.valore !== null ? " · provvisorio" : ""}</p>
+              <p className="text-xs text-muted-foreground">DSCR{spNonQuadra && dscr.valore !== null ? ` ${t("· provvisorio")}` : ""}</p>
               <p
                 className={cn(
                   "mt-1 text-4xl font-bold tabular-nums",
@@ -372,26 +360,26 @@ export function TabIndiciAvanzati({ anno }: Props) {
             </div>
 
             <div className="rounded-2xl border p-4 text-sm lg:col-span-2">
-              <p className="font-semibold">Da dove viene</p>
+              <p className="font-semibold">{t("Da dove viene")}</p>
               <div className="overflow-x-auto">
                 <table className="mt-3 w-full text-xs">
                   <tbody>
-                    <RigaDscr label="Margine operativo lordo (EBITDA)" valore={dscrRpc.ebitda} />
-                    <RigaDscr label="− Imposte stimate (le stesse del Conto economico)" valore={imposteDscr} />
-                    <RigaDscr label="= Cassa prodotta dall'attività" valore={flusso} forte />
+                    <RigaDscr label={t("Margine operativo lordo (EBITDA)")} valore={dscrRpc.ebitda} />
+                    <RigaDscr label={t("− Imposte stimate (le stesse del Conto economico)")} valore={imposteDscr} />
+                    <RigaDscr label={t("= Cassa prodotta dall'attività")} valore={flusso} forte />
                     <RigaDscr
-                      label={annoInCorso && giorni ? `Rate dei mutui nei ${giorni} giorni trascorsi` : "Rate dei mutui dell'anno (capitale + interessi)"}
+                      label={annoInCorso && giorni ? t("Rate dei mutui nei {giorni} giorni trascorsi", { giorni: String(giorni ?? "") }) : t("Rate dei mutui dell'anno (capitale + interessi)")}
                       valore={dscr.ratePeriodo}
                     />
-                    <RigaDscr label="Rate dei mutui in un anno intero" valore={dscrRpc.rate_anno} tenue />
-                    <RigaDscr label="di cui interessi (stima annua)" valore={dscrRpc.interessi_anno} tenue ultima />
+                    <RigaDscr label={t("Rate dei mutui in un anno intero")} valore={dscrRpc.rate_anno} tenue />
+                    <RigaDscr label={t("di cui interessi (stima annua)")} valore={dscrRpc.interessi_anno} tenue ultima />
                   </tbody>
                 </table>
               </div>
               <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                 <span>
-                  Soglie della banca: da 1,50 ampio margine · da 1,20 coperte · da 1,00 a fatica · sotto 1,00 non coperte.
+                  {t("Soglie della banca: da 1,50 ampio margine · da 1,20 coperte · da 1,00 a fatica · sotto 1,00 non coperte.")}
                 </span>
               </p>
             </div>
@@ -428,6 +416,7 @@ function BoxGiorni({
   soglie: string;
   motivo?: string | null;
 }) {
+  const t = useT();
   return (
     <Card className={cn("rounded-2xl border-0", TONO[giudizio])}>
       <CardContent className="p-4">
@@ -438,16 +427,16 @@ function BoxGiorni({
           {icona}
         </div>
         <p className="mt-1 text-3xl font-bold tabular-nums">{giorni === null ? "—" : formatGiorni(giorni)}</p>
-        {giorni === null && motivo && <p className="mt-1 text-[11px] text-muted-foreground">{motivo}</p>}
+        {giorni === null && motivo && <p className="mt-1 text-[11px] text-muted-foreground">{t(motivo)}</p>}
         <p className="mt-2 text-[11px] text-muted-foreground">
           {righe.map(([l, v]) => (
             <span key={l} className="block">
-              {l}: <span className="font-medium tabular-nums">{formatCurrency(Number(v ?? 0))}</span>
+              {t(l)}: <span className="font-medium tabular-nums">{formatCurrency(Number(v ?? 0))}</span>
             </span>
           ))}
         </p>
-        <p className="mt-1 text-[11px] text-muted-foreground">{soglie}</p>
-        <p className="mt-1 text-xs font-medium">{TESTO_GIUDIZIO[giudizio]}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{t(soglie)}</p>
+        <p className="mt-1 text-xs font-medium">{t(TESTO_GIUDIZIO[giudizio])}</p>
       </CardContent>
     </Card>
   );

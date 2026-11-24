@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const OrderWorkPhases = lazy(() => import("@/components/orders/OrderWorkPhases").then(m => ({ default: m.OrderWorkPhases })));
 const CronoprogrammaCommessa = lazy(() => import("@/components/orders/CronoprogrammaCommessa").then(m => ({ default: m.CronoprogrammaCommessa })));
@@ -65,12 +66,13 @@ export function LavorazioniAmbito({ orderId, orderCode, importo, fase, figlia, o
 }
 
 export function CronoprogrammaAmbito({ orderId, onApriLavorazioni }: { orderId: string; onApriLavorazioni: () => void }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const dati = useDatiCantiere(orderId, effectiveCompany?.id);
   if (dati.isLoading) return <Skeleton className="h-64 w-full" />;
   if (!dati.data) return <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border p-4 text-sm">
-    Cronoprogramma della commessa non disponibile.
-    <Button size="sm" variant="outline" onClick={() => void dati.refetch()}>Riprova</Button>
+    {t("Cronoprogramma della commessa non disponibile.")}
+    <Button size="sm" variant="outline" onClick={() => void dati.refetch()}>{t("Riprova")}</Button>
   </div>;
   return <ErrorBoundary><CronoprogrammaCommessa orderId={orderId} order={dati.data} onOpenLavorazioni={onApriLavorazioni} /></ErrorBoundary>;
 }

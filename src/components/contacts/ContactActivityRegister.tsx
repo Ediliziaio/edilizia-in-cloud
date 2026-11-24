@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { righeOrigine } from "@/lib/marketing/origineContatto";
 import { autoreAzione, etichettaAttivita } from "@/lib/marketing/autoreRegistro";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Member { id: string; name: string }
 interface Props {
@@ -91,8 +92,8 @@ const FILTERS: { key: string; label: string; kinds: EventKind[] | null }[] = [
   { key: "system", label: "Sistema",      kinds: ["entry", "activity"] },
 ];
 
-const rtf = new Intl.RelativeTimeFormat("it", { numeric: "auto" });
 function fmtRelative(iso: string, nowMs: number) {
+  const rtf = new Intl.RelativeTimeFormat(intlCampo(), { numeric: "auto" });
   const diff = new Date(iso).getTime() - nowMs;
   const abs = Math.abs(diff);
   const MIN = 60000, HOUR = 3600000, DAY = 86400000;
@@ -104,7 +105,7 @@ function fmtRelative(iso: string, nowMs: number) {
   return rtf.format(Math.round(diff / (365 * DAY)), "year");
 }
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" });
 }
 function dayKey(iso: string) {
   const d = new Date(iso);
@@ -118,7 +119,7 @@ function dayLabel(iso: string, nowMs: number) {
   if (diffDays === 0) return "Oggi";
   if (diffDays === -1) return "Ieri";
   if (diffDays === 1) return "Domani";
-  return d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return d.toLocaleDateString(intlCampo(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 function fmtDur(s?: number | null) {
@@ -130,6 +131,7 @@ function fmtDur(s?: number | null) {
 export function ContactActivityRegister({
   companyId, contactId, phone, email, contactCreatedAt, contactSource, members, className,
 }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const digits = (phone ?? "").replace(/\D/g, "");
   const tail = digits.length >= 8 ? digits.slice(-9) : "";
@@ -186,14 +188,14 @@ export function ContactActivityRegister({
             inserzione: m.ad_name,
           });
           const extra = [
-            m.adset_name ? `Gruppo di inserzioni: ${m.adset_name}` : null,
-            m.form_id ? `Modulo: ${m.form_id}` : null,
-            m.form_created_at ? `Compilato il ${new Date(m.form_created_at).toLocaleString("it-IT")}` : null,
-            m.arretrato || m.recuperata ? "Recuperata dallo storico di Facebook" : null,
+            m.adset_name ? t("Gruppo di inserzioni: {nome}", { nome: m.adset_name }) : null,
+            m.form_id ? t("Modulo: {id}", { id: m.form_id }) : null,
+            m.form_created_at ? t("Compilato il {data}", { data: new Date(m.form_created_at).toLocaleString(intlCampo()) }) : null,
+            m.arretrato || m.recuperata ? t("Recuperata dallo storico di Facebook") : null,
           ].filter(Boolean);
           return {
             id: `act_${r.id}`, kind: "meta" as const,
-            title: m.repeat ? "Nuova richiesta Meta (ha compilato di nuovo il modulo)" : "Richiesta Meta",
+            title: m.repeat ? t("Nuova richiesta Meta (ha compilato di nuovo il modulo)") : t("Richiesta Meta"),
             text: [dettagli, ...extra].filter(Boolean).join("\n") || r.description,
             agentName: "Meta Lead Ads", at: r.created_at,
           };
@@ -223,7 +225,7 @@ export function ContactActivityRegister({
         id: `note_${r.id}`,
         // Le righe scritte dal sistema sono eventi, non appunti: restano nel registro, sotto «Sistema».
         kind: (r.automatica ? "activity" : "note") as EventKind,
-        title: r.automatica ? "Annotazione automatica" : "Nota", text: r.content,
+        title: r.automatica ? t("Annotazione automatica") : t("Nota"), text: r.content,
         agentId: r.created_by, at: r.created_at,
       }));
     },
@@ -250,9 +252,9 @@ export function ContactActivityRegister({
         const dur = fmtDur(r.duration_seconds);
         out.push({
           id: `hc_${r.id}`, kind: "call_human", direction: outbound ? "outbound" : "inbound",
-          title: outbound ? "Chiamata in uscita" : "Chiamata in entrata",
+          title: outbound ? t("Chiamata in uscita") : t("Chiamata in entrata"),
           agentName: r.user_name || null,
-          meta: [dur && `durata ${dur}`, r.status].filter(Boolean).join(" · ") || null,
+          meta: [dur && t("durata {durata}", { durata: dur }), r.status].filter(Boolean).join(" · ") || null,
           at: r.started_at,
         });
       });
@@ -267,8 +269,8 @@ export function ContactActivityRegister({
           const dur = fmtDur(r.duration_seconds);
           out.push({
             id: `ac_${r.id}`, kind: "call_ai", direction: (r.call_direction || "outbound") === "inbound" ? "inbound" : "outbound",
-            title: "Chiamata AI", text: r.summary, agentName: "Agente AI",
-            meta: [dur && `durata ${dur}`, r.status].filter(Boolean).join(" · ") || null,
+            title: t("Chiamata AI"), text: r.summary, agentName: t("Agente AI"),
+            meta: [dur && t("durata {durata}", { durata: dur }), r.status].filter(Boolean).join(" · ") || null,
             at: r.started_at,
           });
         });
@@ -286,14 +288,12 @@ export function ContactActivityRegister({
             id: `cl_${r.id}`,
             kind: "call_human",
             direction: "outbound",
-            title: `Chiamata ${
-              r.outcome === "answered" ? "risposta"
-                : r.outcome === "no_answer" ? "senza risposta"
-                  : r.outcome === "busy" ? "occupato"
-                    : r.outcome === "wrong_number" ? "numero errato"
-                      : r.outcome === "callback" ? "da richiamare"
-                        : (r.outcome || "registrata")
-            }`,
+            title: r.outcome === "answered" ? t("Chiamata risposta")
+              : r.outcome === "no_answer" ? t("Chiamata senza risposta")
+                : r.outcome === "busy" ? t("Chiamata occupato")
+                  : r.outcome === "wrong_number" ? t("Chiamata numero errato")
+                    : r.outcome === "callback" ? t("Chiamata da richiamare")
+                      : r.outcome ? t("Chiamata {esito}", { esito: r.outcome }) : t("Chiamata registrata"),
             text: r.notes,
             agentId: r.user_id,
             meta: r.duration_sec ? `durata ${fmtDur(r.duration_sec)}` : null,
@@ -374,7 +374,7 @@ export function ContactActivityRegister({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => ({
         id: `eo_${r.id}`, kind: "email_out" as const, direction: "outbound" as const,
-        title: r.subject || "Email", text: r.body_text, meta: r.status, at: r.sent_at ?? r.created_at,
+        title: r.subject || t("Email"), text: r.body_text, meta: r.status, at: r.sent_at ?? r.created_at,
         agentId: r.user_id, toLabel: Array.isArray(r.to_emails) ? r.to_emails[0] : null,
         isReply: !!r.in_reply_to_id,
       }));
@@ -400,7 +400,7 @@ export function ContactActivityRegister({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => ({
         id: `ei_${r.id}`, kind: "email_in" as const, direction: "inbound" as const,
-        title: r.subject || "Email ricevuta",
+        title: r.subject || t("Email ricevuta"),
         text: r.ai_summary || r.raw_text,
         fromLabel: r.from_name ? `${r.from_name}${r.from_email ? ` <${r.from_email}>` : ""}` : (r.from_email || null),
         isReply: !!r.in_reply_to,
@@ -430,7 +430,7 @@ export function ContactActivityRegister({
         const stato = r.is_completed ? "completato" : (future ? "in programma" : (r.status || "da svolgere"));
         return {
           id: `ap_${r.id}`, kind: "appointment" as const,
-          title: r.title || "Appuntamento", meta: stato, agentId: r.assigned_to, at: when, future,
+          title: r.title || t("Appuntamento"), meta: stato, agentId: r.assigned_to, at: when, future,
         };
       });
     },
@@ -441,7 +441,7 @@ export function ContactActivityRegister({
       ? [{
           id: "entry",
           kind: (origine?.meta_platform ? "meta" : "entry") as EventKind,
-          title: origine?.meta_platform ? "Contatto entrato in CRM · prima richiesta Meta" : "Contatto entrato in CRM",
+          title: origine?.meta_platform ? t("Contatto entrato in CRM · prima richiesta Meta") : t("Contatto entrato in CRM"),
           text: righeOrigine({
             fonte: origine?.source || contactSource,
             piattaforma: origine?.meta_platform,
@@ -537,7 +537,7 @@ export function ContactActivityRegister({
   if (!enabled) {
     return (
       <div className={cn("text-center py-10 text-sm text-muted-foreground", className)}>
-        Nessun contatto collegato: il registro attività non è disponibile.
+        {t("Nessun contatto collegato: il registro attività non è disponibile.")}
       </div>
     );
   }
@@ -549,7 +549,7 @@ export function ContactActivityRegister({
       {/* Header — mobile no: il nome è già sulla scheda «Registro» e si aggiorna da solo alla riapertura. */}
       <div className="flex items-center gap-2 max-sm:hidden">
         <Activity className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold">Registro attività</h3>
+        <h3 className="text-sm font-semibold">{t("Registro attività")}</h3>
         {allItems.length > 0 && (
           <span className="text-xs font-normal text-muted-foreground">({allItems.length})</span>
         )}
@@ -557,8 +557,8 @@ export function ContactActivityRegister({
           type="button"
           onClick={handleRefresh}
           className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-          aria-label="Aggiorna registro"
-          title="Aggiorna"
+          aria-label={t("Aggiorna registro")}
+          title={t("Aggiorna")}
         >
           <RefreshCw className={cn("h-3.5 w-3.5", (refreshing || loading) && "animate-spin")} />
         </button>
@@ -577,7 +577,7 @@ export function ContactActivityRegister({
                 filter === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted max-sm:border-border",
               )}
             >
-              {f.label}
+              {t(f.label)}
               <span className={cn("tabular-nums", filter === f.key ? "opacity-90" : "opacity-60")}>{counts[f.key]}</span>
             </button>
           ))}
@@ -587,20 +587,20 @@ export function ContactActivityRegister({
       {/* Timeline */}
       {loading && allItems.length === 0 ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carico il registro…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico il registro…")}
         </div>
       ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-10">
           {allItems.length === 0
-            ? "Nessuna attività registrata per questo contatto."
-            : "Nessun evento per questo filtro."}
+            ? t("Nessuna attività registrata per questo contatto.")
+            : t("Nessun evento per questo filtro.")}
         </p>
       ) : (
         <div className="space-y-4">
           {groups.map((g) => (
             <div key={g.label} className="space-y-2">
               <div className="sticky top-0 z-10 -mx-1 bg-background/90 px-1 py-1 backdrop-blur">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{g.label}</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t(g.label)}</span>
               </div>
               <ol className="relative space-y-2.5 before:absolute before:left-[15px] before:top-1 before:bottom-1 before:w-px before:bg-border">
                 {g.items.map((i) => {
@@ -642,17 +642,17 @@ export function ContactActivityRegister({
                               {dir && (
                                 <span className={cn("inline-flex items-center gap-0.5 text-[10px]", dir === "outbound" ? "text-blue-600" : "text-emerald-600")}>
                                   {dir === "outbound" ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownLeft className="h-3 w-3" />}
-                                  {dir === "outbound" ? "inviato" : "ricevuto"}
+                                  {dir === "outbound" ? t("inviato") : t("ricevuto")}
                                 </span>
                               )}
                               {i.isReply && (
                                 <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-700">
-                                  <CornerDownRight className="h-2.5 w-2.5" /> risposta
+                                  <CornerDownRight className="h-2.5 w-2.5" /> {t("risposta")}
                                 </span>
                               )}
                               {i.future && (
                                 <span className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-medium text-indigo-700">
-                                  <Clock className="h-2.5 w-2.5" /> futuro
+                                  <Clock className="h-2.5 w-2.5" /> {t("futuro")}
                                 </span>
                               )}
                             </div>
@@ -672,15 +672,15 @@ export function ContactActivityRegister({
                                     onClick={() => toggleExpand(i.id)}
                                     className="mt-0.5 text-[11px] font-medium text-primary hover:underline"
                                   >
-                                    {isOpen ? "Mostra meno" : "Mostra tutto"}
+                                    {isOpen ? t("Mostra meno") : t("Mostra tutto")}
                                   </button>
                                 )}
                               </>
                             )}
                           </div>
-                          <span className="shrink-0 text-right text-[10px] text-muted-foreground whitespace-nowrap" title={new Date(i.at).toLocaleString("it-IT")}>
+                          <span className="shrink-0 text-right text-[10px] text-muted-foreground whitespace-nowrap" title={new Date(i.at).toLocaleString(intlCampo())}>
                             <span className="block">{fmtTime(i.at)}</span>
-                            <span className="block opacity-70">{fmtRelative(i.at, nowMs)}</span>
+                            <span className="block opacity-70">{t(fmtRelative(i.at, nowMs))}</span>
                           </span>
                         </div>
                       </div>

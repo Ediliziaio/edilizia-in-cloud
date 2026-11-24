@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { getDateRange } from "@/lib/dateRangeUtils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   filters: DashboardFiltersState;
@@ -32,14 +33,15 @@ const DATE_PRESETS: { value: Exclude<DatePreset, "custom">; label: string }[] = 
 
 /** «1–21 ott», «28 set – 4 ott», «21 ott» */
 function intervallo(da: Date, a: Date): string {
-  if (isSameDay(da, a)) return format(da, "d MMM", { locale: it });
-  if (isSameMonth(da, a)) return `${format(da, "d", { locale: it })}–${format(a, "d MMM", { locale: it })}`;
-  return `${format(da, "d MMM", { locale: it })} – ${format(a, "d MMM", { locale: it })}`;
+  if (isSameDay(da, a)) return format(da, "d MMM", { locale: dateFnsCampo() });
+  if (isSameMonth(da, a)) return `${format(da, "d", { locale: dateFnsCampo() })}–${format(a, "d MMM", { locale: dateFnsCampo() })}`;
+  return `${format(da, "d MMM", { locale: dateFnsCampo() })} – ${format(a, "d MMM", { locale: dateFnsCampo() })}`;
 }
 
 const btn = "h-8 gap-1.5 rounded-lg border-border bg-card px-2.5 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted/50";
 
 export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [periodoAperto, setPeriodoAperto] = useState(false);
@@ -133,7 +135,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
                     filters.datePreset === p.value && "bg-muted font-semibold text-foreground",
                   )}
                 >
-                  {p.label}
+                  {tr(p.label)}
                   {filters.datePreset === p.value && <Check className="h-3.5 w-3.5" />}
                 </button>
               ))}
@@ -150,9 +152,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
               />
             </div>
           </div>
-          <div className="border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">
-            {periodo.date} · confronto con {periodo.confronto}
-          </div>
+          <div className="border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">{tr("{date} · confronto con {confronto}", { date: String(periodo.date ?? ""), confronto: String(periodo.confronto ?? "") })}</div>
         </PopoverContent>
       </Popover>
 
@@ -161,15 +161,15 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
           computer). */}
       {!hideUserFilter && teamMembers.length > 0 && (
         <FiltroMenu
-          etichetta={filters.assignedUserIds.length === 0 ? "Tutti i commerciali"
+          etichetta={filters.assignedUserIds.length === 0 ? tr("Tutti i commerciali")
             : filters.assignedUserIds.length === 1 ? nomeUtente(filters.assignedUserIds[0])
-            : `${filters.assignedUserIds.length} commerciali`}
+            : tr("{n} commerciali", { n: filters.assignedUserIds.length })}
           attivo={filters.assignedUserIds.length > 0}
           onAzzera={() => onUpdate({ assignedUserIds: [] })}
         >
           {teamMembers.map(m => (
             <Voce key={m.id} checked={filters.assignedUserIds.includes(m.id)} onToggle={() => toggleUser(m.id)}>
-              {[m.first_name, m.last_name].filter(Boolean).join(" ") || "Senza nome"}
+              {[m.first_name, m.last_name].filter(Boolean).join(" ") || tr("Senza nome")}
             </Voce>
           ))}
         </FiltroMenu>
@@ -177,9 +177,9 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
       {availableSources.length > 0 && (
         <FiltroMenu
           className="max-sm:hidden"
-          etichetta={filters.sources.length === 0 ? "Tutte le fonti"
+          etichetta={filters.sources.length === 0 ? tr("Tutte le fonti")
             : filters.sources.length === 1 ? filters.sources[0]
-            : `${filters.sources.length} fonti`}
+            : tr("{n} fonti", { n: filters.sources.length })}
           attivo={filters.sources.length > 0}
           onAzzera={() => onUpdate({ sources: [] })}
         >
@@ -191,7 +191,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
       {pipelines.length > 1 && (
         <FiltroMenu
           className="max-sm:hidden"
-          etichetta={nomePipeline ?? "Tutte le pipeline"}
+          etichetta={nomePipeline ?? tr("Tutte le pipeline")}
           attivo={!!filters.pipelineId}
           onAzzera={() => onUpdate({ pipelineId: null })}
         >
@@ -215,6 +215,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
 function FiltroMenu({ etichetta, attivo, onAzzera, className, children }: {
   etichetta: string; attivo: boolean; onAzzera: () => void; className?: string; children: ReactNode;
 }) {
+  const t = useT();
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -229,7 +230,7 @@ function FiltroMenu({ etichetta, attivo, onAzzera, className, children }: {
         </ScrollArea>
         {attivo && (
           <div className="border-t border-border/60 p-1.5">
-            <Button variant="ghost" size="sm" className="h-7 w-full text-xs" onClick={onAzzera}>Mostra tutti</Button>
+            <Button variant="ghost" size="sm" className="h-7 w-full text-xs" onClick={onAzzera}>{t("Mostra tutti")}</Button>
           </div>
         )}
       </PopoverContent>

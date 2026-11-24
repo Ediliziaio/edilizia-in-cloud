@@ -17,6 +17,7 @@ import {
   type SocialUploadAccept,
 } from "@/lib/social/mediaUpload";
 import type { SocialPostMedia } from "@/lib/social/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string | undefined;
@@ -40,6 +41,7 @@ export function SocialMediaUploader({
   onUploaded,
   className,
 }: Props) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -54,17 +56,17 @@ export function SocialMediaUploader({
 
   const handleFiles = async (files: FileList | File[]) => {
     if (!companyId) {
-      toast.error("Azienda non identificata");
+      toast.error(t("Azienda non identificata"));
       return;
     }
     const all = Array.from(files);
     if (all.length === 0) return;
     if (limit === 0) {
-      toast.error("Hai già raggiunto il numero massimo di file");
+      toast.error(t("Hai già raggiunto il numero massimo di file"));
       return;
     }
     if (all.length > limit) {
-      toast.warning(`Carico solo i primi ${limit} file`);
+      toast.warning(t("Carico solo i primi {n} file", { n: limit }));
     }
 
     setBusy(true);
@@ -79,14 +81,14 @@ export function SocialMediaUploader({
         try {
           uploaded.push(await uploadSocialMediaFile(companyId, file));
         } catch (err) {
-          toast.error(`Caricamento non riuscito: ${file.name}`, {
+          toast.error(t("Caricamento non riuscito: {nome}", { nome: file.name }), {
             description: err instanceof Error ? err.message : String(err),
           });
         }
       }
       if (uploaded.length > 0) {
         onUploaded(uploaded);
-        toast.success(uploaded.length === 1 ? "File caricato" : `${uploaded.length} file caricati`);
+        toast.success(uploaded.length === 1 ? t("File caricato") : t("{n} file caricati", { n: uploaded.length }));
       }
     } finally {
       setBusy(false);
@@ -133,7 +135,7 @@ export function SocialMediaUploader({
         onClick={() => inputRef.current?.click()}
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-        {busy ? "Caricamento..." : "Scegli file"}
+        {busy ? t("Caricamento...") : t("Scegli file")}
       </Button>
     </div>
   );

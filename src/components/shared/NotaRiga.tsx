@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const LIMITE_NOTA = 2000;
 
@@ -42,6 +43,7 @@ export function NotaRiga({
   solaLettura?: boolean;
   onSalva: (nota: string | null) => Promise<unknown>;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [testo, setTesto] = useState("");
   const [salvo, setSalvo] = useState(false);
@@ -60,7 +62,7 @@ export function NotaRiga({
       await onSalva(pulito || null);
       setAperto(false);
     } catch {
-      toast.error("Nota non salvata: riprova.");
+      toast.error(t("Nota non salvata: riprova."));
     } finally {
       setSalvo(false);
     }
@@ -72,8 +74,8 @@ export function NotaRiga({
         variant="ghost"
         size="icon"
         className={`h-7 w-7 ${presente ? "text-amber-600" : "text-muted-foreground/50"}`}
-        aria-label={presente ? `Nota: ${nota}` : `Aggiungi una nota a ${titolo}`}
-        title={presente ? (nota as string) : solaLettura ? "Nessuna nota" : "Aggiungi una nota"}
+        aria-label={presente ? t("Nota: {nota}", { nota: String(nota ?? "") }) : t("Aggiungi una nota a {titolo}", { titolo: String(titolo ?? "") })}
+        title={presente ? (nota as string) : solaLettura ? t("Nessuna nota") : t("Aggiungi una nota")}
         onClick={apri}
       >
         <StickyNote className={`h-4 w-4 ${presente ? "fill-amber-100" : ""}`} aria-hidden="true" />
@@ -81,28 +83,28 @@ export function NotaRiga({
       <Dialog open={aperto} onOpenChange={(v) => { if (!salvo) setAperto(v); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nota · {titolo}</DialogTitle>
+            <DialogTitle>{t("Nota · {titolo}", { titolo: String(titolo ?? "") })}</DialogTitle>
             <DialogDescription>
               {descrizione ??
-                "Resta attaccata a questa riga e non cambia gli importi. Si legge qui e finisce nelle esportazioni."}
+                t("Resta attaccata a questa riga e non cambia gli importi. Si legge qui e finisce nelle esportazioni.")}
             </DialogDescription>
           </DialogHeader>
           <Textarea
-            aria-label="Testo della nota"
+            aria-label={t("Testo della nota")}
             value={testo}
             maxLength={LIMITE_NOTA}
             rows={5}
             disabled={solaLettura || salvo}
             onChange={(e) => setTesto(e.target.value)}
-            placeholder="Es. pagato in contanti da Mario; è l'acconto, il saldo a giugno"
+            placeholder={t("Es. pagato in contanti da Mario; è l'acconto, il saldo a giugno")}
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAperto(false)} disabled={salvo}>
-              {solaLettura ? "Chiudi" : "Annulla"}
+              {solaLettura ? t("Chiudi") : t("Annulla")}
             </Button>
             {!solaLettura && (
               <Button onClick={() => { void salva(); }} disabled={salvo}>
-                {salvo ? "Salvo…" : "Salva nota"}
+                {salvo ? t("Salvo…") : t("Salva nota")}
               </Button>
             )}
           </DialogFooter>

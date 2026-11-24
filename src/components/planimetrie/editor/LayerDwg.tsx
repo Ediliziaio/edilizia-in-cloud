@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Ricalco } from "../../../../shared/planimetrie/modello.ts";
 import { LIMITE_TRACCIATO_DWG_DECOMPRESSO, tracciatoSvgDwg, type TavolaDwg } from "../../../../shared/planimetrie/tavolaDwg.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface VistaLayerDwg {
   mostra: boolean;
@@ -38,6 +39,7 @@ export function LayerDwg({ tavola, vista, bloccata, onVista, onBlocca }: {
   onVista: (vista: VistaLayerDwg) => void;
   onBlocca?: () => void;
 }) {
+  const t = useT();
   const [filtro, setFiltro] = useState("");
   const layers = tavola?.layer.filter(l => l.nome.toLocaleLowerCase("it").includes(filtro.trim().toLocaleLowerCase("it"))) ?? [];
   const visibili = tavola?.layer.filter(l => layerVisibile(vista, l.nome)).length ?? 0;
@@ -50,50 +52,51 @@ export function LayerDwg({ tavola, vista, bloccata, onVista, onBlocca }: {
 
   return <Popover>
     <PopoverTrigger asChild>
-      <Button type="button" size="sm" variant={vista.isola ? "secondary" : "outline"} title={bloccata ? "Originale DWG bloccato" : "Originale DWG sbloccato"}>
-        <Layers /> Layer DWG <Blocco className="size-3 text-muted-foreground" />
+      <Button type="button" size="sm" variant={vista.isola ? "secondary" : "outline"} title={bloccata ? t("Originale DWG bloccato") : t("Originale DWG sbloccato")}>
+        <Layers /> {t("Layer DWG")} <Blocco className="size-3 text-muted-foreground" />
       </Button>
     </PopoverTrigger>
-    <PopoverContent className="w-[min(23rem,calc(100vw-2rem))] space-y-3" align="start" aria-label="Layer DWG">
+    <PopoverContent className="w-[min(23rem,calc(100vw-2rem))] space-y-3" align="start" aria-label={t("Layer DWG")}>
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold">Originale DWG</p>
-          <p className="text-xs text-muted-foreground">{tavola ? `${visibili} di ${tavola.layer.length} layer visibili` : "Tavola raster"}</p>
+          <p className="text-sm font-semibold">{t("Originale DWG")}</p>
+          <p className="text-xs text-muted-foreground">{tavola ? t("{visibili} di {n} layer visibili", { visibili: String(visibili ?? ""), n: tavola.layer.length }) : t("Tavola raster")}</p>
         </div>
-        {onBlocca ? <Button size="sm" type="button" variant="outline" onClick={onBlocca} aria-pressed={bloccata} aria-label="Blocca originale">
-          <Blocco /> {bloccata ? "Bloccato" : "Blocca"}
-        </Button> : <span className="flex items-center gap-1 text-xs text-muted-foreground"><Blocco className="size-3.5" /> Bloccato</span>}
+        {onBlocca ? <Button size="sm" type="button" variant="outline" onClick={onBlocca} aria-pressed={bloccata} aria-label={t("Blocca originale")}>
+          <Blocco /> {bloccata ? t("Bloccato") : t("Blocca")}
+        </Button> : <span className="flex items-center gap-1 text-xs text-muted-foreground"><Blocco className="size-3.5" /> {t("Bloccato")}</span>}
       </div>
       <div className="flex flex-wrap items-center gap-1">
         <Button type="button" variant="ghost" size="sm" onClick={() => onVista({ ...vista, mostra: !vista.mostra })}>
-          {vista.mostra ? <EyeOff /> : <Eye />}{vista.mostra ? "Nascondi originale" : "Mostra originale"}
+          {vista.mostra ? <EyeOff /> : <Eye />}{vista.mostra ? t("Nascondi originale") : t("Mostra originale")}
         </Button>
-        {tavola && <Button type="button" variant="ghost" size="sm" onClick={() => onVista(vistaLayerDwgIniziale)}>Mostra tutti</Button>}
-        {vista.isola && <Button type="button" variant="ghost" size="sm" onClick={() => onVista({ ...vista, isola: null })}>Esci da Isola</Button>}
+        {tavola && <Button type="button" variant="ghost" size="sm" onClick={() => onVista(vistaLayerDwgIniziale)}>{t("Mostra tutti")}</Button>}
+        {vista.isola && <Button type="button" variant="ghost" size="sm" onClick={() => onVista({ ...vista, isola: null })}>{t("Esci da Isola")}</Button>}
       </div>
       {tavola ? <>
-        <Input className="h-8" aria-label="Cerca un layer" placeholder="Cerca un layer…" value={filtro} onChange={e => setFiltro(e.target.value)} />
+        <Input className="h-8" aria-label={t("Cerca un layer")} placeholder={t("Cerca un layer…")} value={filtro} onChange={e => setFiltro(e.target.value)} />
         <ul className="max-h-64 divide-y overflow-y-auto overscroll-contain rounded-md border">
           {layers.map(l => {
             const visibile = layerVisibile(vista, l.nome);
             return <li key={l.nome} className="flex items-center gap-1 px-1.5 py-1">
-              <Button size="icon" type="button" variant="ghost" className="size-8 shrink-0" aria-label={`Mostra layer ${l.nome}`}
-                title={visibile ? "Nascondi layer" : "Mostra layer"} aria-pressed={visibile} disabled={!!vista.isola} onClick={() => cambiaLayer(l.nome)}>
+              <Button size="icon" type="button" variant="ghost" className="size-8 shrink-0" aria-label={t("Mostra layer {nome}", { nome: String(l.nome ?? "") })}
+                title={visibile ? t("Nascondi layer") : t("Mostra layer")} aria-pressed={visibile} disabled={!!vista.isola} onClick={() => cambiaLayer(l.nome)}>
                 {visibile ? <Eye /> : <EyeOff className="text-muted-foreground" />}
               </Button>
               <span className="min-w-0 flex-1 truncate text-sm" title={l.nome}>{l.nome}</span>
-              <Button size="sm" type="button" variant={vista.isola === l.nome ? "secondary" : "ghost"} className="h-8 shrink-0" aria-label={`Isola layer ${l.nome}`}
-                aria-pressed={vista.isola === l.nome} onClick={() => onVista({ ...vista, mostra: true, isola: vista.isola === l.nome ? null : l.nome })}>Isola</Button>
+              <Button size="sm" type="button" variant={vista.isola === l.nome ? "secondary" : "ghost"} className="h-8 shrink-0" aria-label={t("Isola layer {nome}", { nome: String(l.nome ?? "") })}
+                aria-pressed={vista.isola === l.nome} onClick={() => onVista({ ...vista, mostra: true, isola: vista.isola === l.nome ? null : l.nome })}>{t("Isola")}</Button>
             </li>;
           })}
-          {!layers.length && <li className="p-3 text-xs text-muted-foreground">Nessun layer corrispondente.</li>}
+          {!layers.length && <li className="p-3 text-xs text-muted-foreground">{t("Nessun layer corrispondente.")}</li>}
         </ul>
-      </> : <p className="text-xs text-muted-foreground">Per separare i layer, importa la tavola dal DWG originale.</p>}
+      </> : <p className="text-xs text-muted-foreground">{t("Per separare i layer, importa la tavola dal DWG originale.")}</p>}
     </PopoverContent>
   </Popover>;
 }
 
 export function DisegnoLayerDwg({ tavola, vista, ricalco }: { tavola: TavolaDwg; vista: VistaLayerDwg; ricalco: Ricalco | null }) {
+  const t = useT();
   const clip = useId();
   const layer = useMemo(() => tavola.layer.map(l => ({ ...l, linee: decodificaTracciatoDwg(l.linee), campiture: decodificaTracciatoDwg(l.campiture) })), [tavola.layer]);
   const r = tavola.riquadro;
@@ -101,7 +104,7 @@ export function DisegnoLayerDwg({ tavola, vista, ricalco }: { tavola: TavolaDwg;
   const x = ricalco ? ricalco.x - r.x * s : 0;
   const y = ricalco ? -ricalco.y + (r.y + r.altezza) * s : 0;
   if (!vista.mostra) return null;
-  return <g role="img" aria-label="Layer originali DWG" pointerEvents="none" opacity={ricalco?.opacita ?? 0.4}
+  return <g role="img" aria-label={t("Layer originali DWG")} pointerEvents="none" opacity={ricalco?.opacita ?? 0.4}
     transform={`translate(${x} ${y}) scale(${s} ${-s})`}>
     <defs><clipPath id={clip}><rect x={r.x} y={r.y} width={r.larghezza} height={r.altezza} /></clipPath></defs>
     <g clipPath={`url(#${clip})`} strokeLinecap="round" strokeLinejoin="round">

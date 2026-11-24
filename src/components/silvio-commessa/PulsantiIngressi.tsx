@@ -11,14 +11,16 @@ import { PulsanteCreaConSilvio } from "./PulsanteCreaConSilvio";
 import { euroAI } from "./presentazione";
 import type { FonteDaAggiungere } from "./useBozzaSilvio";
 import { fontiDallEmail, stimaDelleFonti, type AllegatoEmail } from "./fontiDegliIngressi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FanneUnaCommessa({ emailId, allegati }: { emailId: string; allegati: readonly AllegatoEmail[] }) {
+  const t = useT();
   const fonti = fontiDallEmail(emailId, allegati);
   if (!fonti.length) return null;
   return (
     <div className="px-3 pb-3 empty:hidden">
       <PulsanteCreaConSilvio size="sm" variant="outline" className="h-8 border-orange-200 text-xs text-orange-800 hover:bg-orange-50"
-        etichetta={`Fanne una commessa · ${fonti.length === 1 ? "1 allegato" : `${fonti.length} allegati`} · ~${euroAI(stimaDelleFonti(fonti))}`}
+        etichetta={t(fonti.length === 1 ? "Fanne una commessa · 1 allegato · ~{stima}" : "Fanne una commessa · {n} allegati · ~{stima}", { n: fonti.length, stima: euroAI(stimaDelleFonti(fonti)) })}
         iniziale={fonti} />
     </div>
   );
@@ -27,9 +29,10 @@ export function FanneUnaCommessa({ emailId, allegati }: { emailId: string; alleg
 export function CommessaDaContratto({ contrattoId, orderId, etichettaCommessa }: {
   contrattoId: string; orderId?: string | null; etichettaCommessa?: string | null;
 }) {
+  const t = useT();
   const fonte: FonteDaAggiungere = { tipo: "contratto", id: contrattoId };
   return orderId
-    ? <PulsanteCreaConSilvio size="sm" variant="outline" etichetta="Completa la commessa da questo contratto"
+    ? <PulsanteCreaConSilvio size="sm" variant="outline" etichetta={t("Completa la commessa da questo contratto")}
       orderId={orderId} etichettaCommessa={etichettaCommessa} iniziale={[fonte]} />
-    : <PulsanteCreaConSilvio size="sm" variant="outline" etichetta="Crea la commessa da questo contratto" iniziale={fonte} />;
+    : <PulsanteCreaConSilvio size="sm" variant="outline" etichetta={t("Crea la commessa da questo contratto")} iniziale={fonte} />;
 }

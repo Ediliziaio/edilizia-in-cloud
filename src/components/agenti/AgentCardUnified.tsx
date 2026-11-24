@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import type { UnifiedAgent, TipoAgente, StatoAgente } from "@/types/unifiedAgent.types";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_CONFIG: Record<
   TipoAgente,
@@ -81,7 +81,7 @@ const safeNumber = (value: unknown, fallback = 0) => {
 const safeDateLabel = (value: unknown) => {
   const date = new Date(String(value ?? ""));
   if (Number.isNaN(date.getTime())) return "Data non disponibile";
-  return format(date, "d MMM yyyy", { locale: it });
+  return format(date, "d MMM yyyy", { locale: dateFnsCampo() });
 };
 
 interface Props {
@@ -108,6 +108,7 @@ export function AgentCardUnified({
   isToggling = false,
   soloLettura = false,
 }: Props) {
+  const t = useT();
   const tipoCfg = TIPO_CONFIG[agente.tipo] ?? TIPO_CONFIG.interno;
   const statoCfg = STATO_CONFIG[agente.stato] ?? STATO_CONFIG.bozza;
   const TipoIcon = tipoCfg.icon;
@@ -127,7 +128,7 @@ export function AgentCardUnified({
               <h3 className="truncate text-base font-semibold tracking-tight text-foreground">{agente.nome}</h3>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${tipoCfg.badgeClass}`}>
-                  <TipoIcon className="h-2.5 w-2.5" /> {tipoCfg.label}
+                  <TipoIcon className="h-2.5 w-2.5" /> {t(tipoCfg.label)}
                 </span>
                 {(agente.elevenlabs_agent_id || agente.tools_config?.voice_provider === "fish_audio") && (
                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-950/60 dark:text-orange-200">
@@ -141,7 +142,7 @@ export function AgentCardUnified({
           {!soloLettura && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Azioni di ${agente.nome}`}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={t("Azioni di {nome}", { nome: String(agente.nome ?? "") })}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -149,21 +150,21 @@ export function AgentCardUnified({
                 {agente.stato !== "archiviato" && (
                   <>
                     <DropdownMenuItem disabled={isToggling} onSelect={() => onToggleStatus(agente.id, agente.stato === "attivo" ? "pausa" : "attivo")}>
-                      {agente.stato === "attivo" ? <><Pause className="mr-2 h-4 w-4" /> Metti in pausa</> : <><Play className="mr-2 h-4 w-4" /> Attiva agente</>}
+                      {agente.stato === "attivo" ? <><Pause className="mr-2 h-4 w-4" /> {t("Metti in pausa")}</> : <><Play className="mr-2 h-4 w-4" /> {t("Attiva agente")}</>}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
                 )}
                 <DropdownMenuItem onClick={() => onDuplicate(agente.id)}>
-                  <Copy className="h-4 w-4 mr-2" /> Duplica
+                  <Copy className="h-4 w-4 mr-2" /> {t("Duplica")}
                 </DropdownMenuItem>
                 {agente.stato !== "archiviato" && (
                   <DropdownMenuItem onClick={() => onArchive(agente.id)}>
-                    <Archive className="h-4 w-4 mr-2" /> Archivia
+                    <Archive className="h-4 w-4 mr-2" /> {t("Archivia")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem className="text-destructive" onClick={() => onDelete(agente.id)}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                  <Trash2 className="h-4 w-4 mr-2" /> {t("Elimina")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -176,7 +177,7 @@ export function AgentCardUnified({
         <div className="flex items-center gap-2 mb-2">
           <Badge variant={statoCfg.variant} className="text-xs gap-1">
             <span className={`h-1.5 w-1.5 rounded-full ${statoCfg.dotClass}`} />
-            {statoCfg.label}
+            {t(statoCfg.label)}
           </Badge>
           {agente.voice_nome && isVoiceType && (
             <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -196,11 +197,11 @@ export function AgentCardUnified({
         <div className="mb-3 mt-auto grid grid-cols-3 gap-2">
           {(isVoiceType) && (
             <>
-              <MetricBox icon={Phone} label="Chiamate" value={safeNumber(agente.chiamate_totali)} />
-              <MetricBox icon={Clock} label="Minuti" value={Math.round(safeNumber(agente.minuti_totali))} />
+              <MetricBox icon={Phone} label={t("Chiamate")} value={safeNumber(agente.chiamate_totali)} />
+              <MetricBox icon={Clock} label={t("Minuti")} value={Math.round(safeNumber(agente.minuti_totali))} />
               <MetricBox
                 icon={TrendingUp}
-                label="Completate"
+                label={t("Completate")}
                 value={safeNumber(agente.chiamate_totali) > 0
                   ? `${Math.round((safeNumber(agente.chiamate_completate) / safeNumber(agente.chiamate_totali)) * 100)}%`
                   : "–"}
@@ -209,16 +210,16 @@ export function AgentCardUnified({
           )}
           {isChatType && (
             <>
-              <MetricBox icon={MessageSquare} label="Chat" value={agente.chat_totali} />
-              <MetricBox icon={Clock} label="Minuti" value={Math.round(safeNumber(agente.minuti_totali))} />
-              <MetricBox icon={Users} label="Utenti" value="–" />
+              <MetricBox icon={MessageSquare} label={t("Chat")} value={agente.chat_totali} />
+              <MetricBox icon={Clock} label={t("Minuti")} value={Math.round(safeNumber(agente.minuti_totali))} />
+              <MetricBox icon={Users} label={t("Utenti")} value="–" />
             </>
           )}
           {agente.tipo === "interno" && (
             <>
-              <MetricBox icon={MessageSquare} label="Richieste" value={agente.chat_totali} />
-              <MetricBox icon={Clock} label="Tempo" value={`${Math.round(safeNumber(agente.minuti_totali))}m`} />
-              <MetricBox icon={CheckCircle2} label="Risolte" value="–" />
+              <MetricBox icon={MessageSquare} label={t("Richieste")} value={agente.chat_totali} />
+              <MetricBox icon={Clock} label={t("Tempo")} value={`${Math.round(safeNumber(agente.minuti_totali))}m`} />
+              <MetricBox icon={CheckCircle2} label={t("Risolte")} value="–" />
             </>
           )}
         </div>
@@ -230,9 +231,9 @@ export function AgentCardUnified({
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <Button variant="ghost" size="sm" onClick={() => onNavigateConversations(agente.id)}>
-              {isVoiceType ? "Chiamate" : "Chat"}
+              {isVoiceType ? t("Chiamate") : t("Chat")}
             </Button>
-            <Button variant="outline" size="sm" className="eic-motion-button" onClick={onClick}>{soloLettura ? "Apri" : "Configura"}</Button>
+            <Button variant="outline" size="sm" className="eic-motion-button" onClick={onClick}>{soloLettura ? t("Apri") : t("Configura")}</Button>
           </div>
         </div>
       </CardContent>

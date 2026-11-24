@@ -19,6 +19,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import {
   annullabile, annullaCosto, leggiAnteprimaAnnullo, ripristinaCosto, stornaPagamentiCosto, stornoRisolve,
 } from "@/lib/costi/annulloCosto";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   costId: string | null;
@@ -30,9 +31,10 @@ interface Props {
   onFatto?: () => void;
 }
 
-const dataOra = (iso: string) => new Date(iso).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Rome" });
+const dataOra = (iso: string) => new Date(iso).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Rome" });
 
 export function AnnullaCostoDialog({ costId, nome, open, onOpenChange, motivoIniziale = "", onFatto }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const [motivo, setMotivo] = useState(motivoIniziale);
   useEffect(() => { if (open) setMotivo(motivoIniziale); }, [open, motivoIniziale]);
@@ -55,22 +57,22 @@ export function AnnullaCostoDialog({ costId, nome, open, onOpenChange, motivoIni
 
   const storna = useMutation({
     mutationFn: () => stornaPagamentiCosto(costId!),
-    onSuccess: () => { toast.success("Pagamento stornato: in prima nota c'è la riga di storno"); aggiorna(); },
-    onError: (e: Error) => toast.error("Storno non riuscito", { description: e.message }),
+    onSuccess: () => { toast.success(t("Pagamento stornato: in prima nota c'è la riga di storno")); aggiorna(); },
+    onError: (e: Error) => toast.error(t("Storno non riuscito"), { description: e.message }),
   });
   const annulla = useMutation({
     mutationFn: () => annullaCosto(costId!, motivo.trim()),
     onSuccess: (r) => {
-      const extra = [r?.scadenze_annullate ? `${r.scadenze_annullate} scadenze annullate` : null, r?.rate_annullate ? `${r.rate_annullate} rate annullate` : null].filter(Boolean).join(", ");
-      toast.success("Costo annullato", { description: extra || "Esce da controllo di gestione, commesse e cassa prevista." });
+      const extra = [r?.scadenze_annullate ? t("{n} scadenze annullate", { n: r.scadenze_annullate }) : null, r?.rate_annullate ? t("{n} rate annullate", { n: r.rate_annullate }) : null].filter(Boolean).join(", ");
+      toast.success(t("Costo annullato"), { description: extra || t("Esce da controllo di gestione, commesse e cassa prevista.") });
       aggiorna(); onFatto?.(); onOpenChange(false);
     },
-    onError: (e: Error) => { toast.error("Costo non annullato", { description: e.message }); aggiorna(); },
+    onError: (e: Error) => { toast.error(t("Costo non annullato"), { description: e.message }); aggiorna(); },
   });
   const ripristina = useMutation({
     mutationFn: () => ripristinaCosto(costId!),
-    onSuccess: () => { toast.success("Costo ripristinato con le sue scadenze"); aggiorna(); onFatto?.(); onOpenChange(false); },
-    onError: (e: Error) => toast.error("Costo non ripristinato", { description: e.message }),
+    onSuccess: () => { toast.success(t("Costo ripristinato con le sue scadenze")); aggiorna(); onFatto?.(); onOpenChange(false); },
+    onError: (e: Error) => toast.error(t("Costo non ripristinato"), { description: e.message }),
   });
 
   const a = anteprima.data;
@@ -81,62 +83,61 @@ export function AnnullaCostoDialog({ costId, nome, open, onOpenChange, motivoIni
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{a?.annullato ? "Costo annullato" : "Annulla costo"}</DialogTitle>
+          <DialogTitle>{a?.annullato ? t("Costo annullato") : t("Annulla costo")}</DialogTitle>
           <DialogDescription>
-            {nome ? `«${nome}»` : "Il costo"}
+            {nome ? `«${nome}»` : t("Il costo")}
             {a?.importo != null ? ` · ${formatCurrency(a.importo)}` : ""}
           </DialogDescription>
         </DialogHeader>
 
         {anteprima.isLoading ? (
-          <p role="status" className="text-sm text-muted-foreground">Controllo pagamenti e scadenze…</p>
+          <p role="status" className="text-sm text-muted-foreground">{t("Controllo pagamenti e scadenze…")}</p>
         ) : anteprima.isError ? (
           <p role="alert" className="text-sm text-destructive">{(anteprima.error as Error).message}</p>
         ) : a?.annullato ? (
           <div className="space-y-2 text-sm">
-            <p>Annullato{a.annullato_il ? ` il ${dataOra(a.annullato_il)}` : ""}. Motivo: {a.annullato_motivo ?? "—"}.</p>
-            <p className="text-muted-foreground">Non conta nel controllo di gestione, nelle commesse e nella cassa prevista. Ripristinandolo tornano l'importo e le scadenze annullate con lui.</p>
+            <p>{a.annullato_il ? t("Annullato il {data}. Motivo: {motivo}.", { data: dataOra(a.annullato_il), motivo: a.annullato_motivo ?? "—" }) : t("Annullato. Motivo: {motivo}.", { motivo: a.annullato_motivo ?? "—" })}</p>
+            <p className="text-muted-foreground">{t("Non conta nel controllo di gestione, nelle commesse e nella cassa prevista. Ripristinandolo tornano l'importo e le scadenze annullate con lui.")}</p>
           </div>
         ) : a ? (
           <div className="space-y-3 text-sm">
             {a.ostacoli.length > 0 ? (
               <div role="alert" className="space-y-2 rounded-md border border-amber-300 bg-amber-50/70 p-3 dark:bg-amber-950/20">
-                <p className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4 text-amber-600" />Non si può annullare ancora</p>
+                <p className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4 text-amber-600" />{t("Non si può annullare ancora")}</p>
                 <ul className="list-disc space-y-1 pl-5">
                   {a.ostacoli.map((o) => <li key={o.codice}>{o.testo}</li>)}
                 </ul>
                 {stornoRisolve(a) && (
                   <Button size="sm" variant="outline" disabled={occupato} onClick={() => storna.mutate()}>
-                    {storna.isPending ? "Storno…" : "Storna il pagamento"}
+                    {storna.isPending ? t("Storno…") : t("Storna il pagamento")}
                   </Button>
                 )}
               </div>
             ) : (
               <p className="text-muted-foreground">
-                Il costo resta nell'elenco come annullato, con data, nome e motivo, ed esce da controllo di gestione, commesse,
-                cassa prevista e scadenzario.
-                {a.scadenze_da_annullare > 0 && ` Si ${a.scadenze_da_annullare === 1 ? "annulla anche la scadenza non pagata" : `annullano anche ${a.scadenze_da_annullare} scadenze non pagate`}.`}
-                {a.rate_da_annullare > 0 && ` Si ${a.rate_da_annullare === 1 ? "annulla anche la rata del fornitore" : `annullano anche ${a.rate_da_annullare} rate del fornitore`}.`}
-                {" "}Si può ripristinare.
+                {t("Il costo resta nell'elenco come annullato, con data, nome e motivo, ed esce da controllo di gestione, commesse, cassa prevista e scadenzario.")}
+                {a.scadenze_da_annullare > 0 && ` ${a.scadenze_da_annullare === 1 ? t("Si annulla anche la scadenza non pagata.") : t("Si annullano anche {n} scadenze non pagate.", { n: a.scadenze_da_annullare })}`}
+                {a.rate_da_annullare > 0 && ` ${a.rate_da_annullare === 1 ? t("Si annulla anche la rata del fornitore.") : t("Si annullano anche {n} rate del fornitore.", { n: a.rate_da_annullare })}`}
+                {" "}{t("Si può ripristinare.")}
               </p>
             )}
             <div className="space-y-1">
-              <Label htmlFor="motivo-annullo">Motivo</Label>
+              <Label htmlFor="motivo-annullo">{t("Motivo")}</Label>
               <Textarea id="motivo-annullo" value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2}
-                placeholder="Per esempio: bolletta doppia, fattura rifiutata, inserito per sbaglio" disabled={!annullabile(a)} />
+                placeholder={t("Per esempio: bolletta doppia, fattura rifiutata, inserito per sbaglio")} disabled={!annullabile(a)} />
             </div>
           </div>
         ) : null}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={occupato}>Chiudi</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={occupato}>{t("Chiudi")}</Button>
           {a?.annullato ? (
             <Button onClick={() => ripristina.mutate()} disabled={occupato}>
-              <RotateCcw className="mr-1 h-4 w-4" />{ripristina.isPending ? "Ripristino…" : "Ripristina"}
+              <RotateCcw className="mr-1 h-4 w-4" />{ripristina.isPending ? t("Ripristino…") : t("Ripristina")}
             </Button>
           ) : (
             <Button variant="destructive" onClick={() => annulla.mutate()} disabled={occupato || !annullabile(a) || !motivoOk}>
-              <Ban className="mr-1 h-4 w-4" />{annulla.isPending ? "Annullo…" : "Annulla costo"}
+              <Ban className="mr-1 h-4 w-4" />{annulla.isPending ? t("Annullo…") : t("Annulla costo")}
             </Button>
           )}
         </DialogFooter>

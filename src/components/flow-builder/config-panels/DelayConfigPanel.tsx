@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const GIORNI = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
 
@@ -13,6 +14,7 @@ interface DelayConfigPanelProps {
 }
 
 export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanelProps) {
+  const t = useT();
   const tipo = config.delay_tipo || "attendi";
   const giorniAttivi: number[] = config.delay_giorni_settimana?.length ? config.delay_giorni_settimana : [0, 1, 2, 3, 4, 5, 6];
   const legacyMinutes = (Number(config.giorni) || 0) * 1440 + (Number(config.ore) || 0) * 60 + (Number(config.minuti) || 0);
@@ -32,12 +34,12 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
     <div className="space-y-4">
       {/* Tipo */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Tipo attesa</Label>
+        <Label className="text-xs">{t("Tipo attesa")}</Label>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { val: "attendi", label: "Attendi per", icon: Clock },
-            { val: "fino_a", label: "Fino a un orario", icon: CalendarDays },
-            { val: "prima_appuntamento", label: "Prima dell'appuntamento", icon: CalendarClock },
+            { val: "attendi", label: t("Attendi per"), icon: Clock },
+            { val: "fino_a", label: t("Fino a un orario"), icon: CalendarDays },
+            { val: "prima_appuntamento", label: t("Prima dell'appuntamento"), icon: CalendarClock },
           ].map(opt => {
             const Icon = opt.icon;
             return (
@@ -65,7 +67,7 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
       {/* Duration */}
       {tipo === "attendi" && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Durata</Label>
+          <Label className="text-xs">{t("Durata")}</Label>
           <div className="flex gap-2">
             <Input
               type="number"
@@ -81,11 +83,11 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
               <SelectContent>
                 {/* Secondi: nelle conversazioni (WhatsApp, bot) la pausa
                     giusta è di trenta secondi, non di un minuto. */}
-                <SelectItem value="secondi">Secondi</SelectItem>
-                <SelectItem value="minuti">Minuti</SelectItem>
-                <SelectItem value="ore">Ore</SelectItem>
-                <SelectItem value="giorni">Giorni</SelectItem>
-                <SelectItem value="settimane">Settimane</SelectItem>
+                <SelectItem value="secondi">{t("Secondi")}</SelectItem>
+                <SelectItem value="minuti">{t("Minuti")}</SelectItem>
+                <SelectItem value="ore">{t("Ore")}</SelectItem>
+                <SelectItem value="giorni">{t("Giorni")}</SelectItem>
+                <SelectItem value="settimane">{t("Settimane")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -95,7 +97,7 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
       {/* Until time */}
       {tipo === "fino_a" && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Orario specifico</Label>
+          <Label className="text-xs">{t("Orario specifico")}</Label>
           <Input
             type="time"
             value={config.delay_orario || "09:00"}
@@ -108,7 +110,7 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
       {/* Ancorata all'appuntamento */}
       {tipo === "prima_appuntamento" && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Quanto prima</Label>
+          <Label className="text-xs">{t("Quanto prima")}</Label>
           <div className="flex gap-2">
             <Input
               type="number"
@@ -122,14 +124,13 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="minuti">Minuti prima</SelectItem>
-                <SelectItem value="ore">Ore prima</SelectItem>
+                <SelectItem value="minuti">{t("Minuti prima")}</SelectItem>
+                <SelectItem value="ore">{t("Ore prima")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Si conta dal primo appuntamento futuro del contatto. Se l'appuntamento
-            non c'è, o è già passato, il flusso prosegue subito.
+            {t("Si conta dal primo appuntamento futuro del contatto. Se l'appuntamento non c'è, o è già passato, il flusso prosegue subito.")}
           </p>
         </div>
       )}
@@ -137,7 +138,7 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
       {/* Day picker */}
       {tipo !== "prima_appuntamento" && (
       <div className="space-y-1.5">
-        <Label className="text-xs">Solo in questi giorni</Label>
+        <Label className="text-xs">{t("Solo in questi giorni")}</Label>
         <div className="flex gap-1 flex-wrap">
           {GIORNI.map((g, i) => {
             const attivo = giorniAttivi.includes(i);
@@ -160,7 +161,7 @@ export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanel
                     : "bg-muted text-muted-foreground hover:bg-accent"
                 )}
               >
-                {g}
+                {t(g)}
               </button>
             );
           })}

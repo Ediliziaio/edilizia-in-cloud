@@ -30,11 +30,11 @@ import {
 } from "@/components/ui/table";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { format, subDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { Clock, Download, FilterX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 interface CreditLogEntry {
   id: string;
   type: string;
@@ -70,6 +70,7 @@ const TYPE_VARIANTS: Record<string, "default" | "destructive" | "secondary"> = {
 };
 
 export function CreditsHistory() {
+  const t = useT();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -158,64 +159,64 @@ export function CreditsHistory() {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Clock className="h-4 w-4" /> Storico movimenti
+          <Clock className="h-4 w-4" /> {t("Storico movimenti")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Filtri toolbar */}
         <div className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Servizio</label>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Servizio")}</label>
             <Select value={wallet} onValueChange={(v) => setWallet(v as WalletFilter)}>
-              <SelectTrigger aria-label="Servizio" className="h-8 w-[140px] text-xs">
+              <SelectTrigger aria-label={t("Servizio")} className="h-8 w-[140px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="email">Email Marketing</SelectItem>
+                <SelectItem value="email">{t("Email Marketing")}</SelectItem>
                 <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                <SelectItem value="ai">Agenti AI</SelectItem>
+                <SelectItem value="ai">{t("Agenti AI")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</label>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Tipo")}</label>
             <Select value={type} onValueChange={(v) => setType(v as TypeFilter)}>
-              <SelectTrigger aria-label="Tipo movimento" className="h-8 w-[140px] text-xs">
+              <SelectTrigger aria-label={t("Tipo movimento")} className="h-8 w-[140px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
-                <SelectItem value="topup">Ricarica</SelectItem>
-                <SelectItem value="deduction">Detrazione</SelectItem>
-                <SelectItem value="bonus">Bonus</SelectItem>
-                <SelectItem value="refund">Rimborso</SelectItem>
+                <SelectItem value="all">{t("Tutti")}</SelectItem>
+                <SelectItem value="topup">{t("Ricarica")}</SelectItem>
+                <SelectItem value="deduction">{t("Detrazione")}</SelectItem>
+                <SelectItem value="bonus">{t("Bonus")}</SelectItem>
+                <SelectItem value="refund">{t("Rimborso")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Periodo</label>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Periodo")}</label>
             <Select value={range} onValueChange={(v) => setRange(v as RangeFilter)}>
-              <SelectTrigger aria-label="Periodo movimenti" className="h-8 w-[120px] text-xs">
+              <SelectTrigger aria-label={t("Periodo movimenti")} className="h-8 w-[120px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">Ultimi 7gg</SelectItem>
-                <SelectItem value="30">Ultimi 30gg</SelectItem>
-                <SelectItem value="90">Ultimi 90gg</SelectItem>
-                <SelectItem value="all">Tutto</SelectItem>
+                <SelectItem value="7">{t("Ultimi 7gg")}</SelectItem>
+                <SelectItem value="30">{t("Ultimi 30gg")}</SelectItem>
+                <SelectItem value="90">{t("Ultimi 90gg")}</SelectItem>
+                <SelectItem value="all">{t("Tutto")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {(type !== "all" || range !== "30") && (
             <Button variant="ghost" size="sm" onClick={resetFilters}>
               <FilterX className="mr-1 h-3.5 w-3.5" />
-              Reset
+              {t("Reset")}
             </Button>
           )}
           <div className="ml-auto flex items-center gap-3">
             {filtered.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                <strong>{filtered.length}</strong> movimenti · Speso {formatEur(totals.spent)} · Ricaricato {formatEur(totals.recharged)}
+                {t("{n} movimenti · Speso {speso} · Ricaricato {ricaricato}", { n: filtered.length, speso: formatEur(totals.spent), ricaricato: formatEur(totals.recharged) })}
               </p>
             )}
             {/* Niente export su telefono. */}
@@ -238,35 +239,35 @@ export function CreditsHistory() {
           <Skeleton className="h-64 w-full" />
         ) : isError ? (
           <div role="alert" className="text-sm text-destructive">
-            Impossibile caricare lo storico dei movimenti.
-            <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+            {t("Impossibile caricare lo storico dei movimenti.")}
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova")}</Button>
           </div>
         ) : filtered.length === 0 ? (
           <p className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-            Nessun movimento registrato per i filtri selezionati.
+            {t("Nessun movimento registrato per i filtri selezionati.")}
           </p>
         ) : (
           <div className="max-h-[500px] overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 bg-background">
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Importo</TableHead>
-                  {wallet !== "ai" && <TableHead className="text-right">Saldo Prima</TableHead>}
-                  {wallet !== "ai" && <TableHead className="text-right">Saldo Dopo</TableHead>}
-                  <TableHead>Descrizione</TableHead>
+                  <TableHead>{t("Data")}</TableHead>
+                  <TableHead>{t("Tipo")}</TableHead>
+                  <TableHead className="text-right">{t("Importo")}</TableHead>
+                  {wallet !== "ai" && <TableHead className="text-right">{t("Saldo Prima")}</TableHead>}
+                  {wallet !== "ai" && <TableHead className="text-right">{t("Saldo Dopo")}</TableHead>}
+                  <TableHead>{t("Descrizione")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((log: any) => (
                   <TableRow key={log.id}>
                     <TableCell className="font-mono text-xs">
-                      {format(new Date(log.created_at), "dd/MM/yy HH:mm", { locale: it })}
+                      {format(new Date(log.created_at), "dd/MM/yy HH:mm", { locale: dateFnsCampo() })}
                     </TableCell>
                     <TableCell>
                       <Badge variant={TYPE_VARIANTS[log.type] ?? "secondary"} className="text-[10px]">
-                        {TYPE_LABELS[log.type] ?? log.type}
+                        {TYPE_LABELS[log.type] ? t(TYPE_LABELS[log.type]) : log.type}
                       </Badge>
                     </TableCell>
                     <TableCell

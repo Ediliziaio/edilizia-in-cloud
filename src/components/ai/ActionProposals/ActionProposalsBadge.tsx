@@ -14,8 +14,10 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { ActionProposalsList } from "./ActionProposalsList";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ActionProposalsBadge() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -75,8 +77,8 @@ export function ActionProposalsBadge() {
         size="icon"
         className="relative h-9 w-9 shrink-0"
         onClick={() => setOpen(true)}
-        title={count > 0 ? `${count} azioni AI da approvare` : "Azioni proposte AI"}
-        aria-label={`Azioni proposte AI (${count})`}
+        title={count > 0 ? t("{count} azioni AI da approvare", { count: String(count ?? "") }) : t("Azioni proposte AI")}
+        aria-label={t("Azioni proposte AI ({count})", { count: String(count ?? "") })}
       >
         {/* 🆕 Icon Inbox (era Sparkles, identica a SilvioBellPopover → confusione header) */}
         <Inbox className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
@@ -95,12 +97,11 @@ export function ActionProposalsBadge() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Inbox className="h-4 w-4 text-amber-600" />
-              Azioni proposte AI
+              {t("Azioni proposte AI")}
               {count > 0 ? <Badge variant="destructive">{count}</Badge> : null}
             </SheetTitle>
             <SheetDescription className="text-xs">
-              Silvio ha proposto azioni che richiedono il tuo OK prima di essere eseguite.
-              Scadono automaticamente dopo il TTL indicato.
+              {t("Silvio ha proposto azioni che richiedono il tuo OK prima di essere eseguite. Scadono automaticamente dopo il TTL indicato.")}
             </SheetDescription>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto -mx-6 px-6 pt-2">
@@ -112,7 +113,7 @@ export function ActionProposalsBadge() {
               onClick={() => setOpen(false)}
               className="text-xs text-primary hover:underline inline-flex items-center gap-1"
             >
-              Apri pagina dedicata
+              {t("Apri pagina dedicata")}
               <ExternalLink className="h-3 w-3" />
             </Link>
           </div>

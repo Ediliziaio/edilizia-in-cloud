@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CalendarItem {
   id: string;
@@ -48,6 +49,7 @@ export default function MarketingCalendarFilters({
   onConfigureCalendars,
   inSheet = false,
 }: Props) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [usersOpen, setUsersOpen] = useState(true);
   const [calendarsOpen, setCalendarsOpen] = useState(true);
@@ -103,7 +105,7 @@ export default function MarketingCalendarFilters({
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm flex items-center gap-2">
             <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-            Filtri
+            {t("Filtri")}
           </h3>
           {hasActiveFilters && (
             <Button
@@ -116,7 +118,7 @@ export default function MarketingCalendarFilters({
               }}
             >
               <XIcon className="h-3 w-3 mr-0.5" />
-              Reset
+              {t("Reset")}
             </Button>
           )}
         </div>
@@ -125,7 +127,7 @@ export default function MarketingCalendarFilters({
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
-          placeholder="Cerca nei filtri..."
+          placeholder={t("Cerca nei filtri...")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-8 h-8 text-sm"
@@ -137,7 +139,7 @@ export default function MarketingCalendarFilters({
         open={usersOpen}
         onToggle={() => setUsersOpen(!usersOpen)}
         icon={UsersIcon}
-        label="Utenti"
+        label={t("Utenti")}
         total={filteredUsers.length}
         selected={selectedUserCount}
         totalAvailable={users.length}
@@ -170,7 +172,7 @@ export default function MarketingCalendarFilters({
           })}
           {filteredUsers.length === 0 && (
             <p className="text-xs text-muted-foreground italic px-2 py-1">
-              Nessun utente
+              {t("Nessun utente")}
             </p>
           )}
         </div>
@@ -181,7 +183,7 @@ export default function MarketingCalendarFilters({
         open={calendarsOpen}
         onToggle={() => setCalendarsOpen(!calendarsOpen)}
         icon={CalendarDays}
-        label="Calendari"
+        label={t("Calendari")}
         total={filteredCalendars.length}
         selected={selectedCalendarCount}
         totalAvailable={calendars.length}
@@ -212,9 +214,9 @@ export default function MarketingCalendarFilters({
           })}
           {filteredCalendars.length === 0 && (
             <div className="rounded-md border border-dashed bg-muted/30 px-3 py-3">
-              <p className="text-xs font-medium text-foreground">Nessun calendario</p>
+              <p className="text-xs font-medium text-foreground">{t("Nessun calendario")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Configura almeno un calendario CRM per creare appuntamenti e link di prenotazione.
+                {t("Configura almeno un calendario CRM per creare appuntamenti e link di prenotazione.")}
               </p>
               {onConfigureCalendars && (
                 <Button
@@ -225,7 +227,7 @@ export default function MarketingCalendarFilters({
                   onClick={onConfigureCalendars}
                 >
                   <CalendarPlus className="h-3.5 w-3.5" />
-                  Configura calendario
+                  {t("Configura calendario")}
                 </Button>
               )}
             </div>
@@ -261,6 +263,7 @@ function Section({
   onClear,
   children,
 }: SectionProps) {
+  const t = useT();
   const allSelected = totalAvailable > 0 && selected === totalAvailable;
   return (
     <div>
@@ -293,7 +296,7 @@ function Section({
           <button
             onClick={allSelected ? onClear : onSelectAll}
             className="text-[10px] text-muted-foreground hover:text-primary transition-colors px-1.5 py-0.5 rounded"
-            title={allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
+            title={allSelected ? t("Deseleziona tutti") : t("Seleziona tutti")}
           >
             {allSelected ? (
               <XIcon className="h-3 w-3" />
@@ -306,7 +309,7 @@ function Section({
       {open && children}
       {!open && selected > 0 && total !== selected && (
         <p className="text-[10px] text-muted-foreground ml-5 mt-0.5">
-          {total} nel filtro · {selected} selezionat{selected === 1 ? "o" : "i"}
+          {t(selected === 1 ? "{totale} nel filtro · {n} selezionato" : "{totale} nel filtro · {n} selezionati", { totale: total, n: selected })}
         </p>
       )}
     </div>

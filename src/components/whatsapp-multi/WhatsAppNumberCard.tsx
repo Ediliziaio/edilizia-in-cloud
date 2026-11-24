@@ -48,10 +48,11 @@ import {
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WhatsAppProfiloDialog } from "./WhatsAppProfiloDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** «10,00 €»; per cifre piccolissime (la spesa AI di un giorno) qualche decimale in più, così non sembra zero. */
 const euro = (valore: number) =>
-  valore.toLocaleString("it-IT", {
+  valore.toLocaleString(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: valore > 0 && valore < 0.01 ? 4 : 2,
@@ -63,6 +64,7 @@ interface Props {
 }
 
 export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
+  const t = useT();
   const del = useDeleteWANumber();
   const connect = useConnectWANumber();
   const purpose = number.purpose as WAPurpose;
@@ -112,12 +114,12 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold truncate">
-                {number.display_name || PURPOSE_LABELS[purpose]}
+                {number.display_name || t(PURPOSE_LABELS[purpose])}
               </h3>
               {active ? (
                 <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
-                  Attivo
+                  {t("Attivo")}
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300">
@@ -134,13 +136,13 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
                   number.quality_rating === "GREEN" ? "border-green-300 text-green-700 dark:border-green-800 dark:text-green-400"
                   : number.quality_rating === "YELLOW" ? "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400"
                   : "border-red-300 text-red-700 dark:border-red-800 dark:text-red-400"
-                } title={`Qualità Meta: ${number.quality_rating}${number.messaging_limit_tier ? ` · tier ${number.messaging_limit_tier}` : ""}`}>
-                  {number.quality_rating === "GREEN" ? "Qualità ✓" : number.quality_rating === "YELLOW" ? "Qualità ⚠" : "Qualità ✗"}
+                } title={`${t("Qualità Meta: {valore}", { valore: number.quality_rating })}${number.messaging_limit_tier ? ` · tier ${number.messaging_limit_tier}` : ""}`}>
+                  {number.quality_rating === "GREEN" ? t("Qualità ✓") : number.quality_rating === "YELLOW" ? t("Qualità ⚠") : t("Qualità ✗")}
                 </Badge>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {PURPOSE_LABELS[purpose]}
+              {t(PURPOSE_LABELS[purpose])}
             </p>
           </div>
         </div>
@@ -153,14 +155,12 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
         </div>
 
         {number.daily_budget_eur != null && (
-          <div className="text-xs text-muted-foreground">
-            Spesa massima AI al giorno: {euro(Number(number.daily_budget_eur))} · speso oggi: {euro(Number(number.current_day_spend_eur ?? 0))}
-          </div>
+          <div className="text-xs text-muted-foreground">{t("Spesa massima AI al giorno: {massimo} · speso oggi: {speso}", { massimo: euro(Number(number.daily_budget_eur)), speso: euro(Number(number.current_day_spend_eur ?? 0)) })}</div>
         )}
 
         {/* Una frase sola: come lavora Silvio su questo numero. Descrizione ed esempi stanno nella pagina del numero. */}
         <p className="text-xs text-muted-foreground">
-          {PURPOSE_AUTONOMY[purpose]}
+          {t(PURPOSE_AUTONOMY[purpose])}
         </p>
 
         <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -169,10 +169,10 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
               variant="outline"
               size="sm"
               onClick={() => onOpenSettings(number.id)}
-              aria-label={`Impostazioni ${number.display_name ?? number.numero}`}
+              aria-label={t("Impostazioni {nome}", { nome: number.display_name ?? number.numero ?? "" })}
             >
               <Settings2 className="mr-1 h-4 w-4" />
-              Impostazioni
+              {t("Impostazioni")}
             </Button>
           )}
 
@@ -181,10 +181,10 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
               variant="outline"
               size="sm"
               onClick={() => setProfiloOpen(true)}
-              aria-label={`Profilo WhatsApp ${number.display_name ?? number.numero}`}
+              aria-label={t("Profilo WhatsApp {nome}", { nome: number.display_name ?? number.numero ?? "" })}
             >
               <UserCircle className="mr-1 h-4 w-4" />
-              Profilo
+              {t("Profilo")}
             </Button>
           )}
 
@@ -193,10 +193,10 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
               variant="outline"
               size="sm"
               onClick={() => setTokenOpen(true)}
-              aria-label={`Aggiorna token ${number.display_name ?? number.numero}`}
+              aria-label={t("Aggiorna token {nome}", { nome: number.display_name ?? number.numero ?? "" })}
             >
               <KeyRound className="mr-1 h-4 w-4" />
-              Aggiorna token
+              {t("Aggiorna token")}
             </Button>
           )}
 
@@ -208,26 +208,23 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
                   variant="ghost"
                   size="sm"
                   className="text-destructive hover:text-destructive"
-                  aria-label="Rimuovi numero"
+                  aria-label={t("Rimuovi numero")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Rimuovere questo numero?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Il numero {number.numero} viene disattivato. Lo storico dei messaggi resta consultabile
-                    e lo puoi ricollegare in futuro.
-                  </AlertDialogDescription>
+                  <AlertDialogTitle>{t("Rimuovere questo numero?")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("Il numero {numero} viene disattivato. Lo storico dei messaggi resta consultabile e lo puoi ricollegare in futuro.", { numero: String(number.numero ?? "") })}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => del.mutate(number.id)}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    Rimuovi
+                    {t("Rimuovi")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -251,21 +248,15 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
       >
         <DialogContent className="w-[calc(100vw-1rem)] max-w-lg">
           <DialogHeader>
-            <DialogTitle>Aggiorna access token</DialogTitle>
-            <DialogDescription>
-              Incolla un nuovo access token Meta per {number.numero}. Il numero
-              resta lo stesso (Phone ID e WABA invariati); aggiorniamo solo il
-              token, lo ri-sottoscriviamo e lo riportiamo attivo.
-            </DialogDescription>
+            <DialogTitle>{t("Aggiorna access token")}</DialogTitle>
+            <DialogDescription>{t("Incolla un nuovo access token Meta per {numero}. Il numero resta lo stesso (Phone ID e WABA invariati); aggiorniamo solo il token, lo ri-sottoscriviamo e lo riportiamo attivo.", { numero: String(number.numero ?? "") })}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Lo trovi in <b>Meta Business Manager → WhatsApp → Configurazione API</b>.
-                I token temporanei dei numeri di test scadono dopo ~24h: per la
-                produzione usa un token permanente da Utente di sistema.
+                {t("Lo trovi in")} <b>{t("Meta Business Manager → WhatsApp → Configurazione API")}</b>{t(". I token temporanei dei numeri di test scadono dopo ~24h: per la produzione usa un token permanente da Utente di sistema.")}
               </AlertDescription>
             </Alert>
 
@@ -289,11 +280,11 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
 
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
             <Button variant="outline" onClick={() => setTokenOpen(false)}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button disabled={!newToken.trim() || connect.isPending} onClick={submitNewToken}>
               {connect.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Aggiorna e riattiva
+              {t("Aggiorna e riattiva")}
             </Button>
           </DialogFooter>
         </DialogContent>

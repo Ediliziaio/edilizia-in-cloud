@@ -31,6 +31,7 @@ import { SrCallout } from "@/lib/serramenti/wizardUI";
 import type {
   SrProgettoRow, SrEsigenza, SrSoluzioneItem, SrTemplatePdfRow,
 } from "@/types/serramenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   form: Partial<SrProgettoRow>;
@@ -59,6 +60,7 @@ function ObjectItemsPicker({
   placeholderTitolo: string;
   placeholderDesc: string;
 }) {
+  const t = useT();
   // Una voce è "selezionata" se il suo titolo+descrizione combaciano con una nelle selectedItems
   const keyOf = (it: SrEsigenza | SrSoluzioneItem) => `${it.titolo}||${it.descrizione}`;
   const selectedKeys = useMemo(
@@ -124,14 +126,14 @@ function ObjectItemsPicker({
         <div className="space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-[11px] text-muted-foreground">
-              Dalla tua <strong>libreria dei modelli</strong> ({templateItems.length} voci disponibili)
+              {t("Dalla tua")} <strong>{t("libreria dei modelli")}</strong> ({templateItems.length} {t("voci disponibili)")}
             </p>
             <div className="flex gap-1">
               <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="tap-compact h-7 text-[11px]">
-                Seleziona tutte
+                {t("Seleziona tutte")}
               </Button>
               <Button size="sm" variant="ghost" onClick={clearAll} className="tap-compact h-7 text-[11px]">
-                Nessuna
+                {t("Nessuna")}
               </Button>
             </div>
           </div>
@@ -160,7 +162,7 @@ function ObjectItemsPicker({
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-900 max-md:text-[13px]">
-                    {emoji} {it.titolo || <span className="italic text-muted-foreground">(senza titolo)</span>}
+                    {emoji} {it.titolo || <span className="italic text-muted-foreground">{t("(senza titolo)")}</span>}
                   </p>
                   {/* Telefono: si sceglie dal titolo; del testo resta una riga. */}
                   <p className="text-xs mt-0.5 text-slate-600 max-md:line-clamp-1 max-md:text-[11px]">
@@ -173,7 +175,7 @@ function ObjectItemsPicker({
         </div>
       ) : (
         <SrCallout variant="info">
-          La tua libreria dei modelli non ha ancora {label.toLowerCase()}. Vai in <strong>Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti</strong> per aggiungerne.
+          {t("La tua libreria dei modelli non ha ancora")} {label.toLowerCase()}{t(". Vai in")} <strong>{t("Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti")}</strong> {t("per aggiungerne.")}
         </SrCallout>
       )}
 
@@ -181,20 +183,18 @@ function ObjectItemsPicker({
       {customItemsWithIdx.length > 0 && (
         <div className="space-y-2 pt-2 border-t">
           <p className="text-[11px] text-muted-foreground">
-            Voci personalizzate <strong>solo per questo cliente</strong> ({customItemsWithIdx.length})
+            {t("Voci personalizzate")} <strong>{t("solo per questo cliente")}</strong> ({customItemsWithIdx.length})
           </p>
           {customItemsWithIdx.map(({ value: it, realIdx }, displayIdx) => (
             <div key={realIdx} className="border-l-4 border-amber-300 pl-3 py-1 bg-amber-50/30 rounded-r-md">
               <div className="flex items-center justify-between gap-2">
-                <Label className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold">
-                  Custom #{displayIdx + 1}
-                </Label>
+                <Label className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold">{t("Custom #{displayIdx}", { displayIdx: displayIdx + 1 })}</Label>
                 <Button
                   size="sm" variant="ghost"
                   onClick={() => removeCustomByIdx(realIdx)}
                   className="tap-compact h-7 px-2 text-xs text-rose-600"
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("Rimuovi")}
                 </Button>
               </div>
               <Input
@@ -221,7 +221,7 @@ function ObjectItemsPicker({
         size="sm"
         className="w-full border-dashed border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-600 gap-1"
       >
-        <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}<span className="max-md:hidden"> personalizzata per questo cliente</span>
+        <Plus className="h-3.5 w-3.5" /> {t("Aggiungi")} {label.toLowerCase()}<span className="max-md:hidden"> {t("personalizzata per questo cliente")}</span>
       </Button>
     </div>
   );
@@ -244,6 +244,7 @@ function StringItemsPicker({
   onChange: (next: string[]) => void;
   placeholder: string;
 }) {
+  const t = useT();
   const selectedSet = useMemo(() => new Set(selectedItems), [selectedItems]);
   const templateSet = useMemo(() => new Set(templateItems), [templateItems]);
   const customItems = useMemo(
@@ -292,14 +293,14 @@ function StringItemsPicker({
         <div className="space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-[11px] text-muted-foreground">
-              Dalla tua <strong>libreria dei modelli</strong> ({templateItems.length} voci disponibili)
+              {t("Dalla tua")} <strong>{t("libreria dei modelli")}</strong> ({templateItems.length} {t("voci disponibili)")}
             </p>
             <div className="flex gap-1">
               <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="tap-compact h-7 text-[11px]">
-                Seleziona tutte
+                {t("Seleziona tutte")}
               </Button>
               <Button size="sm" variant="ghost" onClick={clearAll} className="tap-compact h-7 text-[11px]">
-                Nessuna
+                {t("Nessuna")}
               </Button>
             </div>
           </div>
@@ -322,7 +323,7 @@ function StringItemsPicker({
                   className="mt-0.5"
                 />
                 <span className={"text-xs flex-1 text-slate-800 " + (isSelected ? "font-medium" : "")}>
-                  {emoji} {it || <span className="italic text-muted-foreground">(vuota)</span>}
+                  {emoji} {it || <span className="italic text-muted-foreground">{t("(vuota)")}</span>}
                 </span>
               </label>
             );
@@ -330,14 +331,14 @@ function StringItemsPicker({
         </div>
       ) : (
         <SrCallout variant="info">
-          La tua libreria dei modelli non ha ancora <strong>{label.toLowerCase()}</strong>. Vai in <strong>Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti</strong> per aggiungerne.
+          {t("La tua libreria dei modelli non ha ancora")} <strong>{label.toLowerCase()}</strong>{t(". Vai in")} <strong>{t("Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti")}</strong> {t("per aggiungerne.")}
         </SrCallout>
       )}
 
       {customItemsWithIdx.length > 0 && (
         <div className="space-y-2 pt-2 border-t">
           <p className="text-[11px] text-muted-foreground">
-            Voci personalizzate <strong>solo per questo cliente</strong> ({customItemsWithIdx.length})
+            {t("Voci personalizzate")} <strong>{t("solo per questo cliente")}</strong> ({customItemsWithIdx.length})
           </p>
           {customItemsWithIdx.map(({ value, realIdx }, displayIdx) => (
             <div key={realIdx} className="flex items-center gap-2">
@@ -368,7 +369,7 @@ function StringItemsPicker({
         size="sm"
         className="w-full border-dashed border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-600 gap-1"
       >
-        <Plus className="h-3.5 w-3.5" /> Aggiungi voce<span className="max-md:hidden"> personalizzata per questo cliente</span>
+        <Plus className="h-3.5 w-3.5" /> {t("Aggiungi voce")}<span className="max-md:hidden"> {t("personalizzata per questo cliente")}</span>
       </Button>
     </div>
   );
@@ -377,6 +378,7 @@ function StringItemsPicker({
 // ─── Step principale ────────────────────────────────────────────────────────
 
 export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) {
+  const t = useT();
   const { data: template } = useTemplatePdf();
   const tpl: Partial<SrTemplatePdfRow> = (template ?? {}) as Partial<SrTemplatePdfRow>;
 
@@ -403,7 +405,7 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
     onChange("perche_noi", templatePercheNoi);
     onChange("incluso_investimento", templateIncluso);
     onChange("prossimi_passi", templatePassi);
-    toast.success("Tutti i contenuti del template applicati al preventivo");
+    toast.success(t("Tutti i contenuti del template applicati al preventivo"));
   };
 
   const sezioni: Array<{
@@ -417,45 +419,45 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
   }> = [
     {
       key: "esigenze",
-      title: "Esigenze del cliente",
+      title: t("Esigenze del cliente"),
       emoji: "💬",
       icon: <MessageCircle className="h-4 w-4 text-orange-600" />,
       count: selEsigenze.length,
       total: templateEsigenze.length,
       body: (
         <ObjectItemsPicker
-          label="Esigenza"
+          label={t("Esigenza")}
           emoji="💬"
           templateItems={templateEsigenze}
           selectedItems={selEsigenze}
           onChange={(v) => onChange("esigenze", v as SrEsigenza[])}
-          placeholderTitolo="Es. Spifferi e correnti d'aria"
-          placeholderDesc="Cosa risolve il nuovo serramento"
+          placeholderTitolo={t("Es. Spifferi e correnti d'aria")}
+          placeholderDesc={t("Cosa risolve il nuovo serramento")}
         />
       ),
     },
     {
       key: "soluzione",
-      title: "Soluzione proposta",
+      title: t("Soluzione proposta"),
       emoji: "✨",
       icon: <Sparkles className="h-4 w-4 text-orange-600" />,
       count: selSoluzione.length,
       total: templateSoluzione.length,
       body: (
         <ObjectItemsPicker
-          label="Soluzione"
+          label={t("Soluzione")}
           emoji="✨"
           templateItems={templateSoluzione}
           selectedItems={selSoluzione}
           onChange={(v) => onChange("soluzione", v as SrSoluzioneItem[])}
-          placeholderTitolo="Es. Posa qualificata UNI 11673"
-          placeholderDesc="Cosa proponi e perché ti distingue"
+          placeholderTitolo={t("Es. Posa qualificata UNI 11673")}
+          placeholderDesc={t("Cosa proponi e perché ti distingue")}
         />
       ),
     },
     {
       key: "perche_noi",
-      title: "Perché scegliere noi (USP)",
+      title: t("Perché scegliere noi (USP)"),
       emoji: "🏆",
       icon: <ListChecks className="h-4 w-4 text-orange-600" />,
       count: selPercheNoi.length,
@@ -467,43 +469,43 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
           templateItems={templatePercheNoi}
           selectedItems={selPercheNoi}
           onChange={(v) => onChange("perche_noi", v)}
-          placeholder="Es. Garanzia decennale scritta in contratto"
+          placeholder={t("Es. Garanzia decennale scritta in contratto")}
         />
       ),
     },
     {
       key: "incluso",
-      title: "Cosa è incluso nel preventivo",
+      title: t("Cosa è incluso nel preventivo"),
       emoji: "✅",
       icon: <ListChecks className="h-4 w-4 text-orange-600" />,
       count: selIncluso.length,
       total: templateIncluso.length,
       body: (
         <StringItemsPicker
-          label="Voce inclusa"
+          label={t("Voce inclusa")}
           emoji="✅"
           templateItems={templateIncluso}
           selectedItems={selIncluso}
           onChange={(v) => onChange("incluso_investimento", v)}
-          placeholder="Es. Sopralluogo tecnico gratuito"
+          placeholder={t("Es. Sopralluogo tecnico gratuito")}
         />
       ),
     },
     {
       key: "prossimi_passi",
-      title: "Prossimi passi",
+      title: t("Prossimi passi"),
       emoji: "👣",
       icon: <ListChecks className="h-4 w-4 text-orange-600" />,
       count: selPassi.length,
       total: templatePassi.length,
       body: (
         <StringItemsPicker
-          label="Step"
+          label={t("Step")}
           emoji="👣"
           templateItems={templatePassi}
           selectedItems={selPassi}
           onChange={(v) => onChange("prossimi_passi", v)}
-          placeholder="Es. Ci vediamo a casa tua per la consulenza tecnica"
+          placeholder={t("Es. Ci vediamo a casa tua per la consulenza tecnica")}
         />
       ),
     },
@@ -525,15 +527,13 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
           <div className="flex-1 min-w-[220px] max-md:min-w-0">
             <div className="flex items-center gap-2 mb-1 max-md:mb-0">
               <MessageCircle className="h-4 w-4 text-eic-navy-deep" />
-              <span className="text-sm font-semibold text-slate-900">Contenuti del preventivo</span>
+              <span className="text-sm font-semibold text-slate-900">{t("Contenuti del preventivo")}</span>
             </div>
             <p className="text-[11px] text-muted-foreground mb-1.5 leading-snug max-md:hidden">
-              Scegli quali voci della tua libreria dei modelli includere per questo cliente.
-              Puoi anche aggiungerne di personalizzate solo per questo preventivo.
+              {t("Scegli quali voci della tua libreria dei modelli includere per questo cliente. Puoi anche aggiungerne di personalizzate solo per questo preventivo.")}
             </p>
             <p className="text-[11px] text-slate-700 leading-snug max-md:hidden">
-              <strong>Suggerimento:</strong> applica tutti i contenuti e poi rifinisci.
-              Più veloce per il commerciale, più completo per il cliente.
+              <strong>{t("Suggerimento:")}</strong> {t("applica tutti i contenuti e poi rifinisci. Più veloce per il commerciale, più completo per il cliente.")}
             </p>
           </div>
           {hasAnyTemplate && (
@@ -543,7 +543,7 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
               className="tap-compact bg-orange-500 hover:bg-orange-600 gap-1 shrink-0 max-md:h-8"
             >
               <ChevronRight className="h-3.5 w-3.5" />
-              {hasAnySelection ? "Riapplica tutto" : "Applica tutto"}
+              {hasAnySelection ? t("Riapplica tutto") : t("Applica tutto")}
             </Button>
           )}
         </CardContent>
@@ -551,7 +551,7 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
 
       {!hasAnyTemplate && (
         <SrCallout variant="warning" className="max-md:hidden">
-          La libreria dei modelli è vuota. Configurala in <strong>Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti</strong> per accelerare la compilazione dei preventivi.
+          {t("La libreria dei modelli è vuota. Configurala in")} <strong>{t("Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti")}</strong> {t("per accelerare la compilazione dei preventivi.")}
         </SrCallout>
       )}
 
@@ -569,9 +569,7 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
                       (s.count > 0
                         ? "bg-orange-100 text-orange-600"
                         : "bg-slate-100 text-slate-500")
-                    }>
-                      {s.count} di {s.total + Math.max(0, s.count - s.total)} scelte
-                    </span>
+                    }>{t("{count} di {total} scelte", { count: String(s.count ?? ""), total: s.total + Math.max(0, s.count - s.total) })}</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4 pt-1 max-md:px-3 max-md:pb-3">
@@ -584,11 +582,11 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
       </Card>
 
       <SrCallout variant="info" className="max-md:hidden">
-        Le voci che selezioni qui andranno nel PDF cliente nelle rispettive sezioni:
+        {t("Le voci che selezioni qui andranno nel PDF cliente nelle rispettive sezioni:")}
         <ul className="list-disc list-inside mt-1 space-y-0.5">
-          <li><strong>{senzaEsigenze ? "Soluzione" : "Esigenze + Soluzione"}</strong> → Pagina 1 (Proposta)</li>
-          <li><strong>Cosa è incluso</strong> → Pagina economica</li>
-          <li><strong>Perché noi + Prossimi passi</strong> → fine PDF (chiusura)</li>
+          <li><strong>{senzaEsigenze ? t("Soluzione") : t("Esigenze + Soluzione")}</strong> {t("→ Pagina 1 (Proposta)")}</li>
+          <li><strong>{t("Cosa è incluso")}</strong> {t("→ Pagina economica")}</li>
+          <li><strong>{t("Perché noi + Prossimi passi")}</strong> {t("→ fine PDF (chiusura)")}</li>
         </ul>
       </SrCallout>
     </div>

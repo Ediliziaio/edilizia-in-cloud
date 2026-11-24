@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { ImportaPrezzarioDialog } from "@/components/tetti/ImportaPrezzarioDialog";
 import { ManodoperaLookup } from "@/components/tetti/ManodoperaLookup";
 import { REGIONI_ITALIANE } from "@/lib/prezzario/tipi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // PERF: il listino lavorazioni è pesante (accordion + tabelle editabili +
 // query multiple) → lazy.
@@ -35,6 +36,7 @@ const ListinoLavorazioniEditor = lazy(() =>
 );
 
 export function ListinoPrezzariSection() {
+  const t = useT();
   const [prezzarioOpen, setPrezzarioOpen] = useState(false);
   const [manodoperaOpen, setManodoperaOpen] = useState(false);
   const [regione, setRegione] = useState<string | undefined>(undefined);
@@ -49,10 +51,9 @@ export function ListinoPrezzariSection() {
               <Library className="h-4 w-4" />
             </div>
             <div>
-              <CardTitle className="text-sm">Listino lavorazioni &amp; Prezzari regionali</CardTitle>
+              <CardTitle className="text-sm">{t("Listino lavorazioni & Prezzari regionali")}</CardTitle>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Popola il tuo listino partendo dai prezzari regionali ufficiali e consulta le
-                tariffe manodopera di riferimento.
+                {t("Popola il tuo listino partendo dai prezzari regionali ufficiali e consulta le tariffe manodopera di riferimento.")}
               </p>
             </div>
           </div>
@@ -62,11 +63,9 @@ export function ListinoPrezzariSection() {
             {/* Importa da prezzario regionale */}
             <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-medium">Importa da prezzario regionale</p>
+                <p className="text-sm font-medium">{t("Importa da prezzario regionale")}</p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Aggiungi al tuo listino le voci dei prezzari regionali ufficiali
-                  (Lombardia, ecc.), poi usale nei computi. Vengono copiate con il
-                  margine scelto e la nota della fonte.
+                  {t("Aggiungi al tuo listino le voci dei prezzari regionali ufficiali (Lombardia, ecc.), poi usale nei computi. Vengono copiate con il margine scelto e la nota della fonte.")}
                 </p>
               </div>
               <Button
@@ -75,7 +74,7 @@ export function ListinoPrezzariSection() {
                 className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 <Library className="h-4 w-4" />
-                Importa da prezzario regionale
+                {t("Importa da prezzario regionale")}
               </Button>
             </div>
 
@@ -92,7 +91,7 @@ export function ListinoPrezzariSection() {
                 >
                   <span className="flex items-center gap-2">
                     <HardHat className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm font-medium">Tariffe manodopera di riferimento</span>
+                    <span className="text-sm font-medium">{t("Tariffe manodopera di riferimento")}</span>
                   </span>
                   <ChevronDown
                     className={cn(
@@ -104,10 +103,10 @@ export function ListinoPrezzariSection() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 border-t px-3 py-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Regione</Label>
+                  <Label className="text-xs">{t("Regione")}</Label>
                   <Select value={regione} onValueChange={setRegione}>
                     <SelectTrigger className="max-w-xs">
-                      <SelectValue placeholder="Scegli una regione…" />
+                      <SelectValue placeholder={t("Scegli una regione…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {REGIONI_ITALIANE.map((r) => (
@@ -131,7 +130,7 @@ export function ListinoPrezzariSection() {
           <Suspense
             fallback={
               <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin text-orange-600" /> Caricamento listino…
+                <Loader2 className="h-4 w-4 animate-spin text-orange-600" /> {t("Caricamento listino…")}
               </div>
             }
           >

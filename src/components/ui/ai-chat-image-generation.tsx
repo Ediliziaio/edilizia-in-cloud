@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * ImageGeneration — wrapper con "velo" sfocato che si rivela progressivamente
@@ -19,6 +20,7 @@ export interface ImageGenerationProps {
 }
 
 export const ImageGeneration = ({ children, status, className }: ImageGenerationProps) => {
+  const t = useT();
   const controlled = status !== undefined;
   const [progress, setProgress] = React.useState(controlled && status === "completed" ? 100 : 0);
   const [loadingState, setLoadingState] = React.useState<"starting" | "generating" | "completed">(
@@ -71,9 +73,9 @@ export const ImageGeneration = ({ children, status, className }: ImageGeneration
         animate={{ backgroundPosition: loadingState === "completed" ? "0% 0" : "-200% 0" }}
         transition={{ repeat: loadingState === "completed" ? 0 : Infinity, duration: 3, ease: "linear" }}
       >
-        {loadingState === "starting" && "Preparo la grafica…"}
-        {loadingState === "generating" && "Sto creando l'immagine… (pochi secondi)"}
-        {loadingState === "completed" && "Immagine pronta ✨"}
+        {loadingState === "starting" && t("Preparo la grafica…")}
+        {loadingState === "generating" && t("Sto creando l'immagine… (pochi secondi)")}
+        {loadingState === "completed" && t("Immagine pronta ✨")}
       </motion.span>
       <div className="relative rounded-xl border border-slate-200 bg-white max-w-md overflow-hidden">
         {children}

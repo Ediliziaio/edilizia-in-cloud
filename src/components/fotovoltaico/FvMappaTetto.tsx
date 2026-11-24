@@ -38,6 +38,7 @@ import {
 } from "../../../supabase/functions/_shared/fvDisegnoCommerciale";
 import { erroreFaldeMappaFv, pianoDaMappaFv } from "./tetto/mappaGeometria";
 import { agganciaPuntoFv, impostaLunghezzaLatoFv } from "./tetto/aggancioMappa";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type RiferimentoTettoFv = {
   posizione: PosizioneMappaFv;
@@ -55,7 +56,7 @@ type Props = {
   onChange: (p: DisegnoCommercialeFv) => void;
 };
 const num = (x: number) =>
-  x.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  x.toLocaleString(intlCampo(), { maximumFractionDigits: 2 });
 type TrascinamentoFalda =
   | { tipo: "vertice"; fid: string; i: number; punti: PuntoFv[] }
   | { tipo: "falda"; fid: string; ancora: PuntoFv; punti: PuntoFv[] };
@@ -76,6 +77,7 @@ export function FvMappaTetto(
     onChange,
   }: Props,
 ) {
+  const tr = useT();
   const mappaCompatta = useIsMobile(1024);
   const [centro, aggiornaCentro] = useState(
       riferimento?.posizione ?? piano?.mappa?.origine ?? ricerca,
@@ -171,7 +173,7 @@ export function FvMappaTetto(
     const vertici = [...falde.flatMap(f => f.punti.filter((_, i) => f.id !== escludi?.fid || i !== escludi.i)), ...(!escludi ? punti : [])];
     const direzione = precedenti.length >= 2 ? { x: precedenti[1].x - precedenti[0].x, y: precedenti[1].y - precedenti[0].y } : undefined;
     const r = agganciaPuntoFv(p, vertici, precedenti.at(-1), tolleranza, direzione);
-    setGuidaAggancio(r.tipo === "vertice" ? "Aggancio a un vertice" : r.tipo ? "Lato allineato" : "");
+    setGuidaAggancio(r.tipo === "vertice" ? tr("Aggancio a un vertice") : r.tipo ? tr("Lato allineato") : "");
     return r.punto;
   };
   const posizione = (e: PointerEvent) => {
@@ -190,12 +192,12 @@ export function FvMappaTetto(
   const aggiungi = (ps: PuntoFv[]) => {
     if (!modificabile) return;
     if (falde.length >= 12) {
-      setErrore("Puoi inserire fino a 12 falde.");
+      setErrore(tr("Puoi inserire fino a 12 falde."));
       return;
     }
     if (!entroLimiti(ps) || !poligonoValido(ps)) {
       setErrore(
-        "Traccia almeno tre vertici, senza incroci, entro 400 m dal pin e con superficie di almeno 0,5 m².",
+        tr("Traccia almeno tre vertici, senza incroci, entro 400 m dal pin e con superficie di almeno 0,5 m²."),
       );
       return;
     }
@@ -220,7 +222,7 @@ export function FvMappaTetto(
   };
   const aggiornaPunti = (fid: string, ps: PuntoFv[]) => {
     if (!entroLimiti(ps)) {
-      setErrore("Mantieni la falda entro 400 m dal pin.");
+      setErrore(tr("Mantieni la falda entro 400 m dal pin."));
       return;
     }
     setErrore("");
@@ -278,25 +280,25 @@ export function FvMappaTetto(
       setErrore("");
     } catch (e) {
       setErrore(
-        e instanceof Error ? e.message : "Controlla il disegno delle falde.",
+        e instanceof Error ? e.message : tr("Controlla il disegno delle falde."),
       );
     }
   };
   return (
     <section
       className="fv-mappa-editor mb-3 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3 lg:p-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11"
-      aria-label="Selezione tetto e falde sulla mappa"
+      aria-label={tr("Selezione tetto e falde sulla mappa")}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">
-            Tetto sulla mappa
+            {tr("Tetto sulla mappa")}
           </h3>
           <p className="mt-0.5 break-words text-xs text-slate-500">{indirizzo}</p>
         </div>
         <ol
           className="hidden flex-wrap gap-2 text-xs lg:flex"
-          aria-label="Passaggi del disegno"
+          aria-label={tr("Passaggi del disegno")}
         >
           {["1. Trova il tetto", "2. Traccia le falde", "3. Conferma"].map((
             v,
@@ -310,7 +312,7 @@ export function FvMappaTetto(
                   : "bg-slate-100 text-slate-500"
               }`}
             >
-              {v}
+              {tr(v)}
             </li>
           ))}
         </ol>
@@ -321,32 +323,32 @@ export function FvMappaTetto(
             <div
               className="fv-mappa-tools"
               role="toolbar"
-              aria-label="Strumenti della mappa"
+              aria-label={tr("Strumenti della mappa")}
             >
               <Button
                 type="button"
                 variant={tool === "sposta" ? "default" : "outline"}
                 aria-pressed={tool === "sposta"}
-                aria-label="Sposta mappa"
+                aria-label={tr("Sposta mappa")}
                 onClick={() => setTool("sposta")}
               >
-                <Hand aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Mappa</span><span className="fv-comando-esteso">Sposta mappa</span>
+                <Hand aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">{tr("Mappa")}</span><span className="fv-comando-esteso">{tr("Sposta mappa")}</span>
               </Button>
               <Button
                 type="button"
                 variant={tool === "pin" ? "default" : "outline"}
                 aria-pressed={tool === "pin"}
-                aria-label="Scegli o sposta il pin"
+                aria-label={tr("Scegli o sposta il pin")}
                 disabled={!modificabile}
                 onClick={() => setTool("pin")}
               >
-                <MapPin aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Pin</span><span className="fv-comando-esteso">Pin del tetto</span>
+                <MapPin aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">{tr("Pin")}</span><span className="fv-comando-esteso">{tr("Pin del tetto")}</span>
               </Button>
               <Button
                 type="button"
                 variant={tool === "poligono" ? "default" : "outline"}
                 aria-pressed={tool === "poligono"}
-                aria-label="Disegna falda"
+                aria-label={tr("Disegna falda")}
                 disabled={!modificabile || !confermato}
                 onClick={() => {
                   setTool("poligono");
@@ -354,17 +356,17 @@ export function FvMappaTetto(
                   setCursore(null);
                 }}
               >
-                <PenTool aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Disegna</span><span className="fv-comando-esteso">Disegna falda</span>
+                <PenTool aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">{tr("Disegna")}</span><span className="fv-comando-esteso">{tr("Disegna falda")}</span>
               </Button>
               <Button
                 type="button"
                 variant={tool === "modifica" ? "default" : "outline"}
                 aria-pressed={tool === "modifica"}
-                aria-label="Seleziona e sposta"
+                aria-label={tr("Seleziona e sposta")}
                 disabled={!confermato}
                 onClick={() => setTool("modifica")}
               >
-                <MousePointer2 aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Modifica</span><span className="fv-comando-esteso">Modifica falde</span>
+                <MousePointer2 aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">{tr("Modifica")}</span><span className="fv-comando-esteso">{tr("Modifica falde")}</span>
               </Button>
 
             </div>
@@ -372,13 +374,13 @@ export function FvMappaTetto(
               <p role="status" className="text-xs leading-relaxed text-slate-600">
                 {tool === "poligono"
                   ? punti.length >= 3
-                    ? `${punti.length} punti · tocca «Chiudi falda» o il primo punto per crearla.`
-                    : punti.length ? `${punti.length} ${punti.length === 1 ? "punto" : "punti"} · tocca gli angoli, uno per uno.` : "Tocca gli angoli della falda, uno per uno."
+                    ? tr("{n} punti · tocca «Chiudi falda» o il primo punto per crearla.", { n: punti.length })
+                    : punti.length ? tr(punti.length === 1 ? "{n} punto · tocca gli angoli, uno per uno." : "{n} punti · tocca gli angoli, uno per uno.", { n: punti.length }) : tr("Tocca gli angoli della falda, uno per uno.")
                   : tool === "pin"
-                  ? falde.length ? "Sposta il pin. Le falde lo seguono." : "Tocca il tetto per posizionare il pin."
+                  ? falde.length ? tr("Sposta il pin. Le falde lo seguono.") : tr("Tocca il tetto per posizionare il pin.")
                   : tool === "sposta"
-                  ? satellite.pronto && mappaCompatta ? "Usa due dita per spostare la mappa." : "Trascina la mappa."
-                  : falde.length ? "Trascina la falda o i suoi vertici." : "Scegli «Disegna falda» e tocca gli angoli."}
+                  ? satellite.pronto && mappaCompatta ? tr("Usa due dita per spostare la mappa.") : tr("Trascina la mappa.")
+                  : falde.length ? tr("Trascina la falda o i suoi vertici.") : tr("Scegli «Disegna falda» e tocca gli angoli.")}
               </p>
               {(!confermato || tool === "pin") && (
                 <Button
@@ -394,7 +396,7 @@ export function FvMappaTetto(
                     setTool("modifica");
                   }}
                 >
-                  Conferma tetto
+                  {tr("Conferma tetto")}
                 </Button>
               )}
               {!confermato && (riferimento || piano?.mappa) && (
@@ -408,7 +410,7 @@ export function FvMappaTetto(
                     setErrore("");
                   }}
                 >
-                  Annulla spostamento del tetto
+                  {tr("Annulla spostamento del tetto")}
                 </Button>
               )}
               {tool === "poligono" && (
@@ -419,14 +421,14 @@ export function FvMappaTetto(
                     disabled={!punti.length}
                     onClick={() => setPunti((v) => v.slice(0, -1))}
                   >
-                    Annulla vertice
+                    {tr("Annulla vertice")}
                   </Button>
                   <Button
                     type="button"
                     disabled={punti.length < 3}
                     onClick={() => aggiungi(punti)}
                   >
-                    Chiudi falda
+                    {tr("Chiudi falda")}
                   </Button>
                 </div>
               )}
@@ -434,7 +436,7 @@ export function FvMappaTetto(
           </div>
           <div className="fv-mappa-vista">
             {satellite.caricando && (
-              <p role="status">Caricamento della vista satellitare…</p>
+              <p role="status">{tr("Caricamento della vista satellitare…")}</p>
             )}
             {satellite.errore && (
               <p role="status" className="mb-3 text-sm text-amber-800">
@@ -447,7 +449,7 @@ export function FvMappaTetto(
                       t + 1
                     )}
                 >
-                  Riprova mappa
+                  {tr("Riprova mappa")}
                 </button>
               </p>
             )}
@@ -497,7 +499,7 @@ export function FvMappaTetto(
                 }}
                 tabIndex={0}
                 role="group"
-                aria-label="Mappa satellitare: scegli il tetto o disegna una falda"
+                aria-label={tr("Mappa satellitare: scegli il tetto o disegna una falda")}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") {
                     annullaTrascinamento();
@@ -617,7 +619,7 @@ export function FvMappaTetto(
                         points={serializza(f.punti)}
                         role="button"
                         tabIndex={0}
-                        aria-label={`${f.nome}: trascina per spostare`}
+                        aria-label={tr("{nome}: trascina per spostare", { nome: String(f.nome ?? "") })}
                         aria-pressed={f.id === attiva}
                         style={{
                           cursor:
@@ -681,7 +683,7 @@ export function FvMappaTetto(
                               key={i}
                               tabIndex={0}
                               role="button"
-                              aria-label={`${f.nome}, vertice ${i + 1}`}
+                              aria-label={tr("{nome}, vertice {i}", { nome: String(f.nome ?? ""), i: i + 1 })}
                               style={{
                                 cursor: modificabile && tool === "modifica" &&
                                     confermato
@@ -780,7 +782,7 @@ export function FvMappaTetto(
                         transform={`translate(${q.x} ${q.y})`}
                         role="button"
                         tabIndex={0}
-                        aria-label="Pin del tetto"
+                        aria-label={tr("Pin del tetto")}
                         style={{ cursor: modificabile ? "grab" : undefined }}
                         onPointerDown={(e) => {
                           if (
@@ -830,7 +832,7 @@ export function FvMappaTetto(
                 <Button
                   type="button"
                   variant="outline"
-                  aria-label="Avvicina"
+                  aria-label={tr("Avvicina")}
                   disabled={zoom >= 21}
                   onClick={() => setZoom((z) => z + 1)}
                 >
@@ -839,7 +841,7 @@ export function FvMappaTetto(
                 <Button
                   type="button"
                   variant="outline"
-                  aria-label="Allontana"
+                  aria-label={tr("Allontana")}
                   disabled={zoom <= 17}
                   onClick={() => setZoom((z) => z - 1)}
                 >
@@ -848,7 +850,7 @@ export function FvMappaTetto(
                 <Button
                   type="button"
                   variant="outline"
-                  aria-label="Centra sul tetto"
+                  aria-label={tr("Centra sul tetto")}
                   onClick={() => setCentro(pin)}
                 >
                   <LocateFixed className="h-4 w-4" />
@@ -856,8 +858,8 @@ export function FvMappaTetto(
               </div>
             </div>
             <p className="mt-1.5 text-xs text-slate-500">
-              {satellite.pronto ? "Google Maps · Nord in alto" : "Schema metrico · Verifica sul posto"}
-              {fotoSolar && <span> · Foto Google Solar del {fotoSolar.data}</span>}
+              {satellite.pronto ? tr("Google Maps · Nord in alto") : tr("Schema metrico · Verifica sul posto")}
+              {fotoSolar && <span>{" "}{tr("· Foto Google Solar del {data}", { data: String(fotoSolar.data ?? "") })}</span>}
             </p>
             {(errore || erroreGeometria) && (
               <p role="alert" className="mt-2 text-xs text-red-700">{errore || erroreGeometria}</p>
@@ -870,19 +872,19 @@ export function FvMappaTetto(
                       className="w-full whitespace-normal"
                       disabled={!modificabile || !!erroreGeometria}
                       onClick={salva}
-                      aria-label={mantieniPannelli ? "Conferma falde e mantieni i pannelli" : "Usa falde e prepara nuova disposizione"}
+                      aria-label={mantieniPannelli ? tr("Conferma falde e mantieni i pannelli") : tr("Usa falde e prepara nuova disposizione")}
                     >
-                      Conferma falde
+                      {tr("Conferma falde")}
                     </Button>
                     <p className="text-xs text-slate-600">
-                      {contorniInvariati ? "Falde confermate" : "Falde da confermare"}
+                      {contorniInvariati ? tr("Falde confermate") : tr("Falde da confermare")}
                     </p>
               </div>
             )}
         </div>
           <div className="fv-mappa-dettagli">
             <details className="mb-3">
-              <summary className="cursor-pointer text-sm font-semibold">Foto e misure Google Solar</summary>
+              <summary className="cursor-pointer text-sm font-semibold">{tr("Foto e misure Google Solar")}</summary>
           <FvGoogleSolarPanel progettoId={progettoId} posizione={pin} mappa={{versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde,distanzaOstacoli:ostacoli,fotoSolar}} modificabile={modificabile} pannelli={piano?.pannelli.length??0}
             onFoto={foto=>{setFotoSolar(foto);if(piano?.mappa&&contorniInvariati)onChange({...piano,mappa:{...piano.mappa,fotoSolar:foto}});}}
             onMisure={misure => {
@@ -895,26 +897,26 @@ export function FvMappaTetto(
             </details>
           {piano && contorniInvariati && <FvVerificaMisure piano={piano} modificabile={modificabile} onChange={onChange} />}
           <h4 className="mb-3 mt-3 text-sm font-semibold text-slate-900">
-            Il tuo tetto
+            {tr("Il tuo tetto")}
           </h4>
           <details className="mt-2">
-            <summary className="cursor-pointer text-sm">Opzioni di disegno</summary>
+            <summary className="cursor-pointer text-sm">{tr("Opzioni di disegno")}</summary>
             <label className="flex min-h-11 items-center gap-2 text-xs">
               <input type="checkbox" checked={aggancio} onChange={e => setAggancio(e.target.checked)} />
-              Aggancia vertici e allinea i lati
+              {tr("Aggancia vertici e allinea i lati")}
             </label>
             {guidaAggancio && <p role="status" className="text-xs text-emerald-800">{guidaAggancio}</p>}
           </details>
           <details className="mt-3">
             <summary className="cursor-pointer text-sm">
-              Coordinate del tetto e misure rilevate
+              {tr("Coordinate del tetto e misure rilevate")}
             </summary>
             <div className="mt-2 grid grid-cols-2 gap-3">
               {(["lat", "lng"] as const).map((k) => (
                 <label key={k} className="text-sm">
-                  {k === "lat" ? "Latitudine" : "Longitudine"}
+                  {k === "lat" ? tr("Latitudine") : tr("Longitudine")}
                   <Input
-                    aria-label={`Pin ${k}`}
+                    aria-label={tr("Pin {k}", { k: String(k ?? "") })}
                     type="number"
                     step="any"
                     value={pin[k]}
@@ -937,12 +939,12 @@ export function FvMappaTetto(
             <>
               <details className="my-3">
                 <summary className="cursor-pointer text-sm font-medium text-slate-600">
-                  Misure precise e rotazione della falda
+                  {tr("Misure precise e rotazione della falda")}
                 </summary>
                 <div className="mt-3 flex flex-wrap items-end gap-3">
                   <label className="text-sm">
-                    Larghezza in pianta (m)<Input
-                      aria-label="Larghezza rettangolo falda"
+                    {tr("Larghezza in pianta (m)")}<Input
+                      aria-label={tr("Larghezza rettangolo falda")}
                       type="number"
                       min={1}
                       max={100}
@@ -952,8 +954,8 @@ export function FvMappaTetto(
                     />
                   </label>
                   <label className="text-sm">
-                    Lunghezza in pianta (m)<Input
-                      aria-label="Lunghezza rettangolo falda"
+                    {tr("Lunghezza in pianta (m)")}<Input
+                      aria-label={tr("Lunghezza rettangolo falda")}
                       type="number"
                       min={1}
                       max={100}
@@ -963,8 +965,8 @@ export function FvMappaTetto(
                     />
                   </label>
                   <label className="text-sm">
-                    Rotazione rettangolo (°)<Input
-                      aria-label="Rotazione rettangolo falda"
+                    {tr("Rotazione rettangolo (°)")}<Input
+                      aria-label={tr("Rotazione rettangolo falda")}
                       type="number"
                       min={-180}
                       max={180}
@@ -991,15 +993,15 @@ export function FvMappaTetto(
                         ),
                       )}
                   >
-                    Aggiungi rettangolo ruotato
+                    {tr("Aggiungi rettangolo ruotato")}
                   </Button>
                 </div>
               </details>
               {falde.length > 0 && (
                 <>
                   <label className="block text-sm">
-                    Falda da verificare<select
-                      aria-label="Falda sulla mappa"
+                    {tr("Falda da verificare")}<select
+                      aria-label={tr("Falda sulla mappa")}
                       className="ml-2 rounded border p-2"
                       value={attiva}
                       onChange={(e) => {
@@ -1021,9 +1023,9 @@ export function FvMappaTetto(
                         )} m²
                       </span>
                       <label className="text-sm">
-                        Pendenza{" "}
+                        {tr("Pendenza")}{" "}
                         <select
-                          aria-label="Pendenza rapida della falda"
+                          aria-label={tr("Pendenza rapida della falda")}
                           className="ml-2 rounded-lg border bg-white p-2"
                           value={selezionata.inclinazione}
                           disabled={!modificabile}
@@ -1035,7 +1037,7 @@ export function FvMappaTetto(
                         >
                           {[0, 15, 30, 45].map((v) => (
                             <option key={v} value={v}>
-                              {v === 0 ? "Piatta" : `${v}°`}
+                              {v === 0 ? tr("Piatta") : `${v}°`}
                             </option>
                           ))}
                           {![0, 15, 30, 45].includes(
@@ -1048,9 +1050,9 @@ export function FvMappaTetto(
                         </select>
                       </label>
                       <label className="text-sm">
-                        Esposta a{" "}
+                        {tr("Esposta a")}{" "}
                         <select
-                          aria-label="Esposizione rapida della falda"
+                          aria-label={tr("Esposizione rapida della falda")}
                           className="ml-2 rounded-lg border bg-white p-2"
                           value={selezionata.azimut}
                           disabled={!modificabile}
@@ -1067,7 +1069,7 @@ export function FvMappaTetto(
                             "Ovest",
                             "Nord-ovest",
                           ].map((v, i) => (
-                            <option key={v} value={i * 45}>{v}</option>
+                            <option key={v} value={i * 45}>{tr(v)}</option>
                           ))}
                           {selezionata.azimut % 45 !== 0 && (
                             <option value={selezionata.azimut}>
@@ -1078,20 +1080,20 @@ export function FvMappaTetto(
                       </label>
                       {selezionata.inclinazioneStimata && (
                         <span className="text-xs text-amber-800">
-                          Pendenza da verificare
+                          {tr("Pendenza da verificare")}
                         </span>
                       )}
                     </div>
                   )}
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-slate-600">
-                      Vertici, distanze e dati tecnici
+                      {tr("Vertici, distanze e dati tecnici")}
                     </summary>
                     {selezionata && (
                       <div className="mt-3 grid gap-3 sm:grid-cols-3">
                         <label className="text-sm">
-                          Inclinazione (°)<Input
-                            aria-label="Inclinazione della falda"
+                          {tr("Inclinazione (°)")}<Input
+                            aria-label={tr("Inclinazione della falda")}
                             type="number"
                             min={0}
                             max={75}
@@ -1109,8 +1111,8 @@ export function FvMappaTetto(
                           />
                         </label>
                         <label className="text-sm">
-                          Orientamento (0° nord, 180° sud)<Input
-                            aria-label="Azimut della falda"
+                          {tr("Orientamento (0° nord, 180° sud)")}<Input
+                            aria-label={tr("Azimut della falda")}
                             type="number"
                             min={0}
                             max={359.9}
@@ -1123,11 +1125,11 @@ export function FvMappaTetto(
                           />
                         </label>
                         <div className="text-sm">
-                          Pianta:{" "}
+                          {tr("Pianta:")}{" "}
                           <strong>
                             {num(areaPoligono(selezionata.punti))} m²
                           </strong>
-                          <br />Falda inclinata:{" "}
+                          <br />{tr("Falda inclinata:")}{" "}
                           <strong>
                             {num(
                               areaPoligono(selezionata.punti) /
@@ -1138,11 +1140,11 @@ export function FvMappaTetto(
                           </strong>
                           <br />
                           {selezionata.inclinazioneStimata
-                            ? "Inclinazione ipotizzata: verifica sul posto"
-                            : "Inclinazione indicata dall’operatore"}
+                            ? tr("Inclinazione ipotizzata: verifica sul posto")
+                            : tr("Inclinazione indicata dall’operatore")}
                         </div>
                         <div className="sm:col-span-3 text-xs text-slate-600">
-                          Lati in pianta: {selezionata.punti.map((p, i) => {
+                          {tr("Lati in pianta:")} {selezionata.punti.map((p, i) => {
                             const q = selezionata
                               .punti[(i + 1) % selezionata.punti.length];
                             return `${num(Math.hypot(q.x - p.x, q.y - p.y))} m`;
@@ -1150,8 +1152,8 @@ export function FvMappaTetto(
                         </div>
                         <div className="sm:col-span-3 grid gap-3 sm:grid-cols-3">
                           <label className="text-sm">
-                            Vertice da spostare<select
-                              aria-label="Vertice della falda"
+                            {tr("Vertice da spostare")}<select
+                              aria-label={tr("Vertice della falda")}
                               className="block w-full rounded border p-2"
                               value={Math.min(
                                 vertice,
@@ -1161,16 +1163,14 @@ export function FvMappaTetto(
                                 setVertice(Number(e.target.value))}
                             >
                               {selezionata.punti.map((_, i) => (
-                                <option key={i} value={i}>
-                                  Vertice {i + 1}
-                                </option>
+                                <option key={i} value={i}>{tr("Vertice {i}", { i: i + 1 })}</option>
                               ))}
                             </select>
                           </label>
                           {(["x", "y"] as const).map((k) => (
                             <label key={k} className="text-sm">
-                              {k === "x" ? "Est" : "Nord"} dal pin (m)<Input
-                                aria-label={`Vertice ${k} metri dal pin`}
+                              {k === "x" ? tr("Est dal pin (m)") : tr("Nord dal pin (m)")}<Input
+                                aria-label={tr("Vertice {k} metri dal pin", { k: String(k ?? "") })}
                                 type="number"
                                 step={.1}
                                 value={selezionata
@@ -1204,12 +1204,12 @@ export function FvMappaTetto(
                           ))}
                         </div>
                         <div className="sm:col-span-3 rounded-lg border bg-white p-3 text-xs">
-                          <label>Lunghezza del lato dal vertice {Math.min(vertice, selezionata.punti.length - 1) + 1} al successivo (m)<Input aria-label="Lunghezza lato selezionato in pianta" type="number" min={.1} max={400} step={.01} value={lunghezzaLato} placeholder="Nuova quota in pianta" disabled={!modificabile} onChange={e => setLunghezzaLato(e.target.value)} /></label>
+                          <label>{tr("Lunghezza del lato dal vertice {n} al successivo (m)", { n: Math.min(vertice, selezionata.punti.length - 1) + 1 })}<Input aria-label={tr("Lunghezza lato selezionato in pianta")} type="number" min={.1} max={400} step={.01} value={lunghezzaLato} placeholder={tr("Nuova quota in pianta")} disabled={!modificabile} onChange={e => setLunghezzaLato(e.target.value)} /></label>
                           <Button type="button" variant="outline" className="mt-2 w-full" disabled={!modificabile || !lunghezzaLato} onClick={() => {
                             try { modifica({ punti: impostaLunghezzaLatoFv(selezionata.punti, Math.min(vertice, selezionata.punti.length - 1), Number(lunghezzaLato)) }); setLunghezzaLato(""); setErrore(""); }
-                            catch (e) { setErrore(e instanceof Error ? e.message : "Controlla la quota del lato."); }
-                          }}>Applica quota al lato</Button>
-                          <p className="mt-2 text-slate-500">Sposta solo il vertice successivo nella direzione del lato. Controlla i lati vicini e riconferma la nuova posa.</p>
+                            catch (e) { setErrore(e instanceof Error ? e.message : tr("Controlla la quota del lato.")); }
+                          }}>{tr("Applica quota al lato")}</Button>
+                          <p className="mt-2 text-slate-500">{tr("Sposta solo il vertice successivo nella direzione del lato. Controlla i lati vicini e riconferma la nuova posa.")}</p>
                         </div>
                         <Button
                           type="button"
@@ -1236,7 +1236,7 @@ export function FvMappaTetto(
                             });
                           }}
                         >
-                          Applica misure e rotazione alla falda
+                          {tr("Applica misure e rotazione alla falda")}
                         </Button>
                         <Button
                           type="button"
@@ -1249,14 +1249,14 @@ export function FvMappaTetto(
                             );
                           }}
                         >
-                          Rimuovi falda selezionata
+                          {tr("Rimuovi falda selezionata")}
                         </Button>
                       </div>
                     )}
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <label className="text-sm">
-                        Distanza dai bordi (m)<Input
-                          aria-label="Margine bordi mappa"
+                        {tr("Distanza dai bordi (m)")}<Input
+                          aria-label={tr("Margine bordi mappa")}
                           type="number"
                           min={0}
                           max={2}
@@ -1270,8 +1270,8 @@ export function FvMappaTetto(
                         />
                       </label>
                       <label className="text-sm">
-                        Distanza dagli ostacoli (m)<Input
-                          aria-label="Margine ostacoli mappa"
+                        {tr("Distanza dagli ostacoli (m)")}<Input
+                          aria-label={tr("Margine ostacoli mappa")}
                           type="number"
                           min={0}
                           max={5}

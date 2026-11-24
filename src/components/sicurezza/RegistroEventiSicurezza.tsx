@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO: Record<SicurezzaEvento["tipo"], string> = {
   infortunio: "Infortunio",
@@ -33,9 +34,10 @@ const STATO: Record<SicurezzaEvento["stato"], string> = {
   chiusa: "Chiusa",
 };
 
-const quando = (iso: string) => new Date(iso).toLocaleString("it-IT", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const quando = (iso: string) => new Date(iso).toLocaleString(intlCampo(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 function FotoEvento({ percorsi }: { percorsi: string[] }) {
+  const t = useT();
   const firme = useQuery({
     queryKey: ["sicurezza-eventi-foto", percorsi],
     enabled: percorsi.length > 0,
@@ -47,12 +49,12 @@ function FotoEvento({ percorsi }: { percorsi: string[] }) {
     },
   });
   if (!percorsi.length) return null;
-  if (firme.isLoading) return <p className="text-xs text-muted-foreground"><ImageIcon className="mr-1 inline size-3.5" />Carico le foto…</p>;
+  if (firme.isLoading) return <p className="text-xs text-muted-foreground"><ImageIcon className="mr-1 inline size-3.5" />{t("Carico le foto…")}</p>;
   return (
     <div className="flex flex-wrap gap-2">
       {(firme.data ?? []).map((url, i) => (
         <a key={url} href={url} target="_blank" rel="noreferrer noopener">
-          <img src={url} alt={`Foto ${i + 1}`} className="size-20 rounded-lg border object-cover" />
+          <img src={url} alt={t("Foto {n}", { n: i + 1 })} className="size-20 rounded-lg border object-cover" />
         </a>
       ))}
     </div>
@@ -62,22 +64,23 @@ function FotoEvento({ percorsi }: { percorsi: string[] }) {
 function SchedaEvento({ evento, chi, cantiere, puoScrivere }: {
   evento: SicurezzaEvento; chi: string; cantiere: string | null; puoScrivere: boolean;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [azioni, setAzioni] = useState(evento.azioni_correttive ?? "");
   const [note, setNote] = useState(evento.note_ufficio ?? "");
   const aggiorna = useMutation({
     mutationFn: async (stato: SicurezzaEvento["stato"]) => {
-      if (stato === "chiusa" && !azioni.trim()) throw new Error("Scrivi le azioni correttive prima di chiudere.");
+      if (stato === "chiusa" && !azioni.trim()) throw new Error(t("Scrivi le azioni correttive prima di chiudere."));
       const { error } = await supabase.from("sicurezza_eventi")
         .update({ stato, azioni_correttive: azioni.trim() || null, note_ufficio: note.trim() || null })
         .eq("id", evento.id);
       if (error) throw error;
     },
     onSuccess: (_d, stato) => {
-      toast.success(stato === "chiusa" ? "Segnalazione chiusa" : "Salvato");
+      toast.success(stato === "chiusa" ? t("Segnalazione chiusa") : t("Salvato"));
       void queryClient.invalidateQueries({ queryKey: ["sicurezza-eventi"] });
     },
-    onError: (e: Error) => toast.error(e.message || "Non sono riuscito a salvare. Riprova."),
+    onError: (e: Error) => toast.error(e.message || t("Non sono riuscito a salvare. Riprova.")),
   });
 
   const infortunio = evento.tipo === "infortunio";
@@ -85,56 +88,57 @@ function SchedaEvento({ evento, chi, cantiere, puoScrivere }: {
     <li className={cn("space-y-3 rounded-xl border bg-white p-4 shadow-sm dark:bg-background", evento.stato === "nuova" && infortunio && "border-red-300")}>
       <div className="flex flex-wrap items-center gap-2">
         {infortunio ? <HeartPulse className="size-4 text-red-600" aria-hidden="true" /> : <AlertTriangle className="size-4 text-amber-600" aria-hidden="true" />}
-        <span className="font-semibold">{TIPO[evento.tipo]}</span>
+        <span className="font-semibold">{t(TIPO[evento.tipo])}</span>
         {cantiere && <Badge variant="outline">{cantiere}</Badge>}
         <Badge variant={evento.stato === "chiusa" ? "secondary" : evento.stato === "nuova" ? "destructive" : "default"} className="ms-auto">
-          {STATO[evento.stato]}
+          {t(STATO[evento.stato])}
         </Badge>
       </div>
       <p className="text-xs text-muted-foreground">
-        {quando(evento.accaduto_il)}{evento.luogo ? ` · ${evento.luogo}` : ""} · segnalato da {chi}
+        {quando(evento.accaduto_il)}{evento.luogo ? ` · ${evento.luogo}` : ""} {t("· segnalato da")} {chi}
       </p>
       <p className="whitespace-pre-wrap text-sm">{evento.descrizione}</p>
       {infortunio && (
         <p className="text-sm">
-          <span className="font-medium">Ferito:</span> {evento.persona_coinvolta || chi}
-          {evento.parte_corpo ? ` · ${evento.parte_corpo}` : ""} · {SOCCORSO[evento.soccorso]}
+          <span className="font-medium">{t("Ferito:")}</span> {evento.persona_coinvolta || chi}
+          {evento.parte_corpo ? ` · ${evento.parte_corpo}` : ""} · {t(SOCCORSO[evento.soccorso])}
         </p>
       )}
-      {evento.testimoni && <p className="text-sm"><span className="font-medium">Testimoni:</span> {evento.testimoni}</p>}
+      {evento.testimoni && <p className="text-sm"><span className="font-medium">{t("Testimoni:")}</span> {evento.testimoni}</p>}
       <FotoEvento percorsi={evento.foto} />
       {infortunio && evento.stato !== "chiusa" && (
         <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          Se la prognosi supera i tre giorni, la denuncia all'INAIL va fatta entro due giorni dal certificato medico.
+          {t("Se la prognosi supera i tre giorni, la denuncia all'INAIL va fatta entro due giorni dal certificato medico.")}
         </p>
       )}
       {puoScrivere ? (
         <div className="space-y-2">
           <Textarea value={azioni} onChange={e => setAzioni(e.target.value)} maxLength={4000} rows={2}
-            placeholder="Azioni correttive: cosa si fa perché non succeda più (l'operaio lo vede)" aria-label="Azioni correttive" />
+            placeholder={t("Azioni correttive: cosa si fa perché non succeda più (l'operaio lo vede)")} aria-label={t("Azioni correttive")} />
           <Textarea value={note} onChange={e => setNote(e.target.value)} maxLength={4000} rows={2}
-            placeholder="Note interne dell'ufficio (l'operaio non le vede)" aria-label="Note interne" />
+            placeholder={t("Note interne dell'ufficio (l'operaio non le vede)")} aria-label={t("Note interne")} />
           <div className="flex flex-wrap gap-2">
             {evento.stato === "nuova" && (
-              <Button size="sm" variant="outline" disabled={aggiorna.isPending} onClick={() => aggiorna.mutate("presa_in_carico")}>Prendi in carico</Button>
+              <Button size="sm" variant="outline" disabled={aggiorna.isPending} onClick={() => aggiorna.mutate("presa_in_carico")}>{t("Prendi in carico")}</Button>
             )}
             {evento.stato !== "chiusa" ? (
               <Button size="sm" disabled={aggiorna.isPending} onClick={() => aggiorna.mutate("chiusa")}>
-                {aggiorna.isPending && <Loader2 className="mr-1 size-4 animate-spin" />}Chiudi
+                {aggiorna.isPending && <Loader2 className="mr-1 size-4 animate-spin" />}{t("Chiudi")}
               </Button>
             ) : (
-              <Button size="sm" variant="outline" disabled={aggiorna.isPending} onClick={() => aggiorna.mutate("chiusa")}>Salva modifiche</Button>
+              <Button size="sm" variant="outline" disabled={aggiorna.isPending} onClick={() => aggiorna.mutate("chiusa")}>{t("Salva modifiche")}</Button>
             )}
           </div>
         </div>
       ) : (
-        evento.azioni_correttive && <p className="text-sm"><span className="font-medium">Azioni correttive:</span> {evento.azioni_correttive}</p>
+        evento.azioni_correttive && <p className="text-sm"><span className="font-medium">{t("Azioni correttive:")}</span> {evento.azioni_correttive}</p>
       )}
     </li>
   );
 }
 
 export function RegistroEventiSicurezza({ companyId, puoScrivere }: { companyId: string; puoScrivere: boolean }) {
+  const t = useT();
   const [soloAperte, setSoloAperte] = useState(true);
   const eventi = useQuery({
     queryKey: ["sicurezza-eventi", companyId],
@@ -152,7 +156,7 @@ export function RegistroEventiSicurezza({ companyId, puoScrivere }: { companyId:
     queryFn: async () => {
       const ids = [...new Set(righe.map(e => e.segnalato_da))];
       const { data } = await supabase.from("profiles").select("id, first_name, last_name").in("id", ids);
-      return new Map((data ?? []).map(p => [p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || "Operaio"]));
+      return new Map((data ?? []).map(p => [p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || t("Operaio")]));
     },
   });
   const cantieri = useQuery({
@@ -170,31 +174,31 @@ export function RegistroEventiSicurezza({ companyId, puoScrivere }: { companyId:
   return (
     <section className="space-y-3" aria-labelledby="titolo-registro-eventi">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 id="titolo-registro-eventi" className="text-base font-semibold">Infortuni e quasi-incidenti</h2>
-        <span className="text-sm text-muted-foreground">{aperte === 1 ? "1 da gestire" : `${aperte} da gestire`}</span>
+        <h2 id="titolo-registro-eventi" className="text-base font-semibold">{t("Infortuni e quasi-incidenti")}</h2>
+        <span className="text-sm text-muted-foreground">{aperte === 1 ? t("1 da gestire") : t("{n} da gestire", { n: String(aperte ?? "") })}</span>
         <div className="ms-auto flex gap-1 rounded-lg border p-1">
-          <Button size="sm" variant={soloAperte ? "default" : "ghost"} onClick={() => setSoloAperte(true)}>Da gestire</Button>
-          <Button size="sm" variant={soloAperte ? "ghost" : "default"} onClick={() => setSoloAperte(false)}>Tutte</Button>
+          <Button size="sm" variant={soloAperte ? "default" : "ghost"} onClick={() => setSoloAperte(true)}>{t("Da gestire")}</Button>
+          <Button size="sm" variant={soloAperte ? "ghost" : "default"} onClick={() => setSoloAperte(false)}>{t("Tutte")}</Button>
         </div>
       </div>
       <p className="text-sm text-muted-foreground">
-        Le segnalano gli operai dall'app (Altro → Sicurezza: segnala). Chi segue la sicurezza riceve subito un avviso.
+        {t("Le segnalano gli operai dall'app (Altro → Sicurezza: segnala). Chi segue la sicurezza riceve subito un avviso.")}
       </p>
       {eventi.isLoading ? (
-        <p className="text-sm text-muted-foreground">Caricamento…</p>
+        <p className="text-sm text-muted-foreground">{t("Caricamento…")}</p>
       ) : eventi.isError ? (
         <div className="rounded-xl border p-4 text-sm">
-          Non riesco a caricare il registro. <Button size="sm" variant="link" onClick={() => void eventi.refetch()}>Riprova</Button>
+          {t("Non riesco a caricare il registro.")} <Button size="sm" variant="link" onClick={() => void eventi.refetch()}>{t("Riprova")}</Button>
         </div>
       ) : visibili.length === 0 ? (
         <p className="rounded-xl border bg-white p-4 text-sm dark:bg-background">
-          {soloAperte ? "Nessuna segnalazione da gestire." : "Nessuna segnalazione finora."}
+          {soloAperte ? t("Nessuna segnalazione da gestire.") : t("Nessuna segnalazione finora.")}
         </p>
       ) : (
         <ul className="space-y-3">
           {visibili.map(e => (
             <SchedaEvento key={e.id} evento={e} puoScrivere={puoScrivere}
-              chi={persone.data?.get(e.segnalato_da) ?? "Operaio"}
+              chi={persone.data?.get(e.segnalato_da) ?? t("Operaio")}
               cantiere={e.order_id ? cantieri.data?.get(e.order_id) ?? null : null} />
           ))}
         </ul>

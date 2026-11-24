@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { formatEuro } from "@/lib/controlloGestione/indiciBanca";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RilievoDoppio { controllo: string; ids: string[]; importo: number | null; descrizione: string; cosa_fare: string }
 
@@ -27,6 +28,7 @@ export const TITOLO_CONTROLLO: Record<string, string> = {
 };
 
 export function ControlliDoppiCard() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const q = useQuery({
@@ -46,20 +48,20 @@ export function ControlliDoppiCard() {
   return (
     <Card className="rounded-2xl" id="doppi-conteggi">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4" /> Niente contato due volte</CardTitle>
-        <p className="text-sm text-muted-foreground">Budget, consuntivo e cassa: dove lo stesso denaro o lo stesso costo rischia di contare due volte.</p>
+        <CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4" /> {t("Niente contato due volte")}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t("Budget, consuntivo e cassa: dove lo stesso denaro o lo stesso costo rischia di contare due volte.")}</p>
       </CardHeader>
       <CardContent>
         {q.isLoading ? <Skeleton className="h-16 w-full" /> : q.isError ? (
-          <p className="text-sm text-destructive">Controllo non riuscito: {(q.error as Error | null)?.message ?? "errore sconosciuto"}</p>
+          <p className="text-sm text-destructive">{t("Controllo non riuscito:")} {(q.error as Error | null)?.message ?? t("errore sconosciuto")}</p>
         ) : rilievi.length === 0 ? (
-          <p className="flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Nessun doppio conteggio trovato.</p>
+          <p className="flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" /> {t("Nessun doppio conteggio trovato.")}</p>
         ) : (
           <ul className="divide-y rounded-lg border">
             {rilievi.map((r, i) => (
               <li key={`${r.controllo}-${r.ids.join("-")}-${i}`} className="space-y-0.5 px-3 py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="text-sm font-medium">{TITOLO_CONTROLLO[r.controllo] ?? r.controllo}</span>
+                  <span className="text-sm font-medium">{TITOLO_CONTROLLO[r.controllo] ? t(TITOLO_CONTROLLO[r.controllo]) : r.controllo}</span>
                   {r.importo != null && <span className="text-sm font-semibold tabular-nums">{formatEuro(Number(r.importo))}</span>}
                 </div>
                 <p className="text-xs text-muted-foreground">{r.descrizione}</p>

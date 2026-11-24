@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { MapPin, MapPinOff, Trash2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { formatDateTime } from '@/lib/formatters';
 import { FotoCantiere } from '@/hooks/useFotoCantiere';
 import { cn } from '@/lib/utils';
 // 🆕 GAP 5 (Mobile cantiere AI-native): badge AI quality auto-trigger
 import { FotoAIQualityBadge } from '@/components/foto-cantiere/FotoAIQualityBadge';
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   foto: FotoCantiere;
@@ -26,10 +26,11 @@ export function fotoAppenaCaricata(createdAt: string, adesso: number = Date.now(
 
 function dataCorta(value: string): string {
   const d = parseISO(value);
-  return Number.isNaN(d.getTime()) ? '—' : format(d, "d MMM · HH:mm", { locale: it });
+  return Number.isNaN(d.getTime()) ? '—' : format(d, "d MMM · HH:mm", { locale: dateFnsCampo() });
 }
 
 export function FotoCard({ foto, onElimina, getSignedUrl, onApri }: Props) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -47,7 +48,7 @@ export function FotoCard({ foto, onElimina, getSignedUrl, onApri }: Props) {
   const hasGps = foto.latitudine != null && foto.longitudine != null;
 
   const handleElimina = () => {
-    if (window.confirm('Eliminare questa foto? L\'operazione non è reversibile.')) {
+    if (window.confirm(t("Eliminare questa foto? L'operazione non è reversibile."))) {
       onElimina(foto);
     }
   };
@@ -72,26 +73,26 @@ export function FotoCard({ foto, onElimina, getSignedUrl, onApri }: Props) {
           >
             <img
               src={url}
-              alt={foto.descrizione ?? 'Foto cantiere'}
+              alt={foto.descrizione ?? t("Foto cantiere")}
               loading="lazy"
               className="h-full w-full object-cover transition-transform duration-200 hover:scale-[1.02]"
             />
           </button>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-            Immagine non disponibile
+            {t("Immagine non disponibile")}
           </div>
         )}
         {/* Il GPS dà valore di prova alla foto: si vede a colpo d'occhio se c'è, senza gridare quando manca. */}
         <span
-          title={hasGps ? 'Foto con posizione GPS' : 'Senza posizione GPS'}
+          title={hasGps ? t("Foto con posizione GPS") : t("Senza posizione GPS")}
           className={cn(
             'pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm',
             hasGps ? 'bg-emerald-600/90 text-white' : 'bg-black/45 text-white/90',
           )}
         >
           {hasGps ? <MapPin className="h-3 w-3" aria-hidden="true" /> : <MapPinOff className="h-3 w-3" aria-hidden="true" />}
-          {hasGps ? 'GPS' : 'Senza GPS'}
+          {hasGps ? 'GPS' : t("Senza GPS")}
         </span>
       </div>
 
@@ -117,8 +118,8 @@ export function FotoCard({ foto, onElimina, getSignedUrl, onApri }: Props) {
           <button
             type="button"
             onClick={handleElimina}
-            aria-label="Elimina la foto"
-            title="Elimina la foto"
+            aria-label={t("Elimina la foto")}
+            title={t("Elimina la foto")}
             className="rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600"
           >
             <Trash2 className="h-4 w-4" />

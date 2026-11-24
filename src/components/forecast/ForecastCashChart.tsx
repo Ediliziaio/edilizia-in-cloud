@@ -21,6 +21,7 @@ import { calendarDate } from "@/lib/finance/forecastLedger";
 import { cashChartScale } from "@/lib/finance/forecastChart";
 import { PillolaVariazione, StatGrafico, defsGrafico } from "@/components/charts/grafici/comune";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CashChartPoint {
   start: string;
@@ -34,12 +35,12 @@ export interface CashChartPoint {
 const money = (cents: number | null) =>
   cents === null ? "Non disponibile" : formatCurrency(cents / 100);
 const dateLabel = (date: string) =>
-  calendarDate(date).toLocaleDateString("it-IT", {
+  calendarDate(date).toLocaleDateString(intlCampo(), {
     day: "numeric",
     month: "short",
   });
 const compact = (cents: number) =>
-  new Intl.NumberFormat("it-IT", {
+  new Intl.NumberFormat(intlCampo(), {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(cents / 100);
@@ -58,6 +59,7 @@ export function CashChartTooltip({
   comparison: boolean;
   threshold: number;
 }) {
+  const t = useT();
   if (!active || !point) return null;
   return (
     <div className="min-w-[220px] rounded-2xl border border-border/60 bg-popover/95 p-4 text-popover-foreground shadow-xl backdrop-blur-md">
@@ -66,7 +68,7 @@ export function CashChartTooltip({
         {point.end !== point.start ? ` – ${dateLabel(point.end)}` : ""}
       </p>
       <p className="mt-1 text-xs font-medium">
-        Saldo a fine {point.start === point.end ? "giornata" : "settimana"}
+        {point.start === point.end ? t("Saldo a fine giornata") : t("Saldo a fine settimana")}
       </p>
       <p
         className={cn(
@@ -80,7 +82,7 @@ export function CashChartTooltip({
       </p>
       {comparison && (
         <div className="mt-2 flex justify-between gap-4 text-xs text-muted-foreground">
-          <span>Senza stime</span>
+          <span>{t("Senza stime")}</span>
           <span className="tabular-nums">{money(point.withoutEstimates)}</span>
         </div>
       )}
@@ -88,20 +90,20 @@ export function CashChartTooltip({
         <div className="flex justify-between gap-4">
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            Entrate
+            {t("Entrate")}
           </span>
           <span className="tabular-nums">{money(point.income)}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-            Uscite
+            {t("Uscite")}
           </span>
           <span className="tabular-nums">{money(Math.abs(point.expense))}</span>
         </div>
       </div>
       <p className="mt-3 text-[10px] text-muted-foreground">
-        Seleziona il periodo per aprire i movimenti
+        {t("Seleziona il periodo per aprire i movimenti")}
       </p>
     </div>
   );
@@ -136,6 +138,7 @@ export function ForecastCashChart({
   onPeriod: (period: { start: string; end: string }) => void;
   onTable: () => void;
 }) {
+  const t = useT();
   const [showFlows, setShowFlows] = useState(false);
   const [compare, setCompare] = useState(false);
   const comparison = compare && hasEstimates;
@@ -202,22 +205,22 @@ export function ForecastCashChart({
   );
   return (
     <section
-      aria-label="Andamento della cassa"
+      aria-label={t("Andamento della cassa")}
       className="overflow-hidden rounded-2xl border border-border/70 bg-card text-card-foreground shadow-sm"
     >
       <div className="flex flex-col gap-5 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:pt-6">
         <div>
           <h2 className="text-base font-semibold tracking-tight">
-            Andamento della cassa
+            {t("Andamento della cassa")}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {rows.length
               ? `${dateLabel(rows[0].start)} – ${dateLabel(rows[rows.length - 1].end)} · `
               : ""}
-            Saldi previsti, non incassi garantiti
+            {t("Saldi previsti, non incassi garantiti")}
           </p>
           <p className="mt-4 text-[11px] font-medium text-muted-foreground">
-            Saldo a fine periodo
+            {t("Saldo a fine periodo")}
           </p>
           <p
             className={cn(
@@ -232,7 +235,7 @@ export function ForecastCashChart({
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <div
-            aria-label="Dettaglio temporale del grafico"
+            aria-label={t("Dettaglio temporale del grafico")}
             role="group"
             className="inline-flex rounded-xl bg-muted/70 p-1"
           >
@@ -249,7 +252,7 @@ export function ForecastCashChart({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {g === "giorni" ? "Per giorno" : "Per settimana"}
+                {g === "giorni" ? t("Per giorno") : t("Per settimana")}
               </button>
             ))}
           </div>
@@ -265,7 +268,7 @@ export function ForecastCashChart({
                   : "border-border/70 text-muted-foreground hover:bg-muted/50",
               )}
             >
-              Confronta senza stime
+              {t("Confronta senza stime")}
             </button>
           )}
         </div>
@@ -273,19 +276,19 @@ export function ForecastCashChart({
       {opening === null ? (
         <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 px-6 text-center">
           <p className="text-sm text-muted-foreground">
-            Il grafico del saldo richiede una disponibilità iniziale.
+            {t("Il grafico del saldo richiede una disponibilità iniziale.")}
           </p>
           <Button asChild variant="outline" size="sm">
-            <Link to="/azienda/tesoreria">Completa in Tesoreria</Link>
+            <Link to="/azienda/tesoreria">{t("Completa in Tesoreria")}</Link>
           </Button>
         </div>
       ) : (
         <>
           {estremi && (
             <div className="mx-5 mt-4 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2 sm:mx-6">
-              <StatGrafico etichetta="Più alto" valore={money(estremi.alto.balance)} nota={dateLabel(estremi.alto.start)} />
+              <StatGrafico etichetta={t("Più alto")} valore={money(estremi.alto.balance)} nota={dateLabel(estremi.alto.start)} />
               <StatGrafico
-                etichetta="Più basso"
+                etichetta={t("Più basso")}
                 valore={money(estremi.basso.balance)}
                 nota={dateLabel(estremi.basso.start)}
                 tono={(estremi.basso.balance ?? 0) < threshold ? "cattivo" : "neutro"}
@@ -293,43 +296,43 @@ export function ForecastCashChart({
               {/* Il saldo a fine periodo è già scritto grande qui sopra: qui la
                   differenza da oggi, che dice se la cassa cresce o cala. */}
               <StatGrafico
-                etichetta="Rispetto a oggi"
+                etichetta={t("Rispetto a oggi")}
                 valore={
                   <span className="inline-flex flex-wrap items-center gap-1.5">
                     {opening !== null && closing !== null ? `${closing - opening > 0 ? "+" : ""}${money(closing - opening)}` : "—"}
                     {/* Una percentuale su una base negativa (+993% partendo da −48.514 €) non dice niente. */}
                     {opening !== null && opening > 0 && closing !== null && (
-                      <PillolaVariazione pct={((closing - opening) / Math.abs(opening)) * 100} titolo="Saldo a fine periodo rispetto alla disponibilità di oggi" />
+                      <PillolaVariazione pct={((closing - opening) / Math.abs(opening)) * 100} titolo={t("Saldo a fine periodo rispetto alla disponibilità di oggi")} />
                     )}
                   </span>
                 }
-                nota="a fine periodo"
+                nota={t("a fine periodo")}
                 tono={opening !== null && closing !== null ? (closing >= opening ? "buono" : "cattivo") : "neutro"}
               />
             </div>
           )}
           <div
             className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-5 text-[11px] text-muted-foreground sm:px-6"
-            aria-label="Legenda del grafico"
+            aria-label={t("Legenda del grafico")}
           >
             <span className="inline-flex items-center gap-2">
               <span className="h-0.5 w-4 rounded-full bg-primary" />
-              Saldo previsto{hasEstimates ? " · con stime" : ""}
+              {t("Saldo previsto")}{hasEstimates ? ` ${t("· con stime")}` : ""}
             </span>
             {comparison && (
               <span className="inline-flex items-center gap-2">
                 <span className="w-4 border-t border-dashed border-muted-foreground" />
-                Senza stime
+                {t("Senza stime")}
               </span>
             )}
             <span className="inline-flex items-center gap-2">
               <span className="w-4 border-t border-dashed border-orange-400" />
-              Soglia {money(threshold)}
+              {t("Soglia {importo}", { importo: money(threshold) })}
             </span>
           </div>
           <div
             className="mt-2 h-[300px] w-full px-1 sm:h-[330px] sm:px-3"
-            aria-label="Grafico saldo con entrate e uscite"
+            aria-label={t("Grafico saldo con entrate e uscite")}
           >
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
@@ -453,7 +456,7 @@ export function ForecastCashChart({
                 className="inline-flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-orange-50 px-2.5 py-1.5 text-orange-900 transition-colors hover:bg-orange-100 dark:bg-orange-500/10 dark:text-orange-200"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                Minimo previsto{" "}
+                {t("Minimo previsto")}{" "}
                 <strong className="font-semibold tabular-nums">
                   {money(minimum)}
                 </strong>
@@ -466,7 +469,7 @@ export function ForecastCashChart({
               className="inline-flex min-h-8 items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary"
             >
               <Table2 className="h-3.5 w-3.5" />
-              Tabella settimanale
+              {t("Tabella settimanale")}
             </button>
           </div>
           <div className="border-t border-border/60 bg-muted/20 px-5 py-4 sm:px-6">
@@ -477,7 +480,7 @@ export function ForecastCashChart({
                 </span>
                 <div>
                   <p className="text-[11px] text-muted-foreground">
-                    Entrate del periodo
+                    {t("Entrate del periodo")}
                   </p>
                   <p className="text-sm font-semibold tabular-nums">
                     {money(income)}
@@ -490,7 +493,7 @@ export function ForecastCashChart({
                 </span>
                 <div>
                   <p className="text-[11px] text-muted-foreground">
-                    Uscite del periodo
+                    {t("Uscite del periodo")}
                   </p>
                   <p className="text-sm font-semibold tabular-nums">
                     {money(expense)}
@@ -504,7 +507,7 @@ export function ForecastCashChart({
                 onClick={() => setShowFlows((v) => !v)}
                 className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
               >
-                {showFlows ? "Nascondi flussi" : "Mostra entrate e uscite"}
+                {showFlows ? t("Nascondi flussi") : t("Mostra entrate e uscite")}
                 <ChevronDown
                   className={cn(
                     "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
@@ -517,7 +520,7 @@ export function ForecastCashChart({
               <div
                 id={`${id}-flows`}
                 className="mt-4 h-[110px] motion-safe:animate-in motion-safe:fade-in"
-                aria-label="Grafico dettagliato entrate e uscite"
+                aria-label={t("Grafico dettagliato entrate e uscite")}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart

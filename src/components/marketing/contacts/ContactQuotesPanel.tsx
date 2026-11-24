@@ -4,10 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { Badge } from "@/components/ui/badge";
 import { linkPreventivo, etichettaTipoPreventivo } from "@/lib/preventivi/linkPreventivo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const statusLabels: Record<string, string> = { bozza: "Bozza", inviata: "Inviata", accettata: "Accettata", rifiutata: "Rifiutata", scaduta: "Scaduta" };
 
 export function ContactQuotesPanel({ contactId, companyId }: { contactId: string; companyId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const { data: quotes = [], isLoading } = useQuery({
     queryKey: ["contact_quotes", contactId],
@@ -35,14 +37,14 @@ export function ContactQuotesPanel({ contactId, companyId }: { contactId: string
     gcTime: 8 * 60 * 1000,
   });
 
-  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
+  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">{t("Caricamento...")}</p>;
 
   return (
     <div className="space-y-2">
       {/* La stessa finestra di scelta dell'elenco Preventivi: il preventivo esce uguale da qualunque parte si crei. */}
-      <NewPreventivoMenu contactId={contactId} size="sm" label="Nuovo Preventivo" className="w-full text-[10px] h-7" />
+      <NewPreventivoMenu contactId={contactId} size="sm" label={t("Nuovo Preventivo")} className="w-full text-[10px] h-7" />
       {quotes.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground text-center py-6">Nessun preventivo</p>
+        <p className="text-[11px] text-muted-foreground text-center py-6">{t("Nessun preventivo")}</p>
       ) : (
         quotes.map((q) => {
           // Ogni tipo ha la sua pagina. Se il tipo non è fra quelli noti la riga
@@ -59,9 +61,9 @@ export function ContactQuotesPanel({ contactId, companyId }: { contactId: string
               {q.tipo && <p className="text-[10px] text-muted-foreground truncate">{etichettaTipoPreventivo(q.tipo)}</p>}
               <div className="flex items-center gap-1">
                 <Badge variant={q.status === "accettata" ? "default" : q.status === "rifiutata" ? "destructive" : "secondary"} className="text-[9px] h-4 px-1">
-                  {(q.status && statusLabels[q.status]) || q.status}
+                  {(q.status && statusLabels[q.status] && t(statusLabels[q.status])) || q.status}
                 </Badge>
-                {q.total != null && q.total > 0 && <span className="text-[10px] text-muted-foreground">{Number(q.total).toLocaleString("it-IT")} €</span>}
+                {q.total != null && q.total > 0 && <span className="text-[10px] text-muted-foreground">{Number(q.total).toLocaleString(intlCampo())} €</span>}
               </div>
             </div>
           );

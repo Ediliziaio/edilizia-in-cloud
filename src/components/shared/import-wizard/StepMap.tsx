@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { campiObbligatoriMancanti, nomeCampoObbligatorio, type ImportField } from "@/components/shared/CSVImportDialog";
 import type { ObjectType } from "./StepStart";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StepMapProps {
   objectType: ObjectType;
@@ -22,6 +23,7 @@ interface StepMapProps {
 export function StepMap({
   objectType, fields, fileHeaders, fileRows, mapping, onMappingChange, skipUnmapped, onSkipUnmappedChange,
 }: StepMapProps) {
+  const t = useT();
   const previewRows = fileRows.slice(0, 3);
 
   const missingRequired = useMemo(() => {
@@ -29,7 +31,7 @@ export function StepMap({
   }, [mapping, fields]);
 
   const unmappedCount = fileHeaders.filter((h) => !mapping[h]).length;
-  const objectLabel = objectType === "contacts" ? "Contatto" : "Opportunità";
+  const objectLabel = objectType === "contacts" ? t("Contatto") : t("Opportunità");
 
   const setFieldMapping = (header: string, value: string) => {
     const next = { ...mapping };
@@ -43,7 +45,7 @@ export function StepMap({
       {/* Alert */}
       <div className="flex items-start gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-        <span>Assicurati che tutti i campi obbligatori siano mappati correttamente.</span>
+        <span>{t("Assicurati che tutti i campi obbligatori siano mappati correttamente.")}</span>
       </div>
 
       {/* Required fields box */}
@@ -51,7 +53,7 @@ export function StepMap({
         <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 rounded-lg p-3">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>
-            Campi obbligatori non mappati: {missingRequired.map((f) => nomeCampoObbligatorio(f, fields)).join(", ")}
+            {t("Campi obbligatori non mappati:")} {missingRequired.map((f) => nomeCampoObbligatorio(f, fields)).join(", ")}
           </span>
         </div>
       )}
@@ -62,11 +64,11 @@ export function StepMap({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs w-[22%]">Intestazione colonna nel file</TableHead>
-                <TableHead className="text-xs w-[22%]">Informazioni di anteprima</TableHead>
-                <TableHead className="text-xs w-[12%]">Stato</TableHead>
-                <TableHead className="text-xs w-[12%]">Oggetto</TableHead>
-                <TableHead className="text-xs w-[32%]">Campi</TableHead>
+                <TableHead className="text-xs w-[22%]">{t("Intestazione colonna nel file")}</TableHead>
+                <TableHead className="text-xs w-[22%]">{t("Informazioni di anteprima")}</TableHead>
+                <TableHead className="text-xs w-[12%]">{t("Stato")}</TableHead>
+                <TableHead className="text-xs w-[12%]">{t("Oggetto")}</TableHead>
+                <TableHead className="text-xs w-[32%]">{t("Campi")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -92,7 +94,7 @@ export function StepMap({
                           : "bg-muted text-muted-foreground border-0"
                         }
                       >
-                        {isMapped ? "Mappato" : "In sospeso"}
+                        {isMapped ? t("Mappato") : t("In sospeso")}
                       </Badge>
                     </TableCell>
                     <TableCell className="py-2 text-xs text-muted-foreground">{objectLabel}</TableCell>
@@ -105,7 +107,7 @@ export function StepMap({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__ignore__">— Seleziona campo —</SelectItem>
+                          <SelectItem value="__ignore__">{t("— Seleziona campo —")}</SelectItem>
                           {fields.map((f) => (
                             <SelectItem key={f.key} value={f.key}>
                               {f.label}{f.required ? " *" : ""}
@@ -131,7 +133,7 @@ export function StepMap({
             onCheckedChange={(v) => onSkipUnmappedChange(!!v)}
           />
           <label htmlFor="skip-unmapped" className="text-sm text-muted-foreground cursor-pointer">
-            Non importare dati in {unmappedCount} colon{unmappedCount === 1 ? "na" : "ne"} non mappat{unmappedCount === 1 ? "a" : "e"}
+            {t(unmappedCount === 1 ? "Non importare dati in {n} colonna non mappata" : "Non importare dati in {n} colonne non mappate", { n: unmappedCount })}
           </label>
         </div>
       )}

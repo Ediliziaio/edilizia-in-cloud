@@ -16,6 +16,7 @@ import { macroAreas } from "@/lib/sidebarConfig";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
 import { cercaImpostazioni } from "@/lib/impostazioni/indiceImpostazioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // 🆕 GAP 1 (Discoverability): personas AI nel command palette
 interface AIPersonaLite {
@@ -99,6 +100,7 @@ const navGroups = macroAreas.map(area => ({
 }));
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [includiCestino, setIncludiCestino] = useState(false);
   const navigate = useNavigate();
@@ -228,11 +230,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       .map(group => ({
         ...group,
         items: group.items.filter(item =>
-          item.title.toLowerCase().includes(q)
+          item.title.toLowerCase().includes(q) || t(item.title).toLowerCase().includes(q)
         ),
       }))
       .filter(group => group.items.length > 0);
-  }, [query, isDemoBaseline]);
+  }, [query, isDemoBaseline, t]);
 
   const filteredSettingsItems = useMemo(() => {
     if (query.length < 2) return [];
@@ -248,13 +250,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     // niente mentre il cliente era stato trovato eccome.
     <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false}>
       <CommandInput
-        placeholder="Cerca ordini, clienti, AI, impostazioni..."
+        placeholder={t("Cerca ordini, clienti, AI, impostazioni...")}
         value={query}
         onValueChange={setQuery}
       />
       <label className="flex items-center gap-2 border-b px-4 py-2 text-xs text-muted-foreground">
         <Checkbox checked={includiCestino} onCheckedChange={(v) => setIncludiCestino(v === true)} />
-        Includi il cestino di commesse e preventivi
+        {t("Includi il cestino di commesse e preventivi")}
       </label>
       <CommandList>
         {isFetching && (
@@ -264,7 +266,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         )}
 
         {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && filteredSettingsItems.length === 0 && filteredPersonaItems.length === 0 && entityData.length === 0 && (semanticData ?? []).length === 0 && (
-          <CommandEmpty>Nessun risultato per &quot;{query}&quot;</CommandEmpty>
+          <CommandEmpty>{t("Nessun risultato per \"{query}\"", { query: String(query ?? "") })}</CommandEmpty>
         )}
 
         {/* 🆕 GAP 1: AI Personas + esempi cliccabili. Quando query vuoto mostra
@@ -273,7 +275,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             mostra esempi tipo "Genera la LIPE trimestrale" da commercialista). */}
         {filteredPersonaItems.length > 0 && (
           <>
-            <CommandGroup heading="AI · Personas e domande">
+            <CommandGroup heading={t("AI · Personas e domande")}>
               {filteredPersonaItems.map((it, idx) => {
                 if (it.kind === "persona") {
                   return (
@@ -284,9 +286,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     >
                       <Bot className="h-4 w-4 text-violet-600" />
                       <div className="flex flex-col min-w-0">
-                        <span className="text-sm font-medium truncate">
-                          Chiedi a {it.persona.display_name}
-                        </span>
+                        <span className="text-sm font-medium truncate">{t("Chiedi a {display_name}", { display_name: String(it.persona.display_name ?? "") })}</span>
                         <span className="text-xs text-muted-foreground truncate">
                           {it.persona.short_label}
                         </span>
@@ -316,7 +316,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         )}
 
         {Object.entries(groupedResults).map(([group, items]) => (
-          <CommandGroup key={group} heading={group}>
+          <CommandGroup key={group} heading={t(group)}>
             {items.map((result) => {
               const Icon = RESULT_ICONS[result.icon] ?? Package;
               return (
@@ -329,7 +329,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <div className="flex flex-col min-w-0">
                     <span className="flex items-center gap-2 text-sm font-medium">
                       <span className="truncate">{result.title}</span>
-                      {result.cestinato && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Nel cestino</span>}
+                      {result.cestinato && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{t("Nel cestino")}</span>}
                     </span>
                     {result.subtitle && (
                       <span className="text-xs text-muted-foreground truncate">
@@ -348,7 +348,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         {/* 🆕 GAP 8: Risultati semantic search dalla KB (companies, normative, doc) */}
         {query.length >= 3 && (semanticData ?? []).length > 0 && (
           <>
-            <CommandGroup heading="AI Search · Knowledge base">
+            <CommandGroup heading={t("AI Search · Knowledge base")}>
               {(semanticData ?? []).map((r) => (
                 <CommandItem
                   key={`sem-${r.chunk_id}`}
@@ -380,7 +380,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         {/* 🆕 GAP 8b: Risultati semantic search su ENTITÀ (clienti/cantieri/fatture) */}
         {query.length >= 3 && entityData.length > 0 && (
           <>
-            <CommandGroup heading="AI Search · Clienti, cantieri, fatture">
+            <CommandGroup heading={t("AI Search · Clienti, cantieri, fatture")}>
               {entityData.map((r) => {
                 const cfg = ENTITY_LABEL[r.entity_type];
                 if (!cfg) return null;
@@ -394,7 +394,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                          {cfg.label}
+                          {t(cfg.label)}
                         </span>
                         <span className="text-[10px] text-muted-foreground tabular-nums">
                           {(r.similarity * 100).toFixed(0)}%
@@ -416,14 +416,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         {query.length >= 3 && isSemanticFetching && (semanticData ?? []).length === 0 && entityData.length === 0 && (
           <div className="px-2 py-1.5 text-[11px] text-muted-foreground flex items-center gap-2">
             <Search className="h-3 w-3 animate-pulse text-violet-500" />
-            Cerco semanticamente nella KB e nelle entità…
+            {t("Cerco semanticamente nella KB e nelle entità…")}
           </div>
         )}
 
         {/* Voci Impostazioni */}
         {filteredSettingsItems.length > 0 && (
           <>
-            <CommandGroup heading="Impostazioni">
+            <CommandGroup heading={t("Impostazioni")}>
               {filteredSettingsItems.map((item) => (
                 <CommandItem
                   key={item.url}
@@ -432,8 +432,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   className="flex items-center gap-3"
                 >
                   <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{item.group}</span>
+                  <span className="min-w-0 flex-1 truncate">{t(item.title)}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{t(item.group)}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -443,7 +443,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
         {filteredNavGroups.map((group) => {
           return (
-            <CommandGroup key={group.title} heading={group.title}>
+            <CommandGroup key={group.title} heading={t(group.title)}>
               {group.items.map((item) => {
                 const ItemIcon = item.icon;
                 return (
@@ -453,7 +453,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     className="flex items-center gap-3"
                   >
                     <ItemIcon className="h-4 w-4 text-muted-foreground" />
-                    <span>{item.title}</span>
+                    <span>{t(item.title)}</span>
                   </CommandItem>
                 );
               })}
@@ -463,7 +463,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       </CommandList>
 
       <div className="border-t px-3 py-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>↑↓ naviga · ↵ apri · esc chiudi</span>
+        <span>{t("↑↓ naviga · ↵ apri · esc chiudi")}</span>
         <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-60">
           ⌘K
         </kbd>

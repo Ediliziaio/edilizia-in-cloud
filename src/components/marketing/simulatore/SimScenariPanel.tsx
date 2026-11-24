@@ -54,6 +54,7 @@ import type {
   ScenariConfig, SimulazioneRisultato, FinanziamentoConfig,
   ProvvigioneSim, ProvvigioneBase,
 } from "@/lib/simulatore/tipi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SimScenariPanelProps {
   scenari: ScenariConfig;
@@ -82,7 +83,7 @@ const EMPTY_FINANZIAMENTO: FinanziamentoConfig = {
 
 /** "10%" — etichetta breve aliquota. */
 function pctLabel(n: number): string {
-  return `${n.toLocaleString("it-IT")}%`;
+  return `${n.toLocaleString(intlCampo())}%`;
 }
 
 /** Intero non-negativo da input; fallback 0, mai NaN. */
@@ -99,7 +100,7 @@ function parsePct(raw: string): number {
 
 /** "12,3%" — etichetta percentuale arrotondata a 1 decimale. */
 function fmtPct(pct: number): string {
-  return `${(Math.round(pct * 10) / 10).toLocaleString("it-IT")}%`;
+  return `${(Math.round(pct * 10) / 10).toLocaleString(intlCampo())}%`;
 }
 
 export function SimScenariPanel({
@@ -108,6 +109,7 @@ export function SimScenariPanel({
   onChange,
   onRataChange,
 }: SimScenariPanelProps) {
+  const tr = useT();
   const patch = (p: Partial<ScenariConfig>) => onChange({ ...scenari, ...p });
 
   // ── Provvigioni (commerciale, segnalatore, ecc.) ──────────────────────────
@@ -263,14 +265,14 @@ export function SimScenariPanel({
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <SlidersHorizontal className="h-4 w-4" />
             </span>
-            <h3 className="text-sm font-semibold">Economia &amp; trattativa</h3>
+            <h3 className="text-sm font-semibold">{tr("Economia & trattativa")}</h3>
           </div>
 
           {/* Telefono: le tre percentuali in riga, senza la riga dei valori sotto. */}
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-2">
             {/* Spese generali % */}
             <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground"><span className="max-sm:hidden">Spese generali (%)</span><span className="sm:hidden">Spese gen. %</span></Label>
+              <Label className="text-[11px] text-muted-foreground"><span className="max-sm:hidden">{tr("Spese generali (%)")}</span><span className="sm:hidden">{tr("Spese gen. %")}</span></Label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -281,15 +283,12 @@ export function SimScenariPanel({
                 onChange={(e) => patch({ spese_generali_pct: parsePct(e.target.value) })}
                 className="h-8 text-right tabular-nums"
               />
-              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">
-                {formatCurrency(risultato.spese_generali)} · costo pieno{" "}
-                {formatCurrency(risultato.costo_pieno)}
-              </p>
+              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">{tr("{spese_generali} · costo pieno {costo_pieno}", { spese_generali: formatCurrency(risultato.spese_generali), costo_pieno: formatCurrency(risultato.costo_pieno) })}</p>
             </div>
 
             {/* Utile d'impresa % */}
             <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground"><span className="max-sm:hidden">Utile d&apos;impresa (%)</span><span className="sm:hidden">Utile %</span></Label>
+              <Label className="text-[11px] text-muted-foreground"><span className="max-sm:hidden">{tr("Utile d'impresa (%)")}</span><span className="sm:hidden">{tr("Utile %")}</span></Label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -300,14 +299,12 @@ export function SimScenariPanel({
                 onChange={(e) => patch({ utile_pct: parsePct(e.target.value) })}
                 className="h-8 text-right tabular-nums"
               />
-              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">
-                target {formatCurrency(risultato.utile_target)}
-              </p>
+              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">{tr("target {utile_target}", { utile_target: formatCurrency(risultato.utile_target) })}</p>
             </div>
 
             {/* Sconto % */}
             <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground"><span className="max-sm:hidden">Sconto cliente (%)</span><span className="sm:hidden">Sconto %</span></Label>
+              <Label className="text-[11px] text-muted-foreground"><span className="max-sm:hidden">{tr("Sconto cliente (%)")}</span><span className="sm:hidden">{tr("Sconto %")}</span></Label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -318,10 +315,7 @@ export function SimScenariPanel({
                 onChange={(e) => patch({ sconto_pct: parsePct(e.target.value) })}
                 className="h-8 text-right tabular-nums"
               />
-              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">
-                −{formatCurrency(risultato.sconto_valore)} · netto{" "}
-                {formatCurrency(risultato.ricavo_netto)}
-              </p>
+              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">{tr("−{sconto_valore} · netto {ricavo_netto}", { sconto_valore: formatCurrency(risultato.sconto_valore), ricavo_netto: formatCurrency(risultato.ricavo_netto) })}</p>
             </div>
           </div>
 
@@ -343,16 +337,14 @@ export function SimScenariPanel({
               ) : (
                 <AlertTriangle className="h-4 w-4" style={{ color: `hsl(${margineVar})` }} />
               )}
-              Margine netto
+              {tr("Margine netto")}
             </span>
             <span className="flex items-center gap-2 tabular-nums">
               <span className="font-bold" style={{ color: `hsl(${margineVar})` }}>
                 {formatCurrency(risultato.margine_netto_valore)} ({fmtPct(risultato.margine_netto_pct)})
               </span>
               {utileTarget > 0 ? (
-                <span className="text-[11px] text-muted-foreground">
-                  / utile target {formatCurrency(utileTarget)}
-                </span>
+                <span className="text-[11px] text-muted-foreground">{tr("/ utile target {utileTarget}", { utileTarget: formatCurrency(utileTarget) })}</span>
               ) : null}
             </span>
           </div>
@@ -365,7 +357,7 @@ export function SimScenariPanel({
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-muted-foreground" />
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Obiettivo
+                  {tr("Obiettivo")}
                 </p>
               </div>
               <ToggleGroup
@@ -378,10 +370,10 @@ export function SimScenariPanel({
                 className="rounded-lg border bg-muted/40 p-0.5"
               >
                 <ToggleGroupItem value="prezzo" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                  Per prezzo
+                  {tr("Per prezzo")}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="margine" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                  Per margine
+                  {tr("Per margine")}
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
@@ -390,7 +382,7 @@ export function SimScenariPanel({
               <>
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Prezzo netto desiderato (€)</Label>
+                    <Label className="text-[11px] text-muted-foreground">{tr("Prezzo netto desiderato (€)")}</Label>
                     <Input
                       type="number"
                       inputMode="decimal"
@@ -414,17 +406,17 @@ export function SimScenariPanel({
                     }}
                   >
                     <TrendingDown className="h-3.5 w-3.5" />
-                    Applica sconto
+                    {tr("Applica sconto")}
                   </Button>
                 </div>
                 {obiettivo ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
                     <span className="text-muted-foreground">
-                      Sconto necessario:{" "}
+                      {tr("Sconto necessario:")}{" "}
                       <strong className="text-foreground">{fmtPct(obiettivo.sconto_pct_necessario)}</strong>
                     </span>
                     <span className="text-muted-foreground">
-                      Margine:{" "}
+                      {tr("Margine:")}{" "}
                       <strong style={{ color: obiettivo.margine_valore >= 0 ? "hsl(var(--chart-2))" : "hsl(var(--chart-5))" }}>
                         {formatCurrency(obiettivo.margine_valore)} ({fmtPct(obiettivo.margine_pct)})
                       </strong>
@@ -432,7 +424,7 @@ export function SimScenariPanel({
                   </div>
                 ) : (
                   <p className="text-[11px] text-muted-foreground max-sm:hidden">
-                    Inserisci un prezzo netto per calcolare lo sconto necessario e il margine risultante.
+                    {tr("Inserisci un prezzo netto per calcolare lo sconto necessario e il margine risultante.")}
                   </p>
                 )}
               </>
@@ -457,7 +449,7 @@ export function SimScenariPanel({
                   </ToggleGroup>
                   <div className="space-y-1">
                     <Label className="text-[11px] text-muted-foreground">
-                      {margineTargetType === "pct" ? "Margine desiderato (%)" : "Margine desiderato (€)"}
+                      {margineTargetType === "pct" ? tr("Margine desiderato (%)") : tr("Margine desiderato (€)")}
                     </Label>
                     <Input
                       type="number"
@@ -476,14 +468,14 @@ export function SimScenariPanel({
                     <div className="space-y-1.5">
                       <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-sm">
                         <p className="text-[11px] font-medium uppercase tracking-wide text-primary">
-                          Dovresti vendere a
+                          {tr("Dovresti vendere a")}
                         </p>
                         <p className="mt-0.5 font-bold tabular-nums text-foreground">
                           {formatCurrency(margineObiettivo.ricavo_netto_necessario ?? 0)}{" "}
-                          <span className="text-[11px] font-normal text-muted-foreground">imponibile</span>{" "}
+                          <span className="text-[11px] font-normal text-muted-foreground">{tr("imponibile")}</span>{" "}
                           <span className="text-muted-foreground">→</span>{" "}
                           {formatCurrency(margineObiettivo.prezzo_cliente_necessario ?? 0)}{" "}
-                          <span className="text-[11px] font-normal text-muted-foreground">IVA inclusa</span>
+                          <span className="text-[11px] font-normal text-muted-foreground">{tr("IVA inclusa")}</span>
                         </p>
                       </div>
                       {(() => {
@@ -492,7 +484,7 @@ export function SimScenariPanel({
                         );
                         return (
                           <p className="text-[11px] text-muted-foreground tabular-nums">
-                            Rispetto all&apos;attuale ({formatCurrency(risultato.ricavo_netto)}):{" "}
+                            {tr("Rispetto all'attuale ({importo}):", { importo: formatCurrency(risultato.ricavo_netto) })}{" "}
                             <strong
                               style={{ color: diff > 0 ? "hsl(var(--chart-3))" : "hsl(var(--chart-2))" }}
                             >
@@ -512,12 +504,12 @@ export function SimScenariPanel({
                         color: "hsl(var(--chart-3))",
                       }}
                     >
-                      Margine non raggiungibile con questi costi/provvigioni.
+                      {tr("Margine non raggiungibile con questi costi/provvigioni.")}
                     </p>
                   )
                 ) : (
                   <p className="text-[11px] text-muted-foreground">
-                    Inserisci il margine desiderato per calcolare il prezzo a cui vendere.
+                    {tr("Inserisci il margine desiderato per calcolare il prezzo a cui vendere.")}
                   </p>
                 )}
               </>
@@ -530,7 +522,7 @@ export function SimScenariPanel({
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Provvigioni
+                  {tr("Provvigioni")}
                 </p>
               </div>
               <Button
@@ -541,14 +533,13 @@ export function SimScenariPanel({
                 onClick={addProvvigione}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Aggiungi provvigione
+                {tr("Aggiungi provvigione")}
               </Button>
             </div>
 
             {provvigioni.length === 0 ? (
               <p className="text-[11px] text-muted-foreground max-sm:hidden">
-                Aggiungi i costi di provvigione (commerciale, segnalatore, ecc.): erodono il
-                margine ma non cambiano il prezzo al cliente.
+                {tr("Aggiungi i costi di provvigione (commerciale, segnalatore, ecc.): erodono il margine ma non cambiano il prezzo al cliente.")}
               </p>
             ) : (
               <div className="space-y-2">
@@ -561,10 +552,10 @@ export function SimScenariPanel({
                     >
                       {/* Nome */}
                       <div className="min-w-[8rem] flex-1 space-y-1">
-                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Beneficiario</Label>
+                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">{tr("Beneficiario")}</Label>
                         <Input
                           value={p.nome}
-                          placeholder="Es. Commerciale"
+                          placeholder={tr("Es. Commerciale")}
                           onChange={(e) => updateProvvigione(p.id, { nome: e.target.value })}
                           className="h-8"
                         />
@@ -572,7 +563,7 @@ export function SimScenariPanel({
 
                       {/* Base */}
                       <div className="w-[9.5rem] space-y-1">
-                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Base</Label>
+                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">{tr("Base")}</Label>
                         <Select
                           value={p.base}
                           onValueChange={(v) =>
@@ -585,7 +576,7 @@ export function SimScenariPanel({
                           <SelectContent>
                             {PROVV_BASI.map((b) => (
                               <SelectItem key={b} value={b}>
-                                {PROVV_BASE_LABEL[b]}
+                                {tr(PROVV_BASE_LABEL[b])}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -595,7 +586,7 @@ export function SimScenariPanel({
                       {/* Valore (% o €) */}
                       <div className="w-[6.5rem] space-y-1">
                         <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                          {p.base === "fisso" ? "Importo (€)" : "Valore (%)"}
+                          {p.base === "fisso" ? tr("Importo (€)") : tr("Valore (%)")}
                         </Label>
                         <Input
                           type="number"
@@ -612,7 +603,7 @@ export function SimScenariPanel({
 
                       {/* Valore calcolato (read-only) */}
                       <div className="w-[6rem] space-y-1">
-                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Costo</Label>
+                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">{tr("Costo")}</Label>
                         <div className="flex h-8 items-center justify-end rounded-md border bg-muted/30 px-2 text-sm font-medium tabular-nums">
                           {formatCurrency(valoreRiga)}
                         </div>
@@ -623,7 +614,7 @@ export function SimScenariPanel({
                         type="button"
                         size="icon"
                         variant="ghost"
-                        aria-label="Elimina provvigione"
+                        aria-label={tr("Elimina provvigione")}
                         className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                         onClick={() => removeProvvigione(p.id)}
                       >
@@ -638,20 +629,20 @@ export function SimScenariPanel({
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <HandCoins className="h-3.5 w-3.5" />
-                      Totale provvigioni
+                      {tr("Totale provvigioni")}
                     </span>
                     <span className="font-semibold" style={{ color: "hsl(var(--chart-5))" }}>
                       −{formatCurrency(risultato.provvigioni_totale)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
-                    <span>Margine operativo</span>
+                    <span>{tr("Margine operativo")}</span>
                     <span>
                       {formatCurrency(risultato.margine_netto_valore)} ({fmtPct(risultato.margine_netto_pct)})
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t pt-1.5 font-medium">
-                    <span>Margine finale</span>
+                    <span>{tr("Margine finale")}</span>
                     <span style={{ color: risultato.margine_valore >= 0 ? "hsl(var(--chart-2))" : "hsl(var(--chart-5))" }}>
                       {formatCurrency(risultato.margine_valore)} ({fmtPct(risultato.margine_pct)})
                     </span>
@@ -681,10 +672,10 @@ export function SimScenariPanel({
               className="rounded-lg border bg-muted/40 p-0.5"
             >
               <ToggleGroupItem value="singola" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                Singola
+                {tr("Singola")}
               </ToggleGroupItem>
               <ToggleGroupItem value="mista" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                Mista 10/22
+                {tr("Mista 10/22")}
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
@@ -692,7 +683,7 @@ export function SimScenariPanel({
           {/* In singola: select aliquota unica. */}
           {scenari.iva_mode === "singola" ? (
             <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Aliquota</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Aliquota")}</Label>
               <Select
                 value={String(scenari.iva_rate_singola)}
                 onValueChange={(v) =>
@@ -713,8 +704,7 @@ export function SimScenariPanel({
             </div>
           ) : (
             <p className="text-xs text-muted-foreground max-sm:hidden">
-              IVA per riga (10% beni significativi e posa, 22% sull&apos;eccedenza). Il
-              prezzo cliente somma le aliquote effettive delle voci.
+              {tr("IVA per riga (10% beni significativi e posa, 22% sull'eccedenza). Il prezzo cliente somma le aliquote effettive delle voci.")}
             </p>
           )}
 
@@ -724,8 +714,8 @@ export function SimScenariPanel({
           <div>
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {scenari.iva_mode === "mista"
-                ? "Confronto ipotesi ad aliquota unica"
-                : "Confronto prezzo cliente"}
+                ? tr("Confronto ipotesi ad aliquota unica")
+                : tr("Confronto prezzo cliente")}
             </p>
             <div className={cn("grid grid-cols-3 gap-2", scenari.iva_mode === "mista" && "opacity-60")}>
               {ALIQUOTE.map((a) => {
@@ -760,9 +750,7 @@ export function SimScenariPanel({
             </div>
             {scenari.iva_mode === "mista" ? (
               <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Ipotesi se tutto l&apos;imponibile fosse a un&apos;unica aliquota. In
-                mista il prezzo reale è il <strong>Totale IVA</strong> del riepilogo
-                qui sotto.
+                {tr("Ipotesi se tutto l'imponibile fosse a un'unica aliquota. In mista il prezzo reale è il")} <strong>{tr("Totale IVA")}</strong> {tr("del riepilogo qui sotto.")}
               </p>
             ) : null}
           </div>
@@ -771,7 +759,7 @@ export function SimScenariPanel({
           {scenari.iva_mode === "mista" && risultato.riepilogo_iva.length > 0 ? (
             <div className="rounded-xl border bg-card p-3 shadow-sm">
               <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Riepilogo IVA mista
+                {tr("Riepilogo IVA mista")}
               </p>
               <div className="space-y-1 text-sm">
                 {[...risultato.riepilogo_iva]
@@ -781,9 +769,7 @@ export function SimScenariPanel({
                       key={r.aliquota}
                       className="flex items-center justify-between gap-3 tabular-nums"
                     >
-                      <span className="text-muted-foreground">
-                        Imponibile {pctLabel(r.aliquota)}
-                      </span>
+                      <span className="text-muted-foreground">{tr("Imponibile {importo}", { importo: String(pctLabel(r.aliquota) ?? "") })}</span>
                       <span className="flex items-center gap-3">
                         <span className="text-muted-foreground">
                           {formatCurrency(r.imponibile)}
@@ -795,7 +781,7 @@ export function SimScenariPanel({
                     </div>
                   ))}
                 <div className="mt-1 flex items-center justify-between border-t pt-1.5 font-semibold tabular-nums">
-                  <span>Totale IVA</span>
+                  <span>{tr("Totale IVA")}</span>
                   <span>{formatCurrency(risultato.iva_totale)}</span>
                 </div>
               </div>
@@ -810,7 +796,7 @@ export function SimScenariPanel({
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <CreditCard className="h-4 w-4" />
               </span>
-              <h3 className="text-sm font-semibold">Finanziamento</h3>
+              <h3 className="text-sm font-semibold">{tr("Finanziamento")}</h3>
             </div>
             <ToggleGroup
               type="single"
@@ -822,18 +808,17 @@ export function SimScenariPanel({
               className="rounded-lg border bg-muted/40 p-0.5"
             >
               <ToggleGroupItem value="off" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                Nessuno
+                {tr("Nessuno")}
               </ToggleGroupItem>
               <ToggleGroupItem value="on" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                Rateizza
+                {tr("Rateizza")}
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
 
           {!finOn ? (
             <p className="text-xs text-muted-foreground max-sm:hidden">
-              Attiva per proporre al cliente una rata mensile basata sulle tabelle
-              finanziarie aziendali.
+              {tr("Attiva per proporre al cliente una rata mensile basata sulle tabelle finanziarie aziendali.")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -847,14 +832,14 @@ export function SimScenariPanel({
                 >
                   <AlertTriangle className="h-4 w-4" style={{ color: "hsl(var(--chart-3))" }} />
                   <AlertDescription style={{ color: "hsl(var(--chart-3))" }}>
-                    <strong>Nessuna tabella finanziamento configurata.</strong>{" "}
+                    <strong>{tr("Nessuna tabella finanziamento configurata.")}</strong>{" "}
                     <LinkImpostazione
                       to="/azienda/impostazioni/finanziamenti"
                       className="underline underline-offset-2"
                     >
-                      Vai a Impostazioni → Finanziamenti
+                      {tr("Vai a Impostazioni → Finanziamenti")}
                     </LinkImpostazione>{" "}
-                    per aggiungerne una.
+                    {tr("per aggiungerne una.")}
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -865,7 +850,7 @@ export function SimScenariPanel({
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {/* Tabella */}
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-[11px] text-muted-foreground">Prodotto finanziario</Label>
+                    <Label className="text-[11px] text-muted-foreground">{tr("Prodotto finanziario")}</Label>
                     <Select
                       value={fin?.tabella_id ?? ""}
                       onValueChange={(v) =>
@@ -873,13 +858,13 @@ export function SimScenariPanel({
                       }
                     >
                       <SelectTrigger className="h-8">
-                        <SelectValue placeholder="Seleziona tabella…" />
+                        <SelectValue placeholder={tr("Seleziona tabella…")} />
                       </SelectTrigger>
                       <SelectContent>
                         {tabelle.data.map((t) => (
                           <SelectItem key={t.id} value={t.id}>
                             {t.nome_prodotto}
-                            {t.tan_base != null ? ` · TAN ${t.tan_base.toFixed(2)}%` : ""}
+                            {t.tan_base != null ? tr(" · TAN {tan_base}%", { tan_base: t.tan_base.toFixed(2) }) : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -888,20 +873,18 @@ export function SimScenariPanel({
 
                   {/* Numero rate */}
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Numero rate</Label>
+                    <Label className="text-[11px] text-muted-foreground">{tr("Numero rate")}</Label>
                     <Select
                       value={fin?.numero_rate ? String(fin.numero_rate) : ""}
                       onValueChange={(v) => patchFin({ numero_rate: Number(v) })}
                       disabled={!fin?.tabella_id || (righeQ.isLoading || durate.length === 0)}
                     >
                       <SelectTrigger className="h-8">
-                        <SelectValue placeholder="Durata…" />
+                        <SelectValue placeholder={tr("Durata…")} />
                       </SelectTrigger>
                       <SelectContent>
                         {durate.map((d) => (
-                          <SelectItem key={d} value={String(d)}>
-                            {d} rate ({Math.round((d / 12) * 10) / 10} anni)
-                          </SelectItem>
+                          <SelectItem key={d} value={String(d)}>{tr("{d} rate ({valore} anni)", { d: String(d ?? ""), valore: Math.round((d / 12) * 10) / 10 })}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -909,7 +892,7 @@ export function SimScenariPanel({
 
                   {/* Anticipo */}
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Anticipo (€)</Label>
+                    <Label className="text-[11px] text-muted-foreground">{tr("Anticipo (€)")}</Label>
                     <Input
                       type="number"
                       inputMode="decimal"
@@ -923,7 +906,7 @@ export function SimScenariPanel({
 
                   {/* Importo finanziato */}
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-[11px] text-muted-foreground">Importo da finanziare (€)</Label>
+                    <Label className="text-[11px] text-muted-foreground">{tr("Importo da finanziare (€)")}</Label>
                     <Input
                       type="number"
                       inputMode="decimal"
@@ -936,10 +919,7 @@ export function SimScenariPanel({
                       }}
                       className="h-8 text-right tabular-nums"
                     />
-                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                      Default: prezzo cliente − anticipo ={" "}
-                      {formatCurrency(Math.max(0, risultato.prezzo_cliente - (fin?.anticipo ?? 0)))}.
-                    </p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{tr("Default: prezzo cliente − anticipo = {valore}.", { valore: formatCurrency(Math.max(0, risultato.prezzo_cliente - (fin?.anticipo ?? 0))) })}</p>
                   </div>
                 </div>
               ) : null}
@@ -951,15 +931,10 @@ export function SimScenariPanel({
                   <AlertDescription>
                     <strong>{result.messaggio}</strong>
                     {result.durate_disponibili && result.durate_disponibili.length > 0 ? (
-                      <p className="mt-1 text-xs">
-                        Durate disponibili: {result.durate_disponibili.join(", ")} rate
-                      </p>
+                      <p className="mt-1 text-xs">{tr("Durate disponibili: {durate_disponibili} rate", { durate_disponibili: result.durate_disponibili.join(", ") })}</p>
                     ) : null}
                     {result.importo_min !== undefined && result.importo_max !== undefined ? (
-                      <p className="mt-1 text-xs">
-                        Range importi: {formatCurrency(result.importo_min)} –{" "}
-                        {formatCurrency(result.importo_max)}
-                      </p>
+                      <p className="mt-1 text-xs">{tr("Range importi: {importo_min} – {importo_max}", { importo_min: formatCurrency(result.importo_min), importo_max: formatCurrency(result.importo_max) })}</p>
                     ) : null}
                   </AlertDescription>
                 </Alert>
@@ -982,29 +957,29 @@ export function SimScenariPanel({
                   <div className="mb-2 flex items-center justify-between">
                     <p className="flex items-center gap-1.5 text-sm font-semibold">
                       <CheckCircle2 className="h-4 w-4" style={{ color: "hsl(var(--chart-2))" }} />
-                      Rata calcolata
+                      {tr("Rata calcolata")}
                     </p>
                     <Badge
                       variant="outline"
                       className="text-[10px] max-md:text-[11px]"
                       style={{ borderColor: `hsl(${rataVar} / 0.50)`, color: `hsl(${rataVar})` }}
                     >
-                      {esatto ? "Da tabella" : "Interpolato"}
+                      {esatto ? tr("Da tabella") : tr("Interpolato")}
                     </Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <FinStat
-                      label="Rata mensile"
+                      label={tr("Rata mensile")}
                       value={formatCurrency(result.importo_rata ?? 0)}
                       highlight
                     />
-                    <FinStat label="Durata" value={`${result.numero_rate} rate`} />
+                    <FinStat label={tr("Durata")} value={tr("{n} rate", { n: String(result.numero_rate ?? "") })} />
                     <FinStat
-                      label="Totale dovuto"
+                      label={tr("Totale dovuto")}
                       value={formatCurrency(result.importo_totale_dovuto ?? 0)}
                     />
                     <FinStat
-                      label="TAN / TAEG"
+                      label={tr("TAN / TAEG")}
                       value={`${result.tan != null ? result.tan.toFixed(2) : "—"}% / ${
                         result.taeg != null ? result.taeg.toFixed(2) : "—"
                       }%`}

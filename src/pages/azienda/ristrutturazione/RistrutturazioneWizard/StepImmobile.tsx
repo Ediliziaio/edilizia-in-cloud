@@ -23,6 +23,7 @@ import type { RstProgetto } from "@/types/ristrutturazione";
 import type { RstFormPatch } from "./types";
 import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
 import { InterventoScelto } from "@/components/moduli/InterventoScelto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   form: Partial<RstProgetto>;
@@ -69,6 +70,7 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange, model }: Props) {
+  const tr = useT();
   const isMobile = useIsMobile();
   // Stima superfici da vani (puro, nessuno stato): pavimenti/soffitti/pareti/tinteggiature.
   const superfici = form.immobile_superficie_mq != null && form.immobile_superficie_mq > 0
@@ -84,26 +86,26 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             <Home className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Immobile</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{tr("Immobile")}</h2>
             <p className="text-[11px] text-muted-foreground max-sm:hidden">
-              Dati dell'immobile e tipo di intervento.
+              {tr("Dati dell'immobile e tipo di intervento.")}
             </p>
           </div>
         </div>
 
         {/* Tipo intervento */}
         <div>
-          <Label className="text-xs">Tipo di intervento</Label>
+          <Label className="text-xs">{tr("Tipo di intervento")}</Label>
           {model ? <InterventoScelto intervento={model} /> : <Select
             value={form.tipo_intervento ?? ""}
             onValueChange={(v) => onChange("tipo_intervento", v)}
           >
             <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="Seleziona il tipo di intervento" />
+              <SelectValue placeholder={tr("Seleziona il tipo di intervento")} />
             </SelectTrigger>
             <SelectContent>
               {TIPI_INTERVENTO.map((t) => (
-                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>}
@@ -112,23 +114,23 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         {/* Immobile */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-7 sm:col-span-6">
-            <Label className="text-xs">Tipo immobile</Label>
+            <Label className="text-xs">{tr("Tipo immobile")}</Label>
             <Select
               value={form.immobile_tipo ?? ""}
               onValueChange={(v) => onChange("immobile_tipo", v)}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Seleziona" />
+                <SelectValue placeholder={tr("Seleziona")} />
               </SelectTrigger>
               <SelectContent>
                 {TIPI_IMMOBILE.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="col-span-5 sm:col-span-6">
-            <Label className="text-xs">Superficie (mq)</Label>
+            <Label className="text-xs">{tr("Superficie (mq)")}</Label>
             <Input
               type="number"
               inputMode="decimal"
@@ -140,7 +142,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Anno</Label>
+            <Label className="text-xs">{tr("Anno")}</Label>
             <Input
               type="number"
               step={1}
@@ -152,7 +154,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Piani</Label>
+            <Label className="text-xs">{tr("Piani")}</Label>
             <Input
               type="number"
               step={1}
@@ -171,12 +173,12 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
           <div className="flex flex-wrap items-center gap-1.5 max-sm:hidden">
             <Calculator className="h-3.5 w-3.5 text-orange-600" />
-            <span className="text-xs font-semibold text-slate-800">Calcolatore superfici</span>
-            <span className="text-[10px] text-muted-foreground max-sm:hidden">— stima da superficie + n. vani + altezza</span>
+            <span className="text-xs font-semibold text-slate-800">{tr("Calcolatore superfici")}</span>
+            <span className="text-[10px] text-muted-foreground max-sm:hidden">{tr("— stima da superficie + n. vani + altezza")}</span>
           </div>
           <div className="grid grid-cols-12 gap-3 items-end">
             <div className="col-span-6 sm:col-span-3">
-              <Label className="text-xs">N. vani</Label>
+              <Label className="text-xs">{tr("N. vani")}</Label>
               <Input
                 type="number" step={1} inputMode="numeric" min={1}
                 value={form.numero_vani ?? ""}
@@ -185,7 +187,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               />
             </div>
             <div className="col-span-6 sm:col-span-3">
-              <Label className="text-xs">Altezza media (m)</Label>
+              <Label className="text-xs">{tr("Altezza media (m)")}</Label>
               <Input
                 type="number" inputMode="decimal" min={0}
                 value={form.altezza_media_m ?? ""}
@@ -196,13 +198,13 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             <div className="col-span-12 sm:col-span-6">
               {superfici ? (
                 <p className="text-[11px] text-slate-700">
-                  <span className="max-sm:hidden">Stima: </span><span className="font-semibold tabular-nums">{superfici.pavimenti} m²</span> pavimenti/soffitti ·{" "}
-                  <span className="font-semibold tabular-nums">≈ {superfici.pareti} m²</span> pareti ·{" "}
-                  <span className="font-semibold tabular-nums">≈ {superfici.tinteggiature} m²</span> tinteggiature<span className="max-sm:hidden">. Da usare nel computo.</span>
+                  <span className="max-sm:hidden">{tr("Stima:")} </span><span className="font-semibold tabular-nums">{superfici.pavimenti} m²</span> {tr("pavimenti/soffitti")} ·{" "}
+                  <span className="font-semibold tabular-nums">≈ {superfici.pareti} m²</span> {tr("pareti")} ·{" "}
+                  <span className="font-semibold tabular-nums">≈ {superfici.tinteggiature} m²</span> {tr("tinteggiature")}<span className="max-sm:hidden">. {tr("Da usare nel computo.")}</span>
                 </p>
               ) : (
                 <p className="text-[10px] text-muted-foreground max-sm:hidden">
-                  Inserisci la superficie (sopra), il n. di vani e l'altezza: stimo pavimenti, pareti e tinteggiature.
+                  {tr("Inserisci la superficie (sopra), il n. di vani e l'altezza: stimo pavimenti, pareti e tinteggiature.")}
                 </p>
               )}
             </div>
@@ -211,15 +213,15 @@ export default function StepImmobile({ form, onChange, model }: Props) {
 
         {/* Vincoli / note */}
         <div>
-          <Label className="text-xs">Vincoli e note</Label>
+          <Label className="text-xs">{tr("Vincoli e note")}</Label>
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"}
+            placeholder={isMobile ? tr("Vincoli, accessi, orari…") : tr("Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…")}
             className="min-h-20 text-sm max-sm:min-h-16"
           />
           <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
-            Vincoli edilizi/condominiali e annotazioni utili per il preventivo.
+            {tr("Vincoli edilizi/condominiali e annotazioni utili per il preventivo.")}
           </p>
         </div>
       </CardContent>

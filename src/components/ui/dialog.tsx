@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { focusInizialeMobile } from "@/lib/focusInizialeMobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "./dialog-layout.css";
 
 const Dialog = DialogPrimitive.Root;
@@ -59,6 +60,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
 >(({ className, children, onOpenAutoFocus, ampiezza, struttura = "libera", overlayClassName, ...props }, ref) => {
+  const t = useT();
   const cls = typeof className === "string" ? className : "";
   const elementi = struttura === "scorrevole" ? React.Children.toArray(children) : [];
   const testata = elementi.filter(e => React.isValidElement(e) && e.type === DialogHeader);
@@ -101,7 +103,7 @@ const DialogContent = React.forwardRef<
           in alto per restare in linea col titolo. */}
       <DialogPrimitive.Close className="absolute right-4 top-4 max-sm:right-2 max-sm:top-2 max-sm:flex max-sm:items-center max-sm:justify-center rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
-        <span className="sr-only">Chiudi</span>
+        <span className="sr-only">{t("Chiudi")}</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>

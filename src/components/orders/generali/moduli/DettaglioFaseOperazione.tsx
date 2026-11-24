@@ -8,9 +8,11 @@ import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { formatCurrency } from "@/lib/formatters";
 import { righeDistinta } from "@/lib/orders/distintaLavorazioni";
 import { dataBreve } from "../piano/formato";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const RIGHE = 20;
-const quantita = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+/** Creato a ogni uso: la lingua può cambiare dopo il caricamento del modulo. */
+const quantita = { format: (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 3 }).format(n) };
 
 export default function DettaglioFaseOperazione({ fase, vedeCosti, vedeImporti, apri }: {
   fase: FaseOperazione;
@@ -18,6 +20,7 @@ export default function DettaglioFaseOperazione({ fase, vedeCosti, vedeImporti, 
   vedeImporti: boolean;
   apri: () => void;
 }) {
+  const t = useT();
   const sottofasi = useSottofasi(fase.order_id);
   const voci = useVociPrevisteFasi(fase.order_id, vedeCosti);
   const [limite, setLimite] = useState(RIGHE);
@@ -28,28 +31,28 @@ export default function DettaglioFaseOperazione({ fase, vedeCosti, vedeImporti, 
 
   return <div className="space-y-1.5 overflow-hidden rounded-lg border bg-card">
     <div className="flex flex-wrap items-center justify-between gap-1 px-2 pt-1">
-      <h4 className="text-xs font-semibold">{vedeCosti ? "Sottofasi e voci del computo" : "Sottofasi"}</h4>
+      <h4 className="text-xs font-semibold">{vedeCosti ? t("Sottofasi e voci del computo") : t("Sottofasi")}</h4>
       <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={apri}>
-        Apri scheda della fase <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        {t("Apri scheda della fase")} <ArrowUpRight className="size-3.5" aria-hidden="true" />
       </Button>
     </div>
     {carica && <Skeleton className="m-2 h-16" />}
     {!carica && errore && <p role="status" className="px-2 pb-2 text-xs text-muted-foreground">
-      {sottofasi.isError ? "Caricamento delle sottofasi non riuscito." : "Caricamento delle voci di computo non riuscito."}
+      {sottofasi.isError ? t("Caricamento delle sottofasi non riuscito.") : t("Caricamento delle voci di computo non riuscito.")}
     </p>}
     {!carica && righe.length === 0 && !errore && <p className="px-2 pb-2 text-xs text-muted-foreground">
-      {vedeCosti ? "Nessuna sottofase o voce collegata a questa fase." : "Nessuna sottofase collegata a questa fase."}
+      {vedeCosti ? t("Nessuna sottofase o voce collegata a questa fase.") : t("Nessuna sottofase collegata a questa fase.")}
     </p>}
     {!carica && righe.length > 0 && <>
-      <table aria-label={`Dettaglio ${fase.name}`} className="generale-registro-tabella">
+      <table aria-label={t("Dettaglio {nome}", { nome: fase.name })} className="generale-registro-tabella">
         <thead><tr>
-          <th scope="col">Sottofase / Voce</th>
-          {vedeCosti && <th scope="col" className="text-right">Quantità</th>}
-          <th scope="col" className="text-right">Avanzamento</th>
-          <th scope="col">Dal</th>
-          <th scope="col">Al</th>
-          {vedeCosti && vedeImporti && <th scope="col" className="text-right">Imponibile</th>}
-          {vedeCosti && <th scope="col" className="text-right">Costo previsto</th>}
+          <th scope="col">{t("Sottofase / Voce")}</th>
+          {vedeCosti && <th scope="col" className="text-right">{t("Quantità")}</th>}
+          <th scope="col" className="text-right">{t("Avanzamento")}</th>
+          <th scope="col">{t("Dal")}</th>
+          <th scope="col">{t("Al")}</th>
+          {vedeCosti && vedeImporti && <th scope="col" className="text-right">{t("Imponibile")}</th>}
+          {vedeCosti && <th scope="col" className="text-right">{t("Costo previsto")}</th>}
         </tr></thead>
         <tbody>{righe.slice(0, limite).map(riga => <tr key={riga.key}>
           <td>
@@ -66,7 +69,7 @@ export default function DettaglioFaseOperazione({ fase, vedeCosti, vedeImporti, 
         </tr>)}</tbody>
       </table>
       {righe.length > limite && <Button type="button" size="sm" variant="ghost" className="m-1.5 h-7 text-xs"
-        onClick={() => setLimite(n => n + RIGHE)}>Mostra altre righe ({righe.length - limite})</Button>}
+        onClick={() => setLimite(n => n + RIGHE)}>{t("Mostra altre righe ({n})", { n: righe.length - limite })}</Button>}
     </>}
   </div>;
 }

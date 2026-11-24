@@ -8,7 +8,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { endOfDay, format, isValid, parseISO, startOfMonth, subMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import {
   Package,
@@ -71,6 +70,7 @@ import {
   Legend,
   Cell,
 } from "recharts";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type NormalizedType =
   | "merce"
@@ -586,6 +586,7 @@ function FilterSelect({
 }
 
 export default function GlobalErrors() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const permissions = usePermissions();
   const [params] = useSearchParams();
@@ -1118,7 +1119,7 @@ export default function GlobalErrors() {
     for (let i = 5; i >= 0; i--) {
       const s = startOfMonth(subMonths(now, i));
       const e = startOfMonth(subMonths(now, i - 1));
-      months.push({ label: format(s, "MMM yy", { locale: it }), start: s, end: e });
+      months.push({ label: format(s, "MMM yy", { locale: dateFnsCampo() }), start: s, end: e });
     }
     return months.map((m) => {
       const row = { month: m.label, fornitura: 0, esecuzione: 0, logistica: 0, altro: 0 };
@@ -1152,9 +1153,9 @@ export default function GlobalErrors() {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span>Impossibile caricare le anomalie. Riprova tra qualche secondo o verifica i permessi aziendali.</span>
+          <span>{t("Impossibile caricare le anomalie. Riprova tra qualche secondo o verifica i permessi aziendali.")}</span>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       </div>
@@ -1171,10 +1172,10 @@ export default function GlobalErrors() {
             </div>
             <div className="min-w-0">
               <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
-                Anomalie operative
+                {t("Anomalie operative")}
               </h1>
               <p className="hidden sm:block mt-0.5 text-sm text-slate-500">
-                Capisci dove nasce la perdita, chi deve intervenire e quali cause si ripetono.
+                {t("Capisci dove nasce la perdita, chi deve intervenire e quali cause si ripetono.")}
               </p>
             </div>
           </div>
@@ -1188,23 +1189,23 @@ export default function GlobalErrors() {
             <input
               value={search}
               onChange={(event) => { setSearch(event.target.value); setPage(1); }}
-              placeholder="Cerca anomalia…"
-              aria-label="Cerca commessa, causa o responsabile"
+              placeholder={t("Cerca anomalia…")}
+              aria-label={t("Cerca commessa, causa o responsabile")}
               className="h-10 w-full rounded-md border border-slate-200 bg-background pl-9 pr-3 text-sm shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
-          <Select value={statusFilter} onValueChange={value => {setStatusFilter(value);setPage(1);}}><SelectTrigger aria-label="Stato anomalie" className="h-10 w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tutti gli stati</SelectItem><SelectItem value="open">Da gestire</SelectItem><SelectItem value="overdue">Interventi scaduti</SelectItem>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <SelectItem key={key} value={key}>{meta.label}</SelectItem>)}</SelectContent></Select>
-          {canEdit && <Button className="h-10 shrink-0" onClick={() => setCreating(true)}>Nuova anomalia</Button>}
-          <Button variant="outline" className="h-10 shrink-0" onClick={exportFilteredCsv} disabled={filtered.length === 0}>Esporta</Button>
+          <Select value={statusFilter} onValueChange={value => {setStatusFilter(value);setPage(1);}}><SelectTrigger aria-label={t("Stato anomalie")} className="h-10 w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("Tutti gli stati")}</SelectItem><SelectItem value="open">{t("Da gestire")}</SelectItem><SelectItem value="overdue">{t("Interventi scaduti")}</SelectItem>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <SelectItem key={key} value={key}>{meta.label}</SelectItem>)}</SelectContent></Select>
+          {canEdit && <Button className="h-10 shrink-0" onClick={() => setCreating(true)}>{t("Nuova anomalia")}</Button>}
+          <Button variant="outline" className="h-10 shrink-0" onClick={exportFilteredCsv} disabled={filtered.length === 0}>{t("Esporta")}</Button>
           <Button
             variant="outline"
             size="sm"
             className="relative h-10 shrink-0 text-xs w-full sm:w-auto"
             onClick={handleOpenFilters}
-            aria-label="Apri filtri anomalie"
+            aria-label={t("Apri filtri anomalie")}
           >
             <Filter className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span>Filtri</span>
+            <span>{t("Filtri")}</span>
             {activeFilterCount > 0 && (
               <span className="ml-1.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                 {activeFilterCount}
@@ -1214,39 +1215,39 @@ export default function GlobalErrors() {
         </div>
       </div>
 
-      {view === "register" && <OperationalSummary label="Riepilogo anomalie" title="I problemi da gestire" icon={AlertTriangle} columns={3} note="Indicatori riferiti ai filtri attivi.">
-        <OperationalSummaryMetric isLoading={isLoading} label="Anomalie aperte" value={String(openRows.length)} hint="Da verificare, assegnare o risolvere" icon={AlertTriangle} tone="orange" />
-        <OperationalSummaryMetric isLoading={isLoading} label="Interventi scaduti" value={String(overdueRows.length)} hint="Scadenza correttiva superata, caso ancora aperto" icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
-        <OperationalSummaryMetric isLoading={isLoading} label="Costo stimato problemi aperti" value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint="Stime dei casi aperti nei filtri attivi" icon={TrendingDown} tone="red" />
+      {view === "register" && <OperationalSummary label={t("Riepilogo anomalie")} title={t("I problemi da gestire")} icon={AlertTriangle} columns={3} note={t("Indicatori riferiti ai filtri attivi.")}>
+        <OperationalSummaryMetric isLoading={isLoading} label={t("Anomalie aperte")} value={String(openRows.length)} hint={t("Da verificare, assegnare o risolvere")} icon={AlertTriangle} tone="orange" />
+        <OperationalSummaryMetric isLoading={isLoading} label={t("Interventi scaduti")} value={String(overdueRows.length)} hint={t("Scadenza correttiva superata, caso ancora aperto")} icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
+        <OperationalSummaryMetric isLoading={isLoading} label={t("Costo stimato problemi aperti")} value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint={t("Stime dei casi aperti nei filtri attivi")} icon={TrendingDown} tone="red" />
       </OperationalSummary>}
-      <div className="flex items-center justify-between gap-3 overflow-x-auto"><div className="flex shrink-0 gap-1 rounded-lg border p-1"><Button size="sm" variant={view === "register" ? "secondary" : "ghost"} aria-pressed={view === "register"} onClick={() => setView("register")}>Registro anomalie</Button><Button size="sm" variant={view === "analytics" ? "secondary" : "ghost"} aria-pressed={view === "analytics"} onClick={() => setView("analytics")}>Analisi e statistiche</Button></div><p className="whitespace-nowrap text-sm text-muted-foreground">{filtered.length} anomalie · Importi riferiti ai filtri attivi</p></div>
+      <div className="flex items-center justify-between gap-3 overflow-x-auto"><div className="flex shrink-0 gap-1 rounded-lg border p-1"><Button size="sm" variant={view === "register" ? "secondary" : "ghost"} aria-pressed={view === "register"} onClick={() => setView("register")}>{t("Registro anomalie")}</Button><Button size="sm" variant={view === "analytics" ? "secondary" : "ghost"} aria-pressed={view === "analytics"} onClick={() => setView("analytics")}>{t("Analisi e statistiche")}</Button></div><p className="whitespace-nowrap text-sm text-muted-foreground">{t("{n} anomalie · Importi riferiti ai filtri attivi", { n: filtered.length })}</p></div>
       {view === "analytics" && <div className="space-y-5">
-      <div><h2 className="text-base font-semibold">Impatto economico</h2><p className="mt-1 mb-3 text-xs text-muted-foreground">Importo complessivo: {formatCurrency(stats.totalLoss)} · comprende stime e costi finali netti. I tre valori sotto distinguono solo i costi confermati e non vanno sommati.</p><div className="grid gap-3 sm:grid-cols-3">
-        <OperationalKpiCard label="Costi finali confermati" value={formatCurrency(filtered.reduce((sum, e) => sum + (anomalyNotes(e).finalCost ?? 0), 0))} hint="Solo casi con costo finale registrato" icon={TrendingDown} tone="orange" />
-        <OperationalKpiCard label="Importi recuperati" value={formatCurrency(filtered.reduce((sum, e) => sum + anomalyNotes(e).recovered, 0))} hint="Recuperi già sottratti ai costi finali" icon={CheckCircle2} tone="green" />
-        <OperationalKpiCard label="Perdita finale netta" value={formatCurrency(filtered.reduce((sum, e) => { const n = anomalyNotes(e); return sum + (n.finalCost == null ? 0 : n.finalCost - n.recovered); }, 0))} hint="Costo finale meno recuperi; stime escluse" icon={Target} tone="red" />
+      <div><h2 className="text-base font-semibold">{t("Impatto economico")}</h2><p className="mt-1 mb-3 text-xs text-muted-foreground">{t("Importo complessivo: {totalLoss} · comprende stime e costi finali netti. I tre valori sotto distinguono solo i costi confermati e non vanno sommati.", { totalLoss: formatCurrency(stats.totalLoss) })}</p><div className="grid gap-3 sm:grid-cols-3">
+        <OperationalKpiCard label={t("Costi finali confermati")} value={formatCurrency(filtered.reduce((sum, e) => sum + (anomalyNotes(e).finalCost ?? 0), 0))} hint={t("Solo casi con costo finale registrato")} icon={TrendingDown} tone="orange" />
+        <OperationalKpiCard label={t("Importi recuperati")} value={formatCurrency(filtered.reduce((sum, e) => sum + anomalyNotes(e).recovered, 0))} hint={t("Recuperi già sottratti ai costi finali")} icon={CheckCircle2} tone="green" />
+        <OperationalKpiCard label={t("Perdita finale netta")} value={formatCurrency(filtered.reduce((sum, e) => { const n = anomalyNotes(e); return sum + (n.finalCost == null ? 0 : n.finalCost - n.recovered); }, 0))} hint={t("Costo finale meno recuperi; stime escluse")} icon={Target} tone="red" />
       </div></div>
-      <div className="flex flex-wrap items-center gap-2 border-y py-3" aria-label="Priorità e azioni anomalie">
-        <span className="mr-1 text-xs font-semibold text-muted-foreground">Vai ai casi</span>
-        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({severity:"high"}); setView("register"); }}>{stats.critical.length} critiche</Button>
-        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"supplier"}); setView("register"); }}>{supplierCount} fornitori da verificare</Button>
-        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"unassigned"}); setView("register"); }}>{unassignedCount} da assegnare</Button>
-        <Button size="sm" variant="ghost" onClick={() => applyQuickFilter({dateFrom:startOfMonth(new Date()),dateTo:new Date()})}>Questo mese · {formatCurrency(stats.thisMonth)}</Button>
-        {highestLoss && <Button size="sm" variant="ghost" onClick={() => setSelectedId(highestLoss.id)}>Caso più costoso · {formatCurrency(getErrorAmount(highestLoss.amount))}</Button>}
+      <div className="flex flex-wrap items-center gap-2 border-y py-3" aria-label={t("Priorità e azioni anomalie")}>
+        <span className="mr-1 text-xs font-semibold text-muted-foreground">{t("Vai ai casi")}</span>
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({severity:"high"}); setView("register"); }}>{t("{n} critiche", { n: stats.critical.length })}</Button>
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"supplier"}); setView("register"); }}>{t("{supplierCount} fornitori da verificare", { supplierCount: String(supplierCount ?? "") })}</Button>
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"unassigned"}); setView("register"); }}>{t("{unassignedCount} da assegnare", { unassignedCount: String(unassignedCount ?? "") })}</Button>
+        <Button size="sm" variant="ghost" onClick={() => applyQuickFilter({dateFrom:startOfMonth(new Date()),dateTo:new Date()})}>{t("Questo mese · {thisMonth}", { thisMonth: formatCurrency(stats.thisMonth) })}</Button>
+        {highestLoss && <Button size="sm" variant="ghost" onClick={() => setSelectedId(highestLoss.id)}>{t("Caso più costoso · {valore}", { valore: formatCurrency(getErrorAmount(highestLoss.amount)) })}</Button>}
       </div>
-      <section aria-label="Stato gestione anomalie" className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+      <section aria-label={t("Stato gestione anomalie")} className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         {(Object.entries(REVIEW_STATUS_META) as [ReviewStatus, typeof REVIEW_STATUS_META[ReviewStatus]][]).map(([status, meta]) => <button key={status} className="rounded-md px-2 py-1 hover:bg-muted" onClick={() => {setStatusFilter(status);setPage(1);setView("register");}}>{meta.label} <strong className="ml-1 tabular-nums">{stats.statusTotals[status]}</strong></button>)}
       </section>
-      <details className="rounded-lg border px-4 py-2 text-sm"><summary className="cursor-pointer font-medium">Lettura dei dati e suggerimenti</summary><p className="mt-2 text-muted-foreground">{aiExecutiveInsight}</p></details>
+      <details className="rounded-lg border px-4 py-2 text-sm"><summary className="cursor-pointer font-medium">{t("Lettura dei dati e suggerimenti")}</summary><p className="mt-2 text-muted-foreground">{aiExecutiveInsight}</p></details>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Cause precise ricorrenti</CardTitle>
+            <CardTitle className="text-base">{t("Cause precise ricorrenti")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {detailedCauseChart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nessuna causa precisa registrata</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">{t("Nessuna causa precisa registrata")}</p>
             ) : (
               detailedCauseChart.map((item) => {
                 const percentage = stats.totalLoss > 0 ? Math.round((item.amount / stats.totalLoss) * 100) : 0;
@@ -1262,9 +1263,7 @@ export default function GlobalErrors() {
                         style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {item.count} casi · {percentage}% degli importi filtrati
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("{count} casi · {percentage}% degli importi filtrati", { count: String(item.count ?? ""), percentage: String(percentage ?? "") })}</p>
                   </div>
                 );
               })
@@ -1274,11 +1273,11 @@ export default function GlobalErrors() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Importi per causa</CardTitle>
+            <CardTitle className="text-base">{t("Importi per causa")}</CardTitle>
           </CardHeader>
           <CardContent>
             {categoryChart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nessun dato</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">{t("Nessun dato")}</p>
             ) : (
               <ResponsiveContainer width="100%" height={210}>
                 <BarChart data={categoryChart} layout="vertical" margin={{ left: 32 }}>
@@ -1299,11 +1298,11 @@ export default function GlobalErrors() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Aree da verificare</CardTitle>
+            <CardTitle className="text-base">{t("Aree da verificare")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {responsibilityChart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nessuna responsabilità rilevata</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">{t("Nessuna responsabilità rilevata")}</p>
             ) : (
               responsibilityChart.map((item) => {
                 const percentage = stats.totalLoss > 0 ? Math.round((item.amount / stats.totalLoss) * 100) : 0;
@@ -1319,9 +1318,7 @@ export default function GlobalErrors() {
                         style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {item.count} casi · {percentage}% degli importi filtrati
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("{count} casi · {percentage}% degli importi filtrati", { count: String(item.count ?? ""), percentage: String(percentage ?? "") })}</p>
                   </div>
                 );
               })
@@ -1332,9 +1329,9 @@ export default function GlobalErrors() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Andamento mensile degli importi</CardTitle>
+          <CardTitle className="text-base">{t("Andamento mensile degli importi")}</CardTitle>
           {isFetching && !isLoading && (
-            <p className="text-xs text-muted-foreground">Aggiornamento dati in corso...</p>
+            <p className="text-xs text-muted-foreground">{t("Aggiornamento dati in corso...")}</p>
           )}
         </CardHeader>
         <CardContent>
@@ -1354,32 +1351,32 @@ export default function GlobalErrors() {
         </CardContent>
       </Card>
 
-      <details className="rounded-xl border p-4"><summary className="cursor-pointer font-semibold text-sm">Soggetti collegati e piano di verifica</summary><div className="mt-4 space-y-4">      <Card className="border-slate-200 bg-white shadow-sm">
+      <details className="rounded-xl border p-4"><summary className="cursor-pointer font-semibold text-sm">{t("Soggetti collegati e piano di verifica")}</summary><div className="mt-4 space-y-4">      <Card className="border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="text-base">Soggetti da verificare</CardTitle>
+              <CardTitle className="text-base">{t("Soggetti da verificare")}</CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                Il sistema incrocia anomalie, causa, commessa, venditori, operai, subappaltatori e fornitori collegati. Chi registra l'anomalia resta tracciato, ma non viene contato come causa.
+                {t("Il sistema incrocia anomalie, causa, commessa, venditori, operai, subappaltatori e fornitori collegati. Chi registra l'anomalia resta tracciato, ma non viene contato come causa.")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               {attributionFilter !== "all" && (
                 <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setAttributionFilter("all")}>
                   <RotateCcw className="mr-1 h-3 w-3" />
-                  Tutti
+                  {t("Tutti")}
                 </Button>
               )}
-              {isFetchingActors && <span className="text-xs text-muted-foreground">Aggiornamento attribuzioni...</span>}
+              {isFetchingActors && <span className="text-xs text-muted-foreground">{t("Aggiornamento attribuzioni...")}</span>}
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {filteredAttributionStats.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-center">
-              <p className="text-sm font-medium text-slate-700">Nessun collegamento persona/fornitore trovato</p>
+              <p className="text-sm font-medium text-slate-700">{t("Nessun collegamento persona/fornitore trovato")}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Assegna venditori, operai, subappaltatori o fornitori alle commesse per attivare l'analisi automatica.
+                {t("Assegna venditori, operai, subappaltatori o fornitori alle commesse per attivare l'analisi automatica.")}
               </p>
             </div>
           ) : (
@@ -1396,14 +1393,12 @@ export default function GlobalErrors() {
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-slate-800">{meta.label}</p>
-                          <p className="text-[11px] text-muted-foreground">{role.actors} soggetti</p>
+                          <p className="text-[11px] text-muted-foreground">{t("{actors} soggetti", { actors: String(role.actors ?? "") })}</p>
                         </div>
                       </div>
                       <div className="mt-2 flex items-end justify-between gap-2">
                         <p className="text-sm font-bold text-slate-950">{formatCurrency(role.amount)}</p>
-                        <p className={cn("text-xs font-semibold", role.high > 0 ? "text-red-600" : "text-slate-500")}>
-                          {role.count} casi
-                        </p>
+                        <p className={cn("text-xs font-semibold", role.high > 0 ? "text-red-600" : "text-slate-500")}>{t("{count} casi", { count: String(role.count ?? "") })}</p>
                       </div>
                     </div>
                   );
@@ -1443,15 +1438,15 @@ export default function GlobalErrors() {
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <div>
                           <p className="text-lg font-bold text-slate-950">{formatCurrency(item.amount)}</p>
-                          <p className="text-[11px] text-muted-foreground">impatto attribuito</p>
+                          <p className="text-[11px] text-muted-foreground">{t("impatto attribuito")}</p>
                         </div>
                         <div>
                           <p className={cn("text-lg font-bold", item.high > 0 ? "text-red-600" : "text-slate-950")}>{item.count}</p>
-                          <p className="text-[11px] text-muted-foreground">casi · {item.high} critici</p>
+                          <p className="text-[11px] text-muted-foreground">{t("casi · {high} critici", { high: String(item.high ?? "") })}</p>
                         </div>
                       </div>
                       <div className="mt-3 rounded-xl bg-white/75 p-2 text-xs text-slate-600">
-                        <span className="font-semibold text-slate-800">Causa top:</span> {item.topCause} ({item.topCauseCount})
+                        <span className="font-semibold text-slate-800">{t("Causa top:")}</span> {item.topCause} ({item.topCauseCount})
                       </div>
                       <p className="mt-2 line-clamp-2 text-[11px] text-muted-foreground">
                         {getAttributionAction(item)}
@@ -1474,9 +1469,9 @@ export default function GlobalErrors() {
                   <Target className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-orange-950">Pattern principale rilevato</p>
+                  <p className="text-sm font-semibold text-orange-950">{t("Pattern principale rilevato")}</p>
                   <p className="mt-1 text-sm text-orange-800">
-                    {ATTRIBUTION_META[topAttribution.actor.kind].label} <strong>{topAttribution.actor.name}</strong> concentra {formatCurrency(topAttribution.amount)} su {topAttribution.count} anomalie. {topAttribution.firstReason}
+                    {t(ATTRIBUTION_META[topAttribution.actor.kind].label)} <strong>{topAttribution.actor.name}</strong> {t("concentra")} {formatCurrency(topAttribution.amount)} {t("su")} {topAttribution.count} {t("anomalie.")} {topAttribution.firstReason}
                   </p>
                   <Button
                     variant="outline"
@@ -1484,7 +1479,7 @@ export default function GlobalErrors() {
                     className="mt-3 border-orange-200 bg-white/80 text-orange-700 hover:bg-white"
                     onClick={() => setAttributionFilter(getActorKey(topAttribution.actor))}
                   >
-                    Analizza pattern
+                    {t("Analizza pattern")}
                   </Button>
                 </div>
               </CardContent>
@@ -1494,9 +1489,9 @@ export default function GlobalErrors() {
           {controlPlan.length > 0 && (
             <Card className="border-slate-200 bg-white shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Piano di autocontrollo</CardTitle>
+                <CardTitle className="text-base">{t("Piano di autocontrollo")}</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Suggerimenti da verificare, non responsabilità accertate. Lo stesso caso può coinvolgere più soggetti: non sommare gli importi tra persone.
+                  {t("Suggerimenti da verificare, non responsabilità accertate. Lo stesso caso può coinvolgere più soggetti: non sommare gli importi tra persone.")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -1512,9 +1507,7 @@ export default function GlobalErrors() {
                     </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {formatCurrency(item.impact)} · {item.cases} casi
-                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{t("{impact} · {cases} casi", { impact: formatCurrency(item.impact), cases: String(item.cases ?? "") })}</span>
                       <span className="mt-1 block text-xs text-slate-600">{item.action}</span>
                     </span>
                   </button>
@@ -1531,7 +1524,7 @@ export default function GlobalErrors() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Registro anomalie</CardTitle>
+            <CardTitle className="text-base">{t("Registro anomalie")}</CardTitle>
             {activeFilterCount > 0 && (
               <Button
                 variant="ghost"
@@ -1540,35 +1533,35 @@ export default function GlobalErrors() {
                 onClick={handleResetFilters}
               >
                 <RotateCcw className="mr-1 h-3 w-3" />
-                Rimuovi filtri
+                {t("Rimuovi filtri")}
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent>
           <div className="max-h-[65vh] overflow-auto rounded-lg border">
-            <Table aria-label="Registro anomalie operative" className="min-w-[1050px] text-xs [&_th]:whitespace-nowrap [&_th]:px-3 [&_td]:px-3 [&_td]:py-2">
+            <Table aria-label={t("Registro anomalie operative")} className="min-w-[1050px] text-xs [&_th]:whitespace-nowrap [&_th]:px-3 [&_td]:px-3 [&_td]:py-2">
               <TableHeader className="sticky top-0 z-10 bg-background shadow-sm"><TableRow>
-                <SortableTableHead active={sort.key === "date"} direction={sort.direction} onClick={() => handleSort("date")}>Data</SortableTableHead>
-                <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Commessa</SortableTableHead>
-                <TableHead>Problema</TableHead><TableHead>Responsabile effettivo</TableHead>
-                <SortableTableHead active={sort.key === "severity"} direction={sort.direction} onClick={() => handleSort("severity")}>Priorità</SortableTableHead>
-                <TableHead>Scadenza intervento</TableHead><TableHead className="text-right">Impatto economico</TableHead><TableHead>Stato</TableHead><TableHead>Azioni</TableHead>
+                <SortableTableHead active={sort.key === "date"} direction={sort.direction} onClick={() => handleSort("date")}>{t("Data")}</SortableTableHead>
+                <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>{t("Commessa")}</SortableTableHead>
+                <TableHead>{t("Problema")}</TableHead><TableHead>{t("Responsabile effettivo")}</TableHead>
+                <SortableTableHead active={sort.key === "severity"} direction={sort.direction} onClick={() => handleSort("severity")}>{t("Priorità")}</SortableTableHead>
+                <TableHead>{t("Scadenza intervento")}</TableHead><TableHead className="text-right">{t("Impatto economico")}</TableHead><TableHead>{t("Stato")}</TableHead><TableHead>{t("Azioni")}</TableHead>
               </TableRow></TableHeader>
-              <TableBody>{isLoading ? <TableRow><TableCell colSpan={9}>Caricamento anomalie…</TableCell></TableRow> : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center">Nessuna anomalia per questi filtri.</TableCell></TableRow> : visibleRows.map(e => <TableRow key={e.id}>
+              <TableBody>{isLoading ? <TableRow><TableCell colSpan={9}>{t("Caricamento anomalie…")}</TableCell></TableRow> : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center">{t("Nessuna anomalia per questi filtri.")}</TableCell></TableRow> : visibleRows.map(e => <TableRow key={e.id}>
                 <TableCell className="whitespace-nowrap">{formatErrorDate(e.error_date)}</TableCell>
-                <TableCell><Link className="whitespace-nowrap font-medium text-primary hover:underline" to={`/azienda/ordini/${e.order_id}`}>{e.orders?.order_code || "Apri commessa"}</Link></TableCell>
+                <TableCell><Link className="whitespace-nowrap font-medium text-primary hover:underline" to={`/azienda/ordini/${e.order_id}`}>{e.orders?.order_code || t("Apri commessa")}</Link></TableCell>
                 <TableCell className="max-w-[280px]"><button className="line-clamp-1 text-left font-medium hover:underline" onClick={() => setSelectedId(e.id)}>{e.operationalDetail || CATEGORY_META[e.normalizedCategory].label}</button></TableCell>
-                <TableCell>{e.confirmed_responsibility_name || <span className="text-muted-foreground">Da assegnare</span>}</TableCell>
-                <TableCell><Badge variant="outline" className={SEVERITY_META[e.severity].color}>{SEVERITY_META[e.severity].label}</Badge></TableCell>
-                <TableCell className={cn("whitespace-nowrap", !anomalyClosed(e.reviewStatus) && e.corrective_due_date && e.corrective_due_date < format(new Date(), "yyyy-MM-dd") && "font-medium text-destructive")}>{e.corrective_due_date ? formatErrorDate(e.corrective_due_date) : "Da definire"}</TableCell>
-                <TableCell className="text-right tabular-nums"><span className="font-semibold">{formatCurrency(getErrorAmount(e.amount))}</span><span className="ml-2 text-xs text-muted-foreground">{anomalyNotes(e).finalCost == null ? "stima" : "finale netto"}</span></TableCell>
-                <TableCell><Badge variant="outline" className={REVIEW_STATUS_META[e.reviewStatus].color}>{REVIEW_STATUS_META[e.reviewStatus].label}</Badge></TableCell>
-                <TableCell><Button variant="outline" size="sm" className="h-8 whitespace-nowrap" onClick={() => setSelectedId(e.id)}>Apri dettaglio</Button></TableCell>
+                <TableCell>{e.confirmed_responsibility_name || <span className="text-muted-foreground">{t("Da assegnare")}</span>}</TableCell>
+                <TableCell><Badge variant="outline" className={SEVERITY_META[e.severity].color}>{t(SEVERITY_META[e.severity].label)}</Badge></TableCell>
+                <TableCell className={cn("whitespace-nowrap", !anomalyClosed(e.reviewStatus) && e.corrective_due_date && e.corrective_due_date < format(new Date(), "yyyy-MM-dd") && "font-medium text-destructive")}>{e.corrective_due_date ? formatErrorDate(e.corrective_due_date) : t("Da definire")}</TableCell>
+                <TableCell className="text-right tabular-nums"><span className="font-semibold">{formatCurrency(getErrorAmount(e.amount))}</span><span className="ml-2 text-xs text-muted-foreground">{anomalyNotes(e).finalCost == null ? t("stima") : t("finale netto")}</span></TableCell>
+                <TableCell><Badge variant="outline" className={REVIEW_STATUS_META[e.reviewStatus].color}>{t(REVIEW_STATUS_META[e.reviewStatus].label)}</Badge></TableCell>
+                <TableCell><Button variant="outline" size="sm" className="h-8 whitespace-nowrap" onClick={() => setSelectedId(e.id)}>{t("Apri dettaglio")}</Button></TableCell>
               </TableRow>)}</TableBody>
             </Table>
           </div>
-          {pageCount > 1 && <div className="mt-4 flex items-center justify-between gap-3 text-sm"><span>Pagina {currentPage} di {pageCount}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Precedente</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Successiva</Button></div></div>}
+          {pageCount > 1 && <div className="mt-4 flex items-center justify-between gap-3 text-sm"><span>{t("Pagina {currentPage} di {pageCount}", { currentPage: String(currentPage ?? ""), pageCount: String(pageCount ?? "") })}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t("Precedente")}</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>{t("Successiva")}</Button></div></div>}
         </CardContent>
       </Card>}
 
@@ -1576,17 +1569,17 @@ export default function GlobalErrors() {
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="right" className="flex w-[340px] flex-col sm:w-[380px]">
           <SheetHeader>
-            <SheetTitle className="text-base">Filtri avanzati anomalie</SheetTitle>
+            <SheetTitle className="text-base">{t("Filtri avanzati anomalie")}</SheetTitle>
           </SheetHeader>
 
           <div className="mt-4 flex-1 space-y-1 overflow-y-auto">
-            <FilterSection title="Sorgente" defaultOpen>
+            <FilterSection title={t("Sorgente")} defaultOpen>
               <FilterSelect
                 value={localFilters.type}
                 onValueChange={(v) => setLocalFilters((p) => ({ ...p, type: v }))}
-                placeholder="Tutte"
+                placeholder={t("Tutte")}
               >
-                <SelectItem value="all">Tutte</SelectItem>
+                <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(TYPE_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
                     {v.label}
@@ -1595,13 +1588,13 @@ export default function GlobalErrors() {
               </FilterSelect>
             </FilterSection>
 
-            <FilterSection title="Causa" defaultOpen>
+            <FilterSection title={t("Causa")} defaultOpen>
               <FilterSelect
                 value={localFilters.category}
                 onValueChange={(v) => setLocalFilters((p) => ({ ...p, category: v }))}
-                placeholder="Tutte"
+                placeholder={t("Tutte")}
               >
-                <SelectItem value="all">Tutte</SelectItem>
+                <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(CATEGORY_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
                     {v.label}
@@ -1610,13 +1603,13 @@ export default function GlobalErrors() {
               </FilterSelect>
             </FilterSection>
 
-            <FilterSection title="Responsabilità probabile">
+            <FilterSection title={t("Responsabilità probabile")}>
               <FilterSelect
                 value={localFilters.responsibility}
                 onValueChange={(v) => setLocalFilters((p) => ({ ...p, responsibility: v }))}
-                placeholder="Tutte"
+                placeholder={t("Tutte")}
               >
-                <SelectItem value="all">Tutte</SelectItem>
+                <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(RESPONSIBILITY_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
                     {v.label}
@@ -1625,13 +1618,13 @@ export default function GlobalErrors() {
               </FilterSelect>
             </FilterSection>
 
-            <FilterSection title="Priorità">
+            <FilterSection title={t("Priorità")}>
               <FilterSelect
                 value={localFilters.severity}
                 onValueChange={(v) => setLocalFilters((p) => ({ ...p, severity: v }))}
-                placeholder="Tutte"
+                placeholder={t("Tutte")}
               >
-                <SelectItem value="all">Tutte</SelectItem>
+                <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(SEVERITY_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
                     {v.label}
@@ -1640,10 +1633,10 @@ export default function GlobalErrors() {
               </FilterSelect>
             </FilterSection>
 
-            <FilterSection title="Periodo">
+            <FilterSection title={t("Periodo")}>
               <div className="space-y-2">
                 <div>
-                  <p className="mb-1 text-xs text-muted-foreground">Dal</p>
+                  <p className="mb-1 text-xs text-muted-foreground">{t("Dal")}</p>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -1652,7 +1645,7 @@ export default function GlobalErrors() {
                         className={cn("h-8 w-full justify-start text-xs", localFilters.dateFrom && "text-foreground")}
                       >
                         <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
-                        {localFilters.dateFrom ? format(localFilters.dateFrom, "dd/MM/yyyy") : "Scegli data"}
+                        {localFilters.dateFrom ? format(localFilters.dateFrom, "dd/MM/yyyy") : t("Scegli data")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1666,7 +1659,7 @@ export default function GlobalErrors() {
                   </Popover>
                 </div>
                 <div>
-                  <p className="mb-1 text-xs text-muted-foreground">Al</p>
+                  <p className="mb-1 text-xs text-muted-foreground">{t("Al")}</p>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -1675,7 +1668,7 @@ export default function GlobalErrors() {
                         className={cn("h-8 w-full justify-start text-xs", localFilters.dateTo && "text-foreground")}
                       >
                         <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
-                        {localFilters.dateTo ? format(localFilters.dateTo, "dd/MM/yyyy") : "Scegli data"}
+                        {localFilters.dateTo ? format(localFilters.dateTo, "dd/MM/yyyy") : t("Scegli data")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1694,11 +1687,11 @@ export default function GlobalErrors() {
 
           <div className="shrink-0 space-y-2 border-t pt-4">
             <Button className="w-full bg-orange-500 text-white hover:bg-orange-600" onClick={handleApplyFilters}>
-              Applica filtri
+              {t("Applica filtri")}
             </Button>
             <Button variant="outline" className="w-full text-sm" onClick={handleResetFilters}>
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-              Ripristina
+              {t("Ripristina")}
             </Button>
           </div>
         </SheetContent>

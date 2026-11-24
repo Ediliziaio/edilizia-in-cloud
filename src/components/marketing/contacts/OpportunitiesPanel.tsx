@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OpportunitiesPanel({ contactId, companyId }: { contactId: string; companyId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const { data: opps = [], isLoading } = useQuery({
     queryKey: queryKeys.opportunities.byContact(contactId),
@@ -31,15 +33,15 @@ export function OpportunitiesPanel({ contactId, companyId }: { contactId: string
   const nuovaOpportunita = () =>
     navigate(`/azienda/marketing/opportunita?nuova_contatto=${contactId}`);
 
-  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
+  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">{t("Caricamento...")}</p>;
 
   return (
     <div className="space-y-2">
       <Button variant="outline" size="sm" className="w-full h-7 text-[11px]" onClick={nuovaOpportunita}>
-        <Plus className="h-3 w-3 mr-1" /> Nuova opportunità
+        <Plus className="h-3 w-3 mr-1" /> {t("Nuova opportunità")}
       </Button>
       {opps.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground text-center py-6">Nessuna opportunità collegata</p>
+        <p className="text-[11px] text-muted-foreground text-center py-6">{t("Nessuna opportunità collegata")}</p>
       ) : (
         opps.map((opp: any) => (
           <div
@@ -50,9 +52,9 @@ export function OpportunitiesPanel({ contactId, companyId }: { contactId: string
             <p className="text-[11px] font-medium">{opp.name}</p>
             <div className="flex items-center gap-1">
               <Badge variant={opp.status === "won" ? "default" : opp.status === "lost" ? "destructive" : "secondary"} className="text-[9px] h-4 px-1">
-                {opp.status === "open" ? "Aperta" : opp.status === "won" ? "Vinta" : opp.status === "abandoned" ? "Abbandonata" : "Persa"}
+                {opp.status === "open" ? t("Aperta") : opp.status === "won" ? t("Vinta") : opp.status === "abandoned" ? t("Abbandonata") : t("Persa")}
               </Badge>
-              {opp.value > 0 && <span className="text-[10px] text-muted-foreground">{Number(opp.value).toLocaleString("it-IT")} €</span>}
+              {opp.value > 0 && <span className="text-[10px] text-muted-foreground">{Number(opp.value).toLocaleString(intlCampo())} €</span>}
             </div>
             {opp.marketing_pipelines?.name && (
               <p className="text-[10px] text-muted-foreground">{opp.marketing_pipelines.name} → {opp.marketing_pipeline_stages?.name}</p>

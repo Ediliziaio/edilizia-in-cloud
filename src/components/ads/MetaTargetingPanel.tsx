@@ -47,6 +47,7 @@ import type {
   MetaPlacementsConfig,
   MetaSearchResult,
 } from "@/types/metaAds";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MetaTargetingState {
   geoLocations: MetaGeoLocationPick[];
@@ -94,6 +95,7 @@ export function MetaTargetingPanel({
   onChange,
   audienceSizeHint,
 }: Props) {
+  const tr = useT();
   return (
     <div className="space-y-6">
       {/* === GEO LOCATIONS === */}
@@ -102,16 +104,16 @@ export function MetaTargetingPanel({
           <div>
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <Globe2 className="h-4 w-4 text-blue-600" />
-              Dove vuoi mostrare gli annunci
+              {tr("Dove vuoi mostrare gli annunci")}
             </h3>
             <p className="text-xs text-slate-500">
-              Aggiungi <strong>paesi, regioni, città</strong> o ZIP. Per le città puoi impostare un raggio individuale (1–80 km).
+              {tr("Aggiungi")} <strong>{tr("paesi, regioni, città")}</strong> {tr("o ZIP. Per le città puoi impostare un raggio individuale (1–80 km).")}
             </p>
           </div>
           <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700 max-md:text-[11px]">
-            {value.geoLocations.filter((g) => !g.excluded).length} inclusi
+            {tr("{n} inclusi", { n: value.geoLocations.filter((g) => !g.excluded).length })}
             {value.geoLocations.some((g) => g.excluded) && (
-              <> · {value.geoLocations.filter((g) => g.excluded).length} esclusi</>
+              <>{" "}{tr("· {n} esclusi", { n: value.geoLocations.filter((g) => g.excluded).length })}</>
             )}
           </Badge>
         </header>
@@ -133,7 +135,7 @@ export function MetaTargetingPanel({
 
         {value.geoLocations.length === 0 ? (
           <p className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">
-            Nessun luogo selezionato. Cerca una città, una regione o un paese qui sopra.
+            {tr("Nessun luogo selezionato. Cerca una città, una regione o un paese qui sopra.")}
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
@@ -177,7 +179,7 @@ export function MetaTargetingPanel({
                       }}
                       className="h-7 w-16 border-0 bg-transparent text-center text-sm"
                     />
-                    <span className="text-[11px] text-slate-500">km</span>
+                    <span className="text-[11px] text-slate-500">{tr("km")}</span>
                   </div>
                 )}
 
@@ -193,7 +195,7 @@ export function MetaTargetingPanel({
                       })
                     }
                   >
-                    {loc.excluded ? "Includi" : "Escludi"}
+                    {loc.excluded ? tr("Includi") : tr("Escludi")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -214,10 +216,8 @@ export function MetaTargetingPanel({
 
         {audienceSizeHint && (
           <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-xs">
-            <strong className="text-emerald-900">Audience size stimata:</strong>{" "}
-            <span className="text-slate-700">
-              {formatAudience(audienceSizeHint.lower)} – {formatAudience(audienceSizeHint.upper)} persone
-            </span>
+            <strong className="text-emerald-900">{tr("Audience size stimata:")}</strong>{" "}
+            <span className="text-slate-700">{tr("{lower} – {upper} persone", { lower: formatAudience(audienceSizeHint.lower), upper: formatAudience(audienceSizeHint.upper) })}</span>
           </div>
         )}
       </section>
@@ -227,16 +227,16 @@ export function MetaTargetingPanel({
         <header className="mb-3">
           <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
             <Users className="h-4 w-4 text-violet-600" />
-            Età, genere, lingue
+            {tr("Età, genere, lingue")}
           </h3>
           <p className="text-xs text-slate-500">
-            Restringi il pubblico anagrafico. Lascia largo se non sei sicuro: Meta sa imparare.
+            {tr("Restringi il pubblico anagrafico. Lascia largo se non sei sicuro: Meta sa imparare.")}
           </p>
         </header>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <Label className="mb-2 block text-xs font-semibold text-slate-700">Età</Label>
+            <Label className="mb-2 block text-xs font-semibold text-slate-700">{tr("Età")}</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -255,12 +255,12 @@ export function MetaTargetingPanel({
                 onChange={(e) => onChange({ ageMax: Math.max(18, Math.min(65, Number(e.target.value) || 55)) })}
                 className="w-16"
               />
-              <span className="text-xs text-slate-500">anni</span>
+              <span className="text-xs text-slate-500">{tr("anni")}</span>
             </div>
           </div>
 
           <div>
-            <Label className="mb-2 block text-xs font-semibold text-slate-700">Genere</Label>
+            <Label className="mb-2 block text-xs font-semibold text-slate-700">{tr("Genere")}</Label>
             <div className="flex gap-1 rounded-md border border-slate-200 p-1">
               {(["all", "men", "women"] as const).map((g) => (
                 <button
@@ -272,14 +272,14 @@ export function MetaTargetingPanel({
                     value.gender === g ? "bg-violet-600 text-white" : "text-slate-600 hover:bg-slate-50",
                   )}
                 >
-                  {g === "all" ? "Tutti" : g === "men" ? "Uomini" : "Donne"}
+                  {g === "all" ? tr("Tutti") : g === "men" ? tr("Uomini") : tr("Donne")}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <Label className="mb-2 block text-xs font-semibold text-slate-700">Lingue</Label>
+            <Label className="mb-2 block text-xs font-semibold text-slate-700">{tr("Lingue")}</Label>
             <LocaleSearchInput
               companyId={companyId}
               adAccountId={adAccountId}
@@ -294,10 +294,9 @@ export function MetaTargetingPanel({
             <div className="flex items-start gap-2">
               <Sparkles className="mt-0.5 h-4 w-4 text-blue-700" />
               <div>
-                <p className="text-sm font-semibold text-slate-950">Advantage+ Audience</p>
+                <p className="text-sm font-semibold text-slate-950">{tr("Advantage+ Audience")}</p>
                 <p className="text-[11px] text-slate-600">
-                  Meta espande automaticamente oltre la tua selezione quando trova utenti simili a chi converte.
-                  Consigliato per <strong>lead gen edilizia</strong>.
+                  {tr("Meta espande automaticamente oltre la tua selezione quando trova utenti simili a chi converte. Consigliato per")} <strong>{tr("lead gen edilizia")}</strong>.
                 </p>
               </div>
             </div>
@@ -315,24 +314,24 @@ export function MetaTargetingPanel({
           <div>
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <Search className="h-4 w-4 text-fuchsia-600" />
-              Interessi e comportamenti
+              {tr("Interessi e comportamenti")}
             </h3>
             <p className="text-xs text-slate-500">
-              Cerca interessi reali da Meta (ristrutturazione, casa, mutuo, fotovoltaico...). Massimo 25.
+              {tr("Cerca interessi reali da Meta (ristrutturazione, casa, mutuo, fotovoltaico...). Massimo 25.")}
             </p>
           </div>
           <Badge variant="outline" className="border-fuchsia-200 bg-fuchsia-50 text-[10px] text-fuchsia-700 max-md:text-[11px]">
-            {value.interestTags.length} inclusi
+            {tr("{n} inclusi", { n: value.interestTags.length })}
             {value.excludedInterestTags.length > 0 && (
-              <> · {value.excludedInterestTags.length} esclusi</>
+              <>{" "}{tr("· {n} esclusi", { n: value.excludedInterestTags.length })}</>
             )}
           </Badge>
         </header>
 
         <Tabs defaultValue="include">
           <TabsList>
-            <TabsTrigger value="include">Includi pubblico</TabsTrigger>
-            <TabsTrigger value="exclude">Escludi pubblico</TabsTrigger>
+            <TabsTrigger value="include">{tr("Includi pubblico")}</TabsTrigger>
+            <TabsTrigger value="exclude">{tr("Escludi pubblico")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="include" className="space-y-3 pt-3">
@@ -380,10 +379,9 @@ export function MetaTargetingPanel({
       <section className="rounded-2xl border bg-white p-5">
         <header className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-950">Posizionamenti</h3>
+            <h3 className="text-base font-semibold text-slate-950">{tr("Posizionamenti")}</h3>
             <p className="text-xs text-slate-500">
-              Dove l'annuncio appare. <strong>Advantage automatic</strong> è consigliato:
-              Meta sceglie i placement più performanti.
+              {tr("Dove l'annuncio appare.")} <strong>{tr("Advantage automatic")}</strong> {tr("è consigliato: Meta sceglie i placement più performanti.")}
             </p>
           </div>
           <Switch
@@ -398,8 +396,7 @@ export function MetaTargetingPanel({
           <div className="space-y-4">
             <Alert className="border-amber-200 bg-amber-50">
               <AlertDescription className="text-xs">
-                Placement manuali riducono drasticamente il reach. Usali solo se hai dati storici che
-                mostrano performance migliori su uno specifico posizionamento.
+                {tr("Placement manuali riducono drasticamente il reach. Usali solo se hai dati storici che mostrano performance migliori su uno specifico posizionamento.")}
               </AlertDescription>
             </Alert>
 
@@ -457,9 +454,10 @@ function LocationSearchInput({
   adAccountId?: string;
   onSelect: (r: MetaSearchResult) => void;
 }) {
+  const t = useT();
   return (
     <SearchInput
-      placeholder="Cerca città, regione, paese o ZIP..."
+      placeholder={t("Cerca città, regione, paese o ZIP...")}
       icon={<Search className="h-4 w-4 text-slate-400" />}
       companyId={companyId}
       adAccountId={adAccountId}
@@ -495,9 +493,10 @@ function InterestSearchInput({
   type: "interest" | "behavior" | "demographic";
   onSelect: (r: MetaSearchResult) => void;
 }) {
+  const t = useT();
   return (
     <SearchInput
-      placeholder="Cerca interessi (es. ristrutturazione, casa, mutuo, fotovoltaico)..."
+      placeholder={t("Cerca interessi (es. ristrutturazione, casa, mutuo, fotovoltaico)...")}
       icon={<Search className="h-4 w-4 text-slate-400" />}
       companyId={companyId}
       adAccountId={adAccountId}
@@ -509,9 +508,7 @@ function InterestSearchInput({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-slate-900">{r.name}</p>
             {r.audience_size_lower && (
-              <p className="text-[10px] text-slate-500 max-md:text-[11px]">
-                ~ {formatAudience(r.audience_size_lower)}–{formatAudience(r.audience_size_upper ?? r.audience_size_lower)} persone globali
-              </p>
+              <p className="text-[10px] text-slate-500 max-md:text-[11px]">{t("~ {audience_size_lower}–{valore} persone globali", { audience_size_lower: formatAudience(r.audience_size_lower), valore: formatAudience(r.audience_size_upper ?? r.audience_size_lower) })}</p>
             )}
           </div>
         </div>
@@ -531,10 +528,11 @@ function LocaleSearchInput({
   selected: MetaSearchResult[];
   onChange: (next: MetaSearchResult[]) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-2">
       <SearchInput
-        placeholder="Cerca lingue..."
+        placeholder={t("Cerca lingue...")}
         icon={<Search className="h-4 w-4 text-slate-400" />}
         companyId={companyId}
         adAccountId={adAccountId}
@@ -573,6 +571,7 @@ interface SearchInputProps {
 }
 
 function SearchInput({ placeholder, icon, companyId, adAccountId, type, onSelect, renderItem }: SearchInputProps) {
+  const t = useT();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<MetaSearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -646,7 +645,7 @@ function SearchInput({ placeholder, icon, companyId, adAccountId, type, onSelect
         <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
           {fallback && (
             <div className="border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] text-amber-800 max-md:text-[11px]">
-              Catalogo locale (Meta API non connessa). Connetti l'account Meta in Impostazioni per risultati live.
+              {t("Catalogo locale (Meta API non connessa). Connetti l'account Meta in Impostazioni per risultati live.")}
             </div>
           )}
           {results.map((r) => (
@@ -680,10 +679,11 @@ function TagList({
   color: "fuchsia" | "rose";
   onRemove: (key: string) => void;
 }) {
+  const tr = useT();
   if (tags.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-500">
-        Nessun tag selezionato.
+        {tr("Nessun tag selezionato.")}
       </p>
     );
   }
@@ -718,6 +718,7 @@ function PlacementGroup({
   selected: string[];
   onChange: (next: string[]) => void;
 }) {
+  const t = useT();
   const allSelected = positions.every((p) => selected.includes(p.v));
   const noneSelected = selected.length === 0;
   return (
@@ -729,7 +730,7 @@ function PlacementGroup({
           className="text-[10px] font-medium text-blue-600 hover:underline max-md:text-[11px]"
           onClick={() => onChange(allSelected ? [] : positions.map((p) => p.v))}
         >
-          {allSelected ? "Deseleziona tutto" : "Seleziona tutto"}
+          {allSelected ? t("Deseleziona tutto") : t("Seleziona tutto")}
         </button>
       </div>
       <div className="space-y-1.5">
@@ -745,7 +746,7 @@ function PlacementGroup({
                   onChange(next);
                 }}
               />
-              <span className={cn(noneSelected && "text-slate-400")}>{pos.label}</span>
+              <span className={cn(noneSelected && "text-slate-400")}>{t(pos.label)}</span>
             </label>
           );
         })}

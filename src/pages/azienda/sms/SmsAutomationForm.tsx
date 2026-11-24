@@ -34,6 +34,7 @@ import {
   SMS_AUTOMATION_EVENTO_LABELS,
   SMS_DESTINATARIO_LABELS,
 } from "@/types/sms";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const schema = z.object({
   nome: z.string().min(1, "Nome obbligatorio").max(100),
@@ -72,6 +73,7 @@ export function SmsAutomationForm({
   isPending,
   defaultValues,
 }: SmsAutomationFormProps) {
+  const t = useT();
   const {
     register,
     handleSubmit,
@@ -131,21 +133,21 @@ export function SmsAutomationForm({
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {defaultValues ? "Modifica automazione" : "Nuova automazione SMS"}
+            {defaultValues ? t("Modifica automazione") : t("Nuova automazione SMS")}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
           {/* Nome */}
           <div className="space-y-1.5">
-            <Label htmlFor="nome">Nome automazione</Label>
-            <Input id="nome" placeholder="Es. Conferma preventivo firmato" {...register("nome")} />
-            {errors.nome && <p className="text-xs text-red-600">{errors.nome.message}</p>}
+            <Label htmlFor="nome">{t("Nome automazione")}</Label>
+            <Input id="nome" placeholder={t("Es. Conferma preventivo firmato")} {...register("nome")} />
+            {errors.nome && <p className="text-xs text-red-600">{t(errors.nome.message ?? "")}</p>}
           </div>
 
           {/* Evento trigger */}
           <div className="space-y-1.5">
-            <Label>Evento trigger</Label>
+            <Label>{t("Evento trigger")}</Label>
             <Select
               value={watch("trigger_evento")}
               onValueChange={(v) => setValue("trigger_evento", v as FormValues["trigger_evento"])}
@@ -155,7 +157,7 @@ export function SmsAutomationForm({
               </SelectTrigger>
               <SelectContent>
                 {(Object.entries(SMS_AUTOMATION_EVENTO_LABELS) as [FormValues["trigger_evento"], string][]).map(([k, label]) => (
-                  <SelectItem key={k} value={k}>{label}</SelectItem>
+                  <SelectItem key={k} value={k}>{t(label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -163,21 +165,21 @@ export function SmsAutomationForm({
 
           {/* Delay */}
           <div className="space-y-1.5">
-            <Label htmlFor="delay_minuti">Ritardo (minuti)</Label>
+            <Label htmlFor="delay_minuti">{t("Ritardo (minuti)")}</Label>
             <Input
               id="delay_minuti"
               type="number"
               min={0}
               max={10080}
-              placeholder="0 = immediato"
+              placeholder={t("0 = immediato")}
               {...register("delay_minuti", { valueAsNumber: true })}
             />
-            <p className="text-xs text-muted-foreground">0 = invio immediato · 1440 = 24h · 10080 = 7 giorni</p>
+            <p className="text-xs text-muted-foreground">{t("0 = invio immediato · 1440 = 24h · 10080 = 7 giorni")}</p>
           </div>
 
           {/* Destinatario */}
           <div className="space-y-1.5">
-            <Label>Destinatario</Label>
+            <Label>{t("Destinatario")}</Label>
             <Select
               value={tipoDestinatario}
               onValueChange={(v) => setValue("tipo_destinatario", v as FormValues["tipo_destinatario"])}
@@ -187,7 +189,7 @@ export function SmsAutomationForm({
               </SelectTrigger>
               <SelectContent>
                 {(Object.entries(SMS_DESTINATARIO_LABELS) as [FormValues["tipo_destinatario"], string][]).map(([k, label]) => (
-                  <SelectItem key={k} value={k}>{label}</SelectItem>
+                  <SelectItem key={k} value={k}>{t(label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -199,7 +201,7 @@ export function SmsAutomationForm({
                   className={errors.numero_custom ? "border-red-400" : ""}
                 />
                 {errors.numero_custom && (
-                  <p className="text-xs text-red-600">{errors.numero_custom.message}</p>
+                  <p className="text-xs text-red-600">{t(errors.numero_custom.message ?? "")}</p>
                 )}
               </div>
             )}
@@ -207,7 +209,7 @@ export function SmsAutomationForm({
 
           {/* Template body */}
           <div className="space-y-1.5">
-            <Label htmlFor="template_body">Testo messaggio</Label>
+            <Label htmlFor="template_body">{t("Testo messaggio")}</Label>
             <Textarea
               id="template_body"
               rows={4}
@@ -216,11 +218,11 @@ export function SmsAutomationForm({
               className={errors.template_body ? "border-red-400" : ""}
             />
             {errors.template_body && (
-              <p className="text-xs text-red-600">{errors.template_body.message}</p>
+              <p className="text-xs text-red-600">{t(errors.template_body.message ?? "")}</p>
             )}
             <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>Variabili disponibili: {VARIABILI_DISPONIBILI.join(" · ")}</span>
+              <span>{t("Variabili disponibili: {variabili}", { variabili: VARIABILI_DISPONIBILI.join(" · ") })}</span>
             </div>
           </div>
 
@@ -232,20 +234,20 @@ export function SmsAutomationForm({
               onCheckedChange={(v) => setValue("attiva", v)}
             />
             <Label htmlFor="attiva" className="cursor-pointer">
-              Automazione {attiva ? "attiva" : "disattivata"}
+              {attiva ? t("Automazione attiva") : t("Automazione disattivata")}
             </Label>
           </div>
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               type="submit"
               disabled={isPending}
               className="bg-eic-navy hover:bg-[#162d4a] text-white"
             >
-              {isPending ? "Salvataggio…" : defaultValues ? "Salva modifiche" : "Crea automazione"}
+              {isPending ? t("Salvataggio…") : defaultValues ? t("Salva modifiche") : t("Crea automazione")}
             </Button>
           </DialogFooter>
         </form>

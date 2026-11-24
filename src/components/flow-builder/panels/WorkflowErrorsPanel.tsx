@@ -1,5 +1,6 @@
 import { AlertCircle, AlertTriangle, CheckCircle, Circle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface WorkflowError {
   nodeId: string;
@@ -14,12 +15,13 @@ interface Props {
 }
 
 export function WorkflowErrorsPanel({ errors, readinessChecks = [] }: Props) {
+  const t = useT();
   const erroriCount = errors.filter((e) => e.tipo === "errore").length;
   const avvisiCount = errors.filter((e) => e.tipo === "avviso").length;
   const checklist = readinessChecks.length > 0 ? readinessChecks : [
-    { label: "Trigger configurato", ok: erroriCount === 0 },
-    { label: "Step operativi presenti", ok: erroriCount === 0 },
-    { label: "Nessun blocco prima della pubblicazione", ok: erroriCount === 0 },
+    { label: t("Trigger configurato"), ok: erroriCount === 0 },
+    { label: t("Step operativi presenti"), ok: erroriCount === 0 },
+    { label: t("Nessun blocco prima della pubblicazione"), ok: erroriCount === 0 },
   ];
 
   if (errors.length === 0) {
@@ -29,11 +31,11 @@ export function WorkflowErrorsPanel({ errors, readinessChecks = [] }: Props) {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
-          <p className="text-lg font-semibold text-foreground">0 errori</p>
-          <p className="text-sm text-muted-foreground mt-1">Il flusso non ha blocchi tecnici.</p>
+          <p className="text-lg font-semibold text-foreground">{t("0 errori")}</p>
+          <p className="text-sm text-muted-foreground mt-1">{t("Il flusso non ha blocchi tecnici.")}</p>
         </div>
         <div className="mt-6 rounded-xl border bg-muted/30 p-3 text-left">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checklist pubblicazione</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Checklist pubblicazione")}</p>
           <div className="space-y-2">
             {checklist.map((check) => (
               <div key={check.label} className="flex items-center gap-2 text-xs">
@@ -57,7 +59,7 @@ export function WorkflowErrorsPanel({ errors, readinessChecks = [] }: Props) {
               <AlertCircle className="h-4 w-4 text-destructive" />
               <div>
                 <p className="text-lg font-bold text-destructive">{erroriCount}</p>
-                <p className="text-xs text-destructive/80">Errori</p>
+                <p className="text-xs text-destructive/80">{t("Errori")}</p>
               </div>
             </div>
           )}
@@ -66,14 +68,14 @@ export function WorkflowErrorsPanel({ errors, readinessChecks = [] }: Props) {
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               <div>
                 <p className="text-lg font-bold text-amber-700">{avvisiCount}</p>
-                <p className="text-xs text-amber-600">Avvisi</p>
+                <p className="text-xs text-amber-600">{t("Avvisi")}</p>
               </div>
             </div>
           )}
         </div>
 
         <div className="rounded-xl border bg-muted/30 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checklist pubblicazione</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Checklist pubblicazione")}</p>
           <div className="space-y-2">
             {checklist.map((check) => (
               <div key={check.label} className="flex items-center gap-2 text-xs">

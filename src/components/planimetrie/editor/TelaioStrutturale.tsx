@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { leggiCampate, LIMITE_CAMPATE, type ParametriTelaio } from "./telaio";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   aperto: boolean;
@@ -25,6 +26,7 @@ const num = (s: string, min: number, max: number) => {
 };
 
 export function TelaioStrutturale({ aperto, onChiudi, piani, onCrea }: Props) {
+  const t = useT();
   const [x, setX] = useState("5; 4; 5");
   const [y, setY] = useState("4; 4");
   const [pl, setPl] = useState("30");
@@ -39,7 +41,7 @@ export function TelaioStrutturale({ aperto, onChiudi, piani, onCrea }: Props) {
   const valori = useMemo(() => ({ pl: num(pl, 15, 120), pp: num(pp, 15, 120), tl: num(tl, 15, 100), ta: num(ta, 20, 120), sol: num(sol, 0, 60) }), [pl, pp, tl, ta, sol]);
   const valido = !!campateX && !!campateY && Object.values(valori).every((v) => v !== null);
   const riepilogo = campateX && campateY
-    ? `${(campateX.length + 1) * (campateY.length + 1)} pilastri · ${campateX.length * (campateY.length + 1) + campateY.length * (campateX.length + 1)} travi · ${(campateX.reduce((a, b) => a + b, 0) / 100).toLocaleString("it-IT")} × ${(campateY.reduce((a, b) => a + b, 0) / 100).toLocaleString("it-IT")} m`
+    ? t("{pilastri} pilastri · {travi} travi · {larghezza} × {lunghezza} m", { pilastri: (campateX.length + 1) * (campateY.length + 1), travi: campateX.length * (campateY.length + 1) + campateY.length * (campateX.length + 1), larghezza: (campateX.reduce((a, b) => a + b, 0) / 100).toLocaleString(intlCampo()), lunghezza: (campateY.reduce((a, b) => a + b, 0) / 100).toLocaleString(intlCampo()) })
     : null;
 
   const crea = () => {
@@ -58,40 +60,40 @@ export function TelaioStrutturale({ aperto, onChiudi, piani, onCrea }: Props) {
     <Dialog open={aperto} onOpenChange={(o) => { if (!o) onChiudi(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Grid3x3 className="h-5 w-5" />Telaio strutturale</DialogTitle>
-          <DialogDescription>Scrivi le luci delle campate in metri, separate da punto e virgola: pilastri, travi e solaio nascono da soli.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><Grid3x3 className="h-5 w-5" />{t("Telaio strutturale")}</DialogTitle>
+          <DialogDescription>{t("Scrivi le luci delle campate in metri, separate da punto e virgola: pilastri, travi e solaio nascono da soli.")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
           <div className="space-y-1">
-            <Label htmlFor="tel-x">Campate in orizzontale (m)</Label>
+            <Label htmlFor="tel-x">{t("Campate in orizzontale (m)")}</Label>
             <Input id="tel-x" value={x} onChange={(e) => setX(e.target.value)} aria-invalid={!campateX} placeholder="5; 4; 5" />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="tel-y">Campate in verticale (m)</Label>
+            <Label htmlFor="tel-y">{t("Campate in verticale (m)")}</Label>
             <Input id="tel-y" value={y} onChange={(e) => setY(e.target.value)} aria-invalid={!campateY} placeholder="4; 4" />
           </div>
-          {(!campateX || !campateY) && <p className="text-xs text-destructive">Ogni campata da 1,5 a 15 m, al massimo {LIMITE_CAMPATE} per direzione.</p>}
+          {(!campateX || !campateY) && <p className="text-xs text-destructive">{t("Ogni campata da 1,5 a 15 m, al massimo {LIMITE_CAMPATE} per direzione.", { LIMITE_CAMPATE: String(LIMITE_CAMPATE ?? "") })}</p>}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Pilastro (cm)</Label>
+              <Label>{t("Pilastro (cm)")}</Label>
               <div className="flex items-center gap-1"><Input value={pl} onChange={(e) => setPl(e.target.value)} inputMode="numeric" /><span>×</span><Input value={pp} onChange={(e) => setPp(e.target.value)} inputMode="numeric" /></div>
             </div>
             <div className="space-y-1">
-              <Label>Trave: larga × alta (cm)</Label>
+              <Label>{t("Trave: larga × alta (cm)")}</Label>
               <div className="flex items-center gap-1"><Input value={tl} onChange={(e) => setTl(e.target.value)} inputMode="numeric" /><span>×</span><Input value={ta} onChange={(e) => setTa(e.target.value)} inputMode="numeric" /></div>
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="tel-sol">Spessore del solaio (cm, 0 = senza)</Label>
+            <Label htmlFor="tel-sol">{t("Spessore del solaio (cm, 0 = senza)")}</Label>
             <Input id="tel-sol" value={sol} onChange={(e) => setSol(e.target.value)} inputMode="numeric" className="w-24" />
           </div>
-          <div className="flex items-center gap-2"><Switch id="tel-etichette" checked={etichette} onCheckedChange={setEtichette} /><Label htmlFor="tel-etichette">Numeri, lettere e quote degli allineamenti</Label></div>
-          {piani > 1 && <div className="flex items-center gap-2"><Switch id="tel-tutti" checked={tutti} onCheckedChange={setTutti} /><Label htmlFor="tel-tutti">Ripeti su tutti i {piani} piani</Label></div>}
+          <div className="flex items-center gap-2"><Switch id="tel-etichette" checked={etichette} onCheckedChange={setEtichette} /><Label htmlFor="tel-etichette">{t("Numeri, lettere e quote degli allineamenti")}</Label></div>
+          {piani > 1 && <div className="flex items-center gap-2"><Switch id="tel-tutti" checked={tutti} onCheckedChange={setTutti} /><Label htmlFor="tel-tutti">{t("Ripeti su tutti i {piani} piani", { piani: String(piani ?? "") })}</Label></div>}
           {riepilogo && <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{riepilogo}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi}>Annulla</Button>
-          <Button onClick={crea} disabled={!valido}>Crea il telaio</Button>
+          <Button variant="outline" onClick={onChiudi}>{t("Annulla")}</Button>
+          <Button onClick={crea} disabled={!valido}>{t("Crea il telaio")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

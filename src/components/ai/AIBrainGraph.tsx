@@ -59,6 +59,7 @@ import {
 import {
   Popover, PopoverTrigger, PopoverContent,
 } from "@/components/ui/popover";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -862,7 +863,11 @@ function isDemoMemorySource(source: string | null) {
   return source?.startsWith("demo") ?? false;
 }
 
-function computeMemoryQualityReport(memories: MemoryRow[], personas: PersonaLite[]): MemoryQualityReport {
+// `tr` traduce le frasi mostrate nel pannello; senza, restano in italiano.
+type TraduciFrase = (testo: string, valori?: Record<string, string | number>) => string;
+const fraseItaliana: TraduciFrase = (testo, valori) => testo.replace(/\{(\w+)\}/g, (m, k) => (valori && k in valori ? String(valori[k]) : m));
+
+function computeMemoryQualityReport(memories: MemoryRow[], personas: PersonaLite[], tr: TraduciFrase = fraseItaliana): MemoryQualityReport {
   const enabled = memories.filter((memory) => memory.enabled);
   const total = enabled.length;
 
@@ -876,7 +881,7 @@ function computeMemoryQualityReport(memories: MemoryRow[], personas: PersonaLite
       duplicateClusters: [],
       trustedSourcePct: 0,
       riskyCount: 0,
-      qualityActionQueue: ["Crea almeno una memoria verificata per iniziare a rendere operativo il cervello."],
+      qualityActionQueue: [tr("Crea almeno una memoria verificata per iniziare a rendere operativo il cervello.")],
     };
   }
 
@@ -949,12 +954,12 @@ function computeMemoryQualityReport(memories: MemoryRow[], personas: PersonaLite
   const trustedSourcePct = Math.round((trustedCount / total) * 100);
 
   const qualityActionQueue: string[] = [];
-  if (lowConfidenceCount > 0) qualityActionQueue.push(`Rivedi ${lowConfidenceCount} memorie con fiducia sotto il 70%.`);
-  if (staleCount > 0) qualityActionQueue.push(`Verifica ${staleCount} memorie ferme da oltre ${MEMORY_STALE_DAYS} giorni.`);
-  if (unusedCount > 0) qualityActionQueue.push(`Fai usare o archivia ${unusedCount} memorie mai richiamate.`);
-  if (duplicateClusters.length > 0) qualityActionQueue.push(`Unifica ${duplicateClusters.length} cluster di memorie duplicate.`);
-  if (personasWithMemory.size < personas.length) qualityActionQueue.push(`Completa ${personas.length - personasWithMemory.size} personas senza memoria viva.`);
-  if (qualityActionQueue.length === 0) qualityActionQueue.push("Qualità alta: puoi scalare nuove memorie e usarle nelle risposte di Silvio.");
+  if (lowConfidenceCount > 0) qualityActionQueue.push(tr("Rivedi {n} memorie con fiducia sotto il 70%.", { n: lowConfidenceCount }));
+  if (staleCount > 0) qualityActionQueue.push(tr("Verifica {n} memorie ferme da oltre {giorni} giorni.", { n: staleCount, giorni: MEMORY_STALE_DAYS }));
+  if (unusedCount > 0) qualityActionQueue.push(tr("Fai usare o archivia {n} memorie mai richiamate.", { n: unusedCount }));
+  if (duplicateClusters.length > 0) qualityActionQueue.push(tr("Unifica {n} cluster di memorie duplicate.", { n: duplicateClusters.length }));
+  if (personasWithMemory.size < personas.length) qualityActionQueue.push(tr("Completa {n} personas senza memoria viva.", { n: personas.length - personasWithMemory.size }));
+  if (qualityActionQueue.length === 0) qualityActionQueue.push(tr("Qualità alta: puoi scalare nuove memorie e usarle nelle risposte di Silvio."));
 
   return {
     reliabilityPct,
@@ -1119,6 +1124,7 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
   { nodes, edges, selections, viewDim, onNodeClick, onNodeDoubleClick, onCanvasClick, onEdgePointerOver, onEdgePointerOut },
   ref,
 ) {
+  const t = useT();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const panStartRef = useRef<{
     pointerId: number;
@@ -1452,7 +1458,7 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
       className="h-full w-full"
       viewBox={serializeViewBox(viewBox)}
       role="img"
-      aria-label="Mappa visiva del Cervello AI"
+      aria-label={t("Mappa visiva del Cervello AI")}
       onClick={handleSvgClick}
       onWheel={handleWheelZoom}
       onPointerDown={handlePanStart}
@@ -1623,7 +1629,7 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
                   paintOrder="stroke"
                   className="select-none"
                 >
-                  guida tutte le personas
+                  {t("guida tutte le personas")}
                 </text>
               )}
               {(isPersona || isSilvio || selected) && label && (
@@ -1665,6 +1671,7 @@ interface AIBrainGraphProps {
 }
 
 export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = {}) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const isAdmin = scope === "admin";
   // Per i cross-link verso gli altri tab dell'hub (?tab=chat / ?tab=memoria);
@@ -1981,8 +1988,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
     [nodes, connectionsMap, crossPersonaLinks, memories, personas],
   );
   const memoryQuality = useMemo(
-    () => computeMemoryQualityReport(memories, personas),
-    [memories, personas],
+    () => computeMemoryQualityReport(memories, personas, tr),
+    [memories, personas, tr],
   );
   const knowledgeCommunities = useMemo(
     () => computeKnowledgeCommunities(personas, memories, crossPersonaLinks),
@@ -1994,8 +2001,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
   const heroInsight = useMemo(() => {
     if (memories.length === 0) {
       return {
-        title: "Cervello in costruzione",
-        text: "Parla con le AI Personas o aggiungi memorie manuali — il sistema imparerà nel tempo.",
+        title: tr("Cervello in costruzione"),
+        text: tr("Parla con le AI Personas o aggiungi memorie manuali — il sistema imparerà nel tempo."),
       };
     }
 
@@ -2010,8 +2017,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       const nameA = personas.find((p) => p.persona_key === topPair!.pA)?.display_name ?? topPair.pA;
       const nameB = personas.find((p) => p.persona_key === topPair!.pB)?.display_name ?? topPair.pB;
       return {
-        title: "Asse di conoscenza più forte",
-        text: `${nameA} ↔ ${nameB} condividono ${topPair.count} memorie. Le due personas pensano "alla stessa cosa".`,
+        title: tr("Asse di conoscenza più forte"),
+        text: tr("{nameA} ↔ {nameB} condividono {count} memorie. Le due personas pensano \"alla stessa cosa\".", { nameA: String(nameA ?? ""), nameB: String(nameB ?? ""), count: String(topPair.count ?? "") }),
       };
     }
 
@@ -2022,16 +2029,16 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       const personaName = personas.find((p) => p.persona_key === top.persona_key)?.display_name ?? top.persona_key;
       const preview = top.content.length > 70 ? top.content.slice(0, 67) + "…" : top.content;
       return {
-        title: "Informazione più usata",
-        text: `${personaName} ricorda: "${preview}" (${top.hits_count} richiami).`,
+        title: tr("Informazione più usata"),
+        text: tr("{personaName} ricorda: \"{preview}\" ({hits_count} richiami).", { personaName: String(personaName ?? ""), preview: String(preview ?? ""), hits_count: String(top.hits_count ?? "") }),
       };
     }
 
     return {
-      title: "Cervello attivo",
-      text: `${memories.filter((m) => m.enabled).length} memorie attive distribuite su ${new Set(memories.map((m) => m.persona_key)).size} personas.`,
+      title: tr("Cervello attivo"),
+      text: tr("{n} memorie attive distribuite su {size} personas.", { n: memories.filter((m) => m.enabled).length, size: String(new Set(memories.map((m) => m.persona_key)).size ?? "") }),
     };
-  }, [memories, personas, crossPersonaLinks]);
+  }, [memories, personas, crossPersonaLinks, tr]);
 
   const totalMemories = memories.filter((m) => m.enabled).length;
   const personasInMemory = useMemo(
@@ -2233,11 +2240,11 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       link.download = `cervello-ai-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = dataUrl;
       link.click();
-      toast.success("Screenshot esportato");
+      toast.success(tr("Screenshot esportato"));
     } catch {
-      toast.error("Errore esportazione");
+      toast.error(tr("Errore esportazione"));
     }
-  }, []);
+  }, [tr]);
 
   // Export PDF Report executive (1 pagina con screenshot + numeri + insight + top memorie)
   const handlePdfReport = useCallback(async () => {
@@ -2351,11 +2358,11 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       pdf.text("Generato da Edilizia in Cloud — Cervello AI", 105, 287, { align: "center" });
 
       pdf.save(`cervello-ai-report-${new Date().toISOString().slice(0, 10)}.pdf`);
-      toast.success("Report PDF esportato");
+      toast.success(tr("Report PDF esportato"));
     } catch (err) {
-      toast.error("Errore generazione PDF", { description: String((err as Error).message ?? err) });
+      toast.error(tr("Errore generazione PDF"), { description: String((err as Error).message ?? err) });
     }
-  }, [effectiveCompany?.name, isAdmin, totalMemories, totalCrossPersonaLinks, insights.healthPct, stats.personaCount, personas, memories, heroInsight]);
+  }, [effectiveCompany?.name, isAdmin, totalMemories, totalCrossPersonaLinks, insights.healthPct, stats.personaCount, personas, memories, heroInsight, tr]);
 
   // ── Seed demo: popola memorie realistiche per Demo Azienda ──────────────
   // Mappa ogni persona_key demo a un persona_key reale presente nel sistema.
@@ -2375,19 +2382,19 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
         personeDisponibili: new Set(personas.map((p) => p.persona_key)),
       });
       const note = [
-        esito.giaPresenti > 0 ? `${esito.giaPresenti} già presenti` : null,
-        esito.senzaPersona > 0 ? `${esito.senzaPersona} saltate (persona non trovata)` : null,
+        esito.giaPresenti > 0 ? tr("{n} già presenti", { n: esito.giaPresenti }) : null,
+        esito.senzaPersona > 0 ? tr("{n} saltate (persona non trovata)", { n: esito.senzaPersona }) : null,
       ].filter(Boolean);
-      toast.success(`Cervello popolato — ${esito.inserite} memorie create`, {
-        description: note.length > 0 ? note.join(" · ") : "Il grafo si aggiornerà tra un istante.",
+      toast.success(tr("Cervello popolato — {inserite} memorie create", { inserite: String(esito.inserite ?? "") }), {
+        description: note.length > 0 ? note.join(" · ") : tr("Il grafo si aggiornerà tra un istante."),
       });
     } catch (err) {
-      toast.error("Errore popolamento demo", { description: String((err as Error).message ?? err) });
+      toast.error(tr("Errore popolamento demo"), { description: String((err as Error).message ?? err) });
     } finally {
       live.riprendi();
       setIsSeeding(false);
     }
-  }, [seedCompanyId, isDemoCompany, live, personas, seedUserId]);
+  }, [seedCompanyId, isDemoCompany, live, personas, seedUserId, tr]);
 
   // ── Fullscreen ────────────────────────────────────────────────────────────
 
@@ -2509,7 +2516,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
   };
 
   const loadError = !useDemoFallback && (isPersonasError || isMemoriesError)
-    ? (personasError as Error | null)?.message ?? (memoriesError as Error | null)?.message ?? "Errore caricamento Cervello AI"
+    ? (personasError as Error | null)?.message ?? (memoriesError as Error | null)?.message ?? tr("Errore caricamento Cervello AI")
     : null;
 
   if (isGraphLoading && !loadingTimedOut) {
@@ -2520,7 +2527,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       >
         <div className="flex flex-col items-center gap-3">
           <Brain className="h-10 w-10 text-orange-400 animate-pulse" />
-          <p className="text-sm text-slate-300">Caricamento cervello AI…</p>
+          <p className="text-sm text-slate-300">{tr("Caricamento cervello AI…")}</p>
         </div>
       </div>
     );
@@ -2534,9 +2541,9 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       >
         <div className="flex flex-col items-center gap-3 text-center px-4 max-w-md">
           <Network className="h-12 w-12 text-orange-400" />
-          <p className="text-sm text-slate-100 font-semibold">Cervello AI non caricato</p>
+          <p className="text-sm text-slate-100 font-semibold">{tr("Cervello AI non caricato")}</p>
           <p className="text-xs text-slate-300">
-            {loadError ?? "Il caricamento sta impiegando troppo tempo"}. Puoi riprovare senza ricaricare tutta la pagina.
+            {loadError ?? tr("Il caricamento sta impiegando troppo tempo")}{". "}{tr("Puoi riprovare senza ricaricare tutta la pagina.")}
           </p>
           <Button
             size="sm"
@@ -2547,7 +2554,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               void refetchMemories();
             }}
           >
-            Riprova
+            {tr("Riprova")}
           </Button>
         </div>
       </div>
@@ -2562,10 +2569,9 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       >
         <div className="flex flex-col items-center gap-3 text-center px-4 max-w-md">
           <Network className="h-12 w-12 text-slate-700" />
-          <p className="text-sm text-slate-200 font-medium">Nessuna memoria AI ancora</p>
+          <p className="text-sm text-slate-200 font-medium">{tr("Nessuna memoria AI ancora")}</p>
           <p className="text-xs text-slate-300">
-            Inizia a parlare con le AI Personas nella tab Chat. Il sistema creerà automaticamente
-            memorie che appariranno qui come nodi collegati.
+            {tr("Inizia a parlare con le AI Personas nella tab Chat. Il sistema creerà automaticamente memorie che appariranno qui come nodi collegati.")}
           </p>
           {isDemoCompany && (
             <Button
@@ -2575,7 +2581,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               disabled={isSeeding}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              {isSeeding ? "Popolamento…" : "Popola con memorie demo"}
+              {isSeeding ? tr("Popolamento…") : tr("Popola con memorie demo")}
             </Button>
           )}
           {!isDemoCompany && !isAdmin && (
@@ -2589,7 +2595,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               })}
             >
               <MessageSquare className="h-3.5 w-3.5" />
-              Vai alla Chat AI
+              {tr("Vai alla Chat AI")}
             </Button>
           )}
         </div>
@@ -2616,8 +2622,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                 <Brain className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Mappa della memoria</h2>
-                <p className="text-xs text-slate-600">Seleziona un nodo per vedere i ricordi e i collegamenti.</p>
+                <h2 className="text-base font-semibold text-slate-900">{tr("Mappa della memoria")}</h2>
+                <p className="text-xs text-slate-600">{tr("Seleziona un nodo per vedere i ricordi e i collegamenti.")}</p>
               </div>
             </div>
 
@@ -2625,8 +2631,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             <div className="flex flex-wrap items-center gap-3 md:ml-5 md:gap-5">
               <div>
                 <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{stats.personaCount}</div>
-                <div className="text-[10px] font-semibold text-slate-500">Assistenti</div>
-                <div className="text-[9px] text-orange-600 font-semibold">{personasInMemory} in rete · {personaActivationPct}%</div>
+                <div className="text-[10px] font-semibold text-slate-500">{tr("Assistenti")}</div>
+                <div className="text-[9px] text-orange-600 font-semibold">{tr("{personasInMemory} in rete · {personaActivationPct}%", { personasInMemory: String(personasInMemory ?? ""), personaActivationPct: String(personaActivationPct ?? "") })}</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div>
@@ -2642,13 +2648,13 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                   )}
                 </div>
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                  memorie {periodComparison.delta !== 0 ? "vs 7gg" : ""}
+                  {tr("memorie")} {periodComparison.delta !== 0 ? tr("vs 7gg") : ""}
                 </div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div>
                 <div className="text-2xl font-bold text-orange-600 tabular-nums leading-tight">{totalCrossPersonaLinks}</div>
-                <div className="text-[10px] font-semibold text-slate-500">Collegamenti</div>
+                <div className="text-[10px] font-semibold text-slate-500">{tr("Collegamenti")}</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <Popover>
@@ -2661,19 +2667,19 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                       {insights.healthPct}%
                     </div>
                     <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
-                      Qualità memoria
+                      {tr("Qualità memoria")}
                       <span className="text-orange-500 text-[9px]">▾</span>
                     </div>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-56 p-3 bg-white border-slate-200 shadow-xl">
-                  <p className="mb-2 text-xs font-semibold text-slate-700">Come viene calcolata la qualità</p>
+                  <p className="mb-2 text-xs font-semibold text-slate-700">{tr("Come viene calcolata la qualità")}</p>
                   <div className="space-y-2">
                     {([
-                      { label: "Copertura", value: insights.healthBreakdown.coverage, desc: "% assistenti con almeno 3 memorie" },
-                      { label: "Collegamenti", value: insights.healthBreakdown.crossLinkage, desc: "% assistenti collegati" },
-                      { label: "Freschezza", value: insights.healthBreakdown.freshness, desc: "% memorie ultimi 30gg" },
-                      { label: "Attività", value: insights.healthBreakdown.activity, desc: "% memorie usate" },
+                      { label: tr("Copertura"), value: insights.healthBreakdown.coverage, desc: tr("% assistenti con almeno 3 memorie") },
+                      { label: tr("Collegamenti"), value: insights.healthBreakdown.crossLinkage, desc: tr("% assistenti collegati") },
+                      { label: tr("Freschezza"), value: insights.healthBreakdown.freshness, desc: tr("% memorie ultimi 30gg") },
+                      { label: tr("Attività"), value: insights.healthBreakdown.activity, desc: tr("% memorie usate") },
                     ] as const).map((m) => (
                       <div key={m.label}>
                         <div className="flex items-center justify-between mb-0.5">
@@ -2699,7 +2705,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     ))}
                   </div>
                   <p className="text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-100">
-                    Score = (copertura×0.2 + cross×0.3 + freschezza×0.2 + attività×0.3)
+                    {tr("Score = (copertura×0.2 + cross×0.3 + freschezza×0.2 + attività×0.3)")}
                   </p>
                 </PopoverContent>
               </Popover>
@@ -2707,7 +2713,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
 
             {/* Filtro temporale */}
             <div className="md:ml-auto flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Periodo</span>
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{tr("Periodo")}</span>
               <div className="flex bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
                 {([
                   { v: "7d", l: "7g" },
@@ -2828,15 +2834,15 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
         <div className="flex max-w-full flex-wrap items-center gap-1.5 pointer-events-auto sm:gap-2">
           <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Brain className="h-3 w-3 text-orange-400" />
-            {stats.personaCount} personas · {personasInMemory} in rete
+            {tr("{personaCount} personas · {personasInMemory} in rete", { personaCount: stats.personaCount, personasInMemory })}
           </Badge>
             <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
               <Sparkles className="h-3 w-3 text-violet-400" />
-              {totalMemories} memorie
+              {totalMemories} {tr("memorie")}
             </Badge>
             <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
               <Network className="h-3 w-3 text-emerald-400" />
-              {totalCrossPersonaLinks} connessioni
+              {totalCrossPersonaLinks} {tr("connessioni")}
             </Badge>
           {stats.xpEdges > 0 && (
             <Badge className="bg-orange-100 text-orange-700 border-orange-300 backdrop-blur-sm text-[10px] gap-1.5">
@@ -2853,16 +2859,16 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             )}
             title={
               graphIntegrity.ok
-                ? "Tutti i nodi visibili hanno collegamenti validi e ogni persona ha memoria viva"
-                : `${graphIntegrity.missingEdges} edge mancanti, ${graphIntegrity.disconnectedNodes} nodi isolati, ${graphIntegrity.memoriesWithoutPersonaEdge} memorie senza persona, ${graphIntegrity.personasWithoutMemories} personas senza memoria`
+                ? tr("Tutti i nodi visibili hanno collegamenti validi e ogni persona ha memoria viva")
+                : tr("{edge} edge mancanti, {isolati} nodi isolati, {senzaPersona} memorie senza persona, {senzaMemoria} personas senza memoria", { edge: graphIntegrity.missingEdges, isolati: graphIntegrity.disconnectedNodes, senzaPersona: graphIntegrity.memoriesWithoutPersonaEdge, senzaMemoria: graphIntegrity.personasWithoutMemories })
             }
           >
             <Zap className="h-3 w-3" />
-            {graphIntegrity.ok ? "QA rete OK" : "QA rete"}
+            {graphIntegrity.ok ? tr("QA rete OK") : tr("QA rete")}
           </Badge>
           {useDemoFallback && (
             <Badge className="bg-amber-100 text-amber-800 border-amber-300 backdrop-blur-sm text-[10px] gap-1.5">
-              Anteprima demo
+              {tr("Anteprima demo")}
             </Badge>
           )}
         </div>
@@ -2905,10 +2911,10 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                 : "bg-slate-900/95 text-slate-200 border-slate-600 hover:bg-slate-800 hover:text-white",
             )}
             onClick={() => setViewDim(viewDim === "core" ? "2d" : "core")}
-            title={viewDim === "core" ? "Esci dal Globo 3D" : "Globo 3D — ruota la conoscenza da ogni angolazione"}
+            title={viewDim === "core" ? tr("Esci dal Globo 3D") : tr("Globo 3D — ruota la conoscenza da ogni angolazione")}
           >
             <Brain className="h-3 w-3" />
-            Globo 3D
+            {tr("Globo 3D")}
           </Button>
           {/* Quick actions: Galassia ↔ Dettaglio toggle (singolo pulsante) */}
           <Button
@@ -2924,12 +2930,12 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               if (viewMode === "galaxy") setViewMode("detail");
               else { setViewMode("galaxy"); setExpandedPersonas(new Set()); }
             }}
-            title={viewMode === "galaxy" ? "Mostra tutte le memorie" : "Torna alla vista galassia"}
+            title={viewMode === "galaxy" ? tr("Mostra tutte le memorie") : tr("Torna alla vista galassia")}
           >
             {viewMode === "galaxy" ? (
-              <><Sparkles className="h-3 w-3" /> Espandi tutto</>
+              <><Sparkles className="h-3 w-3" /> {tr("Espandi tutto")}</>
             ) : (
-              <><Brain className="h-3 w-3" /> Galassia</>
+              <><Brain className="h-3 w-3" /> {tr("Galassia")}</>
             )}
           </Button>
           {/* Demo seed (only for demo company) */}
@@ -2940,10 +2946,10 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               className="h-7 px-2 text-[10px] bg-orange-500/15 text-orange-300 hover:bg-orange-500/25 border border-orange-500/40 shadow-sm gap-1"
               onClick={handleSeedDemo}
               disabled={isSeeding}
-              title="Popola con memorie demo realistiche"
+              title={tr("Popola con memorie demo realistiche")}
             >
               <Sparkles className="h-3 w-3" />
-              {isSeeding ? "Popolo…" : "Demo"}
+              {isSeeding ? tr("Popolo…") : tr("Demo")}
             </Button>
           )}
           {/* Zoom controls */}
@@ -2954,8 +2960,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               variant="ghost"
               className="h-7 w-7 rounded-none border-0 text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={zoomOutGraph}
-              aria-label="Zoom indietro"
-              title="Zoom indietro (−)"
+              aria-label={tr("Zoom indietro")}
+              title={tr("Zoom indietro (−)")}
             >
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
@@ -2965,8 +2971,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               variant="ghost"
               className="h-7 w-7 rounded-none border-0 border-l border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={zoomInGraph}
-              aria-label="Zoom avanti"
-              title="Zoom avanti (+)"
+              aria-label={tr("Zoom avanti")}
+              title={tr("Zoom avanti (+)")}
             >
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
@@ -2976,8 +2982,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               variant="ghost"
               className="h-7 w-7 rounded-none border-0 border-l border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={fitGraphToView}
-              aria-label="Adatta grafo alla vista"
-              title="Adatta grafo alla vista (0)"
+              aria-label={tr("Adatta grafo alla vista")}
+              title={tr("Adatta grafo alla vista (0)")}
             >
               <Network className="h-3.5 w-3.5" />
             </Button>
@@ -2989,8 +2995,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             variant="ghost"
             className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
             onClick={resetView}
-            aria-label="Reset vista grafo"
-            title="Reset vista"
+            aria-label={tr("Reset vista grafo")}
+            title={tr("Reset vista")}
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
@@ -3001,8 +3007,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             variant="ghost"
             className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
             onClick={toggleFullscreen}
-            aria-label="Modalita fullscreen grafo"
-            title={fullscreen ? "Esci fullscreen (F)" : "Fullscreen (F)"}
+            aria-label={tr("Modalita fullscreen grafo")}
+            title={fullscreen ? tr("Esci fullscreen (F)") : tr("Fullscreen (F)")}
           >
             {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
@@ -3013,8 +3019,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
-                aria-label="Opzioni avanzate grafo"
-                title="Opzioni avanzate"
+                aria-label={tr("Opzioni avanzate grafo")}
+                title={tr("Opzioni avanzate")}
               >
                 <Settings2 className="h-3.5 w-3.5" />
               </Button>
@@ -3026,7 +3032,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             >
               <div className="space-y-3">
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">Colore nodi</p>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">{tr("Colore nodi")}</p>
                   <div className="flex bg-slate-800 rounded-md border border-slate-600 overflow-hidden">
                     {(["cluster", "type", "heat"] as ColorMode[]).map((m) => (
                       <button
@@ -3039,13 +3045,13 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                         onClick={() => setColorMode(m)}
                       >
                         {m === "cluster" ? <Network className="h-3 w-3" /> : m === "type" ? <Palette className="h-3 w-3" /> : <Flame className="h-3 w-3" />}
-                        {m === "cluster" ? "Persona" : m === "type" ? "Tipo" : "Attività"}
+                        {m === "cluster" ? tr("Persona") : m === "type" ? tr("Tipo") : tr("Attività")}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">Vista</p>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">{tr("Vista")}</p>
                   <div className="flex bg-slate-800 rounded-md border border-slate-600 overflow-hidden">
                     <button
                       className={cn(
@@ -3053,7 +3059,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                         viewDim === "2d" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
                       onClick={() => setViewDim("2d")}
-                      title="Vista piatta classica"
+                      title={tr("Vista piatta classica")}
                     >
                       2D
                     </button>
@@ -3063,7 +3069,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                         viewDim === "3d" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
                       onClick={() => setViewDim("3d")}
-                      title="Globo manuale: trascina lo sfondo per ruotare"
+                      title={tr("Globo manuale: trascina lo sfondo per ruotare")}
                     >
                       3D
                     </button>
@@ -3073,10 +3079,10 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                         viewDim === "core" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
                       onClick={() => setViewDim("core")}
-                      title="Orbita automatica: trascina per cambiare angolo"
+                      title={tr("Orbita automatica: trascina per cambiare angolo")}
                     >
                       <Brain className="h-3 w-3" />
-                      Orbita
+                      {tr("Orbita")}
                     </button>
                   </div>
                 </div>
@@ -3086,17 +3092,17 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     onClick={handleExport}
                   >
                     <Camera className="h-3 w-3" />
-                    Esporta screenshot PNG
+                    {tr("Esporta screenshot PNG")}
                   </button>
                   <button
                     className="w-full h-7 text-[10px] text-orange-400 hover:bg-orange-500/20 hover:text-orange-300 rounded-md flex items-center justify-center gap-1.5 transition-colors border border-orange-500/30"
                     onClick={handlePdfReport}
                   >
                     <Sparkles className="h-3 w-3" />
-                    Report PDF executive
+                    {tr("Report PDF executive")}
                   </button>
                   <p className="pt-1.5 text-[9px] text-slate-400 text-center">
-                    Tastiera: <kbd className="px-1 rounded bg-slate-800 border border-slate-700">+</kbd> <kbd className="px-1 rounded bg-slate-800 border border-slate-700">−</kbd> zoom · <kbd className="px-1 rounded bg-slate-800 border border-slate-700">0</kbd> adatta · <kbd className="px-1 rounded bg-slate-800 border border-slate-700">F</kbd> fullscreen · <kbd className="px-1 rounded bg-slate-800 border border-slate-700">Esc</kbd> chiudi
+                    {tr("Tastiera:")} <kbd className="px-1 rounded bg-slate-800 border border-slate-700">+</kbd> <kbd className="px-1 rounded bg-slate-800 border border-slate-700">−</kbd> {tr("zoom ·")} <kbd className="px-1 rounded bg-slate-800 border border-slate-700">0</kbd> {tr("adatta ·")} <kbd className="px-1 rounded bg-slate-800 border border-slate-700">F</kbd> {tr("fullscreen ·")} <kbd className="px-1 rounded bg-slate-800 border border-slate-700">Esc</kbd> {tr("chiudi")}
                   </p>
                 </div>
               </div>
@@ -3111,7 +3117,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
           <div className="bg-slate-900/95 backdrop-blur-sm rounded-full border border-slate-600 px-3 py-1 shadow-lg">
             <p className="text-[10px] text-slate-300 flex items-center gap-1.5">
               <Sparkles className="h-3 w-3 text-orange-400" />
-              {viewDim === "2d" ? "Click su una persona per esplorare le sue memorie" : "Trascina lo spazio per ruotare il globo"}
+              {viewDim === "2d" ? tr("Click su una persona per esplorare le sue memorie") : tr("Trascina lo spazio per ruotare il globo")}
             </p>
           </div>
         </div>
@@ -3121,7 +3127,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
       {searchSelections !== null && (
         <div className="absolute top-12 right-3 z-10 pointer-events-auto">
           <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px]">
-            {searchSelections.length} risultat{searchSelections.length === 1 ? "o" : "i"}
+            {tr(searchSelections.length === 1 ? "{n} risultato" : "{n} risultati", { n: searchSelections.length })}
           </Badge>
         </div>
       )}
@@ -3144,7 +3150,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               style={{ backgroundColor: `${MEMORY_TYPE_COLORS[filterType]}33`, color: MEMORY_TYPE_COLORS[filterType], borderColor: `${MEMORY_TYPE_COLORS[filterType]}66` }}
               onClick={() => setFilterType(null)}
             >
-              {MEMORY_TYPE_LABELS[filterType] ?? filterType}
+              {MEMORY_TYPE_LABELS[filterType] ? tr(MEMORY_TYPE_LABELS[filterType]) : filterType}
               <X className="h-2.5 w-2.5" />
             </Badge>
           )}
@@ -3154,7 +3160,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             className="h-5 px-1.5 text-[9px] text-slate-300 hover:text-white"
             onClick={resetView}
           >
-            Resetta
+            {tr("Resetta")}
           </Button>
         </div>
       )}
@@ -3166,7 +3172,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
           onClick={() => setInsightsOpen(!insightsOpen)}
         >
           <Zap className="h-3 w-3 text-orange-400" />
-          Insights
+          {tr("Insights")}
           {insightsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         </button>
 
@@ -3175,7 +3181,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             {/* Health */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Salute cervello</span>
+                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">{tr("Salute cervello")}</span>
                 <span className={cn(
                   "text-[11px] font-bold",
                   insights.healthPct >= 70 ? "text-emerald-400" : insights.healthPct >= 40 ? "text-amber-400" : "text-rose-400",
@@ -3192,15 +3198,13 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                   style={{ width: `${insights.healthPct}%` }}
                 />
               </div>
-              <p className="text-[9px] text-slate-300 mt-0.5">
-                {insights.healthPct}% delle memorie usate almeno 1 volta
-              </p>
+              <p className="text-[9px] text-slate-300 mt-0.5">{tr("{healthPct}% delle memorie usate almeno 1 volta", { healthPct: String(insights.healthPct ?? "") })}</p>
             </div>
 
             {/* Memory quality */}
             <div className="pt-2 border-t border-slate-700/80">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Affidabilita memoria</span>
+                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">{tr("Affidabilita memoria")}</span>
                 <span className={cn(
                   "text-[11px] font-bold tabular-nums",
                   memoryQuality.reliabilityPct >= 75 ? "text-emerald-400" : memoryQuality.reliabilityPct >= 45 ? "text-amber-400" : "text-rose-400",
@@ -3210,10 +3214,10 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {[
-                  { label: "bassa fiducia", value: memoryQuality.lowConfidenceCount },
-                  { label: "vecchie", value: memoryQuality.staleCount },
-                  { label: "mai usate", value: memoryQuality.unusedCount },
-                  { label: "duplicate", value: memoryQuality.duplicateClusters.length },
+                  { label: tr("bassa fiducia"), value: memoryQuality.lowConfidenceCount },
+                  { label: tr("vecchie"), value: memoryQuality.staleCount },
+                  { label: tr("mai usate"), value: memoryQuality.unusedCount },
+                  { label: tr("duplicate"), value: memoryQuality.duplicateClusters.length },
                 ].map((item) => (
                   <div key={item.label} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1">
                     <div className="text-[12px] font-bold text-slate-100 tabular-nums">{item.value}</div>
@@ -3222,8 +3226,8 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                 ))}
               </div>
               <p className="mt-1.5 text-[9px] text-slate-300">
-                Fonti affidabili: <span className="text-emerald-300 font-semibold">{memoryQuality.trustedSourcePct}%</span>
-                {memoryQuality.demoCount > 0 && <> · demo preview: {memoryQuality.demoCount}</>}
+                {tr("Fonti affidabili:")} <span className="text-emerald-300 font-semibold">{memoryQuality.trustedSourcePct}%</span>
+                {memoryQuality.demoCount > 0 && <>{" "}{tr("· demo preview: {demoCount}", { demoCount: String(memoryQuality.demoCount ?? "") })}</>}
               </p>
               {!isAdmin && (
                 <button
@@ -3235,7 +3239,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                   })}
                 >
                   <Settings2 className="h-3 w-3" />
-                  Gestisci memorie nel tab Memoria
+                  {tr("Gestisci memorie nel tab Memoria")}
                 </button>
               )}
             </div>
@@ -3245,7 +3249,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               <div className="pt-2 border-t border-slate-700/80">
                 <div className="flex items-center gap-1 mb-1.5">
                   <Network className="h-3 w-3 text-cyan-300" />
-                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Community intelligence</span>
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">{tr("Community intelligence")}</span>
                 </div>
                 <div className="space-y-1.5">
                   {knowledgeCommunities.slice(0, 4).map((community) => (
@@ -3263,7 +3267,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                         </span>
                       </div>
                       <p className="mt-0.5 text-[9px] text-slate-400">
-                        {community.activePersonaCount}/{community.personaCount} personas · {community.memoryCount} memorie · {community.crossLinks} ponti · {community.riskLabel}
+                        {tr("{attive}/{totale} personas · {memorie} memorie · {ponti} ponti ·", { attive: community.activePersonaCount, totale: community.personaCount, memorie: community.memoryCount, ponti: community.crossLinks })} {tr(community.riskLabel)}
                       </p>
                     </div>
                   ))}
@@ -3275,7 +3279,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             <div className="pt-2 border-t border-slate-700/80">
               <div className="flex items-center gap-1 mb-1">
                 <Zap className="h-3 w-3 text-orange-400" />
-                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Prossime azioni</span>
+                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">{tr("Prossime azioni")}</span>
               </div>
               <div className="space-y-1">
                 {memoryQuality.qualityActionQueue.map((action) => (
@@ -3291,7 +3295,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Sparkles className="h-3 w-3 text-amber-400" />
-                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Nodi centrali</span>
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">{tr("Nodi centrali")}</span>
                 </div>
                 {insights.godNodes.map((n) => (
                   <button
@@ -3316,7 +3320,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Link2 className="h-3 w-3 text-orange-400" />
-                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Ponti tra personas</span>
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">{tr("Ponti tra personas")}</span>
                 </div>
                 {insights.bridges.map((b) => (
                   <button
@@ -3337,7 +3341,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Ghost className="h-3 w-3 text-slate-300" />
-                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Orfane (isolate)</span>
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">{tr("Orfane (isolate)")}</span>
                 </div>
                 {insights.orphans.slice(0, 3).map((o) => (
                   <button
@@ -3350,7 +3354,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                   </button>
                 ))}
                 {insights.orphans.length > 3 && (
-                  <p className="text-[9px] text-slate-300 px-1.5">+{insights.orphans.length - 3} altre</p>
+                  <p className="text-[9px] text-slate-300 px-1.5">{tr("+{n} altre", { n: insights.orphans.length - 3 })}</p>
                 )}
               </div>
             )}
@@ -3360,7 +3364,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               <div className="pt-1 border-t border-slate-600">
                 <p className="text-[9px] text-slate-300">
                   <span className="text-orange-400 font-semibold">{insights.totalCrossLinks}</span> connessioni cross-persona trovate
-                  {" — "}il cervello pensa trasversalmente
+                  {" — "}{tr("il cervello pensa trasversalmente")}
                 </p>
               </div>
             )}
@@ -3373,18 +3377,18 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
         <div className="bg-slate-900/95 backdrop-blur-sm rounded-lg p-2 border border-slate-600 shadow-lg">
           <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1.5 font-semibold">
             {colorMode === "heat"
-              ? "Attività (dormiente → attiva)"
+              ? tr("Attività (dormiente → attiva)")
               : colorMode === "type"
-              ? "Tipo memoria"
-              : "Cluster (per persona)"}
+              ? tr("Tipo memoria")
+              : tr("Cluster (per persona)")}
           </p>
           {colorMode === "heat" ? (
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-slate-300">Dormiente</span>
+              <span className="text-[9px] text-slate-300">{tr("Dormiente")}</span>
               <div className="flex-1 h-2 rounded-full" style={{
                 background: "linear-gradient(to right, #3b82f6, #06b6d4, #fbbf24, #f97316, #ef4444)",
               }} />
-              <span className="text-[9px] text-slate-300">Attiva</span>
+              <span className="text-[9px] text-slate-300">{tr("Attiva")}</span>
             </div>
           ) : colorMode === "type" ? (
             <div className="flex flex-wrap gap-1.5">
@@ -3401,7 +3405,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     className="h-2 w-2 rounded-full shrink-0"
                     style={{ backgroundColor: MEMORY_TYPE_COLORS[key] }}
                   />
-                  <span className="text-slate-300">{label}</span>
+                  <span className="text-slate-300">{tr(label)}</span>
                 </button>
               ))}
             </div>
@@ -3424,7 +3428,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
           {/* Cross-persona edge legend */}
           <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-600">
             <span className="h-[2px] w-4 bg-orange-400/60" />
-            <span className="text-[9px] text-slate-300">Connessione cross-persona</span>
+            <span className="text-[9px] text-slate-300">{tr("Connessione cross-persona")}</span>
           </div>
         </div>
       </div>
@@ -3439,7 +3443,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             maxWidth: 220,
           }}
         >
-          <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1 font-semibold">Keyword condivise</p>
+          <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1 font-semibold">{tr("Keyword condivise")}</p>
           <div className="flex flex-wrap gap-1">
             {(edgeKeywords.get(hoveredEdge.id) ?? []).map((kw) => (
               <Badge key={kw} className="text-[9px] h-4 px-1.5 bg-orange-100 text-orange-700 border-orange-300">
@@ -3447,7 +3451,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               </Badge>
             ))}
             {(edgeKeywords.get(hoveredEdge.id) ?? []).length === 0 && (
-              <span className="text-[10px] text-slate-300">overlap semantico</span>
+              <span className="text-[10px] text-slate-300">{tr("overlap semantico")}</span>
             )}
           </div>
         </div>
@@ -3466,24 +3470,24 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-white leading-tight">Silvio</p>
-                      <p className="text-[9px] uppercase tracking-wider text-orange-300 font-semibold">orchestratore AI</p>
+                      <p className="text-[9px] uppercase tracking-wider text-orange-300 font-semibold">{tr("orchestratore AI")}</p>
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-200 leading-relaxed">
-                    Conosce la memoria aziendale, collega le personas e guida le risposte operative del sistema.
+                    {tr("Conosce la memoria aziendale, collega le personas e guida le risposte operative del sistema.")}
                   </p>
                   <div className="grid grid-cols-3 gap-1.5 mt-2">
                     <div className="rounded-md bg-orange-500/15 border border-orange-500/30 px-2 py-1">
                       <p className="text-sm font-bold text-orange-200 tabular-nums">{stats.personaCount}</p>
-                      <p className="text-[8px] uppercase tracking-wider text-orange-300">personas</p>
+                      <p className="text-[8px] uppercase tracking-wider text-orange-300">{tr("personas")}</p>
                     </div>
                     <div className="rounded-md bg-slate-800/80 border border-slate-600 px-2 py-1">
                       <p className="text-sm font-bold text-slate-100 tabular-nums">{totalMemories}</p>
-                      <p className="text-[8px] uppercase tracking-wider text-slate-300">memorie</p>
+                      <p className="text-[8px] uppercase tracking-wider text-slate-300">{tr("memorie")}</p>
                     </div>
                     <div className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2 py-1">
                       <p className="text-sm font-bold text-emerald-200 tabular-nums">{totalCrossPersonaLinks}</p>
-                      <p className="text-[8px] uppercase tracking-wider text-emerald-300">ponti</p>
+                      <p className="text-[8px] uppercase tracking-wider text-emerald-300">{tr("ponti")}</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
@@ -3497,7 +3501,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                       }}
                     >
                       <Brain className="h-3 w-3" />
-                      Nucleo
+                      {tr("Nucleo")}
                     </Button>
                     <Button
                       size="sm"
@@ -3509,7 +3513,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                       }}
                     >
                       <Sparkles className="h-3 w-3" />
-                      Vedi tutto
+                      {tr("Vedi tutto")}
                     </Button>
                   </div>
                 </>
@@ -3527,7 +3531,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-300">
-                    Categoria: {selectedNode.data.persona.category}
+                    {tr("Categoria:")} {selectedNode.data.persona.category}
                   </p>
 
                   {/* Mini-stats: donut + sparkline + top memorie */}
@@ -3559,11 +3563,11 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     if (xpLinks.length === 0) return null;
                     return (
                       <div className="mt-2 pt-2 border-t border-slate-600">
-                        <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1">Connessa con</p>
+                        <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1">{tr("Connessa con")}</p>
                         {xpLinks.map((l) => (
                           <div key={l.name} className="flex items-center justify-between text-[10px]">
                             <span className="text-orange-700 font-medium">{l.name}</span>
-                            <span className="text-slate-300">{l.count} link</span>
+                            <span className="text-slate-300">{tr("{count} link", { count: String(l.count ?? "") })}</span>
                           </div>
                         ))}
                       </div>
@@ -3586,7 +3590,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                         }}
                       >
                         <Sparkles className="h-3 w-3" />
-                        {expandedPersonas.has(selectedNode.data.persona.persona_key) ? "Comprimi" : "Espandi"}
+                        {expandedPersonas.has(selectedNode.data.persona.persona_key) ? tr("Comprimi") : tr("Espandi")}
                       </Button>
                     )}
                     <Button
@@ -3598,7 +3602,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                       }}
                     >
                       <Maximize2 className="h-3 w-3" />
-                      Scheda completa
+                      {tr("Scheda completa")}
                     </Button>
                     <Button
                       size="sm"
@@ -3610,7 +3614,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                       }}
                     >
                       <Filter className="h-3 w-3" />
-                      Filtra
+                      {tr("Filtra")}
                     </Button>
                     <Button
                       size="sm"
@@ -3626,7 +3630,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                       }}
                     >
                       <Maximize2 className="h-3 w-3" />
-                      Zoom
+                      {tr("Zoom")}
                     </Button>
                   </div>
                 </>
@@ -3641,7 +3645,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                         borderColor: `${MEMORY_TYPE_COLORS[selectedNode.data.memory.memory_type]}55`,
                       }}
                     >
-                      {selectedNode.data.typeLabel}
+                      {selectedNode.data.typeLabel ? tr(selectedNode.data.typeLabel) : null}
                     </Badge>
                     <span className="text-[10px] text-slate-300">
                       {selectedNode.data.personaName}
@@ -3651,9 +3655,9 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     {selectedNode.data.memory.content}
                   </p>
                   <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-300">
-                    <span>{selectedNode.data.memory.hits_count ?? 0} hits</span>
-                    <span>Conf. {((selectedNode.data.memory.confidence ?? 1) * 100).toFixed(0)}%</span>
-                    <span>{selectedNode.data.memory.source ?? "auto"}</span>
+                    <span>{selectedNode.data.memory.hits_count ?? 0} {tr("hits")}</span>
+                    <span>{tr("Conf. {valore}%", { valore: ((selectedNode.data.memory.confidence ?? 1) * 100).toFixed(0) })}</span>
+                    <span>{selectedNode.data.memory.source ?? tr("auto")}</span>
                   </div>
                   {/* Connections count */}
                   {(() => {
@@ -3662,7 +3666,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     if (crossCount === 0) return null;
                     return (
                       <p className="text-[9px] text-orange-400 mt-1.5">
-                        Collegata a {crossCount} altr{crossCount === 1 ? "a memoria" : "e memorie"}
+                        {tr(crossCount === 1 ? "Collegata a {n} altra memoria" : "Collegata a {n} altre memorie", { n: crossCount })}
                       </p>
                     );
                   })()}

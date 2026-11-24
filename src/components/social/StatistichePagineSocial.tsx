@@ -43,6 +43,7 @@ import {
   type RigaStatisticaPost,
   type StatoStatisticheAccount,
 } from "@/lib/social/statisticheSocial";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Tabelle nuove, non ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,6 +76,7 @@ interface Props {
 }
 
 export function StatistichePagineSocial({ companyId, connectedAccounts, onGoToSettings }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const [periodo, setPeriodo] = useState<PeriodoStatistiche>(30);
 
@@ -126,7 +128,7 @@ export function StatistichePagineSocial({ companyId, connectedAccounts, onGoToSe
   const aggiorna = useMutation({
     mutationFn: async () => {
       const integrationId = integrazioneQuery.data?.id;
-      if (!integrationId) throw new Error("Meta non è collegato: collega Facebook e Instagram dalle Integrazioni.");
+      if (!integrationId) throw new Error(t("Meta non è collegato: collega Facebook e Instagram dalle Integrazioni."));
       const { data, error } = await supabase.functions.invoke("meta-api-proxy", {
         body: { action: "sincronizza-statistiche-social", company_id: companyId, integration_id: integrationId, giorni: periodo },
       });
@@ -136,14 +138,14 @@ export function StatistichePagineSocial({ companyId, connectedAccounts, onGoToSe
     },
     onSuccess: (r) => {
       if (r?.permessi_mancanti) {
-        toast.warning("Statistiche aggiornate in parte", { description: "Per alcuni account Meta non concede il permesso: ricollega Meta." });
+        toast.warning(t("Statistiche aggiornate in parte"), { description: t("Per alcuni account Meta non concede il permesso: ricollega Meta.") });
       } else {
-        toast.success("Statistiche aggiornate");
+        toast.success(t("Statistiche aggiornate"));
       }
       qc.invalidateQueries({ queryKey: ["social-statistiche", companyId] });
       qc.invalidateQueries({ queryKey: ["social-manager", "accounts"] });
     },
-    onError: (e: Error) => toast.error("Aggiornamento non riuscito", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Aggiornamento non riuscito"), { description: e.message }),
   });
 
   const dati = datiQuery.data;
@@ -181,10 +183,8 @@ export function StatistichePagineSocial({ companyId, connectedAccounts, onGoToSe
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="mr-auto">
-          <h2 className="text-base font-bold text-slate-900">Statistiche di Facebook e Instagram</h2>
-          <p className="text-xs text-slate-500">
-            Dati di Meta, aggiornati ogni 4 ore · ultimo aggiornamento {etichettaUltimaSync(ultimaSync)}
-          </p>
+          <h2 className="text-base font-bold text-slate-900">{t("Statistiche di Facebook e Instagram")}</h2>
+          <p className="text-xs text-slate-500">{t("Dati di Meta, aggiornati ogni 4 ore · ultimo aggiornamento {quando}", { quando: etichettaUltimaSync(ultimaSync) })}</p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
           {PERIODI_STATISTICHE.map((p) => (
@@ -196,9 +196,7 @@ export function StatistichePagineSocial({ companyId, connectedAccounts, onGoToSe
                 "rounded-md px-2.5 py-1 text-xs font-semibold transition",
                 periodo === p ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100",
               )}
-            >
-              {p} giorni
-            </button>
+            >{t("{n} giorni", { n: String(p ?? "") })}</button>
           ))}
         </div>
         <Button
@@ -209,31 +207,29 @@ export function StatistichePagineSocial({ companyId, connectedAccounts, onGoToSe
           onClick={() => aggiorna.mutate()}
         >
           {aggiorna.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Aggiorna ora
+          {t("Aggiorna ora")}
         </Button>
       </div>
 
       {datiQuery.isLoading ? (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carico le statistiche…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico le statistiche…")}
         </div>
       ) : datiQuery.error ? (
         <Card>
-          <CardContent className="p-5 text-sm text-slate-600">
-            Non riesco a leggere le statistiche: {(datiQuery.error as Error).message}
-          </CardContent>
+          <CardContent className="p-5 text-sm text-slate-600">{t("Non riesco a leggere le statistiche: {errore}", { errore: (datiQuery.error as Error).message })}</CardContent>
         </Card>
       ) : account.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
             <Users className="h-8 w-8 text-slate-300" />
             <div>
-              <p className="font-semibold text-slate-800">Nessuna pagina Facebook o profilo Instagram collegato</p>
+              <p className="font-semibold text-slate-800">{t("Nessuna pagina Facebook o profilo Instagram collegato")}</p>
               <p className="mt-1 text-sm text-slate-500">
-                Collega Meta e scegli le pagine: le statistiche arrivano da sole, ogni 4 ore.
+                {t("Collega Meta e scegli le pagine: le statistiche arrivano da sole, ogni 4 ore.")}
               </p>
             </div>
-            <Button size="sm" onClick={onGoToSettings}>Collega Facebook e Instagram</Button>
+            <Button size="sm" onClick={onGoToSettings}>{t("Collega Facebook e Instagram")}</Button>
           </CardContent>
         </Card>
       ) : (
@@ -265,6 +261,7 @@ function SezioneAccount({
   periodo: PeriodoStatistiche;
   onGoToSettings: () => void;
 }) {
+  const t = useT();
   const { piattaforma, accountId, stato } = account;
   const stile = STILE_PIATTAFORMA[piattaforma];
 
@@ -283,36 +280,36 @@ function SezioneAccount({
   const crescita = r.crescitaFollower;
   const tessere = [
     {
-      etichetta: "Follower",
+      etichetta: t("Follower"),
       valore: r.follower,
-      nota: crescita === null ? "crescita non disponibile" : `${crescita > 0 ? "+" : ""}${formatNumero(crescita)} nel periodo`,
+      nota: crescita === null ? t("crescita non disponibile") : t("{n} nel periodo", { n: `${crescita > 0 ? "+" : ""}${formatNumero(crescita)}` }),
       notaColore: crescita === null ? "text-slate-400" : crescita >= 0 ? "text-emerald-600" : "text-red-600",
       icona: UserPlus,
     },
     {
-      etichetta: "Persone raggiunte",
+      etichetta: t("Persone raggiunte"),
       valore: r.copertura,
-      nota: variazioneTesto(r.variazioni.copertura, "somma dei giorni"),
+      nota: variazioneTesto(r.variazioni.copertura, t, t("somma dei giorni")),
       notaColore: coloreVariazione(r.variazioni.copertura),
       icona: Users,
     },
     {
-      etichetta: "Visualizzazioni",
+      etichetta: t("Visualizzazioni"),
       valore: r.visualizzazioni,
-      nota: variazioneTesto(r.variazioni.visualizzazioni),
+      nota: variazioneTesto(r.variazioni.visualizzazioni, t),
       notaColore: coloreVariazione(r.variazioni.visualizzazioni),
       icona: Eye,
     },
     {
-      etichetta: "Interazioni",
+      etichetta: t("Interazioni"),
       valore: r.interazioni,
-      nota: variazioneTesto(r.variazioni.interazioni),
+      nota: variazioneTesto(r.variazioni.interazioni, t),
       notaColore: coloreVariazione(r.variazioni.interazioni),
       icona: Heart,
     },
     piattaforma === "facebook"
-      ? { etichetta: "Visite alla pagina", valore: r.visiteProfilo, nota: "nel periodo", notaColore: "text-slate-400", icona: MousePointerClick }
-      : { etichetta: "Tocchi sui link", valore: r.clickLink, nota: "nel periodo", notaColore: "text-slate-400", icona: MousePointerClick },
+      ? { etichetta: t("Visite alla pagina"), valore: r.visiteProfilo, nota: t("nel periodo"), notaColore: "text-slate-400", icona: MousePointerClick }
+      : { etichetta: t("Tocchi sui link"), valore: r.clickLink, nota: t("nel periodo"), notaColore: "text-slate-400", icona: MousePointerClick },
   ];
 
   return (
@@ -326,9 +323,8 @@ function SezioneAccount({
             <p className="truncate text-sm font-bold text-slate-800">{account.nome}</p>
             <p className="text-[11px] text-slate-500">
               {NOME_PIATTAFORMA[piattaforma]}
-              {stato?.contenuti_totali != null ? ` · ${formatNumero(stato.contenuti_totali)} contenuti` : ""}
-              {" · aggiornato "}
-              {etichettaUltimaSync(stato?.ultima_sync_riuscita ?? null)}
+              {stato?.contenuti_totali != null ? ` · ${t("{n} contenuti", { n: formatNumero(stato.contenuti_totali) })}` : ""}
+              {` · ${t("aggiornato {quando}", { quando: etichettaUltimaSync(stato?.ultima_sync_riuscita ?? null) })}`}
             </p>
           </div>
         </div>
@@ -337,23 +333,23 @@ function SezioneAccount({
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
             <p className="mr-auto text-xs text-amber-900">
-              <strong>Ricollega Meta per vedere le statistiche.</strong>{" "}
-              {stato?.messaggio ?? "Meta non ci ha dato il permesso di leggere le statistiche di questo account."}
+              <strong>{t("Ricollega Meta per vedere le statistiche.")}</strong>{" "}
+              {stato?.messaggio ?? t("Meta non ci ha dato il permesso di leggere le statistiche di questo account.")}
             </p>
             <Button size="sm" variant="outline" className="h-7 border-amber-300 bg-white text-xs" onClick={onGoToSettings}>
-              Ricollega Meta
+              {t("Ricollega Meta")}
             </Button>
           </div>
         )}
         {esito === "errore" && (
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
             <AlertTriangle className="h-4 w-4 shrink-0 text-slate-500" />
-            Ultimo aggiornamento non riuscito{stato?.messaggio ? `: ${stato.messaggio}` : "."}
+            {t("Ultimo aggiornamento non riuscito")}{stato?.messaggio ? `: ${stato.messaggio}` : "."}
           </div>
         )}
         {esito === "mai" && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            In attesa della prima lettura da Meta: arriva entro 4 ore, oppure premi «Aggiorna ora».
+            {t("In attesa della prima lettura da Meta: arriva entro 4 ore, oppure premi «Aggiorna ora».")}
           </div>
         )}
 
@@ -363,7 +359,7 @@ function SezioneAccount({
               <p className="flex items-center gap-1.5 text-[11px] text-slate-500">
                 <Icona className="h-3.5 w-3.5" /> {etichetta}
               </p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900" title={valore === null ? "Dato non disponibile da Meta" : undefined}>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900" title={valore === null ? t("Dato non disponibile da Meta") : undefined}>
                 {formatNumero(valore)}
               </p>
               <p className={cn("text-[10px]", notaColore)}>{nota}</p>
@@ -373,7 +369,7 @@ function SezioneAccount({
 
         <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
           <div>
-            <p className="mb-1 text-xs font-semibold text-slate-600">Visualizzazioni e persone raggiunte per giorno</p>
+            <p className="mb-1 text-xs font-semibold text-slate-600">{t("Visualizzazioni e persone raggiunte per giorno")}</p>
             {r.giorniConDati > 0 ? (
               <div className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
@@ -383,7 +379,7 @@ function SezioneAccount({
                     <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                     <Tooltip
                       labelFormatter={(g) => giornoBreve(String(g))}
-                      formatter={(v, nome) => [formatNumero(typeof v === "number" ? v : null), nome === "visualizzazioni" ? "Visualizzazioni" : "Persone raggiunte"]}
+                      formatter={(v, nome) => [formatNumero(typeof v === "number" ? v : null), nome === "visualizzazioni" ? t("Visualizzazioni") : t("Persone raggiunte")]}
                     />
                     <Bar dataKey="visualizzazioni" fill={stile.barra} radius={[3, 3, 0, 0]} />
                     <Bar dataKey="copertura" fill={stile.barraChiara} radius={[3, 3, 0, 0]} />
@@ -392,21 +388,19 @@ function SezioneAccount({
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
-                Nessun dato giornaliero per questo periodo.
+                {t("Nessun dato giornaliero per questo periodo.")}
               </p>
             )}
             {!!stato?.metriche_non_disponibili?.length && (
-              <p className="mt-1 text-[10px] text-slate-400">
-                Meta non fornisce per questo account: {stato.metriche_non_disponibili.join(", ")}.
-              </p>
+              <p className="mt-1 text-[10px] text-slate-400">{t("Meta non fornisce per questo account: {metriche}.", { metriche: stato.metriche_non_disponibili.join(", ") })}</p>
             )}
           </div>
 
           <div>
-            <p className="mb-1 text-xs font-semibold text-slate-600">Migliori post del periodo</p>
+            <p className="mb-1 text-xs font-semibold text-slate-600">{t("Migliori post del periodo")}</p>
             {migliori.length === 0 ? (
               <p className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
-                Nessun post pubblicato in questo periodo.
+                {t("Nessun post pubblicato in questo periodo.")}
               </p>
             ) : (
               <ul className="space-y-1.5">
@@ -418,19 +412,19 @@ function SezioneAccount({
                       <div className="h-10 w-10 shrink-0 rounded bg-slate-100" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-slate-700">{p.testo || "(senza testo)"}</p>
+                      <p className="truncate text-xs font-medium text-slate-700">{p.testo || t("(senza testo)")}</p>
                       <p className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-500">
-                        <span>{p.pubblicato_il ? new Date(p.pubblicato_il).toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : ""}</span>
+                        <span>{p.pubblicato_il ? new Date(p.pubblicato_il).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" }) : ""}</span>
                         {p.tipo && <span>{p.tipo}</span>}
-                        <span className="flex items-center gap-0.5" title="Persone raggiunte"><Users className="h-3 w-3" />{formatNumero(p.copertura)}</span>
-                        <span className="flex items-center gap-0.5" title="Reazioni / mi piace"><Heart className="h-3 w-3" />{formatNumero(p.reazioni)}</span>
-                        <span className="flex items-center gap-0.5" title="Commenti"><MessageSquare className="h-3 w-3" />{formatNumero(p.commenti)}</span>
-                        <span className="flex items-center gap-0.5" title="Condivisioni"><Share2 className="h-3 w-3" />{formatNumero(p.condivisioni)}</span>
-                        <span className="font-semibold text-slate-700" title="Interazioni totali">{formatNumero(interazioniPost(p))} interazioni</span>
+                        <span className="flex items-center gap-0.5" title={t("Persone raggiunte")}><Users className="h-3 w-3" />{formatNumero(p.copertura)}</span>
+                        <span className="flex items-center gap-0.5" title={t("Reazioni / mi piace")}><Heart className="h-3 w-3" />{formatNumero(p.reazioni)}</span>
+                        <span className="flex items-center gap-0.5" title={t("Commenti")}><MessageSquare className="h-3 w-3" />{formatNumero(p.commenti)}</span>
+                        <span className="flex items-center gap-0.5" title={t("Condivisioni")}><Share2 className="h-3 w-3" />{formatNumero(p.condivisioni)}</span>
+                        <span className="font-semibold text-slate-700" title={t("Interazioni totali")}>{t("{n} interazioni", { n: formatNumero(interazioniPost(p)) })}</span>
                       </p>
                     </div>
                     {p.permalink && (
-                      <a href={p.permalink} target="_blank" rel="noopener noreferrer" className="shrink-0 text-slate-400 hover:text-slate-700" title="Apri il post">
+                      <a href={p.permalink} target="_blank" rel="noopener noreferrer" className="shrink-0 text-slate-400 hover:text-slate-700" title={t("Apri il post")}>
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     )}
@@ -450,9 +444,9 @@ function giornoBreve(g: string): string {
   return d && m ? `${d}/${m}` : g;
 }
 
-function variazioneTesto(v: number | null, altrimenti = "nel periodo"): string {
+function variazioneTesto(v: number | null, t: ReturnType<typeof useT>, altrimenti?: string): string {
   const f = formatVariazione(v);
-  return f ? `${f} sul periodo prima` : altrimenti;
+  return f ? t("{variazione} sul periodo prima", { variazione: f }) : altrimenti ?? t("nel periodo");
 }
 
 function coloreVariazione(v: number | null): string {

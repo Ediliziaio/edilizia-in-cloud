@@ -27,6 +27,7 @@ import {
   type LocalLabBootstrap,
   type LocalLabSnapshot,
 } from "@/lib/localAssistanceClient";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const selectClass =
   "mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm";
 const ref = (id: string) => id.slice(0, 8).toUpperCase();
@@ -94,6 +95,7 @@ function assistanceSteps(snapshot: LocalLabSnapshot | null): PipelineStep[] {
   ];
 }
 export default function LocalAssistanceLabPage() {
+  const t = useT();
   const agentId = callRecordId(new URLSearchParams(window.location.search).get("agente"));
   const [client] = useState(createLocalAssistanceClient);
   const [bootstrap, setBootstrap] = useState<LocalLabBootstrap | null>(null);
@@ -279,23 +281,23 @@ export default function LocalAssistanceLabPage() {
       <div className="eic-motion-enter flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-emerald-700">
-            <FlaskConical className="h-4 w-4" /> Collaudo locale
+            <FlaskConical className="h-4 w-4" /> {t("Collaudo locale")}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Prova l’assistenza dall’inizio alla fine
+            {t("Prova l’assistenza dall’inizio alla fine")}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Un cliente di test, un ticket e un appuntamento collegati davvero.
+            {t("Un cliente di test, un ticket e un appuntamento collegati davvero.")}
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
           <a href={agentId ? `/azienda/agenti-ai/${agentId}?tab=simulazioni` : "/azienda/centralino?tab=telefono"}>
-            {agentId ? "Torna alle prove dell’agente" : "Torna al centralino"}
+            {agentId ? t("Torna alle prove dell’agente") : t("Torna al centralino")}
           </a>
         </Button>
       </div>
       <AgentPipeline
-        title="Percorso dell’assistenza"
+        title={t("Percorso dell’assistenza")}
         steps={assistanceSteps(snapshot)}
       />
       <div
@@ -306,14 +308,11 @@ export default function LocalAssistanceLabPage() {
         <div>
           <p className="font-medium">
             {bootstrap
-              ? "Backend locale attivo · dati di test"
-              : "Collegamento al backend locale…"}
+              ? t("Backend locale attivo · dati di test")
+              : t("Collegamento al backend locale…")}
           </p>
           <p className="mt-1 text-xs leading-5">
-            Questa prova salva cliente, ticket e appuntamento solo nel database
-            del computer. Attivando la voce, audio e testi delle risposte
-            vengono elaborati da Fish. La conversazione segue una procedura
-            guidata; non effettua telefonate o sincronizzazioni esterne.
+            {t("Questa prova salva cliente, ticket e appuntamento solo nel database del computer. Attivando la voce, audio e testi delle risposte vengono elaborati da Fish. La conversazione segue una procedura guidata; non effettua telefonate o sincronizzazioni esterne.")}
           </p>
         </div>
       </div>
@@ -331,7 +330,7 @@ export default function LocalAssistanceLabPage() {
               disabled={busy}
               onClick={() => send(retryTurn.text, retryTurn)}
             >
-              Riprova lo stesso invio
+              {t("Riprova lo stesso invio")}
             </Button>
           )}
         </div>
@@ -339,7 +338,7 @@ export default function LocalAssistanceLabPage() {
       {loading ? (
         <p className="flex items-center gap-2 p-5 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Preparo il collaudo…
+          {t("Preparo il collaudo…")}
         </p>
       ) : (
         bootstrap && (
@@ -347,9 +346,9 @@ export default function LocalAssistanceLabPage() {
             <div className="grid items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
               <aside className="space-y-4">
                 <section className="eic-motion-panel space-y-4 rounded-2xl border bg-card p-5">
-                  <h2 className="font-semibold">Imposta la prova</h2>
+                  <h2 className="font-semibold">{t("Imposta la prova")}</h2>
                   <div>
-                    <Label htmlFor="local-customer">Cliente di test</Label>
+                    <Label htmlFor="local-customer">{t("Cliente di test")}</Label>
                     <select
                       id="local-customer"
                       className={selectClass}
@@ -368,7 +367,7 @@ export default function LocalAssistanceLabPage() {
                     </select>
                   </div>
                   <div>
-                    <Label htmlFor="local-scenario">Caso da provare</Label>
+                    <Label htmlFor="local-scenario">{t("Caso da provare")}</Label>
                     <select
                       id="local-scenario"
                       className={selectClass}
@@ -387,7 +386,7 @@ export default function LocalAssistanceLabPage() {
                     </select>
                   </div>
                   <div>
-                    <Label htmlFor="local-calendar">Agenda di test</Label>
+                    <Label htmlFor="local-calendar">{t("Agenda di test")}</Label>
                     <select
                       id="local-calendar"
                       className={selectClass}
@@ -399,9 +398,7 @@ export default function LocalAssistanceLabPage() {
                       }}
                     >
                       {bootstrap.calendars.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} · {c.duration_minutes} min
-                        </option>
+                        <option key={c.id} value={c.id}>{t("{name} · {duration_minutes} min", { name: String(c.name ?? ""), duration_minutes: String(c.duration_minutes ?? "") })}</option>
                       ))}
                     </select>
                   </div>
@@ -412,7 +409,7 @@ export default function LocalAssistanceLabPage() {
                       onClick={newTrial}
                       disabled={busy}
                     >
-                      Nuovo collaudo
+                      {t("Nuovo collaudo")}
                     </Button>
                   ) : (
                     <Button
@@ -425,14 +422,14 @@ export default function LocalAssistanceLabPage() {
                       ) : (
                         <FlaskConical className="mr-2 h-4 w-4" />
                       )}
-                      Avvia collaudo
+                      {t("Avvia collaudo")}
                     </Button>
                   )}
                 </section>
                 {!!bootstrap.sessions.length && (
                   <section className="rounded-2xl border bg-card p-5">
                     <Label htmlFor="local-resume">
-                      Riapri una prova salvata
+                      {t("Riapri una prova salvata")}
                     </Label>
                     <select
                       id="local-resume"
@@ -441,10 +438,10 @@ export default function LocalAssistanceLabPage() {
                       disabled={busy}
                       onChange={(e) => void reopen(e.target.value)}
                     >
-                      <option value="">Scegli una prova</option>
+                      <option value="">{t("Scegli una prova")}</option>
                       {bootstrap.sessions.map((saved) => (
                         <option key={saved.id} value={saved.id}>
-                          {new Intl.DateTimeFormat("it-IT", {
+                          {new Intl.DateTimeFormat(intlCampo(), {
                             day: "2-digit",
                             month: "short",
                             hour: "2-digit",
@@ -460,28 +457,27 @@ export default function LocalAssistanceLabPage() {
                   <section className="rounded-2xl border bg-muted/20 p-5">
                     <h2 className="flex items-center gap-2 text-sm font-semibold">
                       <UserRound className="h-4 w-4" />
-                      Dati da dichiarare
+                      {t("Dati da dichiarare")}
                     </h2>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      Usa questi dati quando interpreti il cliente. Puoi anche
-                      sbagliarli per verificare il blocco.
+                      {t("Usa questi dati quando interpreti il cliente. Puoi anche sbagliarli per verificare il blocco.")}
                     </p>
                     <dl className="mt-4 space-y-3 text-sm">
                       <div>
                         <dt className="text-xs text-muted-foreground">
-                          Nome e cognome
+                          {t("Nome e cognome")}
                         </dt>
                         <dd className="mt-1 font-medium">{fixture.name}</dd>
                       </div>
                       <div>
                         <dt className="text-xs text-muted-foreground">
-                          Indirizzo
+                          {t("Indirizzo")}
                         </dt>
                         <dd className="mt-1">{fixture.address}</dd>
                       </div>
                       <div>
                         <dt className="text-xs text-muted-foreground">
-                          Numero della prova
+                          {t("Numero della prova")}
                         </dt>
                         <dd className="mt-1 font-mono text-xs">
                           {fixture.phone}
@@ -493,7 +489,7 @@ export default function LocalAssistanceLabPage() {
               </aside>
               <section
                 className="overflow-hidden rounded-2xl border bg-card shadow-sm"
-                aria-label="Conversazione di collaudo"
+                aria-label={t("Conversazione di collaudo")}
               >
                 <div className="flex items-center justify-between gap-3 border-b px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -502,11 +498,10 @@ export default function LocalAssistanceLabPage() {
                     </span>
                     <div>
                       <h2 className="font-semibold">
-                        Parla con l’assistente di test
+                        {t("Parla con l’assistente di test")}
                       </h2>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Scrivi o scegli una risposta. Ogni azione viene
-                        verificata prima del salvataggio.
+                        {t("Scrivi o scegli una risposta. Ogni azione viene verificata prima del salvataggio.")}
                       </p>
                     </div>
                   </div>
@@ -515,10 +510,10 @@ export default function LocalAssistanceLabPage() {
                       size="sm"
                       variant="ghost"
                       onClick={speak}
-                      title="Legge la risposta con una voce locale del dispositivo, senza Fish"
+                      title={t("Legge la risposta con una voce locale del dispositivo, senza Fish")}
                     >
                       <Volume2 className="mr-2 h-4 w-4" />
-                      Ascolta
+                      {t("Ascolta")}
                     </Button>
                   )}
                 </div>
@@ -539,11 +534,9 @@ export default function LocalAssistanceLabPage() {
                   {!snapshot ? (
                     <div className="p-8 text-center">
                       <Bot className="mx-auto mb-3 h-8 w-8 text-blue-400" />
-                      <p className="text-sm font-medium">Pronto quando vuoi</p>
+                      <p className="text-sm font-medium">{t("Pronto quando vuoi")}</p>
                       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                        Avvia il collaudo e descrivi il problema. L’assistente
-                        verifica il cliente e chiede due conferme distinte, per
-                        ticket e appuntamento.
+                        {t("Avvia il collaudo e descrivi il problema. L’assistente verifica il cliente e chiede due conferme distinte, per ticket e appuntamento.")}
                       </p>
                     </div>
                   ) : (
@@ -559,8 +552,8 @@ export default function LocalAssistanceLabPage() {
                             className={`mb-1 text-[11px] font-medium ${m.role === "user" ? "text-blue-100" : "text-muted-foreground"}`}
                           >
                             {m.role === "user"
-                              ? "Tu · cliente di test"
-                              : "Assistente virtuale"}
+                              ? t("Tu · cliente di test")
+                              : t("Assistente virtuale")}
                           </p>
                           {m.text}
                         </div>
@@ -573,7 +566,7 @@ export default function LocalAssistanceLabPage() {
                   <div className="space-y-3 border-t p-4">
                     <div
                       className="flex flex-wrap gap-2"
-                      aria-label="Risposte rapide"
+                      aria-label={t("Risposte rapide")}
                     >
                       {snapshot.session.suggestions.map((reply) => (
                         <Button
@@ -601,11 +594,11 @@ export default function LocalAssistanceLabPage() {
                     >
                       <Input
                         ref={inputRef}
-                        aria-label="La tua risposta"
+                        aria-label={t("La tua risposta")}
                         placeholder={
                           snapshot.session.phase === "day"
-                            ? "Domani oppure gg/mm/aaaa"
-                            : "Scrivi la tua risposta…"
+                            ? t("Domani oppure gg/mm/aaaa")
+                            : t("Scrivi la tua risposta…")
                         }
                         type="text"
                         value={text}
@@ -616,7 +609,7 @@ export default function LocalAssistanceLabPage() {
                       <Button
                         type="submit"
                         disabled={busy || !text.trim() || !!retryTurn}
-                        aria-label="Invia risposta"
+                        aria-label={t("Invia risposta")}
                       >
                         {busy ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -631,8 +624,8 @@ export default function LocalAssistanceLabPage() {
                   <div className="eic-motion-enter flex items-center gap-2 border-t bg-emerald-50/50 p-4 text-sm">
                     <CheckCircle2 className="h-4 w-4 text-emerald-700" />
                     {snapshot?.session.phase === "done"
-                      ? "Percorso completato. Controlla i record salvati qui sotto."
-                      : "Richiesta lasciata all’ufficio. Le azioni non confermate non sono state eseguite."}
+                      ? t("Percorso completato. Controlla i record salvati qui sotto.")
+                      : t("Richiesta lasciata all’ufficio. Le azioni non confermate non sono state eseguite.")}
                   </div>
                 )}
               </section>
@@ -642,7 +635,7 @@ export default function LocalAssistanceLabPage() {
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                   <div
                     className="flex flex-wrap gap-2"
-                    aria-label="Dati del collaudo"
+                    aria-label={t("Dati del collaudo")}
                   >
                     {[
                       ["risultati", "Record salvati"],
@@ -666,7 +659,7 @@ export default function LocalAssistanceLabPage() {
                     onClick={refresh}
                     disabled={busy}
                   >
-                    Rileggi dal database
+                    {t("Rileggi dal database")}
                   </Button>
                 </div>
                 {view === "attivita" ? (
@@ -679,7 +672,7 @@ export default function LocalAssistanceLabPage() {
                 ) : view === "conversazione" ? (
                   <div>
                     <h2 className="font-semibold">
-                      Conversazione collegata alla segnalazione
+                      {t("Conversazione collegata alla segnalazione")}
                     </h2>
                     {snapshot.ticket ? (
                       <div className="mt-4 space-y-2">
@@ -689,7 +682,7 @@ export default function LocalAssistanceLabPage() {
                             className="rounded-lg bg-muted/30 p-3 text-sm leading-6"
                           >
                             <b>
-                              {m.role === "user" ? "Cliente" : "Assistente"}:
+                              {m.role === "user" ? t("Cliente") : t("Assistente")}:
                             </b>{" "}
                             {m.text}
                           </p>
@@ -697,20 +690,19 @@ export default function LocalAssistanceLabPage() {
                       </div>
                     ) : (
                       <p className="mt-3 text-sm text-muted-foreground">
-                        Comparirà qui dopo la creazione o l’aggiornamento del
-                        ticket.
+                        {t("Comparirà qui dopo la creazione o l’aggiornamento del ticket.")}
                       </p>
                     )}
                   </div>
                 ) : (
                   <div className="grid gap-4 md:grid-cols-3">
                     <article className="rounded-xl border p-4">
-                      <h2 className="text-sm font-semibold">Cliente</h2>
+                      <h2 className="text-sm font-semibold">{t("Cliente")}</h2>
                       {snapshot.customer &&
                       snapshot.activity?.identity_verified_at ? (
                         <>
                           <Badge className="mt-3" variant="secondary">
-                            Identità verificata
+                            {t("Identità verificata")}
                           </Badge>
                           <p className="mt-3 text-sm font-medium">
                             {snapshot.customer.first_name}{" "}
@@ -720,60 +712,52 @@ export default function LocalAssistanceLabPage() {
                             {snapshot.customer.address},{" "}
                             {snapshot.customer.city}
                           </p>
-                          <p className="mt-3 font-mono text-[11px] text-muted-foreground">
-                            Scheda {ref(snapshot.customer.id)}
-                          </p>
+                          <p className="mt-3 font-mono text-[11px] text-muted-foreground">{t("Scheda {id}", { id: String(ref(snapshot.customer.id) ?? "") })}</p>
                         </>
                       ) : (
                         <p className="mt-3 text-sm text-muted-foreground">
-                          In attesa di nome e indirizzo coincidenti.
+                          {t("In attesa di nome e indirizzo coincidenti.")}
                         </p>
                       )}
                     </article>
                     <article className="rounded-xl border p-4">
-                      <h2 className="text-sm font-semibold">Ticket</h2>
+                      <h2 className="text-sm font-semibold">{t("Ticket")}</h2>
                       {snapshot.ticket ? (
                         <>
                           <Badge className="mt-3" variant="secondary">
                             {snapshot.activity?.ticket_action === "updated"
-                              ? "Aggiornato"
-                              : "Salvato"}{" "}
+                              ? t("Aggiornato")
+                              : t("Salvato")}{" "}
                             · {ref(snapshot.ticket.id)}
                           </Badge>
                           <p className="mt-3 text-sm">
                             {snapshot.ticket.descrizione}
                           </p>
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Indirizzo: {snapshot.ticket.indirizzo_intervento}
-                          </p>
+                          <p className="mt-2 text-xs text-muted-foreground">{t("Indirizzo: {indirizzo_intervento}", { indirizzo_intervento: String(snapshot.ticket.indirizzo_intervento ?? "") })}</p>
                           <p className="mt-2 text-xs text-emerald-800">
                             {snapshot.ticket.customer_id ===
                             snapshot.customer?.id
-                              ? "Collegato alla scheda cliente"
-                              : "Collegamento da verificare"}
+                              ? t("Collegato alla scheda cliente")
+                              : t("Collegamento da verificare")}
                           </p>
                           {snapshot.ticket.notes.map((note) => (
                             <p
                               key={note.id}
                               className="mt-2 rounded-lg bg-muted/30 p-2 text-xs"
-                            >
-                              Nota: {note.note}
-                            </p>
+                            >{t("Nota: {note}", { note: String(note.note ?? "") })}</p>
                           ))}
                         </>
                       ) : (
                         <p className="mt-3 text-sm text-muted-foreground">
-                          Nessun ticket salvato prima della conferma.
+                          {t("Nessun ticket salvato prima della conferma.")}
                         </p>
                       )}
                     </article>
                     <article className="rounded-xl border p-4">
-                      <h2 className="text-sm font-semibold">Appuntamento</h2>
+                      <h2 className="text-sm font-semibold">{t("Appuntamento")}</h2>
                       {snapshot.appointment ? (
                         <>
-                          <Badge className="mt-3" variant="secondary">
-                            Confermato · {ref(snapshot.appointment.id)}
-                          </Badge>
+                          <Badge className="mt-3" variant="secondary">{t("Confermato · {id}", { id: String(ref(snapshot.appointment.id) ?? "") })}</Badge>
                           <p className="mt-3 text-sm font-medium">
                             {snapshot.appointment.appointment_date
                               .split("-")
@@ -783,7 +767,7 @@ export default function LocalAssistanceLabPage() {
                             {snapshot.appointment.appointment_time.slice(0, 5)}
                           </p>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Operatore Locale · agenda di test
+                            {t("Operatore Locale · agenda di test")}
                           </p>
                           <p className="mt-3 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
                             {snapshot.appointment.description}
@@ -791,7 +775,7 @@ export default function LocalAssistanceLabPage() {
                         </>
                       ) : (
                         <p className="mt-3 text-sm text-muted-foreground">
-                          Nessuna prenotazione prima della seconda conferma.
+                          {t("Nessuna prenotazione prima della seconda conferma.")}
                         </p>
                       )}
                     </article>
@@ -799,11 +783,9 @@ export default function LocalAssistanceLabPage() {
                 )}
                 <details className="mt-5 border-t pt-4">
                   <summary className="cursor-pointer text-xs text-muted-foreground">
-                    Passaggi verificati e riferimenti della prova
+                    {t("Passaggi verificati e riferimenti della prova")}
                   </summary>
-                  <p className="mt-3 break-all font-mono text-[11px] text-muted-foreground">
-                    Sessione locale {snapshot.session.id}
-                  </p>
+                  <p className="mt-3 break-all font-mono text-[11px] text-muted-foreground">{t("Sessione locale {id}", { id: String(snapshot.session.id ?? "") })}</p>
                   <ul className="mt-2 space-y-1 text-xs">
                     {snapshot.steps.map((step) => (
                       <li key={step.ordine}>
@@ -816,10 +798,7 @@ export default function LocalAssistanceLabPage() {
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {snapshot.session.tools.length} strumenti eseguiti sul
-                    database locale.
-                  </p>
+                  <p className="mt-3 text-xs text-muted-foreground">{t("{n} strumenti eseguiti sul database locale.", { n: snapshot.session.tools.length })}</p>
                 </details>
               </section>
             )}

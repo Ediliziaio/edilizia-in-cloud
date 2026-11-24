@@ -4,6 +4,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ENDPOINTS = [
   {
@@ -125,37 +126,36 @@ const METHOD_COLORS: Record<string, string> = {
  * attivo, finché Florin non decide se toglierlo o riscriverlo sul collegamento che funziona.
  */
 export function ApiDocsTab() {
+  const t = useT();
   return (
     <div className="space-y-4">
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <p className="font-medium">Questa documentazione non è attiva.</p>
+          <p className="font-medium">{t("Questa documentazione non è attiva.")}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            L'indirizzo api.ediliziaincloud.com e i percorsi /api/v1/… descritti qui sotto non esistono ancora: se li
-            provi ricevi un errore. Oggi una chiave serve a una cosa sola, collegare Claude Code, Claude Desktop o un
-            programma al collegamento MCP: l'indirizzo e le istruzioni sono in{" "}
-            <Link to="/azienda/impostazioni/integrazioni" className="text-primary underline">Integrazioni → Claude</Link>.
+            {t("L'indirizzo api.ediliziaincloud.com e i percorsi /api/v1/… descritti qui sotto non esistono ancora: se li provi ricevi un errore. Oggi una chiave serve a una cosa sola, collegare Claude Code, Claude Desktop o un programma al collegamento MCP: l'indirizzo e le istruzioni sono in")}{" "}
+            <Link to="/azienda/impostazioni/integrazioni" className="text-primary underline">{t("Integrazioni → Claude")}</Link>.
           </p>
         </AlertDescription>
       </Alert>
 
       <details className="rounded-lg border bg-card px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium">Bozza dell'API REST (non ancora attiva)</summary>
+        <summary className="cursor-pointer text-sm font-medium">{t("Bozza dell'API REST (non ancora attiva)")}</summary>
         <div className="mt-4 space-y-6">
           {/* Auth Section */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">🔐 Autenticazione</CardTitle>
-              <CardDescription>Tutte le richieste devono includere la chiave API nell'header Authorization</CardDescription>
+              <CardTitle className="text-lg">{t("🔐 Autenticazione")}</CardTitle>
+              <CardDescription>{t("Tutte le richieste devono includere la chiave API nell'header Authorization")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="bg-muted rounded-lg p-4 font-mono text-sm">
-                <p className="text-muted-foreground">{"// Header richiesto"}</p>
+                <p className="text-muted-foreground">{t("// Header richiesto")}</p>
                 <p><span className="text-primary">Authorization</span>: Bearer <span className="text-amber-600">eic_your_api_key_here</span></p>
               </div>
               <div className="mt-4 bg-muted rounded-lg p-4 font-mono text-sm">
-                <p className="text-muted-foreground">{"// Esempio con cURL"}</p>
+                <p className="text-muted-foreground">{t("// Esempio con cURL")}</p>
                 <p>curl -X GET \</p>
                 <p className="pl-4">https://api.ediliziaincloud.com/api/v1/orders \</p>
                 <p className="pl-4">-H &quot;Authorization: Bearer eic_your_api_key&quot;</p>
@@ -166,25 +166,25 @@ export function ApiDocsTab() {
           {/* Rate Limiting */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">⚡ Rate Limiting</CardTitle>
+              <CardTitle className="text-lg">{t("⚡ Rate Limiting")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <p>Ogni chiave API ha limiti configurabili per minuto e per giorno.</p>
-              <p>Le risposte includono gli header:</p>
+              <p>{t("Ogni chiave API ha limiti configurabili per minuto e per giorno.")}</p>
+              <p>{t("Le risposte includono gli header:")}</p>
               <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                <li><code className="text-xs bg-muted px-1 rounded">X-RateLimit-Limit</code> — Limite massimo</li>
-                <li><code className="text-xs bg-muted px-1 rounded">X-RateLimit-Remaining</code> — Richieste rimanenti</li>
-                <li><code className="text-xs bg-muted px-1 rounded">X-RateLimit-Reset</code> — Reset timestamp</li>
+                <li><code className="text-xs bg-muted px-1 rounded">X-RateLimit-Limit</code> {t("— Limite massimo")}</li>
+                <li><code className="text-xs bg-muted px-1 rounded">X-RateLimit-Remaining</code> {t("— Richieste rimanenti")}</li>
+                <li><code className="text-xs bg-muted px-1 rounded">X-RateLimit-Reset</code> {t("— Reset timestamp")}</li>
               </ul>
-              <p className="mt-2">Superando il limite riceverai un <Badge variant="destructive">429 Too Many Requests</Badge>.</p>
+              <p className="mt-2">{t("Superando il limite riceverai un")} <Badge variant="destructive">429 Too Many Requests</Badge>.</p>
             </CardContent>
           </Card>
 
           {/* Endpoints */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">📡 Endpoints</CardTitle>
-              <CardDescription>Base URL: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">https://api.ediliziaincloud.com</code></CardDescription>
+              <CardTitle className="text-lg">{t("📡 Endpoints")}</CardTitle>
+              <CardDescription>{t("Base URL:")} <code className="text-xs bg-muted px-1.5 py-0.5 rounded">https://api.ediliziaincloud.com</code></CardDescription>
             </CardHeader>
             <CardContent>
               <Accordion type="multiple" className="w-full">
@@ -198,23 +198,23 @@ export function ApiDocsTab() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-3">
-                      <p className="text-sm text-muted-foreground">{ep.description}</p>
+                      <p className="text-sm text-muted-foreground">{t(ep.description)}</p>
                       {ep.params.length > 0 && (
                         <div>
-                          <p className="text-sm font-medium mb-2">Parametri</p>
+                          <p className="text-sm font-medium mb-2">{t("Parametri")}</p>
                           <div className="space-y-1">
                             {ep.params.map((p) => (
                               <div key={p.name} className="flex items-center gap-2 text-sm">
                                 <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{p.name}</code>
                                 <Badge variant="outline" className="text-xs">{p.type}</Badge>
-                                <span className="text-muted-foreground">{p.desc}</span>
+                                <span className="text-muted-foreground">{t(p.desc)}</span>
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-medium mb-2">Risposta</p>
+                        <p className="text-sm font-medium mb-2">{t("Risposta")}</p>
                         <pre className="bg-muted rounded-lg p-3 text-xs font-mono overflow-x-auto">{ep.response}</pre>
                       </div>
                     </AccordionContent>
@@ -227,17 +227,17 @@ export function ApiDocsTab() {
           {/* Error Codes */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">❌ Codici Errore</CardTitle>
+              <CardTitle className="text-lg">{t("❌ Codici Errore")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
                 {[
-                  { code: 400, desc: "Richiesta non valida — parametri mancanti o malformati" },
-                  { code: 401, desc: "Non autorizzato — chiave API mancante o non valida" },
-                  { code: 403, desc: "Accesso negato — scope insufficiente" },
-                  { code: 404, desc: "Risorsa non trovata" },
-                  { code: 429, desc: "Limite di richieste superato" },
-                  { code: 500, desc: "Errore interno del server" },
+                  { code: 400, desc: t("Richiesta non valida — parametri mancanti o malformati") },
+                  { code: 401, desc: t("Non autorizzato — chiave API mancante o non valida") },
+                  { code: 403, desc: t("Accesso negato — scope insufficiente") },
+                  { code: 404, desc: t("Risorsa non trovata") },
+                  { code: 429, desc: t("Limite di richieste superato") },
+                  { code: 500, desc: t("Errore interno del server") },
                 ].map((e) => (
                   <div key={e.code} className="flex items-center gap-3">
                     <Badge variant={e.code >= 500 ? "destructive" : e.code >= 400 ? "secondary" : "default"} className="font-mono">{e.code}</Badge>

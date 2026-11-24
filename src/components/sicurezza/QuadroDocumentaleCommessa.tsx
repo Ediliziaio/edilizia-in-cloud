@@ -9,6 +9,7 @@ import {
   type RigaQuadroDocumentale,
   STATI_QUADRO,
 } from "@/lib/sicurezza/quadroDocumentale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const dataIt = (s: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.split("-").reverse().join("/") : s;
 export function QuadroDocumentaleCommessa({
@@ -32,6 +33,7 @@ export function QuadroDocumentaleCommessa({
   onFascicolo: () => void;
   filtroIniziale?: "tutti" | "registrati";
 }) {
+  const t = useT();
   const [cerca, setCerca] = useState("");
   const [filtro, setFiltro] = useState<string>(filtroIniziale);
   const [titolare, setTitolare] = useState("tutti");
@@ -39,11 +41,11 @@ export function QuadroDocumentaleCommessa({
   const conta = riepilogoQuadro(righe);
   const titolareRiga = (r: RigaQuadroDocumentale) =>
     [
-      r.personaId ? persone[r.personaId] || "Addetto esterno collegato" : null,
+      r.personaId ? persone[r.personaId] || t("Addetto esterno collegato") : null,
       r.subId
-        ? imprese[r.subId] || "Impresa collegata"
+        ? imprese[r.subId] || t("Impresa collegata")
         : !r.personaId
-          ? "Cantiere / propria impresa"
+          ? t("Cantiere / propria impresa")
           : null,
     ]
       .filter(Boolean)
@@ -69,31 +71,29 @@ export function QuadroDocumentaleCommessa({
   const attuale = Math.min(pagina, ultima);
   const visibili = filtrate.slice(attuale * 20, (attuale + 1) * 20);
   const voci = [
-    { id: "registrati", titolo: "Requisiti registrati", n: conta.registrati },
-    { id: "ricevere", titolo: "Da ricevere", n: conta.daRicevere },
+    { id: "registrati", titolo: t("Requisiti registrati"), n: conta.registrati },
+    { id: "ricevere", titolo: t("Da ricevere"), n: conta.daRicevere },
     {
       id: "verificare",
-      titolo: "Verifiche / integrazioni",
+      titolo: t("Verifiche / integrazioni"),
       n: conta.daVerificare,
     },
-    { id: "scadenze", titolo: "Scadenze da gestire", n: conta.scadenze },
-    { id: "archivio", titolo: "Archivio da riconciliare", n: conta.archivio },
+    { id: "scadenze", titolo: t("Scadenze da gestire"), n: conta.scadenze },
+    { id: "archivio", titolo: t("Archivio da riconciliare"), n: conta.archivio },
   ];
   return (
     <Card id="quadro-documentale">
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">
-            Quadro documentale della commessa
+            {t("Quadro documentale della commessa")}
           </CardTitle>
           <Button size="sm" variant="outline" onClick={onFascicolo}>
-            Gestisci fascicolo
+            {t("Gestisci fascicolo")}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Documenti e richieste già registrati per i soggetti, la fase e la data
-          selezionati. Il quadro non rappresenta tutti gli obblighi del cantiere
-          e non attesta idoneità, firme o autorizzazioni.
+          {t("Documenti e richieste già registrati per i soggetti, la fase e la data selezionati. Il quadro non rappresenta tutti gli obblighi del cantiere e non attesta idoneità, firme o autorizzazioni.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -102,9 +102,7 @@ export function QuadroDocumentaleCommessa({
             role="alert"
             className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
           >
-            Fonti parziali o non disponibili: i conteggi non confermano la
-            completezza. Consulta gli avvisi e riprova il caricamento della
-            fonte.
+            {t("Fonti parziali o non disponibili: i conteggi non confermano la completezza. Consulta gli avvisi e riprova il caricamento della fonte.")}
           </p>
         )}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -142,12 +140,12 @@ export function QuadroDocumentaleCommessa({
               setPagina(0);
             }}
           >
-            Tutti i record
+            {t("Tutti i record")}
           </Button>
           <Input
             className="min-w-48 flex-1"
-            aria-label="Cerca nel quadro documentale"
-            placeholder="Documento, impresa, persona o referente…"
+            aria-label={t("Cerca nel quadro documentale")}
+            placeholder={t("Documento, impresa, persona o referente…")}
             value={cerca}
             onChange={(e) => {
               setCerca(e.target.value);
@@ -155,7 +153,7 @@ export function QuadroDocumentaleCommessa({
             }}
           />
           <UniformSelect
-            aria-label="Titolare nel quadro documentale"
+            aria-label={t("Titolare nel quadro documentale")}
             className="h-10 max-w-full rounded-md border bg-background px-2 text-sm"
             value={titolare}
             onChange={(e) => {
@@ -163,8 +161,8 @@ export function QuadroDocumentaleCommessa({
               setPagina(0);
             }}
           >
-            <option value="tutti">Tutti i titolari</option>
-            <option value="propria">Cantiere / propria impresa</option>
+            <option value="tutti">{t("Tutti i titolari")}</option>
+            <option value="propria">{t("Cantiere / propria impresa")}</option>
             {Object.entries(imprese).map(([id, nome]) => (
               <option key={id} value={id}>
                 {nome}
@@ -174,33 +172,31 @@ export function QuadroDocumentaleCommessa({
         </div>
         {caricamento ? (
           <p role="status" className="py-4 text-sm">
-            Lettura delle fonti documentali…
+            {t("Lettura delle fonti documentali…")}
           </p>
         ) : !righe.length ? (
           <div className="rounded-lg border border-dashed p-4 text-sm">
-            <p>Nessun requisito o documento disponibile in questo contesto.</p>
+            <p>{t("Nessun requisito o documento disponibile in questo contesto.")}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Definisci l’applicabilità con il responsabile competente e
-              registra le richieste nel fascicolo. Un quadro vuoto non indica
-              che il cantiere sia completo.
+              {t("Definisci l’applicabilità con il responsabile competente e registra le richieste nel fascicolo. Un quadro vuoto non indica che il cantiere sia completo.")}
             </p>
           </div>
         ) : !filtrate.length ? (
           <p className="py-4 text-sm text-muted-foreground">
-            Nessun record con questi filtri.
+            {t("Nessun record con questi filtri.")}
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-left text-sm">
               <caption className="sr-only">
-                Documenti e richieste nel contesto della commessa
+                {t("Documenti e richieste nel contesto della commessa")}
               </caption>
               <thead className="bg-slate-50 text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3">Documento / titolare</th>
-                  <th className="p-3">Stato / fonte</th>
-                  <th className="p-3">Fase / periodo / scadenza</th>
-                  <th className="p-3 text-right">Prossima azione</th>
+                  <th className="p-3">{t("Documento / titolare")}</th>
+                  <th className="p-3">{t("Stato / fonte")}</th>
+                  <th className="p-3">{t("Fase / periodo / scadenza")}</th>
+                  <th className="p-3 text-right">{t("Prossima azione")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -212,9 +208,7 @@ export function QuadroDocumentaleCommessa({
                         {titolareRiga(r)}
                       </p>
                       {r.referente && (
-                        <p className="text-xs text-muted-foreground">
-                          Referente: {r.referente}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{t("Referente: {nome}", { nome: String(r.referente ?? "") })}</p>
                       )}
                     </td>
                     <td className="p-3 align-top">
@@ -226,48 +220,47 @@ export function QuadroDocumentaleCommessa({
                             : ""
                         }
                       >
-                        {STATI_QUADRO[r.stato]}
+                        {t(STATI_QUADRO[r.stato])}
                       </Badge>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {r.origine === "fascicolo"
-                          ? "Fascicolo e richieste"
-                          : "Archivio precedente"}
+                          ? t("Fascicolo e richieste")
+                          : t("Archivio precedente")}
                       </p>
                       {r.origineDaChiarire && (
                         <p className="mt-1 text-xs text-amber-800">
-                          Origine / applicabilità da verificare
+                          {t("Origine / applicabilità da verificare")}
                         </p>
                       )}
                       {r.origine === "archivio" && (
                         <p className="mt-1 text-xs text-muted-foreground">
-                          La presenza del file non documenta una verifica nel
-                          fascicolo.
+                          {t("La presenza del file non documenta una verifica nel fascicolo.")}
                         </p>
                       )}
                     </td>
                     <td className="p-3 align-top text-xs text-muted-foreground">
                       <p>
                         {r.faseId
-                          ? fasi[r.faseId] || "Fase collegata"
+                          ? fasi[r.faseId] || t("Fase collegata")
                           : r.origine === "archivio"
-                            ? "Fase / periodo da verificare"
-                            : "Non limitato a una fase"}
+                            ? t("Fase / periodo da verificare")
+                            : t("Non limitato a una fase")}
                       </p>
                       {(r.dal || r.al) && (
                         <p>
-                          Applicabilità:{" "}
-                          {r.dal ? dataIt(r.dal) : "inizio non delimitato"} –{" "}
-                          {r.al ? dataIt(r.al) : "fine non delimitata"}
+                          {t("Applicabilità:")}{" "}
+                          {r.dal ? dataIt(r.dal) : t("inizio non delimitato")} –{" "}
+                          {r.al ? dataIt(r.al) : t("fine non delimitata")}
                         </p>
                       )}
                       {r.scadenza && (
-                        <p>Scadenza documento: {dataIt(r.scadenza)}</p>
+                        <p>{t("Scadenza documento: {scadenza}", { scadenza: String(dataIt(r.scadenza) ?? "") })}</p>
                       )}
                       {r.termine && (
-                        <p>Termine richiesta: {dataIt(r.termine)}</p>
+                        <p>{t("Termine richiesta: {termine}", { termine: String(dataIt(r.termine) ?? "") })}</p>
                       )}
                       {!r.haFile && r.stato !== "non_applicabile" && (
-                        <p>Originale da acquisire</p>
+                        <p>{t("Originale da acquisire")}</p>
                       )}
                     </td>
                     <td className="p-3 text-right align-top">{azione(r)}</td>
@@ -279,10 +272,7 @@ export function QuadroDocumentaleCommessa({
         )}
         {!caricamento && filtrate.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span>
-              {attuale * 20 + 1}–{Math.min((attuale + 1) * 20, filtrate.length)}{" "}
-              di {filtrate.length} record con i filtri attuali
-            </span>
+            <span>{t("{attuale}–{valore} di {n} record con i filtri attuali", { attuale: attuale * 20 + 1, valore: Math.min((attuale + 1) * 20, filtrate.length), n: filtrate.length })}</span>
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -290,7 +280,7 @@ export function QuadroDocumentaleCommessa({
                 disabled={attuale === 0}
                 onClick={() => setPagina(attuale - 1)}
               >
-                Precedenti
+                {t("Precedenti")}
               </Button>
               <Button
                 size="sm"
@@ -298,7 +288,7 @@ export function QuadroDocumentaleCommessa({
                 disabled={attuale === ultima}
                 onClick={() => setPagina(attuale + 1)}
               >
-                Successivi
+                {t("Successivi")}
               </Button>
             </div>
           </div>

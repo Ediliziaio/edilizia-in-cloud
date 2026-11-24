@@ -12,11 +12,12 @@ import type { Muro, Planimetria, Punto, Ricalco, StatoPianta } from "../../../sh
 import type { TracciatoEsodo } from "../../../shared/planimetrie/urbanistica.ts";
 import type { RiscontroDwg } from "../../../shared/planimetrie/controlloDwg.ts";
 import { ZoneRadiantiSvg } from "./ZoneRadiantiSvg";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const ZOOM = [1,1.35,1.8,2.35];
 const SCALA = 50;
 const MARGINE_MM = 6;
-const MQ = new Intl.NumberFormat("it-IT",{maximumFractionDigits:1});
+const MQ = new Intl.NumberFormat(intlCampo(),{maximumFractionDigits:1});
 const puntiSvg=(contorno: Punto[])=>contorno.map(p=>`${p.x},${p.y}`).join(" ");
 const centroDelTratto = ({ da, a }: CorrezioneSullaTavola["tratto"]) => ({
   x: (da.x + a.x) / 2, y: -(da.y + a.y) / 2,
@@ -66,6 +67,7 @@ export function TavolaInterattiva({ documento, livelloId, ambito, selezionato, e
   statoImpianti?: StatoPianta;
   comandi?: boolean; className?: string;
 }) {
+  const tr = useT();
   const [indiceZoom,setIndiceZoom]=useState(0);
   const [mostraRadiante, setMostraRadiante] = useState(false);
   const idFrecciaEsodo = useId().replaceAll(":", "");
@@ -109,12 +111,12 @@ export function TavolaInterattiva({ documento, livelloId, ambito, selezionato, e
   const cy=marcatore ? -(marcatore.a.y+marcatore.b.y)/2 : centro.y;
   const vx=Math.min(x+w-vw,Math.max(x,cx-vw/2)),vy=Math.min(y+h-vh,Math.max(y,cy-vh/2));
   const corpo=Math.max(14,Math.min(34,Math.max(w,h)/72));
-  if (!haDisegno) return <div className={cn("grid min-h-52 place-items-center bg-muted/30 p-5 text-center text-sm text-muted-foreground",className)}>Disegno da completare</div>;
+  if (!haDisegno) return <div className={cn("grid min-h-52 place-items-center bg-muted/30 p-5 text-center text-sm text-muted-foreground",className)}>{tr("Disegno da completare")}</div>;
 
   return <div className={cn("relative isolate min-w-0 overflow-hidden bg-[#f8fafc] dark:bg-slate-200",className)}>
     <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden="true"
       style={{backgroundImage:"radial-gradient(#adbace 0.75px, transparent 0.75px)",backgroundSize:"16px 16px"}}/>
-    <svg role="group" aria-label="Tavola della planimetria" viewBox={`${vx} ${vy} ${vw} ${vh}`}
+    <svg role="group" aria-label={tr("Tavola della planimetria")} viewBox={`${vx} ${vy} ${vw} ${vh}`}
       className={cn("relative block h-full min-h-[inherit] w-full p-4 sm:p-6",registraPunto && "cursor-crosshair")}
       onClick={registraPunto ? (e:MouseEvent<SVGSVGElement>)=>{
         const matrice=e.currentTarget.getScreenCTM();
@@ -140,7 +142,7 @@ export function TavolaInterattiva({ documento, livelloId, ambito, selezionato, e
         const mq=l.superficieMq && l.larghezza>corpo*7 && l.margine>corpo*1.4 ? `${l.origine==="stimata" ? "≈ " : ""}${MQ.format(l.superficieMq)} m²` : null;
         return <g key={l.id}>
           <polygon points={puntiSvg(l.contorno)} role={onSeleziona ? "button" : undefined} tabIndex={onSeleziona ? 0 : undefined}
-            aria-label={onSeleziona ? `Seleziona ${l.nome} sulla tavola` : undefined} aria-pressed={onSeleziona ? attivo : undefined}
+            aria-label={onSeleziona ? tr("Seleziona {nome} sulla tavola", { nome: String(l.nome ?? "") }) : undefined} aria-pressed={onSeleziona ? attivo : undefined}
             className={cn("transition-colors focus-visible:outline-none",onSeleziona && "cursor-pointer hover:fill-blue-400/15 focus-visible:stroke-blue-700 focus-visible:stroke-2",
               segnalato ? "fill-red-500/10 stroke-red-700" : proposta ? "fill-teal-500/20 stroke-teal-700" : attivo ? "fill-blue-500/20 stroke-blue-600" : "fill-transparent stroke-transparent")}
             vectorEffect="non-scaling-stroke" strokeWidth={attivo || proposta || segnalato ? 2 : 1}
@@ -172,7 +174,7 @@ export function TavolaInterattiva({ documento, livelloId, ambito, selezionato, e
         <defs><marker id={idFrecciaEsodo} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="3" markerHeight="3" orient="auto">
           <path d="M0 0 L10 5 L0 10 Z" fill="currentColor"/>
         </marker></defs>
-        {esodo.tracciati.map((t,i)=>t.punti.length>0 && <g key={i} role="img" aria-label={`Tracciato d’esodo · ${t.nome}`}>
+        {esodo.tracciati.map((t,i)=>t.punti.length>0 && <g key={i} role="img" aria-label={tr("Tracciato d’esodo · {nome}", { nome: String(t.nome ?? "") })}>
           <polyline points={t.punti.map(p=>`${p.x},${-p.y}`).join(" ")} fill="none" stroke="white" strokeWidth={7}
             strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
           <polyline points={t.punti.map(p=>`${p.x},${-p.y}`).join(" ")} fill="none" stroke="currentColor" strokeWidth={3.5}
@@ -190,18 +192,19 @@ export function TavolaInterattiva({ documento, livelloId, ambito, selezionato, e
       {controlloDwg && <RiscontroDwgSullaTavola riscontro={controlloDwg} corpo={corpo}/>}
     </svg>
     {!!statoImpianti?.pavimentoRadiante?.length && <Button size="sm" variant={mostraRadiante ? "secondary" : "outline"}
-      className="absolute bottom-3 left-3 bg-white shadow-sm" aria-pressed={mostraRadiante} onClick={() => setMostraRadiante(v => !v)}>Pavimento radiante</Button>}
-    {comandi && <div role="group" aria-label="Zoom della tavola" className="absolute bottom-3 right-3 flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-slate-700 shadow-sm">
-      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Riduci zoom" disabled={!indiceZoom} onClick={()=>setIndiceZoom(i=>i-1)}><Minus className="h-4 w-4"/></Button>
-      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Adatta la tavola" disabled={!indiceZoom} onClick={()=>setIndiceZoom(0)}><Maximize className="h-4 w-4"/></Button>
-      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Aumenta zoom" disabled={indiceZoom===ZOOM.length-1} onClick={()=>setIndiceZoom(i=>i+1)}><Plus className="h-4 w-4"/></Button>
+      className="absolute bottom-3 left-3 bg-white shadow-sm" aria-pressed={mostraRadiante} onClick={() => setMostraRadiante(v => !v)}>{tr("Pavimento radiante")}</Button>}
+    {comandi && <div role="group" aria-label={tr("Zoom della tavola")} className="absolute bottom-3 right-3 flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-slate-700 shadow-sm">
+      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Riduci zoom")} disabled={!indiceZoom} onClick={()=>setIndiceZoom(i=>i-1)}><Minus className="h-4 w-4"/></Button>
+      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Adatta la tavola")} disabled={!indiceZoom} onClick={()=>setIndiceZoom(0)}><Maximize className="h-4 w-4"/></Button>
+      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Aumenta zoom")} disabled={indiceZoom===ZOOM.length-1} onClick={()=>setIndiceZoom(i=>i+1)}><Plus className="h-4 w-4"/></Button>
     </div>}
   </div>;
 }
 
 function RiscontroDwgSullaTavola({ riscontro, corpo }: { riscontro: RiscontroDwg; corpo: number }) {
+  const t = useT();
   const disegna = (contorno: Punto[]) => contorno.map(({x, y}) => `${x},${-y}`).join(" ");
-  return <g role="img" aria-label={riscontro.modifica ? "Contorno prima e dopo sul DWG" : "Sovrapposizione sul DWG"} pointerEvents="none">
+  return <g role="img" aria-label={riscontro.modifica ? t("Contorno prima e dopo sul DWG") : t("Sovrapposizione sul DWG")} pointerEvents="none">
     {riscontro.modifica && <>
       <polygon points={disegna(riscontro.modifica.dopo)} fill="#15a674" fillOpacity={0.12}
         stroke="#08795f" strokeWidth={2.5} vectorEffect="non-scaling-stroke"/>
@@ -220,7 +223,8 @@ function RiscontroDwgSullaTavola({ riscontro, corpo }: { riscontro: RiscontroDwg
 function MarcatoreSegnalazione({ etichetta, punto, tratto, colore, corpo }: {
   etichetta: string; punto: Punto; tratto?: PosizioneSegnalazioneProgetto["tratto"]; colore: string; corpo: number;
 }) {
-  return <g role="img" aria-label={`Segnalazione sulla tavola · ${etichetta}`} pointerEvents="none">
+  const t = useT();
+  return <g role="img" aria-label={t("Segnalazione sulla tavola · {etichetta}", { etichetta: String(etichetta ?? "") })} pointerEvents="none">
     {tratto && <line x1={tratto.da.x} y1={-tratto.da.y} x2={tratto.a.x} y2={-tratto.a.y}
       stroke={colore} strokeWidth={5} strokeDasharray={tratto.tratteggiato ? "7 4" : undefined}
       strokeLinecap="round" vectorEffect="non-scaling-stroke"/>}
@@ -258,6 +262,7 @@ function marcatoriVerifica(stato: StatoPianta): Marcatore[] {
 function MarcatoreVerifica({marcatore,attivo,onSeleziona}: {
   marcatore:Marcatore; attivo:boolean; onSeleziona?:(v:SelezioneTavola)=>void;
 }) {
+  const t = useT();
   const {a,b,tipo,id,nome,stimata}=marcatore;
   const linea={x1:a.x,y1:-a.y,x2:b.x,y2:-b.y};
   const scegli=()=>onSeleziona?.({tipo,id});
@@ -267,7 +272,7 @@ function MarcatoreVerifica({marcatore,attivo,onSeleziona}: {
     scegli();
   };
   return <g role={onSeleziona ? "button" : undefined} tabIndex={onSeleziona ? 0 : undefined}
-    aria-label={onSeleziona ? `Seleziona ${nome} sulla tavola` : undefined} aria-pressed={onSeleziona ? attivo : undefined}
+    aria-label={onSeleziona ? t("Seleziona {nome} sulla tavola", { nome: String(nome ?? "") }) : undefined} aria-pressed={onSeleziona ? attivo : undefined}
     onClick={onSeleziona ? scegli : undefined} onKeyDown={onSeleziona ? tasto : undefined}
     className={cn("group focus-visible:outline-none",onSeleziona && "cursor-pointer")}>
     <circle cx={(a.x+b.x)/2} cy={-(a.y+b.y)/2} r={tipo==="quota" ? 10 : 16} fill="transparent"/>

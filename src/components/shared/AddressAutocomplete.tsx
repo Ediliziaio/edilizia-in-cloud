@@ -13,6 +13,7 @@ import { MapPin, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import type { IndirizzoTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AddressData {
   address_line: string;
@@ -68,6 +69,7 @@ function daTrovato(base: AddressData, a: IndirizzoTrovato): AddressData {
 }
 
 export default function AddressAutocomplete({ value, onChange, label = "Luogo", searchPlaceholder = "Cerca indirizzo...", editableSearch = false, disabled = false }: Props) {
+  const t = useT();
   // Il testo che si sta cercando quando il campo non è modificabile (il riquadro mostra l'indirizzo scelto).
   const [query, setQuery] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -101,7 +103,7 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
     <fieldset disabled={disabled} className="min-w-0 space-y-2">
       <Label htmlFor={inputId} className="text-sm font-semibold flex items-center gap-1.5">
         <MapPin className="h-3.5 w-3.5" />
-        {label}
+        {t(label)}
       </Label>
 
       {hasAddress && !editableSearch ? (
@@ -110,7 +112,7 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
           <span className="flex-1 truncate">
             {displayAddress}
           </span>
-          <Button type="button" aria-label="Rimuovi indirizzo" variant="ghost" size="icon" className="h-6 w-6 shrink-0 max-sm:h-11 max-sm:w-11" onClick={clearAddress}>
+          <Button type="button" aria-label={t("Rimuovi indirizzo")} variant="ghost" size="icon" className="h-6 w-6 shrink-0 max-sm:h-11 max-sm:w-11" onClick={clearAddress}>
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -118,7 +120,7 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
         <CampoIndirizzo
           id={inputId}
           value={displayAddress}
-          placeholder={searchPlaceholder}
+          placeholder={t(searchPlaceholder)}
           disabled={disabled}
           onChange={(testo) => emitAddress({ ...emptyAddress, address_line: testo, formatted_address: testo, address_notes: value.address_notes, address_country: value.address_country })}
           onScegli={(a) => emitAddress(daTrovato(value, a))}
@@ -127,13 +129,13 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
         <CampoIndirizzo
           id={inputId}
           value={query}
-          placeholder={searchPlaceholder}
+          placeholder={t(searchPlaceholder)}
           disabled={disabled}
           onChange={setQuery}
           onScegli={(a) => { emitAddress(daTrovato(value, a)); setQuery(""); }}
           onScegliSenzaDettagli={(s) => {
             emitAddress({ ...emptyAddress, address_notes: value.address_notes, address_line: s.testo, formatted_address: s.testo });
-            setNotaScelta("Indirizzo selezionato. Coordinate non disponibili.");
+            setNotaScelta(t("Indirizzo selezionato. Coordinate non disponibili."));
           }}
         />
       )}
@@ -144,26 +146,26 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
         <CollapsibleTrigger asChild>
           <Button type="button" variant="ghost" size="sm" className="text-xs gap-1 text-muted-foreground h-7 px-1">
             {detailsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {detailsOpen ? "Nascondi dettagli" : "Modifica dettagli indirizzo"}
+            {detailsOpen ? t("Nascondi dettagli") : t("Modifica dettagli indirizzo")}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-1">
           <div className="space-y-1">
-            <Label className="text-xs">Via / Piazza</Label>
+            <Label className="text-xs">{t("Via / Piazza")}</Label>
             <Input
               value={value.address_line}
               onChange={(e) => updateManual({ address_line: e.target.value })}
-              placeholder="Via Roma 1"
+              placeholder={t("Via Roma 1")}
               className="h-8 text-sm"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label className="text-xs">Città</Label>
+              <Label className="text-xs">{t("Città")}</Label>
               <Input
                 value={value.address_city}
                 onChange={(e) => updateManual({ address_city: e.target.value })}
-                placeholder="Milano"
+                placeholder={t("Milano")}
                 className="h-8 text-sm"
               />
             </div>
@@ -179,7 +181,7 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label className="text-xs">Provincia</Label>
+              <Label className="text-xs">{t("Provincia")}</Label>
               <Input
                 value={value.address_province}
                 onChange={(e) => updateManual({ address_province: e.target.value })}
@@ -188,11 +190,11 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Note indirizzo</Label>
+              <Label className="text-xs">{t("Note indirizzo")}</Label>
               <Input
                 value={value.address_notes}
                 onChange={(e) => emitAddress({ ...value, address_notes: e.target.value })}
-                placeholder="Scala B, Int. 3"
+                placeholder={t("Scala B, Int. 3")}
                 className="h-8 text-sm"
               />
             </div>

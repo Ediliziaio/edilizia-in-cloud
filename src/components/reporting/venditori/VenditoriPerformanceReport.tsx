@@ -14,7 +14,6 @@ import {
   useVendorIntegrationHealth,
 } from "@/hooks/useVendorReport";
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subYears, startOfDay, endOfDay, format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { aggregateTeamKPI, periodoPrecedente } from "@/lib/reporting/venditoriRegole";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
@@ -34,6 +33,7 @@ import { ObiettiviVenditoriDialog } from "./ObiettiviVenditoriDialog";
 import { useObiettiviVenditori } from "@/hooks/useObiettiviVenditori";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const VENDOR_PERIODS: { value: string; label: string }[] = [
   { value: "mese", label: "Questo mese" },
@@ -92,6 +92,7 @@ const MESI_CONFRONTO: Record<string, number | null> = {
 };
 
 const VenditoriPerformanceReport = () => {
+  const t = useT();
   // Periodo, venditore e scheda stanno nell'URL: un link mandato a un collega
   // o un ricarica della pagina mostrano gli stessi numeri.
   const { params: filtri, setParam } = useURLFilters({
@@ -144,7 +145,7 @@ const VenditoriPerformanceReport = () => {
   const { data: rawKpiPrecedente = [] } = useVendorKPI(
     precedenteRange.inizio, precedenteRange.fine, undefined, activeTab === "overview", pipelineId,
   );
-  const etichettaPrecedente = `${format(precedenteRange.inizio, "d MMM yyyy", { locale: it })} – ${format(precedenteRange.fine, "d MMM yyyy", { locale: it })}`;
+  const etichettaPrecedente = `${format(precedenteRange.inizio, "d MMM yyyy", { locale: dateFnsCampo() })} – ${format(precedenteRange.fine, "d MMM yyyy", { locale: dateFnsCampo() })}`;
 
   // Il report Venditori deve mostrare i VENDITORI: escludi chi è SOLO call center
   // (gestisce appuntamenti ma non è il venditore che chiude). Stessa definizione
@@ -193,10 +194,10 @@ const VenditoriPerformanceReport = () => {
   // Una lettura fallita non è «nessun dato»: prima le schede dicevano «Nessun
   // dato disponibile per il periodo» e la diagnosi «in controllo».
   const nonArrivati = [
-    erroreKpi && "i numeri dei venditori",
-    erroreFunnel && "il funnel",
-    erroreTrend && "l'andamento mensile",
-    erroreIntegrazione && "il controllo del CRM",
+    erroreKpi && t("i numeri dei venditori"),
+    erroreFunnel && t("il funnel"),
+    erroreTrend && t("l'andamento mensile"),
+    erroreIntegrazione && t("il controllo del CRM"),
   ].filter(Boolean) as string[];
   const riprova = () => {
     if (erroreKpi) void riprovaKpi();
@@ -233,17 +234,17 @@ const VenditoriPerformanceReport = () => {
             <div className="max-sm:hidden">
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Performance Venditori
+                {t("Performance Venditori")}
               </CardTitle>
               <CardDescription className="mt-1">
-                Analisi KPI da Opportunità, Contatti e Appuntamenti
+                {t("Analisi KPI da Opportunità, Contatti e Appuntamenti")}
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
               {permessi.isAdmin && (
                 <Button variant="outline" className="h-10 gap-1.5 max-sm:hidden" onClick={() => setObiettiviAperti(true)}>
                   <Target className="h-4 w-4" />
-                  Obiettivi
+                  {t("Obiettivi")}
                 </Button>
               )}
               <ReportExportMenu
@@ -254,11 +255,11 @@ const VenditoriPerformanceReport = () => {
               />
               {pipelines.length > 1 && (
                 <Select value={pipelineId ?? "tutte"} onValueChange={setPipelineId}>
-                  <SelectTrigger className="w-[200px] max-sm:w-full" aria-label="Pipeline">
-                    <SelectValue placeholder="Pipeline" />
+                  <SelectTrigger className="w-[200px] max-sm:w-full" aria-label={t("Pipeline")}>
+                    <SelectValue placeholder={t("Pipeline")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tutte">Tutte le pipeline</SelectItem>
+                    <SelectItem value="tutte">{t("Tutte le pipeline")}</SelectItem>
                     {pipelines.map((p: { id: string; name: string }) => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
@@ -267,10 +268,10 @@ const VenditoriPerformanceReport = () => {
               )}
               <Select value={agentId} onValueChange={setAgentId}>
                 <SelectTrigger className="w-[200px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
-                  <SelectValue placeholder="Seleziona agente" />
+                  <SelectValue placeholder={t("Seleziona agente")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutti">👥 Tutti gli agenti</SelectItem>
+                  <SelectItem value="tutti">{t("👥 Tutti gli agenti")}</SelectItem>
                   {agenti.map(a => (
                     <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
                   ))}
@@ -282,7 +283,7 @@ const VenditoriPerformanceReport = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {VENDOR_PERIODS.map(p => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    <SelectItem key={p.value} value={p.value}>{t(p.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -293,7 +294,7 @@ const VenditoriPerformanceReport = () => {
                     value={customFrom}
                     max={customTo || undefined}
                     onChange={(e) => setCustomFrom(e.target.value)}
-                    aria-label="Data inizio"
+                    aria-label={t("Data inizio")}
                     className="h-10 rounded-md border border-border px-2 text-sm text-muted-foreground max-sm:min-w-0 max-sm:flex-1"
                   />
                   <span className="text-muted-foreground/80">→</span>
@@ -302,7 +303,7 @@ const VenditoriPerformanceReport = () => {
                     value={customTo}
                     min={customFrom || undefined}
                     onChange={(e) => setCustomTo(e.target.value)}
-                    aria-label="Data fine"
+                    aria-label={t("Data fine")}
                     className="h-10 rounded-md border border-border px-2 text-sm text-muted-foreground max-sm:min-w-0 max-sm:flex-1"
                   />
                 </div>
@@ -314,8 +315,8 @@ const VenditoriPerformanceReport = () => {
 
       {nonArrivati.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-          <span>Non sono arrivati {nonArrivati.join(", ")}: quello che manca non è uno zero.</span>
-          <Button size="sm" variant="outline" onClick={riprova}>Riprova</Button>
+          <span>{t("Non sono arrivati {nonArrivati}: quello che manca non è uno zero.", { nonArrivati: nonArrivati.join(", ") })}</span>
+          <Button size="sm" variant="outline" onClick={riprova}>{t("Riprova")}</Button>
         </div>
       )}
 
@@ -323,18 +324,18 @@ const VenditoriPerformanceReport = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="max-w-full justify-start overflow-x-auto max-sm:w-full">
           <TabsTrigger value="overview" className="gap-1.5 max-sm:flex-1">
-            <BarChart3 className="h-4 w-4 max-sm:hidden" /> Panoramica
+            <BarChart3 className="h-4 w-4 max-sm:hidden" /> {t("Panoramica")}
           </TabsTrigger>
           <TabsTrigger value="ranking" className="gap-1.5 max-sm:flex-1">
             <Users className="h-4 w-4 max-sm:hidden" />
-            <span className="max-sm:hidden">Ranking Agenti</span>
-            <span className="sm:hidden">Classifica</span>
+            <span className="max-sm:hidden">{t("Ranking Agenti")}</span>
+            <span className="sm:hidden">{t("Classifica")}</span>
           </TabsTrigger>
           <TabsTrigger value="trend" className="gap-1.5 max-sm:hidden">
-            <TrendingUp className="h-4 w-4" /> Trend Temporale
+            <TrendingUp className="h-4 w-4" /> {t("Trend Temporale")}
           </TabsTrigger>
           <TabsTrigger value="confronto" className="gap-1.5 max-sm:hidden">
-            <GitCompareArrows className="h-4 w-4" /> Confronto
+            <GitCompareArrows className="h-4 w-4" /> {t("Confronto")}
           </TabsTrigger>
         </TabsList>
 
@@ -342,7 +343,7 @@ const VenditoriPerformanceReport = () => {
           {erroreKpi ? (
             <Card>
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                I numeri dei venditori non sono arrivati: riprova dal pulsante qui sopra.
+                {t("I numeri dei venditori non sono arrivati: riprova dal pulsante qui sopra.")}
               </CardContent>
             </Card>
           ) : (
@@ -372,11 +373,11 @@ const VenditoriPerformanceReport = () => {
               ) : (
                 <Card className="max-sm:hidden">
                   <CardHeader>
-                    <CardTitle className="text-base">Profilo Radar</CardTitle>
+                    <CardTitle className="text-base">{t("Profilo Radar")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">
-                      Seleziona un singolo agente per visualizzare il profilo radar rispetto alla media del team.
+                      {t("Seleziona un singolo agente per visualizzare il profilo radar rispetto alla media del team.")}
                     </p>
                   </CardContent>
                 </Card>
@@ -394,7 +395,7 @@ const VenditoriPerformanceReport = () => {
           {erroreKpi ? (
             <Card>
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                La classifica non è arrivata: riprova dal pulsante qui sopra.
+                {t("La classifica non è arrivata: riprova dal pulsante qui sopra.")}
               </CardContent>
             </Card>
           ) : (

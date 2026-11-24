@@ -2,8 +2,10 @@ import { memo } from "react";
 import { type NodeProps } from "@xyflow/react";
 import { NODE_KIND_STYLES } from "@/lib/flow-node-catalog";
 import { StickyNote } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function NoteNodeComponent({ data, selected }: NodeProps) {
+  const t = useT();
   const style = NODE_KIND_STYLES.note;
 
   return (
@@ -12,10 +14,10 @@ function NoteNodeComponent({ data, selected }: NodeProps) {
     >
       <div className="flex items-center gap-1.5 mb-1">
         <StickyNote className={`h-3.5 w-3.5 ${style.accent}`} />
-        <span className="text-[10px] font-semibold uppercase text-muted-foreground">Nota</span>
+        <span className="text-[10px] font-semibold uppercase text-muted-foreground">{t("Nota")}</span>
       </div>
       <p className="text-xs whitespace-pre-wrap">
-        {(data.note_text as string) || (data.label as string) || "Nota vuota"}
+        {(data.note_text as string) || (data.label as string) || t("Nota vuota")}
       </p>
     </div>
   );

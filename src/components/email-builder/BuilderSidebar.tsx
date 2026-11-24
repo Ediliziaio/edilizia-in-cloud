@@ -1,6 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { Type, Image, RectangleHorizontal, Minus, Space, Code } from "lucide-react";
 import type { BlockType, ColumnLayout } from "./builderTypes";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DraggableItemProps {
   type: BlockType;
@@ -10,6 +11,7 @@ interface DraggableItemProps {
 }
 
 function DraggableItem({ type, layout, icon, label }: DraggableItemProps) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `sidebar-${type}${layout ? `-${layout}` : ""}`,
     data: { type, layout },
@@ -23,7 +25,7 @@ function DraggableItem({ type, layout, icon, label }: DraggableItemProps) {
       className={`flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-md border border-border bg-background p-3 cursor-grab hover:border-primary/50 hover:bg-primary/5 transition-all select-none ${isDragging ? "opacity-40" : ""}`}
     >
       {icon}
-      <span className="text-[10px] font-medium text-muted-foreground leading-tight text-center">{label}</span>
+      <span className="text-[10px] font-medium text-muted-foreground leading-tight text-center">{t(label)}</span>
     </div>
   );
 }
@@ -87,15 +89,16 @@ const LAYOUTS: { layout: ColumnLayout; label: string; visual: React.ReactNode }[
 ];
 
 export function BuilderSidebar({ className }: { className?: string }) {
+  const t = useT();
   return (
     <div className={className ?? "w-[248px] border-r bg-background p-4 overflow-y-auto shrink-0"}>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Elementi</p>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t("Elementi")}</p>
       <div className="grid grid-cols-3 gap-2 mb-6">
         {ELEMENTS.map((el) => (
           <DraggableItem key={el.type} {...el} />
         ))}
       </div>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Layout</p>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t("Layout")}</p>
       <div className="grid grid-cols-2 gap-2">
         {LAYOUTS.map((l) => (
           <DraggableItem key={l.layout} type="columns" layout={l.layout} icon={l.visual} label={l.label} />

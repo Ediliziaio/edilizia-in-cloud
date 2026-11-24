@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { indirizzoModuloPrenotazione } from "@/lib/calendar/indirizzoModuloPrenotazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il calendario di prenotazione dentro una pagina del sito.
@@ -38,6 +39,7 @@ export function CalendarioInPagina({
    */
   onPrenotato?: (prenotazione: PrenotazioneFatta) => void;
 }) {
+  const t = useT();
   const riquadro = useRef<HTMLIFrameElement>(null);
   const [altezza, setAltezza] = useState(720);
   // In un ref: se la pagina ricrea la funzione a ogni render, l'ascolto resta lo stesso.
@@ -81,7 +83,7 @@ export function CalendarioInPagina({
       <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white">
         <iframe
           ref={riquadro}
-          title="Fissa un appuntamento"
+          title={t("Fissa un appuntamento")}
           src={indirizzoModuloPrenotazione(slug, typeof window !== "undefined" ? window.location.search : "")}
           className="w-full border-0"
           style={{ height: altezza }}

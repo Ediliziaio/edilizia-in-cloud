@@ -54,6 +54,7 @@ import {
   TIPO_DOC_LABELS,
   type ZipEntry,
 } from "@/lib/sicurezza/bulkDocumenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type RowStatus = "pending" | "uploading" | "done" | "error";
 
@@ -81,6 +82,7 @@ export default function BulkDocumentiUploadDialog({
   companyId,
   subappaltatoreId,
 }: Props) {
+  const tr = useT();
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<PreparedRow[]>([]);
   const [parsing, setParsing] = useState(false);
@@ -113,7 +115,7 @@ export default function BulkDocumentiUploadDialog({
         entries = picked.map((f) => ({ name: f.name, blob: f }));
       }
       if (entries.length === 0) {
-        toast.error("Nessun file valido trovato nell'archivio.");
+        toast.error(tr("Nessun file valido trovato nell'archivio."));
         setRows([]);
         return;
       }
@@ -137,11 +139,11 @@ export default function BulkDocumentiUploadDialog({
           if (iso) { patchRow(row.key, { data_scadenza: iso }); filled++; }
         }
         if (filled > 0) {
-          toast.success(`Scadenza DURC rilevata dal PDF per ${filled} document${filled === 1 ? "o" : "i"}`);
+          toast.success(tr(filled === 1 ? "Scadenza DURC rilevata dal PDF per {n} documento" : "Scadenza DURC rilevata dal PDF per {n} documenti", { n: filled }));
         }
       })();
     } catch (err) {
-      toast.error(`Lettura archivio fallita: ${(err as Error).message}`);
+      toast.error(tr("Lettura archivio fallita: {motivo}", { motivo: (err as Error).message ?? "" }));
       setRows([]);
     } finally {
       setParsing(false);
@@ -155,7 +157,7 @@ export default function BulkDocumentiUploadDialog({
   async function uploadAll() {
     const selected = rows.filter((r) => r.include && r.status !== "done");
     if (selected.length === 0) {
-      toast.error("Seleziona almeno un documento da caricare.");
+      toast.error(tr("Seleziona almeno un documento da caricare."));
       return;
     }
     setUploading(true);
@@ -209,11 +211,11 @@ export default function BulkDocumentiUploadDialog({
       void queryClient.invalidateQueries({ queryKey: ["documenti-sub", subappaltatoreId] });
     }
     if (fail === 0) {
-      toast.success(`${ok} document${ok === 1 ? "o caricato" : "i caricati"}.`);
+      toast.success(tr(ok === 1 ? "{n} documento caricato." : "{n} documenti caricati.", { n: ok }));
       onOpenChange(false);
       reset();
     } else {
-      toast.error(`${ok} caricati, ${fail} non riusciti. Controlla le righe in errore.`);
+      toast.error(tr("{ok} caricati, {fail} non riusciti. Controlla le righe in errore.", { ok, fail }));
     }
   }
 
@@ -226,17 +228,16 @@ export default function BulkDocumentiUploadDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileArchive className="h-4 w-4" />
-            Importa documenti da archivio
+            {tr("Importa documenti da archivio")}
           </DialogTitle>
           <DialogDescription>
-            Carica un file .zip (o più file insieme). Ogni documento viene
-            pre-classificato: rivedi tipo e scadenza prima di confermare.
+            {tr("Carica un file .zip (o più file insieme). Ogni documento viene pre-classificato: rivedi tipo e scadenza prima di confermare.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Archivio .zip o file multipli</Label>
+            <Label>{tr("Archivio .zip o file multipli")}</Label>
             <Input
               type="file"
               accept=".zip,application/zip,application/pdf,image/*"
@@ -246,7 +247,7 @@ export default function BulkDocumentiUploadDialog({
             />
             {parsing && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Lettura archivio…
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> {tr("Lettura archivio…")}
               </p>
             )}
           </div>
@@ -282,7 +283,7 @@ export default function BulkDocumentiUploadDialog({
                     <SelectContent>
                       {Object.entries(TIPO_DOC_LABELS).map(([value, label]) => (
                         <SelectItem key={value} value={value}>
-                          {label}
+                          {tr(label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -303,7 +304,7 @@ export default function BulkDocumentiUploadDialog({
                         type="button"
                         className="text-muted-foreground hover:text-destructive"
                         onClick={() => setRows((rs) => rs.filter((r) => r.key !== row.key))}
-                        aria-label="Rimuovi"
+                        aria-label={tr("Rimuovi")}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -316,19 +317,19 @@ export default function BulkDocumentiUploadDialog({
 
           {rows.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              {includedCount} selezionat{includedCount === 1 ? "o" : "i"} su {rows.length}
-              {uploading ? ` · caricati ${done}/${totalToUpload || includedCount}` : ""}
+              {tr(includedCount === 1 ? "{n} selezionato su {totale}" : "{n} selezionati su {totale}", { n: includedCount, totale: rows.length })}
+              {uploading ? ` · ${tr("caricati {fatti}/{totale}", { fatti: done, totale: totalToUpload || includedCount })}` : ""}
             </p>
           )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={uploading}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button onClick={() => void uploadAll()} disabled={uploading || parsing || includedCount === 0}>
             {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Carica {includedCount > 0 ? includedCount : ""} document{includedCount === 1 ? "o" : "i"}
+            {includedCount === 0 ? tr("Carica documenti") : tr(includedCount === 1 ? "Carica {n} documento" : "Carica {n} documenti", { n: includedCount })}
           </Button>
         </DialogFooter>
       </DialogContent>

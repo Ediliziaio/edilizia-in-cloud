@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import { formatCurrency } from "@/lib/formatters";
 import type { UnifiedRow, PreventivoTipo } from "./UnifiedPreventiviList";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** tipo preventivo → tabella su cui eseguire delete/update. */
 const TIPO_TABLE: Record<PreventivoTipo, string> = {
@@ -165,6 +166,7 @@ export async function eliminaComputi(ids: string[], companyId: string, userId: s
 }
 
 export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, puoModificare = false }: Props) {
+  const tr = useT();
   const { role, user } = useAuth();
   const canDelete = role === "super_admin" || role === "company_admin" || puoModificare;
   const [working, setWorking] = useState(false);
@@ -183,16 +185,16 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
   const vintiEsclusi = selectedRows.filter((r) => r.stato_unif === "vinto").length;
 
   const runPersi = async () => {
-    if (!companyId) { toast.error("Azienda non disponibile"); setConfermaPersi(false); return; }
+    if (!companyId) { toast.error(tr("Azienda non disponibile")); setConfermaPersi(false); return; }
     setWorking(true);
     try {
       const { aggiornati, errors } = await segnaComePersi(daSegnare, companyId);
-      if (errors.length) toast.error(`Non sono riuscito a segnarne ${errors.length === 1 ? "uno" : "alcuni"}. ${aggiornati} segnati come persi.`);
-      else if (aggiornati === 0) toast.warning("Nessun preventivo cambiato (permessi insufficienti o già persi)");
-      else toast.success(`${aggiornati} ${aggiornati === 1 ? "preventivo segnato come perso" : "preventivi segnati come persi"}: li trovi nella scheda «Persi»`);
+      if (errors.length) toast.error(tr(errors.length === 1 ? "Non sono riuscito a segnarne uno. {n} segnati come persi." : "Non sono riuscito a segnarne alcuni. {n} segnati come persi.", { n: aggiornati }));
+      else if (aggiornati === 0) toast.warning(tr("Nessun preventivo cambiato (permessi insufficienti o già persi)"));
+      else toast.success(tr(aggiornati === 1 ? "{n} preventivo segnato come perso: li trovi nella scheda «Persi»" : "{n} preventivi segnati come persi: li trovi nella scheda «Persi»", { n: aggiornati }));
       onDone();
     } catch (e) {
-      toast.error("Non sono riuscito a segnarli come persi: " + (e as Error).message);
+      toast.error(tr("Non sono riuscito a segnarli come persi: {errore}", { errore: (e as Error).message }));
     } finally {
       setWorking(false);
       setConfermaPersi(false);
@@ -200,8 +202,8 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
   };
 
   const runDelete = async () => {
-    if (!companyId) { toast.error("Azienda non disponibile"); setConfirm(false); return; }
-    if (!canDelete) { toast.error("Non hai i permessi per eliminare i preventivi. Chiedi al titolare dell'azienda di darti l'accesso."); setConfirm(false); return; }
+    if (!companyId) { toast.error(tr("Azienda non disponibile")); setConfirm(false); return; }
+    if (!canDelete) { toast.error(tr("Non hai i permessi per eliminare i preventivi. Chiedi al titolare dell'azienda di darti l'accesso.")); setConfirm(false); return; }
     setWorking(true);
     try {
       const cestino = await spostaNelCestino(daSpostare, companyId);
@@ -209,19 +211,19 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
       const errors = [...cestino.errors, ...eliminati.errors];
       const mancanti = (n - cestino.deleted) + (nComputi - eliminati.deleted);
       if (errors.length) {
-        toast.error(`Alcune eliminazioni non riuscite (${errors.length}). ${cestino.deleted + eliminati.deleted} rimossi.`);
+        toast.error(tr("Alcune eliminazioni non riuscite ({n}). {deleted} rimossi.", { n: errors.length, deleted: cestino.deleted + eliminati.deleted }));
       } else if (mancanti > 0) {
-        toast.warning(`${mancanti} ${mancanti === 1 ? "non eliminato" : "non eliminati"}: non hai i permessi su ${mancanti === 1 ? "questo" : "questi"}. Chiedi al titolare dell'azienda di darti l'accesso.`);
+        toast.warning(tr(mancanti === 1 ? "{n} non eliminato: non hai i permessi su questo. Chiedi al titolare dell'azienda di darti l'accesso." : "{n} non eliminati: non hai i permessi su questi. Chiedi al titolare dell'azienda di darti l'accesso.", { n: mancanti }));
       } else {
         const parti = [
-          cestino.deleted ? `${cestino.deleted} ${cestino.deleted === 1 ? "preventivo spostato" : "preventivi spostati"} nel cestino — recuperabili per 30 giorni` : null,
-          eliminati.deleted ? `${eliminati.deleted} ${eliminati.deleted === 1 ? "computo eliminato" : "computi eliminati"}` : null,
+          cestino.deleted ? tr(cestino.deleted === 1 ? "{n} preventivo spostato nel cestino — recuperabili per 30 giorni" : "{n} preventivi spostati nel cestino — recuperabili per 30 giorni", { n: cestino.deleted }) : null,
+          eliminati.deleted ? tr(eliminati.deleted === 1 ? "{n} computo eliminato" : "{n} computi eliminati", { n: eliminati.deleted }) : null,
         ].filter(Boolean);
         toast.success(parti.join(" · "));
       }
       onDone();
     } catch (e) {
-      toast.error("Errore eliminazione: " + (e as Error).message);
+      toast.error(tr("Errore eliminazione: {errore}", { errore: (e as Error).message }));
     } finally {
       setWorking(false);
       setConfirm(false);
@@ -231,12 +233,12 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
   return (
     <>
       <div className="sticky top-14 z-40 mb-2 bg-slate-900/95 text-slate-50 rounded-xl shadow-2xl ring-1 ring-white/10 backdrop-blur-md px-3 py-2 flex items-center gap-2 flex-wrap">
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-50 hover:bg-white/10 rounded-full" onClick={onClear} aria-label="Deseleziona tutto">
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-50 hover:bg-white/10 rounded-full" onClick={onClear} aria-label={tr("Deseleziona tutto")}>
           <X className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-2 text-sm font-medium pr-2">
           <span className="inline-flex items-center justify-center h-6 min-w-6 px-2 rounded-full bg-white text-slate-900 text-xs font-bold tabular-nums">{count}</span>
-          <span className="text-slate-200">{count === 1 ? "selezionato" : "selezionati"}</span>
+          <span className="text-slate-200">{count === 1 ? tr("selezionato") : tr("selezionati")}</span>
           {/* Quanto valgono, insieme (31/10/2026). */}
           {valoreSelezionati > 0 && <span className="tabular-nums text-slate-300">· {formatCurrency(valoreSelezionati)}</span>}
         </div>
@@ -249,11 +251,11 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
             className="h-8 text-slate-100 hover:bg-white/10 gap-1.5"
           >
             <Ban className="h-3.5 w-3.5" />
-            Segna come persi
+            {tr("Segna come persi")}
           </Button>
         )}
         {!canDelete && (
-          <span className="text-xs text-slate-300">Eliminare: serve il permesso di modificare i preventivi</span>
+          <span className="text-xs text-slate-300">{tr("Eliminare: serve il permesso di modificare i preventivi")}</span>
         )}
         {canDelete && (
           <Button
@@ -263,7 +265,7 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
             className="h-8 text-red-300 hover:bg-red-500/20 hover:text-red-100 gap-1.5"
           >
             {working ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            Elimina
+            {tr("Elimina")}
           </Button>
         )}
       </div>
@@ -271,16 +273,15 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
       <AlertDialog open={confermaPersi} onOpenChange={setConfermaPersi}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Segna come persi {nPersi} {nPersi === 1 ? "preventivo" : "preventivi"}</AlertDialogTitle>
+            <AlertDialogTitle>{tr(nPersi === 1 ? "Segna come persi {n} preventivo" : "Segna come persi {n} preventivi", { n: nPersi })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {nPersi === 1 ? "Esce" : "Escono"} dalla trattativa e {nPersi === 1 ? "va" : "vanno"} nella scheda «Persi»:
-              {nPersi === 1 ? " resta consultabile" : " restano consultabili"} e non si cancella niente.
-              {vintiEsclusi > 0 && <> {vintiEsclusi === 1 ? "Il preventivo vinto selezionato resta com'è" : `I ${vintiEsclusi} preventivi vinti selezionati restano come sono`}: è un contratto.</>}
+              {tr(nPersi === 1 ? "Esce dalla trattativa e va nella scheda «Persi»: resta consultabile e non si cancella niente." : "Escono dalla trattativa e vanno nella scheda «Persi»: restano consultabili e non si cancella niente.")}
+              {vintiEsclusi > 0 && <> {tr(vintiEsclusi === 1 ? "Il preventivo vinto selezionato resta com'è: è un contratto." : "I {n} preventivi vinti selezionati restano come sono: è un contratto.", { n: vintiEsclusi })}</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Indietro</AlertDialogCancel>
-            <AlertDialogAction onClick={runPersi}>Segna come persi</AlertDialogAction>
+            <AlertDialogCancel>{tr("Indietro")}</AlertDialogCancel>
+            <AlertDialogAction onClick={runPersi}>{tr("Segna come persi")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -289,25 +290,22 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {n > 0 && nComputi > 0 ? `Elimina ${n + nComputi} preventivi` : n > 0 ? `Sposta nel cestino ${n} ${n === 1 ? "preventivo" : "preventivi"}` : `Elimina ${nComputi} ${nComputi === 1 ? "computo" : "computi"}`}
+              {n > 0 && nComputi > 0 ? tr("Elimina {n} preventivi", { n: n + nComputi }) : n > 0 ? tr(n === 1 ? "Sposta nel cestino {n} preventivo" : "Sposta nel cestino {n} preventivi", { n }) : tr(nComputi === 1 ? "Elimina {n} computo" : "Elimina {n} computi", { n: nComputi })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {n > 0 && <>
-                {n === 1 ? "Il preventivo sparisce" : "I preventivi spariscono"} dalla lista e
-                {n === 1 ? " resta recuperabile" : " restano recuperabili"} dal Cestino per 30 giorni.
-                Dopo, l'eliminazione è definitiva.
+                {tr(n === 1 ? "Il preventivo sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni. Dopo, l'eliminazione è definitiva." : "I preventivi spariscono dalla lista e restano recuperabili dal Cestino per 30 giorni. Dopo, l'eliminazione è definitiva.")}
               </>}
               {nComputi > 0 && <>
                 {n > 0 && " "}
-                {nComputi === 1 ? "Il computo selezionato si elimina" : `I ${nComputi} computi selezionati si eliminano`} definitivamente:
-                i computi non hanno il cestino e non si recuperano. Il preventivo firmato, se c'è, resta.
+                {tr(nComputi === 1 ? "Il computo selezionato si elimina definitivamente: i computi non hanno il cestino e non si recuperano. Il preventivo firmato, se c'è, resta." : "I {n} computi selezionati si eliminano definitivamente: i computi non hanno il cestino e non si recuperano. Il preventivo firmato, se c'è, resta.", { n: nComputi })}
               </>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={runDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {nComputi > 0 ? "Elimina" : "Sposta nel cestino"}
+              {nComputi > 0 ? tr("Elimina") : tr("Sposta nel cestino")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

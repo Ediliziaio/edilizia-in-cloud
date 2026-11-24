@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   onUpload: (params: { files: ArrayLike<File>; descrizione?: string }) => Promise<{ mancanti: File[] }>;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function FotoUploader({ onUpload, isUploading }: Props) {
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [descrizione, setDescrizione] = useState('');
   const [mancanti, setMancanti] = useState<File[]>([]);
@@ -36,12 +38,12 @@ export function FotoUploader({ onUpload, isUploading }: Props) {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Upload className="h-4 w-4" />
-          Carica Foto
+          {t("Carica Foto")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="foto-input">Scatta o seleziona foto</Label>
+          <Label htmlFor="foto-input">{t("Scatta o seleziona foto")}</Label>
           <input
             ref={fileInputRef}
             id="foto-input"
@@ -55,15 +57,15 @@ export function FotoUploader({ onUpload, isUploading }: Props) {
             className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
           />
           <p className="text-xs text-muted-foreground">
-            💡 Tocca per scattare con la fotocamera o scegliere dalla galleria
+            {t("💡 Tocca per scattare con la fotocamera o scegliere dalla galleria")}
           </p>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="foto-descrizione">Descrizione (opzionale)</Label>
+          <Label htmlFor="foto-descrizione">{t("Descrizione (opzionale)")}</Label>
           <Textarea
             id="foto-descrizione"
-            placeholder="Aggiungi una descrizione..."
+            placeholder={t("Aggiungi una descrizione...")}
             value={descrizione}
             onChange={(e) => setDescrizione(e.target.value)}
             rows={2}
@@ -72,17 +74,17 @@ export function FotoUploader({ onUpload, isUploading }: Props) {
 
         {mancanti.length > 0 && (
           <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            <p>{errore ? "Caricamento interrotto" : "Foto da completare"}</p>
+            <p>{errore ? t("Caricamento interrotto") : t("Foto da completare")}</p>
             <ul>{mancanti.map((file, i) => <li key={i} className="break-all">{file.name}</li>)}</ul>
-            <p className="mt-1">Le foto già caricate o in attesa di rete sono conservate. Se chiudi, dovrai riselezionare quelle mancanti.</p>
+            <p className="mt-1">{t("Le foto già caricate o in attesa di rete sono conservate. Se chiudi, dovrai riselezionare quelle mancanti.")}</p>
           </div>
         )}
         <div className="flex flex-col gap-2">
           <Button onClick={handleCarica} disabled={isUploading} className="w-full sm:w-auto">
-            {isUploading ? 'Caricamento...' : mancanti.length ? 'Riprova mancanti' : 'Carica foto'}
+            {isUploading ? t("Caricamento...") : mancanti.length ? t("Riprova mancanti") : t("Carica foto")}
           </Button>
           <p className="text-xs text-gray-500">
-            Le coordinate GPS verranno acquisite automaticamente se disponibili
+            {t("Le coordinate GPS verranno acquisite automaticamente se disponibili")}
           </p>
         </div>
       </CardContent>

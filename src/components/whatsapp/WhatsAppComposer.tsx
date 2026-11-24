@@ -23,6 +23,7 @@ import {
 import { Clock, AlertTriangle, Send, Loader2, FileText, MessageSquare } from "lucide-react";
 import { useWhatsAppNumbers } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { useWhatsAppWindow, useApprovedTemplates } from "@/hooks/whatsapp/useWhatsAppCompliance";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface WhatsAppSendArgs {
   idempotencyKey: string;
@@ -55,6 +56,7 @@ interface Props {
 }
 
 export function WhatsAppComposer({ phone, onSend, isSending, className, contactFields, seedText, seedAt, compatto }: Props) {
+  const tr = useT();
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const sendLock = useRef(false);
   const seededDraftVersion = useRef(0);
@@ -144,7 +146,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
       } else {
         accepted = await onSend({ idempotencyKey, waNumberId: numberId, content: text.trim(), template: null });
       }
-      if (accepted !== true) throw new Error("Invio non confermato. Il testo è conservato: verifica la conversazione prima di riprovare.");
+      if (accepted !== true) throw new Error(tr("Invio non confermato. Il testo è conservato: verifica la conversazione prima di riprovare."));
       intent.current = null;
       // A new AI draft may arrive while the previous send is awaiting its receipt.
       if (seededDraftVersion.current === sendingDraftVersion) {
@@ -154,7 +156,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
         if (areaRef.current) areaRef.current.style.height = "";
       }
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : "Invio non confermato. Il testo è conservato.");
+      setSendError(error instanceof Error ? error.message : tr("Invio non confermato. Il testo è conservato."));
     } finally {
       sendLock.current = false;
       setLocalSending(false);
@@ -167,7 +169,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
       <Alert className={cn(className, "max-sm:py-2 max-sm:[&>svg]:top-2")}>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription className="text-xs max-sm:text-[11px]">
-          Nessun numero WhatsApp attivo<span className="max-sm:hidden">. Collega/attiva un numero nel Centro WhatsApp per inviare messaggi.</span>
+          {tr("Nessun numero WhatsApp attivo")}<span className="max-sm:hidden">{tr(". Collega/attiva un numero nel Centro WhatsApp per inviare messaggi.")}</span>
         </AlertDescription>
       </Alert>
     );
@@ -184,12 +186,12 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
         {activeNumbers.length > 1 && (
           <Select value={numberId ?? undefined} onValueChange={setNumberId} disabled={localSending || isSending}>
             <SelectTrigger className="h-7 w-auto min-w-[160px] text-xs">
-              <SelectValue placeholder="Numero mittente" />
+              <SelectValue placeholder={tr("Numero mittente")} />
             </SelectTrigger>
             <SelectContent>
               {activeNumbers.map((n) => (
                 <SelectItem key={n.id} value={n.id} className="text-xs">
-                  {n.display_name || n.numero || "Numero"} — {n.numero}
+                  {n.display_name || n.numero || tr("Numero")} — {n.numero}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -198,20 +200,20 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
 
         {windowLoading ? (
           <Badge variant="secondary" className="text-[11px]">
-            <Clock className="mr-1 h-3 w-3" /> Verifica finestra…
+            <Clock className="mr-1 h-3 w-3" /> {tr("Verifica finestra…")}
           </Badge>
         ) : isOpen ? (
           <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100 text-[11px]">
             <Clock className="mr-1 h-3 w-3" />
-            Finestra 24h aperta{window24.data?.hoursLeft != null ? ` · ~${window24.data.hoursLeft}h` : ""}
+            {tr("Finestra 24h aperta")}{window24.data?.hoursLeft != null ? ` · ~${window24.data.hoursLeft}h` : ""}
           </Badge>
         ) : (
           <Badge
             variant="secondary"
             className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[11px] cursor-help"
-            title="Il cliente non scrive da oltre 24h: per regolamento WhatsApp puoi inviare solo un template approvato. La finestra si riapre quando il cliente risponde."
+            title={tr("Il cliente non scrive da oltre 24h: per regolamento WhatsApp puoi inviare solo un template approvato. La finestra si riapre quando il cliente risponde.")}
           >
-            <AlertTriangle className="mr-1 h-3 w-3" /> Solo template (finestra 24h chiusa)
+            <AlertTriangle className="mr-1 h-3 w-3" /> {tr("Solo template (finestra 24h chiusa)")}
           </Badge>
         )}
 
@@ -224,7 +226,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
               onClick={() => setMode("text")}
               className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "text" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
             >
-              <MessageSquare className="h-3 w-3" /> Testo libero
+              <MessageSquare className="h-3 w-3" /> {tr("Testo libero")}
             </button>
             <button
               type="button"
@@ -232,7 +234,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
               onClick={() => setMode("template")}
               className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "template" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
             >
-              <FileText className="h-3 w-3" /> Template
+              <FileText className="h-3 w-3" /> {tr("Template")}
             </button>
           </div>
         )}
@@ -259,7 +261,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
             }}
             rows={1}
             enterKeyHint="send"
-            placeholder="Scrivi un messaggio"
+            placeholder={tr("Scrivi un messaggio")}
             maxLength={4096}
             className="block w-full resize-none rounded-xl border border-blue-200 bg-slate-50 px-3 py-2 text-base md:text-[14px] leading-snug focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent dark:bg-[#2a3942] dark:border-blue-900/40"
           />
@@ -267,7 +269,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
             size="icon"
             onClick={handleSend}
             disabled={!canSend}
-            aria-label="Invia WhatsApp"
+            aria-label={tr("Invia WhatsApp")}
             className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] text-white hover:bg-[#019173]"
           >
             {isSending || localSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -279,7 +281,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={3}
-          placeholder="Scrivi il messaggio WhatsApp…"
+          placeholder={tr("Scrivi il messaggio WhatsApp…")}
           maxLength={4096}
         />
       ) : (
@@ -287,20 +289,20 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
           <div className="space-y-1">
             <Select value={templateId ?? undefined} onValueChange={handlePickTemplate} disabled={localSending || isSending}>
               <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder={templates.length ? "Scegli un template approvato…" : "Nessun template approvato"} />
+                <SelectValue placeholder={templates.length ? tr("Scegli un template approvato…") : tr("Nessun template approvato")} />
               </SelectTrigger>
               <SelectContent>
                 {templates.map((t) => (
                   <SelectItem key={t.id} value={t.id} className="text-xs">
                     {t.template_name} · {t.template_language}
-                    {t.variables_count > 0 ? ` · ${t.variables_count} var` : ""}
+                    {t.variables_count > 0 ? ` ${tr("· {n} var", { n: t.variables_count })}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {templates.length === 0 && (
               <p className="text-[11px] text-muted-foreground">
-                Nessun template approvato. Crea e fai approvare un template nel Centro WhatsApp → Template.
+                {tr("Nessun template approvato. Crea e fai approvare un template nel Centro WhatsApp → Template.")}
               </p>
             )}
           </div>
@@ -312,14 +314,14 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
                 return (
                   <div key={i} className="space-y-0.5">
                     <Label className="text-[11px] text-muted-foreground">
-                      {`Variabile {{${i + 1}}}`}
-                      {mappedKey ? " · compilata dal contatto" : ""}
+                      {tr("Variabile")}{` {{${i + 1}}}`}
+                      {mappedKey ? ` ${tr("· compilata dal contatto")}` : ""}
                     </Label>
                     <Input
                       disabled={localSending || isSending}
                       value={v}
                       onChange={(e) => setVars((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-                      placeholder={`Valore {{${i + 1}}}`}
+                      placeholder={`${tr("Valore")} {{${i + 1}}}`}
                       className="h-9 text-base sm:h-8 sm:text-xs"
                     />
                   </div>
@@ -334,7 +336,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
         <div className="flex justify-end">
           <Button size="sm" onClick={handleSend} disabled={!canSend} className="gap-1.5">
             {isSending || localSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Invia WhatsApp
+            {tr("Invia WhatsApp")}
           </Button>
         </div>
       )}

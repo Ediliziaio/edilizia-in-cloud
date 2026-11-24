@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { calcolaCassa } from "@/lib/simulatore/calcoli";
 import type { FaseSim, VoceSim } from "@/lib/simulatore/tipi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SimFlussoCassaProps {
   fasi: FaseSim[];
@@ -65,6 +66,7 @@ export function SimFlussoCassa({
   sal,
   onChangeSal,
 }: SimFlussoCassaProps) {
+  const t = useT();
   const cassa = useMemo(
     () => calcolaCassa(fasi, voci, costoPieno, prezzoCliente, sal),
     [fasi, voci, costoPieno, prezzoCliente, sal],
@@ -101,7 +103,7 @@ export function SimFlussoCassa({
   const inputs = (
     <div className="flex flex-wrap items-end gap-3">
       <div className="w-[120px] space-y-1">
-        <Label className="text-[11px] text-muted-foreground">Acconto (%)</Label>
+        <Label className="text-[11px] text-muted-foreground">{t("Acconto (%)")}</Label>
         <Input
           type="number"
           inputMode="numeric"
@@ -116,7 +118,7 @@ export function SimFlussoCassa({
         />
       </div>
       <div className="w-[120px] space-y-1">
-        <Label className="text-[11px] text-muted-foreground">Saldo (%)</Label>
+        <Label className="text-[11px] text-muted-foreground">{t("Saldo (%)")}</Label>
         <Input
           type="number"
           inputMode="numeric"
@@ -142,7 +144,7 @@ export function SimFlussoCassa({
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary max-sm:hidden">
               <Wallet className="h-4 w-4" />
             </span>
-            <h3 className="text-sm font-semibold">Flusso di cassa<span className="max-sm:hidden"> nel tempo (SAL)</span></h3>
+            <h3 className="text-sm font-semibold">{t("Flusso di cassa")}<span className="max-sm:hidden"> {t("nel tempo (SAL)")}</span></h3>
           </div>
           {inputs}
         </div>
@@ -152,8 +154,8 @@ export function SimFlussoCassa({
             icon={Wallet}
             size="sm"
             tone="success"
-            title="Nessun flusso di cassa"
-            description="Aggiungi fasi nel cronoprogramma per vedere come acconto, SAL e saldo coprono i costi nel tempo."
+            title={t("Nessun flusso di cassa")}
+            description={t("Aggiungi fasi nel cronoprogramma per vedere come acconto, SAL e saldo coprono i costi nel tempo.")}
           />
         ) : (
           <>
@@ -196,8 +198,8 @@ export function SimFlussoCassa({
                   width={60}
                 />
                 <Tooltip
-                  formatter={(value: number) => [formatCurrency(value), "Netto cassa"]}
-                  labelFormatter={(label: number) => `Settimana ${label}`}
+                  formatter={(value: number) => [formatCurrency(value), t("Netto cassa")]}
+                  labelFormatter={(label: number) => t("Settimana {n}", { n: label })}
                   labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
@@ -251,32 +253,26 @@ export function SimFlussoCassa({
               >
                 <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: CASSA_NEGATIVO }}>
                   <TrendingDown className="h-3.5 w-3.5 max-sm:hidden" />
-                  <span className="max-sm:hidden">Esposizione massima</span><span className="sm:hidden">Esposizione</span>
+                  <span className="max-sm:hidden">{t("Esposizione massima")}</span><span className="sm:hidden">{t("Esposizione")}</span>
                 </div>
                 <p className="mt-1 text-lg font-semibold tabular-nums max-sm:text-[13px]" style={{ color: CASSA_NEGATIVO }}>
                   {formatCurrency(esposizione)}
                 </p>
-                <p className="text-[11px] text-muted-foreground max-sm:hidden">
-                  alla settimana {cassa.settimana_max_esposizione}
-                </p>
+                <p className="text-[11px] text-muted-foreground max-sm:hidden">{t("alla settimana {settimana_max_esposizione}", { settimana_max_esposizione: String(cassa.settimana_max_esposizione ?? "") })}</p>
               </div>
               <div className="rounded-xl border bg-card p-3 max-sm:p-2">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  Acconto ({sal.acconto_pct.toLocaleString("it-IT")}%)
-                </div>
+                <div className="text-[11px] font-medium text-muted-foreground">{t("Acconto ({valore}%)", { valore: sal.acconto_pct.toLocaleString(intlCampo()) })}</div>
                 <p className="mt-1 text-lg font-semibold tabular-nums text-primary max-sm:text-[13px]">
                   {formatCurrency(acconto)}
                 </p>
-                <p className="text-[11px] text-muted-foreground max-sm:hidden">alla firma</p>
+                <p className="text-[11px] text-muted-foreground max-sm:hidden">{t("alla firma")}</p>
               </div>
               <div className="rounded-xl border bg-card p-3 max-sm:p-2">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  Saldo ({sal.saldo_pct.toLocaleString("it-IT")}%)
-                </div>
+                <div className="text-[11px] font-medium text-muted-foreground">{t("Saldo ({valore}%)", { valore: sal.saldo_pct.toLocaleString(intlCampo()) })}</div>
                 <p className="mt-1 text-lg font-semibold tabular-nums max-sm:text-[13px]" style={{ color: CASSA_POSITIVO }}>
                   {formatCurrency(saldo)}
                 </p>
-                <p className="text-[11px] text-muted-foreground max-sm:hidden">a fine lavori</p>
+                <p className="text-[11px] text-muted-foreground max-sm:hidden">{t("a fine lavori")}</p>
               </div>
             </div>
           </>

@@ -18,6 +18,7 @@ import {
   riepilogoScadenze,
   type ScadenzaSicurezza,
 } from "@/lib/sicurezza/scadenzeCommessa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // La vista è recente e non è ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,6 +45,7 @@ export function useScadenzeCommessa(companyId: string, orderId: string) {
 export function ScadenzeCommessa(
   { companyId, orderId }: { companyId: string; orderId: string },
 ) {
+  const t = useT();
   const q = useScadenzeCommessa(companyId, orderId);
 
   if (q.isError) {
@@ -52,8 +54,7 @@ export function ScadenzeCommessa(
         role="alert"
         className="rounded-md border border-amber-300 p-3 text-sm text-amber-900"
       >
-        Scadenze della sicurezza non disponibili: quello che vedi sotto non le
-        comprende.
+        {t("Scadenze della sicurezza non disponibili: quello che vedi sotto non le comprende.")}
       </p>
     );
   }
@@ -80,9 +81,7 @@ export function ScadenzeCommessa(
             className={`text-sm font-semibold ${
               inRitardo ? "text-rose-900" : "text-amber-900"
             }`}
-          >
-            Scadenze di questo cantiere: {testo}
-          </h4>
+          >{t("Scadenze di questo cantiere: {testo}", { testo: String(testo ?? "") })}</h4>
         </div>
         <ul className="space-y-1 text-sm">
           {righe.map((r) => (

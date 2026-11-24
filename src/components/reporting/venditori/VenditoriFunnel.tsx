@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { TrendingDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { FunnelStage } from "@/hooks/useVendorReport";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /*
  * Dove sono oggi le opportunità create nel periodo, fase per fase, nell'ordine
@@ -31,6 +32,7 @@ function isWon(stage: string) { return WON_STAGES.includes(norm(stage)); }
 function isLost(stage: string) { return LOST_STAGES.includes(norm(stage)); }
 
 export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
+  const t = useT();
   if (!stages.length) return null;
 
   const maxCount = Math.max(...stages.map(s => s.count_opp), 1);
@@ -43,11 +45,9 @@ export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
       <CardHeader className="max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base max-sm:text-sm">
           <TrendingDown className="h-5 w-5 max-sm:hidden" />
-          Opportunità per fase
+          {t("Opportunità per fase")}
         </CardTitle>
-        <CardDescription className="max-sm:hidden">
-          Dove sono oggi le {totalOpp} opportunità create nel periodo, nell'ordine della pipeline
-        </CardDescription>
+        <CardDescription className="max-sm:hidden">{t("Dove sono oggi le {totalOpp} opportunità create nel periodo, nell'ordine della pipeline", { totalOpp })}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-1.5 max-sm:p-3 max-sm:pt-0">
         {stages.map((stage, idx) => {
@@ -71,7 +71,7 @@ export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
                   style={{ width: `${width}%`, backgroundColor: bgColor }}
                 >
                   {stage.count_opp}
-                  <span className="ml-1 opacity-75 max-sm:hidden">{Number(stage.pct_del_totale ?? 0).toLocaleString("it-IT")}%</span>
+                  <span className="ml-1 opacity-75 max-sm:hidden">{Number(stage.pct_del_totale ?? 0).toLocaleString(intlCampo())}%</span>
                 </div>
               </div>
               <span className="w-24 text-sm text-right tabular-nums text-muted-foreground max-sm:w-[72px] max-sm:text-[11px]">
@@ -84,10 +84,10 @@ export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
         {conVinteOPerse && (
           <div className="flex items-center gap-4 pt-3 text-xs text-muted-foreground max-sm:hidden">
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(142 76% 36%)" }} /> Vinte
+              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(142 76% 36%)" }} /> {t("Vinte")}
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(0 84% 60%)" }} /> Perse
+              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(0 84% 60%)" }} /> {t("Perse")}
             </div>
           </div>
         )}

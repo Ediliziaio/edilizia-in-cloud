@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type FishVoiceSegment = {
   segmentId: string;
@@ -109,6 +110,7 @@ export function FishLiveVoice({
   availableScenarios?: string[];
   localLead?: LocalLeadVoice;
 }) {
+  const t = useT();
   const session = useRef<AgentSession | null>(null);
   const generation = useRef(0);
   const [status, setStatus] = useState("ready");
@@ -222,7 +224,7 @@ export function FishLiveVoice({
       },
       (err) => {
         setTranscriptError(
-          "La conversazione non è ancora salvata. Riprova prima di chiudere.",
+          t("La conversazione non è ancora salvata. Riprova prima di chiudere."),
         );
         throw err;
       },
@@ -444,7 +446,7 @@ export function FishLiveVoice({
             setStatus("ended");
           },
           onError: (value) => {
-            if (attempt === generation.current) setError(voiceError(value));
+            if (attempt === generation.current) setError(t(voiceError(value)));
           },
         },
       });
@@ -460,11 +462,11 @@ export function FishLiveVoice({
       try {
         await live.startAudio();
       } catch {
-        setError("Premi Attiva audio per ascoltare l’agente.");
+        setError(t("Premi Attiva audio per ascoltare l’agente."));
       }
     } catch (err) {
       if (attempt === generation.current) {
-        setError(voiceError(err));
+        setError(t(voiceError(err)));
         setStatus("ready");
       }
     }
@@ -479,7 +481,7 @@ export function FishLiveVoice({
     try {
       await live?.end();
     } catch (error) {
-      setError(voiceError(error));
+      setError(t(voiceError(error)));
     } finally {
       setStatus("ended");
     }
@@ -489,7 +491,7 @@ export function FishLiveVoice({
       await session.current?.setMicMuted(!muted);
       setMuted(!muted);
     } catch (err) {
-      setError(voiceError(err));
+      setError(t(voiceError(err)));
     }
   }
   function send() {
@@ -501,7 +503,7 @@ export function FishLiveVoice({
   return (
     <section
       className="min-w-0 space-y-2.5"
-      aria-label="Conversazione vocale con l’agente"
+      aria-label={t("Conversazione vocale con l’agente")}
     >
       <div className="flex min-w-0 items-center gap-2.5 rounded-lg border bg-muted/20 p-2.5">
         <div
@@ -516,23 +518,21 @@ export function FishLiveVoice({
         <div>
           <p className="font-semibold" role="status">
             {status === "connecting"
-              ? "Preparo la prova vocale…"
+              ? t("Preparo la prova vocale…")
               : live
-                ? modes[mode] || "Connesso"
+                ? (modes[mode] ? t(modes[mode]) : t("Connesso"))
                 : status === "ended"
-                  ? "Prova terminata"
-                  : "Il tuo agente è pronto"}
+                  ? t("Prova terminata")
+                  : t("Il tuo agente è pronto")}
           </p>
           <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
-            Fish Audio · fino a 5 min ·{" "}
-            {crmTrial ? "Cliente del gestionale" : "Dati dimostrativi"}
+            {t("Fish Audio · fino a 5 min · {dati}", { dati: crmTrial ? t("Cliente del gestionale") : t("Dati dimostrativi") })}
           </p>
         </div>
       </div>
       {crmTrial && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-          Verifica nome e indirizzo, poi conferma il riepilogo per creare o
-          aggiornare il ticket di prova.
+          {t("Verifica nome e indirizzo, poi conferma il riepilogo per creare o aggiornare il ticket di prova.")}
         </p>
       )}
       {!crmTrial &&
@@ -543,20 +543,15 @@ export function FishLiveVoice({
           "returning_customer",
         ].includes(scenario) && (
           <div className="rounded-lg border bg-muted/20 p-2.5 text-xs leading-5">
-            <p className="font-medium">
-              Cliente fittizio · {FISH_CUSTOMER_DEMO.name}
-            </p>
+            <p className="font-medium">{t("Cliente fittizio · {name}", { name: String(FISH_CUSTOMER_DEMO.name ?? "") })}</p>
             <p>
               {scenario === "returning_customer"
-                ? `Richiama per il ticket ${FISH_CUSTOMER_DEMO.ticket}: la maniglia della finestra è ancora dura. Chiedi di aggiornare la segnalazione esistente, poi conferma il riepilogo.`
+                ? t("Richiama per il ticket {ticket}: la maniglia della finestra è ancora dura. Chiedi di aggiornare la segnalazione esistente, poi conferma il riepilogo.", { ticket: String(FISH_CUSTOMER_DEMO.ticket ?? "") })
                 : scenario !== "unknown_customer"
-                  ? "Numero associato a una sola scheda di prova. Chiedi lo stato dell’ordine, poi segnala la finestra che non si chiude."
-                  : "Numero non riconosciuto o condiviso: il nome non basta per consultare gli ordini."}
+                  ? t("Numero associato a una sola scheda di prova. Chiedi lo stato dell’ordine, poi segnala la finestra che non si chiude.")
+                  : t("Numero non riconosciuto o condiviso: il nome non basta per consultare gli ordini.")}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Indirizzo da dichiarare: {FISH_CUSTOMER_DEMO.address} · Ordine{" "}
-              {FISH_CUSTOMER_DEMO.order}. Nessun dato cliente reale.
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("Indirizzo da dichiarare: {address} · Ordine {order}. Nessun dato cliente reale.", { address: String(FISH_CUSTOMER_DEMO.address ?? ""), order: String(FISH_CUSTOMER_DEMO.order ?? "") })}</p>
           </div>
         )}
       {!crmTrial && FISH_DEMO_HANDOFF_SCENARIOS.includes(scenario) && (
@@ -564,30 +559,26 @@ export function FishLiveVoice({
       )}
       {!crmTrial && scenario.startsWith("lead_") && (
         <div className="rounded-lg border bg-muted/20 p-2.5 text-xs leading-5">
-          <p className="font-medium">Lead fittizio · {FISH_LEAD_DEMO.name}</p>
+          <p className="font-medium">{t("Lead fittizio · {name}", { name: String(FISH_LEAD_DEMO.name ?? "") })}</p>
           <p>
             {scenario === "lead_appointment"
               ? localLead
-                ? `Chiedi un sopralluogo per il ${new Intl.DateTimeFormat("it-IT").format(new Date(localLead.day + "T12:00:00"))}. Scegli un orario proposto e conferma il riepilogo.`
-                : "Chiedi un sopralluogo il 18 novembre 2026 alle 10:00. Aspetta il riepilogo prima di confermare."
+                ? t("Chiedi un sopralluogo per il {valore}. Scegli un orario proposto e conferma il riepilogo.", { valore: String(new Intl.DateTimeFormat(intlCampo()).format(new Date(localLead.day + "T12:00:00")) ?? "") })
+                : t("Chiedi un sopralluogo il 18 novembre 2026 alle 10:00. Aspetta il riepilogo prima di confermare.")
               : scenario === "lead_handoff"
-                ? "Chiedi di parlare con un consulente per le finestre. Per provare il ritorno all’AI, lascia passare lo squillo."
+                ? t("Chiedi di parlare con un consulente per le finestre. Per provare il ritorno all’AI, lascia passare lo squillo.")
                 : scenario === "lead_declined"
-                  ? "Spiega che non sei interessato e osserva come l’agente chiude la conversazione."
-                  : "Rispondi come lead di prova, seguendo lo scenario scelto."}
+                  ? t("Spiega che non sei interessato e osserva come l’agente chiude la conversazione.")
+                  : t("Rispondi come lead di prova, seguendo lo scenario scelto.")}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Immobile fittizio: {FISH_LEAD_DEMO.quantity} finestre,{" "}
-            {FISH_LEAD_DEMO.address}. Recapito dimostrativo{" "}
-            {FISH_LEAD_DEMO.phone}.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("Immobile fittizio: {quantity} finestre, {address}. Recapito dimostrativo {phone}.", { quantity: String(FISH_LEAD_DEMO.quantity ?? ""), address: String(FISH_LEAD_DEMO.address ?? ""), phone: String(FISH_LEAD_DEMO.phone ?? "") })}</p>
         </div>
       )}
       {!live && status !== "connecting" && (
         <>
           {!crmTrial && (
             <Select value={scenario} onValueChange={setScenario}>
-              <SelectTrigger aria-label="Scenario della prova vocale">
+              <SelectTrigger aria-label={t("Scenario della prova vocale")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -607,7 +598,7 @@ export function FishLiveVoice({
           <div className="flex flex-wrap gap-2">
             <Button disabled={!ready} onClick={() => start(true)}>
               <Mic className="mr-2 h-4 w-4" />
-              Avvia con microfono
+              {t("Avvia con microfono")}
             </Button>
             <Button
               disabled={!ready}
@@ -615,21 +606,20 @@ export function FishLiveVoice({
               onClick={() => start(false)}
             >
               <Volume2 className="mr-2 h-4 w-4" />
-              Ascolta senza microfono
+              {t("Ascolta senza microfono")}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            La prova usa credito Fish. Con il microfono invii il parlato a Fish.
-            La registrazione delle chiamate è disabilitata.
+            {t("La prova usa credito Fish. Con il microfono invii il parlato a Fish. La registrazione delle chiamate è disabilitata.")}
           </p>
         </>
       )}
       {status === "connecting" && (
         <div className="flex items-center gap-3 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Al primo avvio preparo anche gli strumenti di prova.</span>
+          <span>{t("Al primo avvio preparo anche gli strumenti di prova.")}</span>
           <Button size="sm" variant="ghost" onClick={end}>
-            Annulla
+            {t("Annulla")}
           </Button>
         </div>
       )}
@@ -641,18 +631,18 @@ export function FishLiveVoice({
             ) : (
               <Mic className="mr-2 h-4 w-4" />
             )}
-            {muted ? "Attiva microfono" : "Silenzia microfono"}
+            {muted ? t("Attiva microfono") : t("Silenzia microfono")}
           </Button>
           <Button
             variant="outline"
             onClick={() => session.current?.startAudio()}
           >
             <Volume2 className="mr-2 h-4 w-4" />
-            Attiva audio
+            {t("Attiva audio")}
           </Button>
           <Button variant="destructive" onClick={end}>
             <PhoneOff className="mr-2 h-4 w-4" />
-            Termina
+            {t("Termina")}
           </Button>
         </div>
       )}
@@ -676,14 +666,14 @@ export function FishLiveVoice({
               size="sm"
               onClick={() => void saveTranscript(!live).catch(() => {})}
             >
-              Riprova salvataggio conversazione
+              {t("Riprova salvataggio conversazione")}
             </Button>
           </div>
         ) : transcriptSaved ? (
           <p role="status" className="text-xs text-muted-foreground">
             {localLead
-              ? "Conversazione salvata nei dati del collaudo."
-              : "Conversazione salvata. Quando apri la segnalazione la trovi anche nel ticket."}
+              ? t("Conversazione salvata nei dati del collaudo.")
+              : t("Conversazione salvata. Quando apri la segnalazione la trovi anche nel ticket.")}
           </p>
         ) : null)}
       {(segments.length > 0 || live) && (
@@ -695,11 +685,11 @@ export function FishLiveVoice({
               pane.scrollHeight - pane.scrollTop - pane.clientHeight < 40;
           }}
           className="max-h-[min(32dvh,18rem)] space-y-2 overflow-y-auto rounded-lg border bg-muted/20 p-2.5"
-          aria-label="Trascrizione della prova vocale"
+          aria-label={t("Trascrizione della prova vocale")}
         >
           {segments.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              In attesa del saluto dell’agente…
+              {t("In attesa del saluto dell’agente…")}
             </p>
           ) : (
             segments.map((item) => (
@@ -708,7 +698,7 @@ export function FishLiveVoice({
                 className={`max-w-[94%] break-words rounded-lg border px-2.5 py-2 text-sm leading-5 ${item.role === "user" ? "ml-auto border-sky-100 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30" : "bg-background"}`}
               >
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {item.role === "user" ? "Tu" : "Agente"}
+                  {item.role === "user" ? t("Tu") : t("Agente")}
                 </p>
                 <p>{item.text}</p>
               </div>
@@ -726,16 +716,16 @@ export function FishLiveVoice({
           }}
         >
           <Input
-            aria-label="Messaggio all’agente vocale"
+            aria-label={t("Messaggio all’agente vocale")}
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Scrivi: vorrei prenotare un sopralluogo"
+            placeholder={t("Scrivi: vorrei prenotare un sopralluogo")}
             maxLength={2000}
           />
           <Button
             type="submit"
             disabled={!text.trim()}
-            aria-label="Invia e ascolta"
+            aria-label={t("Invia e ascolta")}
           >
             <Send className="h-4 w-4" />
           </Button>

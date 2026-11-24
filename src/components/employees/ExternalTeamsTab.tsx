@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type { ExternalTeam } from "@/types/employees";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ExternalTeamsTabProps {
   teams: ExternalTeam[];
@@ -45,25 +46,24 @@ export function ExternalTeamsTab({
   onViewAttachments,
   soloLettura = false,
 }: ExternalTeamsTabProps) {
+  const tr = useT();
   const activeTeams = teams.filter((t) => t.is_active);
   const inactiveTeams = teams.filter((t) => !t.is_active);
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <div className="text-sm text-muted-foreground">
-          {activeTeams.length} attive, {inactiveTeams.length} inattive
-        </div>
+        <div className="text-sm text-muted-foreground">{tr("{n} attive, {n2} inattive", { n: activeTeams.length, n2: inactiveTeams.length })}</div>
         <Button onClick={onNew} disabled={soloLettura}>
           <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-          Nuova squadra
+          {tr("Nuova squadra")}
         </Button>
       </div>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-3" role="status" aria-busy="true" aria-label="Caricamento delle squadre">
+            <div className="p-6 space-y-3" role="status" aria-busy="true" aria-label={tr("Caricamento delle squadre")}>
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex items-center gap-4">
                   <Skeleton className="h-5 w-[140px]" />
@@ -75,18 +75,18 @@ export function ExternalTeamsTab({
             </div>
           ) : teams.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              Nessuna squadra esterna ancora. Aggiungi la prima per cominciare.
+              {tr("Nessuna squadra esterna ancora. Aggiungi la prima per cominciare.")}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome ditta</TableHead>
-                  <TableHead>Referente</TableHead>
-                  <TableHead>Contatti</TableHead>
-                  <TableHead>Note</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
+                  <TableHead>{tr("Nome ditta")}</TableHead>
+                  <TableHead>{tr("Referente")}</TableHead>
+                  <TableHead>{tr("Contatti")}</TableHead>
+                  <TableHead>{tr("Note")}</TableHead>
+                  <TableHead>{tr("Stato")}</TableHead>
+                  <TableHead className="text-right"><span className="sr-only">{tr("Azioni")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -115,7 +115,7 @@ export function ExternalTeamsTab({
                     </TableCell>
                     <TableCell>
                       <Badge variant={team.is_active ? "default" : "secondary"}>
-                        {team.is_active ? "Attiva" : "Inattiva"}
+                        {team.is_active ? tr("Attiva") : tr("Inattiva")}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -124,8 +124,8 @@ export function ExternalTeamsTab({
                           variant="ghost"
                           size="icon"
                           onClick={() => onViewAttachments(team)}
-                          title="Documenti"
-                          aria-label={`Documenti di ${team.name}`}
+                          title={tr("Documenti")}
+                          aria-label={tr("Documenti di {name}", { name: String(team.name ?? "") })}
                         >
                           <FileText className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -134,8 +134,8 @@ export function ExternalTeamsTab({
                           size="icon"
                           onClick={() => onEdit(team)}
                           disabled={soloLettura}
-                          title="Modifica"
-                          aria-label={`Modifica ${team.name}`}
+                          title={tr("Modifica")}
+                          aria-label={tr("Modifica {nome}", { nome: String(team.name ?? "") })}
                         >
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -145,26 +145,26 @@ export function ExternalTeamsTab({
                               variant="ghost"
                               size="icon"
                               disabled={soloLettura}
-                              title="Elimina"
-                              aria-label={`Elimina ${team.name}`}
+                              title={tr("Elimina")}
+                              aria-label={tr("Elimina {nome}", { nome: String(team.name ?? "") })}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare la squadra {team.name}?</AlertDialogTitle>
+                              <AlertDialogTitle>{tr("Eliminare la squadra {name}?", { name: String(team.name ?? "") })}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Non si può annullare. Se è assegnata a delle commesse, meglio impostarla come «Inattiva».
+                                {tr("Non si può annullare. Se è assegnata a delle commesse, meglio impostarla come «Inattiva».")}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => onDelete(team.id)}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
-                                Elimina
+                                {tr("Elimina")}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>

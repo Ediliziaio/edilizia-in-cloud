@@ -10,6 +10,7 @@ import { useState, useMemo } from "react";
 import ColumnsDrawer from "./ColumnsDrawer";
 import ExportDialog from "./ExportDialog";
 import { ALL_META_ACCOUNTS, ALL_META_ACCOUNTS_LABEL, type useMetaAdsReport } from "@/hooks/useMetaAdsReport";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   report: ReturnType<typeof useMetaAdsReport>;
@@ -25,6 +26,7 @@ const DATE_PRESETS = [
 ];
 
 const ReportHeader = ({ report }: Props) => {
+  const t = useT();
   const [showColumns, setShowColumns] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
@@ -40,14 +42,14 @@ const ReportHeader = ({ report }: Props) => {
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Report Meta / Facebook Ads</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{t("Report Meta / Facebook Ads")}</h2>
           <p className="text-xs text-muted-foreground">
             {report.adAccounts.length === 1
-              ? `Account: ${report.adAccounts[0].name || report.adAccounts[0].id}`
+              ? t("Account: {nome}", { nome: report.adAccounts[0].name || report.adAccounts[0].id })
               : report.selectedAccountId === ALL_META_ACCOUNTS
-                ? `Ambito: ${ALL_META_ACCOUNTS_LABEL}`
-                : `Ambito: ${report.adAccounts.find((account) => account.id === report.selectedAccountId)?.name || report.selectedAccountId}`}
-            {report.aggiornatoAlle && ` · dati Meta delle ${format(new Date(report.aggiornatoAlle), "HH:mm")}`}
+                ? t("Ambito: {nome}", { nome: t(ALL_META_ACCOUNTS_LABEL) })
+                : t("Ambito: {nome}", { nome: report.adAccounts.find((account) => account.id === report.selectedAccountId)?.name || report.selectedAccountId })}
+            {report.aggiornatoAlle && ` · ${t("dati Meta delle {ora}", { ora: format(new Date(report.aggiornatoAlle), "HH:mm") })}`}
           </p>
         </div>
 
@@ -62,7 +64,7 @@ const ReportHeader = ({ report }: Props) => {
                 className="text-xs h-7 px-2"
                 onClick={() => report.setDateRange(preset.getRange())}
               >
-                {preset.label}
+                {t(preset.label)}
               </Button>
             ))}
           </div>
@@ -72,8 +74,8 @@ const ReportHeader = ({ report }: Props) => {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 text-xs">
                 <CalendarIcon className="h-3.5 w-3.5" />
-                {format(report.dateRange.from, "dd MMM", { locale: it })} –{" "}
-                {format(report.dateRange.to, "dd MMM yyyy", { locale: it })}
+                {format(report.dateRange.from, "dd MMM", { locale: dateFnsCampo() })} –{" "}
+                {format(report.dateRange.to, "dd MMM yyyy", { locale: dateFnsCampo() })}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
@@ -96,7 +98,7 @@ const ReportHeader = ({ report }: Props) => {
           {report.adAccounts.length > 1 && (
             <Select value={report.selectedAccountId} onValueChange={report.setSelectedAccountId}>
               <SelectTrigger className="w-[200px] h-8 text-xs">
-                <SelectValue placeholder="Seleziona account" />
+                <SelectValue placeholder={t("Seleziona account")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_META_ACCOUNTS}>{ALL_META_ACCOUNTS_LABEL}</SelectItem>
@@ -115,20 +117,20 @@ const ReportHeader = ({ report }: Props) => {
             onClick={report.aggiorna}
             disabled={report.isFetching}
             className="gap-1.5 text-xs"
-            title="Richiede a Meta i dati più recenti (altrimenti restano validi 15 minuti)"
+            title={t("Richiede a Meta i dati più recenti (altrimenti restano validi 15 minuti)")}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", report.isFetching && "animate-spin")} />
-            Aggiorna
+            {t("Aggiorna")}
           </Button>
 
           <Button variant="outline" size="sm" onClick={() => setShowColumns(true)} className="gap-1.5 text-xs">
             <Settings2 className="h-3.5 w-3.5" />
-            Colonne
+            {t("Colonne")}
           </Button>
 
           <Button variant="outline" size="sm" onClick={() => setShowExport(true)} className="gap-1.5 text-xs">
             <Download className="h-3.5 w-3.5" />
-            Esporta
+            {t("Esporta")}
           </Button>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { AlertTriangle, Image, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatRenderDate, isRenderStale, normalizeRenderStatus, renderStatusLabel } from "@/lib/render/renderStatus";
 import { getRenderDetailPath } from "@/lib/render/renderNavigation";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface LinkedRendersListProps {
   contactId?: string | null;
@@ -30,6 +31,7 @@ interface RecentRenderRow {
 }
 
 export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersListProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
@@ -69,7 +71,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
     return (
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5" /> Render AI
+          <Sparkles className="h-3.5 w-3.5" /> {t("Render AI")}
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="aspect-video rounded-lg" />)}
@@ -91,7 +93,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5" /> Render AI ({renders.length})
+        <Sparkles className="h-3.5 w-3.5" /> {t("Render AI ({n})", { n: renders.length })}
       </h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {renders.map((r) => (
@@ -101,7 +103,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
             onClick={() => navigate(getRenderDetailPath(r.render_type, r.id))}
           >
             {r.result_url ? (
-              <img src={r.result_url} alt="Render" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
+              <img src={r.result_url} alt={t("Render")} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Image className="h-6 w-6 text-muted-foreground/30" />
@@ -109,7 +111,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
             )}
             <div className="absolute bottom-1 left-1 flex gap-1">
               <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-black/60 text-white border-0">
-                {typeLabel[r.render_type] ?? r.render_type}
+                {typeLabel[r.render_type] ? t(typeLabel[r.render_type]) : r.render_type}
               </Badge>
               {normalizeRenderStatus(r.status) !== "completed" && (
                 <Badge variant={normalizeRenderStatus(r.status) === "failed" ? "destructive" : "outline"} className="text-[10px] px-1 py-0 bg-white/90">
@@ -118,7 +120,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
               )}
             </div>
             {isRenderStale(r.status, r.created_at) && (
-              <div className="absolute right-1 top-1 rounded-full bg-amber-100 p-1 text-amber-700" title="Render fermo da troppo tempo">
+              <div className="absolute right-1 top-1 rounded-full bg-amber-100 p-1 text-amber-700" title={t("Render fermo da troppo tempo")}>
                 <AlertTriangle className="h-3.5 w-3.5" />
               </div>
             )}

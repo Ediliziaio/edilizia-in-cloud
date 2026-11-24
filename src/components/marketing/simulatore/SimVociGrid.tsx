@@ -28,6 +28,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { calcolaVoce, round2 } from "@/lib/simulatore/calcoli";
 import { SimVoceRow } from "./SimVoceRow";
 import type { VoceSim, FaseSim, ScenariConfig } from "@/lib/simulatore/tipi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SimVociGridProps {
   voci: VoceSim[];
@@ -83,6 +84,7 @@ function SimVoceMobile({ voce, onChange, onRemove }: {
   onChange: (patch: Partial<VoceSim>) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const { imponibile_ricavo } = calcolaVoce(voce);
   const campo = "mt-0.5 h-9 px-2 text-right tabular-nums";
   return (
@@ -91,21 +93,21 @@ function SimVoceMobile({ voce, onChange, onRemove }: {
         <Input
           value={voce.descrizione}
           onChange={(e) => onChange({ descrizione: e.target.value })}
-          placeholder="Descrizione voce"
+          placeholder={t("Descrizione voce")}
           className="h-9 flex-1 px-2"
         />
-        <Button variant="ghost" size="icon" onClick={onRemove} className="tap-compact h-8 w-8 shrink-0 text-muted-foreground" aria-label="Elimina voce">
+        <Button variant="ghost" size="icon" onClick={onRemove} className="tap-compact h-8 w-8 shrink-0 text-muted-foreground" aria-label={t("Elimina voce")}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <label className="text-[11px] text-muted-foreground">
-          Q.tà ({voce.unita === "a_corpo" ? "a corpo" : voce.unita})
+          {t("Q.tà ({unita})", { unita: voce.unita === "a_corpo" ? t("a corpo") : voce.unita })}
           <Input type="number" inputMode="decimal" min="0" step="0.01" value={String(voce.quantita)}
             onChange={(e) => onChange({ quantita: numero(e.target.value) })} className={campo} />
         </label>
         <label className="text-[11px] text-muted-foreground">
-          Costo €
+          {t("Costo €")}
           <Input type="number" inputMode="decimal" min="0" step="0.01" value={String(voce.costo_unitario)}
             onChange={(e) => {
               const costo_unitario = numero(e.target.value);
@@ -113,7 +115,7 @@ function SimVoceMobile({ voce, onChange, onRemove }: {
             }} className={campo} />
         </label>
         <label className="text-[11px] text-muted-foreground">
-          Ricarico %
+          {t("Ricarico %")}
           <Input type="number" inputMode="decimal" step="0.1" value={String(voce.ricarico_pct)}
             onChange={(e) => {
               const ricarico_pct = numero(e.target.value);
@@ -144,11 +146,11 @@ interface Gruppo {
  * esistente) finiscono nel gruppo "Senza fase" in coda. Senza fasi → un unico
  * gruppo "Voci". Dentro ogni gruppo, le voci sono ordinate per `ordine`.
  */
-function raggruppa(voci: VoceSim[], fasi?: FaseSim[]): Gruppo[] {
+function raggruppa(voci: VoceSim[], fasi: FaseSim[] | undefined, t: ReturnType<typeof useT>): Gruppo[] {
   const byOrdine = (a: VoceSim, b: VoceSim) => a.ordine - b.ordine;
 
   if (!fasi || fasi.length === 0) {
-    return [{ faseId: null, titolo: "Voci", voci: [...voci].sort(byOrdine) }];
+    return [{ faseId: null, titolo: t("Voci"), voci: [...voci].sort(byOrdine) }];
   }
 
   const faseIds = new Set(fasi.map((f) => f.id));
@@ -157,7 +159,7 @@ function raggruppa(voci: VoceSim[], fasi?: FaseSim[]): Gruppo[] {
   for (const f of [...fasi].sort((a, b) => a.ordine - b.ordine)) {
     const inFase = voci.filter((v) => v.fase_id === f.id).sort(byOrdine);
     if (inFase.length > 0) {
-      gruppi.push({ faseId: f.id, titolo: f.nome || "Fase senza nome", voci: inFase });
+      gruppi.push({ faseId: f.id, titolo: f.nome || t("Fase senza nome"), voci: inFase });
     }
   }
 
@@ -165,14 +167,15 @@ function raggruppa(voci: VoceSim[], fasi?: FaseSim[]): Gruppo[] {
     .filter((v) => v.fase_id === null || !faseIds.has(v.fase_id))
     .sort(byOrdine);
   if (senzaFase.length > 0) {
-    gruppi.push({ faseId: null, titolo: "Senza fase", voci: senzaFase });
+    gruppi.push({ faseId: null, titolo: t("Senza fase"), voci: senzaFase });
   }
 
   return gruppi;
 }
 
 export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "singola" }: SimVociGridProps) {
-  const gruppi = raggruppa(voci, fasi);
+  const t = useT();
+  const gruppi = raggruppa(voci, fasi, t);
   const hasFasi = !!fasi && fasi.length > 0;
   // Colonne totali (per il colspan della riga totale e delle intestazioni gruppo).
   const colCount = hasFasi ? 10 : 9;
@@ -218,16 +221,16 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary max-sm:hidden">
               <ListPlus className="h-4 w-4" />
             </span>
-            <h3 className="text-sm font-semibold">Voci</h3>
+            <h3 className="text-sm font-semibold">{t("Voci")}</h3>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={addRigaLibera} className="tap-compact gap-1.5 max-sm:h-8">
               <Plus className="h-4 w-4" />
-              Riga libera
+              {t("Riga libera")}
             </Button>
             <Button size="sm" onClick={onApriListino} className="tap-compact gap-1.5 max-sm:h-8">
               <Library className="h-4 w-4" />
-              Da listino
+              {t("Da listino")}
             </Button>
           </div>
         </div>
@@ -252,7 +255,7 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
               </Fragment>
             ))}
             <div className="flex items-center justify-between px-3 py-2 text-[13px] font-semibold">
-              <span>Totale imponibile</span>
+              <span>{t("Totale imponibile")}</span>
               <span className="tabular-nums">{formatCurrency(totale)}</span>
             </div>
           </div>
@@ -262,26 +265,26 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
           <EmptyState
             icon={ListPlus}
             size="sm"
-            title="Nessuna voce"
-            description="Aggiungi una voce da listino o prezzari, oppure inserisci una riga libera per partire."
-            action={{ label: "Da listino", onClick: onApriListino, icon: Library, primary: true }}
-            secondaryAction={{ label: "Riga libera", onClick: addRigaLibera, icon: Plus }}
+            title={t("Nessuna voce")}
+            description={t("Aggiungi una voce da listino o prezzari, oppure inserisci una riga libera per partire.")}
+            action={{ label: t("Da listino"), onClick: onApriListino, icon: Library, primary: true }}
+            secondaryAction={{ label: t("Riga libera"), onClick: addRigaLibera, icon: Plus }}
           />
         ) : (
           <div className="overflow-x-auto rounded-md border max-sm:hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40 [&_th]:h-9 [&_th]:text-[11px] [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground">
-                  <TableHead className="min-w-[200px]">Descrizione</TableHead>
-                  {hasFasi ? <TableHead className="w-[140px]">Fase</TableHead> : null}
-                  <TableHead className="w-[88px] text-right">Q.tà</TableHead>
+                  <TableHead className="min-w-[200px]">{t("Descrizione")}</TableHead>
+                  {hasFasi ? <TableHead className="w-[140px]">{t("Fase")}</TableHead> : null}
+                  <TableHead className="w-[88px] text-right">{t("Q.tà")}</TableHead>
                   <TableHead className="w-[84px]">UM</TableHead>
-                  <TableHead className="w-[112px] text-right">Costo</TableHead>
-                  <TableHead className="w-[88px] text-right">Ric. %</TableHead>
+                  <TableHead className="w-[112px] text-right">{t("Costo")}</TableHead>
+                  <TableHead className="w-[88px] text-right">{t("Ric. %")}</TableHead>
                   <TableHead className="w-[76px]">IVA</TableHead>
-                  <TableHead className="w-[112px] text-right">Prezzo</TableHead>
-                  <TableHead className="w-[120px] text-right">Totale</TableHead>
-                  <TableHead className="w-[88px] text-right">Azioni</TableHead>
+                  <TableHead className="w-[112px] text-right">{t("Prezzo")}</TableHead>
+                  <TableHead className="w-[120px] text-right">{t("Totale")}</TableHead>
+                  <TableHead className="w-[88px] text-right">{t("Azioni")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -331,7 +334,7 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
               <tfoot>
                 <TableRow className="border-t-2 border-border bg-transparent hover:bg-transparent">
                   <TableCell colSpan={colCount - 2} className="text-right text-sm font-semibold">
-                    Totale imponibile
+                    {t("Totale imponibile")}
                   </TableCell>
                   <TableCell className="text-right text-sm font-bold tabular-nums text-foreground">
                     {formatCurrency(totale)}

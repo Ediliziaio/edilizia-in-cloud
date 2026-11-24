@@ -5,6 +5,7 @@
  */
 
 import { UserPlus, Target, TrendingUp } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type SemaforoColor = "green" | "yellow" | "red";
 
@@ -80,26 +81,27 @@ function fmt(n: number): string {
 }
 
 export function SemaforoMarketing(props: Props) {
+  const t = useT();
   const items: SemaforoItem[] = [
     {
       label: "Lead",
       color: getLeadColor(props.leadsNew, props.staleLeads),
       value: `${props.leadsNew} nuovi`,
-      detail: props.staleLeads > 0 ? `${props.staleLeads} da contattare` : `${props.leadsTotal} in tutto, finora`,
+      detail: props.staleLeads > 0 ? t("{staleLeads} da contattare", { staleLeads: String(props.staleLeads ?? "") }) : t("{leadsTotal} in tutto, finora", { leadsTotal: String(props.leadsTotal ?? "") }),
       icon: UserPlus,
     },
     {
-      label: "Pipeline",
+      label: t("Pipeline"),
       color: getPipelineColor(props.pipelineValue, props.pipelineDeclining),
       value: fmt(props.pipelineValue),
-      detail: props.pipelineDeclining ? "In calo vs periodo precedente" : "Stabile o in crescita",
+      detail: props.pipelineDeclining ? t("In calo vs periodo precedente") : t("Stabile o in crescita"),
       icon: Target,
     },
     {
-      label: "Conversioni",
+      label: t("Conversioni"),
       color: getConversioniColor(props.showRate, props.closeRate),
       value: `${props.contractsWon} vinti`,
-      detail: `Show ${props.showRate.toFixed(0)}% · Close ${props.closeRate.toFixed(0)}%`,
+      detail: t("Show {showRate}% · Close {closeRate}%", { showRate: props.showRate.toFixed(0), closeRate: props.closeRate.toFixed(0) }),
       icon: TrendingUp,
     },
   ];

@@ -30,6 +30,7 @@ import {
   useScartaScadenza,
   type DocumentoEstratto,
 } from "@/lib/email-ai/hooks";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Attachment = { filename?: string; size?: number; mime?: string; storage_path?: string };
 
@@ -66,6 +67,7 @@ function isPdf(a: Attachment): boolean {
 }
 
 export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: string; attachments: Attachment[] }) {
+  const t = useT();
   const estrai = useEstraiAllegato();
   const { data: drafts } = useDocumentiEstrattiPerEmail(emailId);
   const pdfAttachments = useMemo(() => attachments.map((a, i) => ({ a, i })).filter(({ a }) => isPdf(a)), [attachments]);
@@ -92,7 +94,7 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
               onClick={() => estrai.mutate({ email_id: emailId, attachment_index: i, rileggi: !!existing })}
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanText className="h-3.5 w-3.5" />}
-              {existing ? "Ri-estrai" : "Estrai dati"}
+              {existing ? t("Ri-estrai") : t("Estrai dati")}
               <span className="max-w-[120px] truncate text-muted-foreground">{a.filename || `pdf-${i + 1}`}</span>
             </Button>
           );
@@ -114,6 +116,7 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
  * nell'elenco «Documenti da confermare» per documento (vale anche senza email).
  */
 export function CarichiSection({ emailId, documentoId }: { emailId?: string | null; documentoId?: string | null }) {
+  const t = useT();
   const perEmail = useCarichiDdtPerEmail(documentoId ? null : emailId);
   const perDocumento = useCarichiDdtPerDocumento(documentoId);
   const carichi = documentoId ? perDocumento.data : perEmail.data;
@@ -128,15 +131,15 @@ export function CarichiSection({ emailId, documentoId }: { emailId?: string | nu
         <div key={c.id} className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 text-xs">
           <div className="mb-2 flex items-center gap-2">
             <PackageCheck className="h-4 w-4 text-indigo-600" />
-            <span className="font-semibold text-indigo-900">Carico da DDT {c.ddt_numero ? `n. ${c.ddt_numero}` : ""}</span>
+            <span className="font-semibold text-indigo-900">{c.ddt_numero ? t("Carico da DDT n. {numero}", { numero: String(c.ddt_numero) }) : t("Carico da DDT")}</span>
             {c.purchase_order_numero ? (
               <Badge variant="outline" className="bg-white text-[10px]">ODA {c.purchase_order_numero}</Badge>
             ) : (
-              <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">Nessun ordine collegato</Badge>
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">{t("Nessun ordine collegato")}</Badge>
             )}
-            {c.stato === "confermato" && <Badge className="bg-emerald-600 text-[10px]">Confermato</Badge>}
+            {c.stato === "confermato" && <Badge className="bg-emerald-600 text-[10px]">{t("Confermato")}</Badge>}
             {c.scostamenti_totali > 0 && (
-              <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700 text-[10px]">{c.scostamenti_totali} scostamenti</Badge>
+              <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700 text-[10px]">{t("{scostamenti_totali} scostamenti", { scostamenti_totali: String(c.scostamenti_totali ?? "") })}</Badge>
             )}
           </div>
 
@@ -145,10 +148,10 @@ export function CarichiSection({ emailId, documentoId }: { emailId?: string | nu
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="text-left text-muted-foreground">
-                  <th className="py-1 pr-2 font-medium">Articolo</th>
-                  <th className="px-1 text-right font-medium">In bolla</th>
+                  <th className="py-1 pr-2 font-medium">{t("Articolo")}</th>
+                  <th className="px-1 text-right font-medium">{t("In bolla")}</th>
                   <th className="px-1 text-right font-medium">
-                    {c.righe.some(r => r.qta_residua != null) ? "Da ricevere" : "Ordinato"}
+                    {c.righe.some(r => r.qta_residua != null) ? t("Da ricevere") : t("Ordinato")}
                   </th>
                   <th className="px-1 text-right font-medium">Δ</th>
                 </tr>
@@ -180,12 +183,12 @@ export function CarichiSection({ emailId, documentoId }: { emailId?: string | nu
               <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-xs hover:bg-emerald-700"
                       disabled={aggiorna.isPending}
                       onClick={() => aggiorna.mutate({ id: c.id, stato: "confermato", email_id: emailId ?? undefined, documento_estratto_id: c.documento_estratto_id })}>
-                <CheckCircle2 className="h-3.5 w-3.5" /> Conferma carico
+                <CheckCircle2 className="h-3.5 w-3.5" /> {t("Conferma carico")}
               </Button>
               <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                       disabled={aggiorna.isPending}
                       onClick={() => aggiorna.mutate({ id: c.id, stato: "scartato", email_id: emailId ?? undefined })}>
-                <XCircle className="h-3.5 w-3.5" /> Scarta
+                <XCircle className="h-3.5 w-3.5" /> {t("Scarta")}
               </Button>
             </div>
           )}
@@ -197,6 +200,7 @@ export function CarichiSection({ emailId, documentoId }: { emailId?: string | nu
 
 /** Le scadenze rilevate da una fattura: per email nel pannello, per documento nell'elenco unico. */
 export function ScadenzeSection({ emailId, documentoId }: { emailId?: string | null; documentoId?: string | null }) {
+  const t = useT();
   const perEmail = useScadenzeBozzePerEmail(documentoId ? null : emailId);
   const perDocumento = useScadenzeBozzePerDocumento(documentoId);
   const scadenze = documentoId ? perDocumento.data : perEmail.data;
@@ -216,19 +220,19 @@ export function ScadenzeSection({ emailId, documentoId }: { emailId?: string | n
           <div key={s.id} className="rounded-lg border border-teal-200 bg-teal-50/40 p-3 text-xs">
             <div className="mb-1 flex flex-wrap items-center gap-2">
               <CalendarClock className="h-4 w-4 text-teal-700" />
-              <span className="font-semibold text-teal-900">Scadenza rilevata</span>
+              <span className="font-semibold text-teal-900">{t("Scadenza rilevata")}</span>
               <Badge variant="outline" className={cn("gap-1 text-[10px]", entrata ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-rose-300 bg-rose-50 text-rose-700")}>
                 {entrata ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
-                {entrata ? "Incasso" : "Pagamento"}
+                {entrata ? t("Incasso") : t("Pagamento")}
               </Badge>
-              {s.stato === "aggiunta" && <Badge className="bg-emerald-600 text-[10px]">In scadenzario</Badge>}
+              {s.stato === "aggiunta" && <Badge className="bg-emerald-600 text-[10px]">{t("In scadenzario")}</Badge>}
               {s.dedup_scadenza_id && s.stato !== "aggiunta" && (
-                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">Già presente</Badge>
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">{t("Già presente")}</Badge>
               )}
             </div>
             <p className="text-[12px] text-slate-800">
-              <b>{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(s.amount)}</b>
-              {" · "}entro il {new Date(s.due_date).toLocaleDateString("it-IT")}
+              <b>{new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(s.amount)}</b>
+              {" · "}{t("entro il {data}", { data: new Date(s.due_date).toLocaleDateString(intlCampo()) })}
               {s.descrizione ? ` · ${s.descrizione}` : ""}
             </p>
             {s.stato !== "aggiunta" && (
@@ -236,12 +240,12 @@ export function ScadenzeSection({ emailId, documentoId }: { emailId?: string | n
                 <Button size="sm" className="h-8 gap-1 bg-teal-600 text-xs hover:bg-teal-700"
                         disabled={conferma.isPending}
                         onClick={() => conferma.mutate({ id: s.id, email_id: emailId ?? undefined })}>
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Aggiungi a scadenzario
+                  <CheckCircle2 className="h-3.5 w-3.5" /> {t("Aggiungi a scadenzario")}
                 </Button>
                 <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                         disabled={scarta.isPending}
                         onClick={() => scarta.mutate({ id: s.id, email_id: emailId ?? undefined })}>
-                  <XCircle className="h-3.5 w-3.5" /> Scarta
+                  <XCircle className="h-3.5 w-3.5" /> {t("Scarta")}
                 </Button>
               </div>
             )}
@@ -254,6 +258,7 @@ export function ScadenzeSection({ emailId, documentoId }: { emailId?: string | n
 
 /** La bozza letta da un allegato, con i suoi dati, gli avvisi e le azioni (conferma, scarta, carico, scadenza). */
 export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId?: string | null }) {
+  const t = useT();
   const aggiorna = useAggiornaStatoDocumentoEstratto();
   const creaCarico = useCreaCaricoDdt();
   const rilevaScadenza = useRilevaScadenza();
@@ -274,10 +279,10 @@ export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailI
         {draft.confidenza_tipo != null && (
           <Badge variant="outline" className="bg-white text-[10px]">{Math.round(draft.confidenza_tipo * 100)}%</Badge>
         )}
-        {draft.stato === "confermato" && <Badge className="bg-emerald-600 text-[10px]">Confermato</Badge>}
+        {draft.stato === "confermato" && <Badge className="bg-emerald-600 text-[10px]">{t("Confermato")}</Badge>}
         {draft.stato === "duplicato" && (
           <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">
-            <Copy className="mr-1 h-3 w-3" /> Già presente (SDI)
+            <Copy className="mr-1 h-3 w-3" /> {t("Già presente (SDI)")}
           </Badge>
         )}
       </div>
@@ -285,7 +290,7 @@ export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailI
       {draft.iban_alert && (
         <div className="mb-2 flex items-start gap-2 rounded-md border border-rose-300 bg-rose-50 p-2 text-rose-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span><b>IBAN diverso dal solito.</b> Verifica con una telefonata prima di pagare (possibile frode del cambio IBAN).</span>
+          <span><b>{t("IBAN diverso dal solito.")}</b> {t("Verifica con una telefonata prima di pagare (possibile frode del cambio IBAN).")}</span>
         </div>
       )}
 
@@ -297,7 +302,7 @@ export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailI
             <div key={k} className="min-w-0">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{CAMPO_LABEL[k]}</div>
               <div className={cn("truncate font-medium", uncertain ? "rounded bg-yellow-200/70 px-1 text-yellow-900" : "text-slate-800")}
-                   title={uncertain ? "Dato incerto — controlla sull'anteprima" : String(v)}>
+                   title={uncertain ? t("Dato incerto — controlla sull'anteprima") : String(v)}>
                 {String(v)}
               </div>
             </div>
@@ -312,9 +317,9 @@ export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailI
         {bucketPdf && percorsoPdf && (
           <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                   onClick={() => void apriFileRiservato(bucketPdf, percorsoPdf).catch((e: unknown) =>
-                    toast.error("Non riesco ad aprire il PDF", { description: motivoPdfNonAperto(e) }))}>
+                    toast.error(t("Non riesco ad aprire il PDF"), { description: t(motivoPdfNonAperto(e)) }))}>
             <FileText className="h-3.5 w-3.5" />
-            Apri PDF
+            {t("Apri PDF")}
           </Button>
         )}
         {isDdt && (
@@ -322,7 +327,7 @@ export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailI
                   disabled={creaCarico.isPending}
                   onClick={() => creaCarico.mutate({ documento_estratto_id: draft.id, email_id: emailId ?? undefined })}>
             {creaCarico.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
-            Crea carico magazzino
+            {t("Crea carico magazzino")}
           </Button>
         )}
         {hasScadenza && (
@@ -330,7 +335,7 @@ export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailI
                   disabled={rilevaScadenza.isPending}
                   onClick={() => rilevaScadenza.mutate({ documento_estratto_id: draft.id, email_id: emailId ?? undefined })}>
             {rilevaScadenza.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="h-3.5 w-3.5" />}
-            Rileva scadenza
+            {t("Rileva scadenza")}
           </Button>
         )}
       </div>
@@ -340,12 +345,12 @@ export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailI
           <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-xs hover:bg-emerald-700"
                   disabled={aggiorna.isPending}
                   onClick={() => aggiorna.mutate({ id: draft.id, stato: "confermato", email_id: emailId ?? undefined })}>
-            <CheckCircle2 className="h-3.5 w-3.5" /> Conferma
+            <CheckCircle2 className="h-3.5 w-3.5" /> {t("Conferma")}
           </Button>
           <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                   disabled={aggiorna.isPending}
                   onClick={() => aggiorna.mutate({ id: draft.id, stato: "scartato", email_id: emailId ?? undefined })}>
-            <XCircle className="h-3.5 w-3.5" /> Scarta
+            <XCircle className="h-3.5 w-3.5" /> {t("Scarta")}
           </Button>
         </div>
       )}

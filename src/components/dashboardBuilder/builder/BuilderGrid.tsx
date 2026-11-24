@@ -9,6 +9,7 @@ import { GaugeWidget, ProgressWidget } from "../widgets/ProgressWidget";
 import { DividerWidget, TextWidget } from "../widgets/TextWidget";
 import { StatTileWidget } from "../widgets/StatTileWidget";
 import { AlertListWidget } from "../widgets/AlertListWidget";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -67,6 +68,7 @@ export function BuilderGrid({
   columns = 12,
   readonly = false,
 }: Props) {
+  const t = useT();
   const layout: Layout = widgets.map((w) => ({
     i: w.id,
     x: w.x,
@@ -139,8 +141,8 @@ export function BuilderGrid({
                   {onDuplicate && (
                     <button
                       type="button"
-                      aria-label="Duplica widget"
-                      title="Duplica (⌘D)"
+                      aria-label={t("Duplica widget")}
+                      title={t("Duplica (⌘D)")}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -154,8 +156,8 @@ export function BuilderGrid({
                   {onDelete && (
                     <button
                       type="button"
-                      aria-label="Elimina widget"
-                      title="Elimina (Canc)"
+                      aria-label={t("Elimina widget")}
+                      title={t("Elimina (Canc)")}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();

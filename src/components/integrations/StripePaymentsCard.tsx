@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { CreditCard, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type StatoIncassiCarta = { connected: boolean; charges_enabled: boolean; details_submitted?: boolean };
 
@@ -34,6 +35,7 @@ export function useStatoIncassiCarta(abilitato: boolean) {
 }
 
 export default function StripePaymentsCard({ senzaCornice = false }: { senzaCornice?: boolean } = {}) {
+  const t = useT();
   const { canViewTesoreria, isAdmin, isLoading: permsLoading } = usePermissions();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -62,7 +64,7 @@ export default function StripePaymentsCard({ senzaCornice = false }: { senzaCorn
       if (error || data?.error || !data?.url) throw new Error(data?.error || error?.message || "Errore");
       window.location.href = data.url; // pagina sicura Stripe per completare l'onboarding
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore avvio configurazione pagamenti");
+      toast.error(e instanceof Error ? e.message : t("Errore avvio configurazione pagamenti"));
       setConnecting(false);
     }
   };
@@ -77,21 +79,21 @@ export default function StripePaymentsCard({ senzaCornice = false }: { senzaCorn
   ) : active ? (
     <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-      Account collegato: puoi incassare con carta e link di pagamento. La commissione di piattaforma è inclusa.
+      {t("Account collegato: puoi incassare con carta e link di pagamento. La commissione di piattaforma è inclusa.")}
     </p>
   ) : (
     <>
       <p className="text-sm text-muted-foreground">
-        Abilita gli incassi con carta e link di pagamento sulle fatture. Verrai portato su Stripe per la verifica (IBAN, dati azienda).
-        {status?.connected && status?.details_submitted === false && " Onboarding non ancora completato."}
+        {t("Abilita gli incassi con carta e link di pagamento sulle fatture. Verrai portato su Stripe per la verifica (IBAN, dati azienda).")}
+        {status?.connected && status?.details_submitted === false && ` ${t("Onboarding non ancora completato.")}`}
       </p>
       {isAdmin ? (
         <Button size="sm" onClick={startOnboarding} disabled={connecting}>
           {connecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
-          {status?.connected ? "Completa configurazione" : "Abilita incassi con carta"}
+          {status?.connected ? t("Completa configurazione") : t("Abilita incassi con carta")}
         </Button>
       ) : (
-        <p className="text-xs text-muted-foreground">Solo un amministratore può configurare i pagamenti.</p>
+        <p className="text-xs text-muted-foreground">{t("Solo un amministratore può configurare i pagamenti.")}</p>
       )}
     </>
   );
@@ -103,9 +105,9 @@ export default function StripePaymentsCard({ senzaCornice = false }: { senzaCorn
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <CreditCard className="h-4 w-4 text-indigo-600" />
-          Pagamenti con carta <span className="text-xs font-normal text-muted-foreground">(Stripe)</span>
+          {t("Pagamenti con carta")} <span className="text-xs font-normal text-muted-foreground">{t("(Stripe)")}</span>
         </CardTitle>
-        {active && <Badge className="text-[10px] px-1.5 py-0 border-0 bg-emerald-100 text-emerald-700">Attivi</Badge>}
+        {active && <Badge className="text-[10px] px-1.5 py-0 border-0 bg-emerald-100 text-emerald-700">{t("Attivi")}</Badge>}
       </CardHeader>
       <CardContent className="space-y-3">
         {contenuto}

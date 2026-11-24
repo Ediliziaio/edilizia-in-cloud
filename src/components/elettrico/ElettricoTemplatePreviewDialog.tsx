@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { buildEltModulePreview, type FullEltModuleId } from "@/lib/moduli-vendita/fullEltModules";
 import { renderElePreviewBlobUrl } from "@/hooks/useElettricoPDF";
 import type { EleTemplatePdf, EleProgetto, EleComputoVoce } from "@/types/elettrico";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function buildMockComputo(companyId: string): EleComputoVoce[] {
   const row = (
@@ -65,6 +66,7 @@ interface Props {
 export function ElettricoTemplatePreviewDialog({
   open, onOpenChange, template, companyId, onOpenInTab, moduleId,
 }: Props) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,15 +110,15 @@ export function ElettricoTemplatePreviewDialog({
       <DialogContent className="flex h-[88vh] max-w-5xl flex-col gap-0 p-0">
         <DialogHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b px-4 py-3">
           <div className="min-w-0">
-            <DialogTitle className="text-base">Anteprima PDF — live</DialogTitle>
+            <DialogTitle className="text-base">{t("Anteprima PDF — live")}</DialogTitle>
             <p className="text-[11px] text-muted-foreground">
-              Dati di esempio · si aggiorna mentre modifichi il template.
+              {t("Dati di esempio · si aggiorna mentre modifichi il template.")}
             </p>
           </div>
           {onOpenInTab && (
             <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={onOpenInTab}>
               <ExternalLink className="h-3.5 w-3.5" />
-              Apri in scheda
+              {t("Apri in scheda")}
             </Button>
           )}
         </DialogHeader>
@@ -124,7 +126,7 @@ export function ElettricoTemplatePreviewDialog({
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
-              Genero l'anteprima…
+              {t("Genero l'anteprima…")}
             </div>
           )}
           {error && !loading && (
@@ -133,7 +135,7 @@ export function ElettricoTemplatePreviewDialog({
             </div>
           )}
           {url && (
-            <iframe title="Anteprima PDF Elettrico" src={url} className="h-full w-full border-0" />
+            <iframe title={t("Anteprima PDF Elettrico")} src={url} className="h-full w-full border-0" />
           )}
         </div>
       </DialogContent>

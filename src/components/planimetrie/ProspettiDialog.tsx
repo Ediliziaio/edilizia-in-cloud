@@ -12,6 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
 import { disegnoInDxf, disegnoInSvg, prospetto, prospettoQuotato, sezione, type Lato, type PianoProspetto } from "@/lib/planimetrie/prospetti";
 import type { StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Scelta = Lato | "sezione";
 
@@ -28,6 +29,7 @@ function scarica(nome: string, dati: Uint8Array | string, tipo: string) {
 }
 
 export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto, piani }: { aperto: boolean; onChiudi: () => void; stato: StatoPianta | null; titolo: string; tetto?: Tetto | null; /** Tutti i piani (per ambito): con più di uno si può disegnare l'intero edificio. */ piani?: PianoProspetto[] }) {
+  const t = useT();
   const [scelta, setScelta] = useState<Scelta>("sud");
   const [asse, setAsse] = useState<"orizzontale" | "verticale">("orizzontale");
   const [posizione, setPosizione] = useState(50);
@@ -66,22 +68,22 @@ export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto, piani 
     <Dialog open={aperto} onOpenChange={(v) => !v && onChiudi()}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Prospetti e sezioni</DialogTitle>
-          <DialogDescription>Disegnati dalle pareti, porte e finestre della pianta, in scala, con quote, codici dei serramenti, cassonetti e oscuranti. Si aggiornano da soli quando cambi la pianta.</DialogDescription>
+          <DialogTitle>{t("Prospetti e sezioni")}</DialogTitle>
+          <DialogDescription>{t("Disegnati dalle pareti, porte e finestre della pianta, in scala, con quote, codici dei serramenti, cassonetti e oscuranti. Si aggiornano da soli quando cambi la pianta.")}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-1.5">
-            <Label className="text-xs">Cosa</Label>
+            <Label className="text-xs">{t("Cosa")}</Label>
             <ToggleGroup type="single" value={scelta} onValueChange={(v) => v && setScelta(v as Scelta)} variant="outline" size="sm">
-              <ToggleGroupItem value="sud">Sud</ToggleGroupItem>
-              <ToggleGroupItem value="nord">Nord</ToggleGroupItem>
-              <ToggleGroupItem value="est">Est</ToggleGroupItem>
-              <ToggleGroupItem value="ovest">Ovest</ToggleGroupItem>
-              <ToggleGroupItem value="sezione">Sezione</ToggleGroupItem>
+              <ToggleGroupItem value="sud">{t("Sud")}</ToggleGroupItem>
+              <ToggleGroupItem value="nord">{t("Nord")}</ToggleGroupItem>
+              <ToggleGroupItem value="est">{t("Est")}</ToggleGroupItem>
+              <ToggleGroupItem value="ovest">{t("Ovest")}</ToggleGroupItem>
+              <ToggleGroupItem value="sezione">{t("Sezione")}</ToggleGroupItem>
             </ToggleGroup>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Scala</Label>
+            <Label className="text-xs">{t("Scala")}</Label>
             <ToggleGroup type="single" value={String(scala)} onValueChange={(v) => v && setScala(Number(v))} variant="outline" size="sm">
               <ToggleGroupItem value="50">1:50</ToggleGroupItem>
               <ToggleGroupItem value="100">1:100</ToggleGroupItem>
@@ -89,35 +91,35 @@ export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto, piani 
           </div>
           {scelta !== "sezione" && (
             <div className="flex flex-wrap items-center gap-4 pb-1">
-              <label className="flex items-center gap-2 text-sm"><Switch checked={quotato} onCheckedChange={setQuotato} />Quote e dettagli</label>
-              {piuPiani && quotato && <label className="flex items-center gap-2 text-sm"><Switch checked={edificio} onCheckedChange={setEdificio} />Tutto l'edificio</label>}
+              <label className="flex items-center gap-2 text-sm"><Switch checked={quotato} onCheckedChange={setQuotato} />{t("Quote e dettagli")}</label>
+              {piuPiani && quotato && <label className="flex items-center gap-2 text-sm"><Switch checked={edificio} onCheckedChange={setEdificio} />{t("Tutto l'edificio")}</label>}
             </div>
           )}
           {scelta === "sezione" && (
             <>
               <div className="space-y-1.5">
-                <Label className="text-xs">Taglio</Label>
+                <Label className="text-xs">{t("Taglio")}</Label>
                 <ToggleGroup type="single" value={asse} onValueChange={(v) => v && setAsse(v as typeof asse)} variant="outline" size="sm">
-                  <ToggleGroupItem value="orizzontale">Orizzontale</ToggleGroupItem>
-                  <ToggleGroupItem value="verticale">Verticale</ToggleGroupItem>
+                  <ToggleGroupItem value="orizzontale">{t("Orizzontale")}</ToggleGroupItem>
+                  <ToggleGroupItem value="verticale">{t("Verticale")}</ToggleGroupItem>
                 </ToggleGroup>
               </div>
               <div className="min-w-48 flex-1 space-y-2">
-                <Label className="text-xs">Dove tagliare: {posizione}%</Label>
-                <Slider value={[posizione]} min={2} max={98} step={1} onValueChange={([v]) => setPosizione(v)} aria-label="Posizione del taglio" />
+                <Label className="text-xs">{t("Dove tagliare: {posizione}%", { posizione: String(posizione ?? "") })}</Label>
+                <Slider value={[posizione]} min={2} max={98} step={1} onValueChange={([v]) => setPosizione(v)} aria-label={t("Posizione del taglio")} />
               </div>
             </>
           )}
         </div>
         <div className="flex min-h-64 items-center justify-center overflow-auto rounded-lg border bg-white p-2">
-          {svg ? <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} alt={disegno?.titolo ?? "Disegno"} className="max-h-[55vh] w-full object-contain" />
-            : <p className="p-6 text-sm text-muted-foreground">La pianta non ha pareti da disegnare.</p>}
+          {svg ? <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} alt={disegno?.titolo ?? t("Disegno")} className="max-h-[55vh] w-full object-contain" />
+            : <p className="p-6 text-sm text-muted-foreground">{t("La pianta non ha pareti da disegnare.")}</p>}
         </div>
-        {scelta === "sezione" && <p className="text-xs text-muted-foreground">Le pareti tagliate sono campite in nero; quelle oltre il taglio si vedono in alzato, più chiare.</p>}
+        {scelta === "sezione" && <p className="text-xs text-muted-foreground">{t("Le pareti tagliate sono campite in nero; quelle oltre il taglio si vedono in alzato, più chiare.")}</p>}
         <DialogFooter className="flex-wrap gap-2">
           <Button variant="outline" disabled={!svg} onClick={() => svg && scarica(`${base}.svg`, svg, "image/svg+xml")}><Download className="mr-1.5 h-4 w-4" />SVG</Button>
-          <Button variant="outline" disabled={!disegno} onClick={() => disegno && scarica(`${base}.dxf`, disegnoInDxf(disegno), "application/dxf")}><Download className="mr-1.5 h-4 w-4" />DXF (AutoCAD)</Button>
-          <Button disabled={!svg} onClick={stampa}><Printer className="mr-1.5 h-4 w-4" />Stampa o salva PDF</Button>
+          <Button variant="outline" disabled={!disegno} onClick={() => disegno && scarica(`${base}.dxf`, disegnoInDxf(disegno), "application/dxf")}><Download className="mr-1.5 h-4 w-4" />{t("DXF (AutoCAD)")}</Button>
+          <Button disabled={!svg} onClick={stampa}><Printer className="mr-1.5 h-4 w-4" />{t("Stampa o salva PDF")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

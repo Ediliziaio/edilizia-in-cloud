@@ -10,6 +10,7 @@ import {
 } from "@/lib/render/renderPdf";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface RenderPdfDownloadButtonProps {
   beforeUrl?: string | null;
   beforeLabel?: string;
@@ -41,6 +42,7 @@ export function RenderPdfDownloadButton({
   label,
   completeMetadata = false,
 }: RenderPdfDownloadButtonProps) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const { effectiveCompany } = useAuth();
@@ -66,9 +68,9 @@ export function RenderPdfDownloadButton({
         companyLogoUrl,
         includeAllMetadata: completeMetadata,
       });
-      toast.success("PDF render creato");
+      toast.success(t("PDF render creato"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "PDF non generato");
+      toast.error(error instanceof Error ? error.message : t("PDF non generato"));
     } finally {
       setLoading(false);
     }
@@ -90,7 +92,7 @@ export function RenderPdfDownloadButton({
       ) : (
         <FileDown className="h-4 w-4 mr-2" />
       )}
-      {label || <><span className="hidden sm:inline">Scarica PDF</span><span className="sm:hidden">PDF</span></>}
+      {label || <><span className="hidden sm:inline">{t("Scarica PDF")}</span><span className="sm:hidden">PDF</span></>}
     </Button>
   );
 }

@@ -5,7 +5,6 @@
 import { useMemo } from "react";
 import { MessageSquare, Send, CheckCircle2, Euro, Phone } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   LineChart,
   Line,
@@ -23,10 +22,11 @@ import { useSmsDashboard } from "@/hooks/useSmsDashboard";
 import { useSmsWallet } from "@/hooks/useSmsWallet";
 import { useTelnyxSetup } from "@/hooks/useTelnyxSetup";
 import { SmsStatsBadge } from "./SmsStatsBadge";
+import { useT, dateFnsCampo, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function formatMese(key: string): string {
   try {
-    return format(parseISO(`${key}-01`), "MMM yyyy", { locale: it });
+    return format(parseISO(`${key}-01`), "MMM yyyy", { locale: dateFnsCampo() });
   } catch {
     return key;
   }
@@ -37,6 +37,7 @@ interface SmsDashboardProps {
 }
 
 export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
+  const tr = useT();
   const { dashboard, isLoading } = useSmsDashboard();
   const { wallet, creditiResidui, isSottoSoglia, isBlocco } = useSmsWallet();
   const { numero } = useTelnyxSetup();
@@ -62,10 +63,10 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
   }
 
   const kpis = [
-    { label: "Campagne inviate", value: dashboard.campagneInviate.toLocaleString("it-IT"), icon: MessageSquare, color: "text-blue-600" },
-    { label: "SMS inviati", value: dashboard.smsTotali.toLocaleString("it-IT"), icon: Send, color: "text-violet-600" },
-    { label: "Tasso consegna", value: `${dashboard.tassoConsegnaMedio.toFixed(1).replace(".", ",")}%`, icon: CheckCircle2, color: "text-emerald-600" },
-    { label: "Costo totale", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(dashboard.costoTotale), icon: Euro, color: "text-orange-600" },
+    { label: tr("Campagne inviate"), value: dashboard.campagneInviate.toLocaleString(intlCampo()), icon: MessageSquare, color: "text-blue-600" },
+    { label: tr("SMS inviati"), value: dashboard.smsTotali.toLocaleString(intlCampo()), icon: Send, color: "text-violet-600" },
+    { label: tr("Tasso consegna"), value: `${dashboard.tassoConsegnaMedio.toFixed(1).replace(".", ",")}%`, icon: CheckCircle2, color: "text-emerald-600" },
+    { label: tr("Costo totale"), value: new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(dashboard.costoTotale), icon: Euro, color: "text-orange-600" },
   ];
 
   // Telefono: il credito sta già in alto accanto al titolo; restano i quattro
@@ -79,12 +80,12 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
             <div className="flex-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold tabular-nums">
-                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiResidui)}
+                  {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiResidui)}
                 </span>
-                <span className="text-sm text-muted-foreground">crediti disponibili</span>
+                <span className="text-sm text-muted-foreground">{tr("crediti disponibili")}</span>
               </div>
-              {isBlocco() && <p className="text-xs text-destructive mt-0.5">Crediti esauriti — ricarica per sbloccare i nuovi invii</p>}
-              {isSottoSoglia() && !isBlocco() && <p className="text-xs text-amber-700 mt-0.5">Crediti in esaurimento — ricarica presto</p>}
+              {isBlocco() && <p className="text-xs text-destructive mt-0.5">{tr("Crediti esauriti — ricarica per sbloccare i nuovi invii")}</p>}
+              {isSottoSoglia() && !isBlocco() && <p className="text-xs text-amber-700 mt-0.5">{tr("Crediti in esaurimento — ricarica presto")}</p>}
               <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden max-w-xs">
                 <div
                   className={`h-full rounded-full transition-all ${isBlocco() ? "bg-destructive" : isSottoSoglia() ? "bg-amber-500" : "bg-emerald-500"}`}
@@ -94,7 +95,7 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
             </div>
             {onRicarica && (isSottoSoglia() || isBlocco()) && (
               <Button size="sm" onClick={onRicarica} variant={isBlocco() ? "destructive" : "outline"} className="shrink-0">
-                + Ricarica
+                + {tr("Ricarica")}
               </Button>
             )}
           </div>
@@ -113,7 +114,7 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
                   <Icon className={`h-4 w-4 max-md:hidden ${kpi.color}`} />
                 </div>
                 <div className="text-2xl font-bold tabular-nums max-md:text-base">{kpi.value}</div>
-                <div className="text-xs text-muted-foreground mt-1 max-md:hidden">Mese corrente</div>
+                <div className="text-xs text-muted-foreground mt-1 max-md:hidden">{tr("Mese corrente")}</div>
               </CardContent>
             </Card>
           );
@@ -124,7 +125,7 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
         {/* Grafico trend */}
         <Card className="md:col-span-2 max-md:hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Andamento ultimi 6 mesi</CardTitle>
+            <CardTitle className="text-sm font-medium">{tr("Andamento ultimi 6 mesi")}</CardTitle>
           </CardHeader>
           <CardContent>
             {chartData.some((d) => d.invii > 0) ? (
@@ -133,15 +134,15 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="mese" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip formatter={(v: number) => v.toLocaleString("it-IT")} />
+                  <Tooltip formatter={(v: number) => v.toLocaleString(intlCampo())} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="invii" name="Inviati" stroke="#8b5cf6" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="consegnati" name="Consegnati" stroke="#10b981" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="invii" name={tr("Inviati")} stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="consegnati" name={tr("Consegnati")} stroke="#10b981" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-                Nessun dato disponibile per il grafico
+                {tr("Nessun dato disponibile per il grafico")}
               </div>
             )}
           </CardContent>
@@ -150,11 +151,11 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
         {/* Top campagne */}
         <Card>
           <CardHeader className="pb-2 max-md:p-3 max-md:pb-1.5">
-            <CardTitle className="text-sm font-medium">Top campagne</CardTitle>
+            <CardTitle className="text-sm font-medium">{tr("Top campagne")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 max-md:space-y-2 max-md:p-3 max-md:pt-0">
             {dashboard.topCampagne.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nessuna campagna completata</p>
+              <p className="text-sm text-muted-foreground">{tr("Nessuna campagna completata")}</p>
             ) : (
               dashboard.topCampagne.map((c) => (
                 <div key={c.id} className="space-y-1">
@@ -164,8 +165,8 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {c.inviati > 0
-                      ? `${Math.round((c.consegnati / c.inviati) * 100)}% consegnati`
-                      : "Nessun invio"
+                      ? tr("{valore}% consegnati", { valore: Math.round((c.consegnati / c.inviati) * 100) })
+                      : tr("Nessun invio")
                     }
                   </div>
                 </div>
@@ -184,7 +185,7 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
                 <Phone className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Numero SMS attivo</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{tr("Numero SMS attivo")}</p>
                 <p className="text-base font-mono font-semibold">{numero.numero_display}</p>
               </div>
             </div>

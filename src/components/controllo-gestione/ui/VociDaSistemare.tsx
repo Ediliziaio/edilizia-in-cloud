@@ -26,6 +26,7 @@ import {
   type ClassTipo,
   type MacroVoce,
 } from "@/hooks/controlloGestione/useClassificazioneVoci";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Le voci di costo: le entrate non si classificano da qui. */
 const MACRO_COSTO: MacroVoce[] = [
@@ -52,6 +53,7 @@ interface VociDaSistemareProps {
 }
 
 export function VociDaSistemare({ anno }: VociDaSistemareProps) {
+  const tr = useT();
   const lista = useVociNonClassificate(anno);
   const classifica = useClassificaVoce();
   const [scelte, setScelte] = useState<Record<string, { macro?: MacroVoce; tipo?: ClassTipo }>>({});
@@ -77,9 +79,7 @@ export function VociDaSistemare({ anno }: VociDaSistemareProps) {
       <Card className="rounded-2xl">
         <CardContent className="flex items-center gap-3 p-4 text-sm">
           <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-          <span>
-            Tutte le categorie di spesa del {anno} hanno una voce del conto economico.
-          </span>
+          <span>{tr("Tutte le categorie di spesa del {anno} hanno una voce del conto economico.", { anno: String(anno ?? "") })}</span>
         </CardContent>
       </Card>
     );
@@ -90,17 +90,12 @@ export function VociDaSistemare({ anno }: VociDaSistemareProps) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">
-          Categorie da sistemare — {formatCurrency(totale)} nel {anno}
-        </CardTitle>
+        <CardTitle className="text-base">{tr("Categorie da sistemare — {totale} nel {anno}", { totale: formatCurrency(totale), anno: String(anno ?? "") })}</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Queste spese finiscono nella riga «Costi non classificati»: nel margine ci sono, ma non
-          si vede dove vanno. Dalla più costosa: sistema le prime e lascia stare la coda.
+          {tr("Queste spese finiscono nella riga «Costi non classificati»: nel margine ci sono, ma non si vede dove vanno. Dalla più costosa: sistema le prime e lascia stare la coda.")}
         </p>
         <p className="text-xs text-muted-foreground">
-          Non tutto va classificato. L'acquisto di un terreno o di un immobile non è un costo
-          dell'anno ma un investimento: lascialo qui, e comparirà nello stato patrimoniale quando
-          lo registri tra i cespiti.
+          {tr("Non tutto va classificato. L'acquisto di un terreno o di un immobile non è un costo dell'anno ma un investimento: lascialo qui, e comparirà nello stato patrimoniale quando lo registri tra i cespiti.")}
         </p>
       </CardHeader>
       <CardContent>
@@ -108,12 +103,12 @@ export function VociDaSistemare({ anno }: VociDaSistemareProps) {
           <Table wrapperClassName="max-h-[28rem]">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[26%]">Categoria</TableHead>
-                <TableHead className="w-[14%]">Da dove arriva</TableHead>
-                <TableHead className="w-[10%] text-right">Spese</TableHead>
-                <TableHead className="w-[14%] text-right">Importo</TableHead>
-                <TableHead className="w-[22%]">Voce del conto economico</TableHead>
-                <TableHead className="w-[14%]">Tipo</TableHead>
+                <TableHead className="w-[26%]">{tr("Categoria")}</TableHead>
+                <TableHead className="w-[14%]">{tr("Da dove arriva")}</TableHead>
+                <TableHead className="w-[10%] text-right">{tr("Spese")}</TableHead>
+                <TableHead className="w-[14%] text-right">{tr("Importo")}</TableHead>
+                <TableHead className="w-[22%]">{tr("Voce del conto economico")}</TableHead>
+                <TableHead className="w-[14%]">{tr("Tipo")}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -137,10 +132,10 @@ export function VociDaSistemare({ anno }: VociDaSistemareProps) {
                     </TableCell>
                     <TableCell>
                       <OfficeSelect
-                        label={`Voce per ${v.source_value}`}
+                        label={tr("Voce per {source_value}", { source_value: String(v.source_value ?? "") })}
                         id={`macro-${id}`}
                         value={macro ?? ""}
-                        placeholder="Scegli la voce"
+                        placeholder={tr("Scegli la voce")}
                         onValueChange={(next) =>
                           setScelte((s) => ({
                             ...s,
@@ -155,10 +150,10 @@ export function VociDaSistemare({ anno }: VociDaSistemareProps) {
                     </TableCell>
                     <TableCell>
                       <OfficeSelect
-                        label={`Tipo per ${v.source_value}`}
+                        label={tr("Tipo per {source_value}", { source_value: String(v.source_value ?? "") })}
                         id={`tipo-${id}`}
                         value={tipo ?? ""}
-                        placeholder="Tipo"
+                        placeholder={tr("Tipo")}
                         disabled={!macro}
                         onValueChange={(next) =>
                           setScelte((s) => ({
@@ -187,7 +182,7 @@ export function VociDaSistemare({ anno }: VociDaSistemareProps) {
                           });
                         }}
                       >
-                        Classifica
+                        {tr("Classifica")}
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -10,17 +10,19 @@ import { useAuth } from "@/contexts/AuthContext";
 import { conteggioCompatto } from "@/lib/email-ai/documentiDaConfermare";
 import { useDocumentiDaConfermareCount } from "@/lib/email-ai/hooks";
 import { StatoCodaAllegati } from "@/components/email-ai/StatoCodaAllegati";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function DocumentiDaConfermarePage() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const numero = useDocumentiDaConfermareCount(effectiveCompany?.id);
   return (
     <div className="mx-auto w-full max-w-3xl space-y-3">
       <div className="flex items-center gap-2">
-        <Link to="/azienda/email" aria-label="Torna alle email" className="-ml-2 flex items-center justify-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+        <Link to="/azienda/email" aria-label={t("Torna alle email")} className="-ml-2 flex items-center justify-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 className="text-lg font-semibold tracking-tight text-slate-900">Documenti da confermare</h1>
+        <h1 className="text-lg font-semibold tracking-tight text-slate-900">{t("Documenti da confermare")}</h1>
         {!!numero.data && (
           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">{conteggioCompatto(numero.data)}</span>
         )}

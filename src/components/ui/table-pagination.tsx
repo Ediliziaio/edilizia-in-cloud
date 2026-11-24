@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TablePaginationProps {
   currentPage: number;
@@ -21,16 +22,15 @@ export function TablePagination({
   onPageSizeChange,
   pageSizeOptions = [25, 50, 100],
 }: TablePaginationProps) {
+  const t = useT();
   if (totalItems <= pageSizeOptions[0]) return null;
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4">
-      <div className="text-xs text-muted-foreground">
-        {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalItems)} di {totalItems} righe
-      </div>
+      <div className="text-xs text-muted-foreground">{t("{da}–{a} di {totale} righe", { da: ((currentPage - 1) * pageSize) + 1, a: Math.min(currentPage * pageSize, totalItems), totale: totalItems })}</div>
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>Righe:</span>
+          <span>{t("Righe:")}</span>
           <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
             <SelectTrigger className="h-7 w-[65px] text-xs">
               <SelectValue />
@@ -43,17 +43,17 @@ export function TablePagination({
           </Select>
         </div>
         <div className="flex items-center gap-0.5">
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(1)} disabled={currentPage <= 1} aria-label="Prima pagina">
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(1)} disabled={currentPage <= 1} aria-label={t("Prima pagina")}>
             <ChevronsLeft className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1} aria-label="Pagina precedente">
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1} aria-label={t("Pagina precedente")}>
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
           <span className="text-xs px-2 tabular-nums">{currentPage} / {totalPages}</span>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage >= totalPages} aria-label="Pagina successiva">
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage >= totalPages} aria-label={t("Pagina successiva")}>
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(totalPages)} disabled={currentPage >= totalPages} aria-label="Ultima pagina">
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(totalPages)} disabled={currentPage >= totalPages} aria-label={t("Ultima pagina")}>
             <ChevronsRight className="h-3.5 w-3.5" />
           </Button>
         </div>

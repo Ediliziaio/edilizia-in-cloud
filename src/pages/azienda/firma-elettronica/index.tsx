@@ -45,6 +45,7 @@ import {
   shouldShowFirmaRequestsLoader,
   sortSignatureRequestsByCreatedAt,
 } from '@/lib/fea/firmaElettronicaHub';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SignatureRequestRow {
   id: string;
@@ -169,6 +170,7 @@ function corrispondeStato(r: SignatureRequestRow, filtro: string) {
 }
 
 export default function FirmaElettronicaHub() {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const companyId = useEffectiveCompanyId();
@@ -480,7 +482,7 @@ export default function FirmaElettronicaHub() {
         return data.url;
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Non riesco a preparare il PDF firmato. Riprova tra qualche istante.");
+      toast.error(err instanceof Error ? err.message : t("Non riesco a preparare il PDF firmato. Riprova tra qualche istante."));
     } finally {
       setPdfFirmatoInCorso(null);
     }
@@ -491,9 +493,9 @@ export default function FirmaElettronicaHub() {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard non disponibile");
       await navigator.clipboard.writeText(link);
-      toast.success("Link firma copiato negli appunti");
+      toast.success(t("Link firma copiato negli appunti"));
     } catch {
-      toast.error("Non riesco a copiare il link. Aprilo e copialo dalla barra del browser.");
+      toast.error(t("Non riesco a copiare il link. Aprilo e copialo dalla barra del browser."));
     }
   };
 
@@ -513,11 +515,11 @@ export default function FirmaElettronicaHub() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-950">Firma Elettronica</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-950">{t("Firma Elettronica")}</h1>
               <p className="text-sm text-slate-600">
                 {isMarketingContext
-                  ? "Preventivi e contratti firmati dal cliente, collegati a CRM e opportunità."
-                  : "Contratti, DDT, collaudi e moduli operativi firmati, collegati a clienti e commesse."}
+                  ? t("Preventivi e contratti firmati dal cliente, collegati a CRM e opportunità.")
+                  : t("Contratti, DDT, collaudi e moduli operativi firmati, collegati a clienti e commesse.")}
               </p>
             </div>
           </div>
@@ -529,7 +531,7 @@ export default function FirmaElettronicaHub() {
             {emailProvider?.is_active === false && (
               <Badge variant="outline" className="gap-1.5 border-yellow-200 bg-yellow-50 text-yellow-700">
                 <AlertTriangle className="h-3 w-3" />
-                Email transazionale non configurata
+                {t("Email transazionale non configurata")}
               </Badge>
             )}
             <Button
@@ -538,9 +540,9 @@ export default function FirmaElettronicaHub() {
               onClick={() => navigate(isMarketingContext ? '/azienda/marketing/preventivi' : '/azienda/ordini')}
             >
               <FileText className="h-4 w-4" />
-              {isMarketingContext ? "Apri preventivi" : "Apri commesse"}
+              {isMarketingContext ? t("Apri preventivi") : t("Apri commesse")}
             </Button>
-            <Button onClick={() => setScegliDocumento(true)}><Send className="mr-2 h-4 w-4" />Richiedi firma</Button>
+            <Button onClick={() => setScegliDocumento(true)}><Send className="mr-2 h-4 w-4" />{t("Richiedi firma")}</Button>
           </div>
         </div>
       </div>
@@ -550,13 +552,13 @@ export default function FirmaElettronicaHub() {
           numeri). La pagina resta l'archivio; le firme si mandano dal documento. */}
 
       <KpiMobili className="sm:hidden" voci={indicatori.map(([filtro, label, valore]) => ({
-        label, valore: String(valore), attivo: statusFilter === filtro, onClick: () => selezionaIndicatore(filtro),
+        label: t(label), valore: String(valore), attivo: statusFilter === filtro, onClick: () => selezionaIndicatore(filtro),
       }))} />
       <div className="max-sm:hidden">
-        <OperationalSummary label="Riepilogo firme" title="Dal documento alla firma" icon={FileStack}
-          note="Conteggi sulle richieste recenti. Seleziona un indicatore per filtrare l’archivio.">
+        <OperationalSummary label={t("Riepilogo firme")} title={t("Dal documento alla firma")} icon={FileStack}
+          note={t("Conteggi sulle richieste recenti. Seleziona un indicatore per filtrare l’archivio.")}>
           {indicatori.map(([filtro, label, valore]) =>
-            <OperationalSummaryMetric key={filtro} label={label} value={String(valore)}
+            <OperationalSummaryMetric key={filtro} label={t(label)} value={String(valore)}
               active={statusFilter === filtro} onClick={() => selezionaIndicatore(filtro)} />)}
         </OperationalSummary>
       </div>
@@ -564,12 +566,11 @@ export default function FirmaElettronicaHub() {
       {emailProvider?.is_active === false && (
         <Alert className="border-yellow-500/40 bg-yellow-50/60 max-sm:py-2.5">
           <AlertTriangle className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">Email transazionale non configurata</AlertTitle>
+          <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">{t("Email transazionale non configurata")}</AlertTitle>
           <AlertDescription className="text-sm max-sm:hidden">
-            Le richieste di firma necessitano dell'invio di email automatiche con OTP e link. Configura
-            un provider (Resend, SendGrid o Elastic Email) in{" "}
-            <a href="/azienda/impostazioni/dominio-email" className="underline font-medium">Impostazioni → Dominio email</a>
-            {" "}per attivare l'invio.
+            {t("Le richieste di firma necessitano dell'invio di email automatiche con OTP e link. Configura un provider (Resend, SendGrid o Elastic Email) in")}{" "}
+            <a href="/azienda/impostazioni/dominio-email" className="underline font-medium">{t("Impostazioni → Dominio email")}</a>
+            {" "}{t("per attivare l'invio.")}
           </AlertDescription>
         </Alert>
       )}
@@ -578,17 +579,17 @@ export default function FirmaElettronicaHub() {
         {/* Mobile: archivio e moduli; i template si gestiscono al computer. */}
         <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:rounded-xl max-sm:p-1">
           <TabsTrigger value="richieste" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            <Send className="h-3.5 w-3.5" /> Archivio firme
+            <Send className="h-3.5 w-3.5" /> {t("Archivio firme")}
             {kpi.totale > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">{kpi.totale}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="documenti" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            <FileText className="h-3.5 w-3.5" /> Moduli custom
+            <FileText className="h-3.5 w-3.5" /> {t("Moduli custom")}
           </TabsTrigger>
           <TabsTrigger value="template" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:hidden">
-            <FileStack className="h-3.5 w-3.5" /> Template moduli
+            <FileStack className="h-3.5 w-3.5" /> {t("Template moduli")}
           </TabsTrigger>
           <TabsTrigger value="firmatari" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            <IdCard className="h-3.5 w-3.5" /> Firmatari
+            <IdCard className="h-3.5 w-3.5" /> {t("Firmatari")}
           </TabsTrigger>
         </TabsList>
 
@@ -609,7 +610,7 @@ export default function FirmaElettronicaHub() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca per documento, cliente, email o token..."
+                placeholder={t("Cerca per documento, cliente, email o token...")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -617,30 +618,30 @@ export default function FirmaElettronicaHub() {
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="sm:w-[180px]">
-                <SelectValue placeholder="Stato" />
+                <SelectValue placeholder={t("Stato")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tutti">Tutti gli stati</SelectItem>
-                <SelectItem value="aperte">Da firmare</SelectItem>
-                <SelectItem value="scadenza">In scadenza entro 7 giorni</SelectItem>
-                <SelectItem value="pending">In attesa firma</SelectItem>
-                <SelectItem value="otp_verified">OTP verificato</SelectItem>
-                <SelectItem value="signed">Firmato</SelectItem>
-                <SelectItem value="refused">Rifiutato</SelectItem>
-                <SelectItem value="expired">Scaduto</SelectItem>
-                <SelectItem value="cancelled">Annullato</SelectItem>
+                <SelectItem value="tutti">{t("Tutti gli stati")}</SelectItem>
+                <SelectItem value="aperte">{t("Da firmare")}</SelectItem>
+                <SelectItem value="scadenza">{t("In scadenza entro 7 giorni")}</SelectItem>
+                <SelectItem value="pending">{t("In attesa firma")}</SelectItem>
+                <SelectItem value="otp_verified">{t("OTP verificato")}</SelectItem>
+                <SelectItem value="signed">{t("Firmato")}</SelectItem>
+                <SelectItem value="refused">{t("Rifiutato")}</SelectItem>
+                <SelectItem value="expired">{t("Scaduto")}</SelectItem>
+                <SelectItem value="cancelled">{t("Annullato")}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={tipoDocFilter} onValueChange={setTipoDocFilter}>
               <SelectTrigger className="sm:w-[180px]">
-                <SelectValue placeholder="Tipo documento" />
+                <SelectValue placeholder={t("Tipo documento")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tutti">Tutti i tipi</SelectItem>
-                <SelectItem value="sessione">Documento custom</SelectItem>
-                <SelectItem value="quote">Preventivo</SelectItem>
-                <SelectItem value="order">Ordine</SelectItem>
-                <SelectItem value="odv">Ordine di vendita</SelectItem>
+                <SelectItem value="tutti">{t("Tutti i tipi")}</SelectItem>
+                <SelectItem value="sessione">{t("Documento custom")}</SelectItem>
+                <SelectItem value="quote">{t("Preventivo")}</SelectItem>
+                <SelectItem value="order">{t("Ordine")}</SelectItem>
+                <SelectItem value="odv">{t("Ordine di vendita")}</SelectItem>
               </SelectContent>
             </Select>
             <span className="max-sm:hidden"><MenuColonneFirme {...colonneFirme} /></span>
@@ -649,9 +650,9 @@ export default function FirmaElettronicaHub() {
           {!companyId && (
             <Alert className="border-blue-200 bg-blue-50/60">
               <AlertTriangle className="h-4 w-4 text-blue-600" />
-              <AlertTitle>Connessione azienda in aggiornamento</AlertTitle>
+              <AlertTitle>{t("Connessione azienda in aggiornamento")}</AlertTitle>
               <AlertDescription className="text-sm">
-                Sto recuperando il contesto aziendale. La pagina resta consultabile e si aggiorna appena i dati sono disponibili.
+                {t("Sto recuperando il contesto aziendale. La pagina resta consultabile e si aggiorna appena i dati sono disponibili.")}
               </AlertDescription>
             </Alert>
           )}
@@ -659,7 +660,7 @@ export default function FirmaElettronicaHub() {
           {showRequestsError ? (
             <Alert className="border-red-200 bg-red-50/70">
               <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertTitle>Richieste firma non caricate</AlertTitle>
+              <AlertTitle>{t("Richieste firma non caricate")}</AlertTitle>
               <AlertDescription className="text-sm">
                 {requestErrorMessage}
               </AlertDescription>
@@ -671,24 +672,24 @@ export default function FirmaElettronicaHub() {
                 disabled={reqFetching && !requestsLoadingTimedOut}
               >
                 {reqFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                Riprova caricamento
+                {t("Riprova caricamento")}
               </Button>
             </Alert>
           ) : showRequestsLoader ? (
             <div className="flex items-center gap-2 text-slate-500 py-8">
               <Loader2 className="h-5 w-5 animate-spin" />
-              Caricamento richieste...
+              {t("Caricamento richieste...")}
             </div>
           ) : filteredRequests.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center max-sm:p-5">
                 <Send className="h-12 w-12 text-slate-300 mx-auto mb-3 max-sm:hidden" />
                 <p className="text-slate-500 font-medium max-sm:text-sm">
-                  {requests.length === 0 ? "Nessuna richiesta di firma ancora" : "Nessuna richiesta corrisponde ai filtri"}
+                  {requests.length === 0 ? t("Nessuna richiesta di firma ancora") : t("Nessuna richiesta corrisponde ai filtri")}
                 </p>
                 {requests.length === 0 && (
                   <p className="text-slate-400 text-sm mt-1 max-sm:hidden">
-                    Invia un preventivo dalla sua scheda oppure richiedi una firma da un modulo custom.
+                    {t("Invia un preventivo dalla sua scheda oppure richiedi una firma da un modulo custom.")}
                   </p>
                 )}
               </CardContent>
@@ -704,9 +705,9 @@ export default function FirmaElettronicaHub() {
               actions={r => {
                 const stato = statoArchivio(r);
                 return (stato === "signed" && r.source_kind === "fea"
-                        ? <Button size="sm" variant="outline" disabled={pdfFirmatoInCorso === r.id} onClick={() => void scaricaPdfFirmato(r.id)}>Scarica PDF</Button>
+                        ? <Button size="sm" variant="outline" disabled={pdfFirmatoInCorso === r.id} onClick={() => void scaricaPdfFirmato(r.id)}>{t("Scarica PDF")}</Button>
                         : <Button size="sm" variant="outline" onClick={() => setDettaglioId(r.id)}>
-                            {corrispondeStato(r, "aperte") && r.signer_email && r.firma_url ? "Sollecita" : stato === "expired" && (r.sessione_id || r.documento_url) ? "Prepara nuova richiesta" : "Dettagli"}
+                            {corrispondeStato(r, "aperte") && r.signer_email && r.firma_url ? t("Sollecita") : stato === "expired" && (r.sessione_id || r.documento_url) ? t("Prepara nuova richiesta") : t("Dettagli")}
                           </Button>
                 );
               }}
@@ -719,31 +720,31 @@ export default function FirmaElettronicaHub() {
           {sessioniLoading ? (
             <div className="flex items-center gap-2 text-slate-500 py-8">
               <Loader2 className="h-5 w-5 animate-spin" />
-              Caricamento documenti...
+              {t("Caricamento documenti...")}
             </div>
           ) : sessioni.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center max-sm:p-5">
                 <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3 max-sm:hidden" />
-                <p className="text-slate-500 font-medium max-sm:text-sm">Nessun documento ancora</p>
+                <p className="text-slate-500 font-medium max-sm:text-sm">{t("Nessun documento ancora")}</p>
                 <p className="text-slate-400 text-sm mt-1 max-sm:hidden">
-                  Crea un documento da un template per iniziare
+                  {t("Crea un documento da un template per iniziare")}
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <Card className="overflow-hidden rounded-xl border-slate-200"><Table aria-label="Moduli custom" className="min-w-[850px] text-xs [&_th]:px-3 [&_td]:px-3 [&_td]:py-2 [&_td]:border-r [&_td]:border-slate-100">
-              <TableHeader className="bg-slate-50"><TableRow><TableHead>Documento</TableHead><TableHead>Template</TableHead><TableHead>PDF</TableHead><TableHead>Stato firma</TableHead><TableHead>Creato il</TableHead><TableHead className="text-right">Azioni</TableHead></TableRow></TableHeader>
+            <Card className="overflow-hidden rounded-xl border-slate-200"><Table aria-label={t("Moduli custom")} className="min-w-[850px] text-xs [&_th]:px-3 [&_td]:px-3 [&_td]:py-2 [&_td]:border-r [&_td]:border-slate-100">
+              <TableHeader className="bg-slate-50"><TableRow><TableHead>{t("Documento")}</TableHead><TableHead>{t("Template")}</TableHead><TableHead>PDF</TableHead><TableHead>{t("Stato firma")}</TableHead><TableHead>{t("Creato il")}</TableHead><TableHead className="text-right">{t("Azioni")}</TableHead></TableRow></TableHeader>
               <TableBody>{sessioni.map(s => {
                 const canRequestSign = s.stato !== "firmato";
                 const pdfMissing = !(s as unknown as {pdf_url?: string | null}).pdf_url;
                 return <TableRow key={s.id}>
                   <TableCell className="max-w-[320px] truncate font-medium" title={s.nome}>{s.nome}</TableCell>
                   <TableCell className="max-w-[220px] truncate">{s.template?.nome || "—"}</TableCell>
-                  <TableCell className={pdfMissing ? "text-amber-700" : "text-emerald-700"}>{pdfMissing ? "Da generare" : "Disponibile"}</TableCell>
+                  <TableCell className={pdfMissing ? "text-amber-700" : "text-emerald-700"}>{pdfMissing ? t("Da generare") : t("Disponibile")}</TableCell>
                   <TableCell><FEABadge stato={s.stato === 'firmato' ? 'signed' : s.stato === 'in_firma' ? 'pending' : null} /></TableCell>
                   <TableCell className="whitespace-nowrap">{formatFirmaDate(s.created_at)}</TableCell>
-                  <TableCell className="text-right">{canRequestSign && <Button size="sm" variant="outline" className="h-8 gap-1.5" aria-label="Richiedi firma" onClick={() => setRichiediFirmaOpen({open:true,documento_id:s.id,titolo:s.nome,pdfMissing})}><Send className="h-3.5 w-3.5" />Richiedi firma</Button>}</TableCell>
+                  <TableCell className="text-right">{canRequestSign && <Button size="sm" variant="outline" className="h-8 gap-1.5" aria-label={t("Richiedi firma")} onClick={() => setRichiediFirmaOpen({open:true,documento_id:s.id,titolo:s.nome,pdfMissing})}><Send className="h-3.5 w-3.5" />{t("Richiedi firma")}</Button>}</TableCell>
                 </TableRow>;
               })}</TableBody>
             </Table></Card>
@@ -752,7 +753,7 @@ export default function FirmaElettronicaHub() {
 
         {/* ── Tab TEMPLATE ─────────────────────────────────────────────────── */}
         <TabsContent value="template" className="mt-4">
-          <Button className="mb-3" onClick={() => navigate('/azienda/firma-elettronica/nuovo-template')}><Plus className="mr-2 h-4 w-4" />Nuovo modello</Button>
+          <Button className="mb-3" onClick={() => navigate('/azienda/firma-elettronica/nuovo-template')}><Plus className="mr-2 h-4 w-4" />{t("Nuovo modello")}</Button>
           <DocumentiList onSelect={handleSelectTemplate} layout="table" />
         </TabsContent>
 
@@ -770,72 +771,72 @@ export default function FirmaElettronicaHub() {
         risultati={filteredRequests.length}
       >
         <PilloleFiltro
-          titolo="Stato"
+          titolo={t("Stato")}
           valore={statusFilter}
           onScegli={setStatusFilter}
           scelte={[
-            { value: "tutti", label: "Tutti" },
-            { value: "aperte", label: "Da firmare" },
-            { value: "scadenza", label: "In scadenza" },
-            { value: "cancelled", label: "Annullate" },
-            { value: "signed", label: "Firmati" },
-            { value: "refused", label: "Rifiutati" },
-            { value: "expired", label: "Scaduti" },
+            { value: "tutti", label: t("Tutti") },
+            { value: "aperte", label: t("Da firmare") },
+            { value: "scadenza", label: t("In scadenza") },
+            { value: "cancelled", label: t("Annullate") },
+            { value: "signed", label: t("Firmati") },
+            { value: "refused", label: t("Rifiutati") },
+            { value: "expired", label: t("Scaduti") },
           ]}
         />
         <PilloleFiltro
-          titolo="Documento"
+          titolo={t("Documento")}
           valore={tipoDocFilter}
           onScegli={setTipoDocFilter}
           scelte={[
-            { value: "tutti", label: "Tutti" },
-            { value: "quote", label: "Preventivi" },
-            { value: "order", label: "Ordini" },
-            { value: "odv", label: "Ordini di vendita" },
-            { value: "sessione", label: "Moduli" },
+            { value: "tutti", label: t("Tutti") },
+            { value: "quote", label: t("Preventivi") },
+            { value: "order", label: t("Ordini") },
+            { value: "odv", label: t("Ordini di vendita") },
+            { value: "sessione", label: t("Moduli") },
           ]}
         />
       </PannelloFiltri>
 
       <Dialog open={scegliDocumento} onOpenChange={setScegliDocumento}>
         <DialogContent className="max-h-[80dvh] overflow-y-auto">
-          <DialogTitle>Richiedi firma</DialogTitle>
-          <DialogDescription>Scegli il documento, poi verifica il firmatario prima dell’invio.</DialogDescription>
+          <DialogTitle>{t("Richiedi firma")}</DialogTitle>
+          <DialogDescription>{t("Scegli il documento, poi verifica il firmatario prima dell’invio.")}</DialogDescription>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate("/azienda/marketing/preventivi")}>Scegli preventivo</Button>
-            <Button variant="outline" onClick={() => navigate("/azienda/ordini")}>Scegli commessa</Button>
+            <Button variant="outline" onClick={() => navigate("/azienda/marketing/preventivi")}>{t("Scegli preventivo")}</Button>
+            <Button variant="outline" onClick={() => navigate("/azienda/ordini")}>{t("Scegli commessa")}</Button>
           </div>
-          <h3 className="text-sm font-semibold">Moduli pronti per la firma</h3>
-          {sessioniLoading ? <p>Caricamento moduli…</p> : !moduliPronti.length ? <p className="text-sm text-muted-foreground">Nessun modulo pronto.</p> :
+          <h3 className="text-sm font-semibold">{t("Moduli pronti per la firma")}</h3>
+          {sessioniLoading ? <p>{t("Caricamento moduli…")}</p> : !moduliPronti.length ? <p className="text-sm text-muted-foreground">{t("Nessun modulo pronto.")}</p> :
             moduliPronti.map(s =>
               <Button key={s.id} variant="outline" onClick={() => { setScegliDocumento(false); setRichiediFirmaOpen({open:true, documento_id:s.id, titolo:s.nome, pdfMissing:false}); }}>{s.nome}</Button>)}
         </DialogContent>
       </Dialog>
       <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) setDettaglioId(null); }}>
         {dettaglio && <DialogContent className="max-h-[80dvh] overflow-y-auto">
-          <DialogTitle>{dettaglio.documento_label || "Richiesta di firma"}</DialogTitle>
-          <DialogDescription>{dettaglio.metodo_firma} · {STATUS_CFG[statoArchivio(dettaglio)]?.label}</DialogDescription>
+          <DialogTitle>{dettaglio.documento_label || t("Richiesta di firma")}</DialogTitle>
+          <DialogDescription>{t(dettaglio.metodo_firma)} · {t(STATUS_CFG[statoArchivio(dettaglio)]?.label ?? "")}</DialogDescription>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt>Firmatario</dt><dd>{dettaglio.signer_name || "—"}</dd>
-            <dt>Email</dt><dd className="break-all">{dettaglio.signer_email || "—"}</dd>
-            <dt>Creata il</dt><dd>{formatFirmaDate(dettaglio.created_at)}</dd>
-            {ultimoInvio && <><dt>Ultimo invio registrato</dt><dd>{formatFirmaDate(ultimoInvio, "dd MMM yyyy HH:mm")}</dd></>}
-            <dt>Scadenza</dt><dd>{formatFirmaDate(dettaglio.expires_at)}</dd>
-            {dettaglio.signed_at && <><dt>Firmata il</dt><dd>{formatFirmaDate(dettaglio.signed_at)}</dd></>}
+            <dt>{t("Firmatario")}</dt><dd>{dettaglio.signer_name || "—"}</dd>
+            <dt>{t("Email")}</dt><dd className="break-all">{dettaglio.signer_email || "—"}</dd>
+            <dt>{t("Creata il")}</dt><dd>{formatFirmaDate(dettaglio.created_at)}</dd>
+            {ultimoInvio && <><dt>{t("Ultimo invio registrato")}</dt><dd>{formatFirmaDate(ultimoInvio, "dd MMM yyyy HH:mm")}</dd></>}
+            <dt>{t("Scadenza")}</dt><dd>{formatFirmaDate(dettaglio.expires_at)}</dd>
+            {dettaglio.signed_at && <><dt>{t("Firmata il")}</dt><dd>{formatFirmaDate(dettaglio.signed_at)}</dd></>}
           </dl>
-          {dettaglio.source_kind === "fea" && <div className="text-sm"><h3 className="font-semibold">Cronologia</h3>
-            {storico.isLoading ? "Caricamento…" : storico.isError ? "Cronologia non disponibile." : !storico.data?.length ? "Nessun evento registrato." : storico.data.map(e =>
+          {dettaglio.source_kind === "fea" && <div className="text-sm"><h3 className="font-semibold">{t("Cronologia")}</h3>
+            {storico.isLoading ? t("Caricamento…") : storico.isError ? t("Cronologia non disponibile.") : !storico.data?.length ? t("Nessun evento registrato.") : storico.data.map(e =>
               <p key={e.id}>{formatFirmaDate(e.created_at, "dd MMM yyyy HH:mm")} · {e.evento.replaceAll("_", " ")}</p>)}
           </div>}
           <div className="flex flex-wrap gap-2">
             {corrispondeStato(dettaglio, "aperte") && dettaglio.firma_url && <>
-              {dettaglio.signer_email && <Button asChild><a href={`mailto:${encodeURIComponent(dettaglio.signer_email)}?subject=${encodeURIComponent("Promemoria firma · " + dettaglio.documento_label)}&body=${encodeURIComponent("Buongiorno, ricordiamo che il documento " + dettaglio.documento_label + " è in attesa della sua firma. Può utilizzare il link ricevuto con l’invito.")}`}>Prepara email di sollecito</a></Button>}
-              <Button variant="outline" onClick={() => void copyLink(dettaglio.firma_url!)}>Copia link firma</Button>
-              <Button variant="outline" asChild><a href={dettaglio.firma_url} target="_blank" rel="noreferrer">Apri link firma</a></Button>
+              {dettaglio.signer_email && <Button asChild><a href={`mailto:${encodeURIComponent(dettaglio.signer_email)}?subject=${encodeURIComponent("Promemoria firma · " + dettaglio.documento_label)}&body=${encodeURIComponent("Buongiorno, ricordiamo che il documento " + dettaglio.documento_label + " è in attesa della sua firma. Può utilizzare il link ricevuto con l’invito.")}`}>{t("Prepara email di sollecito")}</a></Button>}
+              <Button variant="outline" onClick={() => void copyLink(dettaglio.firma_url!)}>{t("Copia link firma")}</Button>
+              <Button variant="outline" asChild><a href={dettaglio.firma_url} target="_blank" rel="noreferrer">{t("Apri link firma")}</a></Button>
             </>}
             {statoArchivio(dettaglio) === "expired" && dettaglio.sessione_id && sessioni.some(s => s.id === dettaglio.sessione_id && s.stato !== "firmato") &&
-              <Button onClick={() => { const s = sessioni.find(s => s.id === dettaglio.sessione_id)!; setDettaglioId(null); setRichiediFirmaOpen({open:true, documento_id:s.id,titolo:s.nome,pdfMissing:!s.pdf_url}); }}>Prepara nuova richiesta</Button>}
-            {dettaglio.documento_url && <Button variant="outline" onClick={() => navigate(dettaglio.documento_url!)}>{statoArchivio(dettaglio) === "expired" ? "Prepara nuova richiesta dal documento" : "Apri documento"}</Button>}
+              <Button onClick={() => { const s = sessioni.find(s => s.id === dettaglio.sessione_id)!; setDettaglioId(null); setRichiediFirmaOpen({open:true, documento_id:s.id,titolo:s.nome,pdfMissing:!s.pdf_url}); }}>{t("Prepara nuova richiesta")}</Button>}
+            {dettaglio.documento_url && <Button variant="outline" onClick={() => navigate(dettaglio.documento_url!)}>{statoArchivio(dettaglio) === "expired" ? t("Prepara nuova richiesta dal documento") : t("Apri documento")}</Button>}
           </div>
         </DialogContent>}
       </Dialog>

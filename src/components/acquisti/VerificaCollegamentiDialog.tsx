@@ -30,6 +30,7 @@ import {
   type StatoCollegamento,
 } from "@/lib/acquisti/verificaCollegamenti";
 import { useCambiaStatoCollegamenti, useVerificaCollegamenti } from "@/hooks/useVerificaCollegamenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NOME_STATO: Record<StatoCollegamento, string> = {
   proposto: "Da confermare",
@@ -44,6 +45,7 @@ const NOME_STATO: Record<StatoCollegamento, string> = {
 const TONO_PROVA = { uguale: "text-emerald-700 dark:text-emerald-400", diverso: "text-destructive", mancante: "text-amber-700 dark:text-amber-400" };
 
 function Motivo({ etichetta, onConferma, disabilitato }: { etichetta: string; onConferma: (motivo: string) => void; disabilitato: boolean }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [testo, setTesto] = useState("");
   return (
@@ -52,10 +54,10 @@ function Motivo({ etichetta, onConferma, disabilitato }: { etichetta: string; on
         <Button size="sm" variant="outline" disabled={disabilitato}>{etichetta}</Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 space-y-2">
-        <p className="text-sm font-medium">Perché? Resta nello storico.</p>
-        <Textarea aria-label="Motivo" value={testo} onChange={(e) => setTesto(e.target.value)} rows={3} placeholder="Es. la bolla è di un altro cantiere" />
+        <p className="text-sm font-medium">{t("Perché? Resta nello storico.")}</p>
+        <Textarea aria-label={t("Motivo")} value={testo} onChange={(e) => setTesto(e.target.value)} rows={3} placeholder={t("Es. la bolla è di un altro cantiere")} />
         <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setAperto(false)}>Lascia stare</Button>
+          <Button size="sm" variant="ghost" onClick={() => setAperto(false)}>{t("Lascia stare")}</Button>
           <Button
             size="sm"
             disabled={!testo.trim()}
@@ -92,12 +94,13 @@ function Riga({
   cambia: (verso: StatoCollegamento, motivo?: string) => void;
   occupato: boolean;
 }) {
-  const nome = (tipo: string, id: string, riga: string | null) => `${nomi[id] ?? ETICHETTA_TIPO[tipo] ?? tipo}${riga ? ` · riga ${riga}` : ""}`;
+  const t = useT();
+  const nome = (tipo: string, id: string, riga: string | null) => `${nomi[id] ?? (ETICHETTA_TIPO[tipo] ? t(ETICHETTA_TIPO[tipo]) : tipo)}${riga ? ` · ${t("riga {riga}", { riga })}` : ""}`;
   return (
     <li className="border-b px-3 py-3 last:border-b-0" data-collegamento={r.id}>
       <div className="flex items-start gap-3">
         {selezionabile && (
-          <Checkbox className="mt-1" checked={selezionata} onCheckedChange={(v) => onSeleziona(v === true)} aria-label="Seleziona" disabled={!puoModificare} />
+          <Checkbox className="mt-1" checked={selezionata} onCheckedChange={(v) => onSeleziona(v === true)} aria-label={t("Seleziona")} disabled={!puoModificare} />
         )}
         <div className="min-w-0 flex-1 space-y-1">
           <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
@@ -107,11 +110,11 @@ function Riga({
             {r.importo != null && <span className="text-muted-foreground">· {formatCurrency(r.importo)}</span>}
           </p>
           <p className="text-xs text-muted-foreground">
-            {etichettaRegola(r.regola)} · {r.esito === "automatico" ? "fatto da solo" : r.esito === "manuale" ? "fatto a mano" : "proposto"}
-            {r.con_ai ? " · un dato letto dall'AI" : ""} · {NOME_STATO[r.stato]} dal {formatDateShort(r.updated_at)}
+            {t(etichettaRegola(r.regola))} · {r.esito === "automatico" ? t("fatto da solo") : r.esito === "manuale" ? t("fatto a mano") : t("proposto")}
+            {r.con_ai ? ` ${t("· un dato letto dall'AI")}` : ""} · {t("{stato} dal {data}", { stato: t(NOME_STATO[r.stato]), data: formatDateShort(r.updated_at) })}
           </p>
           {!!r.prove?.length && (
-            <ul className="space-y-0.5 text-xs" aria-label="Prove">
+            <ul className="space-y-0.5 text-xs" aria-label={t("Prove")}>
               {r.prove.map((p, i) => (
                 <li key={i} className={TONO_PROVA[p.esito] ?? ""}>
                   <span aria-hidden>{SIMBOLO_PROVA[p.esito] ?? "·"}</span> {p.testo}
@@ -120,7 +123,7 @@ function Riga({
             </ul>
           )}
           {!!r.percorso?.length && (
-            <p className="text-xs text-muted-foreground">Percorso: {r.percorso.map((p) => (p.passi ?? []).join(" → ")).join(" · ")}</p>
+            <p className="text-xs text-muted-foreground">{t("Percorso: {percorso}", { percorso: r.percorso.map((p) => (p.passi ?? []).join(" → ")).join(" · ") })}</p>
           )}
         </div>
         {puoModificare && (
@@ -162,6 +165,7 @@ export function VerificaCollegamentiDialog({
   puoModificare: boolean;
   trigger?: ReactNode;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [scheda, setScheda] = useState<Scheda>("da_confermare");
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
@@ -197,33 +201,32 @@ export function VerificaCollegamentiDialog({
       <DialogTrigger asChild>
         {trigger ?? (
           <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs">
-            <ListChecks className="mr-1 h-3.5 w-3.5" /> Verifica collegamenti
+            <ListChecks className="mr-1 h-3.5 w-3.5" /> {t("Verifica collegamenti")}
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Verifica collegamenti</DialogTitle>
+          <DialogTitle>{t("Verifica collegamenti")}</DialogTitle>
           <DialogDescription>
-            {fatturaId ? "I collegamenti di questa fattura" : "I collegamenti fra documenti dell'azienda"}: perché sono stati proposti o fatti, e cosa
-            fare. Ogni passo resta nello storico.
+            {fatturaId ? t("I collegamenti di questa fattura: perché sono stati proposti o fatti, e cosa fare. Ogni passo resta nello storico.") : t("I collegamenti fra documenti dell'azienda: perché sono stati proposti o fatti, e cosa fare. Ogni passo resta nello storico.")}
           </DialogDescription>
         </DialogHeader>
-        {isLoading && <p className="text-sm text-muted-foreground">Carico…</p>}
-        {error && <p className="text-sm text-destructive">Non riesco a leggere i collegamenti.</p>}
+        {isLoading && <p className="text-sm text-muted-foreground">{t("Carico…")}</p>}
+        {error && <p className="text-sm text-destructive">{t("Non riesco a leggere i collegamenti.")}</p>}
         {data && (
           <Tabs value={scheda} onValueChange={(v) => { setScheda(v as Scheda); setSelezione(new Set()); }}>
             <TabsList>
-              <TabsTrigger value="da_confermare">Da confermare ({proposte.length})</TabsTrigger>
-              <TabsTrigger value="collegati">Collegati ({perScheda("collegati").length})</TabsTrigger>
-              <TabsTrigger value="annullati">Annullati ({perScheda("annullati").length})</TabsTrigger>
+              <TabsTrigger value="da_confermare">{t("Da confermare ({n})", { n: proposte.length })}</TabsTrigger>
+              <TabsTrigger value="collegati">{t("Collegati ({n})", { n: perScheda("collegati").length })}</TabsTrigger>
+              <TabsTrigger value="annullati">{t("Annullati ({n})", { n: perScheda("annullati").length })}</TabsTrigger>
             </TabsList>
             <TabsContent value="da_confermare" className="space-y-4">
               <Elenco
-                vuoto="Nessuna proposta certa."
+                vuoto={t("Nessuna proposta certa.")}
                 titolo={
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Certe: tutti i dati tornano ({certe.length})</p>
+                    <p className="text-sm font-medium">{t("Certe: tutti i dati tornano ({n})", { n: certe.length })}</p>
                     {puoModificare && certe.length > 0 && (
                       <div className="flex items-center gap-2">
                         <Button
@@ -231,10 +234,10 @@ export function VerificaCollegamentiDialog({
                           variant="ghost"
                           onClick={() => setSelezione(selezionateCerte.length === certe.length ? new Set() : new Set(certe.map((r) => r.id)))}
                         >
-                          {selezionateCerte.length === certe.length ? "Deseleziona tutte" : "Seleziona tutte"}
+                          {selezionateCerte.length === certe.length ? t("Deseleziona tutte") : t("Seleziona tutte")}
                         </Button>
                         <Button size="sm" disabled={!selezionateCerte.length || cambia.isPending} onClick={() => esegui(selezionateCerte.map((r) => r.id), "collegato")}>
-                          Conferma {selezionateCerte.length || ""} selezionate
+                          {selezionateCerte.length ? t("Conferma {n} selezionate", { n: selezionateCerte.length }) : t("Conferma selezionate")}
                         </Button>
                       </div>
                     )}
@@ -243,7 +246,7 @@ export function VerificaCollegamentiDialog({
               >
                 {certe.map((r) => riga(r, true))}
               </Elenco>
-              <Elenco vuoto="Niente da guardare." titolo={<p className="text-sm font-medium">Da guardare una per una ({daGuardare.length})</p>}>
+              <Elenco vuoto={t("Niente da guardare.")} titolo={<p className="text-sm font-medium">{t("Da guardare una per una ({n})", { n: daGuardare.length })}</p>}>
                 {daGuardare.map((r) => riga(r))}
               </Elenco>
             </TabsContent>
@@ -253,23 +256,22 @@ export function VerificaCollegamentiDialog({
                   vuoto=""
                   titolo={
                     <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                      Da ricontrollare ({perScheda("collegati").filter(daRicontrollare).length}): collegati in passato senza conferma.
-                      Segna «verificato» quelli giusti, annulla quelli sbagliati.
+                      {t("Da ricontrollare ({n}): collegati in passato senza conferma. Segna «verificato» quelli giusti, annulla quelli sbagliati.", { n: perScheda("collegati").filter(daRicontrollare).length })}
                     </p>
                   }
                 >
                   {perScheda("collegati").filter(daRicontrollare).map((r) => riga(r))}
                 </Elenco>
               )}
-              <Elenco vuoto="Nessun collegamento ancora.">{perScheda("collegati").filter((r) => !daRicontrollare(r)).map((r) => riga(r))}</Elenco>
+              <Elenco vuoto={t("Nessun collegamento ancora.")}>{perScheda("collegati").filter((r) => !daRicontrollare(r)).map((r) => riga(r))}</Elenco>
             </TabsContent>
             <TabsContent value="annullati">
-              <Elenco vuoto="Nessun collegamento annullato o rifiutato.">{perScheda("annullati").map((r) => riga(r))}</Elenco>
+              <Elenco vuoto={t("Nessun collegamento annullato o rifiutato.")}>{perScheda("annullati").map((r) => riga(r))}</Elenco>
             </TabsContent>
-            {data.troncato && <p className="mt-2 text-xs text-muted-foreground">Sono mostrati gli ultimi {righe.length}: aprilo da una fattura per vederne solo i suoi.</p>}
+            {data.troncato && <p className="mt-2 text-xs text-muted-foreground">{t("Sono mostrati gli ultimi {n}: aprilo da una fattura per vederne solo i suoi.", { n: righe.length })}</p>}
           </Tabs>
         )}
-        {!puoModificare && <p className="text-xs text-muted-foreground">Puoi guardare i collegamenti; per confermarli serve il permesso sui costi o sugli acquisti.</p>}
+        {!puoModificare && <p className="text-xs text-muted-foreground">{t("Puoi guardare i collegamenti; per confermarli serve il permesso sui costi o sugli acquisti.")}</p>}
       </DialogContent>
     </Dialog>
   );

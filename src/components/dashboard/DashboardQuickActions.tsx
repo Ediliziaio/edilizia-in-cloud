@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { Plus, ClipboardList, Users, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const QUICK_ACTIONS = [
   { label: "Nuovo ordine", href: "/azienda/ordini/nuovo", icon: ClipboardList, shortcut: "O" },
@@ -18,6 +19,7 @@ const QUICK_ACTIONS = [
 ];
 
 export function DashboardQuickActions({ fullLabels = false }: { fullLabels?: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   // Chiudi con Escape
@@ -36,7 +38,7 @@ export function DashboardQuickActions({ fullLabels = false }: { fullLabels?: boo
       <div className="hidden sm:flex items-center gap-1.5">
         {QUICK_ACTIONS.map((a) => (
           <Button key={a.href} variant="outline" size="sm" className="h-8 text-xs" asChild>
-            <Link to={a.href} aria-label={a.label}>
+            <Link to={a.href} aria-label={t(a.label)}>
               <Plus className="h-4 w-4 mr-1" />
               <span>{fullLabels ? a.label : a.label.replace("Nuovo ", "")}</span>
             </Link>
@@ -65,7 +67,7 @@ export function DashboardQuickActions({ fullLabels = false }: { fullLabels?: boo
                 style={{ animationDelay: `${i * 40}ms` }}
               >
                 <span className="rounded-full bg-background border px-3 py-1.5 text-xs font-medium shadow-lg">
-                  {a.label}
+                  {t(a.label)}
                 </span>
                 <span className="h-11 w-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg">
                   <Icon className="h-5 w-5" />
@@ -76,7 +78,7 @@ export function DashboardQuickActions({ fullLabels = false }: { fullLabels?: boo
           <button
             type="button"
             onClick={() => setOpen(v => !v)}
-            aria-label={open ? "Chiudi menu rapido" : "Apri menu rapido"}
+            aria-label={open ? t("Chiudi menu rapido") : t("Apri menu rapido")}
             className={cn(
               "h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center transition-transform",
               open && "rotate-45"

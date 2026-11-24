@@ -9,6 +9,7 @@ import {
   SIP_TRANSPORTS,
   type SipPilotInput,
 } from "@/lib/fishSipPilot";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const defaults: SipPilotInput = {
   number: "",
@@ -20,6 +21,7 @@ const defaults: SipPilotInput = {
 };
 
 export function LocalSipPilotSetup() {
+  const t = useT();
   const [form, setForm] = useState(defaults);
   const [draft, setDraft] = useState<ReturnType<typeof buildSipPilot>>();
   const [error, setError] = useState("");
@@ -45,7 +47,7 @@ export function LocalSipPilotSetup() {
       setError(
         cause instanceof Error
           ? cause.message
-          : "Controlla le impostazioni SIP.",
+          : t("Controlla le impostazioni SIP."),
       );
     }
   }
@@ -54,9 +56,9 @@ export function LocalSipPilotSetup() {
     if (!draft) return;
     try {
       await navigator.clipboard.writeText(draft.requestToCarrier);
-      setCopyStatus("Testo copiato.");
+      setCopyStatus(t("Testo copiato."));
     } catch {
-      setCopyStatus("Seleziona il testo qui sotto per copiarlo.");
+      setCopyStatus(t("Seleziona il testo qui sotto per copiarlo."));
     }
   }
 
@@ -81,18 +83,17 @@ export function LocalSipPilotSetup() {
     >
       <div>
         <h2 id="sip-pilot-title" className="text-xl font-semibold">
-          Prepara il collegamento del numero reale
+          {t("Prepara il collegamento del numero reale")}
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Genera la bozza SIP e il testo per l’operatore. I dati del modulo
-          restano in questa scheda del browser.
+          {t("Genera la bozza SIP e il testo per l’operatore. I dati del modulo restano in questa scheda del browser.")}
         </p>
       </div>
       <form autoComplete="off" className="space-y-4" onSubmit={prepare}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="sip-company-number">
-              Numero aziendale da mantenere
+              {t("Numero aziendale da mantenere")}
             </Label>
             <Input
               id="sip-company-number"
@@ -104,30 +105,28 @@ export function LocalSipPilotSetup() {
               required
             />
             <p className="text-xs text-muted-foreground">
-              Usa il formato internazionale. Per i fissi italiani mantieni lo
-              zero.
+              {t("Usa il formato internazionale. Per i fissi italiani mantieni lo zero.")}
             </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="sip-pilot-caller">
-              Telefono da usare per la prova
+              {t("Telefono da usare per la prova")}
             </Label>
             <Input
               id="sip-pilot-caller"
               type="tel"
-              placeholder="+39… (facoltativo per la bozza)"
+              placeholder={t("+39… (facoltativo per la bozza)")}
               maxLength={32}
               value={form.testCaller}
               onChange={(e) => update("testCaller", e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Un telefono distinto dal numero aziendale, da cui chiamare e su
-              cui ricevere il richiamo.
+              {t("Un telefono distinto dal numero aziendale, da cui chiamare e su cui ricevere il richiamo.")}
             </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="sip-office-group">
-              Gruppo o interno dell’ufficio
+              {t("Gruppo o interno dell’ufficio")}
             </Label>
             <Input
               id="sip-office-group"
@@ -139,7 +138,7 @@ export function LocalSipPilotSetup() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="sip-office-seconds">
-              Attesa prima di passare all’AI
+              {t("Attesa prima di passare all’AI")}
             </Label>
             <select
               id="sip-office-seconds"
@@ -148,20 +147,18 @@ export function LocalSipPilotSetup() {
               onChange={(e) => update("officeSeconds", Number(e.target.value))}
             >
               {[5, 10, 15, 20, 30].map((seconds) => (
-                <option value={seconds} key={seconds}>
-                  {seconds} secondi
-                </option>
+                <option value={seconds} key={seconds}>{t("{seconds} secondi", { seconds })}</option>
               ))}
             </select>
           </div>
         </div>
         <details className="rounded-xl border p-4 text-sm">
           <summary className="cursor-pointer font-medium">
-            Dati di uscita SIP, se forniti dall’operatore
+            {t("Dati di uscita SIP, se forniti dall’operatore")}
           </summary>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="sip-termination-host">Host SIP di uscita</Label>
+              <Label htmlFor="sip-termination-host">{t("Host SIP di uscita")}</Label>
               <Input
                 id="sip-termination-host"
                 value={form.terminationHost}
@@ -171,7 +168,7 @@ export function LocalSipPilotSetup() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sip-transport">Trasporto</Label>
+              <Label htmlFor="sip-transport">{t("Trasporto")}</Label>
               <select
                 id="sip-transport"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -186,7 +183,7 @@ export function LocalSipPilotSetup() {
                 {SIP_TRANSPORTS.map((transport) => (
                   <option key={transport} value={transport}>
                     {transport === "auto"
-                      ? "Automatico"
+                      ? t("Automatico")
                       : transport.toUpperCase()}
                   </option>
                 ))}
@@ -194,8 +191,7 @@ export function LocalSipPilotSetup() {
             </div>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Le credenziali vanno scambiate tramite il canale sicuro
-            dell’operatore.
+            {t("Le credenziali vanno scambiate tramite il canale sicuro dell’operatore.")}
           </p>
         </details>
         {error && (
@@ -204,24 +200,19 @@ export function LocalSipPilotSetup() {
           </p>
         )}
         <Button type="submit" className="eic-motion-button">
-          Prepara configurazione SIP
+          {t("Prepara configurazione SIP")}
         </Button>
       </form>
 
       {draft && (
         <div
           className="eic-motion-enter space-y-4 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20"
-          aria-label="Bozza SIP locale"
+          aria-label={t("Bozza SIP locale")}
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="font-semibold">Bozza pronta per la verifica</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {draft.plan.carrier.inbound.officeGroup} per{" "}
-                {draft.plan.carrier.inbound.officeSeconds} secondi, poi Fish se
-                nessuno risponde. Numero previsto per il richiamo{" "}
-                {draft.plan.carrier.outbound.callerId}.
-              </p>
+              <h3 className="font-semibold">{t("Bozza pronta per la verifica")}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{t("{officeGroup} per {officeSeconds} secondi, poi Fish se nessuno risponde. Numero previsto per il richiamo {callerId}.", { officeGroup: String(draft.plan.carrier.inbound.officeGroup ?? ""), officeSeconds: String(draft.plan.carrier.inbound.officeSeconds ?? ""), callerId: String(draft.plan.carrier.outbound.callerId ?? "") })}</p>
             </div>
             <Button
               type="button"
@@ -229,12 +220,12 @@ export function LocalSipPilotSetup() {
               variant="outline"
               onClick={downloadDraft}
             >
-              Scarica bozza JSON
+              {t("Scarica bozza JSON")}
             </Button>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Label htmlFor="sip-request-to-carrier">
-              Testo per l’operatore
+              {t("Testo per l’operatore")}
             </Label>
             <Button
               type="button"
@@ -242,7 +233,7 @@ export function LocalSipPilotSetup() {
               variant="outline"
               onClick={() => void copyRequest()}
             >
-              Copia testo
+              {t("Copia testo")}
             </Button>
           </div>
           <Textarea
@@ -262,7 +253,7 @@ export function LocalSipPilotSetup() {
             rel="noreferrer"
             className="inline-block text-sm underline"
           >
-            Documentazione SIP di Fish
+            {t("Documentazione SIP di Fish")}
           </a>
         </div>
       )}

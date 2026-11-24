@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { readPdfPreview, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { edileEditorDestinations, resolveEdileSectionPage, type SectionDestinationDocument } from "@/components/preventivi/pdf/sectionDestinations";
 import { resolvePdfDestination } from "@/lib/pdfDestination";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2.5;
@@ -142,6 +143,7 @@ export function PdfBlobLivePreviewPanel({
   headerLabel = "Anteprima live PDF",
   fitWholePage = false,
 }: Props) {
+  const t = useT();
   // Debounce, timeout, corsa tra generazioni e revoca dei blob: tutto nell'hook
   // condiviso, così ogni pannello (compreso il Fotovoltaico) eredita
   // le stesse protezioni invece di riscriverle — o dimenticarle.
@@ -359,7 +361,7 @@ export function PdfBlobLivePreviewPanel({
       }
       if (token !== navigationTokenRef.current || layout.document !== pdfDocRef.current) return;
       if (destination === null) {
-        setSectionStatus(activeDestination ? "Voce non presente in questo PDF: vista mantenuta." : "Sezione non presente in questo PDF: vista mantenuta.");
+        setSectionStatus(activeDestination ? t("Voce non presente in questo PDF: vista mantenuta.") : t("Sezione non presente in questo PDF: vista mantenuta."));
         lastNavigationRef.current = null;
         return;
       }
@@ -377,10 +379,10 @@ export function PdfBlobLivePreviewPanel({
       }
       lastNavigationRef.current = { document: layout.document, section: identity, page, request: destinationRequest };
       lastVisiblePositionRef.current = capturePosition(container);
-      setSectionStatus(`${activeDestination ? destinationLabel : "Sezione selezionata"} · pagina ${page} di ${layout.document.numPages}`);
+      setSectionStatus(t("{voce} · pagina {n} di {totale}", { voce: activeDestination ? t(destinationLabel) : t("Sezione selezionata"), n: page, totale: layout.document.numPages }));
     }).catch(() => { /* Una rigenerazione può chiudere il documento durante la risoluzione. */ });
     return invalidateNavigation;
-  }, [activeSection, activeDestination, destinationLabel, destinationRequest, layoutRevision, viewportWidth, wholePage, pageInset, invalidateNavigation]);
+  }, [activeSection, activeDestination, destinationLabel, destinationRequest, layoutRevision, viewportWidth, wholePage, pageInset, invalidateNavigation, t]);
 
   useEffect(() => () => {
     disposePdfDocument(pdfDocRef.current);
@@ -404,14 +406,14 @@ export function PdfBlobLivePreviewPanel({
         <div className="flex min-w-0 items-center gap-1.5">
           <Eye className={"h-3.5 w-3.5 shrink-0 " + accentClass} />
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
-            {headerLabel}
+            {t(headerLabel)}
           </span>
-          <span role="status" aria-live="polite" className={adattabile ? "sr-only" : "text-[10px] text-muted-foreground"} data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed ? "Anteprima non disponibile"
-            : fitWholePage ? previewReady ? "Anteprima pronta" : "Caricamento anteprima…"
-            : previewReady ? "Aggiornata automaticamente" : loading || aggiornato ? "Aggiorno il PDF…" : "Modifiche in attesa di anteprima"}</span>
+          <span role="status" aria-live="polite" className={adattabile ? "sr-only" : "text-[10px] text-muted-foreground"} data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed ? t("Anteprima non disponibile")
+            : fitWholePage ? previewReady ? t("Anteprima pronta") : t("Caricamento anteprima…")
+            : previewReady ? t("Aggiornata automaticamente") : loading || aggiornato ? t("Aggiorno il PDF…") : t("Modifiche in attesa di anteprima")}</span>
           {loading && (
             <span className={`inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground ${affiancato ? "sr-only" : ""}`}>
-              <Loader2 className="h-3 w-3 animate-spin" /> aggiorno…
+              <Loader2 className="h-3 w-3 animate-spin" /> {t("aggiorno…")}
             </span>
           )}
         </div>
@@ -421,30 +423,30 @@ export function PdfBlobLivePreviewPanel({
               onAdatta={valore => { setAdatta(valore); setZoom(1); }} />
           ) : (
           <div className="flex items-center gap-0.5 mr-1 rounded-md border bg-white px-0.5">
-            <Button size="icon" variant="ghost" onClick={() => setZoom((value) => Math.max(ZOOM_MIN, +(value - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title="Riduci" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={() => setZoom((value) => Math.max(ZOOM_MIN, +(value - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title={t("Riduci")} className="h-6 w-6">
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
-            <button type="button" onClick={() => setZoom(1)} title={fitWholePage ? "Adatta pagina intera" : "Adatta alla larghezza"}
+            <button type="button" onClick={() => setZoom(1)} title={fitWholePage ? t("Adatta pagina intera") : t("Adatta alla larghezza")}
               className={fitWholePage ? "h-6 min-w-[68px] rounded px-1.5 text-[11px] tabular-nums hover:bg-blue-50" : "min-w-[32px] text-center text-[10px] tabular-nums text-slate-600 hover:text-orange-600"}>
-              {wholePage ? "Pagina intera" : `${Math.round(zoom * 100)}%`}
+              {wholePage ? t("Pagina intera") : `${Math.round(zoom * 100)}%`}
             </button>
-            <Button size="icon" variant="ghost" onClick={() => setZoom((value) => Math.min(ZOOM_MAX, +(value + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} title="Ingrandisci" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={() => setZoom((value) => Math.min(ZOOM_MAX, +(value + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} title={t("Ingrandisci")} className="h-6 w-6">
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
-            {!fitWholePage && <Button size="icon" variant="ghost" onClick={() => setZoom(1)} title="Adatta larghezza" className="h-6 w-6">
+            {!fitWholePage && <Button size="icon" variant="ghost" onClick={() => setZoom(1)} title={t("Adatta larghezza")} className="h-6 w-6">
               <Maximize2 className="h-3.5 w-3.5" />
             </Button>}
           </div>
           )}
-          <Button size="icon" variant="ghost" onClick={forceRegen} disabled={loading || !enabled} title="Aggiorna ora" className="h-7 w-7">
+          <Button size="icon" variant="ghost" onClick={forceRegen} disabled={loading || !enabled} title={t("Aggiorna ora")} className="h-7 w-7">
             <RefreshCw className={"h-3.5 w-3.5 " + (loading ? "animate-spin" : "")} />
           </Button>
-          {allowOpenInNewTab && <Button size="icon" variant="ghost" onClick={() => aggiornato && url && window.open(url, "_blank")} disabled={!url || !aggiornato} title="Apri in nuova scheda" className="h-7 w-7">
+          {allowOpenInNewTab && <Button size="icon" variant="ghost" onClick={() => aggiornato && url && window.open(url, "_blank")} disabled={!url || !aggiornato} title={t("Apri in nuova scheda")} className="h-7 w-7">
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>}
           {(!isMobile || showDownloadOnMobile) && (
             <Button size={downloadButtonLabel ? "sm" : "icon"} variant={downloadButtonLabel ? "outline" : "ghost"}
-              onClick={handleDownload} disabled={!canDownload} title={downloadButtonLabel ?? "Scarica PDF"}
+              onClick={handleDownload} disabled={!canDownload} title={downloadButtonLabel ?? t("Scarica PDF")}
               className={downloadButtonLabel ? "h-7 gap-1.5 px-2 text-xs" : "h-7 w-7"}>
               <Download className="h-3.5 w-3.5" aria-hidden="true" />{downloadButtonLabel}
             </Button>
@@ -464,7 +466,7 @@ export function PdfBlobLivePreviewPanel({
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-2 p-4 text-center">
               <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-              <p className="text-[11px] text-muted-foreground">Genero l'anteprima…</p>
+              <p className="text-[11px] text-muted-foreground">{t("Genero l'anteprima…")}</p>
             </div>
           </div>
         )}
@@ -473,7 +475,7 @@ export function PdfBlobLivePreviewPanel({
             <div className="flex flex-col items-center gap-2 max-w-[260px] text-center">
               <AlertCircle className="h-6 w-6 text-rose-600" />
               <p className="text-[11px] text-muted-foreground">{error}</p>
-              <Button size="sm" variant="outline" onClick={forceRegen} className="mt-1 h-7 text-[11px]">Riprova</Button>
+              <Button size="sm" variant="outline" onClick={forceRegen} className="mt-1 h-7 text-[11px]">{t("Riprova")}</Button>
             </div>
           </div>
         )}
@@ -481,8 +483,8 @@ export function PdfBlobLivePreviewPanel({
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="flex max-w-[280px] flex-col items-center gap-2 text-center">
               <AlertCircle className="h-6 w-6 text-rose-600" />
-              <p className="text-[11px] text-muted-foreground">{pdfError}</p>
-              <Button size="sm" variant="outline" onClick={forceRegen} className="mt-1 h-7 text-[11px]">Riprova</Button>
+              <p className="text-[11px] text-muted-foreground">{t(pdfError)}</p>
+              <Button size="sm" variant="outline" onClick={forceRegen} className="mt-1 h-7 text-[11px]">{t("Riprova")}</Button>
             </div>
           </div>
         )}
@@ -490,11 +492,11 @@ export function PdfBlobLivePreviewPanel({
           <div className={`flex flex-col items-center gap-3${affiancato ? "" : " p-3"}${(affiancato || fitWholePage) ? " w-max min-w-full" : ""}`}>
             {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
               <div key={pageNumber} className="mx-auto rounded-sm bg-white shadow-md" style={wholePage ? { scrollSnapAlign: "start" } : undefined}>
-                <canvas data-page={pageNumber} className="block h-auto" aria-label={`Pagina ${pageNumber} di ${pageCount}`} />
+                <canvas data-page={pageNumber} className="block h-auto" aria-label={t("Pagina {n} di {totale}", { n: String(pageNumber ?? ""), totale: String(pageCount ?? "") })} />
               </div>
             ))}
             <p className="text-[10px] italic text-muted-foreground">
-              {pageCount} {pageCount === 1 ? "pagina" : "pagine"} · anteprima a bassa risoluzione · scarica per l'alta qualità
+              {t(pageCount === 1 ? "{n} pagina" : "{n} pagine", { n: pageCount })} {t("· anteprima a bassa risoluzione · scarica per l'alta qualità")}
             </p>
           </div>
         )}
@@ -505,7 +507,7 @@ export function PdfBlobLivePreviewPanel({
         )}
         {!url && !loading && !error && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-[11px] text-muted-foreground">In attesa…</p>
+            <p className="text-[11px] text-muted-foreground">{t("In attesa…")}</p>
           </div>
         )}
       </div>

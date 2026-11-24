@@ -39,6 +39,7 @@ import {
   manodoperaSeparata,
   prodottoSemplice,
 } from "@/lib/preventivi/configurazioneSemplice";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AddItemDialogProps {
   open: boolean;
@@ -125,6 +126,7 @@ function AddItemContent({
   includiComuni: boolean;
   setIncludiComuni: (includi: boolean) => void;
 }) {
+  const tr = useT();
   const [item, setItem] = useState<CatalogItem | null>(null);
   const [contestoProdotto, setContestoProdotto] = useState("");
   const [tab, setTab] = useState(initialTab);
@@ -254,30 +256,30 @@ function AddItemContent({
         <DialogHeader className="shrink-0 border-b px-5 py-3 pr-12 sm:px-6">
           <DialogTitle>
             {inserimentoDaConfermare
-              ? "Controlla le possibili doppie voci"
+              ? tr("Controlla le possibili doppie voci")
               : modificaMultipla
-                ? "Modifica i prodotti selezionati"
+                ? tr("Modifica i prodotti selezionati")
                 : item
                   ? item.nome
-                  : "Aggiungi al preventivo"}
+                  : tr("Aggiungi al preventivo")}
           </DialogTitle>
           <DialogDescription>
             {inserimentoDaConfermare
-              ? "Verifica che prodotto e manodopera non siano già conteggiati nel preventivo."
+              ? tr("Verifica che prodotto e manodopera non siano già conteggiati nel preventivo.")
               : modificaMultipla
-                ? "Controlla quantità e prezzi cliente, poi aggiungi tutte le righe insieme."
+                ? tr("Controlla quantità e prezzi cliente, poi aggiungi tutte le righe insieme.")
                 : item
                   ? prodottoSemplice(item)
-                    ? "Imposta quantità e prezzo cliente. I costi restano interni."
+                    ? tr("Imposta quantità e prezzo cliente. I costi restano interni.")
                     : `${contestoProdotto ? contestoProdotto + " · " : ""}Configura misure, varianti e posa prima di aggiungere.`
-                  : "Scegli un’area, cerca una voce e controlla l’importo."}
+                  : tr("Scegli un’area, cerca una voce e controlla l’importo.")}
           </DialogDescription>
         </DialogHeader>
         {!item && !modificaMultipla && !inserimentoDaConfermare && (
           <div className="flex shrink-0 flex-wrap items-end justify-between gap-x-4 border-b bg-muted/20 px-4 pt-2">
           <div
             role="tablist"
-            aria-label="Catalogo del preventivo"
+            aria-label={tr("Catalogo del preventivo")}
             onKeyDown={(e) => {
               if (
                 !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key) ||
@@ -319,7 +321,7 @@ function AddItemContent({
               )}
             >
               <Package className="h-4 w-4" />
-              Prodotti
+              {tr("Prodotti")}
               <span
                 aria-hidden
                 className="rounded-full bg-muted px-2 text-xs tabular-nums"
@@ -344,7 +346,7 @@ function AddItemContent({
                   )}
                 >
                   <Wrench className="h-4 w-4" />
-                  {tipoTab === "manodopera" ? "Manodopera" : "Servizi"}
+                  {tipoTab === "manodopera" ? tr("Manodopera") : tr("Servizi")}
                   <span className="rounded-full bg-muted px-2 text-xs tabular-nums">
                     {
                       (tipoTab === "manodopera" ? lavorazioni : servizi).filter(
@@ -357,7 +359,7 @@ function AddItemContent({
           </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-2 max-sm:w-full">
               <UniformSelect
-                aria-label="Area di lavoro"
+                aria-label={tr("Area di lavoro")}
                 className="h-9 w-96 max-w-full rounded-md border bg-background px-3 text-sm max-sm:w-full"
                 value={areaEffettiva}
                 onChange={(e) => setArea(e.target.value)}
@@ -384,14 +386,13 @@ function AddItemContent({
                       onChange={(e) => setIncludiComuni(e.target.checked)}
                       className="h-4 w-4 accent-primary"
                     />
-                    Includi voci comuni
+                    {tr("Includi voci comuni")}
                   </label>
                 )}
             </div>
             {(categorie.isError || macros.isError) && (
               <p role="alert" className="w-full pb-2 text-xs text-amber-800">
-                Organizzazione per area non disponibile. Il catalogo completo
-                resta consultabile.{" "}
+                {tr("Organizzazione per area non disponibile. Il catalogo completo resta consultabile.")}{" "}
                 <button
                   type="button"
                   className="underline"
@@ -400,7 +401,7 @@ function AddItemContent({
                     void macros.refetch();
                   }}
                 >
-                  Riprova aree
+                  {tr("Riprova aree")}
                 </button>
               </p>
             )}
@@ -411,11 +412,11 @@ function AddItemContent({
             <p role="status" className="flex items-center gap-2">
               <Check className="h-4 w-4 shrink-0" />
               {lastAdded} · {aggiunte.length}{" "}
-              {aggiunte.length === 1 ? "voce inserita" : "voci inserite"}
+              {aggiunte.length === 1 ? tr("voce inserita") : tr("voci inserite")}
             </p>
             <details className="mt-1 pl-6 text-xs">
               <summary className="cursor-pointer font-medium">
-                Vedi cosa hai aggiunto
+                {tr("Vedi cosa hai aggiunto")}
                 {aggiunte.every((v) => v.importo > 0) &&
                   ` · ${formatCurrency(aggiunte.reduce((t, v) => t + v.importo, 0))} IVA esclusa`}
               </summary>
@@ -428,7 +429,7 @@ function AddItemContent({
                     <span className="shrink-0 tabular-nums">
                       {voce.importo > 0
                         ? formatCurrency(voce.importo)
-                        : "Prezzo da completare"}
+                        : tr("Prezzo da completare")}
                     </span>
                   </li>
                 ))}
@@ -448,7 +449,7 @@ function AddItemContent({
               className="mx-auto max-w-3xl space-y-5 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950"
             >
               <h3 className="font-semibold">
-                Queste voci potrebbero essere già conteggiate
+                {tr("Queste voci potrebbero essere già conteggiate")}
               </h3>
               <ul className="list-disc space-y-2 pl-5 text-sm">
                 {inserimentoDaConfermare.avvisi.map((avviso) => (
@@ -456,7 +457,7 @@ function AddItemContent({
                 ))}
               </ul>
               <div className="rounded-lg border border-amber-200 bg-white/70 p-3 text-sm">
-                <p className="mb-2 font-medium">Stai per aggiungere:</p>
+                <p className="mb-2 font-medium">{tr("Stai per aggiungere:")}</p>
                 {inserimentoDaConfermare.righe.map((riga, index) => (
                   <p key={index}>
                     {riga.name} · {riga.quantity} {riga.unit_of_measure}
@@ -464,16 +465,14 @@ function AddItemContent({
                 ))}
               </div>
               <p className="text-sm">
-                Questo inserimento non è stato ancora eseguito. Nessuna riga
-                viene unita automaticamente. Se riguarda un altro ambiente o un
-                lavoro distinto, puoi aggiungerla comunque.
+                {tr("Questo inserimento non è stato ancora eseguito. Nessuna riga viene unita automaticamente. Se riguarda un altro ambiente o un lavoro distinto, puoi aggiungerla comunque.")}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   onClick={() => setInserimentoDaConfermare(null)}
                 >
-                  Annulla inserimento
+                  {tr("Annulla inserimento")}
                 </Button>
                 <Button
                   variant="brand"
@@ -483,7 +482,7 @@ function AddItemContent({
                     pending.conferma();
                   }}
                 >
-                  Aggiungi comunque
+                  {tr("Aggiungi comunque")}
                 </Button>
               </div>
             </div>
@@ -615,21 +614,17 @@ function AddItemContent({
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-background px-4 py-3 sm:px-6">
             {selezionati.length > 0 && (
               <>
-                <span role="status" className="text-sm font-medium">
-                  {selezionati.length} prodotti selezionati
-                </span>
+                <span role="status" className="text-sm font-medium">{tr("{n} prodotti selezionati", { n: selezionati.length })}</span>
                 <Button
                   variant="brand"
                   onClick={() => setModificaMultipla(true)}
-                >
-                  Modifica selezionati ({selezionati.length})
-                </Button>
+                >{tr("Modifica selezionati ({n})", { n: selezionati.length })}</Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setSelezionati([])}
                 >
-                  Svuota selezione
+                  {tr("Svuota selezione")}
                 </Button>
               </>
             )}
@@ -643,7 +638,7 @@ function AddItemContent({
                 }}
               >
                 <Plus className="mr-1 h-4 w-4" />
-                Lavorazione libera
+                {tr("Lavorazione libera")}
               </Button>
             )}
             {onAddDiscount && (
@@ -656,7 +651,7 @@ function AddItemContent({
                   chiudi();
                 }}
               >
-                Sconto
+                {tr("Sconto")}
               </Button>
             )}
             {onAddSubtotal && (
@@ -669,7 +664,7 @@ function AddItemContent({
                   chiudi();
                 }}
               >
-                Subtotale
+                {tr("Subtotale")}
               </Button>
             )}
             <Button
@@ -678,8 +673,8 @@ function AddItemContent({
               onClick={chiudi}
             >
               {aggiunte.length
-                ? "Fatto, torna al preventivo"
-                : "Torna al preventivo"}
+                ? tr("Fatto, torna al preventivo")
+                : tr("Torna al preventivo")}
             </Button>
           </div>
         )}

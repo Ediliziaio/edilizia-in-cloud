@@ -34,6 +34,7 @@ import { segnaNelloStoricoScheda } from "@/lib/email/storicoScheda";
 import { RecipientField } from "./RecipientField";
 import { EmailTemplatePicker } from "@/components/email/EmailTemplatePicker";
 import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type ComposeMode = "new" | "reply" | "replyAll" | "forward";
 
@@ -101,7 +102,7 @@ function stripPrefix(subject: string | null): string {
 
 function buildQuoteText(src: ComposeContext["source"]): string {
   if (!src) return "";
-  const date = new Date(src.received_at).toLocaleString("it-IT");
+  const date = new Date(src.received_at).toLocaleString(intlCampo());
   const sender = src.from_name ? `${src.from_name} <${src.from_email}>` : src.from_email;
   const sep = "\n\n----- Messaggio originale -----\n";
   const header = `Da: ${sender}\nData: ${date}\nOggetto: ${src.subject ?? ""}\n\n`;
@@ -111,6 +112,7 @@ function buildQuoteText(src: ComposeContext["source"]): string {
 }
 
 export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId, onSent, documentSummary }: EmailComposeDialogProps) {
+  const tr = useT();
   const formId = useId();
   const documentoCaricato = useRef<{ file: File; allegato: ComposeAttachment } | null>(null);
   const qc = useQueryClient();
@@ -239,7 +241,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.size > 25 * 1024 * 1024) {
-        toast.error(`${file.name} > 25 MB — non supportato`);
+        toast.error(tr("{name} > 25 MB — non supportato", { name: String(file.name ?? "") }));
         continue;
       }
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -263,10 +265,10 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       );
 
       if (error) {
-        toast.error(`Upload fallito: ${file.name}`, { description: error.message });
+        toast.error(tr("Upload fallito: {errore}", { errore: String(file.name ?? "") }), { description: error.message });
         setAttachments((a) => a.filter((x) => x.storage_path !== storagePath));
       } else {
-        toast.success(`${file.name} caricato`);
+        toast.success(tr("{nome} caricato", { nome: String(file.name ?? "") }));
       }
     }
   };
@@ -488,7 +490,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       return r;
     },
     onSuccess: () => {
-      toast.success("Email inviata");
+      toast.success(tr("Email inviata"));
       if (context.storicoScheda) qc.invalidateQueries({ queryKey: ["customer-conversazioni-timeline"] });
       if(context.procurement)qc.invalidateQueries({queryKey:["procurement-history"]});
       onSent?.();
@@ -497,7 +499,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
       onOpenChange(false);
     },
-    onError: (e) => toast.error("Invio fallito", { description: String(e) }),
+    onError: (e) => toast.error(tr("Invio fallito"), { description: String(e) }),
     onSettled: () => { sendingRef.current = false; },
   });
 
@@ -505,12 +507,12 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     if (sendingRef.current || sendMutation.isPending || savingDraftRef.current) return;
     const recipients = parseEmails(to);
     const invalid = invalidEmails([...recipients, ...parseEmails(cc), ...parseEmails(bcc)]);
-    const validation = !userId || !companyId ? "Sessione scaduta. Accedi di nuovo."
-      : !accountId ? "Seleziona un account mittente"
-      : recipients.length === 0 ? "Aggiungi almeno un destinatario"
-      : invalid.length > 0 ? `Email non valida: ${invalid[0]}`
-      : !subject.trim() ? "Aggiungi un oggetto"
-      : attachments.some((a) => a.uploading) ? "Attendi il caricamento degli allegati" : null;
+    const validation = !userId || !companyId ? tr("Sessione scaduta. Accedi di nuovo.")
+      : !accountId ? tr("Seleziona un account mittente")
+      : recipients.length === 0 ? tr("Aggiungi almeno un destinatario")
+      : invalid.length > 0 ? tr("Email non valida: {email}", { email: invalid[0] })
+      : !subject.trim() ? tr("Aggiungi un oggetto")
+      : attachments.some((a) => a.uploading) ? tr("Attendi il caricamento degli allegati") : null;
     setSendError(validation);
     if (validation) return;
     if(debounceTimerRef.current)clearTimeout(debounceTimerRef.current);
@@ -547,23 +549,23 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         <DialogHeader className="shrink-0 border-b border-blue-100 bg-blue-50/60 px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Mail className="h-4 w-4 text-blue-600" />
-            {documentSummary ? "Email al fornitore" : context.mode === "reply" || context.mode === "replyAll" ? "Rispondi" :
-             context.mode === "forward" ? "Inoltra" : "Nuova email"}
+            {documentSummary ? tr("Email al fornitore") : context.mode === "reply" || context.mode === "replyAll" ? tr("Rispondi") :
+             context.mode === "forward" ? tr("Inoltra") : tr("Nuova email")}
           </DialogTitle>
-          <DialogDescription className="sr-only">Controlla mittente, destinatari, oggetto e messaggio prima di inviare l’email.</DialogDescription>
-          {documentSummary && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-medium">{documentSummary.title}</span><Badge variant="outline" className="border-blue-200 bg-white text-blue-800">{documentSummary.mode === "pdf" ? "PDF allegato" : "Testo completo"}</Badge><span>{documentSummary.rows} {documentSummary.rows === 1 ? "voce" : "voci"}</span><span className="text-slate-500">Controlla e modifica prima di inviare.</span></div>}
+          <DialogDescription className="sr-only">{tr("Controlla mittente, destinatari, oggetto e messaggio prima di inviare l’email.")}</DialogDescription>
+          {documentSummary && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-medium">{documentSummary.title}</span><Badge variant="outline" className="border-blue-200 bg-white text-blue-800">{documentSummary.mode === "pdf" ? tr("PDF allegato") : tr("Testo completo")}</Badge><span>{documentSummary.rows} {documentSummary.rows === 1 ? tr("voce") : tr("voci")}</span><span className="text-slate-500">{tr("Controlla e modifica prima di inviare.")}</span></div>}
         </DialogHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3">
           {sendError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{sendError}</p>}
           {/* Account mittente */}
-          {senderError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">Impossibile caricare le caselle email. <Button variant="link" size="sm" onClick={()=>void reloadSenders()}>Riprova</Button></div>}
+          {senderError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">{tr("Impossibile caricare le caselle email.")} <Button variant="link" size="sm" onClick={()=>void reloadSenders()}>{tr("Riprova")}</Button></div>}
           {connections && connections.length > 0 && (
             <div>
-              <Label htmlFor={`${formId}-sender`} className="text-xs">Da</Label>
+              <Label htmlFor={`${formId}-sender`} className="text-xs">{tr("Da")}</Label>
               <Select value={accountId} onValueChange={setAccountId}>
                 <SelectTrigger id={`${formId}-sender`} className="h-9">
-                  <SelectValue placeholder="Seleziona account…" />
+                  <SelectValue placeholder={tr("Seleziona account…")} />
                 </SelectTrigger>
                 <SelectContent>
                   {connections.map((c) => (
@@ -582,14 +584,14 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
           )}
           {connections && connections.length === 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
-              <p className="font-medium">Nessuna casella email collegata</p>
-              <p className="mt-0.5 text-amber-700">Devi collegare almeno un account email per inviare messaggi.</p>
+              <p className="font-medium">{tr("Nessuna casella email collegata")}</p>
+              <p className="mt-0.5 text-amber-700">{tr("Devi collegare almeno un account email per inviare messaggi.")}</p>
               <Link
                 to="/azienda/impostazioni/mio-profilo?tab=email"
                 onClick={() => onOpenChange(false)}
                 className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700"
               >
-                Vai a Impostazioni Email →
+                {tr("Vai a Impostazioni Email →")}
               </Link>
             </div>
           )}
@@ -605,15 +607,15 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                 aria-expanded={showCcBcc}
               >
                 {showCcBcc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                Cc/Ccn
+                {tr("Cc/Ccn")}
               </button>
             </div>
             <RecipientField
               value={to}
               onChange={(value) => { setTo(value); setSendError(null); }}
-              placeholder="Inizia a digitare nome o email…"
+              placeholder={tr("Inizia a digitare nome o email…")}
               companyId={companyId}
-              ariaLabel="Destinatari"
+              ariaLabel={tr("Destinatari")}
               autoFocus
             />
           </div>
@@ -621,35 +623,35 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
           {showCcBcc && (
             <>
               <div>
-                <Label className="text-xs">Cc</Label>
+                <Label className="text-xs">{tr("Cc")}</Label>
                 <RecipientField
                   value={cc}
                   onChange={setCc}
                   placeholder="cc@…"
                   companyId={companyId}
-                  ariaLabel="Destinatari in copia"
+                  ariaLabel={tr("Destinatari in copia")}
                 />
               </div>
               <div>
-                <Label className="text-xs">Ccn</Label>
+                <Label className="text-xs">{tr("Ccn")}</Label>
                 <RecipientField
                   value={bcc}
                   onChange={setBcc}
-                  placeholder="ccn@… (nascosti agli altri)"
+                  placeholder={tr("ccn@… (nascosti agli altri)")}
                   companyId={companyId}
-                  ariaLabel="Destinatari in copia nascosta"
+                  ariaLabel={tr("Destinatari in copia nascosta")}
                 />
               </div>
             </>
           )}
 
           <div>
-            <Label htmlFor={`${formId}-subject`} className="text-xs">Oggetto</Label>
+            <Label htmlFor={`${formId}-subject`} className="text-xs">{tr("Oggetto")}</Label>
             <Input
               id={`${formId}-subject`}
               value={subject}
               onChange={(e) => { setSubject(e.target.value); setSendError(null); }}
-              placeholder="Oggetto del messaggio"
+              placeholder={tr("Oggetto del messaggio")}
               className="h-9"
             />
             {/* Mobile: niente riga dei modelli («Nessun template — crea il primo»). */}
@@ -669,22 +671,22 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
           </div>
 
           <div>
-            <Label className="text-xs max-sm:hidden">Messaggio</Label>
+            <Label className="text-xs max-sm:hidden">{tr("Messaggio")}</Label>
             <RichTextEditor
               value={bodyHtml}
               onChange={(html, text) => {
                 setBodyHtml(html);
                 setBodyText(text);
               }}
-              placeholder="Scrivi il tuo messaggio…"
+              placeholder={tr("Scrivi il tuo messaggio…")}
               rows={12}
             />
           </div>
 
-          {context.documentoDaAllegare && <p className="text-xs text-muted-foreground">Allegato · {context.documentoDaAllegare.name}</p>}
+          {context.documentoDaAllegare && <p className="text-xs text-muted-foreground">{tr("Allegato · {name}", { name: String(context.documentoDaAllegare.name ?? "") })}</p>}
           {attachments.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Allegati ({attachments.length})</Label>
+              <Label className="text-xs">{tr("Allegati ({n})", { n: attachments.length })}</Label>
               <div className="flex flex-wrap gap-2">
                 {attachments.map((a) => (
                   <div
@@ -708,7 +710,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                         type="button"
                         onClick={() => removeAttachment(a.storage_path)}
                         className="text-muted-foreground hover:text-rose-600"
-                        title="Rimuovi"
+                        title={tr("Rimuovi")}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -730,7 +732,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             }}
           />
 
-          {orderId && (documentSummary ? <details className="rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-xs font-medium text-slate-600">Aggiungi altri documenti della commessa</summary><div className="mt-3">{orderDocuments}</div></details> : orderDocuments)}
+          {orderId && (documentSummary ? <details className="rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-xs font-medium text-slate-600">{tr("Aggiungi altri documenti della commessa")}</summary><div className="mt-3">{orderDocuments}</div></details> : orderDocuments)}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-4 py-2.5">
@@ -742,22 +744,22 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             disabled={isSending || saveDraft.isPending || !hasActiveSender || attachments.some((a) => a.uploading)}
             className="gap-2 rounded-xl bg-blue-600 px-5 hover:bg-blue-700"
             size="sm"
-            title={attachments.some((a) => a.uploading) ? "Attendi il caricamento degli allegati" : undefined}
+            title={attachments.some((a) => a.uploading) ? tr("Attendi il caricamento degli allegati") : undefined}
           >
             {isSending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Invio…
+                {tr("Invio…")}
               </>
             ) : attachments.some((a) => a.uploading) ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Allegati ({attachments.filter((a) => a.uploading).length})
+                {tr("Allegati ({n})", { n: attachments.filter((a) => a.uploading).length })}
               </>
             ) : (
               <>
                 <Send className="h-4 w-4" />
-                Invia
+                {tr("Invia")}
               </>
             )}
           </Button>
@@ -767,8 +769,8 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             type="button"
             className="h-9 w-9 rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-700"
             onClick={() => fileInputRef.current?.click()}
-            title="Allega file (max 25 MB ciascuno)"
-            aria-label="Allega file"
+            title={tr("Allega file (max 25 MB ciascuno)")}
+            aria-label={tr("Allega file")}
           >
             <Paperclip className="h-4 w-4" />
           </Button>
@@ -780,9 +782,9 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             autoSaveStatus === "error" && "text-rose-600",
             autoSaveStatus === "idle" && "text-transparent",
           )}>
-            {autoSaveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</>}
-            {autoSaveStatus === "saved" && <><Save className="h-3 w-3" /> Bozza salvata</>}
-            {autoSaveStatus === "error" && <>Errore salvataggio</>}
+            {autoSaveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> {tr("Salvataggio…")}</>}
+            {autoSaveStatus === "saved" && <><Save className="h-3 w-3" /> {tr("Bozza salvata")}</>}
+            {autoSaveStatus === "error" && <>{tr("Errore salvataggio")}</>}
             {autoSaveStatus === "idle" && <>·</>}
           </span>
 
@@ -794,7 +796,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             className="rounded-lg text-slate-600 hover:bg-slate-100 max-sm:hidden"
           >
             <X className="h-3.5 w-3.5 mr-1" />
-            Chiudi
+            {tr("Chiudi")}
           </Button>
         </div>
       </DialogContent>

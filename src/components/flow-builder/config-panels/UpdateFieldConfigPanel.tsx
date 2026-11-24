@@ -11,6 +11,7 @@ import {
   customFieldId,
 } from "../../../../supabase/functions/_shared/automationFieldContract";
 import { VariablePicker } from "./VariablePicker";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const labels: Record<string, string> = {
   contacts: "Contatto",
   opportunities: "Opportunità",
@@ -55,6 +56,7 @@ export function UpdateFieldConfigPanel(
     companyId?: string;
   },
 ) {
+  const t = useT();
   const table = String(config.tabella ?? "contacts");
   const objectType = AUTOMATION_ENTITY_TYPES[table];
   const { data: fields = [], isError, isLoading } =
@@ -72,7 +74,7 @@ export function UpdateFieldConfigPanel(
     !!selected;
   return (
     <div className="space-y-4">
-      <Label htmlFor="update-field-entity">Entità da aggiornare</Label>
+      <Label htmlFor="update-field-entity">{t("Entità da aggiornare")}</Label>
       <UniformSelect
         id="update-field-entity"
         className="w-full rounded border bg-background p-2 text-sm"
@@ -87,10 +89,10 @@ export function UpdateFieldConfigPanel(
           })}
       >
         {Object.entries(labels).map(([id, label]) => (
-          <option key={id} value={id}>{label}</option>
+          <option key={id} value={id}>{t(label)}</option>
         ))}
       </UniformSelect>
-      <Label htmlFor="update-field-destination">Campo da aggiornare</Label>
+      <Label htmlFor="update-field-destination">{t("Campo da aggiornare")}</Label>
       <UniformSelect
         id="update-field-destination"
         className="w-full rounded border bg-background p-2 text-sm"
@@ -103,38 +105,36 @@ export function UpdateFieldConfigPanel(
             field_value: undefined,
           })}
       >
-        <option value="">Scegli un campo</option>
+        <option value="">{t("Scegli un campo")}</option>
         {!known && field && (
-          <option value={field} disabled>Campo non disponibile: {field}</option>
+          <option value={field} disabled>{t("Campo non disponibile: {field}", { field: String(field ?? "") })}</option>
         )}
-        <optgroup label="Campi standard">
+        <optgroup label={t("Campi standard")}>
           {(AUTOMATION_NATIVE_FIELDS[table] ?? []).map((f) => (
-            <option key={f} value={f}>{fieldLabels[f] ?? f}</option>
+            <option key={f} value={f}>{fieldLabels[f] ? t(fieldLabels[f]) : f}</option>
           ))}
         </optgroup>
-        <optgroup label="Campi personalizzati">
+        <optgroup label={t("Campi personalizzati")}>
           {fields.filter((f) => f.field_type !== "file").map((f) => (
             <option key={f.id} value={`cf:${f.id}`}>{f.name}</option>
           ))}
         </optgroup>
       </UniformSelect>
       {isLoading && (
-        <p className="text-xs text-muted-foreground">Caricamento campi…</p>
+        <p className="text-xs text-muted-foreground">{t("Caricamento campi…")}</p>
       )}
       {isError && (
         <p role="alert" className="text-xs text-destructive">
-          Impossibile leggere i campi personalizzati. Riprova prima di
-          pubblicare.
+          {t("Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.")}
         </p>
       )}
       {field && !known && !isLoading && (
         <p role="alert" className="text-xs text-destructive">
-          Scegli un campo disponibile. Stati, assegnazioni e importi protetti
-          richiedono le azioni dedicate.
+          {t("Scegli un campo disponibile. Stati, assegnazioni e importi protetti richiedono le azioni dedicate.")}
         </p>
       )}
       <div className="flex items-center justify-between">
-        <Label htmlFor="update-field-value">Nuovo valore</Label>
+        <Label htmlFor="update-field-value">{t("Nuovo valore")}</Label>
         <VariablePicker
           companyId={companyId}
           onInsert={(v) => {
@@ -162,9 +162,7 @@ export function UpdateFieldConfigPanel(
           />
         )}
       <p className="text-xs text-muted-foreground">
-        Usa il record che ha avviato il flusso o quello realmente collegato. Un
-        campo mancante o un valore non valido ferma il passo, senza dichiarare
-        un salvataggio riuscito.
+        {t("Usa il record che ha avviato il flusso o quello realmente collegato. Un campo mancante o un valore non valido ferma il passo, senza dichiarare un salvataggio riuscito.")}
       </p>
     </div>
   );

@@ -29,6 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const salespersonSchema = z.object({
   first_name: z.string().min(1, "Il nome è obbligatorio"),
@@ -71,6 +72,7 @@ export function SalespersonDialog({
   onSave,
   isLoading,
 }: SalespersonDialogProps) {
+  const t = useT();
   const form = useForm<z.input<typeof salespersonSchema>, unknown, SalespersonFormData>({
     resolver: zodResolver(salespersonSchema),
     defaultValues: {
@@ -133,12 +135,12 @@ export function SalespersonDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {salesperson ? "Modifica venditore" : "Nuovo venditore"}
+            {salesperson ? t("Modifica venditore") : t("Nuovo venditore")}
           </DialogTitle>
           <DialogDescription>
             {salesperson
-              ? "Modifica i dati del venditore e le sue provvigioni."
-              : "Inserisci i dati del nuovo venditore."}
+              ? t("Modifica i dati del venditore e le sue provvigioni.")
+              : t("Inserisci i dati del nuovo venditore.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -150,7 +152,7 @@ export function SalespersonDialog({
                 name="first_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome *</FormLabel>
+                    <FormLabel>{t("Nome *")}</FormLabel>
                     <FormControl>
                       <Input placeholder="Mario" {...field} />
                     </FormControl>
@@ -163,7 +165,7 @@ export function SalespersonDialog({
                 name="last_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cognome *</FormLabel>
+                    <FormLabel>{t("Cognome *")}</FormLabel>
                     <FormControl>
                       <Input placeholder="Rossi" {...field} />
                     </FormControl>
@@ -196,7 +198,7 @@ export function SalespersonDialog({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefono</FormLabel>
+                    <FormLabel>{t("Telefono")}</FormLabel>
                     <FormControl>
                       <Input placeholder="+39 333 1234567" {...field} />
                     </FormControl>
@@ -207,23 +209,23 @@ export function SalespersonDialog({
             </div>
 
             <div className="border-t pt-4 mt-4">
-              <h4 className="font-medium mb-3">Modalità compenso</h4>
+              <h4 className="font-medium mb-3">{t("Modalità compenso")}</h4>
               <FormField
                 control={form.control}
                 name="compensation_mode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Come viene pagato</FormLabel>
+                    <FormLabel>{t("Come viene pagato")}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Seleziona modalità" />
+                          <SelectValue placeholder={t("Seleziona modalità")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="only_commission">Solo provvigioni</SelectItem>
-                        <SelectItem value="fixed_plus_commission">Fisso + provvigioni</SelectItem>
-                        <SelectItem value="fixed_only">Solo fisso (nessuna provvigione)</SelectItem>
+                        <SelectItem value="only_commission">{t("Solo provvigioni")}</SelectItem>
+                        <SelectItem value="fixed_plus_commission">{t("Fisso + provvigioni")}</SelectItem>
+                        <SelectItem value="fixed_only">{t("Solo fisso (nessuna provvigione)")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -238,7 +240,7 @@ export function SalespersonDialog({
                     name="fixed_monthly_eur"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Fisso mensile (€)</FormLabel>
+                        <FormLabel>{t("Fisso mensile (€)")}</FormLabel>
                         <FormControl>
                           <Input type="number" step="0.01" min="0" placeholder="1500.00" {...field} />
                         </FormControl>
@@ -251,24 +253,24 @@ export function SalespersonDialog({
 
               {compensationMode !== "fixed_only" && (
                 <>
-                  <h4 className="font-medium mt-5 mb-3">Provvigione sul preventivo</h4>
+                  <h4 className="font-medium mt-5 mb-3">{t("Provvigione sul preventivo")}</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="commission_type"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Tipo</FormLabel>
+                          <FormLabel>{t("Tipo")}</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Seleziona tipo" />
+                                <SelectValue placeholder={t("Seleziona tipo")} />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="fixed">Importo fisso</SelectItem>
-                              <SelectItem value="percentage_sold">% sul venduto</SelectItem>
-                              <SelectItem value="percentage_collected">% sull'incassato</SelectItem>
+                              <SelectItem value="fixed">{t("Importo fisso")}</SelectItem>
+                              <SelectItem value="percentage_sold">{t("% sul venduto")}</SelectItem>
+                              <SelectItem value="percentage_collected">{t("% sull'incassato")}</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -280,7 +282,7 @@ export function SalespersonDialog({
                       name="commission_value"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{commissionType === "fixed" ? "Importo (€)" : "Percentuale (%)"}</FormLabel>
+                          <FormLabel>{commissionType === "fixed" ? t("Importo (€)") : t("Percentuale (%)")}</FormLabel>
                           <FormControl>
                             <Input type="number" step={commissionType === "fixed" ? "0.01" : "0.1"} min="0"
                               placeholder={commissionType === "fixed" ? "500.00" : "3.0"} {...field} />
@@ -294,23 +296,23 @@ export function SalespersonDialog({
               )}
 
               <div className="mt-3 p-3 rounded-md bg-muted/50 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">Simulazione su preventivo €10.000</p>
+                <p className="font-medium text-foreground mb-1">{t("Simulazione su preventivo €10.000")}</p>
                 {compensationMode === "fixed_only" && (
-                  <p>Fisso mensile: €{(fixedMonthly ?? 0).toFixed(2)} · nessuna provvigione per preventivo.</p>
+                  <p>{t("Fisso mensile: €{valore} · nessuna provvigione per preventivo.", { valore: (fixedMonthly ?? 0).toFixed(2) })}</p>
                 )}
                 {compensationMode !== "fixed_only" && commissionType === "fixed" && (
-                  <p>Provvigione per preventivo: €{(commissionValue ?? 0).toFixed(2)}
-                    {compensationMode === "fixed_plus_commission" && ` · + fisso €${(fixedMonthly ?? 0).toFixed(2)}/mese`}
+                  <p>{t("Provvigione per preventivo: €{valore}", { valore: (commissionValue ?? 0).toFixed(2) })}
+                    {compensationMode === "fixed_plus_commission" && ` · ${t("+ fisso €{valore}/mese", { valore: (fixedMonthly ?? 0).toFixed(2) })}`}
                   </p>
                 )}
                 {compensationMode !== "fixed_only" && commissionType === "percentage_sold" && (
-                  <p>Provvigione teorica: €{(10000 * (commissionValue ?? 0) / 100).toFixed(2)} ({commissionValue ?? 0}% di €10.000)
-                    {compensationMode === "fixed_plus_commission" && ` · + fisso €${(fixedMonthly ?? 0).toFixed(2)}/mese`}
+                  <p>{t("Provvigione teorica: €{valore} ({percentuale}% di €10.000)", { valore: (10000 * (commissionValue ?? 0) / 100).toFixed(2), percentuale: commissionValue ?? 0 })}
+                    {compensationMode === "fixed_plus_commission" && ` · ${t("+ fisso €{valore}/mese", { valore: (fixedMonthly ?? 0).toFixed(2) })}`}
                   </p>
                 )}
                 {compensationMode !== "fixed_only" && commissionType === "percentage_collected" && (
-                  <p>Provvigione: {commissionValue ?? 0}% di quanto il cliente ha pagato davvero (alla firma è 0, cresce man mano che incassi)
-                    {compensationMode === "fixed_plus_commission" && ` · + fisso €${(fixedMonthly ?? 0).toFixed(2)}/mese`}
+                  <p>{t("Provvigione: {percentuale}% di quanto il cliente ha pagato davvero (alla firma è 0, cresce man mano che incassi)", { percentuale: commissionValue ?? 0 })}
+                    {compensationMode === "fixed_plus_commission" && ` · ${t("+ fisso €{valore}/mese", { valore: (fixedMonthly ?? 0).toFixed(2) })}`}
                   </p>
                 )}
               </div>
@@ -323,11 +325,11 @@ export function SalespersonDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isLoading}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
-                {salesperson ? "Salva" : "Crea"}
+                {salesperson ? t("Salva") : t("Crea")}
               </Button>
             </DialogFooter>
           </form>

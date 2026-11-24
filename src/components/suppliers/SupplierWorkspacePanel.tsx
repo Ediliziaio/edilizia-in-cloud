@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Workspace = ReturnType<typeof useSupplierWorkspace>;
 const KINDS = [
@@ -68,6 +69,7 @@ const fail = (e: unknown) =>
   );
 
 export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
+  const t = useT();
   const workspace = useSupplierWorkspace(supplierId);
   const [editing, setEditing] = useState<SupplierContract | null | undefined>(
     undefined,
@@ -75,11 +77,11 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
   if (!workspace.canRead)
     return (
       <p role="alert">
-        Per consultare contratti e ruoli serve il permesso Fornitori.
+        {t("Per consultare contratti e ruoli serve il permesso Fornitori.")}
       </p>
     );
   if (workspace.query.isLoading)
-    return <p role="status">Caricamento fascicolo fornitore…</p>;
+    return <p role="status">{t("Caricamento fascicolo fornitore…")}</p>;
   if (workspace.query.isError || !workspace.query.data)
     return (
       <div
@@ -87,14 +89,13 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
         className="space-y-3 rounded-xl border border-amber-300 p-4"
       >
         <p>
-          Fascicolo non disponibile. Contratti e ruoli non vengono mostrati come
-          vuoti se il servizio non risponde.
+          {t("Fascicolo non disponibile. Contratti e ruoli non vengono mostrati come vuoti se il servizio non risponde.")}
         </p>
         <Button
           variant="outline"
           onClick={() => void workspace.query.refetch()}
         >
-          Riprova fascicolo
+          {t("Riprova fascicolo")}
         </Button>
       </div>
     );
@@ -107,24 +108,22 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
           <div>
             <h3 className="flex items-center gap-2 font-semibold">
               <FileText className="h-4 w-4 text-primary" />
-              Contratti e incarichi
+              {t("Contratti e incarichi")}
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Forniture, consulenze, servizi e accordi quadro. I contratti di
-              subappalto per commessa restano nella scheda dedicata.
+              {t("Forniture, consulenze, servizi e accordi quadro. I contratti di subappalto per commessa restano nella scheda dedicata.")}
             </p>
           </div>
           {workspace.canEdit && (
             <Button onClick={() => setEditing(null)}>
               <Plus className="mr-1 h-4 w-4" />
-              Aggiungi contratto
+              {t("Aggiungi contratto")}
             </Button>
           )}
         </div>
         {!contracts.length && (
           <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Nessun contratto registrato. Non significa che non esistano accordi
-            esterni.
+            {t("Nessun contratto registrato. Non significa che non esistano accordi esterni.")}
           </p>
         )}
         {contracts.map((c) => (
@@ -133,15 +132,15 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
               <div>
                 <h4 className="font-medium">{c.title}</h4>
                 <p className="text-xs text-muted-foreground">
-                  {KINDS.find(([v]) => v === c.kind)?.[1] ?? c.kind} ·{" "}
+                  {t(KINDS.find(([v]) => v === c.kind)?.[1] ?? c.kind)} ·{" "}
                   {c.amount === null
-                    ? "Importo non indicato"
-                    : `${formatCurrency(c.amount)} · valore contrattuale, IVA da verificare`}
+                    ? t("Importo non indicato")
+                    : t("{amount} · valore contrattuale, IVA da verificare", { amount: formatCurrency(c.amount) })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary">
-                  {STATUSES.find(([v]) => v === c.status)?.[1] ?? c.status}
+                  {t(STATUSES.find(([v]) => v === c.status)?.[1] ?? c.status)}
                 </Badge>
                 {workspace.canEdit && (
                   <Button
@@ -149,37 +148,36 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
                     variant="outline"
                     onClick={() => setEditing(c)}
                   >
-                    Modifica contratto
+                    {t("Modifica contratto")}
                   </Button>
                 )}
               </div>
             </div>
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
               <div>
-                <dt className="text-xs text-muted-foreground">Stipula</dt>
-                <dd>{fiscalDate(c.signed_on, "Non indicata")}</dd>
+                <dt className="text-xs text-muted-foreground">{t("Stipula")}</dt>
+                <dd>{fiscalDate(c.signed_on, t("Non indicata"))}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Inizio</dt>
-                <dd>{fiscalDate(c.starts_on, "Non indicato")}</dd>
+                <dt className="text-xs text-muted-foreground">{t("Inizio")}</dt>
+                <dd>{fiscalDate(c.starts_on, t("Non indicato"))}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">
-                  Scadenza e preavviso
+                  {t("Scadenza e preavviso")}
                 </dt>
                 <dd>{contractDeadline(c)}</dd>
               </div>
             </dl>
             {c.automatic_renewal && (
               <p className="text-xs text-amber-800">
-                Rinnovo automatico dichiarato: il gestionale non rinnova il
-                contratto e non invia disdette.
+                {t("Rinnovo automatico dichiarato: il gestionale non rinnova il contratto e non invia disdette.")}
               </p>
             )}
             {c.conditions && (
               <details>
                 <summary className="cursor-pointer text-sm text-primary">
-                  Condizioni contrattuali
+                  {t("Condizioni contrattuali")}
                 </summary>
                 <p className="mt-2 whitespace-pre-wrap text-sm">
                   {c.conditions}
@@ -187,7 +185,7 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
               </details>
             )}
             <div className="space-y-2 border-t pt-3">
-              <p className="text-xs font-medium">Contratto e allegati</p>
+              <p className="text-xs font-medium">{t("Contratto e allegati")}</p>
               {documents
                 .filter((d) => d.contract_id === c.id)
                 .map((d) => (
@@ -208,7 +206,7 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
                       onClick={() => void workspace.download(d).catch(fail)}
                     >
                       <Download className="mr-1 h-4 w-4" />
-                      Scarica
+                      {t("Scarica")}
                     </Button>
                   </div>
                 ))}
@@ -216,10 +214,10 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary">
                   <Paperclip className="h-4 w-4" />
                   {workspace.upload.isPending
-                    ? "Caricamento…"
-                    : "Allega PDF o immagine"}
+                    ? t("Caricamento…")
+                    : t("Allega PDF o immagine")}
                   <input
-                    aria-label={`Allega documento a ${c.title}`}
+                    aria-label={t("Allega documento a {title}", { title: c.title })}
                     className="sr-only"
                     type="file"
                     accept="application/pdf,image/jpeg,image/png"
@@ -233,7 +231,7 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
                             contractId: c.id,
                             file,
                           });
-                          toast.success("Allegato registrato");
+                          toast.success(t("Allegato registrato"));
                         } catch (err) {
                           fail(err);
                         }
@@ -245,9 +243,7 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
           </article>
         ))}
         <p className="text-xs text-muted-foreground">
-          File privati, fino a 20 MB. Gli allegati confermati restano nello
-          storico: carica nuove versioni senza sovrascriverli. Nessuna firma,
-          disdetta o notifica automatica.
+          {t("File privati, fino a 20 MB. Gli allegati confermati restano nello storico: carica nuove versioni senza sovrascriverli. Nessuna firma, disdetta o notifica automatica.")}
         </p>
       </section>
       {editing !== undefined && (
@@ -263,6 +259,7 @@ export function SupplierWorkspacePanel({ supplierId }: { supplierId: string }) {
 }
 
 function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
+  const t = useT();
   const relation = w.query.data?.relation;
   const [draft, setDraft] = useState<{
     roles: PartnerRole[];
@@ -286,8 +283,8 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
       setCreating(false);
       toast.success(
         createSub
-          ? "Scheda subappaltatore creata e collegata"
-          : "Ruoli e collegamenti salvati",
+          ? t("Scheda subappaltatore creata e collegata")
+          : t("Ruoli e collegamenti salvati"),
       );
     } catch (e) {
       fail(e);
@@ -296,10 +293,9 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
   return (
     <section className="space-y-4 rounded-xl border bg-card p-5">
       <div>
-        <h3 className="font-semibold">Tipologie del partner</h3>
+        <h3 className="font-semibold">{t("Tipologie del partner")}</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Più ruoli per la stessa anagrafica. La categoria merceologica rimane
-          distinta e modificabile nei dati del fornitore.
+          {t("Più ruoli per la stessa anagrafica. La categoria merceologica rimane distinta e modificabile nei dati del fornitore.")}
         </p>
       </div>
       <fieldset
@@ -324,42 +320,38 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
                 })
               }
             />
-            {label}
+            {t(label)}
           </Label>
         ))}
       </fieldset>
       {state.roles.includes("subappaltatore") && (
         <div className="space-y-3 rounded-lg bg-muted/40 p-4">
           <p className="text-sm">
-            Collega una scheda Subappaltatori per contratti di cantiere, SAL,
-            DURC e documenti. Non vengono trasferiti o duplicati i contratti già
-            presenti.
+            {t("Collega una scheda Subappaltatori per contratti di cantiere, SAL, DURC e documenti. Non vengono trasferiti o duplicati i contratti già presenti.")}
           </p>
           {relation?.subappaltatore_id && w.canSub && (
             <Button variant="outline" asChild>
               <Link
                 to={`/azienda/subappaltatori/${relation.subappaltatore_id}`}
               >
-                Apri scheda subappaltatore
+                {t("Apri scheda subappaltatore")}
                 <ArrowUpRight className="ml-1 h-4 w-4" />
               </Link>
             </Button>
           )}
           {!w.canSub ? (
             <p className="text-xs text-muted-foreground">
-              Serve il permesso Subappaltatori per consultare o modificare il
-              collegamento.
+              {t("Serve il permesso Subappaltatori per consultare o modificare il collegamento.")}
             </p>
           ) : w.subs.isError ? (
             <p role="alert">
-              Non riesco a leggere le schede esistenti. Riprova prima di crearne
-              una.
+              {t("Non riesco a leggere le schede esistenti. Riprova prima di crearne una.")}
             </p>
           ) : (
             <>
               <Input
-                aria-label="Cerca scheda subappaltatore"
-                placeholder="Cerca per ragione sociale o P.IVA…"
+                aria-label={t("Cerca scheda subappaltatore")}
+                placeholder={t("Cerca per ragione sociale o P.IVA…")}
                 value={subSearch}
                 onChange={(e) => setSubSearch(e.target.value)}
               />
@@ -372,11 +364,11 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
                   setDraft({ ...state, subId: v === "none" ? null : v })
                 }
               >
-                <SelectTrigger aria-label="Scheda subappaltatore collegata">
-                  <SelectValue placeholder="Nessuna scheda collegata" />
+                <SelectTrigger aria-label={t("Scheda subappaltatore collegata")}>
+                  <SelectValue placeholder={t("Nessuna scheda collegata")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nessuna scheda collegata</SelectItem>
+                  <SelectItem value="none">{t("Nessuna scheda collegata")}</SelectItem>
                   {(w.subs.data ?? [])
                     .filter(
                       (s) =>
@@ -388,7 +380,7 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
                     .slice(0, 100)
                     .map((s) => (
                       <SelectItem key={s.id} value={s.id}>
-                        {s.ragione_sociale} · {s.piva ?? "P.IVA non indicata"}
+                        {s.ragione_sociale} · {s.piva ?? t("P.IVA non indicata")}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -399,7 +391,7 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
                   disabled={w.subs.isLoading || w.saveRelation.isPending}
                   onClick={() => setCreating(true)}
                 >
-                  Crea una nuova scheda dedicata
+                  {t("Crea una nuova scheda dedicata")}
                 </Button>
               )}
             </>
@@ -413,8 +405,8 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
             onClick={() => void save()}
           >
             {w.saveRelation.isPending
-              ? "Salvataggio…"
-              : "Salva ruoli e collegamento"}
+              ? t("Salvataggio…")
+              : t("Salva ruoli e collegamento")}
           </Button>
           {draft && (
             <Button
@@ -422,7 +414,7 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
               disabled={w.saveRelation.isPending}
               onClick={() => setDraft(null)}
             >
-              Annulla modifiche
+              {t("Annulla modifiche")}
             </Button>
           )}
         </div>
@@ -433,11 +425,9 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Crea scheda subappaltatore</DialogTitle>
+            <DialogTitle>{t("Crea scheda subappaltatore")}</DialogTitle>
             <DialogDescription>
-              Copierà i dati anagrafici del fornitore nella scheda dedicata e la
-              collegherà. Non crea account, accessi, contratti o inviti. Se
-              esiste una scheda simile la creazione viene bloccata.
+              {t("Copierà i dati anagrafici del fornitore nella scheda dedicata e la collegherà. Non crea account, accessi, contratti o inviti. Se esiste una scheda simile la creazione viene bloccata.")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -446,13 +436,13 @@ function PartnerRoleEditor({ workspace: w }: { workspace: Workspace }) {
               disabled={w.saveRelation.isPending}
               onClick={() => setCreating(false)}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               disabled={w.saveRelation.isPending}
               onClick={() => void save(true)}
             >
-              Conferma creazione e collegamento
+              {t("Conferma creazione e collegamento")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -470,6 +460,7 @@ function ContractEditor({
   workspace: Workspace;
   onClose: () => void;
 }) {
+  const t = useT();
   const initial: ContractDraft = {
     title: existing?.title ?? "",
     kind: existing?.kind ?? "fornitura",
@@ -496,7 +487,7 @@ function ContractEditor({
   const save = async () => {
     try {
       await w.saveContract.mutateAsync({ draft, existing });
-      toast.success("Contratto salvato");
+      toast.success(t("Contratto salvato"));
       onClose();
     } catch (e) {
       fail(e);
@@ -507,11 +498,10 @@ function ContractEditor({
       <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {existing ? "Modifica contratto" : "Nuovo contratto o incarico"}
+            {existing ? t("Modifica contratto") : t("Nuovo contratto o incarico")}
           </DialogTitle>
           <DialogDescription>
-            Registra i termini concordati. Dopo il salvataggio puoi allegare
-            contratto e documenti; nessun invio o firma automatica.
+            {t("Registra i termini concordati. Dopo il salvataggio puoi allegare contratto e documenti; nessun invio o firma automatica.")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -526,17 +516,17 @@ function ContractEditor({
             className="grid gap-4 sm:grid-cols-2"
           >
             <Label className="space-y-2 sm:col-span-2">
-              Titolo *
+              {t("Titolo *")}
               <Input
                 required
                 maxLength={200}
                 value={draft.title}
                 onChange={(e) => set("title", e.target.value)}
-                placeholder="Es. Incarico consulenza contabile"
+                placeholder={t("Es. Incarico consulenza contabile")}
               />
             </Label>
             <Label className="space-y-2">
-              Tipo
+              {t("Tipo")}
               <Select
                 value={draft.kind}
                 onValueChange={(v) => set("kind", v as ContractDraft["kind"])}
@@ -547,14 +537,14 @@ function ContractEditor({
                 <SelectContent>
                   {KINDS.map(([v, l]) => (
                     <SelectItem key={v} value={v}>
-                      {l}
+                      {t(l)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Label>
             <Label className="space-y-2">
-              Stato
+              {t("Stato")}
               <Select
                 value={draft.status}
                 onValueChange={(v) =>
@@ -567,7 +557,7 @@ function ContractEditor({
                 <SelectContent>
                   {STATUSES.map(([v, l]) => (
                     <SelectItem key={v} value={v}>
-                      {l}
+                      {t(l)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -581,7 +571,7 @@ function ContractEditor({
               ] as const
             ).map(([key, label]) => (
               <Label className="space-y-2" key={key}>
-                {label}
+                {t(label)}
                 <Input
                   type="date"
                   value={draft[key] ?? ""}
@@ -590,7 +580,7 @@ function ContractEditor({
               </Label>
             ))}
             <Label className="space-y-2">
-              Preavviso disdetta (giorni)
+              {t("Preavviso disdetta (giorni)")}
               <Input
                 type="number"
                 min={0}
@@ -606,7 +596,7 @@ function ContractEditor({
               />
             </Label>
             <Label className="space-y-2">
-              Importo contrattuale (€)
+              {t("Importo contrattuale (€)")}
               <Input
                 type="number"
                 min={0}
@@ -620,8 +610,7 @@ function ContractEditor({
                 }
               />
               <span className="block text-xs font-normal text-muted-foreground">
-                Facoltativo. Specifica nelle condizioni se IVA inclusa/esclusa e
-                periodicità.
+                {t("Facoltativo. Specifica nelle condizioni se IVA inclusa/esclusa e periodicità.")}
               </span>
             </Label>
             <Label className="flex items-center gap-2">
@@ -629,23 +618,20 @@ function ContractEditor({
                 checked={draft.automatic_renewal}
                 onCheckedChange={(v) => set("automatic_renewal", v === true)}
               />
-              Rinnovo automatico previsto dal contratto
+              {t("Rinnovo automatico previsto dal contratto")}
             </Label>
             <Label className="space-y-2 sm:col-span-2">
-              Condizioni, pagamenti e note
+              {t("Condizioni, pagamenti e note")}
               <Textarea
                 rows={5}
                 maxLength={20000}
                 value={draft.conditions ?? ""}
                 onChange={(e) => set("conditions", e.target.value || null)}
-                placeholder="Oggetto, compenso e periodicità, IVA, pagamenti, obblighi, recesso, penali, coperture…"
+                placeholder={t("Oggetto, compenso e periodicità, IVA, pagamenti, obblighi, recesso, penali, coperture…")}
               />
             </Label>
             {contractNoticeDate(draft) && (
-              <p className="text-sm sm:col-span-2">
-                Preavviso entro il {fiscalDate(contractNoticeDate(draft))}. È
-                una scadenza informativa, non una disdetta inviata.
-              </p>
+              <p className="text-sm sm:col-span-2">{t("Preavviso entro il {data}. È una scadenza informativa, non una disdetta inviata.", { data: fiscalDate(contractNoticeDate(draft)) })}</p>
             )}
           </fieldset>
           <DialogFooter>
@@ -655,10 +641,10 @@ function ContractEditor({
               disabled={w.saveContract.isPending}
               onClick={close}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button type="submit" disabled={w.saveContract.isPending}>
-              {w.saveContract.isPending ? "Salvataggio…" : "Salva contratto"}
+              {w.saveContract.isPending ? t("Salvataggio…") : t("Salva contratto")}
             </Button>
           </DialogFooter>
         </form>

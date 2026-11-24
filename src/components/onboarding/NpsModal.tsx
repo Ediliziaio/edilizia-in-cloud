@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Star } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STORAGE_KEY = "nps_last_shown";
 const NPS_COOLDOWN_DAYS = 90;
@@ -50,6 +51,7 @@ const SCORE_LABELS: Record<number, string> = {
 };
 
 export function NpsModal({ open, onClose }: NpsModalProps) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const [score, setScore] = useState<number | null>(null);
   const [comment, setComment] = useState("");
@@ -77,7 +79,7 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
         setComment("");
       }, 2000);
     } catch {
-      toast.error("Impossibile salvare il feedback");
+      toast.error(t("Impossibile salvare il feedback"));
     } finally {
       setSubmitting(false);
     }
@@ -94,8 +96,8 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
         <DialogContent className="max-w-sm text-center">
           <div className="py-8 space-y-3">
             <Star className="h-12 w-12 text-yellow-400 fill-yellow-400 mx-auto" />
-            <p className="text-lg font-semibold">Grazie per il feedback!</p>
-            <p className="text-sm text-muted-foreground">Il tuo giudizio ci aiuta a migliorare.</p>
+            <p className="text-lg font-semibold">{t("Grazie per il feedback!")}</p>
+            <p className="text-sm text-muted-foreground">{t("Il tuo giudizio ci aiuta a migliorare.")}</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -107,20 +109,20 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-lg">
-            🎉 Setup completato! Come ti sta andando?
+            {t("🎉 Setup completato! Come ti sta andando?")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5">
           <p className="text-sm text-muted-foreground">
-            Con quale probabilità consiglieresti <strong>Edilizia in Cloud</strong> a un collega del settore?
+            {t("Con quale probabilità consiglieresti")} <strong>Edilizia in Cloud</strong> {t("a un collega del settore?")}
           </p>
 
           {/* Score selector 0–10 */}
           <div className="space-y-2">
             <div className="flex justify-between text-xs text-muted-foreground px-0.5">
-              <span>Per nulla</span>
-              <span>Assolutamente</span>
+              <span>{t("Per nulla")}</span>
+              <span>{t("Assolutamente")}</span>
             </div>
             <div className="flex gap-1 flex-wrap">
               {Array.from({ length: 11 }, (_, i) => i).map((n) => {
@@ -138,7 +140,7 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
                     className={`w-9 h-9 rounded-md border text-sm font-semibold transition-colors ${
                       isSelected ? selectedColor : `border-border bg-background ${color}`
                     }`}
-                    aria-label={`Punteggio ${n}: ${SCORE_LABELS[n] || ""}`}
+                    aria-label={t("Punteggio {n}: {descrizione}", { n, descrizione: SCORE_LABELS[n] ? t(SCORE_LABELS[n]) : "" })}
                     aria-pressed={isSelected}
                   >
                     {n}
@@ -153,17 +155,17 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground">
                 {score <= 6
-                  ? "Cosa possiamo migliorare?"
+                  ? t("Cosa possiamo migliorare?")
                   : score >= 9
-                  ? "Cosa ti piace di più?"
-                  : "Qualcosa da migliorare?"}
+                  ? t("Cosa ti piace di più?")
+                  : t("Qualcosa da migliorare?")}
                 {" "}
-                <span className="text-xs">(opzionale)</span>
+                <span className="text-xs">{t("(opzionale)")}</span>
               </label>
               <Textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Scrivi qui..."
+                placeholder={t("Scrivi qui...")}
                 className="text-sm resize-none"
                 rows={3}
               />
@@ -172,14 +174,14 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
 
           <div className="flex gap-2 justify-end pt-1">
             <Button variant="ghost" size="sm" onClick={handleSkip}>
-              Salta
+              {t("Salta")}
             </Button>
             <Button
               size="sm"
               onClick={handleSubmit}
               disabled={score === null || submitting}
             >
-              {submitting ? "Invio..." : "Invia feedback"}
+              {submitting ? t("Invio...") : t("Invia feedback")}
             </Button>
           </div>
         </div>

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Mail, Phone, ExternalLink, User, Briefcase, Tag, MapPin, Star, Building2,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   entitaTipo: EntitaTipo;
@@ -39,6 +40,7 @@ function iniziali(nome: string): string {
  * con link alla scheda completa.
  */
 export default function ContactDetailPanel({ entitaTipo, entitaId }: Props) {
+  const tr = useT();
   const { data, isLoading } = useQuery<DetailData | null>({
     queryKey: ["conv-detail", entitaTipo, entitaId],
     enabled: !!entitaId,
@@ -106,7 +108,7 @@ export default function ContactDetailPanel({ entitaTipo, entitaId }: Props) {
           <Skeleton className="h-3 w-1/2 mx-auto" />
         </div>
       ) : !data ? (
-        <div className="p-6 text-center text-sm text-muted-foreground">Scheda non disponibile.</div>
+        <div className="p-6 text-center text-sm text-muted-foreground">{tr("Scheda non disponibile.")}</div>
       ) : (
         <div className="flex flex-col h-full min-h-0">
           <div className="p-4 text-center border-b">
@@ -138,13 +140,13 @@ export default function ContactDetailPanel({ entitaTipo, entitaId }: Props) {
               <div className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-4 w-4 shrink-0" />{data.city}</div>
             )}
             {data.source && (
-              <div className="flex items-center gap-2 text-muted-foreground"><Building2 className="h-4 w-4 shrink-0" />Fonte: {data.source}</div>
+              <div className="flex items-center gap-2 text-muted-foreground"><Building2 className="h-4 w-4 shrink-0" />{tr("Fonte:")} {data.source}</div>
             )}
             {typeof data.score === "number" && (
-              <div className="flex items-center gap-2 text-muted-foreground"><Star className="h-4 w-4 shrink-0" />Score: {data.score}</div>
+              <div className="flex items-center gap-2 text-muted-foreground"><Star className="h-4 w-4 shrink-0" />{tr("Score:")} {data.score}</div>
             )}
             {typeof data.ordersCount === "number" && (
-              <div className="flex items-center gap-2 text-muted-foreground"><Briefcase className="h-4 w-4 shrink-0" />Commesse: {data.ordersCount}</div>
+              <div className="flex items-center gap-2 text-muted-foreground"><Briefcase className="h-4 w-4 shrink-0" />{tr("Commesse:")} {data.ordersCount}</div>
             )}
             {data.tags.length > 0 && (
               <div className="flex items-start gap-2">
@@ -158,7 +160,7 @@ export default function ContactDetailPanel({ entitaTipo, entitaId }: Props) {
 
           <div className="p-3 border-t">
             <Button asChild variant="outline" size="sm" className="w-full gap-1.5">
-              <Link to={fullHref}><ExternalLink className="h-3.5 w-3.5" />Apri scheda completa</Link>
+              <Link to={fullHref}><ExternalLink className="h-3.5 w-3.5" />{tr("Apri scheda completa")}</Link>
             </Button>
           </div>
         </div>

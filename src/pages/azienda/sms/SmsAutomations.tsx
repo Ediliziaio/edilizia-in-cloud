@@ -7,7 +7,6 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Plus, Pencil, Trash2, Zap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,8 +27,10 @@ import { SmsSkeletonLoader } from "@/components/sms/SmsSkeletonLoader";
 import { SmsAutomationForm } from "./SmsAutomationForm";
 import type { SmsAutomation, SmsAutomationFormData } from "@/types/sms";
 import { SMS_AUTOMATION_EVENTO_LABELS, SMS_DESTINATARIO_LABELS } from "@/types/sms";
+import { useT, dateFnsCampo, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SmsAutomations() {
+  const t = useT();
   const { automations, isLoading, create, isCreating, update, isUpdating, toggleAttiva, remove } =
     useSmsAutomations();
 
@@ -69,7 +70,7 @@ export function SmsAutomations() {
       <div className="mb-3 flex justify-end">
         <Button size="sm" onClick={() => { setEditTarget(null); setFormOpen(true); }}>
           <Plus className="h-4 w-4 mr-1" />
-          Nuova automazione
+          {t("Nuova automazione")}
         </Button>
       </div>
       <Card>
@@ -82,7 +83,7 @@ export function SmsAutomations() {
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
               <Zap className="h-10 w-10 opacity-30" />
               <p className="text-sm text-center max-w-xs">
-                Nessuna automazione configurata. Crea la prima regola per inviare SMS in automatico sugli eventi della tua azienda.
+                {t("Nessuna automazione configurata. Crea la prima regola per inviare SMS in automatico sugli eventi della tua azienda.")}
               </p>
             </div>
           ) : (
@@ -94,7 +95,7 @@ export function SmsAutomations() {
                     <Switch
                       checked={a.attiva}
                       onCheckedChange={(v) => toggleAttiva({ id: a.id, attiva: v })}
-                      aria-label={a.attiva ? "Disattiva automazione" : "Attiva automazione"}
+                      aria-label={a.attiva ? t("Disattiva automazione") : t("Attiva automazione")}
                     />
                   </div>
 
@@ -105,12 +106,10 @@ export function SmsAutomations() {
                         {a.nome}
                       </span>
                       <Badge variant="outline" className="text-xs">
-                        {SMS_AUTOMATION_EVENTO_LABELS[a.trigger_evento]}
+                        {t(SMS_AUTOMATION_EVENTO_LABELS[a.trigger_evento])}
                       </Badge>
                       {a.delay_minuti > 0 && (
-                        <Badge variant="outline" className="text-xs text-blue-600">
-                          +{a.delay_minuti}min
-                        </Badge>
+                        <Badge variant="outline" className="text-xs text-blue-600">{t("+{n}min", { n: a.delay_minuti })}</Badge>
                       )}
                     </div>
 
@@ -119,13 +118,13 @@ export function SmsAutomations() {
                     </p>
 
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                      <span>→ {SMS_DESTINATARIO_LABELS[a.tipo_destinatario]}</span>
+                      <span>→ {t(SMS_DESTINATARIO_LABELS[a.tipo_destinatario])}</span>
                       <span>·</span>
-                      <span>{new Intl.NumberFormat("it-IT").format(a.contatore_invii)} invii</span>
+                      <span>{t("{n} invii", { n: new Intl.NumberFormat(intlCampo()).format(a.contatore_invii) })}</span>
                       {a.ultima_esecuzione && (
                         <>
                           <span>·</span>
-                          <span>Ultima: {format(new Date(a.ultima_esecuzione), "dd/MM/yyyy", { locale: it })}</span>
+                          <span>{t("Ultima: {data}", { data: format(new Date(a.ultima_esecuzione), "dd/MM/yyyy", { locale: dateFnsCampo() }) })}</span>
                         </>
                       )}
                     </div>
@@ -138,7 +137,7 @@ export function SmsAutomations() {
                       size="icon"
                       className="h-8 w-8"
                       onClick={() => handleEdit(a)}
-                      title="Modifica"
+                      title={t("Modifica")}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -147,7 +146,7 @@ export function SmsAutomations() {
                       size="icon"
                       className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                       onClick={() => setDeleteTarget(a)}
-                      title="Elimina"
+                      title={t("Elimina")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -172,19 +171,18 @@ export function SmsAutomations() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina automazione</AlertDialogTitle>
+            <AlertDialogTitle>{t("Elimina automazione")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare l'automazione{" "}
-              <strong>"{deleteTarget?.nome}"</strong>? Questa azione non può essere annullata.
+              {t("Sei sicuro di voler eliminare l'automazione \"{nome}\"? Questa azione non può essere annullata.", { nome: deleteTarget?.nome ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
               onClick={handleDelete}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

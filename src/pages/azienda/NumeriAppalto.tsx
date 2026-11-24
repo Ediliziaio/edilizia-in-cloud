@@ -44,6 +44,7 @@ import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PERIODI: Array<{ v: PeriodoNumeri; label: string }> = [
   { v: "anno", label: "Quest'anno" },
@@ -55,6 +56,7 @@ const pct = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : `${formatDecimalIT(Number(n), { minDecimals: 0, maxDecimals: 1 })} %`;
 
 export default function NumeriAppalto() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permessi = usePermissions();
   const companyId = effectiveCompany?.id ?? null;
@@ -110,8 +112,7 @@ export default function NumeriAppalto() {
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Questi sono gli importi concordati con i committenti: serve il permesso «Importi delle
-            commesse».
+            {t("Questi sono gli importi concordati con i committenti: serve il permesso «Importi delle commesse».")}
           </AlertDescription>
         </Alert>
       </div>
@@ -124,13 +125,12 @@ export default function NumeriAppalto() {
         <div className="min-w-0">
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-1 h-7 px-2 text-slate-500">
             <Link to="/azienda/clienti?tipo=committenti">
-              <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Committenti
+              <ArrowLeft className="mr-1 h-3.5 w-3.5" /> {t("Committenti")}
             </Link>
           </Button>
-          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">I numeri dell'appalto</h1>
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{t("I numeri dell'appalto")}</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Quale committente ti conviene davvero: non quello che ti dà più lavoro, quello che ti
-            lascia più margine.
+            {t("Quale committente ti conviene davvero: non quello che ti dà più lavoro, quello che ti lascia più margine.")}
           </p>
         </div>
         {/* La scelta che decide tutto il resto, in cima. */}
@@ -145,7 +145,7 @@ export default function NumeriAppalto() {
                 periodo === v ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
               )}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
@@ -155,34 +155,32 @@ export default function NumeriAppalto() {
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Vedi gli importi verso i committenti ma non i margini: la colonna resta vuota. Serve il
-            permesso «Margini»{!vedeCosti ? ", distinto da «Costi»" : ""}.
+            {t("Vedi gli importi verso i committenti ma non i margini: la colonna resta vuota. Serve il permesso «Margini»")}{!vedeCosti ? t(", distinto da «Costi»") : ""}.
           </AlertDescription>
         </Alert>
       )}
 
       {/* ─── 1. Il quadro per committente ─── */}
-      <QuoteCard title="Committenti a confronto" icon={<Euro className="h-4 w-4" />}
-        subtitle="In classifica per rendicontato. Il margine è vuoto dove il costo non si sa, non zero.">
+      <QuoteCard title={t("Committenti a confronto")} icon={<Euro className="h-4 w-4" />}
+        subtitle={t("In classifica per rendicontato. Il margine è vuoto dove il costo non si sa, non zero.")}>
         {conti.isLoading ? (
           <Skeleton className="h-40 w-full" />
         ) : righe.length === 0 ? (
           <p className="text-sm text-slate-500">
-            Nessun lavoro in appalto in questo periodo. I numeri nascono dalle righe di rendiconto:
-            si scrivono sulla commessa, nella vista Rendiconto.
+            {t("Nessun lavoro in appalto in questo periodo. I numeri nascono dalle righe di rendiconto: si scrivono sulla commessa, nella vista Rendiconto.")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Committente</TableHead>
-                  <TableHead className="text-right">Rendicontato</TableHead>
-                  <TableHead className="text-right">Margine</TableHead>
+                  <TableHead>{t("Committente")}</TableHead>
+                  <TableHead className="text-right">{t("Rendicontato")}</TableHead>
+                  <TableHead className="text-right">{t("Margine")}</TableHead>
                   <TableHead className="text-right">%</TableHead>
-                  <TableHead className="text-right">Da rendicontare</TableHead>
-                  <TableHead className="text-right">Ritenute</TableHead>
-                  <TableHead className="text-right">Da incassare</TableHead>
+                  <TableHead className="text-right">{t("Da rendicontare")}</TableHead>
+                  <TableHead className="text-right">{t("Ritenute")}</TableHead>
+                  <TableHead className="text-right">{t("Da incassare")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -203,9 +201,8 @@ export default function NumeriAppalto() {
                           {c.nome}
                         </Link>
                         <p className="text-xs text-slate-500">
-                          {c.cantieri} {c.cantieri === 1 ? "cantiere" : "cantieri"} · {c.righe}{" "}
-                          {c.righe === 1 ? "voce" : "voci"}
-                          {Number(c.in_bozza) > 0 && ` · ${euro(c.in_bozza)} ancora in bozza`}
+                          {t(c.cantieri === 1 ? "{n} cantiere" : "{n} cantieri", { n: c.cantieri })} · {t(c.righe === 1 ? "{n} voce" : "{n} voci", { n: c.righe })}
+                          {Number(c.in_bozza) > 0 && ` · ${t("{importo} ancora in bozza", { importo: euro(c.in_bozza) })}`}
                         </p>
                       </TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">
@@ -227,7 +224,7 @@ export default function NumeriAppalto() {
                               {pct(c.margine_pct)}
                             </span>
                             {copertura !== null && copertura < 100 && (
-                              <p className="text-[10px] text-slate-500">sul {copertura}% del lavoro</p>
+                              <p className="text-[10px] text-slate-500">{t("sul {percento}% del lavoro", { percento: String(copertura ?? "") })}</p>
                             )}
                           </>
                         )}
@@ -250,7 +247,7 @@ export default function NumeriAppalto() {
               {righe.length > 1 && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell className="font-semibold">Totale</TableCell>
+                    <TableCell className="font-semibold">{t("Totale")}</TableCell>
                     <TableCell className="text-right font-bold tabular-nums">{euro(totali.rendicontato, true)}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
                       {totali.margine === null ? "—" : euro(totali.margine, true)}
@@ -269,18 +266,18 @@ export default function NumeriAppalto() {
 
       {/* ─── 2. Il margine nel tempo ─── */}
       <QuoteCard
-        title={nomeScelto ? `Margine mese per mese — ${nomeScelto}` : "Margine mese per mese"}
+        title={nomeScelto ? t("Margine mese per mese — {nome}", { nome: String(nomeScelto ?? "") }) : t("Margine mese per mese")}
         icon={<TrendingDown className="h-4 w-4" />}
         subtitle={
           nomeScelto
-            ? "Una tendenza non si vede da un totale. Clicca un altro committente per cambiarlo."
-            : "Tutti i committenti insieme. Clicca una riga sopra per guardarne uno solo."
+            ? t("Una tendenza non si vede da un totale. Clicca un altro committente per cambiarlo.")
+            : t("Tutti i committenti insieme. Clicca una riga sopra per guardarne uno solo.")
         }
       >
         {mesi.isLoading ? (
           <Skeleton className="h-28 w-full" />
         ) : serie.length === 0 ? (
-          <p className="text-sm text-slate-500">Nessuna riga di rendiconto negli ultimi 12 mesi.</p>
+          <p className="text-sm text-slate-500">{t("Nessuna riga di rendiconto negli ultimi 12 mesi.")}</p>
         ) : (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
@@ -289,43 +286,42 @@ export default function NumeriAppalto() {
                   <>
                     {peggiorano.map((a) => (
                       <Badge key={a.committente_id} variant="destructive" className="gap-1">
-                        <TrendingDown className="h-3 w-3" /> {a.nome}: il margine peggiora
-                        {a.delta !== null && ` (${formatDecimalIT(a.delta, { minDecimals: 0, maxDecimals: 1 })} punti)`}
+                        <TrendingDown className="h-3 w-3" /> {t("{nome}: il margine peggiora", { nome: a.nome })}
+                        {a.delta !== null && ` ${t("({delta} punti)", { delta: formatDecimalIT(a.delta, { minDecimals: 0, maxDecimals: 1 }) })}`}
                       </Badge>
                     ))}
-                    <span className="text-slate-600">Clicca il suo nome qui sopra per guardarlo da solo.</span>
+                    <span className="text-slate-600">{t("Clicca il suo nome qui sopra per guardarlo da solo.")}</span>
                   </>
                 ) : (
                   <span className="text-slate-600">
-                    Nessun committente sta peggiorando negli ultimi mesi.
+                    {t("Nessun committente sta peggiorando negli ultimi mesi.")}
                   </span>
                 )
               ) : <>
               {andamento.tendenza === "peggiora" && (
                 <Badge variant="destructive" className="gap-1">
-                  <TrendingDown className="h-3 w-3" /> Il margine peggiora
+                  <TrendingDown className="h-3 w-3" /> {t("Il margine peggiora")}
                 </Badge>
               )}
               {andamento.tendenza === "migliora" && (
                 <Badge className="gap-1 bg-emerald-600 hover:bg-emerald-600">
-                  <TrendingUp className="h-3 w-3" /> Il margine migliora
+                  <TrendingUp className="h-3 w-3" /> {t("Il margine migliora")}
                 </Badge>
               )}
               {andamento.tendenza === "stabile" && (
                 <Badge variant="secondary" className="gap-1">
-                  <Minus className="h-3 w-3" /> Margine stabile
+                  <Minus className="h-3 w-3" /> {t("Margine stabile")}
                 </Badge>
               )}
               {andamento.tendenza === "non-si-sa" && (
                 <Badge variant="outline" className="gap-1">
-                  <HelpCircle className="h-3 w-3" /> Troppo pochi mesi per dirlo
+                  <HelpCircle className="h-3 w-3" /> {t("Troppo pochi mesi per dirlo")}
                 </Badge>
               )}
               {andamento.delta !== null && andamento.tendenza !== "stabile" && (
                 <span className="text-slate-600">
                   {andamento.delta > 0 ? "+" : ""}
-                  {formatDecimalIT(andamento.delta, { minDecimals: 0, maxDecimals: 1 })} punti fra la
-                  prima e la seconda metà degli ultimi {andamento.mesi} mesi
+                  {t("{delta} punti fra la prima e la seconda metà degli ultimi {mesi} mesi", { delta: formatDecimalIT(andamento.delta, { minDecimals: 0, maxDecimals: 1 }), mesi: andamento.mesi })}
                 </span>
               )}
               </>}
@@ -334,10 +330,10 @@ export default function NumeriAppalto() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Mese</TableHead>
-                    {!scelto && <TableHead>Committente</TableHead>}
-                    <TableHead className="text-right">Rendicontato</TableHead>
-                    <TableHead className="text-right">Margine</TableHead>
+                    <TableHead>{t("Mese")}</TableHead>
+                    {!scelto && <TableHead>{t("Committente")}</TableHead>}
+                    <TableHead className="text-right">{t("Rendicontato")}</TableHead>
+                    <TableHead className="text-right">{t("Margine")}</TableHead>
                     <TableHead className="text-right">%</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -354,7 +350,7 @@ export default function NumeriAppalto() {
                         {m.margine_pct === null ? <span className="text-slate-400">—</span> : pct(m.margine_pct)}
                         {m.righe_senza_costo > 0 && (
                           <p className="text-[10px] text-slate-500">
-                            {m.righe_senza_costo} {m.righe_senza_costo === 1 ? "voce" : "voci"} senza costo
+                            {t(m.righe_senza_costo === 1 ? "{n} voce senza costo" : "{n} voci senza costo", { n: m.righe_senza_costo })}
                           </p>
                         )}
                       </TableCell>
@@ -369,41 +365,40 @@ export default function NumeriAppalto() {
 
       {/* ─── 3. I soldi fermi ─── */}
       {righe.length > 0 && (
-        <QuoteCard title="I soldi fermi" icon={<AlertTriangle className="h-4 w-4" />}
-          subtitle="Lavoro fatto che non è ancora diventato soldi.">
+        <QuoteCard title={t("I soldi fermi")} icon={<AlertTriangle className="h-4 w-4" />}
+          subtitle={t("Lavoro fatto che non è ancora diventato soldi.")}>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                Confermato, mai rendicontato
+                {t("Confermato, mai rendicontato")}
               </p>
               <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
                 {euro(totali.da_rendicontare, true)}
               </p>
               <p className="mt-0.5 text-xs text-slate-600">
-                Lavoro che il committente non ha nemmeno visto: finché non entra in un rendiconto non
-                si fattura.
+                {t("Lavoro che il committente non ha nemmeno visto: finché non entra in un rendiconto non si fattura.")}
               </p>
             </div>
             <div className="rounded-lg border border-slate-200 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Ritenute trattenute
+                {t("Ritenute trattenute")}
               </p>
               <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
                 {euro(totali.ritenuta_trattenuta, true)}
               </p>
               <p className="mt-0.5 text-xs text-slate-600">
-                Trattenute a garanzia sui rendiconti: tornano a fine lavori, se te le ricordi.
+                {t("Trattenute a garanzia sui rendiconti: tornano a fine lavori, se te le ricordi.")}
               </p>
             </div>
             <div className="rounded-lg border border-slate-200 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fatturato non incassato
+                {t("Fatturato non incassato")}
               </p>
               <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
                 {euro(totali.da_incassare, true)}
               </p>
               <p className="mt-0.5 text-xs text-slate-600">
-                Fatture emesse e agganciate a un rendiconto, ancora da pagare.
+                {t("Fatture emesse e agganciate a un rendiconto, ancora da pagare.")}
               </p>
             </div>
           </div>

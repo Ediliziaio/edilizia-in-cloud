@@ -2,6 +2,7 @@ import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Quantità dei configuratori (articolo e famiglia). Sul telefono ha − e + ai
@@ -9,10 +10,11 @@ import { Label } from "@/components/ui/label";
  * pezzi due tocchi bastano. Dal computer resta il solo campo, come prima.
  */
 export function CampoQuantita({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT();
   const n = Math.max(1, Number(value) || 1);
   return (
     <div className="md:flex md:items-center md:justify-between md:gap-3">
-      <Label htmlFor="quantita">Quantità</Label>
+      <Label htmlFor="quantita">{t("Quantità")}</Label>
       <div className="flex items-center gap-2">
         <Button
           type="button"
@@ -21,7 +23,7 @@ export function CampoQuantita({ value, onChange }: { value: string; onChange: (v
           className="h-10 w-10 shrink-0 sm:hidden"
           onClick={() => onChange(String(Math.max(1, n - 1)))}
           disabled={n <= 1}
-          aria-label="Una in meno"
+          aria-label={t("Una in meno")}
         >
           <Minus className="h-4 w-4" />
         </Button>
@@ -40,7 +42,7 @@ export function CampoQuantita({ value, onChange }: { value: string; onChange: (v
           size="icon"
           className="h-10 w-10 shrink-0 sm:hidden"
           onClick={() => onChange(String(n + 1))}
-          aria-label="Una in più"
+          aria-label={t("Una in più")}
         >
           <Plus className="h-4 w-4" />
         </Button>

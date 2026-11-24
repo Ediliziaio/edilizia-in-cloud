@@ -12,6 +12,7 @@ import { useImposte, useUpsertAliquote, type ImposteAliquote } from "@/hooks/con
 import { useToast } from "@/hooks/use-toast";
 import { Receipt } from "lucide-react";
 import { leggiImporto, messaggioErrore } from "@/lib/controlloGestione/formatCG";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const virgola = (n: number | null | undefined, standard: string) =>
   n == null ? standard : String(n).replace(".", ",");
@@ -24,6 +25,7 @@ export function AliquoteEditor() {
 }
 
 function AliquoteForm({ iniziali }: { iniziali: ImposteAliquote | null }) {
+  const t = useT();
   const upsert = useUpsertAliquote();
   const { toast } = useToast();
 
@@ -36,7 +38,7 @@ function AliquoteForm({ iniziali }: { iniziali: ImposteAliquote | null }) {
     // «3,9» con la virgola: Number("3,9") dava NaN e il salvataggio falliva.
     const valori = [leggiImporto(ires), leggiImporto(irap), leggiImporto(add)];
     if (valori.some((v) => v === null || v < 0 || v > 100)) {
-      toast({ title: "Aliquota non valida", description: "Scrivi una percentuale tra 0 e 100, ad esempio 3,9.", variant: "destructive" });
+      toast({ title: t("Aliquota non valida"), description: t("Scrivi una percentuale tra 0 e 100, ad esempio 3,9."), variant: "destructive" });
       return;
     }
     try {
@@ -46,9 +48,9 @@ function AliquoteForm({ iniziali }: { iniziali: ImposteAliquote | null }) {
         addizionale_ires_pct: valori[2]!,
         base_irap_include_personale: includePers,
       });
-      toast({ title: "Aliquote salvate" });
+      toast({ title: t("Aliquote salvate") });
     } catch (e) {
-      toast({ title: "Aliquote non salvate", description: messaggioErrore(e), variant: "destructive" });
+      toast({ title: t("Aliquote non salvate"), description: t(messaggioErrore(e)), variant: "destructive" });
     }
   };
 
@@ -56,16 +58,15 @@ function AliquoteForm({ iniziali }: { iniziali: ImposteAliquote | null }) {
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Receipt className="h-4 w-4" /> Aliquote per la stima delle imposte
+          <Receipt className="h-4 w-4" /> {t("Aliquote per la stima delle imposte")}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Valori standard: IRES 24%, IRAP 3,9%. Servono solo alla stima delle imposte nel conto
-          economico: le imposte vere le calcola il commercialista.
+          {t("Valori standard: IRES 24%, IRAP 3,9%. Servono solo alla stima delle imposte nel conto economico: le imposte vere le calcola il commercialista.")}
         </p>
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
-          <Label className="text-xs">IRES %</Label>
+          <Label className="text-xs">{t("IRES %")}</Label>
           <Input
             inputMode="decimal"
             value={ires}
@@ -73,7 +74,7 @@ function AliquoteForm({ iniziali }: { iniziali: ImposteAliquote | null }) {
           />
         </div>
         <div>
-          <Label className="text-xs">IRAP %</Label>
+          <Label className="text-xs">{t("IRAP %")}</Label>
           <Input
             inputMode="decimal"
             value={irap}
@@ -81,7 +82,7 @@ function AliquoteForm({ iniziali }: { iniziali: ImposteAliquote | null }) {
           />
         </div>
         <div>
-          <Label className="text-xs">Addizionale IRES %</Label>
+          <Label className="text-xs">{t("Addizionale IRES %")}</Label>
           <Input
             inputMode="decimal"
             value={add}
@@ -95,15 +96,15 @@ function AliquoteForm({ iniziali }: { iniziali: ImposteAliquote | null }) {
             onCheckedChange={setIncludePers}
           />
           <Label htmlFor="irap-personale" className="text-xs leading-snug">
-            Calcola l'IRAP anche sul costo del personale
+            {t("Calcola l'IRAP anche sul costo del personale")}
             <span className="block font-normal text-muted-foreground">
-              Stima prudente. I dipendenti a tempo indeterminato sono deducibili: chiedi al commercialista.
+              {t("Stima prudente. I dipendenti a tempo indeterminato sono deducibili: chiedi al commercialista.")}
             </span>
           </Label>
         </div>
         <div className="md:col-span-4">
           <Button size="sm" onClick={handleSave} disabled={upsert.isPending}>
-            Salva aliquote
+            {t("Salva aliquote")}
           </Button>
         </div>
       </CardContent>

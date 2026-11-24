@@ -28,6 +28,7 @@ import type {
   TipoInterventoTetto,
   TargetFaldeTetto,
 } from "@/modules/render-tetto/lib/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Roof type dictionary ─────────────────────────────────────────────────────
 interface MantoOption {
@@ -170,6 +171,7 @@ interface Props {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function TettoConfigForm({ value, onChange, disabled }: Props) {
+  const tr = useT();
   const setIntervento = (tipo_intervento: TipoInterventoTetto) => {
     onChange({
       ...value,
@@ -251,9 +253,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       <div className="rounded-lg border bg-muted/30 p-4 max-md:hidden">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <Label className="text-sm font-semibold max-md:text-[13px]">Controlli tecnici del render</Label>
+            <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Controlli tecnici del render")}</Label>
             <p className="mt-1 text-xs text-muted-foreground">
-              Il render protegge geometria, falde non target, dettagli d'acqua, scossaline e accessori non selezionati.
+              {tr("Il render protegge geometria, falde non target, dettagli d'acqua, scossaline e accessori non selezionati.")}
             </p>
           </div>
           <Badge variant="secondary" className="w-fit text-[10px]">Roof v2.1</Badge>
@@ -261,7 +263,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
         <div className="mt-3 flex flex-wrap gap-2">
           {guardrails.map(item => (
             <Badge key={item} variant="outline" className="bg-background text-[10px]">
-              {item}
+              {tr(item)}
             </Badge>
           ))}
         </div>
@@ -270,9 +272,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       {/* ── Tipo intervento ────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div>
-          <Label className="text-sm font-semibold max-md:text-[13px]">Tipo intervento *</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Tipo intervento *")}</Label>
           <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
-            Definisce cosa puo cambiare davvero nel render e cosa deve restare intatto.
+            {tr("Definisce cosa puo cambiare davvero nel render e cosa deve restare intatto.")}
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
@@ -288,10 +290,10 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               >
                 <CardContent className="p-3 space-y-1 max-md:p-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
-                    {selected && <Badge className="text-[10px] px-1.5 py-0 max-md:hidden">Attivo</Badge>}
+                    <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{tr(item.label)}</span>
+                    {selected && <Badge className="text-[10px] px-1.5 py-0 max-md:hidden">{tr("Attivo")}</Badge>}
                   </div>
-                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{tr(item.desc)}</p>
                 </CardContent>
               </Card>
             );
@@ -301,7 +303,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
       {/* ── Target falde ───────────────────────────────────────────────── */}
       <div className="space-y-3">
-        <Label className="text-sm font-semibold max-md:text-[13px]">Falde target *</Label>
+        <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Falde target *")}</Label>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {TARGET_FALDE.map(item => {
             const selected = (value.target?.scope ?? "tutto_tetto") === item.value;
@@ -314,8 +316,8 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 onClick={() => !disabled && setTarget("scope", item.value)}
               >
                 <CardContent className="p-3 space-y-1 max-md:p-2.5">
-                  <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
-                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
+                  <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{tr(item.label)}</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{tr(item.desc)}</p>
                 </CardContent>
               </Card>
             );
@@ -323,11 +325,11 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
         </div>
         {(value.target?.scope ?? "tutto_tetto") === "zona_specifica" && (
           <div className="space-y-1.5">
-            <Label className="text-xs max-md:text-[11px]">Descrizione zona</Label>
+            <Label className="text-xs max-md:text-[11px]">{tr("Descrizione zona")}</Label>
             <Input
               value={value.target?.descrizione_zona ?? ""}
               onChange={e => setTarget("descrizione_zona", e.target.value)}
-              placeholder="Es. solo falda bassa a destra, attorno al lucernario"
+              placeholder={tr("Es. solo falda bassa a destra, attorno al lucernario")}
               disabled={disabled}
             />
           </div>
@@ -336,7 +338,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
       {/* ── Tipo manto (card grid) ──────────────────────────────────────── */}
       <div className="space-y-2">
-        <Label className="text-sm font-semibold max-md:text-[13px]">Tipo copertura *</Label>
+        <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Tipo copertura *")}</Label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-sm:gap-1.5">
           {MANTI.map(m => {
             const selected = value.manto.tipo === m.value;
@@ -355,7 +357,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                     {ROOF_COVERING_PHOTOS[m.value] && (
                       <ReferenceThumb
                         photo={ROOF_COVERING_PHOTOS[m.value]}
-                        alt={`Manto ${m.label}`}
+                        alt={tr("Manto {label}", { label: tr(m.label) })}
                         className="h-10 w-10 shrink-0 rounded-md"
                       />
                     )}
@@ -363,12 +365,12 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                       className="w-5 h-5 shrink-0 rounded-full border"
                       style={{ backgroundColor: m.defaultColor }}
                     />
-                    <span className="text-xs font-semibold truncate max-md:text-[13px]">{m.label}</span>
+                    <span className="text-xs font-semibold truncate max-md:text-[13px]">{tr(m.label)}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{m.desc}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{tr(m.desc)}</p>
                   {selected && (
                     <Badge variant="default" className="text-[10px] w-fit mt-0.5 px-1.5 py-0 max-md:hidden">
-                      Selezionato
+                      {tr("Selezionato")}
                     </Badge>
                   )}
                 </CardContent>
@@ -381,7 +383,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       {/* ── Colore + finitura ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Colore manto</Label>
+          <Label className="max-md:text-[11px]">{tr("Colore manto")}</Label>
           <div className="flex items-center gap-2">
             <Input
               type="color"
@@ -400,20 +402,20 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Nome colore</Label>
+          <Label className="max-md:text-[11px]">{tr("Nome colore")}</Label>
           <Input
             value={value.manto.colore_nome ?? ""}
             onChange={e => setManto("colore_nome", e.target.value)}
             disabled={disabled}
-            placeholder="Es. Rosso coppo anticato"
+            placeholder={tr("Es. Rosso coppo anticato")}
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="max-md:text-[11px]">Finitura</Label>
+          <Label className="max-md:text-[11px]">{tr("Finitura")}</Label>
           <Select value={value.manto.finitura} onValueChange={v => setManto("finitura", v as FinituraMantoTetto)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {FINITURE.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+              {FINITURE.map(f => <SelectItem key={f.value} value={f.value}>{tr(f.label)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -423,9 +425,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <Label className="text-sm font-semibold max-md:text-[13px]">Isolamento / sovracopertura</Label>
+            <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Isolamento / sovracopertura")}</Label>
             <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
-              Aggiunge spessore reale a bordo falda, gronde e scossaline senza deformare l'edificio.
+              {tr("Aggiunge spessore reale a bordo falda, gronde e scossaline senza deformare l'edificio.")}
             </p>
           </div>
           <Switch
@@ -437,7 +439,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
         {(value.isolamento?.attivo ?? false) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Sistema</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Sistema")}</Label>
               <Select
                 value={value.isolamento?.tipo ?? "sarking_legno"}
                 onValueChange={v => setIsolamento("tipo", v as NonNullable<typeof value.isolamento>["tipo"])}
@@ -445,12 +447,12 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ISOLAMENTI.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                  {ISOLAMENTI.map(item => <SelectItem key={item.value} value={item.value}>{tr(item.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Spessore indicativo</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Spessore indicativo")}</Label>
               <Select
                 value={String(value.isolamento?.spessore_cm ?? 10)}
                 onValueChange={v => setIsolamento("spessore_cm", Number(v) as NonNullable<typeof value.isolamento>["spessore_cm"])}
@@ -469,7 +471,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       {/* ── Grondaie ────────────────────────────────────────────────────── */}
       <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Grondaie e pluviali</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Grondaie e pluviali")}</Label>
           <Switch
             checked={value.grondaie.attivo}
             onCheckedChange={v => setGrondaie("attivo", v)}
@@ -479,7 +481,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
         {value.grondaie.attivo && (
           <div className="grid grid-cols-2 gap-4 max-md:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Materiale</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Materiale")}</Label>
               {/* La miniatura mostra il materiale scelto (una foto dentro le voci finirebbe anche nel campo chiuso). */}
               <div className="flex items-center gap-2">
                 {GUTTER_MATERIAL_PHOTOS[value.grondaie.materiale] && (
@@ -492,18 +494,18 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 <Select value={value.grondaie.materiale} onValueChange={v => setGrondaie("materiale", v as MaterialeGrondaia)} disabled={disabled}>
                   <SelectTrigger className="min-w-0"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {MATERIALI_GRONDAIA.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    {MATERIALI_GRONDAIA.map(m => <SelectItem key={m.value} value={m.value}>{tr(m.label)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             {grondaieAlNaturale ? (
               <p className="self-end pb-2 text-xs text-muted-foreground max-md:text-[11px]">
-                Colore naturale del metallo
+                {tr("Colore naturale del metallo")}
               </p>
             ) : (
               <div className="space-y-1.5">
-                <Label className="text-xs max-md:text-[11px]">Colore grondaia</Label>
+                <Label className="text-xs max-md:text-[11px]">{tr("Colore grondaia")}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="color"
@@ -524,12 +526,12 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
             {/* Il prompt aveva già il colore dei pluviali: mancava il campo. Vuoto = come la grondaia. */}
             {!grondaieAlNaturale && (
               <div className="space-y-1.5">
-                <Label className="text-xs max-md:text-[11px]">Colore pluviali</Label>
+                <Label className="text-xs max-md:text-[11px]">{tr("Colore pluviali")}</Label>
                 <Input
                   value={value.grondaie.colore_pluviale_hex ?? ""}
                   onChange={e => setGrondaie("colore_pluviale_hex", e.target.value || undefined)}
                   disabled={disabled}
-                  placeholder="Come la grondaia"
+                  placeholder={tr("Come la grondaia")}
                   className="text-xs"
                 />
               </div>
@@ -541,7 +543,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       {/* ── Lucernari ───────────────────────────────────────────────────── */}
       <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Lucernari</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Lucernari")}</Label>
           <Switch
             checked={value.lucernari.attivo}
             onCheckedChange={v => setLucernari("attivo", v)}
@@ -552,31 +554,31 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-4 max-md:gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs max-md:text-[11px]">Azione</Label>
+                <Label className="text-xs max-md:text-[11px]">{tr("Azione")}</Label>
                 <Select value={value.lucernari.azione} onValueChange={v => setLucernari("azione", v as "mantieni" | "aggiungi" | "rimuovi")} disabled={disabled}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mantieni">Mantieni esistenti</SelectItem>
-                    <SelectItem value="aggiungi">Aggiungi nuovi</SelectItem>
-                    <SelectItem value="rimuovi">Rimuovi tutti</SelectItem>
+                    <SelectItem value="mantieni">{tr("Mantieni esistenti")}</SelectItem>
+                    <SelectItem value="aggiungi">{tr("Aggiungi nuovi")}</SelectItem>
+                    <SelectItem value="rimuovi">{tr("Rimuovi tutti")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {value.lucernari.azione === "aggiungi" && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs max-md:text-[11px]">Tipo</Label>
+                  <Label className="text-xs max-md:text-[11px]">{tr("Tipo")}</Label>
                   <div className="flex items-center gap-2">
                     {SKYLIGHT_TYPE_PHOTOS[value.lucernari.tipo ?? "piatto"] && (
                       <ReferenceThumb
                         photo={SKYLIGHT_TYPE_PHOTOS[value.lucernari.tipo ?? "piatto"]}
-                        alt={TIPI_LUCERNARIO.find(t => t.value === (value.lucernari.tipo ?? "piatto"))?.label ?? "Lucernario"}
+                        alt={TIPI_LUCERNARIO.find(t => t.value === (value.lucernari.tipo ?? "piatto"))?.label ?? tr("Lucernario")}
                         className="h-10 w-10 shrink-0 rounded-md"
                       />
                     )}
                     <Select value={value.lucernari.tipo ?? "piatto"} onValueChange={v => setLucernari("tipo", v as TipoLucernario)} disabled={disabled}>
                       <SelectTrigger className="min-w-0"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {TIPI_LUCERNARIO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                        {TIPI_LUCERNARIO.map(t => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -586,7 +588,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
             {value.lucernari.azione === "aggiungi" && (
               <div className="grid grid-cols-2 gap-4 max-md:gap-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs max-md:text-[11px]">Quantita</Label>
+                  <Label className="text-xs max-md:text-[11px]">{tr("Quantita")}</Label>
                   <Select
                     value={String(value.lucernari.quantita ?? 1)}
                     onValueChange={v => setLucernari("quantita", parseInt(v) as 1 | 2 | 3 | 4)}
@@ -599,7 +601,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs max-md:text-[11px]">Posizione</Label>
+                  <Label className="text-xs max-md:text-[11px]">{tr("Posizione")}</Label>
                   <Select
                     value={value.lucernari.posizione ?? "centrale"}
                     onValueChange={v => setLucernari("posizione", v as "centrale" | "laterale_sx" | "laterale_dx" | "distribuiti")}
@@ -607,16 +609,16 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="centrale">Centrale</SelectItem>
-                      <SelectItem value="laterale_sx">Laterale SX</SelectItem>
-                      <SelectItem value="laterale_dx">Laterale DX</SelectItem>
-                      <SelectItem value="distribuiti">Distribuiti</SelectItem>
+                      <SelectItem value="centrale">{tr("Centrale")}</SelectItem>
+                      <SelectItem value="laterale_sx">{tr("Laterale SX")}</SelectItem>
+                      <SelectItem value="laterale_dx">{tr("Laterale DX")}</SelectItem>
+                      <SelectItem value="distribuiti">{tr("Distribuiti")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 {/* Il prompt scriveva già «frame color»: senza campo restava il grigio scuro di ripiego. */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs max-md:text-[11px]">Colore telaio</Label>
+                  <Label className="text-xs max-md:text-[11px]">{tr("Colore telaio")}</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="color"
@@ -643,7 +645,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       {/* ── Pannelli solari ─────────────────────────────────────────────── */}
       <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Pannelli solari</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Pannelli solari")}</Label>
           <Switch
             checked={value.pannelli_solari?.attivo ?? false}
             onCheckedChange={v => setPannelli("attivo", v)}
@@ -654,13 +656,13 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-4 max-md:gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs max-md:text-[11px]">Tipo pannello</Label>
+                <Label className="text-xs max-md:text-[11px]">{tr("Tipo pannello")}</Label>
                 <div className="flex items-center gap-2">
                   {/* La foto che il motore allega: la tegola solare integrata, oppure i moduli con cornice (una sola foto per nero e blu). */}
                   {SOLAR_TYPE_PHOTOS[value.pannelli_solari.tipo ?? "fotovoltaico_nero"] && (
                     <ReferenceThumb
                       photo={SOLAR_TYPE_PHOTOS[value.pannelli_solari.tipo ?? "fotovoltaico_nero"]}
-                      alt={value.pannelli_solari.tipo === "tegola_solare_integrata" ? "Tegole solari integrate" : "Pannelli fotovoltaici con cornice"}
+                      alt={value.pannelli_solari.tipo === "tegola_solare_integrata" ? tr("Tegole solari integrate") : tr("Pannelli fotovoltaici con cornice")}
                       className="h-10 w-10 shrink-0 rounded-md"
                     />
                   )}
@@ -671,15 +673,15 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                   >
                     <SelectTrigger className="min-w-0"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fotovoltaico_nero">Fotovoltaico nero</SelectItem>
-                      <SelectItem value="fotovoltaico_blu">Fotovoltaico blu</SelectItem>
-                      <SelectItem value="tegola_solare_integrata">Tegola solare integrata</SelectItem>
+                      <SelectItem value="fotovoltaico_nero">{tr("Fotovoltaico nero")}</SelectItem>
+                      <SelectItem value="fotovoltaico_blu">{tr("Fotovoltaico blu")}</SelectItem>
+                      <SelectItem value="tegola_solare_integrata">{tr("Tegola solare integrata")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs max-md:text-[11px]">Quantita</Label>
+                <Label className="text-xs max-md:text-[11px]">{tr("Quantita")}</Label>
                 <Select
                   value={value.pannelli_solari.quantita ?? "medi"}
                   onValueChange={v => setPannelli("quantita", v as "pochi" | "medi" | "tanti")}
@@ -687,15 +689,15 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pochi">Pochi (20%)</SelectItem>
-                    <SelectItem value="medi">Medi (40-50%)</SelectItem>
-                    <SelectItem value="tanti">Tanti (70-90%)</SelectItem>
+                    <SelectItem value="pochi">{tr("Pochi (20%)")}</SelectItem>
+                    <SelectItem value="medi">{tr("Medi (40-50%)")}</SelectItem>
+                    <SelectItem value="tanti">{tr("Tanti (70-90%)")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Posizione</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Posizione")}</Label>
               <Select
                 value={value.pannelli_solari.posizione ?? "falda_principale"}
                 onValueChange={v => setPannelli("posizione", v as "falda_sud" | "falda_principale" | "distribuiti")}
@@ -703,9 +705,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="falda_sud">Falda sud</SelectItem>
-                  <SelectItem value="falda_principale">Falda principale</SelectItem>
-                  <SelectItem value="distribuiti">Distribuiti</SelectItem>
+                  <SelectItem value="falda_sud">{tr("Falda sud")}</SelectItem>
+                  <SelectItem value="falda_principale">{tr("Falda principale")}</SelectItem>
+                  <SelectItem value="distribuiti">{tr("Distribuiti")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -716,11 +718,11 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       {/* ── Lattonerie e dettagli del tetto ──────────────────────────────── */}
       {/* Voci da preventivo che prima si potevano solo scrivere nelle note: ognuna parte spenta. */}
       <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
-        <Label className="text-sm font-semibold max-md:text-[13px]">Lattonerie e dettagli</Label>
+        <Label className="text-sm font-semibold max-md:text-[13px]">{tr("Lattonerie e dettagli")}</Label>
 
         <div className="grid grid-cols-2 gap-4 max-md:gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs max-md:text-[11px]">Scossaline e colmi in lamiera</Label>
+            <Label className="text-xs max-md:text-[11px]">{tr("Scossaline e colmi in lamiera")}</Label>
             <Select
               value={value.scossaline?.azione ?? "mantieni"}
               onValueChange={v => {
@@ -738,30 +740,30 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="mantieni">Mantieni</SelectItem>
-                <SelectItem value="sostituisci">Sostituisci</SelectItem>
+                <SelectItem value="mantieni">{tr("Mantieni")}</SelectItem>
+                <SelectItem value="sostituisci">{tr("Sostituisci")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {value.scossaline?.azione === "sostituisci" && (
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Materiale</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Materiale")}</Label>
               <Select value={value.scossaline.materiale ?? "alluminio"} onValueChange={v => setScossaline("materiale", v as MaterialeLattoneria)} disabled={disabled}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {MATERIALI_LATTONERIA.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  {MATERIALI_LATTONERIA.map(m => <SelectItem key={m.value} value={m.value}>{tr(m.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
           {value.scossaline?.azione === "sostituisci" && !METALLI_NATURALI.includes(value.scossaline.materiale ?? "alluminio") && (
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Colore lattonerie</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Colore lattonerie")}</Label>
               <Input
                 value={value.scossaline.colore_hex ?? ""}
                 onChange={e => setScossaline("colore_hex", e.target.value || undefined)}
                 disabled={disabled}
-                placeholder="Es. testa di moro"
+                placeholder={tr("Es. testa di moro")}
                 className="text-xs"
               />
             </div>
@@ -770,7 +772,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
         <div className="grid grid-cols-2 gap-4 max-md:gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs max-md:text-[11px]">Comignoli</Label>
+            <Label className="text-xs max-md:text-[11px]">{tr("Comignoli")}</Label>
             <Select
               value={value.comignoli?.azione ?? "mantieni"}
               onValueChange={v => setComignoli("azione", v as "mantieni" | "rinnova")}
@@ -778,30 +780,30 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="mantieni">Mantieni</SelectItem>
-                <SelectItem value="rinnova">Rinnova la finitura</SelectItem>
+                <SelectItem value="mantieni">{tr("Mantieni")}</SelectItem>
+                <SelectItem value="rinnova">{tr("Rinnova la finitura")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {value.comignoli?.azione === "rinnova" && (
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Finitura</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Finitura")}</Label>
               <Select value={value.comignoli.finitura ?? "intonaco"} onValueChange={v => setComignoli("finitura", v as NonNullable<ConfigComignoli["finitura"]>)} disabled={disabled}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {FINITURE_COMIGNOLO.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                  {FINITURE_COMIGNOLO.map(f => <SelectItem key={f.value} value={f.value}>{tr(f.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
           {value.comignoli?.azione === "rinnova" && (value.comignoli.finitura ?? "intonaco") !== "rame" && (
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Colore comignoli</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Colore comignoli")}</Label>
               <Input
                 value={value.comignoli.colore_hex ?? ""}
                 onChange={e => setComignoli("colore_hex", e.target.value || undefined)}
                 disabled={disabled}
-                placeholder="Es. come la facciata"
+                placeholder={tr("Es. come la facciata")}
                 className="text-xs"
               />
             </div>
@@ -810,11 +812,11 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
         <div className="grid grid-cols-2 gap-4 max-md:gap-2">
           <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-            <Label className="text-xs max-md:text-[11px]">Fermaneve</Label>
+            <Label className="text-xs max-md:text-[11px]">{tr("Fermaneve")}</Label>
             <Switch checked={value.fermaneve?.attivo ?? false} onCheckedChange={v => setFermaneve("attivo", v)} disabled={disabled} />
           </div>
           <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-            <Label className="text-xs max-md:text-[11px]">Linea vita sul colmo</Label>
+            <Label className="text-xs max-md:text-[11px]">{tr("Linea vita sul colmo")}</Label>
             <Switch
               checked={value.linea_vita?.attivo ?? false}
               onCheckedChange={v => onChange({ ...value, linea_vita: { attivo: v } })}
@@ -823,11 +825,11 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           </div>
           {value.fermaneve?.attivo && (
             <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Tipo fermaneve</Label>
+              <Label className="text-xs max-md:text-[11px]">{tr("Tipo fermaneve")}</Label>
               <Select value={value.fermaneve.tipo ?? "ganci"} onValueChange={v => setFermaneve("tipo", v as NonNullable<ConfigFermaneve["tipo"]>)} disabled={disabled}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TIPI_FERMANEVE.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  {TIPI_FERMANEVE.map(t => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -837,11 +839,11 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
       {/* ── Note libere ─────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <Label className="max-md:text-[13px] max-md:font-semibold">Note aggiuntive</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">{tr("Note aggiuntive")}</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={e => onChange({ ...value, note_libere: e.target.value })}
-          placeholder="Specifiche aggiuntive (es. mantieni antenna TV, aggiungi parafulmini...)"
+          placeholder={tr("Specifiche aggiuntive (es. mantieni antenna TV, aggiungi parafulmini...)")}
           rows={2}
           disabled={disabled}
           className="max-md:placeholder:text-[13px]"

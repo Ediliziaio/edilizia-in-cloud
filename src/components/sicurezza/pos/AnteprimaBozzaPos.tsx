@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef } from "react";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import type { DatiStampaPos } from "../../../../supabase/functions/_shared/posHtml";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Props = Pick<DatiStampaPos, "contenuto" | "revisione" | "revisioni" | "codiceCommessa">;
 
 export function AnteprimaBozzaPos({ contenuto, revisione, revisioni, codiceCommessa }: Props) {
+  const t = useT();
   const lavoro = useRef<AbortController | null>(null);
   const dati = useMemo<DatiStampaPos>(() => ({
     contenuto, revisione, revisioni, codiceCommessa, stato: "bozza",
@@ -36,6 +38,6 @@ export function AnteprimaBozzaPos({ contenuto, revisione, revisioni, codiceComme
   }
 
   return <PdfBlobLivePreviewPanel renderBlobUrl={genera} depsKey={chiave} debounceMs={750}
-    headerLabel="PDF bozza" accentClass="text-primary" downloadFileName={`POS-${codiceCommessa || "cantiere"}-bozza.pdf`}
+    headerLabel={t("PDF bozza")} accentClass="text-primary" downloadFileName={`POS-${codiceCommessa || "cantiere"}-bozza.pdf`}
     showDownloadOnMobile />;
 }

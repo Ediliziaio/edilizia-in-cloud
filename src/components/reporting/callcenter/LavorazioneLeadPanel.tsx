@@ -10,12 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PhoneCall, Sparkles, History, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LeadHandling } from "@/hooks/useCallCenterReport";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function pct(n: number | null | undefined) {
   return n === null || n === undefined ? "—" : `${n}%`;
 }
 function num(n: number | null | undefined) {
-  return (n ?? 0).toLocaleString("it-IT");
+  return (n ?? 0).toLocaleString(intlCampo());
 }
 function oreLabel(h: number | null | undefined) {
   if (h === null || h === undefined) return "—";
@@ -62,6 +63,7 @@ export function LavorazioneLeadPanel({
   data: LeadHandling | null | undefined;
   isLoading: boolean;
 }) {
+  const t = useT();
   if (isLoading) return <Skeleton className="h-56 w-full rounded-xl" />;
 
   if (!data || data.chiamate_totali === 0) {
@@ -70,14 +72,14 @@ export function LavorazioneLeadPanel({
       <Card>
         <CardHeader className="max-sm:p-3 max-sm:pb-1">
           <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
-            <PhoneCall className="h-4 w-4 text-primary max-sm:hidden" /> Lavorazione lead
+            <PhoneCall className="h-4 w-4 text-primary max-sm:hidden" /> {t("Lavorazione lead")}
           </CardTitle>
         </CardHeader>
         <CardContent className="max-sm:p-3 max-sm:pt-0">
           <p className="text-sm text-muted-foreground max-sm:text-[13px]">
-            Nessuna chiamata registrata nel periodo.
+            {t("Nessuna chiamata registrata nel periodo.")}
             <span className="max-sm:hidden">
-              {" "}Registra le chiamate dal contatto o dall'opportunità ("Registra chiamata") per popolare queste statistiche.
+              {" "}{t("Registra le chiamate dal contatto o dall'opportunità (\"Registra chiamata\") per popolare queste statistiche.")}
             </span>
           </p>
         </CardContent>
@@ -86,10 +88,10 @@ export function LavorazioneLeadPanel({
   }
 
   const aging = [
-    { label: "0–7 gg", v: data.chiamate_eta_0_7, color: "bg-emerald-500" },
-    { label: "8–30 gg", v: data.chiamate_eta_8_30, color: "bg-sky-500" },
-    { label: "31–60 gg", v: data.chiamate_eta_31_60, color: "bg-amber-500" },
-    { label: ">60 gg", v: data.chiamate_eta_oltre_60, color: "bg-rose-500" },
+    { label: t("0–7 gg"), v: data.chiamate_eta_0_7, color: "bg-emerald-500" },
+    { label: t("8–30 gg"), v: data.chiamate_eta_8_30, color: "bg-sky-500" },
+    { label: t("31–60 gg"), v: data.chiamate_eta_31_60, color: "bg-amber-500" },
+    { label: t(">60 gg"), v: data.chiamate_eta_oltre_60, color: "bg-rose-500" },
   ];
   const agingMax = Math.max(...aging.map((a) => a.v), 1);
 
@@ -97,10 +99,10 @@ export function LavorazioneLeadPanel({
     <Card>
       <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
-          <PhoneCall className="h-4 w-4 text-primary max-sm:hidden" /> Lavorazione lead
+          <PhoneCall className="h-4 w-4 text-primary max-sm:hidden" /> {t("Lavorazione lead")}
         </CardTitle>
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Chiamate del periodo per età del lead, tasso di risposta e velocità di primo contatto.
+          {t("Chiamate del periodo per età del lead, tasso di risposta e velocità di primo contatto.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-5 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
@@ -108,28 +110,28 @@ export function LavorazioneLeadPanel({
           <Stat
             icon={Sparkles}
             tone="green"
-            label="Chiamate a lead nuovi"
+            label={t("Chiamate a lead nuovi")}
             value={num(data.chiamate_nuovi)}
-            sub={`${num(data.lead_nuovi_chiamati)} lead · risposta ${pct(data.tasso_risposta_nuovi)}`}
+            sub={t("{n} lead · risposta {percentuale}", { n: num(data.lead_nuovi_chiamati), percentuale: pct(data.tasso_risposta_nuovi) })}
           />
           <Stat
             icon={History}
             tone="amber"
-            label="Chiamate a lead vecchi"
+            label={t("Chiamate a lead vecchi")}
             value={num(data.chiamate_vecchi)}
-            sub={`${num(data.lead_vecchi_chiamati)} lead · risposta ${pct(data.tasso_risposta_vecchi)}`}
+            sub={t("{n} lead · risposta {percentuale}", { n: num(data.lead_vecchi_chiamati), percentuale: pct(data.tasso_risposta_vecchi) })}
           />
           <Stat
             icon={Clock}
             tone="sky"
-            label="Tempo al 1° contatto (nuovi)"
+            label={t("Tempo al 1° contatto (nuovi)")}
             value={oreLabel(data.tempo_medio_primo_contatto_ore)}
-            sub={`risposta totale ${pct(data.tasso_risposta_totale)} · ${num(data.chiamate_totali)} chiamate`}
+            sub={t("risposta totale {percentuale} · {n} chiamate", { percentuale: pct(data.tasso_risposta_totale), n: num(data.chiamate_totali) })}
           />
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Chiamate per età del lead al momento della chiamata</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">{t("Chiamate per età del lead al momento della chiamata")}</p>
           <div className="space-y-1.5">
             {aging.map((a) => (
               <div key={a.label} className="flex items-center gap-2 text-xs">

@@ -6,6 +6,7 @@ import {
   Loader2,
   XCircle,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type FishVoiceAction = {
   id: number;
@@ -171,6 +172,7 @@ export function FishVoiceActions({
   actions: FishVoiceAction[];
   crmTrial: boolean;
 }) {
+  const t = useT();
   const titleId = useId();
   if (!actions.length) return null;
   return (
@@ -179,7 +181,7 @@ export function FishVoiceActions({
       className="rounded-lg border bg-background"
     >
       <h3 id={titleId} className="border-b px-2.5 py-2 text-xs font-semibold">
-        {crmTrial ? "Azioni nel gestionale" : "Azioni dimostrative"}
+        {crmTrial ? t("Azioni nel gestionale") : t("Azioni dimostrative")}
       </h3>
       <ol
         aria-live="polite"
@@ -193,7 +195,7 @@ export function FishVoiceActions({
               className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2 text-xs"
             >
               <span className="font-medium">
-                {actionLabels[action.name] || "Azione dell’agente"}
+                {actionLabels[action.name] ? t(actionLabels[action.name]) : t("Azione dell’agente")}
               </span>
               <span
                 className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 ${outcomeStyles[state]}`}
@@ -202,7 +204,7 @@ export function FishVoiceActions({
                   aria-hidden="true"
                   className={`size-3.5 ${state === "pending" ? "motion-safe:animate-spin" : ""}`}
                 />
-                {label}
+                {t(label)}
               </span>
             </li>
           );

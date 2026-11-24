@@ -6,6 +6,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { TemplateManagerDialog } from "./TemplateManagerDialog";
 import { Settings2 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface EmailTemplatePickerProps {
   onApply: (template: { subject: string; body_text: string }) => void;
@@ -20,6 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function EmailTemplatePicker({ onApply }: EmailTemplatePickerProps) {
+  const tr = useT();
   const { templates, isLoading, isError } = useCompanyEmailTemplates();
   const [managerOpen, setManagerOpen] = useState(false);
   const [selected, setSelected] = useState<string>("");
@@ -51,23 +53,23 @@ export function EmailTemplatePicker({ onApply }: EmailTemplatePickerProps) {
       <div className="flex items-center gap-1.5">
         {isError ? (
           <span className="text-[11px] text-muted-foreground italic flex-1">
-            Template non disponibili (errore).
+            {tr("Template non disponibili (errore).")}
           </span>
         ) : templates.length === 0 && !isLoading ? (
           <span className="text-[11px] text-muted-foreground italic flex-1">
-            Nessun template —{" "}
+            {tr("Nessun template —")}{" "}
             <button
               type="button"
               className="underline text-blue-600 hover:text-blue-700"
               onClick={() => setManagerOpen(true)}
             >
-              crea il primo
+              {tr("crea il primo")}
             </button>
           </span>
         ) : (
           <Select value={selected} onValueChange={handleSelect}>
             <SelectTrigger className="h-8 text-xs flex-1 bg-slate-50 border-slate-200">
-              <SelectValue placeholder="Usa un template…" />
+              <SelectValue placeholder={tr("Usa un template…")} />
             </SelectTrigger>
             <SelectContent>
               {categories.map((cat) => (
@@ -95,7 +97,7 @@ export function EmailTemplatePicker({ onApply }: EmailTemplatePickerProps) {
           variant="ghost"
           className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
           onClick={() => setManagerOpen(true)}
-          title="Gestisci template email"
+          title={tr("Gestisci template email")}
         >
           <Settings2 className="h-3.5 w-3.5" />
         </Button>

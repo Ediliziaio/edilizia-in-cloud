@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import type { RicaviProvenienza } from "@/hooks/controlloGestione/useCEriclassificato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AvvisoRicaviCommesseProps {
   provenienza: RicaviProvenienza | null | undefined;
@@ -34,8 +35,9 @@ export function AvvisoRicaviCommesse({
   periodoLabel,
   anno,
 }: AvvisoRicaviCommesseProps) {
+  const t = useT();
   if (!serveAvvisoRicavi(provenienza) || !provenienza) return null;
-  const periodo = periodoLabel === "Anno completo" ? String(anno) : `${periodoLabel} ${anno}`;
+  const periodo = periodoLabel === "Anno completo" ? String(anno) : `${t(periodoLabel)} ${anno}`;
 
   return (
     <Card className="rounded-2xl border-amber-300 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/30">
@@ -43,21 +45,14 @@ export function AvvisoRicaviCommesse({
         <div className="flex gap-3">
           <FileText className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="space-y-1 text-sm">
-            <p className="font-medium">
-              Nessuna fattura emessa nel periodo {periodo}: senza fatture i ricavi non si
-              possono calcolare.
-            </p>
+            <p className="font-medium">{t("Nessuna fattura emessa nel periodo {periodo}: senza fatture i ricavi non si possono calcolare.", { periodo: String(periodo ?? "") })}</p>
             <p className="text-muted-foreground">
-              Hai {provenienza.commesse_righe}{" "}
-              {provenienza.commesse_righe === 1 ? "commessa" : "commesse"} per{" "}
-              {formatCurrency(provenienza.commesse_valore)}: è il portafoglio, non un ricavo —
-              il ricavo nasce quando fatturi. Emetti le fatture in EiC, o importale, e il conto
-              economico si popola da solo.
+              {(provenienza.commesse_righe === 1 ? t("Hai {n} commessa per {importo}: è il portafoglio, non un ricavo — il ricavo nasce quando fatturi. Emetti le fatture in EiC, o importale, e il conto economico si popola da solo.", { n: provenienza.commesse_righe, importo: formatCurrency(provenienza.commesse_valore) }) : t("Hai {n} commesse per {importo}: è il portafoglio, non un ricavo — il ricavo nasce quando fatturi. Emetti le fatture in EiC, o importale, e il conto economico si popola da solo.", { n: provenienza.commesse_righe, importo: formatCurrency(provenienza.commesse_valore) }))}
             </p>
           </div>
         </div>
         <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link to="/azienda/fatturazione">Vai a Fatturazione</Link>
+          <Link to="/azienda/fatturazione">{t("Vai a Fatturazione")}</Link>
         </Button>
       </CardContent>
     </Card>

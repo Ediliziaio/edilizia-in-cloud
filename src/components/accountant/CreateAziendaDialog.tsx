@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Building2, Loader2, Plus, Info } from "lucide-react";
 import { accountantKeys } from "@/hooks/accountant/useAccountantPortalData";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Dialog del COMMERCIALISTA per creare una nuova azienda cliente, auto-associata
@@ -22,6 +23,7 @@ export function CreateAziendaDialog({
   onOpenChange: (v: boolean) => void;
   firmId: string | null;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [nome, setNome] = useState("");
   const [piva, setPiva] = useState("");
@@ -31,9 +33,9 @@ export function CreateAziendaDialog({
   const crea = useMutation({
     mutationFn: async () => {
       const n = nome.trim();
-      if (!n) throw new Error("Inserisci il nome dell'azienda");
+      if (!n) throw new Error(t("Inserisci il nome dell'azienda"));
       const e = email.trim().toLowerCase();
-      if (e && !/^\S+@\S+\.\S+$/.test(e)) throw new Error("Email admin non valida");
+      if (e && !/^\S+@\S+\.\S+$/.test(e)) throw new Error(t("Email admin non valida"));
       const { data, error } = await supabase.functions.invoke("create-accountant-company", {
         body: { name: n, vat_number: piva.trim() || null, fiscal_code: cf.trim() || null, admin_email: e || null },
       });
@@ -42,11 +44,11 @@ export function CreateAziendaDialog({
       if (r && r.success === false) throw new Error(r.error ?? "Creazione fallita");
     },
     onSuccess: () => {
-      toast.success("Azienda creata", { description: "È stata associata al tuo studio." });
+      toast.success(t("Azienda creata"), { description: t("È stata associata al tuo studio.") });
       onOpenChange(false);
       qc.invalidateQueries({ queryKey: accountantKeys.companies(firmId) });
     },
-    onError: (e) => toast.error("Creazione fallita", { description: (e as Error).message }),
+    onError: (e) => toast.error(t("Creazione fallita"), { description: (e as Error).message }),
   });
 
   return (
@@ -54,46 +56,45 @@ export function CreateAziendaDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" /> Nuova azienda cliente
+            <Building2 className="h-5 w-5" /> {t("Nuova azienda cliente")}
           </DialogTitle>
           <DialogDescription>
-            Crea un'azienda e associala subito al tuo studio, con accesso operativo.
+            {t("Crea un'azienda e associala subito al tuo studio, con accesso operativo.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="a-nome">Nome azienda</Label>
-            <Input id="a-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder="Es. Rossi Costruzioni S.r.l." />
+            <Label htmlFor="a-nome">{t("Nome azienda")}</Label>
+            <Input id="a-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder={t("Es. Rossi Costruzioni S.r.l.")} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <Label htmlFor="a-piva">P.IVA <span className="text-muted-foreground">(opz.)</span></Label>
+              <Label htmlFor="a-piva">P.IVA <span className="text-muted-foreground">{t("(opz.)")}</span></Label>
               <Input id="a-piva" value={piva} onChange={(e) => setPiva(e.target.value)} placeholder="IT01234567890" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="a-cf">Cod. Fiscale <span className="text-muted-foreground">(opz.)</span></Label>
+              <Label htmlFor="a-cf">{t("Cod. Fiscale")} <span className="text-muted-foreground">{t("(opz.)")}</span></Label>
               <Input id="a-cf" value={cf} onChange={(e) => setCf(e.target.value)} placeholder="RSSMRA…" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="a-email">Email admin cliente <span className="text-muted-foreground">(opz.)</span></Label>
+            <Label htmlFor="a-email">{t("Email admin cliente")} <span className="text-muted-foreground">{t("(opz.)")}</span></Label>
             <Input id="a-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="titolare@azienda.it" />
           </div>
           <div className="flex gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-800">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              L&apos;azienda nasce in <strong>prova</strong> con il tuo <strong>accesso operativo</strong>. Se inserisci
-              un&apos;email, il titolare riceve un invito per accedere; altrimenti la gestisci solo tu.
+              {t("L'azienda nasce in")} <strong>{t("prova")}</strong> {t("con il tuo")} <strong>{t("accesso operativo")}</strong>{t(". Se inserisci un'email, il titolare riceve un invito per accedere; altrimenti la gestisci solo tu.")}
             </span>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={crea.isPending}>Annulla</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={crea.isPending}>{t("Annulla")}</Button>
           <Button onClick={() => crea.mutate()} disabled={crea.isPending || !nome.trim()} className="gap-1.5">
             {crea.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Crea azienda
+            {t("Crea azienda")}
           </Button>
         </DialogFooter>
       </DialogContent>

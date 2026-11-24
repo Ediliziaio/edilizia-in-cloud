@@ -2,8 +2,10 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
 import { AlertTriangle, GitBranch, Check, X } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function ConditionNodeComponent({ data, selected }: NodeProps) {
+  const t = useT();
   const catalog = getCatalogItem(data.itemId as string);
   const logica = (data.operatore_logico as string) || "AND";
 
@@ -19,7 +21,7 @@ function ConditionNodeComponent({ data, selected }: NodeProps) {
           <GitBranch className="h-4 w-4" />
         </div>
         <span className="flex-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-          Se / Altrimenti
+          {t("Se / Altrimenti")}
         </span>
         <span className="rounded bg-amber-200 dark:bg-amber-800 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300">
           {logica}
@@ -31,19 +33,19 @@ function ConditionNodeComponent({ data, selected }: NodeProps) {
 
       {/* Body */}
       <div className="px-3 py-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Condizione</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t("Condizione")}</p>
         <p className="truncate text-sm font-medium text-foreground mt-0.5">
-          {(data.label as string) || catalog?.label || "Configura condizione..."}
+          {(data.label as string) || (catalog?.label ? t(catalog.label) : t("Configura condizione..."))}
         </p>
       </div>
 
       {/* Branch labels */}
       <div className="flex justify-between px-4 pb-2 text-[10px] font-bold">
         <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
-          <Check className="h-3 w-3" /> Si
+          <Check className="h-3 w-3" /> {t("Si")}
         </span>
         <span className="flex items-center gap-0.5 text-red-500 dark:text-red-400">
-          <X className="h-3 w-3" /> No
+          <X className="h-3 w-3" /> {t("No")}
         </span>
       </div>
 

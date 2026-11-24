@@ -20,6 +20,7 @@ import { Loader2, Download, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { composePost } from "@/lib/creativita/composePost";
 import type { CreativeAspect } from "../../../supabase/functions/_shared/brandCreativeRules";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function PostComposerDialog({ open, onOpenChange, imageUrl, aspect }: Props) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const [headline, setHeadline] = useState("");
   const [cta, setCta] = useState("");
@@ -85,8 +87,8 @@ export function PostComposerDialog({ open, onOpenChange, imageUrl, aspect }: Pro
         setAnteprima(res.previewUrl);
       } catch (e) {
         if (!annullato) {
-          toast.error("Anteprima non disponibile", {
-            description: e instanceof Error ? e.message : "Riprova tra poco.",
+          toast.error(tr("Anteprima non disponibile"), {
+            description: e instanceof Error ? e.message : tr("Riprova tra poco."),
           });
         }
       } finally {
@@ -116,7 +118,7 @@ export function PostComposerDialog({ open, onOpenChange, imageUrl, aspect }: Pro
     a.download = `post-${aspect.replace(":", "x")}-${Date.now()}.png`;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast.success("Post scaricato");
+    toast.success(tr("Post scaricato"));
   };
 
   return (
@@ -124,14 +126,14 @@ export function PostComposerDialog({ open, onOpenChange, imageUrl, aspect }: Pro
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wand2 className="h-4 w-4" /> Prepara il post
+            <Wand2 className="h-4 w-4" /> {tr("Prepara il post")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-5 md:grid-cols-[1fr_260px]">
           <div className="relative rounded-lg overflow-hidden bg-slate-100 min-h-[220px] flex items-center justify-center">
             {anteprima ? (
-              <img src={anteprima} alt="Anteprima del post" className="w-full h-auto" />
+              <img src={anteprima} alt={tr("Anteprima del post")} className="w-full h-auto" />
             ) : (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             )}
@@ -144,42 +146,42 @@ export function PostComposerDialog({ open, onOpenChange, imageUrl, aspect }: Pro
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="headline" className="text-sm">Titolo</Label>
+              <Label htmlFor="headline" className="text-sm">{tr("Titolo")}</Label>
               <Input
                 id="headline"
                 value={headline}
                 onChange={(e) => setHeadline(e.target.value)}
-                placeholder="Es. Bagno chiavi in mano"
+                placeholder={tr("Es. Bagno chiavi in mano")}
                 maxLength={60}
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Poche parole: al telefono si legge in un secondo.</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{tr("Poche parole: al telefono si legge in un secondo.")}</p>
             </div>
             <div>
-              <Label htmlFor="cta" className="text-sm">Richiamo</Label>
+              <Label htmlFor="cta" className="text-sm">{tr("Richiamo")}</Label>
               <Input
                 id="cta"
                 value={cta}
                 onChange={(e) => setCta(e.target.value)}
-                placeholder="Es. Preventivo gratuito"
+                placeholder={tr("Es. Preventivo gratuito")}
                 maxLength={40}
               />
             </div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="posizione" className="text-sm font-normal">Testo in alto</Label>
+              <Label htmlFor="posizione" className="text-sm font-normal">{tr("Testo in alto")}</Label>
               <Switch id="posizione" checked={inAlto} onCheckedChange={setInAlto} />
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="logo" className="text-sm font-normal">
-                Mostra il logo
-                {!brand?.logo_url && <span className="block text-[11px] text-muted-foreground">Nessun logo caricato</span>}
+                {tr("Mostra il logo")}
+                {!brand?.logo_url && <span className="block text-[11px] text-muted-foreground">{tr("Nessun logo caricato")}</span>}
               </Label>
               <Switch id="logo" checked={conLogo} onCheckedChange={setConLogo} disabled={!brand?.logo_url} />
             </div>
             <Button onClick={scarica} disabled={!blobRef.current} className="w-full">
-              <Download className="h-4 w-4 mr-1.5" /> Scarica il post
+              <Download className="h-4 w-4 mr-1.5" /> {tr("Scarica il post")}
             </Button>
             <p className="text-[11px] text-muted-foreground">
-              Formato pronto per la pubblicazione: l'immagine viene adattata alla misura esatta del social.
+              {tr("Formato pronto per la pubblicazione: l'immagine viene adattata alla misura esatta del social.")}
             </p>
           </div>
         </div>

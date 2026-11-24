@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, X, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -18,6 +17,7 @@ import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { filterRange } from "../../../../supabase/functions/_shared/automationFilters";
 import { useQuery } from "@tanstack/react-query";
 import { multipleFieldValues } from "@/lib/custom-fields/values";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   field: TriggerFieldDef | undefined;
@@ -29,6 +29,7 @@ interface Props {
 }
 
 export function ConditionValueInput({ field, operator, value, onChange, hasError, companyId }: Props) {
+  const t = useT();
   if (!field || !operator || NO_VALUE_OPERATORS.includes(operator)) {
     return null;
   }
@@ -47,7 +48,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
         <DatePickerInput
           value={dates.from}
           onChange={(d) => onChange({ ...dates, from: d })}
-          placeholder="Da"
+          placeholder={t("Da")}
           hasError={hasError}
         />
         <DatePickerInput
@@ -68,7 +69,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
         min={0}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Giorni..."
+        placeholder={t("Giorni...")}
         className={cn("h-8 text-xs", errorClass)}
       />
     );
@@ -89,7 +90,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
           type="number"
           value={vals.from ?? ""}
           onChange={(e) => onChange({ ...vals, from: e.target.value })}
-          placeholder="Da"
+          placeholder={t("Da")}
           className={cn("h-8 text-xs", errorClass)}
         />
         <Input
@@ -110,7 +111,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
         type="number"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Valore..."
+        placeholder={t("Valore...")}
         className={cn("h-8 text-xs", errorClass)}
       />
     );
@@ -121,7 +122,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
     return (
       <Select value={value || ""} onValueChange={onChange}>
         <SelectTrigger className={cn("h-8 text-xs", errorClass)}>
-          <SelectValue placeholder="Seleziona..." />
+          <SelectValue placeholder={t("Seleziona...")} />
         </SelectTrigger>
         <SelectContent>
           {field.options.map((opt) => (
@@ -138,7 +139,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
   if (field.type === "tags") {
     if(field.key.startsWith("custom_field.")&&field.options){
       const selected=multipleFieldValues(value);
-      return <fieldset className="flex flex-wrap gap-2" aria-label="Scelte del campo personalizzato">{field.options.map(o=><label key={o.value} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={selected.includes(o.value)} onChange={e=>onChange(e.target.checked?[...selected,o.value]:selected.filter(v=>v!==o.value))}/>{o.label}</label>)}</fieldset>;
+      return <fieldset className="flex flex-wrap gap-2" aria-label={t("Scelte del campo personalizzato")}>{field.options.map(o=><label key={o.value} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={selected.includes(o.value)} onChange={e=>onChange(e.target.checked?[...selected,o.value]:selected.filter(v=>v!==o.value))}/>{o.label}</label>)}</fieldset>;
     }
     return <TagMultiSelect value={value} onChange={onChange} companyId={companyId} hasError={hasError} />;
   }
@@ -153,7 +154,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
     <Input
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
-      placeholder="Valore..."
+      placeholder={t("Valore...")}
       className={cn("h-8 text-xs", errorClass)}
     />
   );
@@ -161,6 +162,7 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
 
 // ── Tag Multi-Select ──
 function EntityFilterSelect({ field, value, onChange, companyId, hasError }: { field: string; value: any; onChange: (value: string) => void; companyId?: string; hasError?: boolean }) {
+  const t = useT();
   const { data: options = [], isLoading, error } = useQuery({
     queryKey: ["automation-filter-options", companyId, field],
     enabled: !!companyId,
@@ -179,20 +181,21 @@ function EntityFilterSelect({ field, value, onChange, companyId, hasError }: { f
   });
   return <div className="space-y-1">
     <Select value={value || ""} onValueChange={onChange} disabled={isLoading || !!error}>
-      <SelectTrigger aria-label="Valore del filtro" className={cn("h-8 text-xs", hasError && "border-destructive")}>
-        <SelectValue placeholder={isLoading ? "Caricamento…" : "Seleziona…"} />
+      <SelectTrigger aria-label={t("Valore del filtro")} className={cn("h-8 text-xs", hasError && "border-destructive")}>
+        <SelectValue placeholder={isLoading ? t("Caricamento…") : t("Seleziona…")} />
       </SelectTrigger>
       <SelectContent>
-        {value && !options.some(o => o.id === value) && <SelectItem value={value}>Selezione non più disponibile</SelectItem>}
+        {value && !options.some(o => o.id === value) && <SelectItem value={value}>{t("Selezione non più disponibile")}</SelectItem>}
         {options.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
       </SelectContent>
     </Select>
-    {error && <p role="alert" className="text-xs text-destructive">Impossibile caricare le opzioni.</p>}
-    {!error && !isLoading && !options.length && <p className="text-xs text-muted-foreground">Nessuna opzione disponibile per questa azienda.</p>}
+    {error && <p role="alert" className="text-xs text-destructive">{t("Impossibile caricare le opzioni.")}</p>}
+    {!error && !isLoading && !options.length && <p className="text-xs text-muted-foreground">{t("Nessuna opzione disponibile per questa azienda.")}</p>}
   </div>;
 }
 
 function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; onChange: (v: any) => void; companyId?: string; hasError?: boolean }) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const {data:tags=[],isError}=useQuery({
     queryKey:["automation-filter-tags",companyId],enabled:open&&!!companyId,staleTime:60_000,
@@ -223,7 +226,7 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
 
   return (
     <div className="space-y-1">
-      {isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i tag. Riprova.</p>}
+      {isError&&<p role="alert" className="text-xs text-destructive">{tr("Impossibile leggere i tag. Riprova.")}</p>}
       {selectedTags.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedTags.map((tag) => (
@@ -243,15 +246,15 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
             size="sm"
             className={cn("h-8 text-xs w-full justify-between font-normal", hasError && "border-destructive")}
           >
-            Seleziona tag...
+            {tr("Seleziona tag...")}
             <ChevronsUpDown className="h-3 w-3 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-0" align="start">
           <Command>
-            <CommandInput placeholder="Cerca tag..." value={search} onValueChange={setSearch} className="h-8 text-xs" />
+            <CommandInput placeholder={tr("Cerca tag...")} value={search} onValueChange={setSearch} className="h-8 text-xs" />
             <CommandList>
-              <CommandEmpty className="text-xs p-2 text-center text-muted-foreground">Nessun tag trovato</CommandEmpty>
+              <CommandEmpty className="text-xs p-2 text-center text-muted-foreground">{tr("Nessun tag trovato")}</CommandEmpty>
               <CommandGroup>
                 <ScrollArea className="max-h-[160px]">
                   {filtered.map((tag) => (
@@ -276,12 +279,13 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
 
 // ── User Select ──
 function UserSelect({ value, onChange, companyId, hasError }: { value: any; onChange: (v: any) => void; companyId?: string; hasError?: boolean }) {
+  const t = useT();
   const { data: users = [] } = useCompanyStaffUsers(companyId);
 
   return (
     <Select value={value || ""} onValueChange={onChange}>
       <SelectTrigger className={cn("h-8 text-xs", hasError && "border-destructive")}>
-        <SelectValue placeholder="Seleziona utente..." />
+        <SelectValue placeholder={t("Seleziona utente...")} />
       </SelectTrigger>
       <SelectContent>
         {users.map((u) => (
@@ -295,6 +299,7 @@ function UserSelect({ value, onChange, companyId, hasError }: { value: any; onCh
 }
 
 function DatePickerInput({ value, onChange, placeholder, hasError }: { value: string; onChange: (v: string) => void; placeholder?: string; hasError?: boolean }) {
+  const t = useT();
   const parsed = value ? new Date(value.length === 10 ? value + "T12:00:00" : value) : undefined;
   const date = parsed && Number.isFinite(parsed.getTime()) ? parsed : undefined;
   return (
@@ -309,7 +314,7 @@ function DatePickerInput({ value, onChange, placeholder, hasError }: { value: st
           )}
         >
           <CalendarIcon className="h-3 w-3 mr-1" />
-          {date ? format(date, "dd/MM/yyyy", { locale: it }) : placeholder || "Seleziona..."}
+          {date ? format(date, "dd/MM/yyyy", { locale: dateFnsCampo() }) : placeholder || t("Seleziona...")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

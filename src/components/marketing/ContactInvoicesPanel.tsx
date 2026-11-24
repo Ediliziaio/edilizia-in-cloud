@@ -4,8 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, Euro } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   contactId: string;
@@ -22,6 +22,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 };
 
 export function ContactInvoicesPanel({ contactId, companyId }: Props) {
+  const t = useT();
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["contact-invoices", contactId],
     queryFn: async () => {
@@ -69,16 +70,16 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
       {invoices.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5">
           <div className="rounded-md bg-muted/50 p-2 text-center">
-            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">Fatturato</p>
-            <p className="text-xs font-semibold">€{totalInvoiced.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
+            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">{t("Fatturato")}</p>
+            <p className="text-xs font-semibold">€{totalInvoiced.toLocaleString(intlCampo(), { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2 text-center">
-            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">Incassato</p>
-            <p className="text-xs font-semibold text-emerald-600">€{totalPaid.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
+            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">{t("Incassato")}</p>
+            <p className="text-xs font-semibold text-emerald-600">€{totalPaid.toLocaleString(intlCampo(), { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2 text-center">
-            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">Da incassare</p>
-            <p className="text-xs font-semibold text-amber-600">€{totalOutstanding.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
+            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">{t("Da incassare")}</p>
+            <p className="text-xs font-semibold text-amber-600">€{totalOutstanding.toLocaleString(intlCampo(), { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
         </div>
       )}
@@ -102,22 +103,20 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
                   </span>
                 </div>
                 <Badge variant={st.variant} className="text-[9px] h-4 px-1.5 shrink-0">
-                  {st.label}
+                  {t(st.label)}
                 </Badge>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                  {inv.issue_date ? format(new Date(inv.issue_date), "dd MMM yyyy", { locale: it }) : "—"}
+                  {inv.issue_date ? format(new Date(inv.issue_date), "dd MMM yyyy", { locale: dateFnsCampo() }) : "—"}
                 </span>
                 <div className="flex items-center gap-1">
                   <Euro className="h-3 w-3 text-muted-foreground" />
                   <span className="text-[11px] font-medium">
-                    {(inv.total || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
+                    {(inv.total || 0).toLocaleString(intlCampo(), { minimumFractionDigits: 2, useGrouping: true })}
                   </span>
                   {remaining > 0 && inv.status !== "paid" && inv.status !== "credited" && (
-                    <span className="text-[9px] text-amber-600 ml-1 max-md:text-[11px]">
-                      (res. €{remaining.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })})
-                    </span>
+                    <span className="text-[9px] text-amber-600 ml-1 max-md:text-[11px]">{t("(res. €{remaining})", { remaining: remaining.toLocaleString(intlCampo(), { minimumFractionDigits: 0, useGrouping: true }) })}</span>
                   )}
                 </div>
               </div>
@@ -125,7 +124,7 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
           );
         })}
         {invoices.length === 0 && (
-          <p className="text-[11px] text-muted-foreground text-center py-6">Nessuna fattura collegata</p>
+          <p className="text-[11px] text-muted-foreground text-center py-6">{t("Nessuna fattura collegata")}</p>
         )}
       </div>
     </div>

@@ -70,9 +70,10 @@ import {
 } from "@/lib/fotovoltaico/collegaListino";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const eur = (n: number | null | undefined) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n ?? 0);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(n ?? 0);
 
 type TipoFv =
   | "pannello"
@@ -148,6 +149,7 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function ComponentiFv() {
+  const tr = useT();
   const { role } = useAuth();
   const permessi = usePermissions();
   // I componenti li modifica chi può modificare le opportunità o il listino, o
@@ -175,16 +177,16 @@ export default function ComponentiFv() {
   const handleSyncNow = async () => {
     try {
       const n = await syncListino.mutateAsync();
-      toast.success(`Sincronizzazione completata: ${n} componenti allineati dal listino`);
+      toast.success(tr("Sincronizzazione completata: {n} componenti allineati dal listino", { n: String(n ?? "") }));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Sincronizzazione non riuscita");
+      toast.error(e instanceof Error ? e.message : tr("Sincronizzazione non riuscita"));
     }
   };
 
   // Upload foto componente → bucket fv-progetti, signed URL 1 anno (come i template).
   const handleImgUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
-    if (file.size > 8 * 1024 * 1024) return toast.error("File troppo grande (max 8 MB)");
+    if (!file.type.startsWith("image/")) return toast.error(tr("Carica un file immagine"));
+    if (file.size > 8 * 1024 * 1024) return toast.error(tr("File troppo grande (max 8 MB)"));
     setUploadingImg(true);
     try {
       const userId = (await supabase.auth.getUser()).data.user?.id;
@@ -206,9 +208,9 @@ export default function ComponentiFv() {
         .from("fv-progetti")
         .createSignedUrl(path, 60 * 60 * 24 * 365);
       setForm((f) => ({ ...f, immagine_url: signed?.signedUrl ?? "" }));
-      toast.success("Foto caricata.");
+      toast.success(tr("Foto caricata."));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore upload");
+      toast.error(e instanceof Error ? e.message : tr("Errore upload"));
     } finally {
       setUploadingImg(false);
       if (imgInputRef.current) imgInputRef.current.value = "";
@@ -260,7 +262,7 @@ export default function ComponentiFv() {
 
   const salva = async () => {
     if (!form.descrizione.trim()) {
-      toast.error("Inserisci una descrizione per il componente");
+      toast.error(tr("Inserisci una descrizione per il componente"));
       return;
     }
     // Prima: Number(testo.replace(",", ".")) — "1.200,50" diventava NaN e si
@@ -268,13 +270,13 @@ export default function ComponentiFv() {
     // dell'app, e un testo che non è un numero ferma il salvataggio.
     const prezzoLetto = leggiNumeroComponente(form.prezzo_vendita);
     if (prezzoLetto === null) {
-      toast.error("Prezzo di vendita non valido", { description: "Scrivi un numero, per esempio 1200 o 1.200,50" });
+      toast.error(tr("Prezzo di vendita non valido"), { description: tr("Scrivi un numero, per esempio 1200 o 1.200,50") });
       return;
     }
     const prezzo = prezzoLetto ?? 0;
     const specLetto = leggiNumeroComponente(form.spec);
     if (specLetto === null) {
-      toast.error("Valore tecnico non valido", { description: "Scrivi un numero, per esempio 3,68" });
+      toast.error(tr("Valore tecnico non valido"), { description: tr("Scrivi un numero, per esempio 3,68") });
       return;
     }
     const specNum = specLetto ?? null;
@@ -283,7 +285,7 @@ export default function ComponentiFv() {
     const larghezzaLetta = form.categoria_fv === "pannello" ? leggiNumeroComponente(form.larghezza_mm) : undefined;
     const misuraStorta = (v: number | null | undefined) => v === null || (v != null && (v < 500 || v > 3200));
     if (misuraStorta(lunghezzaLetta) || misuraStorta(larghezzaLetta)) {
-      toast.error("Misure del pannello non valide", { description: "Scrivi i millimetri, per esempio 1722 e 1134" });
+      toast.error(tr("Misure del pannello non valide"), { description: tr("Scrivi i millimetri, per esempio 1722 e 1134") });
       return;
     }
     const specField = tipoMeta(form.categoria_fv)?.specField ?? null;
@@ -302,10 +304,10 @@ export default function ComponentiFv() {
         ...(form.categoria_fv === "pannello" ? { lunghezza_mm: lunghezzaLetta ?? null, larghezza_mm: larghezzaLetta ?? null } : {}),
         immagine_url: form.immagine_url || null,
       });
-      toast.success(form.id ? "Componente aggiornato" : "Componente aggiunto al catalogo FV");
+      toast.success(form.id ? tr("Componente aggiornato") : tr("Componente aggiunto al catalogo FV"));
       setOpen(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Salvataggio non riuscito");
+      toast.error(e instanceof Error ? e.message : tr("Salvataggio non riuscito"));
     }
   };
 
@@ -313,7 +315,7 @@ export default function ComponentiFv() {
     try {
       await toggle.mutateAsync({ id: a.id, attivo: !a.attivo });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Operazione non riuscita");
+      toast.error(e instanceof Error ? e.message : tr("Operazione non riuscita"));
     }
   };
 
@@ -324,12 +326,11 @@ export default function ComponentiFv() {
       <div className="relative overflow-hidden text-white" style={{ background: "linear-gradient(135deg, #1E3A5F 0%, #2C5184 100%)" }}>
         <div className="relative max-w-[1200px] mx-auto px-4 sm:px-8 py-5 sm:py-7">
           <Link to="/azienda/marketing/fotovoltaico" className="inline-flex items-center gap-1 text-xs font-medium text-blue-100/90 hover:text-white mb-2">
-            <ArrowLeft className="h-3.5 w-3.5" /> Torna al Fotovoltaico
+            <ArrowLeft className="h-3.5 w-3.5" /> {tr("Torna al Fotovoltaico")}
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Componenti FV</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{tr("Componenti FV")}</h1>
           <p className="text-sm text-blue-100 mt-1 max-w-2xl">
-            Pannelli, inverter, accumuli e gli altri componenti che il wizard usa nella Fase 5 (Configurazione).
-            Collega le macrocategorie del tuo listino al preventivatore: i prodotti si sincronizzano da soli.
+            {tr("Pannelli, inverter, accumuli e gli altri componenti che il wizard usa nella Fase 5 (Configurazione). Collega le macrocategorie del tuo listino al preventivatore: i prodotti si sincronizzano da soli.")}
           </p>
         </div>
       </div>
@@ -344,21 +345,21 @@ export default function ComponentiFv() {
               className="gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${syncListino.isPending ? "animate-spin" : ""}`} />
-              {syncListino.isPending ? "Sincronizzazione…" : "Sincronizza ora"}
+              {syncListino.isPending ? tr("Sincronizzazione…") : tr("Sincronizza ora")}
             </Button>
             {gestore && (
               <Button variant="outline" onClick={() => setCollegaOpen(true)} className="gap-2">
-                <Link2 className="h-4 w-4" /> Collega dal listino
+                <Link2 className="h-4 w-4" /> {tr("Collega dal listino")}
               </Button>
             )}
             <Button onClick={openNew} className="gap-2">
-              <Plus className="h-4 w-4" /> Aggiungi componente
+              <Plus className="h-4 w-4" /> {tr("Aggiungi componente")}
             </Button>
           </div>
         )}
 
         {isLoading ? (
-          <p className="text-sm text-slate-500">Caricamento…</p>
+          <p className="text-sm text-slate-500">{tr("Caricamento…")}</p>
         ) : (
           grouped.map(({ tipo, items }) => {
             const Icon = tipo.icon;
@@ -371,7 +372,7 @@ export default function ComponentiFv() {
                 </div>
                 {items.length === 0 ? (
                   <Card className="p-4 text-sm text-slate-500 border-dashed">
-                    Nessun {tipo.label.toLowerCase()} nel catalogo.{puoModificare && " Aggiungine uno per renderlo selezionabile nel wizard."}
+                    {tr("Nessun")} {tipo.label.toLowerCase()} {tr("nel catalogo.")}{puoModificare && ` ${tr("Aggiungine uno per renderlo selezionabile nel wizard.")}`}
                   </Card>
                 ) : (
                   <div className="space-y-2">
@@ -385,20 +386,20 @@ export default function ComponentiFv() {
                             )}
                             {a.listino_family_id && (
                               <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700 gap-1">
-                                <Link2 className="h-2.5 w-2.5" /> Dal listino
+                                <Link2 className="h-2.5 w-2.5" /> {tr("Dal listino")}
                               </Badge>
                             )}
-                            {!a.attivo && <Badge variant="secondary" className="text-[10px]">Disattivato</Badge>}
+                            {!a.attivo && <Badge variant="secondary" className="text-[10px]">{tr("Disattivato")}</Badge>}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5 flex gap-3 flex-wrap">
                             <span className="font-medium text-slate-600">{specDi(a)}</span>
                             <span>{eur(a.prezzo_vendita)}</span>
-                            {a.codice && <span className="text-slate-400">cod. {a.codice}</span>}
+                            {a.codice && <span className="text-slate-400">{tr("cod. {codice}", { codice: String(a.codice ?? "") })}</span>}
                           </div>
                         </div>
-                        <Switch checked={a.attivo} disabled={!puoModificare} onCheckedChange={() => onToggle(a)} aria-label="Attivo" />
+                        <Switch checked={a.attivo} disabled={!puoModificare} onCheckedChange={() => onToggle(a)} aria-label={tr("Attivo")} />
                         {puoModificare && (
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(a)} aria-label="Modifica">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(a)} aria-label={tr("Modifica")}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         )}
@@ -415,17 +416,17 @@ export default function ComponentiFv() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{form.id ? "Modifica componente" : "Nuovo componente FV"}</DialogTitle>
+            <DialogTitle>{form.id ? tr("Modifica componente") : tr("Nuovo componente FV")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <Label className="mb-1.5 block">Tipo</Label>
+              <Label className="mb-1.5 block">{tr("Tipo")}</Label>
               <Select value={form.categoria_fv} onValueChange={(v) => setForm((f) => ({ ...f, categoria_fv: v as TipoFv }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TIPI.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -435,21 +436,21 @@ export default function ComponentiFv() {
             {!form.id && (
               <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-600 mb-2">
-                  <Package className="h-3.5 w-3.5" /> Precompila dal listino (opzionale)
+                  <Package className="h-3.5 w-3.5" /> {tr("Precompila dal listino (opzionale)")}
                 </div>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
                     value={listinoSearch}
                     onChange={(e) => setListinoSearch(e.target.value)}
-                    placeholder="Cerca un prodotto del listino…"
+                    placeholder={tr("Cerca un prodotto del listino…")}
                     className="pl-8"
                   />
                 </div>
                 {listinoSearch.trim() && (
                   <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
                     {listino.length === 0 ? (
-                      <p className="text-xs text-slate-400 px-1 py-2">Nessun prodotto trovato.</p>
+                      <p className="text-xs text-slate-400 px-1 py-2">{tr("Nessun prodotto trovato.")}</p>
                     ) : (
                       listino.map((l) => (
                         <button
@@ -469,17 +470,17 @@ export default function ComponentiFv() {
             )}
 
             <div>
-              <Label className="mb-1.5 block">Descrizione *</Label>
-              <Input value={form.descrizione} onChange={(e) => setForm((f) => ({ ...f, descrizione: e.target.value }))} placeholder="es. Modulo 540W monocristallino" />
+              <Label className="mb-1.5 block">{tr("Descrizione *")}</Label>
+              <Input value={form.descrizione} onChange={(e) => setForm((f) => ({ ...f, descrizione: e.target.value }))} placeholder={tr("es. Modulo 540W monocristallino")} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1.5 block">Marca</Label>
+                <Label className="mb-1.5 block">{tr("Marca")}</Label>
                 <Input value={form.marca_fv} onChange={(e) => setForm((f) => ({ ...f, marca_fv: e.target.value }))} />
               </div>
               <div>
-                <Label className="mb-1.5 block">Modello</Label>
+                <Label className="mb-1.5 block">{tr("Modello")}</Label>
                 <Input value={form.modello_fv} onChange={(e) => setForm((f) => ({ ...f, modello_fv: e.target.value }))} />
               </div>
             </div>
@@ -492,34 +493,34 @@ export default function ComponentiFv() {
                 </div>
               )}
               <div>
-                <Label className="mb-1.5 block">Prezzo di vendita (€)</Label>
+                <Label className="mb-1.5 block">{tr("Prezzo di vendita (€)")}</Label>
                 <Input inputMode="decimal" value={form.prezzo_vendita} onChange={(e) => setForm((f) => ({ ...f, prezzo_vendita: e.target.value }))} placeholder="0,00" />
               </div>
             </div>
 
             {form.categoria_fv === "pannello" && (
               <div>
-                <Label className="mb-1.5 block">Misure del pannello, in mm (per il piano di posa sul tetto)</Label>
+                <Label className="mb-1.5 block">{tr("Misure del pannello, in mm (per il piano di posa sul tetto)")}</Label>
                 <div className="grid grid-cols-2 gap-3">
-                  <Input inputMode="numeric" aria-label="Lunghezza del pannello in millimetri" value={form.lunghezza_mm} onChange={(e) => setForm((f) => ({ ...f, lunghezza_mm: e.target.value }))} placeholder="Lunghezza, es. 1722" />
-                  <Input inputMode="numeric" aria-label="Larghezza del pannello in millimetri" value={form.larghezza_mm} onChange={(e) => setForm((f) => ({ ...f, larghezza_mm: e.target.value }))} placeholder="Larghezza, es. 1134" />
+                  <Input inputMode="numeric" aria-label={tr("Lunghezza del pannello in millimetri")} value={form.lunghezza_mm} onChange={(e) => setForm((f) => ({ ...f, lunghezza_mm: e.target.value }))} placeholder={tr("Lunghezza, es. 1722")} />
+                  <Input inputMode="numeric" aria-label={tr("Larghezza del pannello in millimetri")} value={form.larghezza_mm} onChange={(e) => setForm((f) => ({ ...f, larghezza_mm: e.target.value }))} placeholder={tr("Larghezza, es. 1134")} />
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">Sono sulla scheda tecnica. Se le lasci vuote, il piano stima le misure dalla potenza.</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{tr("Sono sulla scheda tecnica. Se le lasci vuote, il piano stima le misure dalla potenza.")}</p>
               </div>
             )}
 
             <div>
-              <Label className="mb-1.5 block">Codice (opzionale)</Label>
+              <Label className="mb-1.5 block">{tr("Codice (opzionale)")}</Label>
               <Input value={form.codice} onChange={(e) => setForm((f) => ({ ...f, codice: e.target.value }))} />
             </div>
 
             <div>
-              <Label className="mb-1.5 block">Foto prodotto (opzionale)</Label>
+              <Label className="mb-1.5 block">{tr("Foto prodotto (opzionale)")}</Label>
               <div className="flex items-center gap-3">
                 {form.immagine_url ? (
                   <img
                     src={form.immagine_url}
-                    alt="Foto componente"
+                    alt={tr("Foto componente")}
                     className="h-14 w-20 rounded object-cover border border-slate-200"
                   />
                 ) : (
@@ -542,7 +543,7 @@ export default function ComponentiFv() {
                   disabled={uploadingImg}
                   onClick={() => imgInputRef.current?.click()}
                 >
-                  {uploadingImg ? "Caricamento…" : form.immagine_url ? "Cambia" : "Carica foto"}
+                  {uploadingImg ? tr("Caricamento…") : form.immagine_url ? tr("Cambia") : tr("Carica foto")}
                 </Button>
                 {form.immagine_url && (
                   <Button
@@ -552,12 +553,12 @@ export default function ComponentiFv() {
                     className="text-red-500 hover:text-red-600"
                     onClick={() => setForm((f) => ({ ...f, immagine_url: "" }))}
                   >
-                    Rimuovi
+                    {tr("Rimuovi")}
                   </Button>
                 )}
               </div>
               <p className="mt-1 text-[11px] text-slate-400">
-                Comparirà accanto al componente nella pagina "Componenti" del preventivo PDF.
+                {tr("Comparirà accanto al componente nella pagina \"Componenti\" del preventivo PDF.")}
               </p>
             </div>
           </div>
@@ -571,14 +572,14 @@ export default function ComponentiFv() {
             </div>
           ) : (
             <p className="border-t pt-3 text-[11px] text-muted-foreground">
-              Salva il componente per poter caricare le sue schede tecniche PDF.
+              {tr("Salva il componente per poter caricare le sue schede tecniche PDF.")}
             </p>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>{tr("Annulla")}</Button>
             <Button onClick={salva} disabled={upsert.isPending}>
-              {upsert.isPending ? "Salvataggio…" : form.id ? "Salva modifiche" : "Aggiungi"}
+              {upsert.isPending ? tr("Salvataggio…") : form.id ? tr("Salva modifiche") : tr("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -614,6 +615,7 @@ function CollegaListinoDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const tr = useT();
   const { data: macros = [], isLoading } = useMacroListinoFv(open);
   const collega = useCollegaMacroFv();
   // `rows` contiene SOLO gli override utente; il valore mostrato per ogni
@@ -661,11 +663,11 @@ function CollegaListinoDialog({
       });
       const sincronizzati = await collega.mutateAsync(payload);
       toast.success(
-        `Listino collegato: ${fvCollegate.length} macrocategorie FV — ${sincronizzati} componenti sincronizzati`,
+        tr("Listino collegato: {n} macrocategorie FV — {sincronizzati} componenti sincronizzati", { n: fvCollegate.length, sincronizzati: String(sincronizzati ?? "") }),
       );
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Collegamento non riuscito");
+      toast.error(e instanceof Error ? e.message : tr("Collegamento non riuscito"));
     }
   };
 
@@ -674,20 +676,18 @@ function CollegaListinoDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-orange-500" /> Collega dal listino
+            <Link2 className="h-4 w-4 text-orange-500" /> {tr("Collega dal listino")}
           </DialogTitle>
           <DialogDescription>
-            Classifica le macrocategorie del listino una volta sola: quelle con tipologia
-            "Fotovoltaico" + componente vengono sincronizzate automaticamente nel
-            preventivatore FV (anche per i prodotti aggiunti in futuro).
+            {tr("Classifica le macrocategorie del listino una volta sola: quelle con tipologia \"Fotovoltaico\" + componente vengono sincronizzate automaticamente nel preventivatore FV (anche per i prodotti aggiunti in futuro).")}
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
-          <p className="text-sm text-slate-500 py-6 text-center">Caricamento listino…</p>
+          <p className="text-sm text-slate-500 py-6 text-center">{tr("Caricamento listino…")}</p>
         ) : macros.length === 0 ? (
           <p className="text-sm text-slate-500 py-6 text-center">
-            Nessuna macrocategoria nel listino. Crea prima il listino in Impostazioni → Catalogo.
+            {tr("Nessuna macrocategoria nel listino. Crea prima il listino in Impostazioni → Catalogo.")}
           </p>
         ) : (
           <div className="space-y-2">
@@ -704,16 +704,14 @@ function CollegaListinoDialog({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm text-slate-800 truncate">{m.nome}</span>
-                      {!m.attivo && <Badge variant="secondary" className="text-[10px]">Macro disattivata</Badge>}
+                      {!m.attivo && <Badge variant="secondary" className="text-[10px]">{tr("Macro disattivata")}</Badge>}
                       {r.proposta && (
                         <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">
-                          Proposta automatica
+                          {tr("Proposta automatica")}
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {m.prodottiAttivi} prodotti attivi nel listino
-                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">{tr("{prodottiAttivi} prodotti attivi nel listino", { prodottiAttivi: String(m.prodottiAttivi ?? "") })}</p>
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <Select
@@ -726,10 +724,10 @@ function CollegaListinoDialog({
                       }
                     >
                       <SelectTrigger className="w-[160px] h-9 text-xs">
-                        <SelectValue placeholder="Tipologia" />
+                        <SelectValue placeholder={tr("Tipologia")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={SELECT_NONE}>— Nessuna tipologia —</SelectItem>
+                        <SelectItem value={SELECT_NONE}>{tr("— Nessuna tipologia —")}</SelectItem>
                         {TIPOLOGIE_LISTINO.map((t) => (
                           <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                         ))}
@@ -743,10 +741,10 @@ function CollegaListinoDialog({
                         }
                       >
                         <SelectTrigger className="w-[180px] h-9 text-xs">
-                          <SelectValue placeholder="Componente FV" />
+                          <SelectValue placeholder={tr("Componente FV")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={SELECT_NONE}>— Scegli componente —</SelectItem>
+                          <SelectItem value={SELECT_NONE}>{tr("— Scegli componente —")}</SelectItem>
                           {CATEGORIE_FV_LISTINO.map((c) => (
                             <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                           ))}
@@ -764,17 +762,17 @@ function CollegaListinoDialog({
           <p className="text-xs text-slate-500">
             {fvCollegate.length > 0
               ? `${fvCollegate.length} macrocategorie collegate al preventivatore FV (${fvCollegate.reduce((s, m) => s + m.prodottiAttivi, 0)} prodotti totali).`
-              : "Nessuna macrocategoria collegata al fotovoltaico: assegna tipologia e componente."}
-            {daCollegare.length > 0 ? ` ${daCollegare.length} modifiche da salvare.` : ""}
+              : tr("Nessuna macrocategoria collegata al fotovoltaico: assegna tipologia e componente.")}
+            {daCollegare.length > 0 ? tr(" {n} modifiche da salvare.", { n: daCollegare.length }) : ""}
           </p>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={collega.isPending}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button onClick={handleSalva} disabled={collega.isPending || macros.length === 0}>
-            {collega.isPending ? "Sincronizzazione…" : "Salva e sincronizza"}
+            {collega.isPending ? tr("Sincronizzazione…") : tr("Salva e sincronizza")}
           </Button>
         </DialogFooter>
       </DialogContent>

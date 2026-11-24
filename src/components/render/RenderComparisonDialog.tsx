@@ -13,6 +13,7 @@ import { loadStoredRender } from "@/lib/render/renderSessionData";
 import { savedRenderChoices } from "@/lib/render/renderSavedChoices";
 import { RenderImage } from "./RenderDetailViewer";
 import { RenderSavedChoices } from "./RenderSavedChoices";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RenderComparisonTarget {
   id: string;
@@ -30,6 +31,7 @@ export default function RenderComparisonDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const company = effectiveCompany?.id;
   const queries = useQueries({
@@ -62,10 +64,9 @@ export default function RenderComparisonDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[94dvh] w-[96vw] max-w-7xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Confronto tra render</DialogTitle>
+          <DialogTitle>{t("Confronto tra render")}</DialogTitle>
           <DialogDescription>
-            Ogni immagine conserva le proprie scelte e la propria versione. I
-            valori diversi sono evidenziati.
+            {t("Ogni immagine conserva le proprie scelte e la propria versione. I valori diversi sono evidenziati.")}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-5 md:grid-cols-2">
@@ -89,7 +90,7 @@ export default function RenderComparisonDialog({
                 <Skeleton className="h-40 w-full" />
               ) : queries[index]?.isError || !queries[index]?.data ? (
                 <p role="alert" className="text-sm text-muted-foreground">
-                  Le scelte di questa immagine non sono disponibili.
+                  {t("Le scelte di questa immagine non sono disponibili.")}
                 </p>
               ) : (
                 <RenderSavedChoices

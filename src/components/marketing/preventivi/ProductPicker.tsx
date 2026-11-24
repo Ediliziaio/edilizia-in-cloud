@@ -29,6 +29,7 @@ import {
   prezzoProdottoCatalogo,
   categoriaProdottoCatalogo,
 } from "@/lib/preventivi/catalogoPreventivo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   category?: CatalogCategory | null;
@@ -58,6 +59,7 @@ export function ProductPicker({
   onToggleItem,
   onTutteLeAree,
 }: Props) {
+  const t = useT();
   const [cerca, setCerca] = useState("");
   const [filtroLinea, setFiltroLinea] = useState({ambito, nome:''});
   const linea = filtroLinea.ambito === ambito ? filtroLinea.nome : '';
@@ -128,7 +130,7 @@ export function ProductPicker({
   const nomeCategoria =
     category?.nome ??
     categorieNavigabili.find((c) => c.id === categoriaId)?.nome ??
-    "Tutti i prodotti";
+    t("Tutti i prodotti");
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -140,21 +142,21 @@ export function ProductPicker({
           onClick={onBack}
         >
           <ArrowLeft className="mr-1 h-4 w-4" />
-          Categorie
+          {t("Categorie")}
         </Button>
       )}
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-xl border md:grid-cols-[210px_minmax(0,1fr)]">
         {!category && (
           <aside className="hidden min-h-0 overflow-y-auto border-r bg-muted/20 p-3 md:block">
             <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Categorie
+              {t("Categorie")}
             </p>
             <nav
-              aria-label="Categorie dei prodotti"
+              aria-label={t("Categorie dei prodotti")}
               className="divide-y divide-border/60"
             >
               {[
-                { id: "", nome: "Tutti i prodotti", conteggio: items.length },
+                { id: "", nome: t("Tutti i prodotti"), conteggio: items.length },
                 ...categorieNavigabili,
               ].map((c) => (
                 <div key={c.id || "all"} className="py-1 first:pt-0 last:pb-0">
@@ -193,9 +195,9 @@ export function ProductPicker({
                 aria-hidden
               />
               <Input
-                aria-label="Cerca nel catalogo prodotti"
+                aria-label={t("Cerca nel catalogo prodotti")}
                 autoFocus={!isMobile && attivo}
-                placeholder="Cerca nome, codice, linea o marca…"
+                placeholder={t("Cerca nome, codice, linea o marca…")}
                 value={cerca}
                 onChange={(e) => {
                   setCerca(e.target.value);
@@ -206,7 +208,7 @@ export function ProductPicker({
               {cerca && (
                 <button
                   type="button"
-                  aria-label="Azzera ricerca prodotti"
+                  aria-label={t("Azzera ricerca prodotti")}
                   onClick={() => {
                     setCerca("");
                     setPagina(0);
@@ -217,19 +219,19 @@ export function ProductPicker({
                 </button>
               )}
             </div>
-            {linee.length > 0 && <UniformSelect aria-label="Filtra per linea" className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:w-52" value={linea} onChange={e=>{setFiltroLinea({ambito,nome:e.target.value});cambiaCategoria('');}}>
-              <option value="">Tutte le linee</option>
+            {linee.length > 0 && <UniformSelect aria-label={t("Filtra per linea")} className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:w-52" value={linea} onChange={e=>{setFiltroLinea({ambito,nome:e.target.value});cambiaCategoria('');}}>
+              <option value="">{t("Tutte le linee")}</option>
               {linee.map(nome=><option key={nome} value={nome}>{nome}</option>)}
             </UniformSelect>}
             </div>
             {!category && (
               <UniformSelect
-                aria-label="Filtra per categoria"
+                aria-label={t("Filtra per categoria")}
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm md:hidden"
                 value={categoriaId}
                 onChange={(e) => cambiaCategoria(e.target.value)}
               >
-                <option value="">Tutti i prodotti</option>
+                <option value="">{t("Tutti i prodotti")}</option>
                 {categorieNavigabili.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nome} ({c.conteggio})
@@ -239,14 +241,14 @@ export function ProductPicker({
             )}
             {categorieQuery.isError && (
               <p role="alert" className="text-xs text-amber-800">
-                Categorie non disponibili: puoi cercare per nome o codice.{" "}
+                {t("Categorie non disponibili: puoi cercare per nome o codice.")}{" "}
                 <Button
                   variant="link"
                   size="sm"
                   className="h-auto p-0 text-xs"
                   onClick={() => void categorieQuery.refetch()}
                 >
-                  Riprova categorie
+                  {t("Riprova categorie")}
                 </Button>
               </p>
             )}
@@ -257,7 +259,7 @@ export function ProductPicker({
               </span>
               <span role="status">
                 {isLoading
-                  ? "Caricamento…"
+                  ? t("Caricamento…")
                   : `${filtrate.length} ${filtrate.length === 1 ? "prodotto" : "prodotti"}`}
               </span>
             </div>
@@ -265,7 +267,7 @@ export function ProductPicker({
           <div
             ref={lista}
             className="min-h-0 flex-1 overflow-y-auto p-3"
-            aria-label="Prodotti del catalogo"
+            aria-label={t("Prodotti del catalogo")}
             onScroll={(e) => {
               const l = e.currentTarget;
               if (l.clientHeight > 0) posizione.current = l.scrollTop;
@@ -275,14 +277,14 @@ export function ProductPicker({
           >
             {error ? (
               <div role="alert" className="rounded-lg border p-5 text-sm">
-                <p>Il catalogo non è disponibile.</p>
+                <p>{t("Il catalogo non è disponibile.")}</p>
                 <Button
                   variant="outline"
                   className="mt-3"
                   size="sm"
                   onClick={() => void refetch?.()}
                 >
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </div>
             ) : isLoading ? (
@@ -295,7 +297,7 @@ export function ProductPicker({
               <div className="p-8 text-center">
                 <Package className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  Nessun prodotto corrisponde a categoria e ricerca.
+                  {t("Nessun prodotto corrisponde a categoria e ricerca.")}
                 </p>
                 {onTutteLeAree && (
                   <Button
@@ -304,7 +306,7 @@ export function ProductPicker({
                     className="mt-2 block w-full sm:mx-auto sm:w-auto"
                     onClick={onTutteLeAree}
                   >
-                    Cerca in tutte le aree
+                    {t("Cerca in tutte le aree")}
                   </Button>
                 )}
                 <Button
@@ -316,13 +318,13 @@ export function ProductPicker({
                     cambiaCategoria("");
                   }}
                 >
-                  Azzera i filtri
+                  {t("Azzera i filtri")}
                 </Button>
                 <LinkImpostazione
                   to="/azienda/impostazioni/listino"
                   className="block text-sm text-primary"
                 >
-                  Apri il listino prodotti
+                  {t("Apri il listino prodotti")}
                 </LinkImpostazione>
               </div>
             ) : (
@@ -339,7 +341,7 @@ export function ProductPicker({
                           <input
                             type="checkbox"
                             className="h-4 w-4 shrink-0 accent-orange-500"
-                            aria-label={`Seleziona ${item.nome}`}
+                            aria-label={t("Seleziona {nome}", { nome: String(item.nome ?? "") })}
                             checked={
                               selectedIds?.has(`${item.source}:${item.id}`) ??
                               false
@@ -425,7 +427,7 @@ export function ProductPicker({
                           </p>
                           {haManodoperaConfigurata(item) && (
                             <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              Con manodopera
+                              {t("Con manodopera")}
                             </p>
                           )}
                         </div>
@@ -438,9 +440,7 @@ export function ProductPicker({
                     variant="outline"
                     className="w-full"
                     onClick={() => setPagina(paginaCorrente + 1)}
-                  >
-                    Mostra altri prodotti ({ancoraDaMostrare})
-                  </Button>
+                  >{t("Mostra altri prodotti ({ancoraDaMostrare})", { ancoraDaMostrare: String(ancoraDaMostrare ?? "") })}</Button>
                 )}
               </div>
             )}

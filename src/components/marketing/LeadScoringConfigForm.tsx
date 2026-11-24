@@ -18,6 +18,7 @@ import {
   parseLeadSourceScores,
   validateLeadScoringConfigDraft,
 } from "@/lib/leadScoringConfigForm";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string;
@@ -27,6 +28,7 @@ type FormState = Omit<LeadScoringConfig, "company_id" | "updated_at" | "updated_
 type NumericFormField = Exclude<keyof FormState, "source_scores">;
 
 export function LeadScoringConfigForm({ companyId }: Props) {
+  const t = useT();
   const formId = useId();
   const { data, isLoading, isError, error } = useLeadScoringConfig(companyId);
   const upsert = useUpsertLeadScoringConfig(companyId);
@@ -75,7 +77,7 @@ export function LeadScoringConfigForm({ companyId }: Props) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-10 justify-center">
         <Loader2 className="h-4 w-4 animate-spin" />
-        {isError ? "Preparo i default locali..." : "Caricamento config..."}
+        {isError ? t("Preparo i default locali...") : t("Caricamento config...")}
       </div>
     );
   }
@@ -100,9 +102,9 @@ export function LeadScoringConfigForm({ companyId }: Props) {
       setFormError(null);
       const payload: FormState = { ...form, source_scores: parsedSources.scores };
       await upsert.mutateAsync(payload);
-      toast.success("Configurazione salvata");
+      toast.success(t("Configurazione salvata"));
     } catch (e) {
-      toast.error("Errore salvataggio: " + (e as Error).message);
+      toast.error(t("Errore salvataggio: {errore}", { errore: (e as Error).message }));
     }
   };
 
@@ -110,7 +112,7 @@ export function LeadScoringConfigForm({ companyId }: Props) {
     setForm({ ...DEFAULT_LEAD_SCORING_CONFIG });
     setSourcesText(formatLeadSourceScores(DEFAULT_LEAD_SCORING_CONFIG.source_scores));
     setFormError(null);
-    toast.info("Default ripristinati. Salva per applicarli.");
+    toast.info(t("Default ripristinati. Salva per applicarli."));
   };
 
   const intField = (key: NumericFormField, label: string, max = 50) => (
@@ -134,49 +136,49 @@ export function LeadScoringConfigForm({ companyId }: Props) {
       <CardHeader>
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Settings2 className="h-4 w-4 text-primary" />
-          Configurazione Lead Scoring
+          {t("Configurazione Lead Scoring")}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Personalizza i pesi del punteggio lead: fino a 50 punti per il profilo cliente ideale (ICP) e 50 per il comportamento. Il totale va da 0 a 100.
+          {t("Personalizza i pesi del punteggio lead: fino a 50 punti per il profilo cliente ideale (ICP) e 50 per il comportamento. Il totale va da 0 a 100.")}
         </p>
         {(isError || usedLocalFallback) && (
           <p className="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              Non sono riuscito a caricare la configurazione dal server: sto mostrando i default locali modificabili.
-              {loadErrorMessage ? ` Dettaglio: ${loadErrorMessage}` : ""}
+              {t("Non sono riuscito a caricare la configurazione dal server: sto mostrando i default locali modificabili.")}
+              {loadErrorMessage ? ` ${t("Dettaglio: {errore}", { errore: loadErrorMessage })}` : ""}
             </span>
           </p>
         )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">Profilo cliente ideale (ICP)</p>
+          <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">{t("Profilo cliente ideale (ICP)")}</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {intField("weight_company_name", "Azienda compilata")}
-            {intField("weight_phone", "Telefono")}
-            {intField("weight_address", "Indirizzo")}
-            {intField("weight_city", "Città")}
+            {intField("weight_company_name", t("Azienda compilata"))}
+            {intField("weight_phone", t("Telefono"))}
+            {intField("weight_address", t("Indirizzo"))}
+            {intField("weight_city", t("Città"))}
           </div>
         </div>
 
         <Separator />
 
         <div>
-          <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">Fattori comportamentali</p>
+          <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">{t("Fattori comportamentali")}</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {intField("weight_open_opportunity", "Opp. aperta")}
-            {intField("weight_recent_activity", "Attività recente (14gg)")}
-            {intField("points_per_activity", "Punti per attività", 20)}
-            {intField("max_activity_points", "Max punti attività")}
-            {intField("max_history_points", "Max punti storico opp.")}
+            {intField("weight_open_opportunity", t("Opp. aperta"))}
+            {intField("weight_recent_activity", t("Attività recente (14gg)"))}
+            {intField("points_per_activity", t("Punti per attività"), 20)}
+            {intField("max_activity_points", t("Max punti attività"))}
+            {intField("max_history_points", t("Max punti storico opp."))}
           </div>
         </div>
 
         <Separator />
 
         <div>
-          <Label htmlFor={`${formId}-fonti`} className="mb-2 block text-xs font-semibold uppercase text-muted-foreground">Fonti lead (chiave: punti)</Label>
+          <Label htmlFor={`${formId}-fonti`} className="mb-2 block text-xs font-semibold uppercase text-muted-foreground">{t("Fonti lead (chiave: punti)")}</Label>
           <textarea
             id={`${formId}-fonti`}
             value={sourcesText}
@@ -189,7 +191,7 @@ export function LeadScoringConfigForm({ companyId }: Props) {
             placeholder={"referral: 15\nfiera: 10\nlinkedin: 8"}
           />
           <p className="text-[10px] text-muted-foreground mt-1">
-            Una fonte per riga. Formato <code>chiave: punti</code>. Max 50 punti.
+            {t("Una fonte per riga. Formato")} <code>{t("chiave: punti")}</code>. {t("Max 50 punti.")}
           </p>
         </div>
 
@@ -197,12 +199,12 @@ export function LeadScoringConfigForm({ companyId }: Props) {
 
         <div>
           <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">
-            Soglie del profilo ICP (0–50 punti)
+            {t("Soglie del profilo ICP (0–50 punti)")}
           </p>
           <div className="grid grid-cols-3 gap-3">
-            {intField("tier_a_threshold", "Livello A ≥")}
-            {intField("tier_b_threshold", "Livello B ≥")}
-            {intField("tier_c_threshold", "Livello C ≥")}
+            {intField("tier_a_threshold", t("Livello A ≥"))}
+            {intField("tier_b_threshold", t("Livello B ≥"))}
+            {intField("tier_c_threshold", t("Livello C ≥"))}
           </div>
         </div>
 
@@ -214,7 +216,7 @@ export function LeadScoringConfigForm({ companyId }: Props) {
 
         <div className="flex items-center justify-between pt-4">
           <Button variant="outline" size="sm" onClick={handleReset} disabled={upsert.isPending}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Ripristina default
+            <RotateCcw className="h-3.5 w-3.5 mr-1" /> {t("Ripristina default")}
           </Button>
           <Button size="sm" onClick={handleSave} disabled={upsert.isPending}>
             {upsert.isPending ? (
@@ -222,7 +224,7 @@ export function LeadScoringConfigForm({ companyId }: Props) {
             ) : (
               <Save className="h-3.5 w-3.5 mr-1" />
             )}
-            Salva configurazione
+            {t("Salva configurazione")}
           </Button>
         </div>
       </CardContent>

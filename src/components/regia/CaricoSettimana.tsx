@@ -5,11 +5,11 @@
  */
 import { useId, useMemo } from "react";
 import { addDays, format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EventoAgenda, TipoEvento } from "@/lib/regia/agendaOperativa";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const SERIE: Array<{ tipo: TipoEvento; nome: string; colore: string }> = [
   { tipo: "lavoro", nome: "Lavori", colore: COLORI_GRAFICO.blu },
@@ -36,8 +36,8 @@ export function caricoSettimana(eventi: EventoAgenda[], oggi = new Date()): Gior
     const conta = (t: TipoEvento) => delGiorno.filter((e) => e.tipo === t).length;
     const riga = {
       giorno,
-      etichetta: i === 0 ? "Oggi" : i === 1 ? "Domani" : format(d, "EEE d", { locale: it }).replace(/^./, (c) => c.toUpperCase()),
-      lungo: format(d, "EEEE d MMMM", { locale: it }),
+      etichetta: i === 0 ? "Oggi" : i === 1 ? "Domani" : format(d, "EEE d", { locale: dateFnsCampo() }).replace(/^./, (c) => c.toUpperCase()),
+      lungo: format(d, "EEEE d MMMM", { locale: dateFnsCampo() }),
       lavoro: conta("lavoro"),
       merce: conta("merce"),
       appuntamento: conta("appuntamento"),
@@ -49,6 +49,7 @@ export function caricoSettimana(eventi: EventoAgenda[], oggi = new Date()): Gior
 }
 
 export function CaricoSettimana({ giorni }: { giorni: GiornoCarico[] }) {
+  const t = useT();
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
   const stat = useMemo(() => {
@@ -61,20 +62,20 @@ export function CaricoSettimana({ giorni }: { giorni: GiornoCarico[] }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-        <StatGrafico etichetta="In settimana" valore={String(stat.totale)} nota="impegni in agenda" />
+        <StatGrafico etichetta={t("In settimana")} valore={String(stat.totale)} nota={t("impegni in agenda")} />
         <StatGrafico
-          etichetta="Giorno più pieno"
+          etichetta={t("Giorno più pieno")}
           valore={stat.pieno && stat.pieno.totale > 0 ? String(stat.pieno.totale) : "—"}
-          nota={stat.pieno && stat.pieno.totale > 0 ? stat.pieno.lungo : "nessun impegno"}
+          nota={stat.pieno && stat.pieno.totale > 0 ? stat.pieno.lungo : t("nessun impegno")}
         />
-        <StatGrafico etichetta="Giorni liberi" valore={`${stat.liberi} su 7`} nota="senza impegni" tono={stat.liberi === 7 ? "neutro" : "buono"} />
+        <StatGrafico etichetta={t("Giorni liberi")} valore={t("{n} su 7", { n: stat.liberi })} nota={t("senza impegni")} tono={stat.liberi === 7 ? "neutro" : "buono"} />
       </div>
       <div className="h-[170px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={giorni} margin={{ top: 6, right: 4, bottom: 0, left: 0 }} barCategoryGap="26%">
             {defsGrafico(id, Object.fromEntries(SERIE.map((s) => [s.tipo, s.colore])))}
             <CartesianGrid fill={`url(#${id}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
-            <XAxis dataKey="etichetta" tick={TESTO_ASSE} axisLine={false} tickLine={false} tickMargin={6} interval={0} />
+            <XAxis dataKey="etichetta" tickFormatter={(v) => t(String(v))} tick={TESTO_ASSE} axisLine={false} tickLine={false} tickMargin={6} interval={0} />
             <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} width={24} allowDecimals={false} />
             <Tooltip
               cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
@@ -91,7 +92,7 @@ export function CaricoSettimana({ giorni }: { giorni: GiornoCarico[] }) {
               <Bar
                 key={s.tipo}
                 dataKey={s.tipo}
-                name={s.nome}
+                name={t(s.nome)}
                 stackId="carico"
                 fill={`url(#${id}-barra-${s.tipo})`}
                 radius={i === SERIE.length - 1 ? [5, 5, 0, 0] : [0, 0, 0, 0]}
@@ -108,7 +109,7 @@ export function CaricoSettimana({ giorni }: { giorni: GiornoCarico[] }) {
         {SERIE.map((s) => (
           <span key={s.tipo} className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.colore }} />
-            {s.nome}
+            {t(s.nome)}
           </span>
         ))}
       </div>

@@ -34,6 +34,7 @@ import {
 import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
 
@@ -49,6 +50,7 @@ const MAX_POLL_SEC = 180;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderPavimentoNew() {
+  const t = useT();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
@@ -105,7 +107,7 @@ export default function RenderPavimentoNew() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error(t("File troppo grande (max 20 MB)"));
       return;
     }
     setPhoto(file);
@@ -146,7 +148,7 @@ export default function RenderPavimentoNew() {
         })
         .select("id")
         .single();
-      if (sessErr || !sess) throw new Error("Creazione sessione fallita");
+      if (sessErr || !sess) throw new Error(t("Creazione sessione fallita"));
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
 
@@ -172,23 +174,23 @@ export default function RenderPavimentoNew() {
               const ctx = (resp.error as unknown as { context?: unknown }).context;
               if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
             } catch { /* ignore parse error, fall through to message below */ }
-            throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? "Errore");
+            throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? t("Errore"));
           }
           if (resp.data?.analisi) {
             setAnalisi(resp.data.analisi as AnalisiPavimento);
           }
         } catch (err) {
-          setAnalysisError(`Analisi AI non disponibile: ${String(err)}`);
+          setAnalysisError(t("Analisi AI non disponibile: {errore}", { errore: String(err) }));
         } finally {
           setAnalysisLoading(false);
         }
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
+      toast.error(err instanceof Error ? err.message : t("Upload foto fallito"));
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config, contactId, opportunityId]);
+  }, [photo, companyId, user, config, contactId, opportunityId, t]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -208,7 +210,7 @@ export default function RenderPavimentoNew() {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
         setGenerating(false);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova piu tardi.");
+        toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova piu tardi."));
         setStep(2);
         return;
       }
@@ -239,7 +241,7 @@ export default function RenderPavimentoNew() {
       if (s?.status === "failed") {
         if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
         setGenerating(false);
-        toast.error(s.error_message || "Render fallito. Riprova.");
+        toast.error(s.error_message || t("Render fallito. Riprova."));
         setStep(2);
         return;
       }
@@ -252,7 +254,7 @@ export default function RenderPavimentoNew() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, t]);
 
   // ── Step 2 -> Step 3: start render ─────────────────────────────────────
   const startRender = useCallback(async () => {
@@ -313,11 +315,11 @@ export default function RenderPavimentoNew() {
       const msg = await resolveEdgeFunctionErrorMessage({
         error: fnErr,
         data: fnData,
-        fallback: "Generazione fallita",
+        fallback: t("Generazione fallita"),
       });
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
-        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
+        toast.error(t("Crediti render insufficienti. Acquista nuovi crediti."));
       } else {
         toast.error(msg);
       }
@@ -337,7 +339,7 @@ export default function RenderPavimentoNew() {
     }
 
     startPolling(sessionId);
-  }, [sessionId, companyId, generating, photo, photoPreview, config, analisi, queryClient, startPolling]);
+  }, [sessionId, companyId, generating, photo, photoPreview, config, analisi, queryClient, startPolling, t]);
 
   // ── Download result ────────────────────────────────────────────────────
   const downloadResult = useCallback(async () => {
@@ -346,9 +348,9 @@ export default function RenderPavimentoNew() {
     try {
       await downloadRenderImage(url, `render_pavimento_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
-  }, [resultUrls]);
+  }, [resultUrls, t]);
 
   // ── WhatsApp share ─────────────────────────────────────────────────────
   const shareWhatsApp = useCallback(() => {
@@ -393,12 +395,12 @@ export default function RenderPavimentoNew() {
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Sostituzione pavimento fotorealistica"
-        title="Stessa stanza, nuovo pavimento"
-        mobileTitle="Render Pavimento"
-        description="Cambia il pavimento senza toccare arredi e prospettiva: gres, parquet, resina, marmo."
-        badgeLabel="Render AI — Pavimenti"
-        stepLabels={["Foto", "Configura", "Elaborazione", "Risultati"]}
+        eyebrow={t("Sostituzione pavimento fotorealistica")}
+        title={t("Stessa stanza, nuovo pavimento")}
+        mobileTitle={t("Render Pavimento")}
+        description={t("Cambia il pavimento senza toccare arredi e prospettiva: gres, parquet, resina, marmo.")}
+        badgeLabel={t("Render AI — Pavimenti")}
+        stepLabels={[t("Foto"), t("Configura"), t("Elaborazione"), t("Risultati")]}
         currentStep={step}
         accent="emerald"
       />
@@ -419,7 +421,7 @@ export default function RenderPavimentoNew() {
             <>
               <ZonaFotoMobile
                 onScegli={() => fileRef.current?.click()}
-                suggerimento="Prospettica e luminosa, con il pavimento ben visibile"
+                suggerimento={t("Prospettica e luminosa, con il pavimento ben visibile")}
                 accento="amber"
               />
               <input
@@ -435,7 +437,7 @@ export default function RenderPavimentoNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                Foto stanza con pavimento attuale
+                {t("Foto stanza con pavimento attuale")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -443,7 +445,7 @@ export default function RenderPavimentoNew() {
                 <div className="relative rounded-lg overflow-hidden">
                   <img loading="lazy"
                     src={photoPreview}
-                    alt="Foto caricata"
+                    alt={t("Foto caricata")}
                     className="w-full max-h-80 object-cover"
                   />
                   {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
@@ -460,7 +462,7 @@ export default function RenderPavimentoNew() {
                   >
                     <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
                     <Camera className="hidden h-3.5 w-3.5 max-md:block" />
-                    Cambia foto
+                    {t("Cambia foto")}
                   </Button>
                 </div>
               ) : (
@@ -472,13 +474,13 @@ export default function RenderPavimentoNew() {
                     <ImageIcon className="h-8 w-8 text-amber-600/60" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold">Carica foto stanza</p>
+                    <p className="font-semibold">{t("Carica foto stanza")}</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      JPG, PNG, WEBP - Max 20 MB - Foto con pavimento ben visibile
+                      {t("JPG, PNG, WEBP - Max 20 MB - Foto con pavimento ben visibile")}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" type="button">
-                    Sfoglia file
+                    {t("Sfoglia file")}
                   </Button>
                 </div>
               )}
@@ -496,11 +498,11 @@ export default function RenderPavimentoNew() {
           {/* Consigli — telefono: la riga nella zona foto basta. */}
           <Card className="bg-muted/30 max-md:hidden">
             <CardContent className="py-3">
-              <p className="text-xs font-semibold mb-1.5">Consigli per il miglior risultato</p>
+              <p className="text-xs font-semibold mb-1.5">{t("Consigli per il miglior risultato")}</p>
               <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
-                <li>Foto prospettica della stanza, luce naturale</li>
-                <li>Pavimento ben visibile senza troppi oggetti che lo coprono</li>
-                <li>Risoluzione almeno 800x600 px</li>
+                <li>{t("Foto prospettica della stanza, luce naturale")}</li>
+                <li>{t("Pavimento ben visibile senza troppi oggetti che lo coprono")}</li>
+                <li>{t("Risoluzione almeno 800x600 px")}</li>
               </ul>
             </CardContent>
           </Card>
@@ -521,9 +523,9 @@ export default function RenderPavimentoNew() {
             onClick={goToStep2}
           >
             {uploading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" />Caricamento in corso...</>
+              <><Loader2 className="h-4 w-4 animate-spin" />{t("Caricamento in corso...")}</>
             ) : (
-              <><Wand2 className="h-4 w-4" />Analizza con AI e configura</>
+              <><Wand2 className="h-4 w-4" />{t("Analizza con AI e configura")}</>
             )}
           </Button>
           )}
@@ -538,9 +540,9 @@ export default function RenderPavimentoNew() {
           {/* Foto preview compatta */}
           {photoPreview && (
             <div className="rounded-xl overflow-hidden h-40 relative">
-              <img loading="lazy" src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt={t("Stanza")} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto caricata</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">{t("Foto caricata")}</div>
             </div>
           )}
 
@@ -550,8 +552,8 @@ export default function RenderPavimentoNew() {
               <CardContent className="py-4 flex items-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-amber-600" />
                 <div>
-                  <p className="text-sm font-medium">Analisi AI in corso...</p>
-                  <p className="text-xs text-muted-foreground">Identificazione pavimento e stanza</p>
+                  <p className="text-sm font-medium">{t("Analisi AI in corso...")}</p>
+                  <p className="text-xs text-muted-foreground">{t("Identificazione pavimento e stanza")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -570,18 +572,18 @@ export default function RenderPavimentoNew() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  Analisi completata
+                  {t("Analisi completata")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    ["Tipo stanza", analisi.tipo_stanza],
-                    ["Pavimento attuale", analisi.pavimento_attuale],
-                    ["Colore attuale", analisi.colore_attuale],
-                    ["Dimensione", analisi.dimensione_stimata],
-                    ["Stato", analisi.stato_conservazione],
-                    ["Battiscopa", analisi.battiscopa_presente ? "Presente" : "Assente"],
+                    [t("Tipo stanza"), analisi.tipo_stanza],
+                    [t("Pavimento attuale"), analisi.pavimento_attuale],
+                    [t("Colore attuale"), analisi.colore_attuale],
+                    [t("Dimensione"), analisi.dimensione_stimata],
+                    [t("Stato"), analisi.stato_conservazione],
+                    [t("Battiscopa"), analisi.battiscopa_presente ? t("Presente") : t("Assente")],
                   ].map(([label, val]) => (
                     <div key={label} className="bg-muted/50 rounded-md p-2">
                       <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{label}</p>
@@ -598,7 +600,7 @@ export default function RenderPavimentoNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Grid3X3 className="h-4 w-4" />
-                Configurazione pavimento
+                {t("Configurazione pavimento")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -617,7 +619,7 @@ export default function RenderPavimentoNew() {
             onClick={startRender}
           >
             <Zap className="h-4 w-4" />
-            Genera render pavimento
+            {t("Genera render pavimento")}
           </Button>
         </div>
       )}
@@ -631,7 +633,7 @@ export default function RenderPavimentoNew() {
           elapsedSec={pollState.elapsedSec}
           dots={pollState.dots}
           accent="emerald"
-          subjectLabel="L'AI sta elaborando il render del pavimento"
+          subjectLabel={t("L'AI sta elaborando il render del pavimento")}
         />
       )}
 
@@ -645,9 +647,9 @@ export default function RenderPavimentoNew() {
             <CardContent className="py-4 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <div>
-                <p className="text-sm font-medium text-green-700">Render completato!</p>
+                <p className="text-sm font-medium text-green-700">{t("Render completato!")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Il nuovo pavimento e stato applicato con successo.
+                  {t("Il nuovo pavimento e stato applicato con successo.")}
                 </p>
               </div>
             </CardContent>
@@ -657,8 +659,8 @@ export default function RenderPavimentoNew() {
           {photoPreview && (
             <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardHeader className="pb-3 max-md:hidden">
-                <CardTitle className="text-base">Confronto prima/dopo</CardTitle>
-                <p className="text-xs text-muted-foreground">Trascina il cursore per confrontare</p>
+                <CardTitle className="text-base">{t("Confronto prima/dopo")}</CardTitle>
+                <p className="text-xs text-muted-foreground">{t("Trascina il cursore per confrontare")}</p>
               </CardHeader>
               <CardContent className="max-md:p-0">
                 <BeforeAfterSlider
@@ -675,7 +677,7 @@ export default function RenderPavimentoNew() {
             <CardContent className="p-4">
               <img loading="lazy"
                 src={resultUrls[0]}
-                alt="Render pavimento"
+                alt={t("Render pavimento")}
                 className="w-full rounded-lg"
               />
             </CardContent>
@@ -684,7 +686,7 @@ export default function RenderPavimentoNew() {
           {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
           {isMobile && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-pavimento" className="min-w-0 flex-1" />
@@ -700,7 +702,7 @@ export default function RenderPavimentoNew() {
             {!isMobile && (
               <Button className="flex-1 gap-2 bg-amber-600 hover:bg-amber-700" onClick={downloadResult}>
                 <Download className="h-4 w-4" />
-                Scarica render
+                {t("Scarica render")}
               </Button>
             )}
           </div>
@@ -712,7 +714,7 @@ export default function RenderPavimentoNew() {
             onEditChoices={() => setStep(2)}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel="Genera nuova variante pavimento"
+            regenerateLabel={t("Genera nuova variante pavimento")}
           />
 
           <Button
@@ -720,7 +722,7 @@ export default function RenderPavimentoNew() {
             className="w-full max-md:hidden"
             onClick={() => navigate("/azienda/render/pavimento")}
           >
-            Torna alla dashboard
+            {t("Torna alla dashboard")}
           </Button>
         </div>
       )}

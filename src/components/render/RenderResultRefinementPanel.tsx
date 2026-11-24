@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type ChoiceRow = {
   group: string;
@@ -112,18 +113,23 @@ function collectChoices(value: unknown, group = "Generale", rows: ChoiceRow[] = 
 
 export function RenderResultRefinementPanel({
   config,
-  title = "Scelte configurate",
-  description = "Riepilogo delle finiture e delle regole applicate. Il prompt tecnico resta nascosto.",
+  title: titleProp,
+  description: descriptionProp,
   noteValue,
-  notePlaceholder = "Scrivi cosa vuoi modificare nel prossimo render. Esempio: rendi la finitura piu calda, mantieni identici gli arredi, sostituisci solo il dettaglio selezionato.",
+  notePlaceholder: notePlaceholderProp,
   onNoteChange,
   onEditChoices,
   onRegenerate,
-  regenerateLabel = "Genera variante",
+  regenerateLabel: regenerateLabelProp,
   regenerateNote,
   disabled,
   maxItems = 22,
 }: RenderResultRefinementPanelProps) {
+  const t = useT();
+  const title = titleProp ?? t("Scelte configurate");
+  const description = descriptionProp ?? t("Riepilogo delle finiture e delle regole applicate. Il prompt tecnico resta nascosto.");
+  const notePlaceholder = notePlaceholderProp ?? t("Scrivi cosa vuoi modificare nel prossimo render. Esempio: rendi la finitura piu calda, mantieni identici gli arredi, sostituisci solo il dettaglio selezionato.");
+  const regenerateLabel = regenerateLabelProp ?? t("Genera variante");
   const isMobile = useIsMobile();
   const [showAll, setShowAll] = useState(false);
   const allChoices = useMemo(() => collectChoices(config), [config]);
@@ -137,12 +143,12 @@ export function RenderResultRefinementPanel({
     return (
       <Card className="border-slate-200 bg-slate-50/60">
         <CardContent className="space-y-2 p-3">
-          <div className="text-[13px] font-semibold">Vuoi cambiare qualcosa?</div>
+          <div className="text-[13px] font-semibold">{t("Vuoi cambiare qualcosa?")}</div>
           {noteValue !== undefined && onNoteChange && (
             <Textarea
               value={noteValue}
               onChange={(event) => onNoteChange(event.target.value)}
-              placeholder="Es. finitura più calda, il resto identico…"
+              placeholder={t("Es. finitura più calda, il resto identico…")}
               className="min-h-[88px] bg-white placeholder:text-[13px]"
               disabled={disabled}
             />
@@ -155,7 +161,7 @@ export function RenderResultRefinementPanel({
                 className="w-11 shrink-0 px-0"
                 onClick={onEditChoices}
                 disabled={disabled}
-                aria-label="Modifica scelte"
+                aria-label={t("Modifica scelte")}
               >
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
@@ -191,7 +197,7 @@ export function RenderResultRefinementPanel({
           <div className="space-y-3">
             {groups.map((group) => (
               <div key={group} className="space-y-2">
-                <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{group}</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{group === "Generale" ? t("Generale") : group}</div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {choices
                     .filter((choice) => choice.group === group)
@@ -205,23 +211,21 @@ export function RenderResultRefinementPanel({
               </div>
             ))}
             {!showAll && allChoices.length > choices.length && (
-              <Button type="button" variant="outline" onClick={() => setShowAll(true)}>
-                Mostra tutte le scelte ({allChoices.length})
-              </Button>
+              <Button type="button" variant="outline" onClick={() => setShowAll(true)}>{t("Mostra tutte le scelte ({n})", { n: allChoices.length })}</Button>
             )}
           </div>
         ) : (
           <div className="rounded-xl border bg-white p-3 text-sm text-muted-foreground">
-            Nessuna scelta tecnica leggibile da mostrare per questo render.
+            {t("Nessuna scelta tecnica leggibile da mostrare per questo render.")}
           </div>
         )}
 
         {noteValue !== undefined && onNoteChange && (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold">Richiesta libera per la prossima variante</div>
+              <div className="text-sm font-semibold">{t("Richiesta libera per la prossima variante")}</div>
               <Badge variant="outline" className="font-medium">
-                Non mostra il prompt
+                {t("Non mostra il prompt")}
               </Badge>
             </div>
             <Textarea
@@ -238,7 +242,7 @@ export function RenderResultRefinementPanel({
           {onEditChoices && (
             <Button type="button" variant="outline" className="gap-2" onClick={onEditChoices} disabled={disabled}>
               <SlidersHorizontal className="h-4 w-4" />
-              Modifica scelte
+              {t("Modifica scelte")}
             </Button>
           )}
           {onRegenerate && (

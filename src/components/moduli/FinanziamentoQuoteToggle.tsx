@@ -39,6 +39,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { percentualeIt } from "@/lib/preventivi/percentuale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Quello che il preventivo ricorda della finanziaria scelta. */
 export interface ScelteFinanziamento {
@@ -93,6 +94,7 @@ function Selettore({
   rawPromo, total, value, onChange, rateScelte, onChangeRate, finanziaria, onChangeFinanziaria,
   tutteLeTabelle, righe, righeInCaricamento,
 }: Props & { tutteLeTabelle: TabellaFinanziamento[]; righe: RigaFinanziamento[]; righeInCaricamento: boolean }) {
+  const tr = useT();
   const promo = parseFinanziamentoPromo(rawPromo);
   const conFinanziarie = !!onChangeFinanziaria && tutteLeTabelle.length > 0;
   // Una tabella scelta e poi disattivata o cancellata non conta più: si torna al modello.
@@ -146,21 +148,24 @@ function Selettore({
         <span className="min-w-0">
           <span className="flex items-center gap-1.5 text-xs font-medium">
             <BadgeEuro className="h-3.5 w-3.5 text-emerald-600" />
-            Mostra la rata nel PDF
+            {tr("Mostra la rata nel PDF")}
           </span>
           <span className="block text-[10px] text-muted-foreground">
             {rata > 0 ? (
               <>
                 <span className="max-sm:hidden">
-                  {`“da ${formatCurrency(rata)}/mese” in ${rateMostrate} rate${tanMostrato != null && tanMostrato > 0 ? ` (TAN ${percentualeIt(tanMostrato)})` : " a tasso zero"}${nomeFinanziaria ? ` con ${nomeFinanziaria}` : ""} — spegni per chi paga subito.`}
+                  {tr(tanMostrato != null && tanMostrato > 0
+                    ? (nomeFinanziaria ? "“da {rata}/mese” in {n} rate (TAN {tan}) con {finanziaria} — spegni per chi paga subito." : "“da {rata}/mese” in {n} rate (TAN {tan}) — spegni per chi paga subito.")
+                    : (nomeFinanziaria ? "“da {rata}/mese” in {n} rate a tasso zero con {finanziaria} — spegni per chi paga subito." : "“da {rata}/mese” in {n} rate a tasso zero — spegni per chi paga subito."),
+                    { rata: formatCurrency(rata), n: rateMostrate, tan: tanMostrato != null ? percentualeIt(tanMostrato) : "", finanziaria: nomeFinanziaria ?? "" })}
                 </span>
                 {/* Telefono: la rata e basta. */}
-                <span className="sm:hidden">{`da ${formatCurrency(rata)}/mese · ${rateMostrate} rate`}</span>
+                <span className="sm:hidden">{tr("da {rata}/mese · {rateMostrate} rate", { rata: formatCurrency(rata), rateMostrate: String(rateMostrate ?? "") })}</span>
               </>
             ) : conFinanziarie && !promo && !tabella ? (
-              "Scegli la finanziaria qui sotto: la rata nel PDF viene dalla sua tabella."
+              tr("Scegli la finanziaria qui sotto: la rata nel PDF viene dalla sua tabella.")
             ) : (
-              `Aggiungi voci al computo per calcolare la rata (${rateMostrate} rate).`
+              tr("Aggiungi voci al computo per calcolare la rata ({rateMostrate} rate).", { rateMostrate: String(rateMostrate ?? "") })
             )}
           </span>
         </span>
@@ -169,20 +174,20 @@ function Selettore({
 
       {checked && conFinanziarie && (
         <div className="border-t px-3 py-2">
-          <p className="mb-1.5 text-[11px] font-medium text-slate-700">Finanziaria</p>
+          <p className="mb-1.5 text-[11px] font-medium text-slate-700">{tr("Finanziaria")}</p>
           <Select value={tabella?.id ?? (promo ? "__modello__" : "")} onValueChange={scegliFinanziaria}>
-            <SelectTrigger className="h-9 text-xs" aria-label="Finanziaria">
-              <SelectValue placeholder="Scegli la finanziaria" />
+            <SelectTrigger className="h-9 text-xs" aria-label={tr("Finanziaria")}>
+              <SelectValue placeholder={tr("Scegli la finanziaria")} />
             </SelectTrigger>
             <SelectContent>
               {promo && (
                 <SelectItem value="__modello__">
-                  {`Condizioni del modello (${rate} rate${promo.tan_pct > 0 ? `, TAN ${percentualeIt(promo.tan_pct)}` : ", tasso zero"})`}
+                  {tr(promo.tan_pct > 0 ? "Condizioni del modello ({n} rate, TAN {tan})" : "Condizioni del modello ({n} rate, tasso zero)", { n: rate, tan: percentualeIt(promo.tan_pct) })}
                 </SelectItem>
               )}
               {tutteLeTabelle.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
-                  {[t.finanziaria_nome, t.nome_prodotto].filter(Boolean).join(" · ") || "Tabella"}
+                  {[t.finanziaria_nome, t.nome_prodotto].filter(Boolean).join(" · ") || tr("Tabella")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -192,17 +197,17 @@ function Selettore({
 
       {checked && tabella && (
         <div className="border-t px-3 py-2">
-          <p className="mb-1.5 text-[11px] font-medium text-slate-700">Numero di rate</p>
+          <p className="mb-1.5 text-[11px] font-medium text-slate-700">{tr("Numero di rate")}</p>
           {righeInCaricamento ? (
-            <p className="text-[11px] text-muted-foreground">Carico la tabella…</p>
+            <p className="text-[11px] text-muted-foreground">{tr("Carico la tabella…")}</p>
           ) : durate.length === 0 ? (
             <p role="alert" className="text-[11px] text-amber-700">
               {importo > 0
-                ? "Per questo importo la tabella non ha una rata: scegli un'altra finanziaria o le condizioni del modello."
-                : "Aggiungi voci al computo per calcolare la rata."}
+                ? tr("Per questo importo la tabella non ha una rata: scegli un'altra finanziaria o le condizioni del modello.")
+                : tr("Aggiungi voci al computo per calcolare la rata.")}
             </p>
           ) : (
-            <div role="group" aria-label="Numero di rate" className="flex flex-wrap gap-1.5">
+            <div role="group" aria-label={tr("Numero di rate")} className="flex flex-wrap gap-1.5">
               {durate.map((d) => {
                 const attivo = durataScelta?.durataMesi === d.durataMesi;
                 return (
@@ -221,7 +226,7 @@ function Selettore({
                         : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/50",
                     )}
                   >
-                    <span className="block text-xs font-semibold">{`${d.durataMesi} rate`}</span>
+                    <span className="block text-xs font-semibold">{tr("{n} rate", { n: String(d.durataMesi ?? "") })}</span>
                     <span className="block text-[10px] tabular-nums text-muted-foreground">{`${formatCurrency(d.riga.importo_rata)}/mese`}</span>
                   </button>
                 );
@@ -230,9 +235,9 @@ function Selettore({
           )}
           {durataScelta && (
             <p className="mt-1.5 text-[10px] text-muted-foreground max-sm:hidden">
-              {`Finanziato ${formatCurrency(importo)} · ${durataScelta.riga.numero_rate} rate da ${formatCurrency(durataScelta.riga.importo_rata)}`}
-              {durataScelta.riga.importo_totale_dovuto ? ` · totale dovuto ${formatCurrency(durataScelta.riga.importo_totale_dovuto)}` : ""}
-              {durataScelta.riga.taeg != null ? ` · TAEG ${percentualeIt(durataScelta.riga.taeg)}` : ""}
+              {tr("Finanziato {importo} · {numero_rate} rate da {importo_rata}", { importo: formatCurrency(importo), numero_rate: String(durataScelta.riga.numero_rate ?? ""), importo_rata: formatCurrency(durataScelta.riga.importo_rata) })}
+              {durataScelta.riga.importo_totale_dovuto ? tr(" · totale dovuto {importo_totale_dovuto}", { importo_totale_dovuto: formatCurrency(durataScelta.riga.importo_totale_dovuto) }) : ""}
+              {durataScelta.riga.taeg != null ? tr(" · TAEG {taeg}", { taeg: String(percentualeIt(durataScelta.riga.taeg) ?? "") }) : ""}
             </p>
           )}
         </div>
@@ -240,8 +245,8 @@ function Selettore({
 
       {checked && !tabella && promo && onChangeRate && (
         <div className="border-t px-3 py-2">
-          <p className="mb-1.5 text-[11px] font-medium text-slate-700">Numero di rate</p>
-          <div role="group" aria-label="Numero di rate" className="flex flex-wrap gap-1.5">
+          <p className="mb-1.5 text-[11px] font-medium text-slate-700">{tr("Numero di rate")}</p>
+          <div role="group" aria-label={tr("Numero di rate")} className="flex flex-wrap gap-1.5">
             {opzioniRate(promo.rate, scelte).map((n) => {
               const rataN = calcolaRataMensile(total, n, promo.tan_pct);
               const attivo = n === rate;
@@ -258,7 +263,7 @@ function Selettore({
                       : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/50",
                   )}
                 >
-                  <span className="block text-xs font-semibold">{`${n} rate`}</span>
+                  <span className="block text-xs font-semibold">{tr("{n} rate", { n: String(n ?? "") })}</span>
                   <span className="block text-[10px] tabular-nums text-muted-foreground">
                     {rataN > 0 ? `${formatCurrency(rataN)}/mese` : "—"}
                   </span>
@@ -268,8 +273,8 @@ function Selettore({
           </div>
           {/* Telefono no: la nota sul TAN è per chi sta alla scrivania. */}
           <p className="mt-1.5 text-[10px] text-muted-foreground max-sm:hidden">
-            {promo.tan_pct > 0 ? `TAN ${percentualeIt(promo.tan_pct)}` : "Tasso zero"}, come nel modello.
-            {scelte != null && scelte !== promo.rate ? ` Il modello propone ${promo.rate} rate.` : ""}
+            {promo.tan_pct > 0 ? tr("TAN {tan}, come nel modello.", { tan: percentualeIt(promo.tan_pct) }) : tr("Tasso zero, come nel modello.")}
+            {scelte != null && scelte !== promo.rate ? tr(" Il modello propone {rate} rate.", { rate: String(promo.rate ?? "") }) : ""}
           </p>
         </div>
       )}

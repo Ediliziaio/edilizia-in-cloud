@@ -3,7 +3,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   AlertTriangle,
   Bot,
@@ -41,6 +40,7 @@ import CarichiDaRegistrareCard from "./CarichiDaRegistrareCard";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WhatsAppOperationsReview } from "@/components/whatsapp/WhatsAppOperationsReview";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type OrderMini = { order_code?: string | null; description?: string | null };
 
@@ -114,18 +114,20 @@ function materialCount(value: unknown) {
   return 0;
 }
 
-function relativeDate(value: string | null) {
-  if (!value) return "data non disponibile";
+type Traduci = ReturnType<typeof useT>;
+
+function relativeDate(value: string | null, t: Traduci) {
+  if (!value) return t("data non disponibile");
   try {
-    return formatDistanceToNow(new Date(value), { addSuffix: true, locale: it });
+    return formatDistanceToNow(new Date(value), { addSuffix: true, locale: dateFnsCampo() });
   } catch {
-    return "data non disponibile";
+    return t("data non disponibile");
   }
 }
 
-function orderLabel(order?: OrderMini | null) {
-  if (!order) return "Commessa non collegata";
-  return [order.order_code, order.description].filter(Boolean).join(" · ") || "Commessa";
+function orderLabel(order: OrderMini | null | undefined, t: Traduci) {
+  if (!order) return t("Commessa non collegata");
+  return [order.order_code, order.description].filter(Boolean).join(" · ") || t("Commessa");
 }
 
 function failedResult<T>(result: PromiseSettledResult<T>, fallback: T): T {
@@ -138,7 +140,7 @@ function failureLabel(result: PromiseSettledResult<unknown>, label: string) {
 
 const REVIEW_STATUSES = new Set(["failed", "failed_max_retries", "requires_confirmation", "received", "processing"]);
 
-function intentLabel(intent: WhatsAppOperationalIntent) {
+function intentLabel(intent: WhatsAppOperationalIntent, t: Traduci) {
   const labels = {
     rapportino: "Rapportini",
     ddt: "DDT",
@@ -152,10 +154,11 @@ function intentLabel(intent: WhatsAppOperationalIntent) {
     annulla: "Annullamenti",
     unknown: "Da smistare",
   } satisfies Record<WhatsAppOperationalIntent, string>;
-  return labels[intent];
+  return t(labels[intent]);
 }
 
 export default function OperationalControlPage() {
+  const t = useT();
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
   const { user, role } = useAuth();
@@ -244,10 +247,10 @@ export default function OperationalControlPage() {
         messages: failedResult(messagesResult, [] as OperationalMessage[]),
         tools: failedResult(toolsResult, [] as ToolCall[]),
         failures: [
-          failureLabel(signalsResult, "Segnalazioni"),
-          failureLabel(reportsResult, "Rapportini"),
-          failureLabel(messagesResult, "Messaggi"),
-          failureLabel(toolsResult, "Tool AI"),
+          failureLabel(signalsResult, t("Segnalazioni")),
+          failureLabel(reportsResult, t("Rapportini")),
+          failureLabel(messagesResult, t("Messaggi")),
+          failureLabel(toolsResult, t("Tool AI")),
         ].filter(Boolean) as string[],
       };
     },
@@ -265,9 +268,9 @@ export default function OperationalControlPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-operational-control"] });
-      toast.success("Elemento chiuso");
+      toast.success(t("Elemento chiuso"));
     },
-    onError: (error: Error) => toast.error("Errore chiusura", { description: error.message }),
+    onError: (error: Error) => toast.error(t("Errore chiusura"), { description: error.message }),
   });
 
   const approveReport = useMutation({
@@ -281,26 +284,26 @@ export default function OperationalControlPage() {
         .eq("stato", "inviato")
         .select("id");
       if (error) throw error;
-      if (!aggiornati || aggiornati.length === 0) throw new Error("Non approvato: il rapportino non è più da approvare, oppure non hai il permesso.");
+      if (!aggiornati || aggiornati.length === 0) throw new Error(t("Non approvato: il rapportino non è più da approvare, oppure non hai il permesso."));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-operational-control"] });
-      toast.success("Rapportino approvato");
+      toast.success(t("Rapportino approvato"));
     },
-    onError: (error: Error) => toast.error("Errore approvazione", { description: error.message }),
+    onError: (error: Error) => toast.error(t("Errore approvazione"), { description: error.message }),
   });
 
   const markMessageReviewed = useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await (supabase as unknown as SupabaseClient).rpc("whatsapp_message_review", { p_company: companyId!, p_message: id });
       if (error) throw error;
-      if (data !== true) throw new Error("Messaggio ancora in elaborazione o non disponibile. Nessuno stato modificato.");
+      if (data !== true) throw new Error(t("Messaggio ancora in elaborazione o non disponibile. Nessuno stato modificato."));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-operational-control"] });
-      toast.success("Verifica manuale registrata; l’esito originale resta conservato");
+      toast.success(t("Verifica manuale registrata; l’esito originale resta conservato"));
     },
-    onError: (error: Error) => toast.error("Errore aggiornamento", { description: error.message }),
+    onError: (error: Error) => toast.error(t("Errore aggiornamento"), { description: error.message }),
   });
 
   const data = controlQuery.data;
@@ -357,15 +360,15 @@ export default function OperationalControlPage() {
       <div className="flex justify-end">
         <Button variant="outline" size="sm" onClick={() => controlQuery.refetch()} disabled={controlQuery.isFetching}>
           {controlQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Aggiorna
+          {t("Aggiorna")}
         </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard icon={Clock3} label="Da controllare" value={pendingCount} tone={pendingCount > 0 ? "amber" : "emerald"} />
-        <MetricCard icon={AlertTriangle} label="Priorità alte" value={highPriorityMessages + openSignals.length} tone={highPriorityMessages + openSignals.length > 0 ? "amber" : "emerald"} />
-        <MetricCard icon={FileText} label="Rapportini WhatsApp" value={data?.reports?.length ?? 0} />
-        <MetricCard icon={Bot} label="Azioni AI riuscite" value={toolSuccessRate == null ? "—" : `${toolSuccessRate}%`} tone={toolSuccessRate != null && toolSuccessRate < 85 ? "amber" : "emerald"} />
+        <MetricCard icon={Clock3} label={t("Da controllare")} value={pendingCount} tone={pendingCount > 0 ? "amber" : "emerald"} />
+        <MetricCard icon={AlertTriangle} label={t("Priorità alte")} value={highPriorityMessages + openSignals.length} tone={highPriorityMessages + openSignals.length > 0 ? "amber" : "emerald"} />
+        <MetricCard icon={FileText} label={t("Rapportini WhatsApp")} value={data?.reports?.length ?? 0} />
+        <MetricCard icon={Bot} label={t("Azioni AI riuscite")} value={toolSuccessRate == null ? "—" : `${toolSuccessRate}%`} tone={toolSuccessRate != null && toolSuccessRate < 85 ? "amber" : "emerald"} />
       </div>
 
       {data?.failures?.length ? (
@@ -373,7 +376,7 @@ export default function OperationalControlPage() {
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <p className="font-semibold">Alcuni dati non sono stati caricati.</p>
+              <p className="font-semibold">{t("Alcuni dati non sono stati caricati.")}</p>
               <p className="mt-1 text-xs">{data.failures.join(" · ")}</p>
             </div>
           </div>
@@ -384,24 +387,24 @@ export default function OperationalControlPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4 text-primary" />
-            Setup operativo
+            {t("Setup operativo")}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
           <SetupItem
             ok={!!primaryOperativo}
-            title={primaryOperativo ? "Numero cantieri collegato" : "Numero cantieri mancante"}
-            text={primaryOperativo ? `${primaryOperativo.display_name ?? "Operativo / Cantieri"} · ${primaryOperativo.numero}` : "Collega il numero Operativo / Cantieri per far lavorare Silvio su rapportini, DDT e foto."}
+            title={primaryOperativo ? t("Numero cantieri collegato") : t("Numero cantieri mancante")}
+            text={primaryOperativo ? `${primaryOperativo.display_name ?? t("Operativo / Cantieri")} · ${primaryOperativo.numero}` : t("Collega il numero Operativo / Cantieri per far lavorare Silvio su rapportini, DDT e foto.")}
           />
           <SetupItem
             ok={operationalSettings.daily_rapportino_enabled}
-            title={operationalSettings.daily_rapportino_enabled ? `Reminder alle ${operationalSettings.daily_rapportino_time}` : "Reminder rapportino spento"}
-            text={operationalSettings.daily_rapportino_target === "assigned_workers" ? "Destinatari: operai assegnati ai cantieri del giorno." : "Destinatari: tutti gli operativi."}
+            title={operationalSettings.daily_rapportino_enabled ? t("Reminder alle {ora}", { ora: operationalSettings.daily_rapportino_time }) : t("Reminder rapportino spento")}
+            text={operationalSettings.daily_rapportino_target === "assigned_workers" ? t("Destinatari: operai assegnati ai cantieri del giorno.") : t("Destinatari: tutti gli operativi.")}
           />
           <SetupItem
             ok={operationalSettings.ddt_requires_confirmation && operationalSettings.media_save_to_diary}
-            title="DDT e media controllati"
-            text={operationalSettings.ddt_requires_confirmation ? "I DDT richiedono conferma prima di scrivere dati critici." : "Silvio può registrare DDT chiari senza conferma: usare solo se il processo è maturo."}
+            title={t("DDT e media controllati")}
+            text={operationalSettings.ddt_requires_confirmation ? t("I DDT richiedono conferma prima di scrivere dati critici.") : t("Silvio può registrare DDT chiari senza conferma: usare solo se il processo è maturo.")}
           />
         </CardContent>
       </Card>
@@ -411,9 +414,9 @@ export default function OperationalControlPage() {
           <CardTitle className="flex items-center justify-between gap-3 text-base">
             <span className="flex items-center gap-2">
               <Bot className="h-4 w-4 text-primary" />
-              Centro smistamento operativo
+              {t("Centro smistamento operativo")}
             </span>
-            <Badge variant="secondary">{triagedMessages.length} messaggi letti</Badge>
+            <Badge variant="secondary">{t("{n} messaggi letti", { n: triagedMessages.length })}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -422,7 +425,7 @@ export default function OperationalControlPage() {
               .filter((intent) => intentCounts[intent] > 0 || ["rapportino", "ddt", "foto_cantiere", "segnalazione"].includes(intent))
               .map((intent) => (
                 <div key={intent} className="rounded-lg border bg-background p-3">
-                  <p className="text-xs text-muted-foreground">{intentLabel(intent)}</p>
+                  <p className="text-xs text-muted-foreground">{intentLabel(intent, t)}</p>
                   <p className="mt-1 text-xl font-bold">{intentCounts[intent]}</p>
                 </div>
               ))}
@@ -431,14 +434,12 @@ export default function OperationalControlPage() {
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold">Coda prossime azioni</p>
-                <Badge variant={messagesToReview.length > 0 ? "default" : "outline"}>
-                  {messagesToReview.length} da gestire
-                </Badge>
+                <p className="text-sm font-semibold">{t("Coda prossime azioni")}</p>
+                <Badge variant={messagesToReview.length > 0 ? "default" : "outline"}>{t("{n} da gestire", { n: messagesToReview.length })}</Badge>
               </div>
               {controlQuery.isLoading ? <LoadingRows /> : null}
               {!controlQuery.isLoading && messagesToReview.length === 0 ? (
-                <EmptyState text="Nessun messaggio operativo da smistare: Silvio ha capito e processato tutto." />
+                <EmptyState text={t("Nessun messaggio operativo da smistare: Silvio ha capito e processato tutto.")} />
               ) : null}
               {messagesToReview.slice(0, 6).map(({ message, triage }) => (
                 <TriageQueueItem
@@ -452,7 +453,7 @@ export default function OperationalControlPage() {
                   onOpenAttachment={message.media_storage_path?.startsWith(companyId + "/") ? async () => {
                     const path = message.media_storage_path!;
                     const { data, error } = await supabase.storage.from("whatsapp-media").createSignedUrl(path, 300);
-                    if (error || !data?.signedUrl) toast.error("Allegato non disponibile");
+                    if (error || !data?.signedUrl) toast.error(t("Allegato non disponibile"));
                     else window.open(data.signedUrl, "_blank", "noopener,noreferrer");
                   } : undefined}
                   onMarkDone={() => markMessageReviewed.mutate(message.id)}
@@ -462,13 +463,13 @@ export default function OperationalControlPage() {
             </div>
 
             <div className="rounded-xl border bg-muted/30 p-4">
-              <p className="text-sm font-semibold">Regole attive</p>
+              <p className="text-sm font-semibold">{t("Regole attive")}</p>
               <div className="mt-3 space-y-3 text-xs text-muted-foreground">
-                <RoutingRule label="Rapportini" text="audio/testo di fine giornata -> rapportino da approvare." />
-                <RoutingRule label="DDT" text="Originale in Documenti in ingresso, lettura delle righe in background." />
-                <RoutingRule label="Scontrini" text="Foto archiviata. Chi ha pagato e commessa determinano la pratica da verificare." />
-                <RoutingRule label="Foto" text="immagini cantiere -> diario commessa se il cantiere è chiaro." />
-                <RoutingRule label="Sicurezza" text="incidenti o rischi -> priorità alta e escalation." />
+                <RoutingRule label={t("Rapportini")} text={t("audio/testo di fine giornata -> rapportino da approvare.")} />
+                <RoutingRule label="DDT" text={t("Originale in Documenti in ingresso, lettura delle righe in background.")} />
+                <RoutingRule label={t("Scontrini")} text={t("Foto archiviata. Chi ha pagato e commessa determinano la pratica da verificare.")} />
+                <RoutingRule label={t("Foto")} text={t("immagini cantiere -> diario commessa se il cantiere è chiaro.")} />
+                <RoutingRule label={t("Sicurezza")} text={t("incidenti o rischi -> priorità alta e escalation.")} />
               </div>
             </div>
           </div>
@@ -481,7 +482,7 @@ export default function OperationalControlPage() {
             <CardTitle className="flex items-center justify-between gap-3 text-base">
               <span className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-primary" />
-                Da confermare
+                {t("Da confermare")}
               </span>
               <Badge variant="secondary">{openSignals.length + messagesToReview.length}</Badge>
             </CardTitle>
@@ -489,28 +490,28 @@ export default function OperationalControlPage() {
           <CardContent className="space-y-3">
             {controlQuery.isLoading ? <LoadingRows /> : null}
             {!controlQuery.isLoading && openSignals.length === 0 && messagesToReview.length === 0 ? (
-              <EmptyState text="Nessun DDT, alert o messaggio operativo da confermare." />
+              <EmptyState text={t("Nessun DDT, alert o messaggio operativo da confermare.")} />
             ) : null}
             {openSignals.slice(0, 6).map((signal) => (
               <div key={signal.id} className="rounded-xl border bg-background p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{signal.tipo_problema ?? "segnalazione"}</Badge>
-                      <span className="text-xs text-muted-foreground">{relativeDate(signal.created_at)}</span>
+                      <Badge variant="outline">{signal.tipo_problema ?? t("segnalazione")}</Badge>
+                      <span className="text-xs text-muted-foreground">{relativeDate(signal.created_at, t)}</span>
                     </div>
                     <p className="mt-2 line-clamp-3 text-sm font-medium text-foreground">{signal.descrizione}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{orderLabel(signal.orders)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{orderLabel(signal.orders, t)}</p>
                   </div>
                   <div className="flex shrink-0 gap-2">
                     {signal.order_id ? (
                       <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/ordini/${signal.order_id}`)}>
                         <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                        Apri
+                        {t("Apri")}
                       </Button>
                     ) : null}
                     <Button size="sm" onClick={() => resolveSignal.mutate(signal.id)} disabled={resolveSignal.isPending}>
-                      Chiudi
+                      {t("Chiudi")}
                     </Button>
                   </div>
                 </div>
@@ -522,8 +523,8 @@ export default function OperationalControlPage() {
                   <MessageSquare className="mt-1 h-4 w-4 text-destructive" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{triage.title}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{message.from_phone} · {relativeDate(message.created_at)}</p>
-                    <p className="mt-2 line-clamp-2 text-sm">{message.processing_error || triage.summary || "Messaggio senza testo"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{message.from_phone} · {relativeDate(message.created_at, t)}</p>
+                    <p className="mt-2 line-clamp-2 text-sm">{message.processing_error || triage.summary || t("Messaggio senza testo")}</p>
                   </div>
                 </div>
               </div>
@@ -536,31 +537,31 @@ export default function OperationalControlPage() {
             <CardTitle className="flex items-center justify-between gap-3 text-base">
               <span className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-primary" />
-                Rapportini via WhatsApp
+                {t("Rapportini via WhatsApp")}
               </span>
-              <Badge variant="secondary">{reportsToReview.length} da review</Badge>
+              <Badge variant="secondary">{t("{n} da review", { n: reportsToReview.length })}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {controlQuery.isLoading ? <LoadingRows /> : null}
             {!controlQuery.isLoading && reportsToReview.length === 0 ? (
-              <EmptyState text="Nessun rapportino WhatsApp in attesa di approvazione." />
+              <EmptyState text={t("Nessun rapportino WhatsApp in attesa di approvazione.")} />
             ) : null}
             {reportsToReview.slice(0, 7).map((report) => (
               <div key={report.id} className="rounded-xl border bg-background p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">{orderLabel(report.orders)}</p>
+                    <p className="text-sm font-semibold">{orderLabel(report.orders, t)}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {report.data_lavoro} · {report.ore_lavorate ?? "—"}h · {materialCount(report.materiali_usati)} materiali · {report.foto_urls?.length ?? 0} foto
+                      {t("{data} · {ore}h · {materiali} materiali · {foto} foto", { data: report.data_lavoro, ore: report.ore_lavorate ?? "—", materiali: materialCount(report.materiali_usati), foto: report.foto_urls?.length ?? 0 })}
                     </p>
                     <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
-                      {report.descrizione_lavori || "Rapportino senza descrizione"}
+                      {report.descrizione_lavori || t("Rapportino senza descrizione")}
                     </p>
                   </div>
                   {puoApprovare ? <Button size="sm" onClick={() => approveReport.mutate(report.id)} disabled={approveReport.isPending}>
-                    Approva
-                  </Button> : <span className="text-xs text-muted-foreground">Lo approva chi ha «Modifica commesse»</span>}
+                    {t("Approva")}
+                  </Button> : <span className="text-xs text-muted-foreground">{t("Lo approva chi ha «Modifica commesse»")}</span>}
                 </div>
               </div>
             ))}
@@ -575,12 +576,12 @@ export default function OperationalControlPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Bot className="h-4 w-4 text-primary" />
-            Telemetria Silvio
+            {t("Telemetria Silvio")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {(data?.tools ?? []).length === 0 ? (
-            <EmptyState text="Nessuna azione AI registrata per ora." />
+            <EmptyState text={t("Nessuna azione AI registrata per ora.")} />
           ) : (
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {(data?.tools ?? []).slice(0, 9).map((tool) => (
@@ -588,11 +589,11 @@ export default function OperationalControlPage() {
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-sm font-semibold">{tool.tool_name}</p>
                     <Badge variant={tool.result_ok ? "outline" : "destructive"}>
-                      {tool.result_ok ? "ok" : "errore"}
+                      {tool.result_ok ? t("ok") : t("errore")}
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {relativeDate(tool.ts)} · {tool.duration_ms ?? 0}ms · {tool.role_kind ?? "ruolo n/d"}
+                    {relativeDate(tool.ts, t)} · {tool.duration_ms ?? 0}ms · {tool.role_kind ?? t("ruolo n/d")}
                   </p>
                   {tool.result_summary ? (
                     <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{tool.result_summary}</p>
@@ -622,6 +623,7 @@ function TriageQueueItem({
   onMarkDone: () => void;
   marking: boolean;
 }) {
+  const t = useT();
   const hasLinkedOrder = !!message.cantiere_id || (message.linked_record_type === "orders" && !!message.linked_record_id);
   return (
     <div className={`rounded-xl border p-3 ${priorityClass(triage.priority)}`}>
@@ -630,31 +632,31 @@ function TriageQueueItem({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{triage.title}</Badge>
             <Badge variant="outline">{Math.round(triage.confidence * 100)}%</Badge>
-            <span className="text-xs text-muted-foreground">{relativeDate(message.created_at)}</span>
+            <span className="text-xs text-muted-foreground">{relativeDate(message.created_at, t)}</span>
           </div>
           <p className="mt-2 line-clamp-2 text-sm font-medium text-foreground">{triage.summary}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {message.from_phone} · {triage.route} · {message.processing_status ?? "stato n/d"}
+            {message.from_phone} · {triage.route} · {message.processing_status ?? t("stato n/d")}
           </p>
           <p className="mt-2 text-xs font-medium">{triage.suggestedAction}</p>
           {triage.signals.length > 0 ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">Segnali: {triage.signals.slice(0, 4).join(", ")}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("Segnali: {elenco}", { elenco: triage.signals.slice(0, 4).join(", ") })}</p>
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {onOpenAttachment && (
             <Button size="sm" variant="outline" onClick={onOpenAttachment}>
-              <FileText className="mr-1 h-3.5 w-3.5" />Apri allegato
+              <FileText className="mr-1 h-3.5 w-3.5" />{t("Apri allegato")}
             </Button>
           )}
           {hasLinkedOrder ? (
             <Button size="sm" variant="outline" onClick={onOpenLinked}>
               <ExternalLink className="mr-1 h-3.5 w-3.5" />
-              Apri
+              {t("Apri")}
             </Button>
           ) : null}
           <Button size="sm" variant="secondary" onClick={onMarkDone} disabled={marking || ["received", "processing"].includes(message.processing_status ?? "")}>
-            Ho verificato
+            {t("Ho verificato")}
           </Button>
         </div>
       </div>

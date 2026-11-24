@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { perOgniLotto, raccogliALotti } from "@/lib/lottiDiId";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface BulkEnrollAutomationDropdownProps {
   selectedIds: Set<string>;
@@ -36,6 +37,7 @@ async function getCompanyScopedContactIds(contactIds: string[], companyId: strin
 }
 
 export function BulkEnrollAutomationDropdown({ selectedIds }: BulkEnrollAutomationDropdownProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -113,8 +115,8 @@ export function BulkEnrollAutomationDropdown({ selectedIds }: BulkEnrollAutomati
       // iscritto davvero.
       toast.success(
         skipped > 0
-          ? `${enrolled} contatti iscritti · ${skipped} già presenti nel flusso`
-          : `${enrolled} contatti iscritti all'automazione`,
+          ? t("{enrolled} contatti iscritti · {skipped} già presenti nel flusso", { enrolled: String(enrolled ?? ""), skipped: String(skipped ?? "") })
+          : t("{enrolled} contatti iscritti all'automazione", { enrolled: String(enrolled ?? "") }),
       );
       queryClient.invalidateQueries({ queryKey: ["automation-enrollments"] });
       setOpen(false);
@@ -132,16 +134,16 @@ export function BulkEnrollAutomationDropdown({ selectedIds }: BulkEnrollAutomati
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button size="sm" variant="outline" disabled={selectedIds.size === 0 || enrollMutation.isPending}>
-          <Workflow className="h-4 w-4 mr-1" /> Aggiungi ad automazione
+          <Workflow className="h-4 w-4 mr-1" /> {t("Aggiungi ad automazione")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-60 p-2" align="start">
         <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground px-2 mb-1">
-          Flussi pubblicati
+          {t("Flussi pubblicati")}
         </p>
         <div className="space-y-0.5 max-h-48 overflow-y-auto">
           {flows.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-2 py-1">Nessun flusso pubblicato</p>
+            <p className="text-xs text-muted-foreground px-2 py-1">{t("Nessun flusso pubblicato")}</p>
           ) : (
             flows.map((f) => (
               <button

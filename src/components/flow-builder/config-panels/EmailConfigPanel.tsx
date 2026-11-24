@@ -13,6 +13,7 @@ import { EmailPreviewActions } from "./EmailPreviewActions";
 import { useModelliEmail } from "@/hooks/useModelliEmail";
 import { indirizzoMittenteValido } from "../../../../supabase/functions/_shared/mittenteAutomazione";
 import { emailContentEmpty, normalizeAutomationEmailConfig } from "../../../../supabase/functions/_shared/automationEmail";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Variabili lato azienda (contatto/opportunità) per il corpo email. */
 const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
@@ -65,6 +66,7 @@ interface EmailConfigPanelProps {
 }
 
 export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config: rawConfig, onChange, onPatch, triggerItemId, companyId }, ref) {
+  const t = useT();
   const normalized = normalizeAutomationEmailConfig(rawConfig);
   const config: Record<string, any> = { ...rawConfig, destinatario: normalized.email_to, oggetto: normalized.email_subject, corpo: normalized.email_body, modello_id: normalized.template_id, da_nome: normalized.from_name, da_email: normalized.from_email };
   const subjectRef = useRef<HTMLInputElement>(null);
@@ -130,68 +132,64 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
     <div ref={ref} className="space-y-4">
       {/* Modello salvato: oggetto e testo arrivano da lì a ogni invio */}
       <div className="space-y-1.5 rounded-md border p-2.5">
-        <Label className="text-xs">Modello salvato</Label>
+        <Label className="text-xs">{t("Modello salvato")}</Label>
         <Select value={modelloId || NESSUN_MODELLO} onValueChange={scegliModello}>
           <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Nessun modello" />
+            <SelectValue placeholder={t("Nessun modello")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NESSUN_MODELLO}>Nessun modello — scrivo il testo qui</SelectItem>
+            <SelectItem value={NESSUN_MODELLO}>{t("Nessun modello — scrivo il testo qui")}</SelectItem>
             {modelli.map((m) => (
               <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         {modello && (
-          <p className="text-[11px] text-muted-foreground">
-            Oggetto: «{modello.subject}». Modificando il modello cambiano tutte le email che lo usano.
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("Oggetto: «{subject}». Modificando il modello cambiano tutte le email che lo usano.", { subject: String(modello.subject ?? "") })}</p>
         )}
         {modelloMancante && (
           <p className="text-[11px] font-medium text-destructive">
-            Il modello collegato non esiste più: scegline un altro o scrivi il testo qui.
+            {t("Il modello collegato non esiste più: scegline un altro o scrivi il testo qui.")}
           </p>
         )}
-        {modelliError && <p role="alert" className="text-[11px] text-destructive">Non riesco a caricare i modelli. Riprova prima di cambiarne uno.</p>}
+        {modelliError && <p role="alert" className="text-[11px] text-destructive">{t("Non riesco a caricare i modelli. Riprova prima di cambiarne uno.")}</p>}
         {!modelloId && !modelliLoading && !modelliError && modelli.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
-            Nessun modello salvato: scrivi il testo qui sotto, oppure creane uno in Email Marketing → Modelli.
+            {t("Nessun modello salvato: scrivi il testo qui sotto, oppure creane uno in Email Marketing → Modelli.")}
           </p>
         )}
       </div>
 
       {/* Da dove parte: casella dell'azienda o dominio di piattaforma */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Invia da</Label>
+        <Label className="text-xs">{t("Invia da")}</Label>
         <Select
           value={casellaId || PIATTAFORMA}
           onValueChange={(v) => onChange("casella_id", v === PIATTAFORMA ? "" : v)}
         >
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={PIATTAFORMA}>Email di sistema, con il nome dell'azienda</SelectItem>
+            <SelectItem value={PIATTAFORMA}>{t("Email di sistema, con il nome dell'azienda")}</SelectItem>
             {caselle.map((c) => (
               <SelectItem key={c.id} value={c.id}>
-                {c.email_address}{c.status !== "active" ? " — da ricollegare" : ""}
+                {c.email_address}{c.status !== "active" ? ` ${t("— da ricollegare")}` : ""}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {casellaId && !casella && !caselleLoading && !caselleError && (
-          <p className="text-[11px] font-medium text-destructive">La casella scelta non è più collegata: scegline un'altra.</p>
+          <p className="text-[11px] font-medium text-destructive">{t("La casella scelta non è più collegata: scegline un'altra.")}</p>
         )}
-        {caselleError && <p role="alert" className="text-[11px] text-destructive">Non riesco a verificare le caselle collegate. Riprova prima di cambiare mittente.</p>}
+        {caselleError && <p role="alert" className="text-[11px] text-destructive">{t("Non riesco a verificare le caselle collegate. Riprova prima di cambiare mittente.")}</p>}
         {casella && casella.status !== "active" && (
-          <p className="text-[11px] font-medium text-destructive">
-            {casella.email_address} è scollegata: finché non la ricolleghi da Impostazioni → Il mio profilo → Email le email non partono.
-          </p>
+          <p className="text-[11px] font-medium text-destructive">{t("{email_address} è scollegata: finché non la ricolleghi da Impostazioni → Il mio profilo → Email le email non partono.", { email_address: String(casella.email_address ?? "") })}</p>
         )}
         {casella?.status === "active" && (
-          <p className="text-[11px] text-muted-foreground">Parte da {casella.email_address} e la trovi nella sua posta inviata.</p>
+          <p className="text-[11px] text-muted-foreground">{t("Parte da {email_address} e la trovi nella sua posta inviata.", { email_address: String(casella.email_address ?? "") })}</p>
         )}
         {!caselleLoading && !caselleError && caselle.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
-            Per inviare dalla casella dell'azienda collegala prima in Impostazioni → Il mio profilo → Email.
+            {t("Per inviare dalla casella dell'azienda collegala prima in Impostazioni → Il mio profilo → Email.")}
           </p>
         )}
       </div>
@@ -200,11 +198,11 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           collegata il mittente è la casella stessa. */}
       {!casellaId && (
       <div className="space-y-1.5">
-        <Label className="text-xs">Da (mittente)</Label>
+        <Label className="text-xs">{t("Da (mittente)")}</Label>
         <Input
           value={config.da_nome || ""}
           onChange={e => onChange("da_nome", e.target.value)}
-          placeholder="Nome mittente"
+          placeholder={t("Nome mittente")}
           className="h-8 text-xs"
         />
         <Input
@@ -214,10 +212,10 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           className="h-8 text-xs"
         />
         {config.da_email?.trim() && !indirizzoMittenteValido(config.da_email) ? (
-          <p className="text-[11px] font-medium text-destructive">Indirizzo non valido: non verrà usato.</p>
+          <p className="text-[11px] font-medium text-destructive">{t("Indirizzo non valido: non verrà usato.")}</p>
         ) : (
           <p className="text-[11px] text-muted-foreground">
-            Vuoto: vale il mittente nelle Impostazioni dell'automazione, se c'è, altrimenti quello dell'azienda.
+            {t("Vuoto: vale il mittente nelle Impostazioni dell'automazione, se c'è, altrimenti quello dell'azienda.")}
           </p>
         )}
       </div>
@@ -227,20 +225,20 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       <EvidenzaObbligatoria mostra={false}>
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label className="text-xs">Destinatario</Label>
+          <Label className="text-xs">{t("Destinatario")}</Label>
           <VariablePicker purpose="recipient" allowCustomFields={!suCommessa} companyId={companyId} triggerItemId={triggerItemId} extraVariables={variabili} onInsert={v => onChange("destinatario", v)} />
         </div>
         <Input
           value={config.destinatario || ""}
-          aria-label="Destinatario email"
+          aria-label={t("Destinatario email")}
           onChange={e => onChange("destinatario", e.target.value)}
           placeholder={suCommessa ? "{{cliente.email}}" : "{{contatto.email}}"}
           className="h-8 text-xs"
         />
-        <p className="text-[11px] text-muted-foreground">Vuoto: invia al {suCommessa ? "cliente della commessa" : "contatto del flusso"}. Per un altro destinatario, inserisci una sola email.</p>
+        <p className="text-[11px] text-muted-foreground">{suCommessa ? t("Vuoto: invia al cliente della commessa. Per un altro destinatario, inserisci una sola email.") : t("Vuoto: invia al contatto del flusso. Per un altro destinatario, inserisci una sola email.")}</p>
         {suCommessa && (
           <p className="text-[11px] text-muted-foreground">
-            {"{{cliente.email}}"} = il cliente della commessa.
+            {"{{cliente.email}}"} {t("= il cliente della commessa.")}
           </p>
         )}
       </div>
@@ -250,31 +248,30 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       {suCommessa && (
         <div className="flex items-start justify-between gap-3 rounded-md border p-2.5">
           <div className="min-w-0">
-            <Label className="text-xs">Allega la fattura della commessa</Label>
+            <Label className="text-xs">{t("Allega la fattura della commessa")}</Label>
             <p className="text-[11px] text-muted-foreground">
-              L'ultima caricata nella cartella «Fatture e pagamenti» della commessa (se ci sono anche ricevute, vince
-              il file con «fattura» nel nome). Se non c'è, l'email non parte e l'errore resta nello storico.
+              {t("L'ultima caricata nella cartella «Fatture e pagamenti» della commessa (se ci sono anche ricevute, vince il file con «fattura» nel nome). Se non c'è, l'email non parte e l'errore resta nello storico.")}
             </p>
           </div>
           <Switch
             checked={config.allega_fattura_commessa === true}
             onCheckedChange={(v) => onChange("allega_fattura_commessa", v)}
-            aria-label="Allega la fattura della commessa"
+            aria-label={t("Allega la fattura della commessa")}
           />
         </div>
       )}
 
       {/* CC */}
       <div className="space-y-1.5">
-        <Label className="text-xs">CC (opzionale)</Label>
+        <Label className="text-xs">{t("CC (opzionale)")}</Label>
         <Input
           value={config.cc || ""}
-          aria-label="CC email"
+          aria-label={t("CC email")}
           onChange={e => onChange("cc", e.target.value)}
           placeholder="cc@azienda.it"
           className="h-8 text-xs"
         />
-        <p className="text-[11px] text-muted-foreground">Separa gli indirizzi con una virgola. Le copie sono visibili ai destinatari; il canale marketing di sistema può richiedere una casella collegata.</p>
+        <p className="text-[11px] text-muted-foreground">{t("Separa gli indirizzi con una virgola. Le copie sono visibili ai destinatari; il canale marketing di sistema può richiedere una casella collegata.")}</p>
       </div>
 
       {/* Con un modello collegato oggetto e testo NON stanno nel nodo: si
@@ -284,7 +281,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       {modelloId ? (
         <div className="space-y-2 rounded-md border bg-muted/40 p-2.5">
           <p className="text-[11px] text-muted-foreground">
-            Oggetto e testo arrivano dal modello{modello ? ` «${modello.name}»` : ""}.
+            {modello ? t("Oggetto e testo arrivano dal modello «{nome}».", { nome: String(modello.name ?? "") }) : t("Oggetto e testo arrivano dal modello.")}
           </p>
           <Button
             type="button"
@@ -293,7 +290,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
             className="h-7 text-xs"
             onClick={() => scegliModello(NESSUN_MODELLO)}
           >
-            Scrivi il testo qui
+            {t("Scrivi il testo qui")}
           </Button>
         </div>
       ) : (
@@ -302,15 +299,15 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       <EvidenzaObbligatoria mostra={campoVuoto(config.oggetto)}>
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label className="text-xs">Oggetto</Label>
+          <Label className="text-xs">{t("Oggetto")}</Label>
           <VariablePicker purpose="email" allowCustomFields={!suCommessa} companyId={companyId} triggerItemId={triggerItemId} extraVariables={variabili} onInsert={v => insertSubjectVariable(subjectRef, "oggetto", v)} />
         </div>
         <Input
           value={config.oggetto || ""}
-          aria-label="Oggetto email"
+          aria-label={t("Oggetto email")}
           ref={subjectRef}
           onChange={e => onChange("oggetto", e.target.value)}
-          placeholder="Es: Conferma appuntamento - {{appuntamento.appointment_date}}"
+          placeholder={t("Es: Conferma appuntamento - {variabile}", { variabile: "{{appuntamento.appointment_date}}" })}
           className="h-8 text-xs"
         />
       </div>
@@ -323,33 +320,33 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       <div className="space-y-1.5 rounded-md border p-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <Label className="text-xs">Prova un secondo oggetto</Label>
+            <Label className="text-xs">{t("Prova un secondo oggetto")}</Label>
             <p className="text-[11px] text-muted-foreground">
-              Metà dei contatti riceve questo al posto del primo.
+              {t("Metà dei contatti riceve questo al posto del primo.")}
             </p>
           </div>
           <Switch
             checked={!!config.oggetto_b && config.ab_attivo !== false}
             onCheckedChange={(v) => onChange("ab_attivo", v)}
-            aria-label="Prova un secondo oggetto"
+            aria-label={t("Prova un secondo oggetto")}
             disabled={!config.oggetto_b}
           />
         </div>
         <div className="flex items-center justify-between">
-          <Label className="text-[11px] text-muted-foreground">Oggetto B</Label>
+          <Label className="text-[11px] text-muted-foreground">{t("Oggetto B")}</Label>
           <VariablePicker purpose="email" allowCustomFields={!suCommessa} companyId={companyId} triggerItemId={triggerItemId} extraVariables={variabili} onInsert={v => insertSubjectVariable(alternativeSubjectRef, "oggetto_b", v)} />
         </div>
         <Input
           value={config.oggetto_b || ""}
           ref={alternativeSubjectRef}
-          aria-label="Oggetto alternativo email"
+          aria-label={t("Oggetto alternativo email")}
           onChange={e => onChange("oggetto_b", e.target.value)}
-          placeholder="Lo stesso messaggio, detto in un altro modo"
+          placeholder={t("Lo stesso messaggio, detto in un altro modo")}
           className="h-8 text-xs"
         />
         {config.oggetto_b && config.ab_attivo === false && (
           <p className="text-[11px] text-amber-600 dark:text-amber-500">
-            Secondo oggetto scritto ma spento: parte solo il primo.
+            {t("Secondo oggetto scritto ma spento: parte solo il primo.")}
           </p>
         )}
       </div>
@@ -357,7 +354,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       {/* Body — editor visuale (niente HTML a mano) */}
       <EvidenzaObbligatoria mostra={emailContentEmpty(config.corpo)}>
       <div className="space-y-1.5">
-        <Label className="text-xs">Corpo email</Label>
+        <Label className="text-xs">{t("Corpo email")}</Label>
         <EmailBodyEditor
           value={config.corpo}
           onChange={(html) => onChange("corpo", html)}
@@ -373,11 +370,11 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
 
       {/* Send delay */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Ritardo invio</Label>
+        <Label className="text-xs">{t("Ritardo invio")}</Label>
         <div className="flex gap-2">
           <Input
             type="number"
-            aria-label="Ritardo invio email"
+            aria-label={t("Ritardo invio email")}
             min={0}
             value={config.ritardo_valore || 0}
             onChange={e => onChange("ritardo_valore", parseInt(e.target.value) || 0)}
@@ -388,9 +385,9 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="minuti">Minuti</SelectItem>
-              <SelectItem value="ore">Ore</SelectItem>
-              <SelectItem value="giorni">Giorni</SelectItem>
+              <SelectItem value="minuti">{t("Minuti")}</SelectItem>
+              <SelectItem value="ore">{t("Ore")}</SelectItem>
+              <SelectItem value="giorni">{t("Giorni")}</SelectItem>
             </SelectContent>
           </Select>
         </div>

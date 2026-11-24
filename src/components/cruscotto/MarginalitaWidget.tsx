@@ -19,6 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, ArrowUpRight, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Quota di portafoglio analizzata dal widget. La pagina completa
@@ -40,6 +41,7 @@ function margineBarClass(perc: number) {
 }
 
 export function MarginalitaWidget() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
 
   const { data: rows = [], isLoading } = useQuery({
@@ -75,10 +77,10 @@ export function MarginalitaWidget() {
   // 14/11/2026: quante commesse per fascia di margine, in una ciambella accanto
   // alle cinque più a rischio. Stesse soglie dei bollini (10% e 25%).
   const fasce = [
-    { nome: "In perdita", valore: conCosti.filter((r) => r.marginePerc < 0).length, colore: "hsl(0 72% 50%)" },
-    { nome: "Sotto il 10%", valore: conCosti.filter((r) => r.marginePerc >= 0 && r.marginePerc < 10).length, colore: "hsl(25 95% 53%)" },
+    { nome: t("In perdita"), valore: conCosti.filter((r) => r.marginePerc < 0).length, colore: "hsl(0 72% 50%)" },
+    { nome: t("Sotto il 10%"), valore: conCosti.filter((r) => r.marginePerc >= 0 && r.marginePerc < 10).length, colore: "hsl(25 95% 53%)" },
     { nome: "10–25%", valore: conCosti.filter((r) => r.marginePerc >= 10 && r.marginePerc < 25).length, colore: "hsl(43 96% 50%)" },
-    { nome: "Oltre il 25%", valore: conCosti.filter((r) => r.marginePerc >= 25).length, colore: "hsl(142 64% 40%)" },
+    { nome: t("Oltre il 25%"), valore: conCosti.filter((r) => r.marginePerc >= 25).length, colore: "hsl(142 64% 40%)" },
   ];
   const avgPerc = summary.margineMedioPerc;
 
@@ -102,12 +104,12 @@ export function MarginalitaWidget() {
         <CardHeader className="p-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            Marginalità Cantieri
+            {t("Marginalità Cantieri")}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-0">
           <p className="text-sm text-muted-foreground">
-            Nessuna commessa con dati economici nel periodo: la marginalità comparirà qui con la prima commessa.
+            {t("Nessuna commessa con dati economici nel periodo: la marginalità comparirà qui con la prima commessa.")}
           </p>
         </CardContent>
       </Card>
@@ -120,16 +122,18 @@ export function MarginalitaWidget() {
         <CardHeader className="p-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
-            Marginalità Cantieri
+            {t("Marginalità Cantieri")}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-0 space-y-2">
-          <p className="text-sm font-medium text-amber-800">Costi da completare</p>
+          <p className="text-sm font-medium text-amber-800">{t("Costi da completare")}</p>
           <p className="text-sm text-muted-foreground">
-            {summary.nDaCompletare} {summary.nDaCompletare === 1 ? "commessa ha" : "commesse hanno"} un contratto, ma nessun costo registrato. Il margine non viene stimato.
+            {summary.nDaCompletare === 1
+              ? t("{n} commessa ha un contratto, ma nessun costo registrato. Il margine non viene stimato.", { n: summary.nDaCompletare })
+              : t("{n} commesse hanno un contratto, ma nessun costo registrato. Il margine non viene stimato.", { n: summary.nDaCompletare })}
           </p>
           <Button variant="outline" size="sm" asChild>
-            <Link to="/azienda/marginalita">Completa i dati</Link>
+            <Link to="/azienda/marginalita">{t("Completa i dati")}</Link>
           </Button>
         </CardContent>
       </Card>
@@ -146,45 +150,41 @@ export function MarginalitaWidget() {
             ) : (
               <TrendingDown className="h-4 w-4 text-red-500" />
             )}
-            Marginalità Cantieri
+            {t("Marginalità Cantieri")}
           </CardTitle>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-            <span className={cn("text-sm font-semibold", margineColor(avgPerc))}>
-              Media: {avgPerc.toFixed(1)}%
-            </span>
+            <span className={cn("text-sm font-semibold", margineColor(avgPerc))}>{t("Media: {avgPerc}%", { avgPerc: avgPerc.toFixed(1) })}</span>
             {summary.nInPerdita > 0 && (
               <span className="flex items-center gap-1 text-xs text-red-600">
                 <AlertTriangle className="h-3 w-3" />
-                {summary.nInPerdita} in perdita
+                {t("{n} in perdita", { n: summary.nInPerdita })}
               </span>
             )}
             {(summary.nConSforamento > 0 || summary.nConErrori > 0) && (
               <span className="text-xs text-muted-foreground">
-                {summary.nConSforamento > 0 && `${summary.nConSforamento} sforamenti`}
+                {summary.nConSforamento > 0 && t("{nConSforamento} sforamenti", { nConSforamento: String(summary.nConSforamento ?? "") })}
                 {summary.nConSforamento > 0 && summary.nConErrori > 0 && " · "}
-                {summary.nConErrori > 0 && `${summary.nConErrori} con errori`}
+                {summary.nConErrori > 0 && t("{nConErrori} con errori", { nConErrori: String(summary.nConErrori ?? "") })}
               </span>
             )}
             {summary.nDaCompletare > 0 && (
-              <span className="text-xs font-medium text-amber-700">
-                {summary.nDaCompletare} da completare
-              </span>
+              <span className="text-xs font-medium text-amber-700">{t("{nDaCompletare} da completare", { nDaCompletare: String(summary.nDaCompletare ?? "") })}</span>
             )}
           </div>
         </div>
         <Button variant="ghost" size="sm" asChild className="shrink-0">
           <Link to="/azienda/marginalita">
-            Vedi tutti <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
+            {t("Vedi tutti")} <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
           </Link>
         </Button>
       </CardHeader>
 
       <CardContent className="p-3 pt-0 grid gap-4 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
         <div className="rounded-xl border bg-muted/20 p-3 max-sm:hidden">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Commesse con costi, per margine</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">{t("Commesse con costi, per margine")}</p>
           <Ciambella
-            titolo="Commesse per margine"
-            etichettaCentro="Commesse"
+            titolo={t("Commesse per margine")}
+            etichettaCentro={t("Commesse")}
             dimensione={120}
             className="lg:grid-cols-1"
             fette={fasce}
@@ -239,11 +239,11 @@ export function MarginalitaWidget() {
 
         {/* Summary totals */}
         <div className="border-t pt-2 flex justify-between text-sm">
-          <span className="text-muted-foreground">Preventivo valutato</span>
+          <span className="text-muted-foreground">{t("Preventivo valutato")}</span>
           <span className="font-medium">{formatCurrency(summary.preventivoValutabile)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Margine diretto</span>
+          <span className="text-muted-foreground">{t("Margine diretto")}</span>
           <span className={cn("font-semibold", margineColor(avgPerc))}>
             {formatCurrency(summary.margineTotale)}
           </span>

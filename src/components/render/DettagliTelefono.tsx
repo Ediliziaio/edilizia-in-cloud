@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DettagliTelefonoProps {
   /** La riga che apre il gruppo, es. «Dettagli di posa». */
@@ -15,7 +16,8 @@ interface DettagliTelefonoProps {
  * già un valore sensato (direzione di posa, fughe, bisellatura…) — in una riga
  * chiusa. Sul computer i figli restano esattamente dove sono, senza contenitore.
  */
-export function DettagliTelefono({ titolo = "Altri dettagli", children, className }: DettagliTelefonoProps) {
+export function DettagliTelefono({ titolo, children, className }: DettagliTelefonoProps) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [aperto, setAperto] = useState(false);
 
@@ -29,7 +31,7 @@ export function DettagliTelefono({ titolo = "Altri dettagli", children, classNam
         onClick={() => setAperto((valore) => !valore)}
         className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left text-[13px] font-medium"
       >
-        {titolo}
+        {titolo ?? t("Altri dettagli")}
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-180")} />
       </button>
       {aperto && <div className="space-y-3 border-t px-3 py-3">{children}</div>}

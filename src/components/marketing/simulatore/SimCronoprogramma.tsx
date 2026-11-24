@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/formatters";
 import type { FaseCalcolata } from "@/lib/simulatore/calcoli";
 import type { FaseSim, VoceSim } from "@/lib/simulatore/tipi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SimCronoprogrammaProps {
   fasi: FaseSim[];
@@ -58,7 +59,7 @@ function parseNonNeg(raw: string): number {
 /** "1 sett" / "3 sett" — etichetta breve settimane. */
 function settLabel(n: number): string {
   const r = Math.round(n * 10) / 10;
-  return `${r.toLocaleString("it-IT")} sett`;
+  return `${r.toLocaleString(intlCampo())} sett`;
 }
 
 /**
@@ -81,6 +82,7 @@ export function SimCronoprogramma({
   onChangeFasi,
   risultatoFasi,
 }: SimCronoprogrammaProps) {
+  const t = useT();
   const ordered = [...fasi].sort((a, b) => a.ordine - b.ordine);
   const totale = risultatoFasi.durata_settimane;
   // Scala del gantt: almeno 1 per evitare divisioni per zero / barre a larghezza 0.
@@ -109,16 +111,14 @@ export function SimCronoprogramma({
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <CalendarRange className="h-4 w-4" />
             </span>
-            <h3 className="text-sm font-semibold">Cronoprogramma</h3>
+            <h3 className="text-sm font-semibold">{t("Cronoprogramma")}</h3>
             {totale > 0 ? (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary tabular-nums">
-                {settLabel(totale)} totali
-              </span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary tabular-nums">{t("{totale} totali", { totale: String(settLabel(totale) ?? "") })}</span>
             ) : null}
           </div>
           <Button variant="outline" size="sm" onClick={addFase} className="gap-1.5">
             <Plus className="h-4 w-4" />
-            Aggiungi fase
+            {t("Aggiungi fase")}
           </Button>
         </div>
 
@@ -127,9 +127,9 @@ export function SimCronoprogramma({
             icon={CalendarRange}
             size="sm"
             tone="success"
-            title="Nessuna fase"
-            description="Aggiungi le fasi del lavoro per costruire il cronoprogramma e ripartire i costi nel tempo."
-            action={{ label: "Aggiungi fase", onClick: addFase, icon: Plus, primary: true }}
+            title={t("Nessuna fase")}
+            description={t("Aggiungi le fasi del lavoro per costruire il cronoprogramma e ripartire i costi nel tempo.")}
+            action={{ label: t("Aggiungi fase"), onClick: addFase, icon: Plus, primary: true }}
           />
         ) : (
           <div className="space-y-2.5">
@@ -152,16 +152,16 @@ export function SimCronoprogramma({
                   {/* Riga campi editabili */}
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="min-w-[160px] flex-1 space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Nome fase</Label>
+                      <Label className="text-[11px] text-muted-foreground">{t("Nome fase")}</Label>
                       <Input
                         value={fase.nome}
                         onChange={(e) => patchFase(fase.id, { nome: e.target.value })}
-                        placeholder="Nome fase"
+                        placeholder={t("Nome fase")}
                         className="h-8"
                       />
                     </div>
                     <div className="w-[92px] space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Durata (sett)</Label>
+                      <Label className="text-[11px] text-muted-foreground">{t("Durata (sett)")}</Label>
                       <Input
                         type="number"
                         inputMode="numeric"
@@ -175,7 +175,7 @@ export function SimCronoprogramma({
                       />
                     </div>
                     <div className="w-[92px] space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Inizio (sett)</Label>
+                      <Label className="text-[11px] text-muted-foreground">{t("Inizio (sett)")}</Label>
                       <Input
                         type="number"
                         inputMode="numeric"
@@ -191,7 +191,7 @@ export function SimCronoprogramma({
                       />
                     </div>
                     <div className="w-[92px] space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Giorni-uomo</Label>
+                      <Label className="text-[11px] text-muted-foreground">{t("Giorni-uomo")}</Label>
                       <Input
                         type="number"
                         inputMode="numeric"
@@ -209,8 +209,8 @@ export function SimCronoprogramma({
                       size="icon"
                       onClick={() => removeFase(fase.id)}
                       className="h-8 w-8 text-muted-foreground transition hover:text-destructive"
-                      aria-label="Elimina fase"
-                      title="Elimina fase"
+                      aria-label={t("Elimina fase")}
+                      title={t("Elimina fase")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -226,19 +226,15 @@ export function SimCronoprogramma({
                         <span className="truncate text-[11px] font-semibold tabular-nums">
                           {settLabel(fase.durata_settimane)}
                           {fase.giorni_uomo > 0
-                            ? ` · ${Math.round(fase.giorni_uomo).toLocaleString("it-IT")} gg-uomo`
+                            ? t(" · {valore} gg-uomo", { valore: Math.round(fase.giorni_uomo).toLocaleString(intlCampo()) })
                             : ""}
                         </span>
                       </div>
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>
-                        inizio sett. {Math.round(fase.inizio_offset_settimane).toLocaleString("it-IT")}
-                      </span>
+                      <span>{t("inizio sett. {valore}", { valore: Math.round(fase.inizio_offset_settimane).toLocaleString(intlCampo()) })}</span>
                       {manodopera > 0 ? (
-                        <span className="tabular-nums">
-                          Manodopera {formatCurrency(manodopera)}
-                        </span>
+                        <span className="tabular-nums">{t("Manodopera {importo}", { importo: formatCurrency(manodopera) })}</span>
                       ) : null}
                     </div>
                   </div>

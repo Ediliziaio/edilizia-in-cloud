@@ -33,6 +33,7 @@ import {
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -57,6 +58,7 @@ function isIdleTimeoutMessage(message: string) {
 }
 
 export default function RenderPergoleNew() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -112,7 +114,7 @@ export default function RenderPergoleNew() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error(t("File troppo grande (max 20 MB)"));
       return;
     }
     setPhoto(file);
@@ -147,7 +149,7 @@ export default function RenderPergoleNew() {
         })
         .select<{ id: string }>("id")
         .single();
-      if (sessErr || !sess) throw new Error(sessErr?.message ?? "Creazione sessione fallita");
+      if (sessErr || !sess) throw new Error(sessErr?.message ?? t("Creazione sessione fallita"));
       setSessionId(sess.id as string);
       setStep(2);
     } catch (err) {
@@ -155,7 +157,7 @@ export default function RenderPergoleNew() {
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, db, config, contactId, opportunityId]);
+  }, [photo, companyId, user, db, config, contactId, opportunityId, t]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -179,7 +181,7 @@ export default function RenderPergoleNew() {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         stopPolling();
         setGenerating(false);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova più tardi.");
+        toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova più tardi."));
         setStep(2);
         return;
       }
@@ -204,7 +206,7 @@ export default function RenderPergoleNew() {
       if (sess?.status === "failed") {
         stopPolling();
         setGenerating(false);
-        toast.error(sess.error_message || "Render fallito. Riprova.");
+        toast.error(sess.error_message || t("Render fallito. Riprova."));
         setStep(2);
         return;
       }
@@ -215,7 +217,7 @@ export default function RenderPergoleNew() {
     };
 
     poll();
-  }, [companyId, db, queryClient, stopPolling]);
+  }, [companyId, db, queryClient, stopPolling, t]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
@@ -261,15 +263,15 @@ export default function RenderPergoleNew() {
       const msg = await resolveEdgeFunctionErrorMessage({
         error: fnErr,
         data: fnData,
-        fallback: "Generazione fallita",
+        fallback: t("Generazione fallita"),
       });
       if (isIdleTimeoutMessage(msg)) {
-        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        toast.info(t("Render avviato: continuo a controllare lo stato in automatico."));
         return;
       }
       stopPolling();
       setGenerating(false);
-      toast.error(msg.includes("insufficient_credits") ? "Crediti render insufficienti. Acquista nuovi crediti." : msg);
+      toast.error(msg.includes("insufficient_credits") ? t("Crediti render insufficienti. Acquista nuovi crediti.") : msg);
       setStep(2);
       return;
     }
@@ -289,9 +291,9 @@ export default function RenderPergoleNew() {
       stopPolling();
       setGenerating(false);
       setStep(2);
-      toast.error(err instanceof Error ? err.message : "Render fallito");
+      toast.error(err instanceof Error ? err.message : t("Render fallito"));
     }
-  }, [sessionId, companyId, generating, db, config, photo, photoPreview, queryClient, startPolling, stopPolling]);
+  }, [sessionId, companyId, generating, db, config, photo, photoPreview, queryClient, startPolling, stopPolling, t]);
 
   const downloadResult = useCallback(async () => {
     const url = resultUrls[0];
@@ -299,9 +301,9 @@ export default function RenderPergoleNew() {
     try {
       await downloadRenderImage(url, `render_pergole_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
-  }, [resultUrls]);
+  }, [resultUrls, t]);
 
   const shareWhatsApp = useCallback(() => {
     const url = resultUrls[0];
@@ -339,12 +341,12 @@ export default function RenderPergoleNew() {
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Render pergola fotorealistico"
-        title="Stesso esterno, nuova pergola"
-        mobileTitle="Render Pergola"
-        description="Visualizza la pergola sul tuo terrazzo o giardino con materiali, colori e copertura scelti."
-        badgeLabel="Render AI — Pergole"
-        stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
+        eyebrow={t("Render pergola fotorealistico")}
+        title={t("Stesso esterno, nuova pergola")}
+        mobileTitle={t("Render Pergola")}
+        description={t("Visualizza la pergola sul tuo terrazzo o giardino con materiali, colori e copertura scelti.")}
+        badgeLabel={t("Render AI — Pergole")}
+        stepLabels={[t("Foto"), t("Configura"), t("Elaborazione"), t("Risultato")]}
         currentStep={step}
         accent="violet"
       />
@@ -361,7 +363,7 @@ export default function RenderPergoleNew() {
             <>
               <ZonaFotoMobile
                 onScegli={() => fileRef.current?.click()}
-                suggerimento="Terrazza, patio o giardino, con la parete di appoggio"
+                suggerimento={t("Terrazza, patio o giardino, con la parete di appoggio")}
                 accento="emerald"
               />
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
@@ -371,18 +373,18 @@ export default function RenderPergoleNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                Foto area esterna
+                {t("Foto area esterna")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
-                  <img loading="lazy" src={photoPreview} alt="Foto caricata" className="w-full max-h-96 object-cover" />
+                  <img loading="lazy" src={photoPreview} alt={t("Foto caricata")} className="w-full max-h-96 object-cover" />
                   {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
                   <Button variant="secondary" size="sm" className="absolute top-3 right-3 gap-1.5 max-md:right-2 max-md:top-2 max-md:h-8 max-md:rounded-full max-md:bg-black/55 max-md:px-3 max-md:text-[13px] max-md:text-white max-md:backdrop-blur-sm max-md:hover:bg-black/65" onClick={() => { setPhoto(null); setPhotoPreview(null); }}>
                     <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
                     <Camera className="hidden h-3.5 w-3.5 max-md:block" />
-                    Cambia foto
+                    {t("Cambia foto")}
                   </Button>
                 </div>
               ) : (
@@ -394,10 +396,10 @@ export default function RenderPergoleNew() {
                     <ImageIcon className="h-8 w-8 text-emerald-500" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold">Carica foto di terrazza, patio, giardino o bordo piscina</p>
-                    <p className="text-sm text-muted-foreground mt-1">JPG, PNG, WEBP - Max 20 MB</p>
+                    <p className="font-semibold">{t("Carica foto di terrazza, patio, giardino o bordo piscina")}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{t("JPG, PNG, WEBP - Max 20 MB")}</p>
                   </div>
-                  <Button variant="outline" size="sm" type="button">Sfoglia file</Button>
+                  <Button variant="outline" size="sm" type="button">{t("Sfoglia file")}</Button>
                 </div>
               )}
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
@@ -415,7 +417,7 @@ export default function RenderPergoleNew() {
           {/* Telefono: compare con la foto (prima era un bottone spento). */}
           {(!isMobile || photo) && (
           <Button className="w-full bg-emerald-600 hover:bg-emerald-700" size="lg" disabled={!photo || uploading} onClick={goToStep2}>
-            {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Caricamento...</> : "Continua con la configurazione"}
+            {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("Caricamento...")}</> : t("Continua con la configurazione")}
           </Button>
           )}
         </div>
@@ -425,13 +427,13 @@ export default function RenderPergoleNew() {
         <div className="space-y-4 max-md:space-y-3">
           {photoPreview && (
             <div className="rounded-lg overflow-hidden max-h-56">
-              <img loading="lazy" src={photoPreview} alt="Foto pergola" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt={t("Foto pergola")} className="w-full h-full object-cover" />
             </div>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 max-md:gap-3">
             <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardHeader className="max-md:hidden">
-                <CardTitle className="text-base">Configura pergola e installazione</CardTitle>
+                <CardTitle className="text-base">{t("Configura pergola e installazione")}</CardTitle>
               </CardHeader>
               <CardContent className="max-md:p-0">
                 <PergoleConfigForm value={config} onChange={setConfig} />
@@ -440,14 +442,14 @@ export default function RenderPergoleNew() {
             {/* Telefono: ambito e regole di installazione (testo tecnico) restano al computer. */}
             <div className="space-y-3 max-md:hidden">
               <Card>
-                <CardHeader><CardTitle className="text-sm">Scope render</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">{t("Scope render")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <Badge className="bg-emerald-600">{renderPlan.target_installation_map.zone.replace(/_/g, " ")}</Badge>
                   <p className="text-muted-foreground">{renderPlan.target_installation_map.footprint}</p>
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-sm">Regole installazione</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">{t("Regole installazione")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-xs">
                   <p className="rounded-lg bg-muted p-2">{renderPlan.installability_envelope.facadeRelation}</p>
                   <p className="rounded-lg bg-muted p-2">{renderPlan.installability_envelope.drainageLogic}</p>
@@ -457,7 +459,7 @@ export default function RenderPergoleNew() {
           </div>
           <Button className="w-full bg-emerald-600 hover:bg-emerald-700" size="lg" onClick={startRender}>
             <Zap className="h-4 w-4 mr-2" />
-            Genera render pergola
+            {t("Genera render pergola")}
           </Button>
         </div>
       )}
@@ -468,7 +470,7 @@ export default function RenderPergoleNew() {
           elapsedSec={elapsedSec}
           dots={dots}
           accent="violet"
-          subjectLabel="L'AI sta elaborando il render della pergola"
+          subjectLabel={t("L'AI sta elaborando il render della pergola")}
         />
       )}
 
@@ -479,26 +481,26 @@ export default function RenderPergoleNew() {
               {/* Telefono: parla l'immagine. */}
               <div className="flex items-center gap-2 mb-4 max-md:hidden">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <span className="font-semibold text-green-700">Render completato!</span>
+                <span className="font-semibold text-green-700">{t("Render completato!")}</span>
               </div>
               {photoPreview ? (
-                <BeforeAfterSlider beforeSrc={photoPreview} afterSrc={resultUrls[0]} beforeLabel="Prima" afterLabel="Dopo" />
+                <BeforeAfterSlider beforeSrc={photoPreview} afterSrc={resultUrls[0]} beforeLabel={t("Prima")} afterLabel={t("Dopo")} />
               ) : (
-                <img loading="lazy" src={resultUrls[0]} alt="Render pergola" className="w-full object-cover rounded-lg" />
+                <img loading="lazy" src={resultUrls[0]} alt={t("Render pergola")} className="w-full object-cover rounded-lg" />
               )}
             </CardContent>
           </Card>
           {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
           {isMobile && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-pergola" className="min-w-0 flex-1" />
             </div>
           )}
           <div className="flex gap-2 max-md:hidden">
-            <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Scarica</Button>
+            <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}><Download className="h-4 w-4" />{t("Scarica")}</Button>
             <Button variant="outline" className="flex-1 gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
           </div>
           <RenderResultRefinementPanel
@@ -508,14 +510,14 @@ export default function RenderPergoleNew() {
             onEditChoices={() => setStep(2)}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel="Genera nuova variante pergola"
+            regenerateLabel={t("Genera nuova variante pergola")}
           />
           <Button
             className="w-full bg-emerald-600 hover:bg-emerald-700 max-md:hidden"
             onClick={nuovoRender}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
-            Nuovo render pergola
+            {t("Nuovo render pergola")}
           </Button>
         </div>
       )}

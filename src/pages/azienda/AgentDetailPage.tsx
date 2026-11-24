@@ -30,6 +30,7 @@ import { FishAgentPanel } from "@/components/agenti/FishAgentPanel";
 import { callFishAgent } from "@/lib/fishAgentProxy";
 import { FISH_LLM_MODELS } from "../../../supabase/functions/_shared/fishAgentConfig";
 import { FishAgentWorkspace } from "@/components/agenti/FishAgentWorkspace";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type SubTab = "panoramica" | "configurazione" | "conversazioni" | "statistiche";
 
@@ -69,6 +70,7 @@ const CANONICO_A_UI: Record<string, string> = {
 };
 
 export default function AgentDetailPage() {
+  const tr = useT();
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -148,16 +150,16 @@ export default function AgentDetailPage() {
 
   const updateAgent = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Nessuna azienda associata");
+      if (!companyId) throw new Error(tr("Nessuna azienda associata"));
       const nome = editNome.trim();
       const prompt = editPrompt.trim();
-      if (!nome) throw new Error("Inserisci un nome per l'agente AI.");
-      if (prompt.length < 20) throw new Error("Completa il prompt di sistema prima di salvare.");
+      if (!nome) throw new Error(tr("Inserisci un nome per l'agente AI."));
+      if (prompt.length < 20) throw new Error(tr("Completa il prompt di sistema prima di salvare."));
       const numeroOperatore = editNumeroOperatore.replace(/\s/g, "");
       // Un trasferimento senza numero fa dire all'agente "le passo un collega"
       // e poi non passa nessuno: meglio fermarsi al salvataggio.
       if (editTrasferisci && !/^\+\d{8,15}$/.test(numeroOperatore)) {
-        throw new Error("Indica il numero dell'operatore in formato internazionale, per esempio +39 02 1234567.");
+        throw new Error(tr("Indica il numero dell'operatore in formato internazionale, per esempio +39 02 1234567."));
       }
 
       // Merge non distruttivo: i toggle governano `enabled`, ma un webhook_url
@@ -221,14 +223,14 @@ export default function AgentDetailPage() {
         } as never)
         .eq("company_id", companyId)
         .eq("id", agentId!).select("id").single();
-      if (error || !saved) throw error || new Error("Agente non aggiornato");
+      if (error || !saved) throw error || new Error(tr("Agente non aggiornato"));
       if (isFish) {
         try { await callFishAgent(companyId, agentId!, "configure"); }
-        catch { throw new Error("Modifiche salvate nel gestionale. Fish resta in pausa: ripeti la sincronizzazione della bozza prima di pubblicare e riattivare."); }
+        catch { throw new Error(tr("Modifiche salvate nel gestionale. Fish resta in pausa: ripeti la sincronizzazione della bozza prima di pubblicare e riattivare.")); }
       }
     },
     onSuccess: () => {
-      toast.success("Agente aggiornato");
+      toast.success(tr("Agente aggiornato"));
       queryClient.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
       queryClient.invalidateQueries({ queryKey: ["unified-ai-agents"] });
     },
@@ -249,7 +251,7 @@ export default function AgentDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
       queryClient.invalidateQueries({ queryKey: ["unified-ai-agents", companyId] });
-      toast.success("Agente collegato a ElevenLabs");
+      toast.success(tr("Agente collegato a ElevenLabs"));
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -263,15 +265,15 @@ export default function AgentDetailPage() {
   }
 
   if (isError) return <div role="alert" className="py-8 text-center">
-    <p>Impossibile caricare l'agente: {error.message}</p>
-    <Button variant="outline" className="mt-3" onClick={() => refetch()}>Riprova</Button>
+    <p>{tr("Impossibile caricare l'agente: {message}", { message: String(error.message ?? "") })}</p>
+    <Button variant="outline" className="mt-3" onClick={() => refetch()}>{tr("Riprova")}</Button>
   </div>;
   if (!agent) {
     return (
       <div className="p-6 text-center">
-        <p className="text-muted-foreground">Agente non trovato.</p>
+        <p className="text-muted-foreground">{tr("Agente non trovato.")}</p>
         <Button variant="outline" className="mt-4 hidden md:inline-flex" onClick={() => navigate(basePath)}>
-          <ArrowLeft className="h-4 w-4 mr-1.5" /> Torna agli agenti
+          <ArrowLeft className="h-4 w-4 mr-1.5" /> {tr("Torna agli agenti")}
         </Button>
       </div>
     );
@@ -286,9 +288,9 @@ export default function AgentDetailPage() {
     ? `${Math.round((safeNumber(agent.chiamate_completate) / safeNumber(agent.chiamate_totali)) * 100)}%`
     : "–";
   const configIssues = [
-    !editNome.trim() ? "Nome mancante" : null,
-    editPrompt.trim().length < 20 ? "Prompt di sistema troppo breve" : null,
-    (isVoice && agent.stato === "attivo" && !agent.elevenlabs_agent_id && agent.tools_config?.voice_provider !== "fish_audio") ? "Collegamento vocale mancante" : null,
+    !editNome.trim() ? tr("Nome mancante") : null,
+    editPrompt.trim().length < 20 ? tr("Prompt di sistema troppo breve") : null,
+    (isVoice && agent.stato === "attivo" && !agent.elevenlabs_agent_id && agent.tools_config?.voice_provider !== "fish_audio") ? tr("Collegamento vocale mancante") : null,
   ].filter(Boolean);
   const canSaveConfig = configIssues.length === 0;
 
@@ -314,7 +316,7 @@ export default function AgentDetailPage() {
     return (
       <FishAgentWorkspace key={`${companyId}:${agent.id}`} agent={agent} companyId={companyId} historyHref={historyHref}
         requestedTab={requestedTab} onTabChange={changeWorkspaceTab} onClosePreview={closePreview}
-        backLabel={fromTelephony ? "Torna a Telefonia" : "Torna agli agenti"}
+        backLabel={fromTelephony ? tr("Torna a Telefonia") : tr("Torna agli agenti")}
         onBack={() => navigate(fromTelephony ? `${basePath}?tab=telefonia` : basePath)} />
     );
   }
@@ -325,7 +327,7 @@ export default function AgentDetailPage() {
       <div className="px-6 pt-6 pb-4 max-md:px-0 max-md:pb-3 max-md:pt-0">
         <div className="flex items-center gap-3 mb-3 max-md:hidden">
           <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(basePath)}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Agenti
+            <ArrowLeft className="h-4 w-4 mr-1" /> {tr("Agenti")}
           </Button>
         </div>
         <div className="flex items-start justify-between">
@@ -356,11 +358,11 @@ export default function AgentDetailPage() {
 
       {isVoice && !agent.elevenlabs_agent_id && agent.tools_config?.voice_provider !== "fish_audio" && (
         <div role="status" className="mx-6 mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 max-md:mx-0">
-          <p className="text-sm">Bozza non collegata: l'agente non può ancora chiamare o rispondere. Salva le modifiche alla configurazione prima di collegarlo.</p>
+          <p className="text-sm">{tr("Bozza non collegata: l'agente non può ancora chiamare o rispondere. Salva le modifiche alla configurazione prima di collegarlo.")}</p>
           <Button className="mt-3" variant="outline" onClick={() => connectAgent.mutate()}
             disabled={connectAgent.isPending || updateAgent.isPending}>
             {connectAgent.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Collega agente vocale
+            {tr("Collega agente vocale")}
           </Button>
         </div>
       )}
@@ -370,10 +372,10 @@ export default function AgentDetailPage() {
         <div className="px-6 border-b border-border max-md:px-0">
           <TabsList className="bg-transparent h-auto p-0 gap-0 max-md:w-full">
             {[
-              { key: "panoramica", label: "Panoramica", icon: BarChart3 },
-              { key: "configurazione", label: "Configurazione", icon: Settings2 },
-              { key: "conversazioni", label: isVoice ? "Chiamate" : "Conversazioni", icon: isVoice ? Phone : MessageSquare },
-              { key: "statistiche", label: "Statistiche", icon: TrendingUp },
+              { key: "panoramica", label: tr("Panoramica"), icon: BarChart3 },
+              { key: "configurazione", label: tr("Configurazione"), icon: Settings2 },
+              { key: "conversazioni", label: isVoice ? tr("Chiamate") : tr("Conversazioni"), icon: isVoice ? Phone : MessageSquare },
+              { key: "statistiche", label: tr("Statistiche"), icon: TrendingUp },
             ].map((tab) => {
               if (historyHref && tab.key === "conversazioni") return null;
               const Icon = tab.icon;
@@ -393,7 +395,7 @@ export default function AgentDetailPage() {
           </TabsList>
           {historyHref && (
             <Button asChild variant="ghost" size="sm" className="ml-1">
-              <Link to={historyHref}><Phone className="mr-1.5 h-4 w-4" /> Chiamate nel Centralino</Link>
+              <Link to={historyHref}><Phone className="mr-1.5 h-4 w-4" /> {tr("Chiamate nel Centralino")}</Link>
             </Button>
           )}
         </div>
@@ -401,12 +403,12 @@ export default function AgentDetailPage() {
         {/* Panoramica */}
         <TabsContent value="panoramica" className="mt-0 p-6 max-md:px-0 max-md:py-3">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 max-md:mb-3 max-md:grid-cols-2 max-md:gap-2">
-            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? "Chiamate" : "Chat"} value={isVoice ? safeNumber(agent.chiamate_totali) : safeNumber(agent.chat_totali)} />
-            <StatCard icon={Clock} label="Minuti" value={Math.round(safeNumber(agent.minuti_totali))} />
-            <StatCard icon={CheckCircle2} label="Completate" value={safeNumber(agent.chiamate_completate)} />
+            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? tr("Chiamate") : tr("Chat")} value={isVoice ? safeNumber(agent.chiamate_totali) : safeNumber(agent.chat_totali)} />
+            <StatCard icon={Clock} label={tr("Minuti")} value={Math.round(safeNumber(agent.minuti_totali))} />
+            <StatCard icon={CheckCircle2} label={tr("Completate")} value={safeNumber(agent.chiamate_completate)} />
             <StatCard
               icon={TrendingUp}
-              label="Tasso completamento"
+              label={tr("Tasso completamento")}
               value={completionRate}
             />
           </div>
@@ -421,21 +423,21 @@ export default function AgentDetailPage() {
 
           <div className="grid grid-cols-2 gap-4 mt-4 max-md:mt-3 max-md:grid-cols-1 max-md:gap-2">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Dettagli</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">{tr("Dettagli")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Lingua</span><span>{(agent.lingua || "it").toUpperCase()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Modello LLM</span><span>{agent.llm_model || "Non impostato"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Temperatura</span><span>{safeNumber(agent.temperatura, 0.7)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{tr("Lingua")}</span><span>{(agent.lingua || "it").toUpperCase()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{tr("Modello LLM")}</span><span>{agent.llm_model || tr("Non impostato")}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{tr("Temperatura")}</span><span>{safeNumber(agent.temperatura, 0.7)}</span></div>
                 {agent.voice_nome && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Voce</span><span className="flex items-center gap-1"><Mic className="h-3 w-3" />{agent.voice_nome}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{tr("Voce")}</span><span className="flex items-center gap-1"><Mic className="h-3 w-3" />{agent.voice_nome}</span></div>
                 )}
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Costi</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">{tr("Costi")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Crediti usati</span><span>{safeNumber(agent.costo_totale_crediti).toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Min. totali</span><span>{safeNumber(agent.minuti_totali).toFixed(1)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{tr("Crediti usati")}</span><span>{safeNumber(agent.costo_totale_crediti).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{tr("Min. totali")}</span><span>{safeNumber(agent.minuti_totali).toFixed(1)}</span></div>
               </CardContent>
             </Card>
           </div>
@@ -444,17 +446,17 @@ export default function AgentDetailPage() {
         {/* Configurazione */}
         <TabsContent value="configurazione" className="mt-0 p-6">
           {isVoice && companyId && <div className="mb-6 space-y-3">
-            {!showFish && agent.tools_config?.voice_provider !== "fish_audio" && <Button variant="outline" onClick={() => setShowFish(true)}>Configura Fish Audio come motore vocale</Button>}
+            {!showFish && agent.tools_config?.voice_provider !== "fish_audio" && <Button variant="outline" onClick={() => setShowFish(true)}>{tr("Configura Fish Audio come motore vocale")}</Button>}
             {(showFish || agent.tools_config?.voice_provider === "fish_audio") && <FishAgentPanel key={`${companyId}:${agent.id}`} companyId={companyId} agentId={agent.id} agent={agent} />}
           </div>}
           <div className="max-w-2xl space-y-4">
             <Card className={configIssues.length ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60"}>
               <CardContent className="p-4">
                 <p className="text-sm font-medium text-foreground">
-                  {configIssues.length ? "Configurazione non pronta" : "Configurazione pronta per il salvataggio"}
+                  {configIssues.length ? tr("Configurazione non pronta") : tr("Configurazione pronta per il salvataggio")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Gli agenti restano controllabili: nome e prompt sono obbligatori prima del salvataggio e dell'attivazione.
+                  {tr("Gli agenti restano controllabili: nome e prompt sono obbligatori prima del salvataggio e dell'attivazione.")}
                 </p>
                 {configIssues.length > 0 && (
                   <ul className="mt-2 text-xs text-amber-800 list-disc pl-4 space-y-1">
@@ -464,11 +466,11 @@ export default function AgentDetailPage() {
               </CardContent>
             </Card>
             <div>
-              <label className="text-sm font-medium mb-1 block">Nome</label>
+              <label className="text-sm font-medium mb-1 block">{tr("Nome")}</label>
               <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Descrizione</label>
+              <label className="text-sm font-medium mb-1 block">{tr("Descrizione")}</label>
               <Textarea value={editDescrizione} onChange={(e) => setEditDescrizione(e.target.value)} rows={2} />
             </div>
             <div>
@@ -490,15 +492,15 @@ export default function AgentDetailPage() {
                       ...prev,
                       ...Object.fromEntries(t.strumenti.map((c) => [CANONICO_A_UI[c] ?? c, true])),
                     }));
-                    toast.info(`Template "${t.nome}" applicato`, {
+                    toast.info(tr("Template \"{nome}\" applicato", { nome: String(t.nome ?? "") }), {
                       description: t.variabili.length
-                        ? `Variabili da passare in chiamata: ${t.variabili.map((v) => `{{${v}}}`).join(", ")}`
+                        ? tr("Variabili da passare in chiamata: {elenco}", { elenco: t.variabili.map((v) => `{{${v}}}`).join(", ") })
                         : undefined,
                     });
                   }}
                 >
                   <SelectTrigger className="h-8 w-auto max-w-[280px] text-xs">
-                    <SelectValue placeholder="Parti da un template edilizia…" />
+                    <SelectValue placeholder={tr("Parti da un template edilizia…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {templatesPerCategoria().map((g) => (
@@ -515,7 +517,7 @@ export default function AgentDetailPage() {
               <Textarea value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} rows={8} className="font-mono text-xs" />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Primo messaggio</label>
+              <label className="text-sm font-medium mb-1 block">{tr("Primo messaggio")}</label>
               <Textarea value={editPrimoMsg} onChange={(e) => setEditPrimoMsg(e.target.value)} rows={3} />
             </div>
             {agent.tipo === "whatsapp" && companyId && (
@@ -525,24 +527,23 @@ export default function AgentDetailPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-1.5">
-                    <Wrench className="h-4 w-4" /> Strumenti in chiamata
+                    <Wrench className="h-4 w-4" /> {tr("Strumenti in chiamata")}
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Cosa può fare davvero l'agente durante la telefonata, con i dati reali dell'azienda.
-                    Si attivano al salvataggio, senza configurazioni tecniche.
+                    {tr("Cosa può fare davvero l'agente durante la telefonata, con i dati reali dell'azienda. Si attivano al salvataggio, senza configurazioni tecniche.")}
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-1">
                   {STRUMENTI_CHIAMATA.map((t) => (
                     <div key={t.id} className="flex items-center justify-between gap-3 py-1.5">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium">{t.label}</p>
-                        <p className="text-xs text-muted-foreground">{t.descrizione}</p>
+                        <p className="text-sm font-medium">{tr(t.label)}</p>
+                        <p className="text-xs text-muted-foreground">{tr(t.descrizione)}</p>
                       </div>
                       <Switch
                         checked={!!editTools[t.id]}
                         onCheckedChange={(v) => setEditTools((prev) => ({ ...prev, [t.id]: v }))}
-                        aria-label={t.label}
+                        aria-label={tr(t.label)}
                       />
                     </div>
                   ))}
@@ -550,21 +551,21 @@ export default function AgentDetailPage() {
                   <div className="border-t pt-3 mt-2 space-y-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium">Passa la chiamata a una persona</p>
+                        <p className="text-sm font-medium">{tr("Passa la chiamata a una persona")}</p>
                         <p className="text-xs text-muted-foreground">
-                          Quando il cliente è interessato o chiede di parlare con qualcuno, l'agente gira la telefonata al numero che indichi.
+                          {tr("Quando il cliente è interessato o chiede di parlare con qualcuno, l'agente gira la telefonata al numero che indichi.")}
                         </p>
                       </div>
                       <Switch
                         checked={editTrasferisci}
                         onCheckedChange={setEditTrasferisci}
-                        aria-label="Passa la chiamata a una persona"
+                        aria-label={tr("Passa la chiamata a una persona")}
                       />
                     </div>
                     {editTrasferisci && (
                       <div className="space-y-1">
                         <label className="text-xs font-medium block" htmlFor="numero-operatore">
-                          Numero dell'operatore
+                          {tr("Numero dell'operatore")}
                         </label>
                         <Input
                           id="numero-operatore"
@@ -575,7 +576,7 @@ export default function AgentDetailPage() {
                           className="max-w-xs"
                         />
                         <p className="text-xs text-muted-foreground">
-                          In formato internazionale. Squilla su questo numero mentre il cliente resta in linea.
+                          {tr("In formato internazionale. Squilla su questo numero mentre il cliente resta in linea.")}
                         </p>
                       </div>
                     )}
@@ -585,7 +586,7 @@ export default function AgentDetailPage() {
             )}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium mb-1 block">Lingua</label>
+                <label className="text-sm font-medium mb-1 block">{tr("Lingua")}</label>
                 <Select value={editLingua} onValueChange={setEditLingua}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -598,7 +599,7 @@ export default function AgentDetailPage() {
                 </Select>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">Modello LLM</label>
+                <label className="text-sm font-medium mb-1 block">{tr("Modello LLM")}</label>
                 <Select value={editModel} onValueChange={setEditModel}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -611,7 +612,7 @@ export default function AgentDetailPage() {
                 </Select>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">Temperatura ({editTemp})</label>
+                <label className="text-sm font-medium mb-1 block">{tr("Temperatura ({valore})", { valore: String(editTemp ?? "") })}</label>
                 <input
                   type="range"
                   disabled={showFish || agent.tools_config?.voice_provider === "fish_audio"}
@@ -622,12 +623,12 @@ export default function AgentDetailPage() {
                   onChange={(e) => setEditTemp(parseFloat(e.target.value))}
                   className="w-full mt-2"
                 />
-                {(showFish || agent.tools_config?.voice_provider === "fish_audio") && <p className="text-xs text-muted-foreground">Fish gestisce la temperatura del modello. La scelta del modello può cambiare il costo del provider: verifica la tariffa prima di attivare.</p>}
+                {(showFish || agent.tools_config?.voice_provider === "fish_audio") && <p className="text-xs text-muted-foreground">{tr("Fish gestisce la temperatura del modello. La scelta del modello può cambiare il costo del provider: verifica la tariffa prima di attivare.")}</p>}
               </div>
             </div>
             <Button onClick={() => updateAgent.mutate()} disabled={updateAgent.isPending || !canSaveConfig}>
               {updateAgent.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
-              Salva configurazione
+              {tr("Salva configurazione")}
             </Button>
           </div>
         </TabsContent>
@@ -640,13 +641,13 @@ export default function AgentDetailPage() {
         {/* Statistiche */}
         <TabsContent value="statistiche" className="mt-0 p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? "Chiamate totali" : "Chat totali"} value={isVoice ? safeNumber(agent.chiamate_totali) : safeNumber(agent.chat_totali)} />
-            <StatCard icon={CheckCircle2} label="Completate" value={safeNumber(agent.chiamate_completate)} />
-            <StatCard icon={Clock} label="Minuti totali" value={Math.round(safeNumber(agent.minuti_totali))} />
-            <StatCard icon={TrendingUp} label="Crediti" value={safeNumber(agent.costo_totale_crediti).toFixed(2)} />
+            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? tr("Chiamate totali") : tr("Chat totali")} value={isVoice ? safeNumber(agent.chiamate_totali) : safeNumber(agent.chat_totali)} />
+            <StatCard icon={CheckCircle2} label={tr("Completate")} value={safeNumber(agent.chiamate_completate)} />
+            <StatCard icon={Clock} label={tr("Minuti totali")} value={Math.round(safeNumber(agent.minuti_totali))} />
+            <StatCard icon={TrendingUp} label={tr("Crediti")} value={safeNumber(agent.costo_totale_crediti).toFixed(2)} />
           </div>
           <p className="text-sm text-muted-foreground text-center mt-8">
-            Grafici dettagliati saranno disponibili nelle prossime versioni.
+            {tr("Grafici dettagliati saranno disponibili nelle prossime versioni.")}
           </p>
         </TabsContent>
       </Tabs>

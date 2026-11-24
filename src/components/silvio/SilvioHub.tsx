@@ -20,6 +20,7 @@ import {
   useChiediSilvio, useSilvioUndo,
 } from "@/lib/silvio/hooks";
 import { etichettaEsito, etichettaOrigine, anteprimaParametri, annullabileInverso } from "@/lib/silvio/fiducia";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function Vuoto({ icon: Icon, testo }: { icon: typeof Clock; testo: string }) {
   return (
@@ -31,17 +32,18 @@ function Vuoto({ icon: Icon, testo }: { icon: typeof Clock; testo: string }) {
 }
 
 function DaApprovare() {
+  const t = useT();
   const { data, isLoading } = useSilvioCodaConferme();
   const risolvi = useRisolviConferma();
-  if (isLoading) return <p className="text-xs text-muted-foreground">Caricamento…</p>;
-  if ((data?.length ?? 0) === 0) return <Vuoto icon={CheckCircle2} testo="Nessuna azione in attesa. Quando Silvio prepara qualcosa di sensibile, lo trovi qui da approvare." />;
+  if (isLoading) return <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>;
+  if ((data?.length ?? 0) === 0) return <Vuoto icon={CheckCircle2} testo={t("Nessuna azione in attesa. Quando Silvio prepara qualcosa di sensibile, lo trovi qui da approvare.")} />;
   return (
     <div className="space-y-2">
       {(data!.length > 1) && (
         <div className="flex justify-end">
           <Button size="sm" variant="outline" className="h-8 gap-1.5" disabled={risolvi.isPending}
             onClick={() => { for (const v of data!) risolvi.mutate({ id: v.id, azione: "approvata" }); }}>
-            <CheckCircle2 className="h-3.5 w-3.5" /> Approva tutte ({data!.length})
+            <CheckCircle2 className="h-3.5 w-3.5" /> {t("Approva tutte ({n})", { n: data!.length })}
           </Button>
         </div>
       )}
@@ -52,11 +54,11 @@ function DaApprovare() {
           <div className="mt-2 flex gap-2">
             <Button size="sm" className="h-8 gap-1.5" disabled={risolvi.isPending}
               onClick={() => risolvi.mutate({ id: v.id, azione: "approvata" })}>
-              <CheckCircle2 className="h-3.5 w-3.5" /> Approva
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t("Approva")}
             </Button>
             <Button size="sm" variant="outline" className="h-8 gap-1.5" disabled={risolvi.isPending}
               onClick={() => risolvi.mutate({ id: v.id, azione: "rifiutata" })}>
-              <XCircle className="h-3.5 w-3.5" /> Rifiuta
+              <XCircle className="h-3.5 w-3.5" /> {t("Rifiuta")}
             </Button>
           </div>
         </div>
@@ -66,17 +68,18 @@ function DaApprovare() {
 }
 
 function InCorso() {
+  const tr = useT();
   const { data, isLoading } = useSilvioTaskAttivi();
-  if (isLoading) return <p className="text-xs text-muted-foreground">Caricamento…</p>;
-  if ((data?.length ?? 0) === 0) return <Vuoto icon={ListChecks} testo="Nessun compito in corso. Qui vedrai cosa Silvio sta gestendo per te, passo per passo." />;
+  if (isLoading) return <p className="text-xs text-muted-foreground">{tr("Caricamento…")}</p>;
+  if ((data?.length ?? 0) === 0) return <Vuoto icon={ListChecks} testo={tr("Nessun compito in corso. Qui vedrai cosa Silvio sta gestendo per te, passo per passo.")} />;
   return (
     <div className="space-y-1.5">
       {data!.map((t) => (
         <div key={t.id} className="flex items-center gap-2 rounded-md border bg-white px-3 py-2">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-slate-800">{t.titolo || "(compito)"}</p>
-            {t.contesto.source==="fish_assistance" && <Link className="text-xs text-emerald-800 underline" to="/azienda/silvio-ai/attivita">Apri il percorso di assistenza</Link>}
-            <p className="text-[11px] text-muted-foreground">{etichettaOrigine(t.origine)} · passo {t.passo_corrente + 1}</p>
+            <p className="truncate text-sm text-slate-800">{t.titolo || tr("(compito)")}</p>
+            {t.contesto.source==="fish_assistance" && <Link className="text-xs text-emerald-800 underline" to="/azienda/silvio-ai/attivita">{tr("Apri il percorso di assistenza")}</Link>}
+            <p className="text-[11px] text-muted-foreground">{tr("{origine} · passo {n}", { origine: etichettaOrigine(t.origine), n: t.passo_corrente + 1 })}</p>
           </div>
           <Badge variant="outline" className="shrink-0 text-[10px]">{t.stato}</Badge>
         </div>
@@ -86,6 +89,7 @@ function InCorso() {
 }
 
 function Storico() {
+  const t = useT();
   const { data, isLoading } = useSilvioAudit(50);
   const undo = useSilvioUndo();
   // voci già annullate: hanno una voce 'annullata' che le referenzia (ref_audit_id)
@@ -94,8 +98,8 @@ function Storico() {
     for (const a of data ?? []) if (a.esito === "annullata" && a.ref_audit_id) s.add(a.ref_audit_id);
     return s;
   }, [data]);
-  if (isLoading) return <p className="text-xs text-muted-foreground">Caricamento…</p>;
-  if ((data?.length ?? 0) === 0) return <Vuoto icon={History} testo="Ancora nessuna azione registrata. Ogni cosa che Silvio fa finirà qui, con il perché." />;
+  if (isLoading) return <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>;
+  if ((data?.length ?? 0) === 0) return <Vuoto icon={History} testo={t("Ancora nessuna azione registrata. Ogni cosa che Silvio fa finirà qui, con il perché.")} />;
   return (
     <div className="space-y-1">
       {data!.map((a) => {
@@ -105,13 +109,13 @@ function Storico() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm text-slate-800">{a.azione_chiave}</p>
               <p className="text-[11px] text-muted-foreground">
-                {etichettaOrigine(a.origine)}{a.motivo ? ` · ${a.motivo}` : ""} · {new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(a.created_at))}
+                {etichettaOrigine(a.origine)}{a.motivo ? ` · ${a.motivo}` : ""} · {new Intl.DateTimeFormat(intlCampo(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(a.created_at))}
               </p>
             </div>
             {annullabile && (
               <Button size="sm" variant="ghost" className="h-7 shrink-0 gap-1 px-2 text-[11px] text-slate-600" disabled={undo.isPending}
                 onClick={() => undo.mutate(a.id)}>
-                <Undo2 className="h-3.5 w-3.5" /> Annulla
+                <Undo2 className="h-3.5 w-3.5" /> {t("Annulla")}
               </Button>
             )}
             <Badge variant="outline" className={`shrink-0 text-[10px] ${a.esito === "eseguita" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : a.esito === "annullata" ? "border-slate-200 bg-slate-50 text-slate-500" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
@@ -125,29 +129,28 @@ function Storico() {
 }
 
 function Procedure() {
+  const t = useT();
   const { data, isLoading } = useSilvioPlaybook();
   const avvia = useAvviaPlaybook();
-  if (isLoading) return <p className="text-xs text-muted-foreground">Caricamento…</p>;
-  if ((data?.length ?? 0) === 0) return <Vuoto icon={BookOpen} testo="Nessuna procedura." />;
+  if (isLoading) return <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>;
+  if ((data?.length ?? 0) === 0) return <Vuoto icon={BookOpen} testo={t("Nessuna procedura.")} />;
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">Le "ricette" che Silvio segue quando scatta un evento (es. arriva una fattura). Passi deterministici, conferme dove serve. "Avvia" la esegue ora: i passi sicuri partono, quelli sensibili vanno in <b>Da approvare</b>.</p>
+      <p className="text-xs text-muted-foreground">{t("Le \"ricette\" che Silvio segue quando scatta un evento (es. arriva una fattura). Passi deterministici, conferme dove serve. \"Avvia\" la esegue ora: i passi sicuri partono, quelli sensibili vanno in")} <b>{t("Da approvare")}</b>.</p>
       {data!.map((p) => (
         <div key={p.id} className="flex items-center gap-2 rounded-md border bg-white px-3 py-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-slate-800">{p.nome}</span>
-              {p.company_id === null && <Badge variant="outline" className="text-[10px]">predefinita</Badge>}
-              {!p.attivo && <Badge variant="outline" className="text-[10px] text-slate-400">disattivata</Badge>}
+              {p.company_id === null && <Badge variant="outline" className="text-[10px]">{t("predefinita")}</Badge>}
+              {!p.attivo && <Badge variant="outline" className="text-[10px] text-slate-400">{t("disattivata")}</Badge>}
             </div>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              quando: {p.innesco} · {p.passi.filter((s) => s.azione_chiave).length} passi
-            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("quando: {innesco} · {n} passi", { innesco: String(p.innesco ?? ""), n: p.passi.filter((s) => s.azione_chiave).length })}</p>
           </div>
           {p.attivo && (
             <Button size="sm" variant="outline" className="h-8 shrink-0 gap-1.5" disabled={avvia.isPending}
               onClick={() => avvia.mutate({ playbook_chiave: p.chiave })}>
-              <Play className="h-3.5 w-3.5" /> Avvia
+              <Play className="h-3.5 w-3.5" /> {t("Avvia")}
             </Button>
           )}
         </div>
@@ -157,6 +160,7 @@ function Procedure() {
 }
 
 export function SilvioHub({ defaultTab="approvare" }: {defaultTab?:string}={}) {
+  const t = useT();
   const [richiesta, setRichiesta] = useState("");
   const chiedi = useChiediSilvio();
   const invia = () => {
@@ -169,8 +173,8 @@ export function SilvioHub({ defaultTab="approvare" }: {defaultTab?:string}={}) {
       <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/30">
         <Bot className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
         <p className="text-xs text-blue-900 dark:text-blue-100">
-          Silvio è il tuo assistente operativo: prepara bozze, propone azioni e segue le procedure —
-          <b> da solo sul sicuro, con la tua conferma sul sensibile</b>. Qui governi cosa fa e vedi tutto ciò che ha fatto.
+          {t("Silvio è il tuo assistente operativo: prepara bozze, propone azioni e segue le procedure —")}
+          <b> {t("da solo sul sicuro, con la tua conferma sul sensibile")}</b>{t(". Qui governi cosa fa e vedi tutto ciò che ha fatto.")}
         </p>
       </div>
 
@@ -180,24 +184,24 @@ export function SilvioHub({ defaultTab="approvare" }: {defaultTab?:string}={}) {
           value={richiesta}
           onChange={(e) => setRichiesta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") invia(); }}
-          placeholder="Chiedi a Silvio… (es. apri un'opportunità da questa richiesta)"
+          placeholder={t("Chiedi a Silvio… (es. apri un'opportunità da questa richiesta)")}
           className="h-9 flex-1 text-sm"
           disabled={chiedi.isPending}
         />
         <Button size="sm" className="h-9 gap-1.5" disabled={chiedi.isPending || !richiesta.trim()} onClick={invia}>
           {chiedi.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Chiedi
+          {t("Chiedi")}
         </Button>
       </div>
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-7">
-          <TabsTrigger value="assistenza" className="gap-1 text-xs"><Bot className="h-3.5 w-3.5" /> Assistenza</TabsTrigger>
-          <TabsTrigger value="approvare" className="gap-1 text-xs"><MailWarning className="h-3.5 w-3.5" /> Da approvare</TabsTrigger>
-          <TabsTrigger value="corso" className="gap-1 text-xs"><ListChecks className="h-3.5 w-3.5" /> In corso</TabsTrigger>
-          <TabsTrigger value="storico" className="gap-1 text-xs"><History className="h-3.5 w-3.5" /> Storico</TabsTrigger>
-          <TabsTrigger value="procedure" className="gap-1 text-xs"><BookOpen className="h-3.5 w-3.5" /> Procedure</TabsTrigger>
-          <TabsTrigger value="azioni" className="gap-1 text-xs"><ShieldCheck className="h-3.5 w-3.5" /> Permessi</TabsTrigger>
-          <TabsTrigger value="canali" className="gap-1 text-xs"><MessageCircle className="h-3.5 w-3.5" /> Canali</TabsTrigger>
+          <TabsTrigger value="assistenza" className="gap-1 text-xs"><Bot className="h-3.5 w-3.5" /> {t("Assistenza")}</TabsTrigger>
+          <TabsTrigger value="approvare" className="gap-1 text-xs"><MailWarning className="h-3.5 w-3.5" /> {t("Da approvare")}</TabsTrigger>
+          <TabsTrigger value="corso" className="gap-1 text-xs"><ListChecks className="h-3.5 w-3.5" /> {t("In corso")}</TabsTrigger>
+          <TabsTrigger value="storico" className="gap-1 text-xs"><History className="h-3.5 w-3.5" /> {t("Storico")}</TabsTrigger>
+          <TabsTrigger value="procedure" className="gap-1 text-xs"><BookOpen className="h-3.5 w-3.5" /> {t("Procedure")}</TabsTrigger>
+          <TabsTrigger value="azioni" className="gap-1 text-xs"><ShieldCheck className="h-3.5 w-3.5" /> {t("Permessi")}</TabsTrigger>
+          <TabsTrigger value="canali" className="gap-1 text-xs"><MessageCircle className="h-3.5 w-3.5" /> {t("Canali")}</TabsTrigger>
         </TabsList>
         <TabsContent value="assistenza" className="mt-4"><SilvioAssistanceActivities /></TabsContent>
         <TabsContent value="approvare" className="mt-3"><DaApprovare /></TabsContent>

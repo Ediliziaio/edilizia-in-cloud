@@ -13,6 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FileContratto { id: string; file_name: string; file_path: string; file_size: number | null; thumb_path: string | null }
 
@@ -22,6 +23,7 @@ export function DocumentiContratto({ contrattoId, committenteId, companyId, puoM
   companyId: string;
   puoModificare: boolean;
 }) {
+  const t = useT();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [carico, setCarico] = useState(false);
@@ -44,7 +46,7 @@ export function DocumentiContratto({ contrattoId, committenteId, companyId, puoM
     if (!user?.id || scelti.length === 0) return;
     const buoni = scelti.filter((f) => {
       const p = problemaFile(f);
-      if (p) toast.error("File escluso", { description: p });
+      if (p) toast.error(t("File escluso"), { description: p });
       return !p;
     });
     if (buoni.length === 0) return;
@@ -52,8 +54,8 @@ export function DocumentiContratto({ contrattoId, committenteId, companyId, puoM
     const { caricati, falliti } = await caricaDocumentiCliente({ companyId, customerId: committenteId, userId: user.id, file: { contract: buoni }, appaltoContrattoId: contrattoId });
     setCarico(false);
     void qc.invalidateQueries({ queryKey: chiave });
-    if (falliti.length) toast.error(`${falliti.length} file non caricati`, { description: falliti.join(", ") });
-    if (caricati) toast.success(caricati === 1 ? "Documento allegato" : `${caricati} documenti allegati`);
+    if (falliti.length) toast.error(t("{n} file non caricati", { n: falliti.length }), { description: falliti.join(", ") });
+    if (caricati) toast.success(caricati === 1 ? t("Documento allegato") : t("{caricati} documenti allegati", { caricati: String(caricati ?? "") }));
   };
 
   const togli = useMutation({
@@ -62,29 +64,29 @@ export function DocumentiContratto({ contrattoId, committenteId, companyId, puoM
       if (error) throw error;
       await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).remove(f.thumb_path ? [f.file_path, f.thumb_path] : [f.file_path]);
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: chiave }); toast.success("Documento tolto"); },
-    onError: () => toast.error("Documento non tolto"),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: chiave }); toast.success(t("Documento tolto")); },
+    onError: () => toast.error(t("Documento non tolto")),
   });
 
   return (
     <div className="rounded-lg border p-2">
       <div className="flex items-center justify-between gap-2">
         <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          <FileCheck2 className="h-3.5 w-3.5 shrink-0" /> Contratto firmato
+          <FileCheck2 className="h-3.5 w-3.5 shrink-0" /> {t("Contratto firmato")}
         </p>
         {puoModificare && (
           <Button asChild variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" disabled={carico}>
             <label className="cursor-pointer">
               {carico ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1 h-3.5 w-3.5" />}
-              {carico ? "" : "Allega"}
-              <input type="file" multiple accept={ACCEPT_INPUT} aria-label="Allega il contratto firmato" className="hidden"
+              {carico ? "" : t("Allega")}
+              <input type="file" multiple accept={ACCEPT_INPUT} aria-label={t("Allega il contratto firmato")} className="hidden"
                 onChange={(e) => { void carica(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
             </label>
           </Button>
         )}
       </div>
       {!isLoading && files.length === 0 ? (
-        <p className="mt-1 text-xs text-muted-foreground">Nessun file: allega la copia firmata e gli allegati.</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("Nessun file: allega la copia firmata e gli allegati.")}</p>
       ) : (
         <ul className="mt-1 space-y-0.5">
           {files.map((f) => (
@@ -92,10 +94,10 @@ export function DocumentiContratto({ contrattoId, committenteId, companyId, puoM
               <button type="button" className="min-w-0 flex-1 truncate text-left hover:underline" title={f.file_name}
                 onClick={() => void scaricaAllegato(f.file_path, f.file_name, BUCKET_DOCUMENTI_CLIENTE)}>{f.file_name}</button>
               <span className="shrink-0 tabular-nums text-muted-foreground">{fmtBytes(f.file_size)}</span>
-              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" aria-label={`Scarica ${f.file_name}`}
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" aria-label={t("Scarica {file_name}", { file_name: String(f.file_name ?? "") })}
                 onClick={() => void scaricaAllegato(f.file_path, f.file_name, BUCKET_DOCUMENTI_CLIENTE)}><Download className="h-3 w-3" /></Button>
               {puoModificare && (
-                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-destructive" aria-label={`Togli ${f.file_name}`} onClick={() => setDaTogliere(f)}>
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-destructive" aria-label={t("Togli {file_name}", { file_name: String(f.file_name ?? "") })} onClick={() => setDaTogliere(f)}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
               )}
@@ -106,12 +108,12 @@ export function DocumentiContratto({ contrattoId, committenteId, companyId, puoM
       <AlertDialog open={!!daTogliere} onOpenChange={(o) => { if (!o) setDaTogliere(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Togliere «{daTogliere?.file_name}»?</AlertDialogTitle>
-            <AlertDialogDescription>Il file viene eliminato definitivamente.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Togliere «{file_name}»?", { file_name: String(daTogliere?.file_name ?? "") })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Il file viene eliminato definitivamente.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (daTogliere) togli.mutate(daTogliere); }}>Togli</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (daTogliere) togli.mutate(daTogliere); }}>{t("Togli")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCGExports, getCGExportSignedUrl } from "@/hooks/controlloGestione/useCGExports";
 import { useRating } from "@/hooks/controlloGestione/useStatoPatrimoniale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TabPacchettoBancaProps {
   anno: number;
@@ -26,12 +27,12 @@ const CONTENUTI = [
 
 const fmtBytes = (b: number | null) => {
   if (!b) return "—";
-  const nf = new Intl.NumberFormat("it-IT", { maximumFractionDigits: b < 1024 * 1024 ? 0 : 1 });
+  const nf = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: b < 1024 * 1024 ? 0 : 1 });
   return b < 1024 * 1024 ? `${nf.format(b / 1024)} KB` : `${nf.format(b / (1024 * 1024))} MB`;
 };
 
 const fmtData = (iso: string) =>
-  new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleString(intlCampo(), { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /** Il messaggio vero della funzione, non «Edge Function returned a non-2xx status code». */
 async function messaggioErrore(e: unknown): Promise<string> {
@@ -48,6 +49,7 @@ async function messaggioErrore(e: unknown): Promise<string> {
 }
 
 export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
+  const t = useT();
   const [generating, setGenerating] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [ultimo, setUltimo] = useState<{ url: string; provvisorio: boolean } | null>(null);
@@ -74,12 +76,12 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
       // Su alcuni browser l'apertura dopo l'attesa viene bloccata: resta il pulsante «Apri».
       window.open(data.signed_url, "_blank", "noopener,noreferrer");
       if (data.provvisorio) {
-        toast.warning("Pacchetto generato come BOZZA: i dati non sono ancora riconciliati, non consegnarlo alla banca.");
+        toast.warning(t("Pacchetto generato come BOZZA: i dati non sono ancora riconciliati, non consegnarlo alla banca."));
       } else {
-        toast.success("Pacchetto banca generato");
+        toast.success(t("Pacchetto banca generato"));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore nella generazione del pacchetto");
+      toast.error(e instanceof Error ? t(e.message) : t("Errore nella generazione del pacchetto"));
     } finally {
       setGenerating(false);
       qc.invalidateQueries({ queryKey: ["cg", "exports"] });
@@ -92,7 +94,7 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
       const url = await getCGExportSignedUrl(filePath);
       window.open(url, "_blank", "noopener,noreferrer");
     } catch {
-      toast.error("Non riesco ad aprire il file. Riprova tra qualche secondo.");
+      toast.error(t("Non riesco ad aprire il file. Riprova tra qualche secondo."));
     } finally {
       setOpeningId(null);
     }
@@ -103,11 +105,10 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-4 w-4" /> Pacchetto banca {anno}
+            <FileText className="h-4 w-4" /> {t("Pacchetto banca {anno}", { anno })}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Un PDF da portare in filiale quando chiedi un fido o un mutuo: conti, patrimonio, indici e piano in un unico
-            documento. Si genera in pochi secondi e resta nell'elenco qui sotto.
+            {t("Un PDF da portare in filiale quando chiedi un fido o un mutuo: conti, patrimonio, indici e piano in un unico documento. Si genera in pochi secondi e resta nell'elenco qui sotto.")}
           </p>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -115,7 +116,7 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
             {CONTENUTI.map((c) => (
               <li key={c} className="flex items-start gap-2.5 text-sm">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                <span>{c}</span>
+                <span>{t(c)}</span>
               </li>
             ))}
           </ul>
@@ -123,14 +124,13 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
             {provvisorio && (
               <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
                 <p className="flex items-center gap-1.5 font-semibold">
-                  <AlertTriangle className="h-4 w-4" /> Uscirà come BOZZA
+                  <AlertTriangle className="h-4 w-4" /> {t("Uscirà come BOZZA")}
                 </p>
                 <p className="mt-1">
-                  Lo Stato patrimoniale non quadra o il rating non è validato: il PDF lo scrive in copertina e non va
-                  consegnato alla banca.
+                  {t("Lo Stato patrimoniale non quadra o il rating non è validato: il PDF lo scrive in copertina e non va consegnato alla banca.")}
                 </p>
                 <Link to="/azienda/controllo-gestione/health" className="mt-1 inline-block font-medium underline">
-                  Sistema i dati
+                  {t("Sistema i dati")}
                 </Link>
               </div>
             )}
@@ -138,20 +138,20 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
               {generating ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generazione in corso…
+                  {t("Generazione in corso…")}
                 </>
               ) : (
                 <>
                   <Download className="h-4 w-4" />
-                  Genera il pacchetto banca
+                  {t("Genera il pacchetto banca")}
                 </>
               )}
             </Button>
-            {annoFuturo && <p className="text-xs text-muted-foreground">Il {anno} non è ancora iniziato.</p>}
+            {annoFuturo && <p className="text-xs text-muted-foreground">{t("Il {anno} non è ancora iniziato.", { anno: String(anno ?? "") })}</p>}
             {ultimo && (
               <Button asChild variant="outline" className="w-full gap-2">
                 <a href={ultimo.url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" /> Apri il pacchetto{ultimo.provvisorio ? " (bozza)" : ""}
+                  <ExternalLink className="h-4 w-4" /> {t("Apri il pacchetto")}{ultimo.provvisorio ? ` ${t("(bozza)")}` : ""}
                 </a>
               </Button>
             )}
@@ -161,7 +161,7 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
 
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Pacchetti generati</CardTitle>
+          <CardTitle className="text-base">{t("Pacchetti generati")}</CardTitle>
         </CardHeader>
         <CardContent>
           {exports.isLoading ? (
@@ -170,8 +170,8 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
             </div>
           ) : exports.isError ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              Non riesco a caricare l'elenco.{" "}
-              <button type="button" className="underline" onClick={() => exports.refetch()}>Riprova</button>
+              {t("Non riesco a caricare l'elenco.")}{" "}
+              <button type="button" className="underline" onClick={() => exports.refetch()}>{t("Riprova")}</button>
             </p>
           ) : exports.data && exports.data.length > 0 ? (
             <ul className="divide-y">
@@ -179,7 +179,7 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
                 <li key={row.id} className="flex items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
-                      {row.tipo === "pacchetto_banca" ? "Pacchetto banca" : "Esportazione"} {row.anno}
+                      {row.tipo === "pacchetto_banca" ? t("Pacchetto banca") : t("Esportazione")} {row.anno}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {fmtData(row.created_at)} · {fmtBytes(row.pdf_size_bytes)}
@@ -193,14 +193,14 @@ export function TabPacchettoBanca({ anno }: TabPacchettoBancaProps) {
                     onClick={() => handleApri(row.id, row.file_path)}
                   >
                     {openingId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-                    Apri
+                    {t("Apri")}
                   </Button>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              Nessun pacchetto generato finora.
+              {t("Nessun pacchetto generato finora.")}
             </p>
           )}
         </CardContent>

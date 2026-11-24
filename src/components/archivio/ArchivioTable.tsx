@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { AlertTriangle, Download, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   documenti: ArchivioDocument[];
@@ -42,6 +43,7 @@ export function ArchivioTable({
   inScadenzaProssimi365gg,
   getSignedUrl,
 }: Props) {
+  const t = useT();
   const handleScarica = async (storagePath: string) => {
     try {
       const url = await getSignedUrl(storagePath);
@@ -49,7 +51,7 @@ export function ArchivioTable({
         window.open(url, "_blank");
       }
     } catch {
-      toast.error("Download non disponibile: verifica il file e i permessi");
+      toast.error(t("Download non disponibile: verifica il file e i permessi"));
     }
   };
 
@@ -60,9 +62,7 @@ export function ArchivioTable({
         <Alert className="border-orange-300 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <AlertDescription className="text-orange-800">
-            Hai {inScadenzaProssimi365gg.length} document
-            {inScadenzaProssimi365gg.length === 1 ? "o" : "i"} con scadenza di
-            conservazione entro 12 mesi
+            {t(inScadenzaProssimi365gg.length === 1 ? "Hai {n} documento con scadenza di conservazione entro 12 mesi" : "Hai {n} documenti con scadenza di conservazione entro 12 mesi", { n: inScadenzaProssimi365gg.length })}
           </AlertDescription>
         </Alert>
       )}
@@ -72,12 +72,12 @@ export function ArchivioTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Tipo Documento</TableHead>
-              <TableHead>Anno Fiscale</TableHead>
-              <TableHead>Data Archiviazione</TableHead>
-              <TableHead>Scadenza Conservazione</TableHead>
-              <TableHead>Hash SHA-256</TableHead>
-              <TableHead className="text-right">Azioni</TableHead>
+              <TableHead>{t("Tipo Documento")}</TableHead>
+              <TableHead>{t("Anno Fiscale")}</TableHead>
+              <TableHead>{t("Data Archiviazione")}</TableHead>
+              <TableHead>{t("Scadenza Conservazione")}</TableHead>
+              <TableHead>{t("Hash SHA-256")}</TableHead>
+              <TableHead className="text-right">{t("Azioni")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -109,7 +109,7 @@ export function ArchivioTable({
                 <TableCell colSpan={6} className="text-center py-10">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <FolderOpen className="h-8 w-8 opacity-40" />
-                    <span>Nessun documento archiviato</span>
+                    <span>{t("Nessun documento archiviato")}</span>
                   </div>
                 </TableCell>
               </TableRow>
@@ -119,7 +119,7 @@ export function ArchivioTable({
                 return (
                   <TableRow key={doc.id}>
                     <TableCell className="font-medium text-sm">
-                      {TIPO_DOCUMENTO_LABELS[doc.tipo_documento]}
+                      {t(TIPO_DOCUMENTO_LABELS[doc.tipo_documento])}
                     </TableCell>
                     <TableCell className="text-sm">
                       {doc.anno_fiscale}
@@ -146,7 +146,7 @@ export function ArchivioTable({
                         onClick={() => handleScarica(doc.storage_path)}
                       >
                         <Download className="h-4 w-4 mr-1.5" />
-                        Scarica
+                        {t("Scarica")}
                       </Button>
                     </TableCell>
                   </TableRow>

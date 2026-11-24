@@ -11,7 +11,6 @@ import { useState } from "react";
 import { Ciambella, COLORI_CIAMBELLA } from "@/components/charts/grafici/Ciambella";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   AlertTriangle,
   ChevronDown,
@@ -47,11 +46,13 @@ import {
   type DipendenteMese,
   type OperatoreEsterno,
 } from "@/hooks/useCostiPersonale";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const fmtOre = (n: number) =>
   Number.isInteger(n) ? `${n}h` : `${n.toFixed(1).replace(".", ",")}h`;
 
 function CommesseChips({ commesse }: { commesse: CommessaLavorata[] }) {
+  const t = useT();
   if (commesse.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
   const visible = commesse.slice(0, 2);
   const hidden = commesse.length - visible.length;
@@ -59,7 +60,7 @@ function CommesseChips({ commesse }: { commesse: CommessaLavorata[] }) {
     <div className="flex flex-wrap items-center gap-1">
       {visible.map((c) => (
         <Badge key={c.orderId} variant="outline" className="max-w-[140px] truncate text-[11px]">
-          {c.orderCode ?? "Senza commessa"} · {fmtOre(c.ore + c.oreStraordinario)}
+          {c.orderCode ?? t("Senza commessa")} · {fmtOre(c.ore + c.oreStraordinario)}
         </Badge>
       ))}
       {hidden > 0 && (
@@ -101,10 +102,11 @@ function DettaglioRapportini({
 }: {
   rapportini: DipendenteMese["rapportini"];
 }) {
+  const t = useT();
   if (rapportini.length === 0) {
     return (
       <p className="px-1 py-2 text-sm text-muted-foreground">
-        Nessun rapportino registrato in questo mese.
+        {t("Nessun rapportino registrato in questo mese.")}
       </p>
     );
   }
@@ -113,16 +115,14 @@ function DettaglioRapportini({
       {rapportini.map((r) => (
         <div key={r.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 px-3 py-2 text-sm">
           <span className="w-20 shrink-0 font-medium capitalize text-muted-foreground">
-            {format(parseISO(r.data_lavoro), "EEE d MMM", { locale: it })}
+            {format(parseISO(r.data_lavoro), "EEE d MMM", { locale: dateFnsCampo() })}
           </span>
           <Badge variant="outline" className="shrink-0 text-[11px]">
-            {r.orderCode ?? "Senza commessa"}
+            {r.orderCode ?? t("Senza commessa")}
           </Badge>
           <span className="shrink-0 tabular-nums text-muted-foreground">{fmtOre(r.ore_lavorate)}</span>
           {r.ore_straordinario > 0 && (
-            <Badge className="shrink-0 bg-orange-100 text-[11px] text-orange-800 hover:bg-orange-100">
-              +{fmtOre(r.ore_straordinario)} straord.
-            </Badge>
+            <Badge className="shrink-0 bg-orange-100 text-[11px] text-orange-800 hover:bg-orange-100">{t("+{ore_straordinario} straord.", { ore_straordinario: fmtOre(r.ore_straordinario) })}</Badge>
           )}
           {r.stato !== "approvato" && (
             <Badge variant="secondary" className="shrink-0 text-[11px] capitalize">
@@ -141,6 +141,7 @@ function DettaglioRapportini({
 }
 
 function RigaDipendente({ d }: { d: DipendenteMese }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const haOre = d.oreLavorate + d.oreStraordinario > 0;
 
@@ -166,7 +167,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">{d.nome}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {[d.qualifica, d.livello].filter(Boolean).join(" · ") || "Dipendente"}
+              {[d.qualifica, d.livello].filter(Boolean).join(" · ") || t("Dipendente")}
             </p>
           </div>
         </div>
@@ -174,7 +175,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
         {/* Costo orario */}
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
-            Costo orario
+            {t("Costo orario")}
           </p>
           <p className="text-sm font-medium tabular-nums text-foreground">
             {d.costoOrario > 0 ? `${formatCurrency(d.costoOrario)}/h` : "—"}
@@ -184,7 +185,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
         {/* Ore mese */}
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
-            Ore mese
+            {t("Ore mese")}
           </p>
           <p className="text-sm tabular-nums text-foreground">
             {haOre ? fmtOre(d.oreLavorate) : d.senzaUtente ? "n.d." : "0h"}
@@ -195,14 +196,14 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
             )}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {d.giorniLavorati > 0 ? `${d.giorniLavorati} gg` : d.senzaUtente ? "no accesso campo" : "nessun rapportino"}
+            {d.giorniLavorati > 0 ? t("{giorniLavorati} gg", { giorniLavorati: String(d.giorniLavorati ?? "") }) : d.senzaUtente ? t("no accesso campo") : t("nessun rapportino")}
           </p>
         </div>
 
         {/* Commesse */}
         <div className="col-span-2 sm:col-span-1 sm:max-xl:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
-            Commesse
+            {t("Commesse")}
           </p>
           <CommesseChips commesse={d.commesse} />
         </div>
@@ -210,32 +211,30 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
         {/* Costo mese */}
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
-            Costo mese
+            {t("Costo mese")}
           </p>
           <p className="text-sm font-semibold tabular-nums text-foreground">
             {formatCurrency(d.costoEffettivo)}
           </p>
           {d.costoStraordinari > 0 ? (
-            <p className="text-[11px] text-orange-600">
-              di cui {formatCurrency(d.costoStraordinari)} straord.
-            </p>
+            <p className="text-[11px] text-orange-600">{t("di cui {costoStraordinari} straord.", { costoStraordinari: formatCurrency(d.costoStraordinari) })}</p>
           ) : (
-            <p className="text-[11px] text-muted-foreground">lordo + oneri {d.oneriPercento.toLocaleString("it-IT")}%</p>
+            <p className="text-[11px] text-muted-foreground">{t("lordo + oneri {oneriPercento}%", { oneriPercento: d.oneriPercento.toLocaleString(intlCampo()) })}</p>
           )}
         </div>
 
         {/* Saturazione */}
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
-            Saturazione
+            {t("Saturazione")}
           </p>
           <SaturazioneBar value={d.saturazione} />
           {/* Il costo orario reale: le ore non lavorate si spalmano su quelle
               lavorate. Sotto saturazione piena l'ora vera costa più della busta. */}
           {d.saturazione > 0.05 && d.saturazione < 1 && d.costoOrario > 0 && (
             <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">
-              ora reale {formatCurrency(d.costoOrario / d.saturazione)}
-              <span className="text-muted-foreground/70"> (busta {formatCurrency(d.costoOrario)})</span>
+              {t("ora reale {costo}", { costo: formatCurrency(d.costoOrario / d.saturazione) })}
+              <span className="text-muted-foreground/70">{" "}{t("(busta {costoOrario})", { costoOrario: formatCurrency(d.costoOrario) })}</span>
             </p>
           )}
         </div>
@@ -251,16 +250,15 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
       {open && (
         <div className="border-t border-border/60 bg-muted/50/60 px-4 py-3">
           <div className="mb-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-            <span title="Oneri: mensilità aggiuntive, contributi, INAIL, Cassa Edile e TFR del tipo di dipendente">
-              Contratto: <strong className="text-muted-foreground">{formatCurrency(d.lordoMensile)}</strong> lordo
-              + <strong className="text-muted-foreground">{formatCurrency(d.oneriMensili)}</strong> oneri ({d.oneriPercento.toLocaleString("it-IT")}%)
+            <span title={t("Oneri: mensilità aggiuntive, contributi, INAIL, Cassa Edile e TFR del tipo di dipendente")}>
+              {t("Contratto: {lordo} lordo + {oneri} oneri ({pct}%)", { lordo: formatCurrency(d.lordoMensile), oneri: formatCurrency(d.oneriMensili), pct: d.oneriPercento.toLocaleString(intlCampo()) })}
             </span>
             <span>
-              Ore contrattuali: <strong className="text-muted-foreground">{fmtOre(d.oreContrattuali)}</strong>/mese
+              {t("Ore contrattuali: {ore}/mese", { ore: fmtOre(d.oreContrattuali) })}
             </span>
             {d.oreStraordinario > 0 && (
               <span>
-                Straordinari stimati a costo orario base (esclusa maggiorazione CCNL)
+                {t("Straordinari stimati a costo orario base (esclusa maggiorazione CCNL)")}
               </span>
             )}
           </div>
@@ -276,6 +274,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
 }
 
 function RigaOperatore({ o }: { o: OperatoreEsterno }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-white/70">
@@ -292,7 +291,7 @@ function RigaOperatore({ o }: { o: OperatoreEsterno }) {
             <span className="ml-1 font-medium text-orange-600">+{fmtOre(o.oreStraordinario)}</span>
           )}
         </span>
-        <span className="text-xs text-muted-foreground">{o.giorniLavorati} gg</span>
+        <span className="text-xs text-muted-foreground">{t("{giorniLavorati} gg", { giorniLavorati: String(o.giorniLavorati ?? "") })}</span>
         <CommesseChips commesse={o.commesse} />
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform", open && "rotate-180")} />
       </button>
@@ -318,6 +317,7 @@ function parseImportoIt(raw: string): number {
 // Il confronto per commessa usa la saturazione REALE dai rapportini: sotto
 // saturazione piena l'ora interna costa più della busta.
 function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [quotaSubRaw, setQuotaSubRaw] = useState("");
   const [orePosaRaw, setOrePosaRaw] = useState("");
@@ -352,9 +352,9 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
       >
         <Scale className="h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground">Squadra interna o subappalto?</p>
+          <p className="text-sm font-semibold text-foreground">{t("Squadra interna o subappalto?")}</p>
           <p className="truncate text-xs text-muted-foreground">
-            Quante commesse al mese servono perché la squadra convenga rispetto al sub
+            {t("Quante commesse al mese servono perché la squadra convenga rispetto al sub")}
           </p>
         </div>
         <ChevronDown
@@ -366,37 +366,32 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
         <CardContent className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3">
           {squadra.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Questo mese nessun dipendente ha ore nei rapportini di campo: il calcolo parte dal
-              costo e dalla saturazione reali della squadra, quindi serve almeno un mese di
-              rapportini registrati.
+              {t("Questo mese nessun dipendente ha ore nei rapportini di campo: il calcolo parte dal costo e dalla saturazione reali della squadra, quindi serve almeno un mese di rapportini registrati.")}
             </p>
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                La tua squadra di campo questo mese: {squadra.length}{" "}
-                {squadra.length === 1 ? "persona" : "persone"},{" "}
-                <strong className="text-muted-foreground">{formatCurrency(costoMensileSquadra)}</strong> al
-                mese di busta e oneri, saturazione reale{" "}
-                <strong className="text-muted-foreground">{Math.round(saturazione * 100)}%</strong> dai
-                rapportini.
+                {squadra.length === 1
+                  ? t("La tua squadra di campo questo mese: {n} persona, {costo} al mese di busta e oneri, saturazione reale {pct}% dai rapportini.", { n: squadra.length, costo: formatCurrency(costoMensileSquadra), pct: Math.round(saturazione * 100) })
+                  : t("La tua squadra di campo questo mese: {n} persone, {costo} al mese di busta e oneri, saturazione reale {pct}% dai rapportini.", { n: squadra.length, costo: formatCurrency(costoMensileSquadra), pct: Math.round(saturazione * 100) })}
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                  Quanto ti quota il sub una commessa tipo (€)
+                  {t("Quanto ti quota il sub una commessa tipo (€)")}
                   <Input
                     inputMode="decimal"
-                    placeholder="es. 1.400"
+                    placeholder={t("es. 1.400")}
                     value={quotaSubRaw}
                     onChange={(e) => setQuotaSubRaw(e.target.value)}
                     className="h-9"
                   />
                 </label>
                 <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                  Ore di posa della tua squadra su quella commessa
+                  {t("Ore di posa della tua squadra su quella commessa")}
                   <Input
                     inputMode="decimal"
-                    placeholder="es. 40"
+                    placeholder={t("es. 40")}
                     value={orePosaRaw}
                     onChange={(e) => setOrePosaRaw(e.target.value)}
                     className="h-9"
@@ -407,55 +402,41 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
               {puntoIndifferenza > 0 && (
                 <div className="rounded-lg border border-border bg-muted/50/70 p-3 text-sm text-foreground">
                   <p>
-                    Sotto{" "}
-                    <strong>
-                      {puntoIndifferenza.toLocaleString("it-IT", { maximumFractionDigits: 1 })}{" "}
-                      commesse al mese
-                    </strong>{" "}
-                    conviene il sub, sopra la squadra.
+                    {t("Sotto {puntoIndifferenza} commesse al mese conviene il sub, sopra la squadra.", { puntoIndifferenza: puntoIndifferenza.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}
                   </p>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Si assume sul lavoro <em>sicuro</em>, non sui mesi buoni.
+                    {t("Si assume sul lavoro sicuro, non sui mesi buoni.")}
                   </p>
                 </div>
               )}
 
               {orePosa > 0 && saturazione <= 0.05 && (
-                <p className="text-xs text-muted-foreground">
-                  Con una saturazione del {Math.round(saturazione * 100)}% il confronto per
-                  commessa non è affidabile: questo mese ci sono troppo poche ore nei rapportini.
-                  Scegli un mese pieno dal selettore qui sopra.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("Con una saturazione del {valore}% il confronto per commessa non è affidabile: questo mese ci sono troppo poche ore nei rapportini. Scegli un mese pieno dal selettore qui sopra.", { valore: Math.round(saturazione * 100) })}</p>
               )}
 
               {costoInternoCommessa > 0 && (
                 <div className="rounded-lg border border-border bg-muted/50/70 p-3 text-sm text-foreground">
                   <p>
-                    In casa quella commessa ti costa{" "}
-                    <strong>{formatCurrency(costoInternoCommessa)}</strong> di manodopera
+                    {t("In casa quella commessa ti costa {costo} di manodopera", { costo: formatCurrency(costoInternoCommessa) })}
                     {deltaSub !== null && (
                       <>
                         {": "}
                         {deltaSub > 0.005 ? (
                           <>
-                            il sub è più caro del <strong>{Math.round(deltaSub * 100)}%</strong>
+                            {t("il sub è più caro del {pct}%", { pct: Math.round(deltaSub * 100) })}
                           </>
                         ) : deltaSub < -0.005 ? (
                           <>
-                            il sub è <strong>già più economico</strong>
+                            {t("il sub è già più economico")}
                           </>
                         ) : (
-                          <>il sub costa praticamente uguale</>
+                          <>{t("il sub costa praticamente uguale")}</>
                         )}
                       </>
                     )}
                     .
                   </p>
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    A busta l'ora vale {formatCurrency(costoOrarioNominale)}, alla saturazione
-                    reale del {Math.round(saturazione * 100)}% ne costa{" "}
-                    {formatCurrency(saturazione > 0 ? costoOrarioNominale / saturazione : 0)}.
-                  </p>
+                  <p className="mt-1.5 text-xs text-muted-foreground">{t("A busta l'ora vale {costoOrarioNominale}, alla saturazione reale del {valore}% ne costa {valore2}.", { costoOrarioNominale: formatCurrency(costoOrarioNominale), valore: Math.round(saturazione * 100), valore2: formatCurrency(saturazione > 0 ? costoOrarioNominale / saturazione : 0) })}</p>
                 </div>
               )}
             </>
@@ -471,6 +452,7 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
  * stimato (ore × costo orario di chi le ha fatte), e la parte di straordinari.
  */
 function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; totali: { oreLavorate: number; oreStraordinario: number } }) {
+  const t = useT();
   const perCommessa = new Map<string, { codice: string; ore: number; costo: number; persone: Set<string> }>();
   for (const d of dipendenti) {
     for (const c of d.commesse) {
@@ -499,15 +481,15 @@ function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; 
       <Card className="rounded-2xl shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 motion-safe:fill-mode-both">
         <CardContent className="p-4">
           <div className="mb-3 flex items-baseline justify-between gap-2">
-            <h3 className="text-sm font-semibold">Ore del mese per commessa</h3>
-            <span className="text-[11px] text-muted-foreground">{righe.length} commesse · costo stimato su ore × costo orario</span>
+            <h3 className="text-sm font-semibold">{t("Ore del mese per commessa")}</h3>
+            <span className="text-[11px] text-muted-foreground">{t("{n} commesse · costo stimato su ore × costo orario", { n: righe.length })}</span>
           </div>
           {/* 14/11/2026: accanto all'elenco, il costo stimato del mese diviso per commessa. */}
           <div className="grid items-start gap-4 md:grid-cols-[140px_minmax(0,1fr)]">
           <div className="max-md:hidden">
             <Ciambella
-              titolo="Costo stimato per commessa"
-              etichettaCentro="Costo"
+              titolo={t("Costo stimato per commessa")}
+              etichettaCentro={t("Costo")}
               dimensione={140}
               legenda={false}
               massimo={7}
@@ -525,7 +507,7 @@ function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; 
                   <span className="shrink-0 tabular-nums">
                     <strong>{fmtOre(r.ore)}</strong>
                     <span className="ml-2 text-muted-foreground">{formatCurrency(r.costo)}</span>
-                    <span className="ml-2 text-muted-foreground">{r.persone.size} {r.persone.size === 1 ? "persona" : "persone"}</span>
+                    <span className="ml-2 text-muted-foreground">{r.persone.size} {r.persone.size === 1 ? t("persona") : t("persone")}</span>
                   </span>
                 </div>
                 <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
@@ -538,20 +520,20 @@ function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; 
         </CardContent>
       </Card>
       <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 motion-safe:fill-mode-both dark:border-slate-700" style={{ animationDelay: "80ms" }}>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Ore ordinarie e straordinari</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Ore ordinarie e straordinari")}</p>
         <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">{pctStraord}%</p>
-        <p className="text-xs text-slate-400">delle ore sono straordinari</p>
+        <p className="text-xs text-slate-400">{t("delle ore sono straordinari")}</p>
         <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/10" aria-hidden>
           <div className="cg-barra-cresce bg-gradient-to-r from-sky-400 to-blue-500" style={{ width: `${100 - pctStraord}%` }} />
           <div className="cg-barra-cresce bg-gradient-to-r from-amber-400 to-orange-500" style={{ width: `${pctStraord}%`, animationDelay: "350ms" }} />
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-          <div><dt className="text-slate-400">Ordinarie</dt><dd className="font-semibold tabular-nums">{fmtOre(totali.oreLavorate)}</dd></div>
-          <div><dt className="text-slate-400">Straordinari</dt><dd className="font-semibold tabular-nums text-amber-300">{fmtOre(totali.oreStraordinario)}</dd></div>
+          <div><dt className="text-slate-400">{t("Ordinarie")}</dt><dd className="font-semibold tabular-nums">{fmtOre(totali.oreLavorate)}</dd></div>
+          <div><dt className="text-slate-400">{t("Straordinari")}</dt><dd className="font-semibold tabular-nums text-amber-300">{fmtOre(totali.oreStraordinario)}</dd></div>
         </dl>
         {satMedia != null && (
           <p className="mt-3 border-t border-white/10 pt-2 text-[11px] text-slate-300">
-            Saturazione media di chi ha rapportini: <strong className="tabular-nums text-white">{satMedia}%</strong> delle ore contrattuali.
+            {t("Saturazione media di chi ha rapportini: {pct}% delle ore contrattuali.", { pct: satMedia })}
           </p>
         )}
       </div>
@@ -566,6 +548,7 @@ export function PersonnelCostsTab({
   month: Date;
   onMonthChange: (m: Date) => void;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { dipendenti, altriOperatori, totali, isLoading, isError, errorMessage, refetch } =
@@ -592,7 +575,7 @@ export function PersonnelCostsTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <MonthPicker month={month} onChange={onMonthChange} />
         <Link to="/azienda/personale" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
-          Contratti in Personale
+          {t("Contratti in Personale")}
         </Link>
       </div>
 
@@ -600,9 +583,9 @@ export function PersonnelCostsTab({
         <Alert className="border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>Errore nel caricamento del personale: {errorMessage}</span>
+            <span>{t("Errore nel caricamento del personale: {errorMessage}", { errorMessage: String(errorMessage ?? "") })}</span>
             <Button variant="outline" size="sm" onClick={refetch}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -613,33 +596,33 @@ export function PersonnelCostsTab({
         <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
-              label="Costo personale stimato"
+              label={t("Costo personale stimato")}
               value={formatCurrency(totali.costoTotale)}
-              sub={`${formatCurrency(totali.lordoTotale)} lordi + ${formatCurrency(totali.oneriTotali)} oneri`}
+              sub={t("{lordi} lordi + {oneri} oneri", { lordi: formatCurrency(totali.lordoTotale), oneri: formatCurrency(totali.oneriTotali) })}
               icon={Users}
               tone="text-orange-100"
             />
             <NavyStatCard
-              label="Ore dichiarate"
+              label={t("Ore dichiarate")}
               value={fmtOre(totali.oreLavorate)}
-              sub={`${totali.dipendentiConOre} su ${totali.dipendentiAttivi} dipendenti con rapportini`}
+              sub={t("{conOre} su {attivi} dipendenti con rapportini", { conOre: totali.dipendentiConOre, attivi: totali.dipendentiAttivi })}
               icon={Clock}
             />
             <NavyStatCard
-              label="Straordinari"
+              label={t("Straordinari")}
               value={fmtOre(totali.oreStraordinario)}
               sub={
                 totali.costoStraordinari > 0
-                  ? `≈ ${formatCurrency(totali.costoStraordinari)} stimati`
-                  : "nessuno straordinario registrato"
+                  ? t("≈ {costo} stimati", { costo: formatCurrency(totali.costoStraordinari) })
+                  : t("nessuno straordinario registrato")
               }
               icon={Zap}
               tone={totali.oreStraordinario > 0 ? "text-amber-200" : "text-blue-100"}
             />
             <NavyStatCard
-              label="Dipendenti attivi"
+              label={t("Dipendenti attivi")}
               value={String(totali.dipendentiAttivi)}
-              sub="in forza nel mese"
+              sub={t("in forza nel mese")}
               icon={HardHat}
               tone="text-emerald-200"
             />
@@ -655,14 +638,13 @@ export function PersonnelCostsTab({
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
             <Users className="h-8 w-8 text-muted-foreground/50" />
             <div>
-              <p className="font-medium text-foreground">Nessun dipendente in anagrafica</p>
+              <p className="font-medium text-foreground">{t("Nessun dipendente in anagrafica")}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Aggiungi i dipendenti con stipendio e ore contrattuali per vedere qui il costo del
-                personale mese per mese.
+                {t("Aggiungi i dipendenti con stipendio e ore contrattuali per vedere qui il costo del personale mese per mese.")}
               </p>
             </div>
             <Button asChild size="sm">
-              <Link to="/azienda/personale">Vai a Personale</Link>
+              <Link to="/azienda/personale">{t("Vai a Personale")}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -670,20 +652,20 @@ export function PersonnelCostsTab({
         <div className="space-y-2">
           {/* Intestazione colonne (solo desktop) */}
           <div className="hidden gap-x-3 px-4 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:grid sm:grid-cols-[minmax(140px,1fr)_84px_100px_110px_100px_20px] xl:grid-cols-[minmax(160px,1.4fr)_90px_110px_minmax(140px,1fr)_120px_110px_24px]">
-            <span>Dipendente</span>
-            <span>Costo orario</span>
-            <span>Ore mese</span>
-            <span className="max-xl:hidden">Commesse</span>
-            <span>Costo mese</span>
+            <span>{t("Dipendente")}</span>
+            <span>{t("Costo orario")}</span>
+            <span>{t("Ore mese")}</span>
+            <span className="max-xl:hidden">{t("Commesse")}</span>
+            <span>{t("Costo mese")}</span>
             <span className="flex items-center gap-1">
-              Saturazione
+              {t("Saturazione")}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="h-3 w-3 cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-[220px] text-xs">
-                    Ore registrate nei rapportini rispetto alle ore contrattuali del mese.
+                    {t("Ore registrate nei rapportini rispetto alle ore contrattuali del mese.")}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -700,14 +682,14 @@ export function PersonnelCostsTab({
       {altriOperatori.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 pt-2">
-            <h3 className="text-sm font-semibold text-foreground">Altri operatori sul campo</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t("Altri operatori sul campo")}</h3>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/80" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[260px] text-xs">
-                  Senza scheda dipendente: costo non calcolato.
+                  {t("Senza scheda dipendente: costo non calcolato.")}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

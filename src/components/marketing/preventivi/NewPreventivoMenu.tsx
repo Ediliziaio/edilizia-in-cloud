@@ -30,6 +30,7 @@ import {
 import { Plus, ChevronDown, FileText, Sparkles } from "lucide-react";
 import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface NewPreventivoMenuProps {
   /** className aggiuntiva per il button trigger. */
@@ -58,6 +59,7 @@ export function NewPreventivoMenu({
   label = "Nuovo preventivo",
   onCreaConAI,
 }: NewPreventivoMenuProps) {
+  const t = useT();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const { moduli } = useModuliVendita();
@@ -135,7 +137,7 @@ export function NewPreventivoMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          Scegli il tipo di preventivo
+          {t("Scegli il tipo di preventivo")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
@@ -150,9 +152,9 @@ export function NewPreventivoMenu({
                 <Sparkles className="h-4 w-4 text-violet-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold">Crea con AI ✨</p>
+                <p className="text-sm font-semibold">{t("Crea con AI ✨")}</p>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Da una foto, un vocale o una descrizione dei lavori.
+                  {t("Da una foto, un vocale o una descrizione dei lavori.")}
                 </p>
               </div>
             </DropdownMenuItem>
@@ -169,9 +171,9 @@ export function NewPreventivoMenu({
             <FileText className="h-4 w-4 text-slate-700" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold">Classico</p>
+            <p className="text-sm font-semibold">{t("Classico")}</p>
             <p className="text-[11px] text-muted-foreground leading-tight">
-              Preventivo libero con righe prodotto/servizio.
+              {t("Preventivo libero con righe prodotto/servizio.")}
             </p>
           </div>
         </DropdownMenuItem>
@@ -181,7 +183,7 @@ export function NewPreventivoMenu({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-orange-600">
-              Preventivatori specialistici
+              {t("Preventivatori specialistici")}
             </DropdownMenuLabel>
             {enabledModuli.map((m) => {
               const Icon = m.modulo.icon;

@@ -10,8 +10,10 @@ import { EmailTopCampaignsTable } from "./EmailTopCampaignsTable";
 import { CampaignDetailDialog } from "./CampaignDetailDialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function EmailStatsTab() {
+  const tr = useT();
   const { effectiveCompany: company } = useAuth();
   const [campaignFilter, setCampaignFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -178,9 +180,9 @@ export function EmailStatsTab() {
           dalla scheda Campagne, questa è la pagina dei risultati. */}
       <div className="flex flex-wrap items-center gap-3 max-md:gap-2">
         <Select value={campaignFilter} onValueChange={setCampaignFilter}>
-          <SelectTrigger className="w-[180px] max-md:w-full"><SelectValue placeholder="Tutte le campagne" /></SelectTrigger>
+          <SelectTrigger className="w-[180px] max-md:w-full"><SelectValue placeholder={tr("Tutte le campagne")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutte le campagne</SelectItem>
+            <SelectItem value="all">{tr("Tutte le campagne")}</SelectItem>
             {campaigns.map((c: any) => (
               <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
             ))}
@@ -203,9 +205,9 @@ export function EmailStatsTab() {
         </div>
         {/* «Dal … al» diventa un trattino: con le parole la riga non stava a 1024. */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground max-md:hidden">
-          <Input type="date" aria-label="Dal" className="w-[140px] h-9" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("custom"); }} />
+          <Input type="date" aria-label={tr("Dal")} className="w-[140px] h-9" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("custom"); }} />
           <span aria-hidden>–</span>
-          <Input type="date" aria-label="Al" className="w-[140px] h-9" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("custom"); }} />
+          <Input type="date" aria-label={tr("Al")} className="w-[140px] h-9" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("custom"); }} />
         </div>
       </div>
 
@@ -218,7 +220,7 @@ export function EmailStatsTab() {
         <div>
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             {/* «Deliverability» è gergo: sotto ci sono respinte, disiscrizioni e spam. */}
-            Salute degli invii
+            {tr("Salute degli invii")}
           </h3>
           <CampaignStatsCards stats={stats} />
         </div>

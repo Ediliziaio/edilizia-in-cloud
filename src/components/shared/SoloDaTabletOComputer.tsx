@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Pagine da scrivania che dal telefono non si usano (decisione del founder, 23/11/2026):
@@ -18,12 +19,13 @@ export function SoloDaTabletOComputer({ titolo, dove, indietro, children }: {
   indietro?: { url: string; etichetta: string };
   children: ReactNode;
 }) {
+  const t = useT();
   const telefono = useIsMobile(640);
   if (!telefono) return <>{children}</>;
   return (
     <div className="space-y-3 p-4" role="region" aria-label={titolo}>
       <h1 className="flex items-center gap-2 text-[17px] font-semibold"><Monitor className="h-5 w-5" aria-hidden /> {titolo}</h1>
-      <p className="text-sm text-muted-foreground">Si usa da tablet o computer: {dove}</p>
+      <p className="text-sm text-muted-foreground">{t("Si usa da tablet o computer: {dove}", { dove: String(dove ?? "") })}</p>
       {indietro && <Button asChild variant="outline" size="sm"><Link to={indietro.url}>{indietro.etichetta}</Link></Button>}
     </div>
   );

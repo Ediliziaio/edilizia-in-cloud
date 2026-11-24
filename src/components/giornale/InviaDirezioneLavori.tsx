@@ -16,6 +16,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { GIORNI_VALIDITA_LINK_DL, RUOLI_INVIO_GIORNALE, emailDlValida, type RuoloInvioGiornale } from "../../../supabase/functions/_shared/linkGiornaleDl";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   giornaleId: string;
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function InviaDirezioneLavori({ giornaleId, orderId, dlNotifiedAt, onInviato }: Props) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   /** null = non toccato: vale l'indirizzo della commessa. */
   const [scritto, setScritto] = useState<string | null>(null);
@@ -55,12 +57,12 @@ export function InviaDirezioneLavori({ giornaleId, orderId, dlNotifiedAt, onInvi
       return data as { dl_notified_at: string };
     },
     onSuccess: (esito) => {
-      toast.success(`Link inviato a ${email}`);
+      toast.success(t("Link inviato a {email}", { email: String(email ?? "") }));
       if (perLaDirezione) onInviato(esito.dl_notified_at);
       setAperto(false);
       setScritto(null);
     },
-    onError: (e: Error) => toast.error("Invio non riuscito", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Invio non riuscito"), { description: e.message }),
   });
 
   return (
@@ -68,36 +70,36 @@ export function InviaDirezioneLavori({ giornaleId, orderId, dlNotifiedAt, onInvi
       <div className="space-y-1">
         <Button className="w-full" size="lg" variant="outline" onClick={() => setAperto(true)}>
           <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-          Condividi la pagina firmata
+          {t("Condividi la pagina firmata")}
         </Button>
-        {dlNotifiedAt && <p className="text-center text-xs text-muted-foreground">Ultimo invio il {format(new Date(dlNotifiedAt), "dd/MM/yyyy HH:mm")}</p>}
+        {dlNotifiedAt && <p className="text-center text-xs text-muted-foreground">{t("Ultimo invio il {valore}", { valore: format(new Date(dlNotifiedAt), "dd/MM/yyyy HH:mm") })}</p>}
       </div>
 
       <AlertDialog open={aperto} onOpenChange={(o) => { if (!o && !invia.isPending) { setAperto(false); setScritto(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>A chi vuoi mandare questa pagina?</AlertDialogTitle>
+            <AlertDialogTitle>{t("A chi vuoi mandare questa pagina?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {emailDlValida(email)
-                ? <>Parte un'email a <strong>{email}</strong> con un link al documento firmato, che vale {GIORNI_VALIDITA_LINK_DL} giorni e si apre senza accesso.</>
-                : "Scrivi l'indirizzo a cui spedire il link al documento firmato."}
+                ? <>{t("Parte un'email a")} <strong>{email}</strong> {t("con un link al documento firmato, che vale")} {GIORNI_VALIDITA_LINK_DL} {t("giorni e si apre senza accesso.")}</>
+                : t("Scrivi l'indirizzo a cui spedire il link al documento firmato.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1">
-            <Label htmlFor="giornale_ruolo">Destinatario</Label>
+            <Label htmlFor="giornale_ruolo">{t("Destinatario")}</Label>
             <UniformSelect id="giornale_ruolo" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={ruolo}
               onChange={(e) => { setRuolo(e.target.value as RuoloInvioGiornale); setScritto(null); }}>
               {RUOLI_INVIO_GIORNALE.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </UniformSelect>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="dl_email">Email del destinatario</Label>
-            <Input id="dl_email" type="email" inputMode="email" autoComplete="off" placeholder={isLoading ? "Cerco l'indirizzo…" : "nome@studio.it"} value={scritto ?? indirizzoCommessa} onChange={(e) => setScritto(e.target.value)} />
+            <Label htmlFor="dl_email">{t("Email del destinatario")}</Label>
+            <Input id="dl_email" type="email" inputMode="email" autoComplete="off" placeholder={isLoading ? t("Cerco l'indirizzo…") : "nome@studio.it"} value={scritto ?? indirizzoCommessa} onChange={(e) => setScritto(e.target.value)} />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={invia.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={invia.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={(e) => { e.preventDefault(); invia.mutate(); }} disabled={invia.isPending || !emailDlValida(email)}>
-              {invia.isPending ? "Invio..." : "Invia"}
+              {invia.isPending ? t("Invio...") : t("Invia")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

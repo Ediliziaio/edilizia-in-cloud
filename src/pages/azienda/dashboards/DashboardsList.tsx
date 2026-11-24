@@ -19,7 +19,7 @@ import {
 import { NewDashboardDialog } from "@/components/dashboardBuilder/NewDashboardDialog";
 import { DashboardCardMenu } from "@/components/dashboardBuilder/DashboardCardMenu";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Prefetch del bundle del builder: appena l'utente apre la lista iniziamo a
 // scaricare il chunk così quando clicca "Nuova" parte istantaneo.
@@ -28,6 +28,7 @@ function prefetchBuilder() {
 }
 
 export default function DashboardsList() {
+  const t = useT();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const { data, isLoading, error } = useDashboards();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,9 +70,9 @@ export default function DashboardsList() {
               <LayoutDashboard className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-2xl">Dashboard</h1>
+              <h1 className="text-xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-2xl">{t("Dashboard")}</h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                Le tue dashboard personalizzate con KPI, grafici e tabelle operative.
+                {t("Le tue dashboard personalizzate con KPI, grafici e tabelle operative.")}
               </p>
             </div>
           </div>
@@ -82,7 +83,7 @@ export default function DashboardsList() {
             className="self-start sm:self-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Nuova dashboard
+            {t("Nuova dashboard")}
           </Button>
         </div>
       </div>
@@ -95,9 +96,7 @@ export default function DashboardsList() {
         </div>
       ) : error ? (
         <Card>
-          <CardContent className="p-6 text-sm text-destructive">
-            Errore nel caricamento: {String((error as Error).message ?? error)}
-          </CardContent>
+          <CardContent className="p-6 text-sm text-destructive">{t("Errore nel caricamento: {valore}", { valore: String((error as Error).message ?? error) })}</CardContent>
         </Card>
       ) : !data || data.length === 0 ? (
         <Card>
@@ -106,14 +105,13 @@ export default function DashboardsList() {
               <Sparkles className="h-7 w-7 text-primary" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
-              <p className="font-semibold text-base">Crea la tua prima dashboard</p>
+              <p className="font-semibold text-base">{t("Crea la tua prima dashboard")}</p>
               <p className="text-sm text-muted-foreground">
-                Scegli un template predefinito (Vendite, Finanza, Cantieri, Executive)
-                e personalizzalo, oppure parti da un canvas vuoto.
+                {t("Scegli un template predefinito (Vendite, Finanza, Cantieri, Executive) e personalizzalo, oppure parti da un canvas vuoto.")}
               </p>
             </div>
             <Button onClick={openNewDialog} size="lg">
-              <Plus className="h-4 w-4 mr-2" /> Crea dashboard
+              <Plus className="h-4 w-4 mr-2" /> {t("Crea dashboard")}
             </Button>
           </CardContent>
         </Card>
@@ -151,11 +149,11 @@ export default function DashboardsList() {
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap mt-auto">
                   {d.scope === "personal" ? (
                     <span className="inline-flex items-center gap-1">
-                      <Lock className="h-3 w-3" /> Personale
+                      <Lock className="h-3 w-3" /> {t("Personale")}
                     </span>
                   ) : d.scope === "company" ? (
                     <span className="inline-flex items-center gap-1">
-                      <Users className="h-3 w-3" /> Condivisa
+                      <Users className="h-3 w-3" /> {t("Condivisa")}
                     </span>
                   ) : (
                     <Badge variant="outline" className="text-[10px] h-4 px-1">
@@ -169,7 +167,7 @@ export default function DashboardsList() {
                     <Clock className="h-3 w-3" />
                     {formatDistanceToNow(new Date(d.updated_at), {
                       addSuffix: true,
-                      locale: it,
+                      locale: dateFnsCampo(),
                     })}
                   </span>
                 </div>

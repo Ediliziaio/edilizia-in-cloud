@@ -49,6 +49,7 @@ import {
 import { GRUPPI_CASSA, VOCE_PER_CHIAVE, type GruppoCassa, type VoceCassa } from "@/lib/controlloGestione/vociCassa";
 import { qualitaClassificazione, righeEsportazioneCategorie, totaliPerChiave, vistaPerCategorie, type AreaCassa } from "@/lib/controlloGestione/rendicontoCategorie";
 import { useCatalogoCassa } from "@/lib/finance/cassaVoci";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
@@ -81,7 +82,7 @@ function sogliaSalvata(companyId: string | null | undefined): number {
 }
 
 const euro = (cents: number | null | undefined) => (cents == null ? "—" : euroIntero(cents / 100));
-const data = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("it-IT");
+const data = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(intlCampo());
 
 /** Cosa mostra il pannello laterale. */
 interface Selezione {
@@ -104,6 +105,7 @@ function vistaSalvata(): Vista {
 }
 
 export function TabCashFlow({ anno }: Props) {
+  const t = useT();
   const q = useRendicontoCassa(anno);
   // L'anno prima, solo per il confronto nella vista per categorie (consuntivo, già in cache se aperto).
   const qPrima = useRendicontoCassa(anno - 1);
@@ -173,7 +175,7 @@ export function TabCashFlow({ anno }: Props) {
 
   if (q.isLoading)
     return (
-      <div className="space-y-3" aria-label="Caricamento del rendiconto di cassa">
+      <div className="space-y-3" aria-label={t("Caricamento del rendiconto di cassa")}>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
@@ -185,7 +187,7 @@ export function TabCashFlow({ anno }: Props) {
       <div className="space-y-2">
         <ErrorBlock onRetry={() => q.refetch()} />
         <p className="text-sm text-muted-foreground">
-          {q.error instanceof Error ? q.error.message : "Riprova tra poco."}
+          {q.error instanceof Error ? q.error.message : t("Riprova tra poco.")}
         </p>
       </div>
     );
@@ -260,45 +262,43 @@ export function TabCashFlow({ anno }: Props) {
   return (
     <div className="space-y-4">
       {q.data.fontiNonLette.length > 0 && (
-        <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-          Non è stato possibile leggere: {q.data.fontiNonLette.join(", ")}. I numeri riguardano solo il resto.
-        </p>
+        <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{t("Non è stato possibile leggere: {fontiNonLette}. I numeri riguardano solo il resto.", { fontiNonLette: q.data.fontiNonLette.join(", ") })}</p>
       )}
       {q.data.avvisoSaldo && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{q.data.avvisoSaldo}</p>}
 
       <Riquadri r={r} haPrevisione={haPrevisione} dopo={q.data.saldoDopoMovimenti ? { cents: q.data.saldoDopoCents ?? 0, n: q.data.saldoDopoMovimenti, banca: q.data.saldoBancaCents ?? null } : null} />
 
-      <GraficiCassa r={r} onApriMese={(mese) => apri(`Movimenti di ${MESI_LUNGHI[mese - 1]} ${r.anno}`, r.vociVisibili, mese)} />
+      <GraficiCassa r={r} onApriMese={(mese) => apri(t("Movimenti di {mese} {anno}", { mese: t(MESI_LUNGHI[mese - 1]), anno: r.anno }), r.vociVisibili, mese)} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {haPrevisione ? (
           <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            <legend className="sr-only">Ipotesi della previsione</legend>
+            <legend className="sr-only">{t("Ipotesi della previsione")}</legend>
             <Interruttore
               id="cf-incassi-scaduti"
-              label="Includi incassi scaduti"
+              label={t("Includi incassi scaduti")}
               checked={ipotesi.includeOverdueIncome}
               onChange={(v) => setIpotesi((i) => ({ ...i, includeOverdueIncome: v }))}
             />
             <Interruttore
               id="cf-uscite-scadute"
-              label="Includi uscite scadute"
+              label={t("Includi uscite scadute")}
               checked={ipotesi.includeOverdueExpense}
               onChange={(v) => setIpotesi((i) => ({ ...i, includeOverdueExpense: v }))}
             />
             <Interruttore
               id="cf-stime"
-              label="Includi stime"
+              label={t("Includi stime")}
               checked={ipotesi.includeEstimates}
               onChange={(v) => setIpotesi((i) => ({ ...i, includeEstimates: v }))}
             />
           </fieldset>
         ) : (
-          <p className="text-sm text-muted-foreground">Il {anno} è chiuso: tutti i mesi sono a consuntivo.</p>
+          <p className="text-sm text-muted-foreground">{t("Il {anno} è chiuso: tutti i mesi sono a consuntivo.", { anno: String(anno ?? "") })}</p>
         )}
         <div className="flex flex-wrap gap-2">
           {perCategorie && !isMobile && (
-            <div role="group" aria-label="Come leggere la tabella" className="inline-flex rounded-md border p-0.5">
+            <div role="group" aria-label={t("Come leggere la tabella")} className="inline-flex rounded-md border p-0.5">
               {([["categorie", "Per categorie"], ["riassunto", "Riassunto"]] as const).map(([k, label]) => (
                 <button
                   key={k}
@@ -307,7 +307,7 @@ export function TabCashFlow({ anno }: Props) {
                   onClick={() => setVista(k)}
                   className={cn("rounded px-2.5 py-1 text-xs font-medium", vistaAttiva === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent")}
                 >
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
@@ -317,10 +317,10 @@ export function TabCashFlow({ anno }: Props) {
               size="sm"
               variant={r.nonClassificati.numero ? "default" : "outline"}
               onClick={() => setClassifica(true)}
-              title="Assegna le categorie ai movimenti di banca"
+              title={t("Assegna le categorie ai movimenti di banca")}
             >
               <Tags className="mr-2 h-4 w-4" />
-              Classifica movimenti
+              {t("Classifica movimenti")}
               {r.nonClassificati.numero > 0 && (
                 <span className="ml-2 rounded-full bg-background/20 px-1.5 text-xs tabular-nums">{r.nonClassificati.numero}</span>
               )}
@@ -329,7 +329,7 @@ export function TabCashFlow({ anno }: Props) {
           <Button asChild variant="outline" size="sm">
             <Link to={linkPrevisionale}>
               <ExternalLink className="mr-2 h-4 w-4" />
-              Apri il previsionale completo
+              {t("Apri il previsionale completo")}
             </Link>
           </Button>
           <span className="max-sm:hidden">
@@ -339,7 +339,7 @@ export function TabCashFlow({ anno }: Props) {
           {haPrevisione && (
             <Button size="sm" variant="outline" onClick={() => setEditorOpen(true)} className="max-sm:hidden">
               <Plus className="mr-2 h-4 w-4" />
-              Voci manuali
+              {t("Voci manuali")}
             </Button>
           )}
         </div>
@@ -392,36 +392,39 @@ function Interruttore({ id, label, checked, onChange }: { id: string; label: str
 // ── Riquadri ────────────────────────────────────────────────────────────────
 
 function Riquadri({ r, haPrevisione, dopo }: { r: RendicontoCassa; haPrevisione: boolean; dopo: { cents: number; n: number; banca: number | null } | null }) {
+  const t = useT();
   const { kpi, saldo } = r;
   const fonte =
     saldo.fonte === "banca"
       ? dopo && saldo.aggiornatoAl
         // 15/11/2026: il saldo dei conti è vecchio: si dice da dove viene il numero di oggi.
-        ? `Conti al ${data(saldo.aggiornatoAl.slice(0, 10))} ${euro(dopo.banca)} ${dopo.cents >= 0 ? "+" : "−"} ${euro(Math.abs(dopo.cents))} registrati dopo (${dopo.n})`
-        : `Conti in Tesoreria${saldo.aggiornatoAl ? ` · al ${data(saldo.aggiornatoAl.slice(0, 10))}` : ""}`
+        ? t("Conti al {data} {banca} {segno} {importo} registrati dopo ({n})", { data: data(saldo.aggiornatoAl.slice(0, 10)), banca: euro(dopo.banca), segno: dopo.cents >= 0 ? "+" : "−", importo: euro(Math.abs(dopo.cents)), n: dopo.n })
+        : saldo.aggiornatoAl ? t("Conti in Tesoreria · al {data}", { data: data(saldo.aggiornatoAl.slice(0, 10)) }) : t("Conti in Tesoreria")
       : saldo.fonte === "prima-nota"
-        ? "Dalla prima nota (nessun conto)"
-        : "Manca il saldo dei conti";
+        ? t("Dalla prima nota (nessun conto)")
+        : t("Manca il saldo dei conti");
   const sottoSoglia = kpi.minimo != null && kpi.minimo.cents < r.sogliaCents;
   return (
     <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
-      <Riquadro label="Saldo di cassa oggi" value={euro(kpi.saldoOggi)} sub={fonte} />
+      <Riquadro label={t("Saldo di cassa oggi")} value={euro(kpi.saldoOggi)} sub={fonte} />
       <Riquadro
-        label={`Flusso operativo ${r.anno}`}
+        label={t("Flusso operativo {anno}", { anno: String(r.anno ?? "") })}
         value={euro(kpi.flussoOperativoAnno)}
-        sub="Incassi meno uscite della gestione"
+        sub={t("Incassi meno uscite della gestione")}
         tone={kpi.flussoOperativoAnno < 0 ? "red" : "neutral"}
       />
       <Riquadro
-        label={haPrevisione ? "Punto più basso previsto" : "Saldo più basso a fine mese"}
+        label={haPrevisione ? t("Punto più basso previsto") : t("Saldo più basso a fine mese")}
         value={kpi.minimo ? euro(kpi.minimo.cents) : "—"}
-        sub={kpi.minimo ? `${kpi.minimo.giornaliero ? "il" : "a fine"} ${kpi.minimo.giornaliero ? data(kpi.minimo.data) : MESI_LUNGHI[Number(kpi.minimo.data.slice(5, 7)) - 1]}${sottoSoglia ? ` · sotto la soglia di ${euro(r.sogliaCents)}` : ""}` : "Saldo non disponibile"}
+        sub={kpi.minimo
+          ? `${kpi.minimo.giornaliero ? t("il {data}", { data: data(kpi.minimo.data) }) : t("a fine {mese}", { mese: t(MESI_LUNGHI[Number(kpi.minimo.data.slice(5, 7)) - 1]) })}${sottoSoglia ? ` ${t("· sotto la soglia di {importo}", { importo: euro(r.sogliaCents) })}` : ""}`
+          : t("Saldo non disponibile")}
         tone={kpi.minimo && kpi.minimo.cents < 0 ? "red" : sottoSoglia ? "amber" : "neutral"}
       />
       <Riquadro
-        label={haPrevisione ? `Saldo previsto a fine ${r.anno}` : `Saldo a fine ${r.anno}`}
+        label={haPrevisione ? t("Saldo previsto a fine {anno}", { anno: String(r.anno ?? "") }) : t("Saldo a fine {anno}", { anno: String(r.anno ?? "") })}
         value={euro(kpi.saldoFineAnno)}
-        sub={saldo.ricostruito && !haPrevisione ? "Ricostruito dal saldo di oggi" : undefined}
+        sub={saldo.ricostruito && !haPrevisione ? t("Ricostruito dal saldo di oggi") : undefined}
         tone={kpi.saldoFineAnno != null && kpi.saldoFineAnno < 0 ? "red" : "neutral"}
       />
     </div>
@@ -452,70 +455,71 @@ function Avvisi({ r, daBanca, bancaForseDoppi, onClassifica, onIncludiGiaInBanca
   bancaForseDoppi?: { numero: number; cents: number };
   onClassifica?: () => void;
 }) {
+  const t = useT();
   const righe: { chiave: string; testo: ReactNode }[] = [];
   if (r.saldo.avviso) righe.push({ chiave: "saldo", testo: r.saldo.avviso });
   else if (r.saldo.ricostruito)
     righe.push({
       chiave: "ricostruito",
-      testo:
-        "Il saldo dei mesi passati è ricostruito all'indietro: saldo dei conti di oggi meno i movimenti registrati in prima nota dopo quella data. Se in prima nota manca qualche movimento di banca, è un valore indicativo.",
+      testo: t(
+        "Il saldo dei mesi passati è ricostruito all'indietro: saldo dei conti di oggi meno i movimenti registrati in prima nota dopo quella data. Se in prima nota manca qualche movimento di banca, è un valore indicativo."),
     });
   const e = r.esclusi;
   if (e.incassiScaduti.numero)
-    righe.push({ chiave: "inc", testo: <>{e.incassiScaduti.numero} incassi già scaduti per {euro(e.incassiScaduti.cents)} sono fuori dalla previsione: li conti solo se accendi «Includi incassi scaduti».</> });
+    righe.push({ chiave: "inc", testo: <>{t("{numero} incassi già scaduti per {cents} sono fuori dalla previsione: li conti solo se accendi «Includi incassi scaduti».", { numero: String(e.incassiScaduti.numero ?? ""), cents: euro(e.incassiScaduti.cents) })}</> });
   if (e.usciteScadute.numero)
-    righe.push({ chiave: "usc", testo: <>{e.usciteScadute.numero} pagamenti scaduti e non segnati pagati per {euro(-e.usciteScadute.cents)}: spesso sono già pagati, controllali nel <Link className="font-medium underline" to="/azienda/previsionale?uscite-scadute=1">Previsionale</Link>.</> });
+    righe.push({ chiave: "usc", testo: <>{t("{n} pagamenti scaduti e non segnati pagati per {importo}: spesso sono già pagati, controllali nel", { n: e.usciteScadute.numero, importo: euro(-e.usciteScadute.cents) })} <Link className="font-medium underline" to="/azienda/previsionale?uscite-scadute=1">{t("Previsionale")}</Link>.</> });
   if (e.stime.numero)
-    righe.push({ chiave: "stime", testo: <>{e.stime.numero} stime (netto {euro(e.stime.cents)}) sono fuori perché hai spento «Includi stime».</> });
+    righe.push({ chiave: "stime", testo: <>{t("{numero} stime (netto {cents}) sono fuori perché hai spento «Includi stime».", { numero: String(e.stime.numero ?? ""), cents: euro(e.stime.cents) })}</> });
   if (e.senzaData.numero)
-    righe.push({ chiave: "data", testo: <>{e.senzaData.numero} movimenti senza data (netto {euro(e.senzaData.cents)}): mettigli una data per vederli nel mese giusto.</> });
+    righe.push({ chiave: "data", testo: <>{t("{numero} movimenti senza data (netto {cents}): mettigli una data per vederli nel mese giusto.", { numero: String(e.senzaData.numero ?? ""), cents: euro(e.senzaData.cents) })}</> });
   if (e.giaInBanca.numero)
     righe.push({
       chiave: "gia-in-banca",
       testo: (
         <>
-          {e.giaInBanca.numero} {e.giaInBanca.numero === 1 ? "previsto sembra già arrivato" : "previsti sembrano già arrivati"} in banca (netto {euro(e.giaInBanca.cents)}): stesso importo e stessa controparte di un movimento non ancora registrato. Non li conto due volte
+          {(e.giaInBanca.numero === 1 ? t("{n} previsto sembra già arrivato in banca (netto {importo}): stesso importo e stessa controparte di un movimento non ancora registrato. Non li conto due volte", { n: e.giaInBanca.numero, importo: euro(e.giaInBanca.cents) }) : t("{n} previsti sembrano già arrivati in banca (netto {importo}): stesso importo e stessa controparte di un movimento non ancora registrato. Non li conto due volte", { n: e.giaInBanca.numero, importo: euro(e.giaInBanca.cents) }))}
           {": "}
           {e.giaInBanca.coppie.slice(0, 5).map((c, i) => (
             <span key={c.previsto.id}>
-              {i ? "; " : ""}«{c.previsto.descrizione}» ↔ <Link className="underline" to={`/azienda/tesoreria?tab=transazioni&movimento=${c.banca.id}`}>movimento del {data(c.banca.data)}</Link>
+              {i ? "; " : ""}«{c.previsto.descrizione}» ↔ <Link className="underline" to={`/azienda/tesoreria?tab=transazioni&movimento=${c.banca.id}`}>{t("movimento del {data}", { data: String(data(c.banca.data) ?? "") })}</Link>
             </span>
           ))}
-          {e.giaInBanca.numero > 5 ? "…" : ""}. Collegali in Tesoreria per chiudere la scadenza.{" "}
-          {onIncludiGiaInBanca && <button type="button" className="font-medium underline" onClick={onIncludiGiaInBanca}>Contali lo stesso</button>}
+          {e.giaInBanca.numero > 5 ? "…" : ""}.{" "}{t("Collegali in Tesoreria per chiudere la scadenza.")}{" "}
+          {onIncludiGiaInBanca && <button type="button" className="font-medium underline" onClick={onIncludiGiaInBanca}>{t("Contali lo stesso")}</button>}
         </>
       ),
     });
   if (e.forseDoppi.numero)
-    righe.push({ chiave: "doppi", testo: <>{e.forseDoppi.numero} movimenti da verificare per una possibile doppia registrazione (netto {euro(e.forseDoppi.cents)}). I totali includono entrambe le righe fino al collegamento.</> });
+    righe.push({ chiave: "doppi", testo: <>{t("{numero} movimenti da verificare per una possibile doppia registrazione (netto {cents}). I totali includono entrambe le righe fino al collegamento.", { numero: String(e.forseDoppi.numero ?? ""), cents: euro(e.forseDoppi.cents) })}</> });
   if (r.nonClassificati.numero)
     righe.push({
       chiave: "nc",
       testo: (
         <>
-          {r.nonClassificati.numero} movimenti senza categoria ({euro(r.nonClassificati.cents)}) sono nelle righe «Da classificare»: contano nel saldo e nei totali, ma non in una categoria.{" "}
+          {t("{n} movimenti senza categoria ({importo}) sono nelle righe «Da classificare»: contano nel saldo e nei totali, ma non in una categoria.", { n: r.nonClassificati.numero, importo: euro(r.nonClassificati.cents) })}{" "}
           {onClassifica ? (
-            <button type="button" className="font-medium underline" onClick={onClassifica}>Classificali</button>
+            <button type="button" className="font-medium underline" onClick={onClassifica}>{t("Classificali")}</button>
           ) : (
-            <Link className="font-medium underline" to="/azienda/prima-nota">Dagli una categoria in Prima nota</Link>
+            <Link className="font-medium underline" to="/azienda/prima-nota">{t("Dagli una categoria in Prima nota")}</Link>
           )}.
         </>
       ),
     });
   if (daBanca)
-    righe.push({ chiave: "banca", testo: `${daBanca} movimenti di banca non ancora registrati in prima nota sono contati nel consuntivo: sono soldi già passati dal conto.` });
+    righe.push({ chiave: "banca", testo: t("{n} movimenti di banca non ancora registrati in prima nota sono contati nel consuntivo: sono soldi già passati dal conto.", { n: daBanca }) });
   if (bancaForseDoppi?.numero)
-    righe.push({ chiave: "banca-doppi", testo: <>{bancaForseDoppi.numero} movimenti di banca (netto {euro(bancaForseDoppi.cents)}) hanno una scrittura di prima nota con lo stesso importo, nello stesso verso e a pochi giorni, non collegata: conto solo quella. Collegale in Tesoreria per toglierle da qui.</> });
+    righe.push({ chiave: "banca-doppi", testo: <>{t("{numero} movimenti di banca (netto {cents}) hanno una scrittura di prima nota con lo stesso importo, nello stesso verso e a pochi giorni, non collegata: conto solo quella. Collegale in Tesoreria per toglierle da qui.", { numero: String(bancaForseDoppi.numero ?? ""), cents: euro(bancaForseDoppi.cents) })}</> });
   if (r.registratiScartati)
-    righe.push({ chiave: "scartati", testo: `${r.registratiScartati} movimenti di prima nota con importo o data da verificare non sono contati.` });
+    righe.push({ chiave: "scartati", testo: t("{n} movimenti di prima nota con importo o data da verificare non sono contati.", { n: r.registratiScartati }) });
   if (r.registratiFuturi)
-    righe.push({ chiave: "futuri", testo: `${r.registratiFuturi} movimenti di prima nota con data futura non sono contati come registrati.` });
+    righe.push({ chiave: "futuri", testo: t("{n} movimenti di prima nota con data futura non sono contati come registrati.", { n: r.registratiFuturi }) });
   if (r.mutuiGiaPrevisti)
-    righe.push({ chiave: "mutui", testo: "Le rate dei mutui sembrano già tra le spese previste: non le aggiungo una seconda volta." });
+    righe.push({ chiave: "mutui", testo: t("Le rate dei mutui sembrano già tra le spese previste: non le aggiungo una seconda volta.") });
   if (!righe.length) return null;
   return (
     <details className="rounded-lg border bg-card p-3 text-sm">
-      <summary className="cursor-pointer font-medium">Come leggere i numeri ({righe.length})</summary>
+      <summary className="cursor-pointer font-medium">{t("Come leggere i numeri ({n})", { n: righe.length })}</summary>
       <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs text-muted-foreground">
         {righe.map((x) => <li key={x.chiave}>{x.testo}</li>)}
       </ul>
@@ -531,11 +535,12 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
   onToggle: (g: GruppoCassa) => void;
   onApri: (titolo: string, voci: VoceCassa[], mese: number | null) => void;
 }) {
+  const t = useT();
   const totale = (a: number[]) => a.reduce((s, c) => s + c, 0);
   const cellaImporto = (cents: number, label: string, onClick?: () => void) => (
     <span className={cn("tabular-nums", cents < 0 && "text-rose-700")}>
       {cents === 0 ? <span className="text-muted-foreground">—</span> : onClick ? (
-        <button type="button" aria-label={`Apri il dettaglio di ${label}: ${euro(cents)}`} onClick={onClick} className="rounded px-0.5 hover:bg-muted hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+        <button type="button" aria-label={t("Apri il dettaglio di {label}: {cents}", { label: t(label), cents: euro(cents) })} onClick={onClick} className="rounded px-0.5 hover:bg-muted hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
           {euro(cents)}
         </button>
       ) : euro(cents)}
@@ -546,20 +551,20 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
 
   const rigaImporti = (label: string, valori: number[], voci: VoceCassa[], classe: string, primaClasse: string, forte = false) => (
     <tr className={cn("border-t", classe)}>
-      <th scope="row" className={cn(prima, "font-normal", primaClasse)}>{label}</th>
+      <th scope="row" className={cn(prima, "font-normal", primaClasse)}>{t(label)}</th>
       {r.colonne.map((c, i) => (
         <td key={c.mese} className={td(c.tipo, forte ? "font-semibold" : undefined)}>
-          {cellaImporto(valori[i], `${label} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, voci.length ? () => onApri(`${label} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, voci, c.mese) : undefined)}
+          {cellaImporto(valori[i], `${t(label)} · ${t(MESI_LUNGHI[c.mese - 1])} ${r.anno}`, voci.length ? () => onApri(`${t(label)} · ${t(MESI_LUNGHI[c.mese - 1])} ${r.anno}`, voci, c.mese) : undefined)}
         </td>
       ))}
       <td className="whitespace-nowrap bg-muted/50 px-2 py-1.5 text-right text-xs font-semibold">
-        {cellaImporto(totale(valori), `${label} · ${r.anno}`, voci.length ? () => onApri(`${label} · ${r.anno}`, voci, null) : undefined)}
+        {cellaImporto(totale(valori), `${t(label)} · ${r.anno}`, voci.length ? () => onApri(`${t(label)} · ${r.anno}`, voci, null) : undefined)}
       </td>
     </tr>
   );
   const rigaSaldo = (label: string, valori: (number | null)[], totaleAnno: number | null, fine = false) => (
     <tr className={cn(fine ? "border-t-2 border-foreground/30 font-bold" : "border-t font-semibold", "bg-muted/40")}>
-      <th scope="row" className={cn(prima, "bg-muted")}>{label}</th>
+      <th scope="row" className={cn(prima, "bg-muted")}>{t(label)}</th>
       {r.colonne.map((c, i) => {
         const v = valori[i];
         return (
@@ -584,21 +589,21 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
   return (
     <div className="max-w-full overflow-x-auto rounded-xl border bg-card">
       <table className="w-full border-collapse text-sm">
-        <caption className="sr-only">Rendiconto di cassa {r.anno}: saldo, incassi, uscite, investimenti e finanziamenti per mese</caption>
+        <caption className="sr-only">{t("Rendiconto di cassa {anno}: saldo, incassi, uscite, investimenti e finanziamenti per mese", { anno: String(r.anno ?? "") })}</caption>
         <thead>
           <tr className="border-b">
             <th scope="col" className={cn(prima, "z-20 bg-card py-2 text-xs font-medium text-muted-foreground")}>
-              Importi in euro, IVA compresa
+              {t("Importi in euro, IVA compresa")}
             </th>
             {r.colonne.map((c) => (
               <th key={c.mese} scope="col" className={cn("min-w-[96px] px-2 py-2 text-right text-xs font-semibold", SFONDO_COLONNA[c.tipo])}>
-                <span className="block">{MESI[c.mese - 1]}</span>
+                <span className="block">{t(MESI[c.mese - 1])}</span>
                 <span className={cn("block text-[10px] font-normal", c.tipo === "consuntivo" ? "text-muted-foreground" : c.tipo === "in-corso" ? "text-amber-800" : "text-sky-800")}>
-                  {ETICHETTA_COLONNA[c.tipo]}
+                  {t(ETICHETTA_COLONNA[c.tipo])}
                 </span>
               </th>
             ))}
-            <th scope="col" className="min-w-[108px] bg-muted/50 px-2 py-2 text-right text-xs font-semibold">Totale {r.anno}</th>
+            <th scope="col" className="min-w-[108px] bg-muted/50 px-2 py-2 text-right text-xs font-semibold">{t("Totale {anno}", { anno: String(r.anno ?? "") })}</th>
           </tr>
         </thead>
         <tbody>
@@ -661,15 +666,16 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
 
 /** Quanto del consuntivo ha una voce precisa, quanto è stimato dalla prima nota, quanto è da classificare. */
 function QualitaClassificazione({ q, onClassifica }: { q: { precisa: number; stimata: number; daClassificare: number; totale: number }; onClassifica?: () => void }) {
+  const t = useT();
   const pct = (x: number) => Math.round((x / q.totale) * 100);
   const parti = [
-    { k: "precisa", label: "con voce precisa", v: q.precisa, classe: "bg-emerald-500" },
-    { k: "stimata", label: "stimato dalla prima nota", v: q.stimata, classe: "bg-sky-400" },
-    { k: "da", label: "da classificare", v: q.daClassificare, classe: "bg-amber-400" },
+    { k: "precisa", label: t("con voce precisa"), v: q.precisa, classe: "bg-emerald-500" },
+    { k: "stimata", label: t("stimato dalla prima nota"), v: q.stimata, classe: "bg-sky-400" },
+    { k: "da", label: t("da classificare"), v: q.daClassificare, classe: "bg-amber-400" },
   ];
   return (
-    <section aria-label="Qualità della classificazione del consuntivo" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-3 py-2 text-xs">
-      <span className="font-medium">Consuntivo classificato</span>
+    <section aria-label={t("Qualità della classificazione del consuntivo")} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-3 py-2 text-xs">
+      <span className="font-medium">{t("Consuntivo classificato")}</span>
       <div className="flex h-2 w-40 overflow-hidden rounded-full bg-muted" role="img" aria-label={parti.map((p) => `${pct(p.v)}% ${p.label}`).join(", ")}>
         {parti.map((p) => p.v > 0 && <span key={p.k} className={p.classe} style={{ width: `${(p.v / q.totale) * 100}%` }} />)}
       </div>
@@ -681,7 +687,7 @@ function QualitaClassificazione({ q, onClassifica }: { q: { precisa: number; sti
       ))}
       {onClassifica && q.daClassificare + q.stimata > 0 && (
         <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={onClassifica}>
-          <Tags className="mr-1 h-3.5 w-3.5" /> Migliora la classificazione
+          <Tags className="mr-1 h-3.5 w-3.5" /> {t("Migliora la classificazione")}
         </Button>
       )}
     </section>
@@ -697,6 +703,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
   /** Totali dell'anno prima per categoria (chiave) e area (`area:chiave`). */
   confronto?: { anno: number; totali: Map<string, number>; netto: number } | null;
 }) {
+  const t = useT();
   const extra = confronto ? 2 : 0;
   const colonneConfronto = (attuale: number, prima: number | null | undefined, forte = false) => {
     if (!confronto) return null;
@@ -709,9 +716,9 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
         </td>
         <td
           className="whitespace-nowrap px-2 py-1.5 text-right text-xs tabular-nums text-muted-foreground"
-          title="Variazione dell'importo (in valore assoluto) rispetto all'anno prima"
+          title={t("Variazione dell'importo (in valore assoluto) rispetto all'anno prima")}
         >
-          {variazione == null ? (attuale === 0 ? "—" : "nuova") : `${variazione > 0 ? "+" : ""}${variazione}%`}
+          {variazione == null ? (attuale === 0 ? "—" : t("nuova")) : `${variazione > 0 ? "+" : ""}${variazione}%`}
         </td>
       </>
     );
@@ -727,7 +734,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
       ) : (
         <button
           type="button"
-          aria-label={`Apri il dettaglio di ${label}: ${euro(cents)}`}
+          aria-label={t("Apri il dettaglio di {label}: {cents}", { label, cents: euro(cents) })}
           onClick={() => onApri(label, righe, mese, daClassificare)}
           className="rounded px-0.5 hover:bg-muted hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
@@ -740,18 +747,18 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
     <>
       {r.colonne.map((c, i) => (
         <td key={c.mese} className={td(c.tipo, forte ? "font-semibold" : undefined)}>
-          {importo(valori[i], `${nome} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, righe, c.mese, daClassificare)}
+          {importo(valori[i], `${t(nome)} · ${t(MESI_LUNGHI[c.mese - 1])} ${r.anno}`, righe, c.mese, daClassificare)}
         </td>
       ))}
       <td className="whitespace-nowrap bg-muted/50 px-2 py-1.5 text-right text-xs font-semibold">
-        {importo(totale(valori), `${nome} · ${r.anno}`, righe, null, daClassificare)}
+        {importo(totale(valori), `${t(nome)} · ${r.anno}`, righe, null, daClassificare)}
       </td>
       {confronto && (prima === false ? <><td className="border-l" /><td /></> : colonneConfronto(totale(valori), prima, forte))}
     </>
   );
   const saldo = (label: string, valori: (number | null)[], totaleAnno: number | null, fine = false) => (
     <tr className={cn(fine ? "border-t-2 border-foreground/30 font-bold" : "border-t font-semibold", "bg-muted/40")}>
-      <th scope="row" className={cn(prima, "bg-muted")}>{label}</th>
+      <th scope="row" className={cn(prima, "bg-muted")}>{t(label)}</th>
       {r.colonne.map((c, i) => {
         const v = valori[i];
         return (
@@ -773,23 +780,23 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
   return (
     <div className="max-w-full overflow-x-auto rounded-xl border bg-card">
       <table className="w-full border-collapse text-sm">
-        <caption className="sr-only">Cash flow {r.anno} per area, categoria e voce, mese per mese</caption>
+        <caption className="sr-only">{t("Cash flow {anno} per area, categoria e voce, mese per mese", { anno: String(r.anno ?? "") })}</caption>
         <thead>
           <tr className="border-b">
-            <th scope="col" className={cn(prima, "z-20 bg-card py-2 text-xs font-medium text-muted-foreground")}>Categorie · euro, IVA compresa</th>
+            <th scope="col" className={cn(prima, "z-20 bg-card py-2 text-xs font-medium text-muted-foreground")}>{t("Categorie · euro, IVA compresa")}</th>
             {r.colonne.map((c) => (
               <th key={c.mese} scope="col" className={cn("min-w-[96px] px-2 py-2 text-right text-xs font-semibold", SFONDO_COLONNA[c.tipo])}>
-                <span className="block">{MESI[c.mese - 1]}</span>
+                <span className="block">{t(MESI[c.mese - 1])}</span>
                 <span className={cn("block text-[10px] font-normal", c.tipo === "consuntivo" ? "text-muted-foreground" : c.tipo === "in-corso" ? "text-amber-800" : "text-sky-800")}>
-                  {ETICHETTA_COLONNA[c.tipo]}
+                  {t(ETICHETTA_COLONNA[c.tipo])}
                 </span>
               </th>
             ))}
-            <th scope="col" className="min-w-[108px] bg-muted/50 px-2 py-2 text-right text-xs font-semibold">Totale {r.anno}</th>
+            <th scope="col" className="min-w-[108px] bg-muted/50 px-2 py-2 text-right text-xs font-semibold">{t("Totale {anno}", { anno: String(r.anno ?? "") })}</th>
             {confronto && (
               <>
-                <th scope="col" className="min-w-[100px] border-l px-2 py-2 text-right text-xs font-semibold text-muted-foreground">Totale {confronto.anno}</th>
-                <th scope="col" className="min-w-[72px] px-2 py-2 text-right text-xs font-semibold text-muted-foreground">Variazione</th>
+                <th scope="col" className="min-w-[100px] border-l px-2 py-2 text-right text-xs font-semibold text-muted-foreground">{t("Totale {anno}", { anno: String(confronto.anno ?? "") })}</th>
+                <th scope="col" className="min-w-[72px] px-2 py-2 text-right text-xs font-semibold text-muted-foreground">{t("Variazione")}</th>
               </>
             )}
           </tr>
@@ -826,7 +833,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
                                 <button
                                   type="button"
                                   aria-expanded={espansa}
-                                  aria-label={`${espansa ? "Chiudi" : "Apri"} le voci di ${c.nome}`}
+                                  aria-label={(espansa ? t("Chiudi le voci di {nome}", { nome: c.nome }) : t("Apri le voci di {nome}", { nome: c.nome }))}
                                   onClick={() => setAperte((p) => { const n = new Set(p); if (n.has(c.chiave)) n.delete(c.chiave); else n.add(c.chiave); return n; })}
                                   className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                                 >
@@ -857,14 +864,14 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
                     );
                   })}
                 <tr className="border-t bg-muted/30">
-                  <th scope="row" className={cn(prima, "bg-muted font-semibold")}>Totale {a.nome.toLocaleLowerCase("it-IT")}</th>
-                  {celle(`Totale ${a.nome}`, a.valori, a.categorie.flatMap((c) => c.dettagli), false, true, confronto?.totali.get(`area:${a.chiave}`))}
+                  <th scope="row" className={cn(prima, "bg-muted font-semibold")}>{t("Totale {nome}", { nome: a.nome.toLocaleLowerCase("it-IT") })}</th>
+                  {celle(t("Totale {nome}", { nome: a.nome }), a.valori, a.categorie.flatMap((c) => c.dettagli), false, true, confronto?.totali.get(`area:${a.chiave}`))}
                 </tr>
               </Fragment>
             );
           })}
           <tr className="border-t-2 bg-primary/5">
-            <th scope="row" className={cn(prima, "bg-muted font-bold")}>Flusso netto del mese</th>
+            <th scope="row" className={cn(prima, "bg-muted font-bold")}>{t("Flusso netto del mese")}</th>
             {celle("Flusso netto del mese", r.flussoNetto, tutte, false, true, confronto?.netto)}
           </tr>
           {saldo("Saldo di cassa a fine mese", r.saldoFine, r.saldoFine[11], true)}
@@ -877,20 +884,21 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null 
 // ── Vista per mese (telefono) ───────────────────────────────────────────────
 
 function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string, voci: VoceCassa[], mese: number | null) => void }) {
+  const t = useT();
   const meseIniziale = r.anno === Number(r.today.slice(0, 4)) ? Number(r.today.slice(5, 7)) : 1;
   const [mese, setMese] = useState(meseIniziale);
   const i = mese - 1;
   const col = r.colonne[i];
   const riga = (label: string, cents: number | null, voci: VoceCassa[], forte = false, rientro = false) => (
     <li key={label} className={cn("flex items-center justify-between gap-3 px-3 py-2", forte && "bg-muted/40 font-semibold", rientro && "pl-6")}>
-      <span className="min-w-0 text-[13px]">{label}</span>
+      <span className="min-w-0 text-[13px]">{t(label)}</span>
       {cents == null || cents === 0 || !voci.length ? (
         <span className={cn("shrink-0 text-[13px] tabular-nums", cents != null && cents < 0 && "text-rose-700")}>{cents === 0 ? "—" : euro(cents)}</span>
       ) : (
         <button
           type="button"
-          aria-label={`Apri il dettaglio di ${label} · ${MESI_LUNGHI[i]} ${r.anno}: ${euro(cents)}`}
-          onClick={() => onApri(`${label} · ${MESI_LUNGHI[i]} ${r.anno}`, voci, mese)}
+          aria-label={t("Apri il dettaglio di {label} · {valore} {anno}: {cents}", { label: t(label), valore: String(MESI_LUNGHI[i] ?? ""), anno: String(r.anno ?? ""), cents: euro(cents) })}
+          onClick={() => onApri(`${t(label)} · ${t(MESI_LUNGHI[i])} ${r.anno}`, voci, mese)}
           className={cn("shrink-0 text-[13px] tabular-nums underline-offset-2 hover:underline", cents < 0 && "text-rose-700")}
         >
           {euro(cents)}
@@ -902,20 +910,20 @@ function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string,
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       <div className={cn("flex items-center gap-2 border-b px-2 py-2", SFONDO_COLONNA[col.tipo])}>
-        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={mese === 1} onClick={() => setMese(mese - 1)} aria-label="Mese precedente">
+        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={mese === 1} onClick={() => setMese(mese - 1)} aria-label={t("Mese precedente")}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <Select value={String(mese)} onValueChange={(v) => setMese(Number(v))}>
-          <SelectTrigger className="h-8 flex-1" aria-label="Mese"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 flex-1" aria-label={t("Mese")}><SelectValue /></SelectTrigger>
           <SelectContent>
             {r.colonne.map((c) => (
               <SelectItem key={c.mese} value={String(c.mese)}>
-                {MESI_LUNGHI[c.mese - 1]} · {ETICHETTA_COLONNA[c.tipo]}
+                {t(MESI_LUNGHI[c.mese - 1])} · {t(ETICHETTA_COLONNA[c.tipo])}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={mese === 12} onClick={() => setMese(mese + 1)} aria-label="Mese successivo">
+        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={mese === 12} onClick={() => setMese(mese + 1)} aria-label={t("Mese successivo")}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -932,7 +940,7 @@ function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string,
         ))}
         {riga("Flusso netto del mese", r.flussoNetto[i], GRUPPI_CASSA.flatMap((g) => vociDelGruppo(g.key)), true)}
         <li className={cn("flex items-center justify-between gap-3 px-3 py-2.5 font-bold", fine != null && fine < 0 ? "bg-rose-100 text-rose-800" : "bg-muted/60")}>
-          <span>Saldo a fine mese</span>
+          <span>{t("Saldo a fine mese")}</span>
           <span className="tabular-nums">{euro(fine)}</span>
         </li>
       </ul>
@@ -943,6 +951,7 @@ function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string,
 // ── Pannello dei movimenti ──────────────────────────────────────────────────
 
 function DettaglioSheet({ r, selezione, onClose, onClassifica }: { r: RendicontoCassa; selezione: Selezione | null; onClose: () => void; onClassifica?: () => void }) {
+  const t = useT();
   const focusReturn = useDialogFocusReturn();
   const righe: DettaglioCella[] = !selezione
     ? []
@@ -958,16 +967,16 @@ function DettaglioSheet({ r, selezione, onClose, onClassifica }: { r: Rendiconto
         <SheetHeader>
           <SheetTitle className="pr-6 text-base">{selezione?.titolo}</SheetTitle>
           <SheetDescription>
-            {righe.length} movimenti · totale <span className={cn("font-semibold tabular-nums", totale < 0 && "text-rose-700")}>{euro(totale)}</span>
+            {t("{n} movimenti · totale", { n: righe.length })} <span className={cn("font-semibold tabular-nums", totale < 0 && "text-rose-700")}>{euro(totale)}</span>
           </SheetDescription>
         </SheetHeader>
         {onClassifica && (selezione?.daClassificare || selezione?.voci.some((v) => VOCE_PER_CHIAVE.get(v)?.daClassificare)) && righe.some((d) => d.bankTransactionId) && (
           <Button size="sm" className="mt-3" onClick={onClassifica}>
-            <Tags className="mr-2 h-4 w-4" /> Classifica questi movimenti
+            <Tags className="mr-2 h-4 w-4" /> {t("Classifica questi movimenti")}
           </Button>
         )}
         {righe.length === 0 ? (
-          <p className="mt-6 text-sm text-muted-foreground">Nessun movimento.</p>
+          <p className="mt-6 text-sm text-muted-foreground">{t("Nessun movimento.")}</p>
         ) : (
           <ul className="mt-4 divide-y rounded-lg border">
             {righe.map((d) => (
@@ -981,11 +990,11 @@ function DettaglioSheet({ r, selezione, onClose, onClassifica }: { r: Rendiconto
                   {d.controparte && <span>· {d.controparte}</span>}
                   <span>· {d.fonte}</span>
                   <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", d.tipo === "previsto" ? "border-sky-300 text-sky-800" : "")}>
-                    {d.tipo === "registrato" ? "Registrato" : d.stimato ? "Stima" : "Previsto"}
+                    {d.tipo === "registrato" ? t("Registrato") : d.stimato ? t("Stima") : t("Previsto")}
                   </Badge>
                   {d.href && (
                     <Link to={d.href} className="font-medium text-blue-700 underline">
-                      Apri
+                      {t("Apri")}
                     </Link>
                   )}
                 </div>

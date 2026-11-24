@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { FishCallback } from "@/lib/fishCallbacks";
 import type { ReactNode } from "react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const statuses: Record<string, string> = {
   da_fare: "Da fare",
@@ -24,9 +25,10 @@ export function FishCallbackCard({ callback, statusLabel, open, onToggle, primar
   followUp?: ReactNode;
   children?: ReactNode;
 }) {
+  const t = useT();
   const detailId = useId();
   const due = callback.due_date
-    ? new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeZone: "Europe/Rome" })
+    ? new Intl.DateTimeFormat(intlCampo(), { dateStyle: "medium", timeZone: "Europe/Rome" })
         .format(new Date(callback.due_date.slice(0, 10) + "T12:00:00Z"))
     : null;
   const notes = callback.notes?.replace(/(?:^|\r?\n)Richiesta raccolta dall'assistente AI\.\r?$/m, "").trim();
@@ -38,19 +40,19 @@ export function FishCallbackCard({ callback, statusLabel, open, onToggle, primar
           <div className="min-w-0">
             <h3 className="break-words text-sm font-semibold">{callback.title}</h3>
             {due && <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <CalendarClock aria-hidden="true" className="size-3" /> Entro il {due}
+              <CalendarClock aria-hidden="true" className="size-3" /> {t("Entro il {data}", { data: due })}
             </p>}
           </div>
         </div>
         <Badge variant="outline" className={callback.status === "da_fare" ? "border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-200" : ""}>
-          {statusLabel || statuses[callback.status] || callback.status}
+          {statusLabel || t(statuses[callback.status] || callback.status)}
         </Badge>
       </div>
       {notes && <p className="whitespace-pre-line break-words text-sm">{notes}</p>}
       <div className="flex flex-wrap items-center gap-2 border-t pt-2">
         {primaryActions}
         <Button size="sm" variant="outline" aria-expanded={open} aria-controls={detailId} onClick={onToggle}>
-          {open ? "Chiudi trascrizione" : "Apri trascrizione"}
+          {open ? t("Chiudi trascrizione") : t("Apri trascrizione")}
         </Button>
         {links}
       </div>

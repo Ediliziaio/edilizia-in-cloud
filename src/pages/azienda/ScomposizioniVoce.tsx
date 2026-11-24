@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ETICHETTA_AMBITO, SCOMPOSIZIONI_STANDARD, vociPerImport, type AmbitoStandard } from "@/lib/distinta/scomposizioniStandard";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Componente {
   id?: string;
@@ -52,6 +53,7 @@ const vuota = (): Scomp => ({
 });
 
 export default function ScomposizioniVoce() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? "";
   const { canEditOrders, canValidateBom, canViewCosts } = usePermissions();
@@ -119,8 +121,8 @@ export default function ScomposizioniVoce() {
         if (error) throw error;
       }
     },
-    onSuccess: () => { toast.success("Scomposizione salvata"); setModifica(null); qc.invalidateQueries({ queryKey: ["scomposizioni"] }); },
-    onError: (e) => toast.error("Non salvata", { description: e instanceof Error ? e.message : String(e) }),
+    onSuccess: () => { toast.success(tr("Scomposizione salvata")); setModifica(null); qc.invalidateQueries({ queryKey: ["scomposizioni"] }); },
+    onError: (e) => toast.error(tr("Non salvata"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   const attiva = useMutation({
@@ -136,8 +138,8 @@ export default function ScomposizioniVoce() {
       const { error } = await supabase.from("scomposizioni_voce").update({ attiva: true }).in("id", ids);
       if (error) throw error;
     },
-    onSuccess: (_d, ids) => { toast.success(`${ids.length} scomposizioni approvate: da ora si usano per generare i materiali`); qc.invalidateQueries({ queryKey: ["scomposizioni"] }); },
-    onError: (e) => toast.error("Non approvate", { description: e instanceof Error ? e.message : String(e) }),
+    onSuccess: (_d, ids) => { toast.success(tr("{n} scomposizioni approvate: da ora si usano per generare i materiali", { n: ids.length })); qc.invalidateQueries({ queryKey: ["scomposizioni"] }); },
+    onError: (e) => toast.error(tr("Non approvate"), { description: e instanceof Error ? e.message : String(e) }),
   });
   const importa = useMutation({
     mutationFn: async (scelti: AmbitoStandard[]) => {
@@ -148,11 +150,11 @@ export default function ScomposizioniVoce() {
     onSuccess: (n) => {
       setLibreria(false);
       qc.invalidateQueries({ queryKey: ["scomposizioni"] });
-      if (n === 0) toast.info("La libreria standard c'è già tutta: niente da aggiungere");
-      else toast.success(`${n} scomposizioni aggiunte dalla libreria standard`, { description: "Sono spente: il tecnico le controlla e le approva una per una o tutte insieme." });
+      if (n === 0) toast.info(tr("La libreria standard c'è già tutta: niente da aggiungere"));
+      else toast.success(tr("{n} scomposizioni aggiunte dalla libreria standard", { n: String(n ?? "") }), { description: tr("Sono spente: il tecnico le controlla e le approva una per una o tutte insieme.") });
       setFiltro("da_approvare");
     },
-    onError: (e) => toast.error("Libreria non aggiunta", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Libreria non aggiunta"), { description: e instanceof Error ? e.message : String(e) }),
   });
   const elimina = useMutation({
     mutationFn: async (id: string) => {
@@ -169,36 +171,34 @@ export default function ScomposizioniVoce() {
     <div className="mx-auto max-w-5xl space-y-4 p-3 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:underline"><ArrowLeft className="h-3 w-3" /> Indietro</button>
-          <h1 className="text-xl font-semibold">Scomposizioni in materiali</h1>
-          <p className="text-sm text-slate-600">Per ogni lavorazione del computo (o simbolo delle tavole), i materiali da comprare per una unità.</p>
+          <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:underline"><ArrowLeft className="h-3 w-3" /> {tr("Indietro")}</button>
+          <h1 className="text-xl font-semibold">{tr("Scomposizioni in materiali")}</h1>
+          <p className="text-sm text-slate-600">{tr("Per ogni lavorazione del computo (o simbolo delle tavole), i materiali da comprare per una unità.")}</p>
         </div>
         {puoScrivere && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setLibreria(true)}><BookOpen className="mr-1.5 h-4 w-4" /> Aggiungi la libreria standard</Button>
-            <Button onClick={() => setModifica(vuota())}><Plus className="mr-1.5 h-4 w-4" /> Nuova scomposizione</Button>
+            <Button variant="outline" onClick={() => setLibreria(true)}><BookOpen className="mr-1.5 h-4 w-4" /> {tr("Aggiungi la libreria standard")}</Button>
+            <Button onClick={() => setModifica(vuota())}><Plus className="mr-1.5 h-4 w-4" /> {tr("Nuova scomposizione")}</Button>
           </div>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-md border bg-white p-0.5 text-sm">
-          <button type="button" className={`rounded px-3 py-1 ${filtro === "tutte" ? "bg-slate-900 text-white" : ""}`} onClick={() => setFiltro("tutte")}>Tutte</button>
-          <button type="button" className={`rounded px-3 py-1 ${filtro === "da_approvare" ? "bg-slate-900 text-white" : ""}`} onClick={() => setFiltro("da_approvare")}>
-            Da approvare ({daApprovare.length})
-          </button>
+          <button type="button" className={`rounded px-3 py-1 ${filtro === "tutte" ? "bg-slate-900 text-white" : ""}`} onClick={() => setFiltro("tutte")}>{tr("Tutte")}</button>
+          <button type="button" className={`rounded px-3 py-1 ${filtro === "da_approvare" ? "bg-slate-900 text-white" : ""}`} onClick={() => setFiltro("da_approvare")}>{tr("Da approvare ({n})", { n: daApprovare.length })}</button>
         </div>
         {filtro === "da_approvare" && canValidateBom && daApprovare.length > 1 && (
           <Button size="sm" className="h-9" disabled={approvaTutte.isPending} onClick={() => approvaTutte.mutate(daApprovare.map((s) => s.id!))}>
-            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Approva tutte ({daApprovare.length})
+            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> {tr("Approva tutte ({n})", { n: daApprovare.length })}
           </Button>
         )}
-        <Input className="h-9 w-64" placeholder="Cerca per nome, codice, parola" value={cerca} onChange={(e) => setCerca(e.target.value)} />
+        <Input className="h-9 w-64" placeholder={tr("Cerca per nome, codice, parola")} value={cerca} onChange={(e) => setCerca(e.target.value)} />
       </div>
 
-      {elenco.isLoading ? <p className="text-sm text-slate-500">Carico…</p> : visibili.length === 0 ? (
+      {elenco.isLoading ? <p className="text-sm text-slate-500">{tr("Carico…")}</p> : visibili.length === 0 ? (
         <p className="rounded-lg border border-dashed bg-white p-6 text-center text-sm text-slate-500">
-          {filtro === "da_approvare" ? "Nessuna proposta da approvare." : "Nessuna scomposizione. Creane una, o falle proporre all'AI da «Genera dal computo e dalle tavole» in una commessa."}
+          {filtro === "da_approvare" ? tr("Nessuna proposta da approvare.") : tr("Nessuna scomposizione. Creane una, o falle proporre all'AI da «Genera dal computo e dalle tavole» in una commessa.")}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -209,26 +209,26 @@ export default function ScomposizioniVoce() {
                   <p className="font-medium">
                     {s.nome}
                     {s.origine === "ai" && <span className="ml-2 inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 text-[11px] text-violet-800"><Sparkles className="h-3 w-3" /> AI</span>}
-                    {s.origine === "standard" && <span className="ml-2 inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 text-[11px] text-sky-800"><BookOpen className="h-3 w-3" /> Libreria standard</span>}
-                    {!s.attiva && <span className="ml-2 rounded bg-slate-100 px-1.5 text-[11px] text-slate-600">{proposta(s) ? "Da approvare" : "Spenta"}</span>}
+                    {s.origine === "standard" && <span className="ml-2 inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 text-[11px] text-sky-800"><BookOpen className="h-3 w-3" /> {tr("Libreria standard")}</span>}
+                    {!s.attiva && <span className="ml-2 rounded bg-slate-100 px-1.5 text-[11px] text-slate-600">{proposta(s) ? tr("Da approvare") : tr("Spenta")}</span>}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {s.codice_prezzario ? `Codice ${s.codice_prezzario}` : `Parole: ${s.parole_chiave.join(", ")}`} · per 1 {s.unita_misura ?? "unità"}
+                    {s.codice_prezzario ? tr("Codice {codice}", { codice: String(s.codice_prezzario ?? "") }) : tr("Parole: {parole_chiave}", { parole_chiave: s.parole_chiave.join(", ") })} {tr("· per 1")} {s.unita_misura ?? tr("unità")}
                   </p>
                   <p className="mt-1 text-xs text-slate-700">
-                    {s.componenti.map((c) => `${c.quantita_per_unita.toLocaleString("it-IT")} ${c.unita_misura} ${c.descrizione}${c.sfrido_percentuale ? ` (+${c.sfrido_percentuale}%)` : ""}`).join(" · ") || "Nessun componente"}
+                    {s.componenti.map((c) => `${c.quantita_per_unita.toLocaleString(intlCampo())} ${c.unita_misura} ${c.descrizione}${c.sfrido_percentuale ? ` (+${c.sfrido_percentuale}%)` : ""}`).join(" · ") || tr("Nessun componente")}
                   </p>
                   {s.note && <p className="mt-1 whitespace-pre-line text-xs text-slate-500">{s.note}</p>}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   {proposta(s) && !s.attiva && canValidateBom && (
-                    <Button size="sm" className="h-8" onClick={() => attiva.mutate({ id: s.id!, attiva: true })}><CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Approva</Button>
+                    <Button size="sm" className="h-8" onClick={() => attiva.mutate({ id: s.id!, attiva: true })}><CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> {tr("Approva")}</Button>
                   )}
                   {puoScrivere && !proposta(s) && (
-                    <Switch checked={s.attiva} onCheckedChange={(v) => attiva.mutate({ id: s.id!, attiva: v })} aria-label={`Usa ${s.nome}`} />
+                    <Switch checked={s.attiva} onCheckedChange={(v) => attiva.mutate({ id: s.id!, attiva: v })} aria-label={tr("Usa {importo}", { importo: String(s.nome ?? "") })} />
                   )}
-                  {puoScrivere && <Button size="sm" variant="outline" className="h-8" onClick={() => setModifica(s)}>Modifica</Button>}
-                  {puoScrivere && <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Elimina ${s.nome}`} onClick={() => elimina.mutate(s.id!)}><Trash2 className="h-4 w-4" /></Button>}
+                  {puoScrivere && <Button size="sm" variant="outline" className="h-8" onClick={() => setModifica(s)}>{tr("Modifica")}</Button>}
+                  {puoScrivere && <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Elimina {nome}", { nome: String(s.nome ?? "") })} onClick={() => elimina.mutate(s.id!)}><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               </div>
             </li>
@@ -239,24 +239,24 @@ export default function ScomposizioniVoce() {
       <Dialog open={libreria} onOpenChange={setLibreria}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Aggiungi la libreria standard</DialogTitle>
+            <DialogTitle>{tr("Aggiungi la libreria standard")}</DialogTitle>
             <DialogDescription>
-              Scomposizioni già pronte con materiali, quantità medie, sfridi e specifiche da capitolato. Entrano spente: valgono solo dopo l'approvazione del tecnico, e puoi correggerle. Quelle già aggiunte non si duplicano.
+              {tr("Scomposizioni già pronte con materiali, quantità medie, sfridi e specifiche da capitolato. Entrano spente: valgono solo dopo l'approvazione del tecnico, e puoi correggerle. Quelle già aggiunte non si duplicano.")}
             </DialogDescription>
           </DialogHeader>
           <fieldset className="space-y-2 text-sm">
-            <legend className="mb-1 font-medium">Impianti</legend>
+            <legend className="mb-1 font-medium">{tr("Impianti")}</legend>
             {(Object.keys(ETICHETTA_AMBITO) as AmbitoStandard[]).map((a) => (
               <label key={a} className="flex items-center gap-2">
                 <Checkbox checked={ambiti.has(a)} onCheckedChange={(v) => { const n = new Set(ambiti); if (v) n.add(a); else n.delete(a); setAmbiti(n); }} />
-                {ETICHETTA_AMBITO[a]} <span className="text-xs text-slate-500">({SCOMPOSIZIONI_STANDARD.filter((s) => s.ambito === a).length} voci)</span>
+                {tr(ETICHETTA_AMBITO[a])} <span className="text-xs text-slate-500">{tr("({n} voci)", { n: SCOMPOSIZIONI_STANDARD.filter((s) => s.ambito === a).length })}</span>
               </label>
             ))}
           </fieldset>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setLibreria(false)}>Annulla</Button>
+            <Button variant="ghost" onClick={() => setLibreria(false)}>{tr("Annulla")}</Button>
             <Button disabled={!ambiti.size || importa.isPending} onClick={() => importa.mutate([...ambiti])}>
-              {importa.isPending ? "Aggiungo…" : "Aggiungi"}
+              {importa.isPending ? tr("Aggiungo…") : tr("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -264,53 +264,53 @@ export default function ScomposizioniVoce() {
 
       <Dialog open={!!modifica} onOpenChange={(o) => !o && setModifica(null)}>
         <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto">
-          <DialogHeader><DialogTitle>{modifica?.id ? "Modifica scomposizione" : "Nuova scomposizione"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{modifica?.id ? tr("Modifica scomposizione") : tr("Nuova scomposizione")}</DialogTitle></DialogHeader>
           {modifica && (
             <div className="space-y-3 text-sm">
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="space-y-1"><span className="font-medium">Nome</span>
+                <label className="space-y-1"><span className="font-medium">{tr("Nome")}</span>
                   <Input value={modifica.nome} onChange={(e) => setModifica({ ...modifica, nome: e.target.value })} placeholder="Punto presa 10/16 A" /></label>
-                <label className="space-y-1"><span className="font-medium">Codice di prezzario (esatto)</span>
+                <label className="space-y-1"><span className="font-medium">{tr("Codice di prezzario (esatto)")}</span>
                   <Input value={modifica.codice_prezzario ?? ""} onChange={(e) => setModifica({ ...modifica, codice_prezzario: e.target.value })} placeholder="es. EL.05.010" /></label>
-                <label className="space-y-1"><span className="font-medium">Parole chiave (separate da virgola)</span>
+                <label className="space-y-1"><span className="font-medium">{tr("Parole chiave (separate da virgola)")}</span>
                   <Input value={modifica.parole_chiave.join(", ")} onChange={(e) => setModifica({ ...modifica, parole_chiave: e.target.value.split(",") })} placeholder="punto presa" /></label>
-                <label className="space-y-1"><span className="font-medium">Unità della voce</span>
+                <label className="space-y-1"><span className="font-medium">{tr("Unità della voce")}</span>
                   <Input value={modifica.unita_misura ?? ""} onChange={(e) => setModifica({ ...modifica, unita_misura: e.target.value })} placeholder="cad, m, mq" /></label>
               </div>
               <div>
-                <p className="mb-1 font-medium">Materiali per 1 {modifica.unita_misura || "unità"}</p>
+                <p className="mb-1 font-medium">{tr("Materiali per 1")} {modifica.unita_misura || tr("unità")}</p>
                 <div className="space-y-1.5">
                   {modifica.componenti.map((c, i) => (
                     <div key={i} className="grid grid-cols-[1fr_5rem_4rem_4rem_auto] gap-1.5 sm:grid-cols-[2fr_1.5fr_5rem_4rem_4rem_auto]">
-                      <Input aria-label="Materiale" value={c.descrizione} onChange={(e) => aggiornaComp(i, { descrizione: e.target.value })} placeholder="Scatola 503" />
-                      <Input aria-label="Specifiche" className="hidden sm:block" value={c.specifiche ?? ""} onChange={(e) => aggiornaComp(i, { specifiche: e.target.value })} placeholder="Specifiche" />
-                      <Input aria-label="Quantità per unità" inputMode="decimal" value={String(c.quantita_per_unita)} onChange={(e) => aggiornaComp(i, { quantita_per_unita: Number(e.target.value.replace(",", ".")) || 0 })} />
-                      <Input aria-label="Unità" value={c.unita_misura} onChange={(e) => aggiornaComp(i, { unita_misura: e.target.value })} />
-                      <Input aria-label="Sfrido %" inputMode="decimal" value={String(c.sfrido_percentuale)} onChange={(e) => aggiornaComp(i, { sfrido_percentuale: Number(e.target.value.replace(",", ".")) || 0 })} title="Sfrido %" />
-                      <Button size="icon" variant="ghost" aria-label="Togli" onClick={() => setModifica({ ...modifica, componenti: modifica.componenti.filter((_, j) => j !== i) })}><Trash2 className="h-4 w-4" /></Button>
+                      <Input aria-label={tr("Materiale")} value={c.descrizione} onChange={(e) => aggiornaComp(i, { descrizione: e.target.value })} placeholder="Scatola 503" />
+                      <Input aria-label={tr("Specifiche")} className="hidden sm:block" value={c.specifiche ?? ""} onChange={(e) => aggiornaComp(i, { specifiche: e.target.value })} placeholder={tr("Specifiche")} />
+                      <Input aria-label={tr("Quantità per unità")} inputMode="decimal" value={String(c.quantita_per_unita)} onChange={(e) => aggiornaComp(i, { quantita_per_unita: Number(e.target.value.replace(",", ".")) || 0 })} />
+                      <Input aria-label={tr("Unità")} value={c.unita_misura} onChange={(e) => aggiornaComp(i, { unita_misura: e.target.value })} />
+                      <Input aria-label={tr("Sfrido %")} inputMode="decimal" value={String(c.sfrido_percentuale)} onChange={(e) => aggiornaComp(i, { sfrido_percentuale: Number(e.target.value.replace(",", ".")) || 0 })} title={tr("Sfrido %")} />
+                      <Button size="icon" variant="ghost" aria-label={tr("Togli")} onClick={() => setModifica({ ...modifica, componenti: modifica.componenti.filter((_, j) => j !== i) })}><Trash2 className="h-4 w-4" /></Button>
                       {canViewCosts && (
                         <label className="col-span-full flex items-center gap-2 text-xs text-slate-600">
-                          Costo indicativo € per {c.unita_misura || "unità"}
-                          <Input aria-label="Costo indicativo" inputMode="decimal" className="h-7 w-24" value={c.prezzo_unitario != null ? String(c.prezzo_unitario) : ""}
-                            onChange={(e) => { const v = e.target.value.replace(",", ".").trim(); aggiornaComp(i, { prezzo_unitario: v ? Number(v) || null : null }); }} placeholder="facoltativo" />
+                          {tr("Costo indicativo € per")} {c.unita_misura || tr("unità")}
+                          <Input aria-label={tr("Costo indicativo")} inputMode="decimal" className="h-7 w-24" value={c.prezzo_unitario != null ? String(c.prezzo_unitario) : ""}
+                            onChange={(e) => { const v = e.target.value.replace(",", ".").trim(); aggiornaComp(i, { prezzo_unitario: v ? Number(v) || null : null }); }} placeholder={tr("facoltativo")} />
                         </label>
                       )}
                     </div>
                   ))}
                 </div>
                 <Button size="sm" variant="outline" className="mt-2" onClick={() => setModifica({ ...modifica, componenti: [...modifica.componenti, { ...vuota().componenti[0] }] })}>
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi materiale
+                  <Plus className="mr-1 h-3.5 w-3.5" /> {tr("Aggiungi materiale")}
                 </Button>
-                <p className="mt-1 text-xs text-slate-500">Colonne: materiale · specifiche · quantità per unità · unità · sfrido %.</p>
+                <p className="mt-1 text-xs text-slate-500">{tr("Colonne: materiale · specifiche · quantità per unità · unità · sfrido %.")}</p>
               </div>
-              <label className="block space-y-1"><span className="font-medium">Note</span>
+              <label className="block space-y-1"><span className="font-medium">{tr("Note")}</span>
                 <Textarea rows={2} value={modifica.note ?? ""} onChange={(e) => setModifica({ ...modifica, note: e.target.value })} /></label>
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setModifica(null)}>Annulla</Button>
+            <Button variant="ghost" onClick={() => setModifica(null)}>{tr("Annulla")}</Button>
             <Button disabled={!modifica?.nome.trim() || salva.isPending || (!modifica?.codice_prezzario?.trim() && !modifica?.parole_chiave.some((p) => p.trim()))}
-              onClick={() => modifica && salva.mutate(modifica)}>Salva</Button>
+              onClick={() => modifica && salva.mutate(modifica)}>{tr("Salva")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

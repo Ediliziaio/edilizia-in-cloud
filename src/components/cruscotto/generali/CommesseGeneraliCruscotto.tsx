@@ -6,6 +6,7 @@ import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { RigaAppalto, RigaOperazione, CruscottoGenerali } from "@/lib/orders/generali/cruscottoGenerali";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Le commesse generali nel cruscotto: il portafoglio dei contratti (appalti) e
@@ -14,11 +15,12 @@ import type { RigaAppalto, RigaOperazione, CruscottoGenerali } from "@/lib/order
  * I numeri sono quelli della pagina della generale (vedi cruscottoGenerali.ts).
  */
 export function CommesseGeneraliCruscotto() {
+  const t = useT();
   const { data, isLoading, error, attiva } = useCruscottoGenerali();
   if (!attiva) return null;
   if (isLoading) return <Skeleton className="h-40 w-full rounded-xl" />;
   if (error) {
-    return <p role="alert" className="p-3 text-sm text-destructive">Commesse generali non disponibili. Riprova tra poco.</p>;
+    return <p role="alert" className="p-3 text-sm text-destructive">{t("Commesse generali non disponibili. Riprova tra poco.")}</p>;
   }
   if (!data || (data.appalti.length === 0 && data.operazioni.length === 0)) return null;
   return (
@@ -27,7 +29,9 @@ export function CommesseGeneraliCruscotto() {
       {data.operazioni.length > 0 && <OperazioniImmobiliari dati={data} />}
       {data.nonLette > 0 && (
         <p className="text-xs text-muted-foreground">
-          {data.nonLette === 1 ? "Una commessa generale non si è potuta leggere" : `${data.nonLette} commesse generali non si sono potute leggere`}: i suoi numeri mancano dai totali.
+          {data.nonLette === 1
+            ? t("Una commessa generale non si è potuta leggere: i suoi numeri mancano dai totali.")
+            : t("{nonLette} commesse generali non si sono potute leggere: i suoi numeri mancano dai totali.", { nonLette: data.nonLette })}
         </p>
       )}
     </div>
@@ -47,28 +51,29 @@ function Numero({ label, valore, nota, tono }: { label: string; valore: string; 
   );
 }
 
-const notaPiano = (conPiano: number, totale: number) =>
-  conPiano === totale ? "dal piano economico" : conPiano === 0 ? "nessun piano impostato" : `${conPiano} su ${totale} con il piano`;
+const notaPiano = (tr: ReturnType<typeof useT>, conPiano: number, totale: number) =>
+  conPiano === totale ? tr("dal piano economico") : conPiano === 0 ? tr("nessun piano impostato") : tr("{conPiano} su {totale} con il piano", { conPiano, totale });
 
 function PortafoglioContratti({ dati }: { dati: CruscottoGenerali }) {
+  const tr = useT();
   const t = dati.totaleAppalti;
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <FileSignature className="h-4 w-4 text-muted-foreground" />
-          Portafoglio contratti · {t.appalti} {t.appalti === 1 ? "appalto in corso" : "appalti in corso"}
+          {t.appalti === 1 ? tr("Portafoglio contratti · {n} appalto in corso", { n: t.appalti }) : tr("Portafoglio contratti · {n} appalti in corso", { n: t.appalti })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-          <Numero label="Valore aggiornato" valore={eur(t.valore)} nota="contratti con atti e varianti" />
-          <Numero label="Eseguito" valore={eur(t.eseguito)} />
-          <Numero label="Da eseguire" valore={eur(t.daEseguire)} />
-          <Numero label="Fatturato" valore={eur(t.fatturato)} />
-          <Numero label="Da incassare" valore={eur(t.daIncassare)} nota="sul fatturato" />
+          <Numero label={tr("Valore aggiornato")} valore={eur(t.valore)} nota={tr("contratti con atti e varianti")} />
+          <Numero label={tr("Eseguito")} valore={eur(t.eseguito)} />
+          <Numero label={tr("Da eseguire")} valore={eur(t.daEseguire)} />
+          <Numero label={tr("Fatturato")} valore={eur(t.fatturato)} />
+          <Numero label={tr("Da incassare")} valore={eur(t.daIncassare)} nota={tr("sul fatturato")} />
           {dati.permessi.margini && (
-            <Numero label="Margine a finire" valore={eur(t.margineAFinire)} nota={notaPiano(t.conPiano, t.appalti)}
+            <Numero label={tr("Margine a finire")} valore={eur(t.margineAFinire)} nota={notaPiano(tr, t.conPiano, t.appalti)}
               tono={t.margineAFinire !== null && t.margineAFinire < 0 ? "rosso" : undefined} />
           )}
         </div>
@@ -85,24 +90,25 @@ function PortafoglioContratti({ dati }: { dati: CruscottoGenerali }) {
 }
 
 function OperazioniImmobiliari({ dati }: { dati: CruscottoGenerali }) {
+  const tr = useT();
   const t = dati.totaleOperazioni;
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Building2 className="h-4 w-4 text-muted-foreground" />
-          Operazioni immobiliari · {t.operazioni} in corso
+          {tr("Operazioni immobiliari · {n} in corso", { n: t.operazioni })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-          <Numero label="Unità vendute" valore={`${t.vendute} su ${t.unita}`} nota={`${t.libere} ${t.libere === 1 ? "libera" : "libere"}`} />
-          <Numero label="Venduto" valore={eur(t.venduto)} nota="compromessi e rogiti" />
-          <Numero label="Incassato" valore={eur(t.incassato)} nota="caparre, acconti, saldi" />
+          <Numero label={tr("Unità vendute")} valore={tr("{vendute} su {unita}", { vendute: t.vendute, unita: t.unita })} nota={t.libere === 1 ? tr("{n} libera", { n: t.libere }) : tr("{n} libere", { n: t.libere })} />
+          <Numero label={tr("Venduto")} valore={eur(t.venduto)} nota={tr("compromessi e rogiti")} />
+          <Numero label={tr("Incassato")} valore={eur(t.incassato)} nota={tr("caparre, acconti, saldi")} />
           {dati.permessi.margini && (
             <>
-              <Numero label="Capitale impegnato" valore={eur(t.capitaleImpegnato)} nota="costi meno incassi, oggi" />
-              <Numero label="Margine a finire" valore={eur(t.margineAFinire)} nota={notaPiano(t.conPiano, t.operazioni)}
+              <Numero label={tr("Capitale impegnato")} valore={eur(t.capitaleImpegnato)} nota={tr("costi meno incassi, oggi")} />
+              <Numero label={tr("Margine a finire")} valore={eur(t.margineAFinire)} nota={notaPiano(tr, t.conPiano, t.operazioni)}
                 tono={t.margineAFinire !== null && t.margineAFinire < 0 ? "rosso" : undefined} />
             </>
           )}
@@ -112,10 +118,10 @@ function OperazioniImmobiliari({ dati }: { dati: CruscottoGenerali }) {
           margini={dati.permessi.margini}
           colonne={["Unità vendute", "Venduto", "Incassato", ...(dati.permessi.margini ? ["Capitale impegnato"] : [])]}
           valori={(o: RigaOperazione) => [
-            `${o.vendute} su ${o.unita}`, eur(o.venduto), eur(o.incassato),
+            tr("{vendute} su {unita}", { vendute: o.vendute, unita: o.unita }), eur(o.venduto), eur(o.incassato),
             ...(dati.permessi.margini ? [eur(o.capitaleImpegnato)] : []),
           ]}
-          sotto={(o: RigaOperazione) => (o.modello === "sviluppo" ? "Sviluppo immobiliare" : "Compra, ristruttura, vendi")}
+          sotto={(o: RigaOperazione) => (o.modello === "sviluppo" ? tr("Sviluppo immobiliare") : tr("Compra, ristruttura, vendi"))}
         />
       </CardContent>
     </Card>
@@ -132,16 +138,17 @@ function Elenco<T extends RigaBase>({ righe, colonne, valori, sotto, margini }: 
   sotto: (r: T) => string | null;
   margini: boolean;
 }) {
-  const margine = (r: T) => (r.piano ? eur(r.margineAFinire) : "senza piano");
+  const t = useT();
+  const margine = (r: T) => (r.piano ? eur(r.margineAFinire) : t("senza piano"));
   return (
     <>
       <div className="hidden sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-[11px] uppercase tracking-wider text-slate-500">
-              <th className="py-1.5 pr-2 font-semibold">Commessa generale</th>
-              {colonne.map((c) => <th key={c} className="px-2 py-1.5 text-right font-semibold">{c}</th>)}
-              {margini && <th className="px-2 py-1.5 text-right font-semibold">Margine a finire</th>}
+              <th className="py-1.5 pr-2 font-semibold">{t("Commessa generale")}</th>
+              {colonne.map((c) => <th key={c} className="px-2 py-1.5 text-right font-semibold">{t(c)}</th>)}
+              {margini && <th className="px-2 py-1.5 text-right font-semibold">{t("Margine a finire")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -170,8 +177,8 @@ function Elenco<T extends RigaBase>({ righe, colonne, valori, sotto, margini }: 
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{r.codice ? `${r.codice} · ` : ""}{r.nome}</div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {colonne.map((c, i) => `${c} ${valori(r)[i]}`).join(" · ")}
-                  {margini ? ` · Margine a finire ${margine(r)}` : ""}
+                  {colonne.map((c, i) => `${t(c)} ${valori(r)[i]}`).join(" · ")}
+                  {margini ? t(" · Margine a finire {r}", { r: String(margine(r) ?? "") }) : ""}
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

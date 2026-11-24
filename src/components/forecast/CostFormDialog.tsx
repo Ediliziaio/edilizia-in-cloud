@@ -1,7 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,6 +43,7 @@ import {
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { AnnullaCostoDialog } from "@/components/costi/AnnullaCostoDialog";
 import { costoAnnullato, importoOriginale, type CostoForseAnnullato } from "@/lib/costi/annulloCosto";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CostFormDialogProps {
   open: boolean;
@@ -72,6 +72,7 @@ export function CostFormDialog({
   isSaving,
   onClose,
 }: CostFormDialogProps) {
+  const t = useT();
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [annulloAperto, setAnnulloAperto] = useState(false);
   // «Annulla costo» vale per i costi veri (non le voci che vengono da ordini o stipendi).
@@ -150,8 +151,8 @@ export function CostFormDialog({
     const lastDate = getNextDate(baseDate, formData.recurrence, periods - 1);
     return {
       count: periods,
-      from: format(baseDate, "MMM yyyy", { locale: it }),
-      to: format(lastDate, "MMM yyyy", { locale: it }),
+      from: format(baseDate, "MMM yyyy", { locale: dateFnsCampo() }),
+      to: format(lastDate, "MMM yyyy", { locale: dateFnsCampo() }),
     };
   }, [formData.recurrence, formData.due_date, formData.end_date]);
 
@@ -159,7 +160,7 @@ export function CostFormDialog({
     try {
       validateCostFormData(formData);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Dati costo non validi");
+      toast.error(error instanceof Error ? error.message : t("Dati costo non validi"));
       return;
     }
     onSave(formData);
@@ -174,9 +175,9 @@ export function CostFormDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); onOpenChange(o); }}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editingCost ? "Modifica Costo" : "Nuovo Costo"}</DialogTitle>
+          <DialogTitle>{editingCost ? t("Modifica Costo") : t("Nuovo Costo")}</DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            {editingCost ? "Aggiorna i dettagli del costo" : "Inserisci i dettagli del nuovo costo aziendale"}
+            {editingCost ? t("Aggiorna i dettagli del costo") : t("Inserisci i dettagli del nuovo costo aziendale")}
           </DialogDescription>
         </DialogHeader>
         {/* Mobile: via titoletti di sezione, anteprima IVA, termini di
@@ -184,40 +185,40 @@ export function CostFormDialog({
             (restano i valori predefiniti). */}
         {annullato && (
           <div role="status" className="rounded-md border border-amber-300 bg-amber-50/70 p-3 text-sm dark:bg-amber-950/20">
-            <p className="font-medium">Costo annullato · era {formatCurrency(importoOriginale(editingCost as unknown as CostoForseAnnullato))}</p>
-            <p className="text-muted-foreground">{(editingCost as unknown as CostoForseAnnullato).annullato_motivo ?? ""} Non conta in controllo di gestione, commesse e cassa. Per cambiarlo, prima ripristinalo.</p>
+            <p className="font-medium">{t("Costo annullato · era {valore}", { valore: formatCurrency(importoOriginale(editingCost as unknown as CostoForseAnnullato)) })}</p>
+            <p className="text-muted-foreground">{(editingCost as unknown as CostoForseAnnullato).annullato_motivo ?? ""} {t("Non conta in controllo di gestione, commesse e cassa. Per cambiarlo, prima ripristinalo.")}</p>
           </div>
         )}
         <div className="space-y-5 max-sm:space-y-3">
           {/* Basic Info */}
           <div className="space-y-3">
             <div>
-              <Label>Nome *</Label>
-              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="es. Affitto ufficio" />
+              <Label>{t("Nome *")}</Label>
+              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder={t("es. Affitto ufficio")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Tipo</Label>
+                <Label>{t("Tipo")}</Label>
                 <Select value={formData.cost_type} onValueChange={(v) => setFormData({ ...formData, cost_type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="fixed">Costo Fisso</SelectItem>
-                    <SelectItem value="variable">Costo Variabile</SelectItem>
+                    <SelectItem value="fixed">{t("Costo Fisso")}</SelectItem>
+                    <SelectItem value="variable">{t("Costo Variabile")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Categoria</Label>
+                <Label>{t("Categoria")}</Label>
                 <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                      {formData.category || "Seleziona..."}
+                      {formData.category || t("Seleziona...")}
                       <Filter className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[250px] p-0" align="start">
                     <Command>
-                      <CommandInput placeholder="Cerca o crea categoria..." value={categorySearch} onValueChange={setCategorySearch} />
+                      <CommandInput placeholder={t("Cerca o crea categoria...")} value={categorySearch} onValueChange={setCategorySearch} />
                       <CommandList>
                         <CommandEmpty>
                           {categorySearch.trim() ? (
@@ -235,17 +236,17 @@ export function CostFormDialog({
                                     { onConflict: "company_id,name" }
                                   );
                                   if (catErr) {
-                                    toast.error("Categoria non salvata", { description: catErr.message });
+                                    toast.error(t("Categoria non salvata"), { description: catErr.message });
                                   } else {
                                     queryClient.invalidateQueries({ queryKey: queryKeys.costs.categories(effectiveCompany?.id) });
                                   }
                                 }
                               }}
                             >
-                              <Plus className="h-3 w-3 inline mr-1" /> Crea "{categorySearch.trim()}"
+                              <Plus className="h-3 w-3 inline mr-1" /> {t("Crea \"{nome}\"", { nome: categorySearch.trim() })}
                             </button>
                           ) : (
-                            <span className="text-muted-foreground text-xs">Nessuna categoria</span>
+                            <span className="text-muted-foreground text-xs">{t("Nessuna categoria")}</span>
                           )}
                         </CommandEmpty>
                         <CommandGroup>
@@ -273,14 +274,14 @@ export function CostFormDialog({
           {/* Fiscal Section */}
           <div className="space-y-3">
             <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground max-sm:hidden">
-              <Calculator className="h-4 w-4" /> Dati Fiscali
+              <Calculator className="h-4 w-4" /> {t("Dati Fiscali")}
             </h4>
             <div>
-              <Label>Fornitore (opzionale)</Label>
+              <Label>{t("Fornitore (opzionale)")}</Label>
               <Select value={formData.supplier_id || "none"} onValueChange={handleSupplierChange}>
-                <SelectTrigger><SelectValue placeholder="Nessun fornitore" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("Nessun fornitore")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nessun fornitore</SelectItem>
+                  <SelectItem value="none">{t("Nessun fornitore")}</SelectItem>
                   {suppliers.map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} {s.product_category ? `(${s.product_category})` : ""}
@@ -291,7 +292,7 @@ export function CostFormDialog({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Aliquota IVA</Label>
+                <Label>{t("Aliquota IVA")}</Label>
                 <Select value={formData.vat_rate} onValueChange={(v) => setFormData({ ...formData, vat_rate: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -302,29 +303,29 @@ export function CostFormDialog({
                 </Select>
               </div>
               <div>
-                <Label>Importo (€) *</Label>
+                <Label>{t("Importo (€) *")}</Label>
                 <Input type="number" inputMode="decimal" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="0.00" />
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Switch checked={formData.is_gross} onCheckedChange={(v) => setFormData({ ...formData, is_gross: v })} />
               <Label className="text-sm cursor-pointer" onClick={() => setFormData({ ...formData, is_gross: !formData.is_gross })}>
-                {formData.is_gross ? "Importo Ivato (lordo)" : "Importo Imponibile (netto)"}
+                {formData.is_gross ? t("Importo Ivato (lordo)") : t("Importo Imponibile (netto)")}
               </Label>
             </div>
             {formData.amount && formVatPreview.grossAmount > 0 && (
               <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 text-sm space-y-1 max-sm:hidden">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Imponibile</span>
+                  <span className="text-muted-foreground">{t("Imponibile")}</span>
                   <span className="font-medium">{formatCurrency(formVatPreview.netAmount)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">IVA ({formData.vat_rate}%)</span>
+                  <span className="text-muted-foreground">{t("IVA ({vat_rate}%)", { vat_rate: String(formData.vat_rate ?? "") })}</span>
                   <span className="font-medium text-violet-600">{formatCurrency(formVatPreview.vatAmount)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-semibold">
-                  <span>Totale</span>
+                  <span>{t("Totale")}</span>
                   <span>{formatCurrency(formVatPreview.grossAmount)}</span>
                 </div>
                 {formData.is_gross && (
@@ -332,10 +333,10 @@ export function CostFormDialog({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1 cursor-help">
-                          <Info className="h-3 w-3" /> Verrà salvato l'imponibile di {formatCurrency(formVatPreview.netAmount)}
+                          <Info className="h-3 w-3" /> {t("Verrà salvato l'imponibile di {importo}", { importo: formatCurrency(formVatPreview.netAmount) })}
                         </p>
                       </TooltipTrigger>
-                      <TooltipContent>L'importo lordo viene scorporato e salvato come imponibile netto</TooltipContent>
+                      <TooltipContent>{t("L'importo lordo viene scorporato e salvato come imponibile netto")}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 )}
@@ -348,11 +349,11 @@ export function CostFormDialog({
           {/* Planning Section */}
           <div className="space-y-3">
             <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground max-sm:hidden">
-              <Clock className="h-4 w-4" /> Pianificazione
+              <Clock className="h-4 w-4" /> {t("Pianificazione")}
             </h4>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Ricorrenza</Label>
+                <Label>{t("Ricorrenza")}</Label>
                 <Select
                   value={formData.recurrence}
                   onValueChange={(v) => {
@@ -368,15 +369,15 @@ export function CostFormDialog({
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="once">Una tantum</SelectItem>
-                    <SelectItem value="monthly">Mensile</SelectItem>
-                    <SelectItem value="quarterly">Trimestrale</SelectItem>
-                    <SelectItem value="yearly">Annuale</SelectItem>
+                    <SelectItem value="once">{t("Una tantum")}</SelectItem>
+                    <SelectItem value="monthly">{t("Mensile")}</SelectItem>
+                    <SelectItem value="quarterly">{t("Trimestrale")}</SelectItem>
+                    <SelectItem value="yearly">{t("Annuale")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>{aTermine ? "Data prevista" : "Data scadenza *"}</Label>
+                <Label>{aTermine ? t("Data prevista") : t("Data scadenza *")}</Label>
                 <Input type="date" value={formData.due_date || ""} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
               </div>
             </div>
@@ -385,17 +386,17 @@ export function CostFormDialog({
                 "60 gg fine mese". Scritti così la scadenza si ricalcola quando la
                 fattura del fornitore arriva, invece di restare quella digitata. */}
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2.5 max-sm:hidden">
-              <span className="text-xs text-muted-foreground">Si paga</span>
+              <span className="text-xs text-muted-foreground">{t("Si paga")}</span>
               <Select
                 value={formData.trigger_evento || "data_fissa"}
                 onValueChange={(v) => setFormData({ ...formData, trigger_evento: v })}
               >
-                <SelectTrigger className="h-8 w-auto min-w-[190px] text-xs" aria-label="Da cosa si conta la scadenza">
+                <SelectTrigger className="h-8 w-auto min-w-[190px] text-xs" aria-label={t("Da cosa si conta la scadenza")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {EVENTI_USCITA.map((e) => (
-                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                    <SelectItem key={e.value} value={e.value}>{t(e.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -410,14 +411,14 @@ export function CostFormDialog({
                     value={formData.giorni_dilazione ?? 0}
                     onChange={(e) => setFormData({ ...formData, giorni_dilazione: Math.max(0, Math.min(365, Number(e.target.value) || 0)) })}
                     className="h-8 w-16 px-2 text-xs"
-                    aria-label="Giorni di dilazione"
+                    aria-label={t("Giorni di dilazione")}
                   />
-                  giorni
+                  {t("giorni")}
                 </span>
               )}
 
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                · avvisami
+                {t("· avvisami")}
                 <Input
                   type="number"
                   min={0}
@@ -425,22 +426,23 @@ export function CostFormDialog({
                   value={formData.giorni_preavviso ?? 7}
                   onChange={(e) => setFormData({ ...formData, giorni_preavviso: Math.max(0, Math.min(90, Number(e.target.value) || 0)) })}
                   className="h-8 w-14 px-2 text-xs"
-                  aria-label="Giorni di preavviso"
+                  aria-label={t("Giorni di preavviso")}
                 />
-                giorni prima
+                {t("giorni prima")}
               </span>
 
               {aTermine && (
                 <span className="w-full text-[11px] text-muted-foreground">
-                  {termineLeggibile(formData.trigger_evento, formData.giorni_dilazione)} — la scadenza si calcola da sola
-                  {formData.trigger_evento?.includes("fattura") ? " quando arriva la fattura del fornitore." : " dall'evento dell'ordine."}
+                  {formData.trigger_evento?.includes("fattura")
+                    ? t("{termine} — la scadenza si calcola da sola quando arriva la fattura del fornitore.", { termine: termineLeggibile(formData.trigger_evento, formData.giorni_dilazione) })
+                    : t("{termine} — la scadenza si calcola da sola dall'evento dell'ordine.", { termine: termineLeggibile(formData.trigger_evento, formData.giorni_dilazione) })}
                 </span>
               )}
             </div>
 
             {formData.recurrence !== "once" && (
               <div className="space-y-2">
-                <Label>Data fine contratto *</Label>
+                <Label>{t("Data fine contratto *")}</Label>
                 <Input
                   type="date"
                   value={formData.end_date || ""}
@@ -449,11 +451,11 @@ export function CostFormDialog({
                 />
                 {periodsPreview ? (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Repeat className="h-3 w-3" /> {editingCost ? `Verranno creati ${periodsPreview.count} nuovi costi aggiuntivi` : `Verranno creati ${periodsPreview.count} costi da ${periodsPreview.from} a ${periodsPreview.to}`}
+                    <Repeat className="h-3 w-3" /> {editingCost ? t("Verranno creati {count} nuovi costi aggiuntivi", { count: String(periodsPreview.count ?? "") }) : t("Verranno creati {count} costi da {from} a {to}", { count: String(periodsPreview.count ?? ""), from: String(periodsPreview.from ?? ""), to: String(periodsPreview.to ?? "") })}
                   </p>
                 ) : formData.due_date && !formData.end_date && !formData.recurrence_auto ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <Info className="h-3 w-3" /> Senza data fine verrà salvata solo questa scadenza ricorrente
+                    <Info className="h-3 w-3" /> {t("Senza data fine verrà salvata solo questa scadenza ricorrente")}
                   </p>
                 ) : null}
 
@@ -464,12 +466,12 @@ export function CostFormDialog({
                     onCheckedChange={(v) => setFormData({ ...formData, recurrence_auto: v })}
                   />
                   <Label className="text-sm cursor-pointer" onClick={() => setFormData({ ...formData, recurrence_auto: !formData.recurrence_auto })}>
-                    Auto-generazione ricorrente
+                    {t("Auto-generazione ricorrente")}
                   </Label>
                 </div>
                 {formData.recurrence_auto && (
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1 max-sm:hidden">
-                    <Repeat className="h-3 w-3" /> I costi futuri verranno generati automaticamente in base alla ricorrenza
+                    <Repeat className="h-3 w-3" /> {t("I costi futuri verranno generati automaticamente in base alla ricorrenza")}
                   </p>
                 )}
               </div>
@@ -477,19 +479,19 @@ export function CostFormDialog({
 
             {formData.cost_type === "variable" && (
               <div>
-                <Label>Collega a ordine (opzionale)</Label>
+                <Label>{t("Collega a ordine (opzionale)")}</Label>
                 <Select value={formData.order_id || "none"} onValueChange={(v) => setFormData({ ...formData, order_id: v === "none" ? "" : v })}>
-                  <SelectTrigger><SelectValue placeholder="Nessun ordine" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("Nessun ordine")} /></SelectTrigger>
                   <SelectContent>
                     <div className="p-2">
                       <Input
-                        placeholder="Cerca ordine..."
+                        placeholder={t("Cerca ordine...")}
                         value={orderSearch}
                         onChange={e => setOrderSearch(e.target.value)}
                         className="h-8 text-sm"
                       />
                     </div>
-                    <SelectItem value="none">Nessuno</SelectItem>
+                    <SelectItem value="none">{t("Nessuno")}</SelectItem>
                     {orders
                       .filter(o =>
                         orderSearch === "" ||
@@ -510,8 +512,8 @@ export function CostFormDialog({
           </div>
 
           <div className="max-sm:hidden">
-            <Label>Note</Label>
-            <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Note aggiuntive..." rows={2} maxLength={200} />
+            <Label>{t("Note")}</Label>
+            <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder={t("Note aggiuntive...")} rows={2} maxLength={200} />
             {formData.notes && (
               <p className="text-[10px] text-muted-foreground text-right">{formData.notes.length}/200</p>
             )}
@@ -521,21 +523,21 @@ export function CostFormDialog({
           {formData.cost_type === "fixed" && (
             <div className="space-y-2 max-sm:hidden">
               <div className="flex items-center justify-between">
-                <Label className="text-sm">Alloca a commesse (opzionale)</Label>
+                <Label className="text-sm">{t("Alloca a commesse (opzionale)")}</Label>
                 <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={addAlloc}>
-                  <Plus className="h-3 w-3" /> Aggiungi
+                  <Plus className="h-3 w-3" /> {t("Aggiungi")}
                 </Button>
               </div>
               {allocations.length === 0 ? (
-                <p className="text-[10px] text-muted-foreground">Nessuna allocazione — il costo è considerato generale.</p>
+                <p className="text-[10px] text-muted-foreground">{t("Nessuna allocazione — il costo è considerato generale.")}</p>
               ) : (
                 <div className="space-y-2">
                   {allocations.map((alloc, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <Select value={alloc.order_id || "none"} onValueChange={(v) => updateAlloc(i, "order_id", v === "none" ? "" : v)}>
-                        <SelectTrigger className="flex-1 h-8 text-xs"><SelectValue placeholder="Ordine..." /></SelectTrigger>
+                        <SelectTrigger className="flex-1 h-8 text-xs"><SelectValue placeholder={t("Ordine...")} /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Nessuno</SelectItem>
+                          <SelectItem value="none">{t("Nessuno")}</SelectItem>
                           {orders.slice(0, 50).map((o: any) => (
                             <SelectItem key={o.id} value={o.id}>{o.order_code || o.id.substring(0, 8)}</SelectItem>
                           ))}
@@ -555,7 +557,7 @@ export function CostFormDialog({
                     </div>
                   ))}
                   <p className="text-[10px] text-muted-foreground">
-                    Totale allocato: {allocations.reduce((s, a) => s + a.pct, 0)}%
+                    {t("Totale allocato: {pct}%", { pct: allocations.reduce((s, a) => s + a.pct, 0) })}
                   </p>
                 </div>
               )}
@@ -565,15 +567,15 @@ export function CostFormDialog({
         <DialogFooter className="gap-2">
           {costoVero && (
             <Button variant="ghost" className="text-destructive sm:mr-auto" onClick={() => setAnnulloAperto(true)}>
-              {annullato ? "Ripristina costo" : "Annulla costo"}
+              {annullato ? t("Ripristina costo") : t("Annulla costo")}
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Chiudi</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">{t("Chiudi")}</Button>
           <Button
             onClick={handleSubmit}
             disabled={annullato || !formData.name.trim() || !formData.amount || (!formData.due_date && !aTermine) || isSaving}
           >
-            {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
+            {isSaving ? t("Salvataggio...") : editingCost ? t("Aggiorna") : periodsPreview ? t("Crea {count} costi", { count: String(periodsPreview.count ?? "") }) : t("Aggiungi")}
           </Button>
         </DialogFooter>
         {costoVero && (

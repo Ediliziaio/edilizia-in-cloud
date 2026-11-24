@@ -12,6 +12,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PavimentoConfig = {
   tipo?: string;
@@ -38,6 +39,7 @@ const compact = (values: Array<string | null | undefined>) =>
   values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
 
 export default function RenderPavimentoGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -73,7 +75,7 @@ export default function RenderPavimentoGallery() {
     ]);
     return {
       id: item.id,
-      title: item.config?.tipo ? `Pavimento ${item.config.tipo.replace(/_/g, " ")}` : "Render pavimento",
+      title: item.config?.tipo ? t("Pavimento {tipo}", { tipo: item.config.tipo.replace(/_/g, " ") }) : t("Render pavimento"),
       date: item.created_at,
       detailPath: `/azienda/render/pavimento/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -87,14 +89,14 @@ export default function RenderPavimentoGallery() {
       opportunityId: item.opportunity_id,
       opportunityName: item.meta.opportunityName,
     };
-  }), [sessions]);
+  }), [sessions, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Pavimento"
-      badgeLabel="Galleria pavimenti"
-      title="Render pavimento salvati, con filtri per materiale, data e CRM."
-      description="Ritrova ogni proposta di pavimento con materiali, colori, autore e associazioni commerciali sempre visibili sulla card."
+      moduleName={t("Pavimento")}
+      badgeLabel={t("Galleria pavimenti")}
+      title={t("Render pavimento salvati, con filtri per materiale, data e CRM.")}
+      description={t("Ritrova ogni proposta di pavimento con materiali, colori, autore e associazioni commerciali sempre visibili sulla card.")}
       backPath="/azienda/render/pavimento"
       newPath="/azienda/render/pavimento/new"
       items={items}
@@ -102,9 +104,9 @@ export default function RenderPavimentoGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render pavimento completati appariranno qui."
-      searchPlaceholder="Cerca pavimento, colore, posa, autore..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render pavimento completati appariranno qui.")}
+      searchPlaceholder={t("Cerca pavimento, colore, posa, autore...")}
       emptyIcon={Grid3X3}
       accentClassName="text-amber-600"
     />

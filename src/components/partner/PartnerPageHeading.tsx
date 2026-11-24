@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PartnerPageHeading({
   title, description, actions,
@@ -30,13 +31,14 @@ export function PartnerPageLink({ to, children }: { to: string; children: ReactN
 }
 
 export function PartnerLoadError({ message, retry }: { message: string; retry: () => void }) {
+  const t = useT();
   return (
     <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-card p-4">
       <div className="flex items-center gap-2 text-sm">
         <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
         {message}
       </div>
-      <Button variant="outline" size="sm" onClick={retry}>Riprova</Button>
+      <Button variant="outline" size="sm" onClick={retry}>{t("Riprova")}</Button>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAdsBot, type AdsBotContext } from "@/hooks/useAdsBot";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string | undefined;
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function AdsBotChatPanel({ companyId, context }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -100,8 +102,8 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          aria-label="Apri AdsBot"
-          title="AdsBot — consulente campagne"
+          aria-label={t("Apri AdsBot")}
+          title={t("AdsBot — consulente campagne")}
           // Telefono: niente seconda bolla sopra l'elenco, l'assistente è Silvio nella barra in basso.
           className="fixed bottom-24 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 max-sm:hidden"
         >
@@ -127,7 +129,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
               <div>
                 <p className="text-sm font-semibold leading-tight">AdsBot</p>
                 <p className="text-[10px] leading-tight opacity-80">
-                  Consulente Meta · Google Ads
+                  {t("Consulente Meta · Google Ads")}
                 </p>
               </div>
             </div>
@@ -135,10 +137,10 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label="Pulisci conversazione"
+                aria-label={t("Pulisci conversazione")}
                 className="h-7 w-7 text-white hover:bg-white/20"
                 onClick={() => {
-                  if (confirm("Vuoi davvero cancellare tutta la conversazione?")) clear();
+                  if (confirm(t("Vuoi davvero cancellare tutta la conversazione?"))) clear();
                 }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -146,7 +148,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label="Chiudi AdsBot"
+                aria-label={t("Chiudi AdsBot")}
                 className="h-7 w-7 text-white hover:bg-white/20"
                 onClick={() => setIsOpen(false)}
               >
@@ -164,7 +166,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
               <div className="flex h-full items-center justify-center text-center">
                 <div>
                   <MessageSquare className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-                  <p className="text-sm text-slate-500">Chiedi qualsiasi cosa su Meta/Google Ads</p>
+                  <p className="text-sm text-slate-500">{t("Chiedi qualsiasi cosa su Meta/Google Ads")}</p>
                 </div>
               </div>
             ) : (
@@ -183,7 +185,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
                 {isLoading && (
                   <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    AdsBot sta pensando...
+                    {t("AdsBot sta pensando...")}
                   </div>
                 )}
               </div>
@@ -198,7 +200,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="Chiedi consigli, spiegazioni, errori..."
+                placeholder={t("Chiedi consigli, spiegazioni, errori...")}
                 rows={1}
                 disabled={isLoading}
                 className="min-h-[40px] resize-none border-slate-200 text-sm"
@@ -207,7 +209,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
                 size="icon"
-                aria-label="Invia"
+                aria-label={t("Invia")}
                 className="shrink-0 bg-orange-500 hover:bg-orange-600"
               >
                 {isLoading ? (
@@ -218,7 +220,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
               </Button>
             </div>
             <p className="mt-1 text-[10px] text-muted-foreground">
-              Premi Enter per inviare · Shift+Enter per andare a capo
+              {t("Premi Enter per inviare · Shift+Enter per andare a capo")}
             </p>
           </div>
         </Card>
@@ -236,6 +238,7 @@ function MessageBubble({
   onSuggestionClick: (text: string) => void;
   onActionClick: (action: { type: string; url?: string }) => void;
 }) {
+  const t = useT();
   const isUser = message.role === "user";
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
@@ -300,10 +303,11 @@ function MessageBubble({
 }
 
 export function AdsBotInlineBadge() {
+  const t = useT();
   return (
     <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
       <Bot className="mr-1 h-3 w-3" />
-      AdsBot disponibile
+      {t("AdsBot disponibile")}
     </Badge>
   );
 }

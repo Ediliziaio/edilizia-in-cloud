@@ -38,6 +38,7 @@ import {
 import { chiaveFonteMezzo } from "../../../supabase/functions/_shared/posMezzi";
 import { QualificheAddetto } from "./QualificheAddetto";
 import { RiesameProprioPos } from "./RiesameProprioPos";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 interface Props {
   companyId: string;
   orderId: string;
@@ -66,6 +67,7 @@ export function RequisitiAddettiCommessa({
   contestoNonDisponibile = false,
   inizialmenteAperto = false,
 }: Props) {
+  const t = useT();
   const p = usePermissions();
   const [ricercaRiscontri, setRicercaRiscontri] = useState("");
   const [esitoFiltro, setEsitoFiltro] = useState("tutti");
@@ -226,7 +228,7 @@ export function RequisitiAddettiCommessa({
         },
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Controlla il contesto");
+      toast.error(e instanceof Error ? t(e.message) : t("Controlla il contesto"));
     }
   };
   const registra = async () => {
@@ -267,13 +269,13 @@ export function RequisitiAddettiCommessa({
       setInvioDaRitentare(null);
       setBozza(null);
       toast.success(
-        "Riscontri registrati nello storico. Nessuna approvazione del POS eseguita.",
+        t("Riscontri registrati nello storico. Nessuna approvazione del POS eseguita."),
       );
     } catch (e) {
       toast.error(
         e instanceof Error
           ? e.message
-          : "Registrazione non confermata: rileggi e ritenta con la stessa richiesta",
+          : t("Registrazione non confermata: rileggi e ritenta con la stessa richiesta"),
       );
     }
   };
@@ -285,13 +287,13 @@ export function RequisitiAddettiCommessa({
       setInvioDaRitentare(null);
       setBozza((b) => (b?.richiesta === payload.id ? null : b));
       toast.success(
-        "Ultimo invio confermato: consulta lo storico del periodo indicato.",
+        t("Ultimo invio confermato: consulta lo storico del periodo indicato."),
       );
     } catch (e) {
       toast.error(
         e instanceof Error
           ? e.message
-          : "Ultimo invio non confermato: consulta lo storico prima di ricrearlo.",
+          : t("Ultimo invio non confermato: consulta lo storico prima di ricrearlo."),
       );
     }
   };
@@ -305,21 +307,16 @@ export function RequisitiAddettiCommessa({
         aria-expanded={aperto}
         onClick={() => setAperto(!aperto)}
       >
-        Requisiti e qualifiche degli addetti {aperto ? "−" : "+"}
+        {t("Requisiti e qualifiche degli addetti")} {aperto ? "−" : "+"}
       </button>
       {aperto && (
         <>
           <p className="text-sm text-muted-foreground">
-            Confronta i requisiti scelti con le qualifiche degli addetti
-            assegnati. Nomi e titoli non producono abbinamenti automatici. Il
-            riesame riguarda questo contesto e non autorizza l’accesso al
-            cantiere.
+            {t("Confronta i requisiti scelti con le qualifiche degli addetti assegnati. Nomi e titoli non producono abbinamenti automatici. Il riesame riguarda questo contesto e non autorizza l’accesso al cantiere.")}
           </p>
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <Label htmlFor={`req-fine-${orderId}`}>
-                Periodo dal {dataRiferimento} al
-              </Label>
+              <Label htmlFor={`req-fine-${orderId}`}>{t("Periodo dal {dataRiferimento} al", { dataRiferimento: String(dataRiferimento ?? "") })}</Label>
               <Input
                 id={`req-fine-${orderId}`}
                 type="date"
@@ -336,7 +333,7 @@ export function RequisitiAddettiCommessa({
                 checked={revisioni}
                 onChange={(e) => setRevisioni(e.target.checked)}
               />
-              Mostra revisioni precedenti
+              {t("Mostra revisioni precedenti")}
             </label>
             <Button
               variant="outline"
@@ -348,30 +345,25 @@ export function RequisitiAddettiCommessa({
                 void mezzi.refetch();
               }}
             >
-              Rileggi fonti
+              {t("Rileggi fonti")}
             </Button>
           </div>
           {al < dataRiferimento || !al ? (
             <p role="alert" className="text-sm text-destructive">
-              Seleziona una fine periodo non precedente all’inizio.
+              {t("Seleziona una fine periodo non precedente all’inizio.")}
             </p>
           ) : fontiNonDisponibili ? (
             <p role="alert" className="text-sm">
-              Organico, profili o attrezzature non ancora disponibili: attendi o
-              rileggi le fonti.
+              {t("Organico, profili o attrezzature non ancora disponibili: attendi o rileggi le fonti.")}
             </p>
           ) : (
             quadro && (
               <>
-                <p className="text-sm">
-                  {quadro.persone.length} addetti collegati ·{" "}
-                  {quadro.qualifiche.length} revisioni correnti delle qualifiche
-                  · {quadro.da_collegare.length} collegamenti da sistemare
-                </p>
+                <p className="text-sm">{t("{n} addetti collegati · {n2} revisioni correnti delle qualifiche · {n3} collegamenti da sistemare", { n: quadro.persone.length, n2: quadro.qualifiche.length, n3: quadro.da_collegare.length })}</p>
                 {quadro.da_collegare.length > 0 && (
                   <div className="rounded border border-amber-300 p-3">
                     <p className="font-medium text-sm">
-                      Copertura nominativa parziale
+                      {t("Copertura nominativa parziale")}
                     </p>
                     <ul className="mt-1 space-y-1 text-xs">
                       {quadro.da_collegare.map((a) => (
@@ -379,8 +371,8 @@ export function RequisitiAddettiCommessa({
                           {a.nome || a.cognome
                             ? `${a.nome || ""} ${a.cognome || ""}`
                             : a.fonte === "campo"
-                              ? "Accesso Campo da collegare"
-                              : "Assegnazione da correggere"}{" "}
+                              ? t("Accesso Campo da collegare")
+                              : t("Assegnazione da correggere")}{" "}
                           · {a.motivo}
                         </li>
                       ))}
@@ -389,28 +381,27 @@ export function RequisitiAddettiCommessa({
                 )}
                 {quadro.persone.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Nessun addetto collegato nel periodo e nella fase. Controlla
-                    assegnazioni e collegamenti nominativi.
+                    {t("Nessun addetto collegato nel periodo e nella fase. Controlla assegnazioni e collegamenti nominativi.")}
                   </p>
                 )}
                 <details className="rounded border p-3">
                   <summary className="cursor-pointer text-sm font-medium">
-                    Addetti e periodi risultanti dalle assegnazioni
+                    {t("Addetti e periodi risultanti dalle assegnazioni")}
                   </summary>
                   <ul className="mt-2 space-y-2">
                     {quadro.persone.map((a) => (
                       <li key={chiavePersona(a)} className="text-sm">
                         <p>
                           {a.nome} {a.cognome} ·{" "}
-                          {a.mansione || "Mansione da definire"}
-                          {a.impresa ? ` · ${a.impresa}` : " · Profilo HR"}
-                          {!a.attivo ? " · Non attivo attualmente" : ""}
+                          {a.mansione || t("Mansione da definire")}
+                          {a.impresa ? ` · ${a.impresa}` : ` ${t("· Profilo HR")}`}
+                          {!a.attivo ? ` ${t("· Non attivo attualmente")}` : ""}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {a.periodi
                             .map(
                               (v) =>
-                                `${v.dal}–${v.al}${v.senza_date ? " (periodo dichiarato: fonte senza date)" : ""}`,
+                                `${v.dal}–${v.al}${v.senza_date ? ` ${t("(periodo dichiarato: fonte senza date)")}` : ""}`,
                             )
                             .join("; ")}
                         </p>
@@ -419,28 +410,24 @@ export function RequisitiAddettiCommessa({
                           size="sm"
                           onClick={() => setPersonaAperta(a)}
                         >
-                          Consulta qualifiche dell’addetto
+                          {t("Consulta qualifiche dell’addetto")}
                         </Button>
                       </li>
                     ))}
                   </ul>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Le fonti correnti non ricostruiscono la storia dell’impiego.
-                    Un’assegnazione senza date richiede conferma del periodo per
-                    registrare un riscontro.
+                    {t("Le fonti correnti non ricostruiscono la storia dell’impiego. Un’assegnazione senza date richiede conferma del periodo per registrare un riscontro.")}
                   </p>
                 </details>
                 {scrive && (
                   <details className="rounded border p-3" open={!bozza}>
                     <summary className="cursor-pointer text-sm font-medium">
-                      Scegli i requisiti nominativi dai profili versionati
+                      {t("Scegli i requisiti nominativi dai profili versionati")}
                     </summary>
                     <div className="space-y-2 mt-2">
                       {opzioni.length === 0 ? (
                         <p className="text-sm">
-                          Crea un profilo nel Contesto dei requisiti con criteri
-                          nominativi da adattare. Non sono proposti requisiti
-                          aziendali o sanitari.
+                          {t("Crea un profilo nel Contesto dei requisiti con criteri nominativi da adattare. Non sono proposti requisiti aziendali o sanitari.")}
                         </p>
                       ) : (
                         opzioni.map((o) => (
@@ -480,8 +467,8 @@ export function RequisitiAddettiCommessa({
                         onClick={() => prepara()}
                       >
                         {bozza
-                          ? "Ricostruisci da zero"
-                          : "Prepara riscontri nominativi"}
+                          ? t("Ricostruisci da zero")
+                          : t("Prepara riscontri nominativi")}
                       </Button>
                     </div>
                   </details>
@@ -494,12 +481,7 @@ export function RequisitiAddettiCommessa({
               role="status"
               className="rounded border border-amber-300 p-3 text-sm"
             >
-              <p>
-                L’ultimo invio non è stato confermato:{" "}
-                {invioDaRitentare.dati.attivita}, {invioDaRitentare.dal}–
-                {invioDaRitentare.al}. Il ritentativo usa gli stessi dati e lo
-                stesso identificatore, senza le modifiche successive.
-              </p>
+              <p>{t("L’ultimo invio non è stato confermato: {attivita}, {dal}–{al}. Il ritentativo usa gli stessi dati e lo stesso identificatore, senza le modifiche successive.", { attivita: String(invioDaRitentare.dati.attivita ?? ""), dal: String(invioDaRitentare.dal ?? ""), al: String(invioDaRitentare.al ?? "") })}</p>
               <Button
                 type="button"
                 variant="outline"
@@ -507,7 +489,7 @@ export function RequisitiAddettiCommessa({
                 disabled={!scrive || salva.isPending}
                 onClick={ritentaUltimo}
               >
-                Ritenta l’ultimo invio esatto
+                {t("Ritenta l’ultimo invio esatto")}
               </Button>
             </div>
           )}
@@ -515,31 +497,26 @@ export function RequisitiAddettiCommessa({
             <div className="rounded border p-3 space-y-3">
               <p className="font-medium">
                 {bozza.precedente
-                  ? "Nuovo riesame della registrazione"
-                  : "Riesame da registrare"}{" "}
-                · {bozza.dati.righe.length} riscontri
+                  ? t("Nuovo riesame della registrazione")
+                  : t("Riesame da registrare")}{" "}
+                · {t("{n} riscontri", { n: bozza.dati.righe.length })}
               </p>
               {!coerente && (
                 <p role="alert" className="text-sm text-amber-900">
-                  Fonti o contesto cambiati: copia gli appunti che vuoi
-                  conservare, rileggi e ricostruisci i riscontri da zero. Le
-                  vecchie conferme non sono riutilizzabili.
+                  {t("Fonti o contesto cambiati: copia gli appunti che vuoi conservare, rileggi e ricostruisci i riscontri da zero. Le vecchie conferme non sono riutilizzabili.")}
                 </p>
               )}
               {!requisitiDisponibili && (
                 <p role="alert" className="text-sm text-amber-900">
-                  Una versione dei requisiti non è disponibile: controlla la
-                  selezione prima di ricostruire il riesame.
+                  {t("Una versione dei requisiti non è disponibile: controlla la selezione prima di ricostruire il riesame.")}
                 </p>
               )}
               {attrezzaturaCambiata && (
                 <p role="alert" className="text-sm text-amber-900">
-                  La fonte dell’attrezzatura è cambiata. Scegli la fonte
-                  corrente della stessa macchina; le conferme devono essere
-                  rinnovate.
+                  {t("La fonte dell’attrezzatura è cambiata. Scegli la fonte corrente della stessa macchina; le conferme devono essere rinnovate.")}
                 </p>
               )}
-              <Label htmlFor="req-attivita">Attività da verificare</Label>
+              <Label htmlFor="req-attivita">{t("Attività da verificare")}</Label>
               <Textarea
                 id="req-attivita"
                 maxLength={2000}
@@ -550,7 +527,7 @@ export function RequisitiAddettiCommessa({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="req-responsabile">
-                    Responsabile del riesame
+                    {t("Responsabile del riesame")}
                   </Label>
                   <Input
                     id="req-responsabile"
@@ -563,7 +540,7 @@ export function RequisitiAddettiCommessa({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="req-ruolo">Ruolo del responsabile</Label>
+                  <Label htmlFor="req-ruolo">{t("Ruolo del responsabile")}</Label>
                   <Input
                     id="req-ruolo"
                     maxLength={300}
@@ -576,7 +553,7 @@ export function RequisitiAddettiCommessa({
                 </div>
               </div>
               <Label htmlFor="req-mezzo">
-                Attrezzatura specifica del contesto (facoltativa)
+                {t("Attrezzatura specifica del contesto (facoltativa)")}
               </Label>
               <UniformSelect
                 id="req-mezzo"
@@ -604,7 +581,7 @@ export function RequisitiAddettiCommessa({
                   value=""
                   disabled={!!bozza.precedente && !!bozza.mezzoPrecedente}
                 >
-                  Nessuna attrezzatura specifica selezionata
+                  {t("Nessuna attrezzatura specifica selezionata")}
                 </option>
                 {mezzi.data?.fonti
                   .filter(
@@ -618,7 +595,7 @@ export function RequisitiAddettiCommessa({
                     >
                       {f.nome} ·{" "}
                       {f.matricola || f.codice || f.targa || f.mezzo_id} ·{" "}
-                      {f.dal || "Assegnazione corrente"}–{f.al || "aperta"}
+                      {f.dal || t("Assegnazione corrente")}–{f.al || t("aperta")}
                     </option>
                   ))}
               </UniformSelect>
@@ -646,7 +623,7 @@ export function RequisitiAddettiCommessa({
                       )
                     }
                   >
-                    Aggiorna fonte della stessa attrezzatura
+                    {t("Aggiorna fonte della stessa attrezzatura")}
                   </Button>
                 )}
               <label className="flex gap-2 text-sm items-start">
@@ -658,36 +635,30 @@ export function RequisitiAddettiCommessa({
                     cambiaHeader("conferma_assegnazioni", e.target.checked)
                   }
                 />
-                Ho controllato le assegnazioni e dichiaro il periodo di impiego
-                delle fonti prive di date. Non sto attestando la presenza
-                storica.
+                {t("Ho controllato le assegnazioni e dichiaro il periodo di impiego delle fonti prive di date. Non sto attestando la presenza storica.")}
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
-                  aria-label="Cerca nei riscontri"
-                  placeholder="Cerca addetto o requisito…"
+                  aria-label={t("Cerca nei riscontri")}
+                  placeholder={t("Cerca addetto o requisito…")}
                   value={ricercaRiscontri}
                   onChange={(e) => setRicercaRiscontri(e.target.value)}
                   className="sm:max-w-sm"
                 />
                 <UniformSelect
-                  aria-label="Filtra riscontri per esito"
+                  aria-label={t("Filtra riscontri per esito")}
                   className="h-10 rounded border bg-background px-2"
                   value={esitoFiltro}
                   onChange={(e) => setEsitoFiltro(e.target.value)}
                 >
-                  <option value="tutti">Tutti i riscontri</option>
-                  <option value="da_verificare">Da verificare</option>
-                  <option value="mancante">Evidenza mancante</option>
-                  <option value="riesaminata">Evidenza riesaminata</option>
-                  <option value="non_applicabile">Non applicabile</option>
+                  <option value="tutti">{t("Tutti i riscontri")}</option>
+                  <option value="da_verificare">{t("Da verificare")}</option>
+                  <option value="mancante">{t("Evidenza mancante")}</option>
+                  <option value="riesaminata">{t("Evidenza riesaminata")}</option>
+                  <option value="non_applicabile">{t("Non applicabile")}</option>
                 </UniformSelect>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {bozza.dati.righe.length} riscontri nella bozza. La
-                registrazione comprende tutte le righe, anche quelle nascoste
-                dai filtri.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("{n} riscontri nella bozza. La registrazione comprende tutte le righe, anche quelle nascoste dai filtri.", { n: bozza.dati.righe.length })}</p>
               <div className="space-y-3">
                 {bozza.dati.righe.map((r, i) => {
                   const a = (coerente ? quadro : bozza.contesto)?.persone.find(
@@ -741,25 +712,25 @@ export function RequisitiAddettiCommessa({
                       <summary className="cursor-pointer text-sm font-medium">
                         {a?.nome || r.persona_id} {a?.cognome} ·{" "}
                         {o?.requisito.titolo ||
-                          "Versione del requisito da rileggere"}
+                          t("Versione del requisito da rileggere")}
                         <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          {
+                          {t(
                             {
                               da_verificare: "Da verificare",
                               mancante: "Evidenza mancante",
                               riesaminata: "Evidenza riesaminata",
                               non_applicabile: "Non applicabile",
-                            }[r.esito]
-                          }
+                            }[r.esito],
+                          )}
                         </span>
                       </summary>
                       <p className="text-xs text-muted-foreground">
                         {o?.requisito.riferimento} · {o?.requisito.indicazioni}
                       </p>
                       <label className="text-sm">
-                        Riscontro
+                        {t("Riscontro")}
                         <UniformSelect
-                          aria-label={`Riscontro ${i + 1}`}
+                          aria-label={t("Riscontro {i}", { i: i + 1 })}
                           className="mt-1 h-10 w-full rounded border bg-background px-2"
                           disabled={!scrive || !coerente || salva.isPending}
                           value={r.esito}
@@ -780,7 +751,7 @@ export function RequisitiAddettiCommessa({
                             ],
                           ].map(([v, l]) => (
                             <option key={v} value={v}>
-                              {l}
+                              {t(l)}
                             </option>
                           ))}
                         </UniformSelect>
@@ -788,9 +759,9 @@ export function RequisitiAddettiCommessa({
                       {r.esito === "riesaminata" && (
                         <>
                           <label className="text-sm">
-                            Qualifica dell’addetto
+                            {t("Qualifica dell’addetto")}
                             <UniformSelect
-                              aria-label={`Qualifica ${i + 1}`}
+                              aria-label={t("Qualifica {i}", { i: i + 1 })}
                               className="mt-1 h-10 w-full rounded border bg-background px-2"
                               disabled={!scrive || !coerente || salva.isPending}
                               value={r.qualifica_id || ""}
@@ -799,7 +770,7 @@ export function RequisitiAddettiCommessa({
                               }
                             >
                               <option value="">
-                                Scegli l’evidenza da riesaminare
+                                {t("Scegli l’evidenza da riesaminare")}
                               </option>
                               {qs.map((f) => {
                                 const motivo =
@@ -810,7 +781,7 @@ export function RequisitiAddettiCommessa({
                                         f,
                                         bozza.dati.conferma_assegnazioni,
                                       )
-                                    : "Contesto da rileggere";
+                                    : t("Contesto da rileggere");
                                 return (
                                   <option
                                     key={f.id}
@@ -831,17 +802,16 @@ export function RequisitiAddettiCommessa({
                                 key={f.id}
                                 className="text-xs text-muted-foreground"
                               >
-                                Ambito: {f.dati.ambito} · Limiti:{" "}
-                                {f.dati.limitazioni || "non indicati"} ·{" "}
+                                {t("Ambito: {ambito} · Limiti: {limiti}", { ambito: f.dati.ambito, limiti: f.dati.limitazioni || t("non indicati") })} ·{" "}
                                 {f.dati.validita_dal}–
                                 {f.dati.validita_al ||
-                                  "assenza scadenza motivata"}
+                                  t("assenza scadenza motivata")}
                               </p>
                             ))}
                         </>
                       )}
                       <Label htmlFor={`req-motivo-${i}`}>
-                        Motivazione e prossima azione
+                        {t("Motivazione e prossima azione")}
                       </Label>
                       <Textarea
                         id={`req-motivo-${i}`}
@@ -885,8 +855,7 @@ export function RequisitiAddettiCommessa({
                               )
                             }
                           />
-                          Confermo la pertinenza del riscontro per questo
-                          addetto, requisito e contesto.
+                          {t("Confermo la pertinenza del riscontro per questo addetto, requisito e contesto.")}
                         </label>
                       )}
                     </details>
@@ -902,9 +871,7 @@ export function RequisitiAddettiCommessa({
                     cambiaHeader("requisiti_definiti", e.target.checked)
                   }
                 />
-                Ho definito i requisiti nominativi applicabili a questa attività
-                e a questo contesto. Il solo salvataggio non certifica
-                l’idoneità.
+                {t("Ho definito i requisiti nominativi applicabili a questa attività e a questo contesto. Il solo salvataggio non certifica l’idoneità.")}
               </label>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -918,57 +885,54 @@ export function RequisitiAddettiCommessa({
                   }
                   onClick={registra}
                 >
-                  {salva.isPending ? "Registrazione…" : "Registra riscontri"}
+                  {salva.isPending ? t("Registrazione…") : t("Registra riscontri")}
                 </Button>
                 <Button
                   variant="outline"
                   disabled={salva.isPending}
                   onClick={() => setBozza(null)}
                 >
-                  Scarta preparazione
+                  {t("Scarta preparazione")}
                 </Button>
               </div>
             </div>
           )}
           <div className="space-y-2">
             <p className="font-medium text-sm">
-              Riesami registrati nel periodo
+              {t("Riesami registrati nel periodo")}
             </p>
             {storico.isError ? (
               <p role="alert" className="text-sm">
-                Storico non disponibile: rileggi le fonti.
+                {t("Storico non disponibile: rileggi le fonti.")}
               </p>
             ) : storico.isLoading ? (
-              <p className="text-sm">Lettura storico…</p>
+              <p className="text-sm">{t("Lettura storico…")}</p>
             ) : !storico.data?.length ? (
               <p className="text-sm text-muted-foreground">
-                Nessun riesame registrato con questi filtri.
+                {t("Nessun riesame registrato con questi filtri.")}
               </p>
             ) : (
               storico.data.map((r) => (
                 <div key={r.id} className="rounded border p-3 text-sm">
-                  <p className="font-medium">
-                    {r.dati.attivita} · Rev. {r.versione}
-                  </p>
+                  <p className="font-medium">{t("{attivita} · Rev. {versione}", { attivita: String(r.dati.attivita ?? ""), versione: String(r.versione ?? "") })}</p>
                   <p>
                     {r.stato === "parziale"
-                      ? "Riesame parziale"
+                      ? t("Riesame parziale")
                       : r.stato === "da_integrare"
-                        ? "Evidenze da integrare"
-                        : "Riscontri registrati per i requisiti selezionati"}
+                        ? t("Evidenze da integrare")
+                        : t("Riscontri registrati per i requisiti selezionati")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {r.dal}–{r.al} · {r.riscontri} riscontri · {r.non_collegati}{" "}
-                    collegamenti da sistemare · {r.dati.responsabile},{" "}
+                    {r.dal}–{r.al} · {t("{n} riscontri · {n2} collegamenti da sistemare", { n: r.riscontri, n2: r.non_collegati })} · {r.dati.responsabile},{" "}
                     {r.dati.ruolo_responsabile} ·{" "}
-                    {new Date(r.registrato_il).toLocaleString("it-IT", {
+                    {new Date(r.registrato_il).toLocaleString(intlCampo(), {
                       timeZone: "Europe/Rome",
                     })}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {quadro && r.impronta !== quadro.impronta
-                      ? "Contesto o fonti diversi dalla lettura corrente: da riesaminare."
-                      : "Fotografia registrata; non è una verifica automatica dell’idoneità attuale."}
+                      ? t("Contesto o fonti diversi dalla lettura corrente: da riesaminare.")
+                      : t("Fotografia registrata; non è una verifica automatica dell’idoneità attuale.")}
                   </p>
                   <Button
                     variant="link"
@@ -978,8 +942,8 @@ export function RequisitiAddettiCommessa({
                     }
                   >
                     {dettaglio === r.id
-                      ? "Chiudi riscontri salvati"
-                      : "Consulta riscontri salvati"}
+                      ? t("Chiudi riscontri salvati")
+                      : t("Consulta riscontri salvati")}
                   </Button>
                   {dettaglio === r.id && (
                     <DettaglioRiscontri
@@ -993,7 +957,7 @@ export function RequisitiAddettiCommessa({
                     size="sm"
                     onClick={() => setRiesamePos(r.id)}
                   >
-                    Controlla dati della propria impresa per il POS
+                    {t("Controlla dati della propria impresa per il POS")}
                   </Button>
                   {scrive && !bozza && !revisioni && r.fase_id === fase && (
                     <Button
@@ -1002,7 +966,7 @@ export function RequisitiAddettiCommessa({
                       disabled={fontiNonDisponibili || salva.isPending}
                       onClick={() => prepara(r)}
                     >
-                      Riesamina senza ereditare conferme
+                      {t("Riesamina senza ereditare conferme")}
                     </Button>
                   )}
                 </div>
@@ -1020,12 +984,9 @@ export function RequisitiAddettiCommessa({
         >
           <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                Qualifiche di {persona.nome} {persona.cognome}
-              </DialogTitle>
+              <DialogTitle>{t("Qualifiche di {nome} {cognome}", { nome: String(persona.nome ?? ""), cognome: String(persona.cognome ?? "") })}</DialogTitle>
               <DialogDescription>
-                Classificazione dell’originale e pertinenza al requisito restano
-                verifiche separate.
+                {t("Classificazione dell’originale e pertinenza al requisito restano verifiche separate.")}
               </DialogDescription>
             </DialogHeader>
             <QualificheAddetto
@@ -1048,10 +1009,10 @@ export function RequisitiAddettiCommessa({
           <DialogContent className="max-w-4xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                Riesame per il POS della propria impresa
+                {t("Riesame per il POS della propria impresa")}
               </DialogTitle>
               <DialogDescription>
-                Identità, requisiti e fonti rilette nel contesto della commessa.
+                {t("Identità, requisiti e fonti rilette nel contesto della commessa.")}
               </DialogDescription>
             </DialogHeader>
             <RiesameProprioPos
@@ -1076,15 +1037,16 @@ function DettaglioRiscontri({
   orderId: string;
   id: string;
 }) {
+  const t = useT();
   const q = useDettaglioRiesameAddetti(companyId, orderId, id, true);
   if (q.isLoading)
-    return <p className="text-xs">Lettura dei riscontri salvati…</p>;
+    return <p className="text-xs">{t("Lettura dei riscontri salvati…")}</p>;
   if (q.isError)
     return (
       <p role="alert" className="text-xs">
-        Riscontri non disponibili.{" "}
+        {t("Riscontri non disponibili.")}{" "}
         <Button variant="link" size="sm" onClick={() => q.refetch()}>
-          Riprova dettaglio
+          {t("Riprova dettaglio")}
         </Button>
       </p>
     );
@@ -1098,25 +1060,22 @@ function DettaglioRiscontri({
           </p>
           <p>
             {r.esito === "riesaminata"
-              ? "Evidenza riesaminata"
+              ? t("Evidenza riesaminata")
               : r.esito === "mancante"
-                ? "Evidenza mancante"
+                ? t("Evidenza mancante")
                 : r.esito === "non_applicabile"
-                  ? "Non applicabile"
-                  : "Da verificare"}{" "}
-            · {r.motivazione || "Motivazione non ancora registrata"}
+                  ? t("Non applicabile")
+                  : t("Da verificare")}{" "}
+            · {r.motivazione || t("Motivazione non ancora registrata")}
           </p>
           {r.qualifica_snapshot && (
             <p>
               {r.qualifica_snapshot.dati.titolo} · v
-              {r.qualifica_snapshot.versione} · Ambito{" "}
-              {r.qualifica_snapshot.dati.ambito} · Limiti{" "}
-              {r.qualifica_snapshot.dati.limitazioni || "non indicati"}
+              {r.qualifica_snapshot.versione} · {t("Ambito: {ambito} · Limiti: {limiti}", { ambito: r.qualifica_snapshot.dati.ambito, limiti: r.qualifica_snapshot.dati.limitazioni || t("non indicati") })}
             </p>
           )}
           <p className="text-muted-foreground">
-            Fotografia della registrazione; gli originali e le fonti attuali
-            richiedono un controllo distinto.
+            {t("Fotografia della registrazione; gli originali e le fonti attuali richiedono un controllo distinto.")}
           </p>
         </li>
       ))}

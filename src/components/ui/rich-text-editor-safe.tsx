@@ -14,6 +14,7 @@ import { Component, lazy, Suspense, type ReactNode } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const LazyRichTextEditor = lazy(() =>
   import("./rich-text-editor").then((m) => ({ default: m.RichTextEditor })),
@@ -42,13 +43,14 @@ export function RichTextEditorSafe(props: Props) {
 // ─── Fallback states ─────────────────────────────────────────────────────────
 
 function LoadingFallback({ minHeight }: { minHeight?: number }) {
+  const t = useT();
   return (
     <div
       className="rounded-md border border-slate-200 bg-slate-50/60 flex items-center justify-center text-xs text-muted-foreground gap-2"
       style={{ minHeight: minHeight ?? 120 }}
     >
       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      Caricamento editor…
+      {t("Caricamento editor…")}
     </div>
   );
 }
@@ -56,11 +58,12 @@ function LoadingFallback({ minHeight }: { minHeight?: number }) {
 function TextareaFallback({
   value, onChange, placeholder, minHeight, className, readOnly,
 }: Props) {
+  const t = useT();
   return (
     <div className={cn("space-y-1.5", className)}>
       <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 flex items-center gap-1.5">
         <AlertTriangle className="h-3 w-3" />
-        Editor avanzato non disponibile — uso campo testo semplice.
+        {t("Editor avanzato non disponibile — uso campo testo semplice.")}
       </div>
       <Textarea
         value={stripHtml(value ?? "")}

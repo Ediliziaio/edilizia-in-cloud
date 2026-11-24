@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { oggiRoma } from "@/hooks/useOperai";
 import { formatDateIt } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const key = "periodi-cantiere-operaio";
 interface Periodo { id: string; cantiere_id: string; start_date: string; end_date: string }
 
 export function PeriodiInCommessa({ companyId, orderId }: { companyId: string; orderId: string }) {
+  const t = useT();
   const query = useQuery({
     queryKey: [key, companyId, "commessa", orderId],
     queryFn: async () => {
@@ -26,13 +28,13 @@ export function PeriodiInCommessa({ companyId, orderId }: { companyId: string; o
       return data;
     },
   });
-  if (query.isError) return <p role="alert">Impossibile caricare i periodi degli operai. <Button variant="link" onClick={() => query.refetch()}>Riprova</Button></p>;
+  if (query.isError) return <p role="alert">{t("Impossibile caricare i periodi degli operai.")} <Button variant="link" onClick={() => query.refetch()}>{t("Riprova")}</Button></p>;
   if (!query.data?.length) return null;
   return <section className="rounded-lg border px-3 py-2 text-sm">
-    <h3 className="font-semibold">Operai pianificati</h3>
+    <h3 className="font-semibold">{t("Operai pianificati")}</h3>
     <ul className="divide-y">{query.data.map(row => <li key={row.id} className="flex flex-wrap justify-between gap-2 py-2">
-      <span>{row.employees ? [row.employees.first_name, row.employees.last_name].join(" ") : "Operaio"}</span>
-      <span>Dal {formatDateIt(row.start_date)} al {formatDateIt(row.end_date)}</span>
+      <span>{row.employees ? [row.employees.first_name, row.employees.last_name].join(" ") : t("Operaio")}</span>
+      <span>{t("Dal {start_date} al {end_date}", { start_date: formatDateIt(row.start_date), end_date: formatDateIt(row.end_date) })}</span>
     </li>)}</ul>
   </section>;
 }
@@ -40,6 +42,7 @@ export function PeriodiInCommessa({ companyId, orderId }: { companyId: string; o
 export function PeriodiOperaio({ companyId, employeeId, modificabile, linkCommesse }: {
   companyId: string; employeeId: string; modificabile: boolean; linkCommesse: boolean;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [periodo, setPeriodo] = useState<Periodo | null>(null);
   const [nuovo, setNuovo] = useState(false);
@@ -68,35 +71,35 @@ export function PeriodiOperaio({ companyId, employeeId, modificabile, linkCommes
     onSuccess: async () => {
       await qc.invalidateQueries({queryKey: [key, companyId]});
       setPeriodo(null);
-      toast.success("Periodo salvato");
+      toast.success(t("Periodo salvato"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Salvataggio non riuscito. Verifica i permessi e riprova."),
+    onError: (err) => toast.error(err instanceof Error ? err.message : t("Salvataggio non riuscito. Verifica i permessi e riprova.")),
   });
   return <>
-    {query.isError && <p role="alert">Periodi non disponibili. <Button variant="link" onClick={() => query.refetch()}>Riprova</Button></p>}
+    {query.isError && <p role="alert">{t("Periodi non disponibili.")} <Button variant="link" onClick={() => query.refetch()}>{t("Riprova")}</Button></p>}
     <ul className="divide-y">{query.data?.map(row => {
       const nome = [row.orders?.order_code, row.orders?.client_name || row.orders?.description].filter(Boolean).join(" · ") || "Commessa";
       return <li key={row.id} className="flex items-center justify-between gap-2 py-2 text-sm">
         <div className="min-w-0">{linkCommesse ? <Link className="block truncate font-medium hover:underline" to={`/azienda/ordini/${row.cantiere_id}`}>{nome}</Link> : <span>{nome}</span>}
-        <span className="text-xs text-muted-foreground">Dal {formatDateIt(row.start_date)} al {formatDateIt(row.end_date)}</span></div>
-        {modificabile && <Button variant="ghost" size="sm" onClick={() => {setNuovo(false); setPeriodo(row);}}>Modifica date</Button>}
+        <span className="text-xs text-muted-foreground">{t("Dal {start_date} al {end_date}", { start_date: formatDateIt(row.start_date), end_date: formatDateIt(row.end_date) })}</span></div>
+        {modificabile && <Button variant="ghost" size="sm" onClick={() => {setNuovo(false); setPeriodo(row);}}>{t("Modifica date")}</Button>}
       </li>;
     })}</ul>
     {modificabile && <Button variant="outline" size="sm" disabled={!query.isSuccess} onClick={() => {
       setNuovo(true);
       setPeriodo({id: crypto.randomUUID(), cantiere_id: "", start_date: oggiRoma(), end_date: ""});
-    }}>Assegna a commessa</Button>}
+    }}>{t("Assegna a commessa")}</Button>}
     {periodo && <Dialog open onOpenChange={open => {if (!open && !salva.isPending) setPeriodo(null);}}>
-      <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>{nuovo ? "Assegna a commessa" : "Modifica periodo"}</DialogTitle>
-        <DialogDescription>Indica i giorni in cui questo operaio lavora nel cantiere.</DialogDescription></DialogHeader>
+      <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>{nuovo ? t("Assegna a commessa") : t("Modifica periodo")}</DialogTitle>
+        <DialogDescription>{t("Indica i giorni in cui questo operaio lavora nel cantiere.")}</DialogDescription></DialogHeader>
         <form className="space-y-4" onSubmit={e => {e.preventDefault(); if (!salva.isPending) salva.mutate(periodo);}}>
-          <div><span className="text-sm font-medium">Commessa</span><CommessaCombobox className="w-full" disabled={!nuovo} nessunaLabel="Scegli la commessa" value={periodo.cantiere_id || null} onChange={id => setPeriodo({...periodo, cantiere_id: id || ""})}/></div>
+          <div><span className="text-sm font-medium">{t("Commessa")}</span><CommessaCombobox className="w-full" disabled={!nuovo} nessunaLabel={t("Scegli la commessa")} value={periodo.cantiere_id || null} onChange={id => setPeriodo({...periodo, cantiere_id: id || ""})}/></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label htmlFor="periodo-dal">Dal</Label><Input type="date" id="periodo-dal" required value={periodo.start_date} onChange={e => setPeriodo({...periodo, start_date: e.target.value})}/></div>
-            <div><Label htmlFor="periodo-al">Al</Label><Input type="date" id="periodo-al" min={periodo.start_date} required value={periodo.end_date} onChange={e => setPeriodo({...periodo, end_date: e.target.value})}/></div>
+            <div><Label htmlFor="periodo-dal">{t("Dal")}</Label><Input type="date" id="periodo-dal" required value={periodo.start_date} onChange={e => setPeriodo({...periodo, start_date: e.target.value})}/></div>
+            <div><Label htmlFor="periodo-al">{t("Al")}</Label><Input type="date" id="periodo-al" min={periodo.start_date} required value={periodo.end_date} onChange={e => setPeriodo({...periodo, end_date: e.target.value})}/></div>
           </div>
-          <DialogFooter><Button type="button" variant="outline" disabled={salva.isPending} onClick={() => setPeriodo(null)}>Annulla</Button>
-          <Button disabled={salva.isPending || !periodo.cantiere_id || !periodo.start_date || !periodo.end_date || periodo.end_date < periodo.start_date}>Salva periodo</Button></DialogFooter>
+          <DialogFooter><Button type="button" variant="outline" disabled={salva.isPending} onClick={() => setPeriodo(null)}>{t("Annulla")}</Button>
+          <Button disabled={salva.isPending || !periodo.cantiere_id || !periodo.start_date || !periodo.end_date || periodo.end_date < periodo.start_date}>{t("Salva periodo")}</Button></DialogFooter>
         </form>
       </DialogContent></Dialog>}
   </>;

@@ -7,8 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FattureDebitiFornitore } from "./FattureDebitiFornitore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FattureDebitiSubappaltatore({ subId, partitaIva }: { subId: string; partitaIva: string | null }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const q = useQuery({
     queryKey: ["supplier-subcontractor-link", companyId, subId],
@@ -29,7 +31,7 @@ export function FattureDebitiSubappaltatore({ subId, partitaIva }: { subId: stri
   if (!q.data?.supplier_id && !partitaIva)
     return (
       <p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        Per vedere fatture e pagamenti scrivi la P.IVA dell’impresa in anagrafica o collegala al suo fornitore.
+        {t("Per vedere fatture e pagamenti scrivi la P.IVA dell’impresa in anagrafica o collegala al suo fornitore.")}
       </p>
     );
   return <FattureDebitiFornitore supplierId={q.data?.supplier_id ?? null} partitaIva={partitaIva} />;

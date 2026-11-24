@@ -46,6 +46,7 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RichTextEditorProps {
   /** Valore HTML iniziale. */
@@ -240,6 +241,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 function Toolbar({
   editor, linkUrl, setLinkUrl, documentMode = false, senzaFont = false,
 }: { editor: Editor; linkUrl: string; setLinkUrl: (v: string) => void; documentMode?: boolean; senzaFont?: boolean }) {
+  const t = useT();
   const currentSize = editor.getAttributes("textStyle").fontSize ?? (documentMode?'10pt':'11pt');
   const currentFamily = editor.getAttributes("textStyle").fontFamily ?? FONT_FAMILIES[0].value;
 
@@ -269,16 +271,16 @@ function Toolbar({
   };
 
   return (
-    <div className={cn('flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50',documentMode&&'sticky top-0 z-10')} role="toolbar" aria-label="Formattazione del testo">
+    <div className={cn('flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50',documentMode&&'sticky top-0 z-10')} role="toolbar" aria-label={t("Formattazione del testo")}>
       {documentMode&&<>
-        <UniformSelect aria-label="Stile del paragrafo" className="h-8 max-w-36 rounded border bg-white px-2 text-xs" value="" onChange={e=>{
+        <UniformSelect aria-label={t("Stile del paragrafo")} className="h-8 max-w-36 rounded border bg-white px-2 text-xs" value="" onChange={e=>{
           const v=e.target.value; if(!v)return;
           if(v==='articolo'||v==='titolo') editor.chain().focus().setHeading({level:v==='titolo'?1:2}).setFontSize(v==='titolo'?'14pt':'11pt').run();
           else editor.chain().focus().setParagraph().setFontSize(v==='nota'?'9pt':'10pt').run();
-        }}><option value="">Stili del testo</option><option value="titolo">Titolo</option><option value="articolo">Articolo</option><option value="testo">Testo</option><option value="nota">Nota piccola</option></UniformSelect>
-        <UniformSelect aria-label="Interlinea" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{lineHeight:e.target.value}).run();}}><option value="">Interlinea</option>{['1.15','1.3','1.5','1.8','2'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
-        <UniformSelect aria-label="Spazio dopo il paragrafo" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{spaceAfter:e.target.value}).run();}}><option value="">Spaziatura</option>{['0pt','4pt','8pt','12pt','18pt'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
-        <UniformSelect aria-label="Inserisci campo automatico" className="h-8 max-w-44 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().insertContent({type:'mergeField',attrs:{value:`{{${e.target.value}}}`}}).run();}}><option value="">Inserisci campo…</option>{['cliente.nome_completo','azienda.ragione_sociale','preventivo.numero','preventivo.data','preventivo.totale','preventivo.piano_pagamenti','cantiere.indirizzo'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
+        }}><option value="">{t("Stili del testo")}</option><option value="titolo">{t("Titolo")}</option><option value="articolo">{t("Articolo")}</option><option value="testo">{t("Testo")}</option><option value="nota">{t("Nota piccola")}</option></UniformSelect>
+        <UniformSelect aria-label={t("Interlinea")} className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{lineHeight:e.target.value}).run();}}><option value="">{t("Interlinea")}</option>{['1.15','1.3','1.5','1.8','2'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
+        <UniformSelect aria-label={t("Spazio dopo il paragrafo")} className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{spaceAfter:e.target.value}).run();}}><option value="">{t("Spaziatura")}</option>{['0pt','4pt','8pt','12pt','18pt'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
+        <UniformSelect aria-label={t("Inserisci campo automatico")} className="h-8 max-w-44 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().insertContent({type:'mergeField',attrs:{value:`{{${e.target.value}}}`}}).run();}}><option value="">{t("Inserisci campo…")}</option>{['cliente.nome_completo','azienda.ragione_sociale','preventivo.numero','preventivo.data','preventivo.totale','preventivo.piano_pagamenti','cantiere.indirizzo'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
       </>}
       {!senzaFont && <>
       {/* Font size */}
@@ -290,7 +292,7 @@ function Toolbar({
         <SelectContent>
           {FONT_SIZES.map((s) => (
             <SelectItem key={s.value} value={s.value} className="text-xs">
-              {s.label}
+              {t(s.label)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -304,7 +306,7 @@ function Toolbar({
         <SelectContent>
           {FONT_FAMILIES.map((f) => (
             <SelectItem key={f.value} value={f.value} className="text-xs">
-              <span style={{ fontFamily: f.value }}>{f.label}</span>
+              <span style={{ fontFamily: f.value }}>{t(f.label)}</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -314,19 +316,19 @@ function Toolbar({
       </>}
 
       {/* Bold / Italic / Underline / Strike */}
-      <ToolButton tip="Grassetto (Ctrl+B)" active={editor.isActive("bold")}
+      <ToolButton tip={t("Grassetto (Ctrl+B)")} active={editor.isActive("bold")}
         onClick={() => editor.chain().focus().toggleBold().run()}>
         <Bold className="h-3.5 w-3.5" />
       </ToolButton>
-      <ToolButton tip="Corsivo (Ctrl+I)" active={editor.isActive("italic")}
+      <ToolButton tip={t("Corsivo (Ctrl+I)")} active={editor.isActive("italic")}
         onClick={() => editor.chain().focus().toggleItalic().run()}>
         <Italic className="h-3.5 w-3.5" />
       </ToolButton>
-      <ToolButton tip="Sottolineato (Ctrl+U)" active={editor.isActive("underline")}
+      <ToolButton tip={t("Sottolineato (Ctrl+U)")} active={editor.isActive("underline")}
         onClick={() => editor.chain().focus().toggleUnderline().run()}>
         <UnderlineIcon className="h-3.5 w-3.5" />
       </ToolButton>
-      <ToolButton tip="Barrato" active={editor.isActive("strike")}
+      <ToolButton tip={t("Barrato")} active={editor.isActive("strike")}
         onClick={() => editor.chain().focus().toggleStrike().run()}>
         <Strikethrough className="h-3.5 w-3.5" />
       </ToolButton>
@@ -334,19 +336,19 @@ function Toolbar({
       <Divider />
 
       {/* Allineamento */}
-      <ToolButton tip="Allinea a sinistra" active={editor.isActive({ textAlign: "left" })}
+      <ToolButton tip={t("Allinea a sinistra")} active={editor.isActive({ textAlign: "left" })}
         onClick={() => editor.chain().focus().setTextAlign("left").run()}>
         <AlignLeft className="h-3.5 w-3.5" />
       </ToolButton>
-      <ToolButton tip="Allinea al centro" active={editor.isActive({ textAlign: "center" })}
+      <ToolButton tip={t("Allinea al centro")} active={editor.isActive({ textAlign: "center" })}
         onClick={() => editor.chain().focus().setTextAlign("center").run()}>
         <AlignCenter className="h-3.5 w-3.5" />
       </ToolButton>
-      <ToolButton tip="Allinea a destra" active={editor.isActive({ textAlign: "right" })}
+      <ToolButton tip={t("Allinea a destra")} active={editor.isActive({ textAlign: "right" })}
         onClick={() => editor.chain().focus().setTextAlign("right").run()}>
         <AlignRight className="h-3.5 w-3.5" />
       </ToolButton>
-      <ToolButton tip="Giustifica" active={editor.isActive({ textAlign: "justify" })}
+      <ToolButton tip={t("Giustifica")} active={editor.isActive({ textAlign: "justify" })}
         onClick={() => editor.chain().focus().setTextAlign("justify").run()}>
         <AlignJustify className="h-3.5 w-3.5" />
       </ToolButton>
@@ -354,11 +356,11 @@ function Toolbar({
       <Divider />
 
       {/* Liste */}
-      <ToolButton tip="Lista puntata" active={editor.isActive("bulletList")}
+      <ToolButton tip={t("Lista puntata")} active={editor.isActive("bulletList")}
         onClick={() => editor.chain().focus().toggleBulletList().run()}>
         <List className="h-3.5 w-3.5" />
       </ToolButton>
-      <ToolButton tip="Lista numerata" active={editor.isActive("orderedList")}
+      <ToolButton tip={t("Lista numerata")} active={editor.isActive("orderedList")}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}>
         <ListOrdered className="h-3.5 w-3.5" />
       </ToolButton>
@@ -383,7 +385,7 @@ function Toolbar({
               className="flex-1 h-8 text-xs px-2 rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-300"
             />
             <Button size="sm" className="h-8 text-xs" onClick={applyLink}>
-              {editor.isActive("link") ? "Aggiorna" : "Inserisci"}
+              {editor.isActive("link") ? t("Aggiorna") : t("Inserisci")}
             </Button>
           </div>
           {editor.isActive("link") && (
@@ -391,7 +393,7 @@ function Toolbar({
               variant="ghost" size="sm" className="h-7 text-xs w-full mt-1"
               onClick={() => editor.chain().focus().unsetLink().run()}
             >
-              Rimuovi link
+              {t("Rimuovi link")}
             </Button>
           )}
         </PopoverContent>
@@ -400,7 +402,7 @@ function Toolbar({
       {/* Color */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="Colore testo">
+          <Button variant="ghost" size="icon" className="h-7 w-7" title={t("Colore testo")}>
             <Palette className="h-3.5 w-3.5" />
           </Button>
         </PopoverTrigger>
@@ -417,14 +419,14 @@ function Toolbar({
                 onClick={() => editor.chain().focus().setColor(c).run()}
                 className="h-5 w-5 rounded border border-slate-200 hover:scale-110 transition-transform"
                 style={{ backgroundColor: c }}
-                aria-label={`Colore ${c}`}
+                aria-label={t("Colore {c}", { c: String(c ?? "") })}
               />
             ))}
             <button
               type="button"
               onClick={() => editor.chain().focus().unsetColor().run()}
               className="h-5 w-5 rounded border border-slate-300 bg-white text-[9px] flex items-center justify-center hover:bg-slate-100"
-              title="Rimuovi colore"
+              title={t("Rimuovi colore")}
             >
               ✕
             </button>
@@ -436,7 +438,7 @@ function Toolbar({
 
       {/* Reset formattazione */}
       <ToolButton
-        tip="Pulisci formattazione"
+        tip={t("Pulisci formattazione")}
         onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
       >
         <Eraser className="h-3.5 w-3.5" />

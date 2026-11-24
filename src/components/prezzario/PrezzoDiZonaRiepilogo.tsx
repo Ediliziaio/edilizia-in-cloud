@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { MapPin, TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { tonoScostamento, type RiepilogoConfronto } from "@/lib/prezzario/confronto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   riepilogo: RiepilogoConfronto | null;
@@ -26,6 +27,7 @@ interface Props {
 export function PrezzoDiZonaRiepilogo({
   riepilogo, fonteLabel, regione, isLoading, indisponibile, compatto = false,
 }: Props) {
+  const t = useT();
   if (indisponibile) {
     return (
       <Card className="border-dashed">
@@ -33,10 +35,10 @@ export function PrezzoDiZonaRiepilogo({
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             {indisponibile === "regione-mancante"
-              ? "Per confrontare i prezzi col mercato serve sapere in che regione lavori: compila la provincia della sede in Impostazioni → Profilo aziendale."
+              ? t("Per confrontare i prezzi col mercato serve sapere in che regione lavori: compila la provincia della sede in Impostazioni → Profilo aziendale.")
               : indisponibile === "errore-ricerca"
-                ? "Confronto col prezzario temporaneamente non disponibile. Nessun prezzo del preventivo è stato modificato."
-              : `Non c'è un prezzario pubblicato per ${regione}. Non confronto con quello di un'altra regione: sarebbe peggio che non confrontare.`}
+                ? t("Confronto col prezzario temporaneamente non disponibile. Nessun prezzo del preventivo è stato modificato.")
+              : t("Non c'è un prezzario pubblicato per {regione}. Non confronto con quello di un'altra regione: sarebbe peggio che non confrontare.", { regione: regione ?? "" })}
           </span>
         </CardContent>
       </Card>
@@ -47,7 +49,7 @@ export function PrezzoDiZonaRiepilogo({
     return (
       <Card className="border-dashed">
         <CardContent className="px-3 py-2.5 text-xs text-muted-foreground">
-          Confronto col prezzario {fonteLabel ?? "regionale"} in corso…
+          {t("Confronto col prezzario {fonte} in corso…", { fonte: fonteLabel ?? t("regionale") })}
         </CardContent>
       </Card>
     );
@@ -64,8 +66,8 @@ export function PrezzoDiZonaRiepilogo({
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             {trovate > 0
-              ? `Nel prezzario ${fonteLabel} ho trovato ${trovate} ${trovate === 1 ? "voce simile" : "voci simili"}, ma senza unità di misura dichiarata: confrontare i prezzi senza sapere se sono al metro quadro o a pezzo direbbe un numero a caso.`
-              : `Nessuna voce del computo ha una corrispondenza nel prezzario ${fonteLabel}. Non c'è niente da confrontare.`}
+              ? t(trovate === 1 ? "Nel prezzario {fonteLabel} ho trovato {n} voce simile, ma senza unità di misura dichiarata: confrontare i prezzi senza sapere se sono al metro quadro o a pezzo direbbe un numero a caso." : "Nel prezzario {fonteLabel} ho trovato {n} voci simili, ma senza unità di misura dichiarata: confrontare i prezzi senza sapere se sono al metro quadro o a pezzo direbbe un numero a caso.", { fonteLabel: fonteLabel ?? "", n: trovate })
+              : t("Nessuna voce del computo ha una corrispondenza nel prezzario {fonteLabel}. Non c'è niente da confrontare.", { fonteLabel: fonteLabel ?? "" })}
           </span>
         </CardContent>
       </Card>
@@ -77,6 +79,10 @@ export function PrezzoDiZonaRiepilogo({
   const colore = tono === "sopra" ? "text-amber-600" : tono === "sotto" ? "text-sky-600" : "text-emerald-600";
   const coperturaPct = Math.round(riepilogo.copertura * 100);
   const parziale = riepilogo.copertura < 0.6;
+  // La frase si traduce intera; l'importo, in grassetto, entra dove sta il segnaposto.
+  const fraseScostamento = (riepilogo.scostamentoEuro >= 0
+    ? t("Chiedi {importo} in più di quanto costerebbe a prezzario, sulle voci confrontate.", { importo: "\u0001" })
+    : t("Chiedi {importo} in meno di quanto costerebbe a prezzario, sulle voci confrontate.", { importo: "\u0001" })).split("\u0001");
 
   return (
     <Card>
@@ -84,11 +90,9 @@ export function PrezzoDiZonaRiepilogo({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <MapPin className="h-3.5 w-3.5" />
-            Prezzo di zona · {fonteLabel}
+            {t("Prezzo di zona")} · {fonteLabel}
           </div>
-          <Badge variant="outline" className="text-[10px] font-normal">
-            {riepilogo.confrontate} di {riepilogo.totali} voci
-          </Badge>
+          <Badge variant="outline" className="text-[10px] font-normal">{t("{n} di {n2} voci", { n: riepilogo.confrontate, n2: riepilogo.totali })}</Badge>
         </div>
 
         <div className="flex items-baseline gap-2">
@@ -99,25 +103,23 @@ export function PrezzoDiZonaRiepilogo({
               : `${riepilogo.scostamentoPct > 0 ? "+" : ""}${riepilogo.scostamentoPct.toFixed(1)}%`}
           </span>
           <span className="text-sm text-muted-foreground">
-            {tono === "sopra" ? "sopra il prezzario" : tono === "sotto" ? "sotto il prezzario" : "in linea col prezzario"}
+            {tono === "sopra" ? t("sopra il prezzario") : tono === "sotto" ? t("sotto il prezzario") : t("in linea col prezzario")}
           </span>
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Chiedi{" "}
+          {fraseScostamento[0]}
           <strong className="text-foreground">
             {formatCurrency(Math.abs(riepilogo.scostamentoEuro))}
           </strong>
-          {riepilogo.scostamentoEuro >= 0 ? " in più" : " in meno"} di quanto
-          costerebbe a prezzario, sulle voci confrontate.
+          {fraseScostamento[1]}
         </p>
 
         <div className="space-y-1">
           <Progress value={coperturaPct} className="h-1.5" />
           <p className="text-[11px] leading-4 text-muted-foreground">
-            Calcolato sul {coperturaPct}% dell'importo ({formatCurrency(riepilogo.importoConfrontato)} su{" "}
-            {formatCurrency(riepilogo.importoTotale)}).
-            {parziale && " Su meno di due terzi del computo: prendilo come indicazione, non come misura."}
+            {t("Calcolato sul {percentuale}% dell'importo ({confrontato} su {totale}).", { percentuale: coperturaPct, confrontato: formatCurrency(riepilogo.importoConfrontato), totale: formatCurrency(riepilogo.importoTotale) })}
+            {parziale && ` ${t("Su meno di due terzi del computo: prendilo come indicazione, non come misura.")}`}
           </p>
         </div>
       </CardContent>

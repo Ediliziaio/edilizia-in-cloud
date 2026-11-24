@@ -10,8 +10,10 @@ import {
 } from "./MappaGoogleFv";
 import type { RilievoRuntime } from "./rilievoLocale";
 import { riferimentoMappaGoogleFv } from "./riferimentoMappaGoogle";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
+  const tr = useT();
   const mappa = props.piano.mappa!;
   const [centro, aggiornaCentro] = useState(mappa.origine),
     [zoom, aggiornaZoom] = useState(20),
@@ -44,24 +46,23 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
   return (
     <>
       <p className="mb-2 text-xs text-slate-600">
-        Posa sulla falda inclinata, proiettata sulla vista satellitare. Bordi,
-        ostacoli e spazi fra i moduli seguono il disegno metrico.
+        {tr("Posa sulla falda inclinata, proiettata sulla vista satellitare. Bordi, ostacoli e spazi fra i moduli seguono il disegno metrico.")}
       </p>
       <div
         className="fv-roof-photo-tools"
         role="group"
-        aria-label="Navigazione della mappa del tetto"
+        aria-label={tr("Navigazione della mappa del tetto")}
       >
         <button
           type="button"
           aria-pressed={naviga}
           onClick={() => setNaviga((v) => !v)}
         >
-          Sposta mappa
+          {tr("Sposta mappa")}
         </button>
         <button
           type="button"
-          aria-label="Avvicina la mappa del tetto"
+          aria-label={tr("Avvicina la mappa del tetto")}
           disabled={zoom >= 21}
           onClick={() => setZoom((z) => Math.min(21, z + 1))}
         >
@@ -69,7 +70,7 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
         </button>
         <button
           type="button"
-          aria-label="Allontana la mappa del tetto"
+          aria-label={tr("Allontana la mappa del tetto")}
           disabled={zoom <= 17}
           onClick={() => setZoom((z) => Math.max(17, z - 1))}
         >
@@ -82,10 +83,10 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
             setZoom(20);
           }}
         >
-          Torna al tetto
+          {tr("Torna al tetto")}
         </button>
       </div>
-      {stato.caricando && <p role="status">Caricamento del tetto…</p>}
+      {stato.caricando && <p role="status">{tr("Caricamento del tetto…")}</p>}
       {stato.errore && (
         <p role="status">
           {stato.errore}{" "}
@@ -94,9 +95,9 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
             className="underline"
             onClick={() => setTentativo((t) => t + 1)}
           >
-            Riprova mappa
+            {tr("Riprova mappa")}
           </button>{" "}
-          Puoi continuare sulla pianta metrica.
+          {tr("Puoi continuare sulla pianta metrica.")}
         </p>
       )}
       <RilievoContext.Provider value={runtime}>

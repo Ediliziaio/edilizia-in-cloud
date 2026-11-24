@@ -15,8 +15,8 @@ import {
 } from "@/lib/documenti/categorieDocumento";
 import { OpenapiDocRequestDialog } from "./OpenapiDocRequestDialog";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   contactId: string;
@@ -35,6 +35,7 @@ function getFileIcon(type: string) {
 }
 
 export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, linkToOpportunity, compact }: Props) {
+  const t = useT();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -103,7 +104,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["marketing_documents"] }),
-    onError: (e: any) => toast.error(e.message || "Modifica non riuscita"),
+    onError: (e: any) => toast.error(e.message || t("Modifica non riuscita")),
   });
 
   const uploadMutation = useMutation({
@@ -159,7 +160,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_documents"] });
-      toast.success("Documento eliminato");
+      toast.success(t("Documento eliminato"));
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -186,9 +187,9 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
       }
     }
     if (validi.length === 0) return;
-    if (fail === 0) toast.success(ok === 1 ? "Documento caricato" : `${ok} documenti caricati`);
-    else if (ok === 0) toast.error(`Caricamento non riuscito (${fail} file)`);
-    else toast.warning(`${ok} caricati, ${fail} non riusciti`);
+    if (fail === 0) toast.success(ok === 1 ? t("Documento caricato") : t("{n} documenti caricati", { n: ok }));
+    else if (ok === 0) toast.error(t("Caricamento non riuscito ({n} file)", { n: fail }));
+    else toast.warning(t("{ok} caricati, {ko} non riusciti", { ok, ko: fail }));
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -238,7 +239,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
     >
       {trascinando && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/80 text-sm font-medium text-primary">
-          Rilascia qui i file per caricarli
+          {t("Rilascia qui i file per caricarli")}
         </div>
       )}
       <input
@@ -259,17 +260,17 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
           disabled={uploadMutation.isPending}
         >
           {uploadMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          Carica
+          {t("Carica")}
         </Button>
         <Button
           variant="outline"
           size="sm"
           className={`w-full gap-1.5 ${compact ? "h-7 text-[11px]" : "h-8 text-xs"}`}
           onClick={() => setOpenapiOpen(true)}
-          title="Ordina una visura camerale o un documento ufficiale dai registri: arriva qui, collegato al contatto"
+          title={t("Ordina una visura camerale o un documento ufficiale dai registri: arriva qui, collegato al contatto")}
         >
           <Landmark className="h-3.5 w-3.5" />
-          Documento ufficiale
+          {t("Documento ufficiale")}
         </Button>
       </div>
 
@@ -289,9 +290,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
             type="button"
             onClick={() => setFiltroCategoria("tutte")}
             className={cn("rounded-full border px-2.5 py-1 text-[11px]", filtroCategoria === "tutte" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground hover:bg-muted")}
-          >
-            Tutti {documents.length}
-          </button>
+          >{t("Tutti {n}", { n: documents.length })}</button>
           {CATEGORIE_DOCUMENTO.filter((c) => conteggiCategorie[c.chiave] > 0).map((c) => (
             <button
               key={c.chiave}
@@ -299,14 +298,14 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
               onClick={() => setFiltroCategoria(c.chiave)}
               className={cn("rounded-full border px-2.5 py-1 text-[11px]", filtroCategoria === c.chiave ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground hover:bg-muted")}
             >
-              {c.etichetta} {conteggiCategorie[c.chiave]}
+              {t(c.etichetta)} {conteggiCategorie[c.chiave]}
             </button>
           ))}
         </div>
       )}
 
       {isLoading ? (
-        <p className={`${textSize} text-muted-foreground text-center py-4`}>Caricamento...</p>
+        <p className={`${textSize} text-muted-foreground text-center py-4`}>{t("Caricamento...")}</p>
       ) : documents.length === 0 ? (
         <button
           type="button"
@@ -314,11 +313,11 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
           className="flex w-full flex-col items-center gap-1 rounded-lg border-2 border-dashed py-8 text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5"
         >
           <Upload className="h-6 w-6 opacity-60" />
-          <span className={`${textSize} font-medium`}>Trascina qui i file o clicca per caricarli</span>
-          <span className="text-[11px]">PDF, immagini, Word, Excel · max 20 MB</span>
+          <span className={`${textSize} font-medium`}>{t("Trascina qui i file o clicca per caricarli")}</span>
+          <span className="text-[11px]">{t("PDF, immagini, Word, Excel · max 20 MB")}</span>
         </button>
       ) : documentiVisibili.length === 0 ? (
-        <p className={`${textSize} text-muted-foreground text-center py-6`}>Nessun documento in questa categoria</p>
+        <p className={`${textSize} text-muted-foreground text-center py-6`}>{t("Nessun documento in questa categoria")}</p>
       ) : (
         <div className="space-y-2">
           {documentiVisibili.map((doc: any) => {
@@ -338,46 +337,46 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
                         onKeyDown={(e) => { if (e.key === "Enter") salvaNome(); if (e.key === "Escape") setInRinomina(null); }}
                         className="h-7 text-xs"
                       />
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={salvaNome} aria-label="Salva nome"><Check className="h-3.5 w-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setInRinomina(null)} aria-label="Annulla"><X className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={salvaNome} aria-label={t("Salva nome")}><Check className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setInRinomina(null)} aria-label={t("Annulla")}><X className="h-3.5 w-3.5" /></Button>
                     </div>
                   ) : (
                     <p className={`${textSize} font-medium truncate`} title={doc.file_name}>{doc.file_name}</p>
                   )}
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
                     <span>{formatDimensione(doc.file_size)}</span>
-                    <span>{format(new Date(doc.created_at), "dd MMM yyyy HH:mm", { locale: it })}</span>
-                    <span>{autore ? `da ${autore}` : doc.uploaded_by ? "da un utente" : "caricato dal sistema"}</span>
-                    {doc.opportunity_id && <Badge variant="outline" className="text-[9px] h-4 px-1">Opportunità</Badge>}
+                    <span>{format(new Date(doc.created_at), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() })}</span>
+                    <span>{autore ? t("da {nome}", { nome: autore }) : doc.uploaded_by ? t("da un utente") : t("caricato dal sistema")}</span>
+                    {doc.opportunity_id && <Badge variant="outline" className="text-[9px] h-4 px-1">{t("Opportunità")}</Badge>}
                   </div>
                   <Select
                     value={doc.categoria || "altro"}
                     onValueChange={(v) => aggiornaDocumento.mutate({ id: doc.id, patch: { categoria: v } })}
                   >
-                    <SelectTrigger className="h-6 w-auto min-w-[150px] gap-1 px-2 text-[10px]" aria-label="Categoria del documento">
-                      <SelectValue>{etichettaCategoria(doc.categoria)}</SelectValue>
+                    <SelectTrigger className="h-6 w-auto min-w-[150px] gap-1 px-2 text-[10px]" aria-label={t("Categoria del documento")}>
+                      <SelectValue>{t(etichettaCategoria(doc.categoria))}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {CATEGORIE_DOCUMENTO.map((c) => <SelectItem key={c.chiave} value={c.chiave}>{c.etichetta}</SelectItem>)}
+                      {CATEGORIE_DOCUMENTO.map((c) => <SelectItem key={c.chiave} value={c.chiave}>{t(c.etichetta)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 {/* Sempre visibili: su telefono l'hover non esiste */}
                 <div className="flex items-center gap-0.5">
                   {anteprimaPossibile && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Anteprima di ${doc.file_name}`} title="Anteprima" onClick={() => void apriAnteprima(doc)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t("Anteprima di {nome}", { nome: doc.file_name })} title={t("Anteprima")} onClick={() => void apriAnteprima(doc)}>
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Rinomina ${doc.file_name}`} title="Rinomina" onClick={() => setInRinomina({ id: doc.id, nome: doc.file_name })}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t("Rinomina {nome}", { nome: doc.file_name })} title={t("Rinomina")} onClick={() => setInRinomina({ id: doc.id, nome: doc.file_name })}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    aria-label={`Scarica ${doc.file_name}`}
-                    title="Scarica"
+                    aria-label={t("Scarica {nome}", { nome: doc.file_name })}
+                    title={t("Scarica")}
                     onClick={async () => {
                       const url = await getSignedUrl(doc.file_url);
                       window.open(url, "_blank");
@@ -389,14 +388,14 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-destructive"
-                    aria-label={`Elimina documento ${doc.file_name}`}
-                    title="Elimina"
+                    aria-label={t("Elimina documento {nome}", { nome: doc.file_name })}
+                    title={t("Elimina")}
                     onClick={async () => {
                       if (
                         await confirm({
-                          title: "Eliminare il documento?",
-                          description: `"${doc.file_name}" verrà rimosso definitivamente. L'operazione non può essere annullata.`,
-                          confirmLabel: "Elimina",
+                          title: t("Eliminare il documento?"),
+                          description: t("\"{file}\" verrà rimosso definitivamente. L'operazione non può essere annullata.", { file: doc.file_name }),
+                          confirmLabel: t("Elimina"),
                           variant: "destructive",
                         })
                       ) {

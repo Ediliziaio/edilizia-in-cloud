@@ -45,6 +45,7 @@ import {
   intercettaScheda,
   type DestinazioneScheda,
 } from "./ContestoSchedaCommessa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const Impresa = lazy(() => import("@/pages/azienda/SubappaltatoreDetail"));
 const Mezzo = lazy(() => import("@/pages/azienda/MezzoDetail"));
@@ -86,6 +87,7 @@ export function SchedaCommessaDialog({
   onClose: () => void;
   contestoOrigine?: "commessa" | "impresa";
 }) {
+  const t = useT();
   const [origine] = useState(() =>
     document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -160,23 +162,23 @@ export function SchedaCommessaDialog({
     [torna],
   );
   const titolo = corrente.pathname.includes("/subappaltatori/")
-    ? "Scheda impresa"
+    ? t("Scheda impresa")
     : corrente.pathname.includes("/mezzi/")
-      ? "Scheda mezzo o attrezzatura"
+      ? t("Scheda mezzo o attrezzatura")
       : corrente.pathname.includes("/pos/")
-        ? "Scheda POS"
+        ? t("Scheda POS")
         : corrente.pathname.includes("/impostazioni/fornitori")
-          ? "Anagrafica fornitore"
+          ? t("Anagrafica fornitore")
           : corrente.search.includes("sds")
-            ? "Libreria SDS aziendali"
+            ? t("Libreria SDS aziendali")
             : corrente.search.includes("verbali")
-              ? "Registro verbali aziendale"
+              ? t("Registro verbali aziendale")
               : corrente.pathname.includes("/ordini/")
-                ? "Scheda commessa"
-                : "Scheda collegata";
+                ? t("Scheda commessa")
+                : t("Scheda collegata");
   const negato = (
     <p role="alert" className="p-6">
-      Non hai il permesso di consultare questa scheda.
+      {t("Non hai il permesso di consultare questa scheda.")}
     </p>
   );
   const avanzata = (ammesso: boolean, scheda: React.ReactNode) =>
@@ -211,23 +213,23 @@ export function SchedaCommessaDialog({
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 {storia.length > 1
-                  ? "Scheda precedente"
+                  ? t("Scheda precedente")
                   : contestoOrigine === "impresa"
-                    ? "Torna all’impresa"
-                    : "Torna alla commessa"}
+                    ? t("Torna all’impresa")
+                    : t("Torna alla commessa")}
               </Button>
               <DialogTitle>{titolo}</DialogTitle>
             </div>
             {operazioneInCorso && (
               <p role="status" className="text-sm text-muted-foreground">
-                Operazione in corso: attendi il completamento prima di chiudere.
+                {t("Operazione in corso: attendi il completamento prima di chiudere.")}
               </p>
             )}
             {/* «Torna alla commessa» e la X dicono già come si esce: a schermo era una riga in più. */}
             <DialogDescription className="sr-only">
               {contestoOrigine === "impresa"
-                ? "La scheda dell’impresa resta aperta. Chiudi per tornare al punto da cui sei partito."
-                : "Sei nella commessa. Chiudi questa scheda per ritrovare il punto da cui l’hai aperta."}
+                ? t("La scheda dell’impresa resta aperta. Chiudi per tornare al punto da cui sei partito.")
+                : t("Sei nella commessa. Chiudi questa scheda per ritrovare il punto da cui l’hai aperta.")}
             </DialogDescription>
           </DialogHeader>
           <div
@@ -242,7 +244,7 @@ export function SchedaCommessaDialog({
                 >
                   <ErrorBoundary
                     resetKey={corrente.pathname}
-                    title="Impossibile caricare la scheda"
+                    title={t("Impossibile caricare la scheda")}
                   >
                     <Suspense
                       fallback={
@@ -251,7 +253,7 @@ export function SchedaCommessaDialog({
                           className="flex items-center justify-center gap-2 p-10"
                         >
                           <Loader2 className="h-5 w-5 animate-spin" />
-                          Caricamento scheda…
+                          {t("Caricamento scheda…")}
                         </div>
                       }
                     >
@@ -301,11 +303,10 @@ export function SchedaCommessaDialog({
                           element={
                             <div className="space-y-3 p-6">
                               <p>
-                                Questa sezione non è disponibile nella scheda
-                                collegata.
+                                {t("Questa sezione non è disponibile nella scheda collegata.")}
                               </p>
                               <Button onClick={torna}>
-                                Torna ai dettagli precedenti
+                                {t("Torna ai dettagli precedenti")}
                               </Button>
                             </div>
                           }
@@ -327,14 +328,13 @@ export function SchedaCommessaDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Uscire senza salvare?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Uscire senza salvare?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Ci sono modifiche al POS non salvate. Rimani nella scheda e
-              salvale, oppure esci senza conservarle.
+              {t("Ci sono modifiche al POS non salvate. Rimani nella scheda e salvale, oppure esci senza conservarle.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua modifica</AlertDialogCancel>
+            <AlertDialogCancel>{t("Continua modifica")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 const azione = uscita;
@@ -343,7 +343,7 @@ export function SchedaCommessaDialog({
                 azione?.();
               }}
             >
-              Esci senza salvare
+              {t("Esci senza salvare")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

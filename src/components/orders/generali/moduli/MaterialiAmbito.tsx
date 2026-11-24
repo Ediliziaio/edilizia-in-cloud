@@ -6,6 +6,7 @@ import { articoliPerEditor, useDatiArticoliCommessa, useScritturaArticoliCommess
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { eMateriale } from "@/lib/distinta/elencoArticoli";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function MaterialiAmbito({ orderId, orderCode, nome, puoModificare, generaIniziale, computoIniziale, faseProposteIniziale, faseIniziale, ricercaIniziale, apriOrdini, apriRiepilogo }: {
   orderId: string;
@@ -20,6 +21,7 @@ export default function MaterialiAmbito({ orderId, orderCode, nome, puoModificar
   apriOrdini: () => void;
   apriRiepilogo?: () => void;
 }) {
+  const t = useT();
   const permessi = usePermissions();
   const companyId = useEffectiveCompanyId();
   const puoGestire = puoModificare && permessi.canEditOrders && !permessi.solaLettura;
@@ -33,16 +35,16 @@ export default function MaterialiAmbito({ orderId, orderCode, nome, puoModificar
       <h3 className="text-sm font-semibold">{nome}{orderCode && <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">{orderCode}</span>}</h3>
       <div className="flex flex-wrap gap-1">
         {apriRiepilogo && <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={apriRiepilogo}>
-          <ArrowLeft className="size-3.5" aria-hidden="true" /> Materiali dell’operazione
+          <ArrowLeft className="size-3.5" aria-hidden="true" /> {t("Materiali dell’operazione")}
         </Button>}
         <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={apriOrdini}>
-          Ordini d’acquisto <ArrowRight className="size-3.5" aria-hidden="true" />
+          {t("Ordini d’acquisto")} <ArrowRight className="size-3.5" aria-hidden="true" />
         </Button>
       </div>
     </div>
     {puoGestire && errore && <p role="status" className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">
-      Alcuni dati per la modifica degli articoli non sono disponibili.{" "}
-      <Button type="button" size="sm" variant="link" onClick={() => void dati.riprova()}>Riprova</Button>
+      {t("Alcuni dati per la modifica degli articoli non sono disponibili.")}{" "}
+      <Button type="button" size="sm" variant="link" onClick={() => void dati.riprova()}>{t("Riprova")}</Button>
     </p>}
     <MaterialiPerFase orderId={orderId} orderCode={orderCode} generaIniziale={puoGestire && generaIniziale} computoIniziale={computoIniziale}
       faseIniziale={faseIniziale}

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { tecnicaPosVuota } from "../../../../supabase/functions/_shared/posTecnica";
 import type { PosContenuto } from "../../../../supabase/functions/_shared/posModello";
 import type { Modifica } from "./PosSezioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   d: PosContenuto;
@@ -39,6 +40,7 @@ function passi(d: PosContenuto) {
  * cima alla sezione, con frasi lunghe, e spingevano il lavoro vero fuori dallo schermo.
  */
 export function FunzioniAvanzatePos({ d, ro, modifica }: Props) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   if (ro) return null;
   const tutti = passi(d);
@@ -49,14 +51,14 @@ export function FunzioniAvanzatePos({ d, ro, modifica }: Props) {
     <div className="rounded-lg border bg-slate-50/70 text-sm">
       <button type="button" onClick={() => setAperto((a) => !a)} aria-expanded={aperto} aria-controls="pos-funzioni-avanzate"
         className="flex min-h-10 w-full items-center justify-between gap-2 px-3 py-2 text-left">
-        <span className="min-w-0"><span className="font-medium">Funzioni avanzate</span> <span className="text-xs text-muted-foreground">facoltative · {attive} di {tutti.length} attive</span></span>
+        <span className="min-w-0"><span className="font-medium">{t("Funzioni avanzate")}</span> <span className="text-xs text-muted-foreground">{t("facoltative · {attive} di {n} attive", { attive: String(attive ?? ""), n: tutti.length })}</span></span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", !aperto && "-rotate-90")} aria-hidden="true" />
       </button>
       <ul id="pos-funzioni-avanzate" hidden={!aperto} className="space-y-2 border-t p-3">
         {daAttivare.map((p) => (
           <li key={p.id} className="flex items-start justify-between gap-3">
-            <div className="min-w-0"><p className="font-medium">{p.titolo}</p><p className="text-xs text-muted-foreground">{p.testo}</p></div>
-            <Button type="button" size="sm" variant="outline" className="tap-compact shrink-0" aria-label={p.nome} onClick={() => modifica(p.attiva_)}>Attiva</Button>
+            <div className="min-w-0"><p className="font-medium">{t(p.titolo)}</p><p className="text-xs text-muted-foreground">{t(p.testo)}</p></div>
+            <Button type="button" size="sm" variant="outline" className="tap-compact shrink-0" aria-label={t(p.nome)} onClick={() => modifica(p.attiva_)}>{t("Attiva")}</Button>
           </li>
         ))}
       </ul>

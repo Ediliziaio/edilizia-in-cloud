@@ -18,6 +18,7 @@ import { planningDay } from "@/lib/orders/planning";
 import { formattaFabbisogno, MOTIVI_FABBISOGNO, type ConsegnaFase } from "@/lib/orders/generali/consegneFasi";
 import { cn } from "@/lib/utils";
 import { dataBreve } from "../piano/formato";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const filtri = [
   ["tutte", "Tutte le fasi"],
@@ -32,7 +33,8 @@ type Scala = "automatica" | "settimane" | "mesi";
 type Periodo = "previsto" | "confronto";
 type FiltroAgenda = "crono-palazzina" | "crono-cerca" | "crono-filtro" | "crono-periodo";
 const nomiStato = { da_iniziare: "Da iniziare", in_corso: "In corso", completata: "Completata" };
-const formatoMese = new Intl.DateTimeFormat("it-IT", { month: "short", year: "2-digit", timeZone: "UTC" });
+/** Creato a ogni uso: la lingua può cambiare dopo il caricamento del modulo. */
+const formatoMese = { format: (d: Date) => new Intl.DateTimeFormat(intlCampo(), { month: "short", year: "2-digit", timeZone: "UTC" }).format(d) };
 
 export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, onApriRapportino, consegne, onApriMateriali, avvisoMateriali,
   edificioPerCommessa, edificiCaricamento, riprovaEdifici }: {
@@ -48,6 +50,7 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
   edificiCaricamento?: boolean;
   riprovaEdifici?: () => void;
 }) {
+  const tr = useT();
   const [parametri, setParametri] = useSearchParams();
   const [periodoDesktop, setPeriodoDesktop] = useState<Periodo>("confronto");
   const [filtroDesktop, setFiltroDesktop] = useState<Filtro>("tutte");
@@ -91,11 +94,11 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
   const filtroAttivo = filtro === "materiali" && !consegne ? "tutte" : filtro;
   const nomeGruppo = (orderId: string) => {
     const commessa = commessePerId.get(orderId);
-    if (orderId === riepilogo.generale.id) return "Aree comuni e generale";
+    if (orderId === riepilogo.generale.id) return tr("Aree comuni e generale");
     return edificioPerCommessa?.get(orderId)?.trim() ||
       (riepilogo.generale.modello === "appalto"
-        ? commessa?.nome || commessa?.codice || "Lavori collegati"
-        : "Unità senza palazzina");
+        ? commessa?.nome || commessa?.codice || tr("Lavori collegati")
+        : tr("Unità senza palazzina"));
   };
   const palazzine = mobile ? [...new Set(fasi.map(f => nomeGruppo(f.order_id)))]
     .sort((a, b) => a.localeCompare(b, "it", { numeric: true })) : [];
@@ -169,79 +172,79 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
       <header className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
         <div>
           <h3 id="cronoprogramma-operazione" className="flex items-center gap-2 text-sm font-semibold">
-            <CalendarRange className="size-4 text-primary" aria-hidden="true" /> Cronoprogramma dell’operazione
+            <CalendarRange className="size-4 text-primary" aria-hidden="true" /> {tr("Cronoprogramma dell’operazione")}
           </h3>
           {fasi.length > 0 && <p className="mt-0.5 text-xs text-muted-foreground">{dataBreve(asse.da)} – {dataBreve(asse.a)}</p>}
         </div>
         {fasi.length > 0 && <div className={cn("flex flex-wrap items-center gap-1.5", mobile && "w-full")}>
           {!mobile && <>
-            <UniformSelect aria-label="Scala del cronoprogramma" className="h-8 rounded-md border px-2 text-xs"
+            <UniformSelect aria-label={tr("Scala del cronoprogramma")} className="h-8 rounded-md border px-2 text-xs"
               value={scala} onChange={e => setScala(e.target.value as Scala)}>
-              <option value="automatica">Scala automatica</option>
-              <option value="settimane">Settimane</option>
-              <option value="mesi">Mesi</option>
+              <option value="automatica">{tr("Scala automatica")}</option>
+              <option value="settimane">{tr("Settimane")}</option>
+              <option value="mesi">{tr("Mesi")}</option>
             </UniformSelect>
             {oggiVisibile && (
               <Button type="button" size="sm" variant="outline" className="h-8" onClick={vaiAOggi}>
-                <LocateFixed className="size-3.5" aria-hidden="true" /> Oggi
+                <LocateFixed className="size-3.5" aria-hidden="true" /> {tr("Oggi")}
               </Button>
             )}
           </>}
-          <div role="group" aria-label="Periodo del cronoprogramma" className={cn("flex rounded-md border p-0.5", mobile && "w-full [&>button]:h-10 [&>button]:min-w-0 [&>button]:flex-1")}>
+          <div role="group" aria-label={tr("Periodo del cronoprogramma")} className={cn("flex rounded-md border p-0.5", mobile && "w-full [&>button]:h-10 [&>button]:min-w-0 [&>button]:flex-1")}>
             <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={conReale ? "secondary" : "ghost"}
-              aria-pressed={conReale} onClick={() => cambiaPeriodo("confronto")}>Previsto e reale</Button>
+              aria-pressed={conReale} onClick={() => cambiaPeriodo("confronto")}>{tr("Previsto e reale")}</Button>
             <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={conReale ? "ghost" : "secondary"}
-              aria-pressed={!conReale} onClick={() => cambiaPeriodo("previsto")}>Solo previsto</Button>
+              aria-pressed={!conReale} onClick={() => cambiaPeriodo("previsto")}>{tr("Solo previsto")}</Button>
           </div>
         </div>}
       </header>
       {avvisoMateriali}
       {mobile && fasi.length > 0 && <div className="grid grid-cols-2 gap-2 border-t bg-muted/20 p-2.5">
         {palazzine.length > 1 && <label className="grid min-w-0 gap-1 text-xs font-medium">
-          {riepilogo.generale.modello === "appalto" ? "Lavori" : "Palazzina"}
-          <UniformSelect aria-label={riepilogo.generale.modello === "appalto" ? "Lavori del cronoprogramma" : "Palazzina del cronoprogramma"} value={palazzinaAttiva} onChange={e => aggiornaAgenda({ "crono-palazzina": e.target.value })}
+          {riepilogo.generale.modello === "appalto" ? tr("Lavori") : tr("Palazzina")}
+          <UniformSelect aria-label={riepilogo.generale.modello === "appalto" ? tr("Lavori del cronoprogramma") : tr("Palazzina del cronoprogramma")} value={palazzinaAttiva} onChange={e => aggiornaAgenda({ "crono-palazzina": e.target.value })}
             className="h-10 w-full min-w-0 bg-background px-2.5 text-xs font-normal">
-            <option value="">{riepilogo.generale.modello === "appalto" ? "Tutti i lavori" : "Tutte le palazzine"}</option>
+            <option value="">{riepilogo.generale.modello === "appalto" ? tr("Tutti i lavori") : tr("Tutte le palazzine")}</option>
             {palazzine.map(nome => <option key={nome} value={nome}>{nome}</option>)}
           </UniformSelect>
         </label>}
         <label className={cn("grid min-w-0 gap-1 text-xs font-medium", palazzine.length <= 1 && "col-span-2")}>
-          Fasi da mostrare
-          <UniformSelect aria-label="Filtra le fasi del cronoprogramma" value={filtroAttivo} onChange={e => cambiaFiltro(e.target.value as Filtro)}
+          {tr("Fasi da mostrare")}
+          <UniformSelect aria-label={tr("Filtra le fasi del cronoprogramma")} value={filtroAttivo} onChange={e => cambiaFiltro(e.target.value as Filtro)}
             className="h-10 w-full min-w-0 bg-background px-2.5 text-xs font-normal">
             {filtriDisponibili.map(([id, etichetta]) => <option key={id} value={id} disabled={id === "materiali" && !consegne}>
-              {etichetta} ({ambitoAgenda.filter(criteri[id]).length})
+              {tr(etichetta)} ({ambitoAgenda.filter(criteri[id]).length})
             </option>)}
           </UniformSelect>
         </label>
         <div className="relative col-span-2 min-w-0">
           <Search className="pointer-events-none absolute left-2.5 top-3 size-4 text-muted-foreground" aria-hidden="true" />
-          <Input className="h-10 pl-8 text-base" type="search" aria-label="Cerca fase o unità" placeholder="Cerca fase o unità…"
+          <Input className="h-10 pl-8 text-base" type="search" aria-label={tr("Cerca fase o unità")} placeholder={tr("Cerca fase o unità…")}
             maxLength={100} value={cerca} onChange={e => aggiornaAgenda({ "crono-cerca": e.target.value })} />
         </div>
         {!edificiCaricamento && (palazzina || cerca || filtroUrl) && <div className="col-span-2 flex items-center justify-between gap-2">
           <span role="status" className="text-xs text-muted-foreground">
-            {fasiVisibili.length} {fasiVisibili.length === 1 ? "fase trovata" : "fasi trovate"}
+            {tr(fasiVisibili.length === 1 ? "{n} fase trovata" : "{n} fasi trovate", { n: fasiVisibili.length })}
           </span>
           <Button type="button" size="sm" variant="ghost" className="h-9 px-2 text-xs" onClick={() =>
             aggiornaAgenda({ "crono-palazzina": "", "crono-cerca": "", "crono-filtro": "" })}>
-            Azzera filtri
+            {tr("Azzera filtri")}
           </Button>
         </div>}
         {riprovaEdifici && <p role="status" className="col-span-2 text-xs text-muted-foreground">
-          Palazzine non disponibili. <button type="button" className="text-primary underline" onClick={riprovaEdifici}>Riprova</button>
+          {tr("Palazzine non disponibili.")} <button type="button" className="text-primary underline" onClick={riprovaEdifici}>{tr("Riprova")}</button>
         </p>}
       </div>}
       {!mobile && fasi.length > 0 && (
-        <div role="group" aria-label="Filtra le fasi del cronoprogramma" className="flex flex-wrap gap-1.5 border-t bg-muted/20 px-3 py-2 sm:px-4">
+        <div role="group" aria-label={tr("Filtra le fasi del cronoprogramma")} className="flex flex-wrap gap-1.5 border-t bg-muted/20 px-3 py-2 sm:px-4">
           {filtriDisponibili.map(([id, etichetta]) => {
             const numero = calendario.filter(criteri[id]).length;
             return (
               <Button key={id} type="button" size="sm" variant={id === filtroAttivo ? "secondary" : "outline"}
                 disabled={id === "materiali" && !consegne}
-                aria-pressed={id === filtroAttivo} aria-label={`${etichetta}, ${numero} ${numero === 1 ? "fase" : "fasi"}`}
+                aria-pressed={id === filtroAttivo} aria-label={`${tr(etichetta)}, ${tr(numero === 1 ? "{n} fase" : "{n} fasi", { n: numero })}`}
                 className="h-8 gap-1.5 px-2 text-xs sm:h-7" onClick={() => cambiaFiltro(id)}>
-                {etichetta}
+                {tr(etichetta)}
                 <span aria-hidden="true" className="rounded bg-background/80 px-1 text-[11px] tabular-nums text-muted-foreground">{numero}</span>
               </Button>
             );
@@ -249,10 +252,10 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
         </div>
       )}
       {mobile && edificiCaricamento ? (
-        <p role="status" className="border-t p-4 text-sm text-muted-foreground">Carico le palazzine…</p>
+        <p role="status" className="border-t p-4 text-sm text-muted-foreground">{tr("Carico le palazzine…")}</p>
       ) : fasiVisibili.length === 0 ? (
         <p role="status" className="border-t p-4 text-sm text-muted-foreground">
-          {fasi.length === 0 ? "Scegli una commessa in Lavorazioni per aggiungere le prime fasi." : "Nessuna fase corrisponde ai filtri."}
+          {fasi.length === 0 ? tr("Scegli una commessa in Lavorazioni per aggiungere le prime fasi.") : tr("Nessuna fase corrisponde ai filtri.")}
         </p>
       ) : mobile ? (
         <AgendaFasi fasi={fasiVisibili} nomeGruppo={f => nomeGruppo(fasiPerId.get(f.id)!.order_id)}
@@ -265,11 +268,11 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
           espandiPerRicerca={!!cerca.trim() || !!palazzinaAttiva} />
       ) : (
         <>
-          <div ref={grafico} role="region" aria-label="Grafico delle fasi per commessa" tabIndex={0}
+          <div ref={grafico} role="region" aria-label={tr("Grafico delle fasi per commessa")} tabIndex={0}
             className="max-h-[64dvh] overflow-auto border-t focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <div style={{ minWidth: Math.max(768, 288 + segni.length * 58) }}>
               <div className="sticky top-0 z-20 flex border-b bg-muted text-xs text-muted-foreground">
-                <div className="sticky left-0 z-10 w-72 shrink-0 border-r bg-muted px-3 py-2.5 font-medium">Commessa e fase</div>
+                <div className="sticky left-0 z-10 w-72 shrink-0 border-r bg-muted px-3 py-2.5 font-medium">{tr("Commessa e fase")}</div>
                 <div className="relative flex-1">
                   {segni.map(t => (
                     <span key={t.data} className="absolute bottom-1.5 whitespace-nowrap"
@@ -278,7 +281,7 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
                     </span>
                   ))}
                   {oggiVisibile && <span ref={indicatoreOggi} className="absolute top-0 rounded-b bg-orange-100 px-1 text-[10px] font-medium text-orange-900 dark:bg-orange-950 dark:text-orange-200"
-                    style={{ left: `${posizioneOggi}%` }}>Oggi</span>}
+                    style={{ left: `${posizioneOggi}%` }}>{tr("Oggi")}</span>}
                 </div>
               </div>
               {commesse.map(c => {
@@ -286,20 +289,20 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
                 if (!gruppo) return null;
                 const chiuso = gruppiChiusi.has(c.id);
                 const idGruppo = `crono-fasi-${c.id}`;
-                const nome = c.nome ?? c.codice ?? "Commessa";
+                const nome = c.nome ?? c.codice ?? tr("Commessa");
                 return (
                   <div key={c.id}>
                     <div className="border-b bg-muted/45">
                       <div className="sticky left-0 flex w-fit max-w-full items-center gap-1 px-2 py-1">
                         <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0"
-                          aria-expanded={!chiuso} aria-controls={idGruppo} aria-label={`${chiuso ? "Espandi" : "Comprimi"} ${nome}`}
+                          aria-expanded={!chiuso} aria-controls={idGruppo} aria-label={tr(chiuso ? "Espandi {nome}" : "Comprimi {nome}", { nome })}
                           onClick={() => cambiaGruppo(c.id)}>
                           {chiuso ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
                         </Button>
                         <button type="button" className="text-left text-xs font-semibold text-primary hover:underline" onClick={() => onApri(c.id)}>
                           {[c.codice, c.nome].filter(Boolean).join(" · ")}
                         </button>
-                        <span className="ml-1 text-xs text-muted-foreground">{gruppo.length === 1 ? "1 fase" : `${gruppo.length} fasi`}</span>
+                        <span className="ml-1 text-xs text-muted-foreground">{tr(gruppo.length === 1 ? "{n} fase" : "{n} fasi", { n: gruppo.length })}</span>
                       </div>
                     </div>
                     <div id={idGruppo} hidden={chiuso}>
@@ -307,8 +310,8 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
                         const piano = intervalloPrevistoFase(f);
                         const consuntivo = conReale && intervalloRealeFase(f, lavoro.get(f.id)?.ultimo ?? oggi);
                         const chiusura = conReale && !consuntivo && f.realeFine;
-                        const titoloPiano = piano ? `Previsto ${dataBreve(piano[0])} – ${dataBreve(piano[1])}` : "Da pianificare";
-                        const titoloReale = consuntivo ? `Registrato ${dataBreve(consuntivo[0])} – ${dataBreve(consuntivo[1])}` : chiusura ? `Chiusura ${dataBreve(chiusura)}` : "";
+                        const titoloPiano = piano ? tr("Previsto {da} – {a}", { da: dataBreve(piano[0]), a: dataBreve(piano[1]) }) : tr("Da pianificare");
+                        const titoloReale = consuntivo ? tr("Registrato {da} – {a}", { da: dataBreve(consuntivo[0]), a: dataBreve(consuntivo[1]) }) : chiusura ? tr("Chiusura {data}", { data: dataBreve(chiusura) }) : "";
                         return (
                           <button key={f.id} type="button" aria-haspopup="dialog"
                             className="group flex w-full border-b text-left hover:bg-muted/30 focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-primary"
@@ -337,10 +340,10 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri, 
             </div>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 py-2 text-xs text-muted-foreground sm:px-4">
-            <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm border border-slate-400 bg-slate-100 dark:bg-slate-700" />Previsto</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm border border-slate-400 bg-slate-100 dark:bg-slate-700" />{tr("Previsto")}</span>
             {conReale && <>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm bg-blue-600" />Lavoro registrato</span>
-              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-600" />Fase completata</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm bg-blue-600" />{tr("Lavoro registrato")}</span>
+              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-600" />{tr("Fase completata")}</span>
             </>}
           </div>
         </>
@@ -377,6 +380,7 @@ function AgendaFasi({ fasi, nomeGruppo, nomeUnita, conReale, apriFase, materiali
   materialiPerFase: ReadonlyMap<string, ConsegnaFase[]>;
   espandiPerRicerca: boolean;
 }) {
+  const t = useT();
   const [stati, setStati] = useState<Record<string, boolean>>({});
   const uid = useId();
   const gruppi = new Map<string, FaseCrono[]>();
@@ -388,7 +392,7 @@ function AgendaFasi({ fasi, nomeGruppo, nomeUnita, conReale, apriFase, materiali
   }
   const elenco = [...gruppi].sort(([a], [b]) => a.localeCompare(b, "it", { numeric: true }));
   const aperti = espandiPerRicerca || fasi.length <= 12 || elenco.length === 1;
-  return <div aria-label="Agenda per palazzina" className="divide-y border-t">
+  return <div aria-label={t("Agenda per palazzina")} className="divide-y border-t">
     {elenco.map(([nome, righe], indice) => {
       const aperto = espandiPerRicerca || (stati[nome] ?? aperti);
       const id = `${uid}-${indice}`;
@@ -401,20 +405,20 @@ function AgendaFasi({ fasi, nomeGruppo, nomeUnita, conReale, apriFase, materiali
             <Building2 className="size-4 shrink-0 text-primary" aria-hidden="true" />
             <span className="min-w-0 flex-1 break-words text-sm font-semibold">{nome}</span>
             <span className="text-right text-xs tabular-nums text-muted-foreground">
-              {righe.length} {righe.length === 1 ? "fase" : "fasi"}{completate > 0 && <span className="block">{completate} concluse</span>}
+              {t(righe.length === 1 ? "{n} fase" : "{n} fasi", { n: righe.length })}{completate > 0 && <span className="block">{t(completate === 1 ? "{n} conclusa" : "{n} concluse", { n: completate })}</span>}
             </span>
             {!espandiPerRicerca && <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground", aperto && "rotate-180")} aria-hidden="true" />}
           </button>
         </h4>
         <div id={id} hidden={!aperto}>
-          {aperto && <ul aria-label={`Fasi di ${nome}`} className="divide-y border-t">
+          {aperto && <ul aria-label={t("Fasi di {nome}", { nome })} className="divide-y border-t">
             {[...righe].sort(perScadenza).map(fase => <li key={fase.id}>
               <button type="button" aria-haspopup="dialog" className="flex w-full min-w-0 items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/30"
                 onClick={e => apriFase(fase.id, e.currentTarget)}>
                 <span className="min-w-0 flex-1">
                   <span className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
                     {nomeUnita(fase) && <span className="font-medium text-primary">{nomeUnita(fase)}</span>}
-                    <span>{nomiStato[fase.stato]}</span>
+                    <span>{t(nomiStato[fase.stato])}</span>
                   </span>
                   <VoceFase fase={fase} conReale={conReale} mostraDateReali materiali={materialiPerFase.get(fase.id)} />
                 </span>
@@ -431,14 +435,15 @@ function AgendaFasi({ fasi, nomeGruppo, nomeUnita, conReale, apriFase, materiali
 function VoceFase({ fase, conReale, materiali, mostraDateReali }: {
   fase: FaseCrono; conReale: boolean; materiali?: ConsegnaFase[]; mostraDateReali?: boolean;
 }) {
+  const t = useT();
   const da = dataBreve(fase.previstoInizio);
   const a = dataBreve(fase.previstoFine);
   const stessoAnno = fase.previstoInizio?.slice(0, 4) === fase.previstoFine?.slice(0, 4);
   const date = stessoAnno ? `${da.slice(0, 5)} – ${a.slice(0, 5)}` : `${da} – ${a}`;
   const aRischio = materiali?.filter(r => r.aRischio).length ?? 0;
   const dateReali = [
-    fase.realeInizio && `Avvio registrato ${dataBreve(fase.realeInizio)}`,
-    fase.chiusuraRegistrata && fase.realeFine && `Chiusura ${dataBreve(fase.realeFine)}`,
+    fase.realeInizio && t("Avvio registrato {data}", { data: dataBreve(fase.realeInizio) }),
+    fase.chiusuraRegistrata && fase.realeFine && t("Chiusura {data}", { data: dataBreve(fase.realeFine) }),
   ].filter(Boolean);
   return (
     <span className="block min-w-0 flex-1">
@@ -449,10 +454,10 @@ function VoceFase({ fase, conReale, materiali, mostraDateReali }: {
       <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
         {fase.previstoInizio || fase.previstoFine ? <span className="whitespace-nowrap tabular-nums">{date}</span> : null}
         {dateDaVerificare(fase) && (
-          <span className="rounded bg-amber-50 px-1 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Date da verificare</span>
+          <span className="rounded bg-amber-50 px-1 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">{t("Date da verificare")}</span>
         )}
         {conReale && <ScostamentiFase fase={fase} />}
-        {conReale && fase.stato === "in_corso" && !fase.realeInizio && <span>Avvio non registrato</span>}
+        {conReale && fase.stato === "in_corso" && !fase.realeInizio && <span>{t("Avvio non registrato")}</span>}
         {!!materiali?.length && <span className={cn("rounded px-1 font-medium", aRischio
           ? "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200" : "bg-muted")}>
           {aRischio > 0 ? `${aRischio} ${aRischio === 1 ? "materiale" : "materiali"} a rischio`
@@ -467,14 +472,11 @@ function VoceFase({ fase, conReale, materiali, mostraDateReali }: {
 }
 
 function ScostamentiFase({ fase }: { fase: FaseCrono }) {
+  const t = useT();
   if (fase.stato === "completata") return null;
   return <>
-    {fase.ritardoInizio > 0 && <span className="whitespace-nowrap rounded bg-amber-50 px-1 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-      Avvio +{fase.ritardoInizio} gg
-    </span>}
-    {fase.ritardoFine > 0 && <span className="whitespace-nowrap rounded bg-rose-50 px-1 font-medium text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-      Fine +{fase.ritardoFine} gg
-    </span>}
+    {fase.ritardoInizio > 0 && <span className="whitespace-nowrap rounded bg-amber-50 px-1 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">{t("Avvio +{n} gg", { n: fase.ritardoInizio })}</span>}
+    {fase.ritardoFine > 0 && <span className="whitespace-nowrap rounded bg-rose-50 px-1 font-medium text-rose-800 dark:bg-rose-950 dark:text-rose-200">{t("Fine +{n} gg", { n: fase.ritardoFine })}</span>}
   </>;
 }
 
@@ -488,13 +490,14 @@ function DettaglioFase({ fase, commessa, rapportini, ultimaData, onApri, onRappo
   consegne?: ConsegnaFase[];
   onMateriali?: (articolo?: string) => void;
 }) {
+  const t = useT();
   const ditte = useDitteFaseOperazione(commessa.id, fase.id);
   let ultimo: RapportinoCronoprogrammaOperazione | undefined;
   for (const r of rapportini) {
     if (!ultimaData || r.order_id !== commessa.id || planningDay(r.data_lavoro) !== ultimaData || !Array.isArray(r.fasi_lavorate)) continue;
     if (r.fasi_lavorate.some(v => v?.phase_id === fase.id)) ultimo = r;
   }
-  const fineReale = fase.chiusuraRegistrata ? dataBreve(fase.realeFine) : fase.stato === "completata" ? "Da registrare" : "Fase aperta";
+  const fineReale = fase.chiusuraRegistrata ? dataBreve(fase.realeFine) : fase.stato === "completata" ? t("Da registrare") : t("Fase aperta");
 
   return (
     <>
@@ -504,34 +507,34 @@ function DettaglioFase({ fase, commessa, rapportini, ultimaData, onApri, onRappo
       </SheetHeader>
       <div className="space-y-2 rounded-lg border bg-muted/25 p-3">
         <div className="flex items-center justify-between gap-4 text-sm">
-          <span>{nomiStato[fase.stato]}</span>
+          <span>{t(nomiStato[fase.stato])}</span>
           <strong className="tabular-nums">{fase.avanzamento}%</strong>
         </div>
-        <Progress aria-label="Avanzamento della fase" value={fase.avanzamento} className="h-1.5" />
+        <Progress aria-label={t("Avanzamento della fase")} value={fase.avanzamento} className="h-1.5" />
         {(fase.ritardoInizio > 0 || fase.ritardoFine > 0) && fase.stato !== "completata" && (
           <div className="flex flex-wrap gap-2 text-xs"><ScostamentiFase fase={fase} /></div>
         )}
       </div>
       <dl className="grid grid-cols-2 gap-3 rounded-lg border p-3 text-sm">
-        <Dato titolo="Inizio previsto" valore={fase.previstoInizio ? dataBreve(fase.previstoInizio) : "Da pianificare"} />
-        <Dato titolo="Fine prevista" valore={fase.previstoFine ? dataBreve(fase.previstoFine) : "Da pianificare"} />
-        <Dato titolo="Avvio registrato" valore={fase.realeInizio ? dataBreve(fase.realeInizio) : "Da registrare"} />
-        <Dato titolo="Chiusura registrata" valore={fineReale} />
+        <Dato titolo={t("Inizio previsto")} valore={fase.previstoInizio ? dataBreve(fase.previstoInizio) : t("Da pianificare")} />
+        <Dato titolo={t("Fine prevista")} valore={fase.previstoFine ? dataBreve(fase.previstoFine) : t("Da pianificare")} />
+        <Dato titolo={t("Avvio registrato")} valore={fase.realeInizio ? dataBreve(fase.realeInizio) : t("Da registrare")} />
+        <Dato titolo={t("Chiusura registrata")} valore={fineReale} />
       </dl>
       {fase.dateIncoerenti && <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-        Date incoerenti da verificare in Lavorazioni
+        {t("Date incoerenti da verificare in Lavorazioni")}
       </p>}
       <dl className="space-y-3 text-sm">
-        <Dato titolo="Ditte assegnate" valore={ditte.isLoading ? "Caricamento…" : ditte.isError ? "Dati non disponibili" : ditte.data?.join(", ") || "Nessuna ditta assegnata"} />
-        <Dato titolo="Ultimo rapportino" valore={ultimo ? dataBreve(ultimo.data_lavoro) : "Nessun rapportino collegato"} />
+        <Dato titolo={t("Ditte assegnate")} valore={ditte.isLoading ? t("Caricamento…") : ditte.isError ? t("Dati non disponibili") : ditte.data?.join(", ") || t("Nessuna ditta assegnata")} />
+        <Dato titolo={t("Ultimo rapportino")} valore={ultimo ? dataBreve(ultimo.data_lavoro) : t("Nessun rapportino collegato")} />
       </dl>
-      {!!consegne?.length && <section aria-label="Materiali da completare" className="rounded-lg border">
+      {!!consegne?.length && <section aria-label={t("Materiali da completare")} className="rounded-lg border">
         <header className="flex items-center justify-between gap-2 px-3 py-2">
           <h4 className="flex items-center gap-1.5 text-sm font-semibold"><PackageSearch className="size-4 text-primary" aria-hidden="true" />
-            Materiali da completare
+            {t("Materiali da completare")}
           </h4>
           {onMateriali && <Button type="button" variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => onMateriali()}>
-            Apri materiali
+            {t("Apri materiali")}
           </Button>}
         </header>
         <ul className="max-h-60 divide-y overflow-auto border-t">
@@ -542,27 +545,27 @@ function DettaglioFase({ fase, commessa, rapportini, ultimaData, onApri, onRappo
               </button> : <strong>{r.articolo}</strong>}
               <span className={cn("shrink-0 rounded px-1.5 py-0.5", r.aRischio
                 ? "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200" : "bg-muted text-muted-foreground")}>
-                {MOTIVI_FABBISOGNO[r.motivo]}
+                {t(MOTIVI_FABBISOGNO[r.motivo])}
               </span>
             </div>
             <p className="tabular-nums text-muted-foreground">
-              {r.unitaDaVerificare ? "Verifica le unità dell’articolo e dell’ordine"
-                : <>Arrivati {formattaFabbisogno(r.arrivati, r.unita)} su {formattaFabbisogno(r.previsti, r.unita)}
-                  {r.assegnati > 0 && ` · Scorta assegnata ${formattaFabbisogno(r.assegnati, r.unita)}`}
-                  {" · "}<strong className="text-foreground">Mancano {formattaFabbisogno(r.mancanti, r.unita)}</strong></>}
+              {r.unitaDaVerificare ? t("Verifica le unità dell’articolo e dell’ordine")
+                : <>{t("Arrivati {arrivati} su {previsti}", { arrivati: formattaFabbisogno(r.arrivati, r.unita), previsti: formattaFabbisogno(r.previsti, r.unita) })}
+                  {r.assegnati > 0 && ` · ${t("Scorta assegnata {assegnati}", { assegnati: formattaFabbisogno(r.assegnati, r.unita) })}`}
+                  {" · "}<strong className="text-foreground">{t("Mancano {mancanti}", { mancanti: formattaFabbisogno(r.mancanti, r.unita) })}</strong></>}
             </p>
             <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
-              {!r.unitaDaVerificare && <span>{r.daOrdinare > 0 ? `Da ordinare ${formattaFabbisogno(r.daOrdinare, r.unita)}`
-                : "Residuo già ordinato"}</span>}
-              {r.serveEntro && <span>Serve entro il {dataBreve(r.serveEntro)}</span>}
+              {!r.unitaDaVerificare && <span>{r.daOrdinare > 0 ? t("Da ordinare {daOrdinare}", { daOrdinare: formattaFabbisogno(r.daOrdinare, r.unita) })
+                : t("Residuo già ordinato")}</span>}
+              {r.serveEntro && <span>{t("Serve entro il {data}", { data: dataBreve(r.serveEntro) })}</span>}
               {r.oda && <Link to={`/azienda/ordini-acquisto/${r.oda.id}`} className="text-primary hover:underline">{r.oda.oda_number}</Link>}
             </div>
           </li>)}
         </ul>
       </section>}
       <div className="flex flex-wrap gap-2 border-t pt-3">
-        <Button type="button" size="sm" onClick={onApri}>Apri lavorazione <ArrowRight className="size-4" aria-hidden="true" /></Button>
-        {ultimo && <Button type="button" size="sm" variant="outline" onClick={() => onRapportino(ultimo.id)}>Apri rapportino</Button>}
+        <Button type="button" size="sm" onClick={onApri}>{t("Apri lavorazione")} <ArrowRight className="size-4" aria-hidden="true" /></Button>
+        {ultimo && <Button type="button" size="sm" variant="outline" onClick={() => onRapportino(ultimo.id)}>{t("Apri rapportino")}</Button>}
       </div>
     </>
   );

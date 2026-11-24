@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import { statoRegistro } from "@/lib/automazioniRegistro";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   flowId?: string;
@@ -44,6 +44,7 @@ const NODE_ICON: Record<string, React.ReactNode> = {
 };
 
 function ContactJourney({ enrollmentId }: { enrollmentId: string }) {
+  const t = useT();
   const { data: steps = [], isLoading } = useQuery({
     queryKey: ["enrollment-journey", enrollmentId],
     queryFn: async () => {
@@ -59,7 +60,7 @@ function ContactJourney({ enrollmentId }: { enrollmentId: string }) {
   if (isLoading) {
     return (
       <div className="px-4 py-3 text-xs text-muted-foreground flex items-center gap-2">
-        <RefreshCw className="h-3 w-3 animate-spin" /> Caricamento percorso...
+        <RefreshCw className="h-3 w-3 animate-spin" /> {t("Caricamento percorso...")}
       </div>
     );
   }
@@ -67,7 +68,7 @@ function ContactJourney({ enrollmentId }: { enrollmentId: string }) {
   if (steps.length === 0) {
     return (
       <div className="px-4 py-3 text-xs text-muted-foreground">
-        Nessun passo eseguito ancora.
+        {t("Nessun passo eseguito ancora.")}
       </div>
     );
   }
@@ -75,7 +76,7 @@ function ContactJourney({ enrollmentId }: { enrollmentId: string }) {
   return (
     <div className="px-4 py-3 bg-muted/20">
       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-        Percorso esecuzione
+        {t("Percorso esecuzione")}
       </p>
       <div className="relative">
         <div className="absolute left-[11px] top-0 bottom-0 w-px bg-border" />
@@ -99,7 +100,7 @@ function ContactJourney({ enrollmentId }: { enrollmentId: string }) {
                       ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
                       : "bg-muted text-muted-foreground"
                   }`}>
-                    {statoRegistro(step.status).etichetta}
+                    {t(statoRegistro(step.status).etichetta)}
                   </span>
                   <span className="text-[10px] text-muted-foreground ml-auto">
                     {format(new Date(step.created_at), "dd/MM HH:mm")}
@@ -112,9 +113,7 @@ function ContactJourney({ enrollmentId }: { enrollmentId: string }) {
                   </p>
                 )}
                 {step.output_json?.action && (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Azione: {step.output_json.action}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{t("Azione: {action}", { action: String(step.output_json.action ?? "") })}</p>
                 )}
               </div>
             </div>
@@ -136,6 +135,7 @@ function EnrollContactDialog({
   flowId: string;
   companyId?: string;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [enrolling, setEnrolling] = useState(false);
@@ -203,7 +203,7 @@ function EnrollContactDialog({
       });
       if (error) throw error;
       if (!data?.enrolled) throw new Error("Nessuna iscrizione creata: controlla evento, filtri e stato del flusso.");
-      toast.success(`${selectedContact.first_name} ${selectedContact.last_name} iscritto al flusso`);
+      toast.success(t("{first_name} {last_name} iscritto al flusso", { first_name: String(selectedContact.first_name ?? ""), last_name: String(selectedContact.last_name ?? "") }));
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments", flowId] });
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments-stats", flowId] });
       queryClient.invalidateQueries({ queryKey: ["flow-enrollment-count", flowId] });
@@ -227,26 +227,26 @@ function EnrollContactDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
-            Iscrivi contatto
+            {t("Iscrivi contatto")}
           </DialogTitle>
           <DialogDescription>
-            Seleziona un contatto da iscrivere manualmente a questo flusso.
+            {t("Seleziona un contatto da iscrivere manualmente a questo flusso.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
           {!triggerEvent && (
             <div className="rounded-lg bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
-              Nessun trigger configurato — il flusso deve avere un trigger per poter iscrivere contatti.
+              {t("Nessun trigger configurato — il flusso deve avere un trigger per poter iscrivere contatti.")}
             </div>
           )}
-          {triggerEvent&&!manualAllowed&&<p role="status" className="text-xs text-muted-foreground">Questo flusso richiede un evento operativo reale. Non può essere avviato iscrivendo un contatto a mano.</p>}
+          {triggerEvent&&!manualAllowed&&<p role="status" className="text-xs text-muted-foreground">{t("Questo flusso richiede un evento operativo reale. Non può essere avviato iscrivendo un contatto a mano.")}</p>}
 
           <div className="space-y-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca per nome o email..."
+                placeholder={t("Cerca per nome o email...")}
                 className="pl-8 h-9 text-sm"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setSelectedContact(null); }}
@@ -256,11 +256,11 @@ function EnrollContactDialog({
             <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
               {isLoading ? (
                 <div className="flex items-center justify-center py-6 text-muted-foreground text-xs">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Caricamento...
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("Caricamento...")}
                 </div>
               ) : contacts.length === 0 ? (
                 <div className="flex items-center justify-center py-6 text-muted-foreground text-xs">
-                  Nessun contatto trovato
+                  {t("Nessun contatto trovato")}
                 </div>
               ) : (
                 contacts.map((c: any) => (
@@ -288,16 +288,16 @@ function EnrollContactDialog({
           </div>
 
           <div className="flex gap-2 justify-end pt-1">
-            <Button variant="outline" size="sm" onClick={handleClose}>Annulla</Button>
+            <Button variant="outline" size="sm" onClick={handleClose}>{t("Annulla")}</Button>
             <Button
               size="sm"
               onClick={handleEnroll}
               disabled={!selectedContact || !triggerEvent || !manualAllowed || enrolling}
             >
               {enrolling ? (
-                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Iscrizione...</>
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> {t("Iscrizione...")}</>
               ) : (
-                <><UserPlus className="h-3.5 w-3.5 mr-1.5" /> Iscrivi</>
+                <><UserPlus className="h-3.5 w-3.5 mr-1.5" /> {t("Iscrivi")}</>
               )}
             </Button>
           </div>
@@ -308,6 +308,7 @@ function EnrollContactDialog({
 }
 
 export function WorkflowCronologia({ flowId }: Props) {
+  const t = useT();
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -413,7 +414,7 @@ export function WorkflowCronologia({ flowId }: Props) {
       if (error) throw error;
     },
     onSuccess: (_, ids) => {
-      toast.success(`${ids.length} iscrizioni rimosse`);
+      toast.success(t("{n} iscrizioni rimosse", { n: ids.length }));
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments", flowId] });
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments-stats", flowId] });
@@ -432,7 +433,7 @@ export function WorkflowCronologia({ flowId }: Props) {
       if (error) throw error;
     },
     onSuccess: (_, ids) => {
-      toast.success(`${ids.length} iscrizioni messe in pausa`);
+      toast.success(t("{n} iscrizioni messe in pausa", { n: ids.length }));
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments", flowId] });
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments-stats", flowId] });
@@ -472,7 +473,7 @@ export function WorkflowCronologia({ flowId }: Props) {
   if (!flowId) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-        Salva il flusso per visualizzare la cronologia.
+        {t("Salva il flusso per visualizzare la cronologia.")}
       </div>
     );
   }
@@ -483,36 +484,36 @@ export function WorkflowCronologia({ flowId }: Props) {
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Cronologia contatti</h2>
+          <h2 className="text-lg font-semibold">{t("Cronologia contatti")}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Tutti i contatti che sono entrati in questo flusso e il loro percorso.
+            {t("Tutti i contatti che sono entrati in questo flusso e il loro percorso.")}
           </p>
         </div>
         <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setEnrollDialogOpen(true)}>
           <UserPlus className="h-3.5 w-3.5" />
-          Aggiungi contatto
+          {t("Aggiungi contatto")}
         </Button>
       </div>
 
       {/* Stats cards */}
       {statsData && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatsCard label="Totale iscritti" value={statsData.total} color="text-foreground" />
-          <StatsCard label="Attivi" value={statsData.active} color="text-blue-600" />
+          <StatsCard label={t("Totale iscritti")} value={statsData.total} color="text-foreground" />
+          <StatsCard label={t("Attivi")} value={statsData.active} color="text-blue-600" />
           <StatsCard
-            label="Completati"
+            label={t("Completati")}
             value={statsData.completed}
             color="text-green-600"
             extra={statsData.total > 0 ? `${Math.round((statsData.completed / statsData.total) * 100)}%` : undefined}
           />
-          <StatsCard label="Errori" value={statsData.error} color="text-destructive" />
+          <StatsCard label={t("Errori")} value={statsData.error} color="text-destructive" />
         </div>
       )}
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-          <span className="text-xs font-medium text-muted-foreground">{selectedIds.size} selezionati</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("{size} selezionati", { size: String(selectedIds.size ?? "") })}</span>
           <div className="flex-1" />
           <Button
             variant="outline"
@@ -522,7 +523,7 @@ export function WorkflowCronologia({ flowId }: Props) {
             onClick={() => bulkPauseMutation.mutate(Array.from(selectedIds))}
           >
             {bulkPauseMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <PauseCircle className="h-3 w-3" />}
-            Metti in pausa
+            {t("Metti in pausa")}
           </Button>
           <Button
             variant="destructive"
@@ -532,7 +533,7 @@ export function WorkflowCronologia({ flowId }: Props) {
             onClick={() => bulkRemoveMutation.mutate(Array.from(selectedIds))}
           >
             {bulkRemoveMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-            Rimuovi
+            {t("Rimuovi")}
           </Button>
           <Button
             variant="ghost"
@@ -540,7 +541,7 @@ export function WorkflowCronologia({ flowId }: Props) {
             className="h-7 text-xs"
             onClick={() => setSelectedIds(new Set())}
           >
-            Deseleziona
+            {t("Deseleziona")}
           </Button>
         </div>
       )}
@@ -552,21 +553,21 @@ export function WorkflowCronologia({ flowId }: Props) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Ogni stato</SelectItem>
-            <SelectItem value="active">Attivo</SelectItem>
-            <SelectItem value="completed">Completato</SelectItem>
-            <SelectItem value="waiting">In attesa</SelectItem>
-            <SelectItem value="paused">In pausa</SelectItem>
-            <SelectItem value="removed">Rimosso</SelectItem>
-            <SelectItem value="canceled">Fermato</SelectItem>
-            <SelectItem value="failed">Errore</SelectItem>
+            <SelectItem value="all">{t("Ogni stato")}</SelectItem>
+            <SelectItem value="active">{t("Attivo")}</SelectItem>
+            <SelectItem value="completed">{t("Completato")}</SelectItem>
+            <SelectItem value="waiting">{t("In attesa")}</SelectItem>
+            <SelectItem value="paused">{t("In pausa")}</SelectItem>
+            <SelectItem value="removed">{t("Rimosso")}</SelectItem>
+            <SelectItem value="canceled">{t("Fermato")}</SelectItem>
+            <SelectItem value="failed">{t("Errore")}</SelectItem>
           </SelectContent>
         </Select>
 
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Cerca contatto..."
+            placeholder={t("Cerca contatto...")}
             className="w-[200px] h-8 text-sm pl-8"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
@@ -577,7 +578,7 @@ export function WorkflowCronologia({ flowId }: Props) {
           <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
         </Button>
 
-        <span className="text-xs text-muted-foreground ml-auto">{total} risultati</span>
+        <span className="text-xs text-muted-foreground ml-auto">{t("{total} risultati", { total: String(total ?? "") })}</span>
       </div>
 
       {/* Table */}
@@ -589,22 +590,22 @@ export function WorkflowCronologia({ flowId }: Props) {
                 <Checkbox
                   checked={rows.length > 0 && selectedIds.size === rows.length}
                   onCheckedChange={toggleSelectAll}
-                  aria-label="Seleziona tutto"
+                  aria-label={t("Seleziona tutto")}
                 />
               </TableHead>
               <TableHead className="w-6 pr-0" />
-              <TableHead>Contatto</TableHead>
-              <TableHead>Stato</TableHead>
-              <TableHead>Iscritto</TableHead>
-              <TableHead>Aggiornato</TableHead>
-              <TableHead>Versione</TableHead>
+              <TableHead>{t("Contatto")}</TableHead>
+              <TableHead>{t("Stato")}</TableHead>
+              <TableHead>{t("Iscritto")}</TableHead>
+              <TableHead>{t("Aggiornato")}</TableHead>
+              <TableHead>{t("Versione")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={7} className="h-48 text-center text-muted-foreground">
-                  Caricamento...
+                  {t("Caricamento...")}
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
@@ -612,9 +613,9 @@ export function WorkflowCronologia({ flowId }: Props) {
                 <TableCell colSpan={7} className="h-48">
                   <div className="flex flex-col items-center justify-center text-muted-foreground">
                     <Users className="h-10 w-10 mb-3 opacity-30" />
-                    <p className="text-sm font-medium">Nessuna iscrizione trovata</p>
+                    <p className="text-sm font-medium">{t("Nessuna iscrizione trovata")}</p>
                     <p className="text-xs mt-1">
-                      La cronologia apparirà quando i contatti verranno iscritti.
+                      {t("La cronologia apparirà quando i contatti verranno iscritti.")}
                     </p>
                   </div>
                 </TableCell>
@@ -636,7 +637,7 @@ export function WorkflowCronologia({ flowId }: Props) {
                         <Checkbox
                           checked={isChecked}
                           onCheckedChange={() => {}}
-                          aria-label="Seleziona riga"
+                          aria-label={t("Seleziona riga")}
                         />
                       </TableCell>
                       <TableCell className="w-6 pr-0">
@@ -665,13 +666,13 @@ export function WorkflowCronologia({ flowId }: Props) {
                       </TableCell>
                       <TableCell>
                         <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusInfo?.color ?? "bg-muted text-muted-foreground"}`}>
-                          {statusInfo?.label ?? row.status}
+                          {statusInfo?.label ? t(statusInfo.label) : row.status}
                         </span>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         <div>{format(new Date(row.created_at), "dd/MM/yy HH:mm")}</div>
                         <div className="text-[10px] opacity-70">
-                          {formatDistanceToNow(new Date(row.created_at), { locale: it, addSuffix: true })}
+                          {formatDistanceToNow(new Date(row.created_at), { locale: dateFnsCampo(), addSuffix: true })}
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
@@ -698,16 +699,14 @@ export function WorkflowCronologia({ flowId }: Props) {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{total} risultati totali</span>
+          <span>{t("{total} risultati totali", { total: String(total ?? "") })}</span>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-              Precedente
+              {t("Precedente")}
             </Button>
-            <span className="flex items-center px-2">
-              Pagina {page + 1} di {totalPages}
-            </span>
+            <span className="flex items-center px-2">{t("Pagina {page} di {totalPages}", { page: page + 1, totalPages: String(totalPages ?? "") })}</span>
             <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-              Successiva
+              {t("Successiva")}
             </Button>
           </div>
         </div>

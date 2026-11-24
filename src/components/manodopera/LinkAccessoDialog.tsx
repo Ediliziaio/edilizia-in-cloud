@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLinkAccessoApp, type LinkAccesso } from "@/hooks/useOperai";
 import { testoLinkAccesso } from "@/lib/campo/linkAccesso";
 import { linkWhatsApp } from "@/lib/opportunita/appuntamentoPrecompilato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function LinkAccessoDialog({ aperto, onAperto, employeeIds, onUsaEmail }: {
   aperto: boolean;
@@ -19,6 +20,7 @@ export function LinkAccessoDialog({ aperto, onAperto, employeeIds, onUsaEmail }:
   /** Una persona sola, con l'email: la strada di prima resta. */
   onUsaEmail?: () => void;
 }) {
+  const t = useT();
   const { company, effectiveCompany } = useAuth();
   const azienda = (effectiveCompany ?? company)?.name;
   const crea = useLinkAccessoApp();
@@ -37,9 +39,9 @@ export function LinkAccessoDialog({ aperto, onAperto, employeeIds, onUsaEmail }:
     try {
       await navigator.clipboard.writeText(testoLinkAccesso(r.nome, azienda, r.url!));
       segna(r.employee_id);
-      toast.success("Messaggio copiato");
+      toast.success(t("Messaggio copiato"));
     } catch {
-      toast.error("Non riesco a copiare da questo browser");
+      toast.error(t("Non riesco a copiare da questo browser"));
     }
   };
 
@@ -48,14 +50,14 @@ export function LinkAccessoDialog({ aperto, onAperto, employeeIds, onUsaEmail }:
     <Dialog open={aperto} onOpenChange={onAperto}>
       <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Dai l'app di cantiere</DialogTitle>
-          <DialogDescription>Ognuno riceve il suo link: lo apre, tocca «Entra» ed è dentro. Vale 14 giorni e una volta sola.</DialogDescription>
+          <DialogTitle>{t("Dai l'app di cantiere")}</DialogTitle>
+          <DialogDescription>{t("Ognuno riceve il suo link: lo apre, tocca «Entra» ed è dentro. Vale 14 giorni e una volta sola.")}</DialogDescription>
         </DialogHeader>
-        {crea.isPending && <p role="status" className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Preparo i link…</p>}
+        {crea.isPending && <p role="status" className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{t("Preparo i link…")}</p>}
         {crea.isError && (
           <div role="alert" className="space-y-2 py-2 text-sm">
-            <p>{crea.error instanceof Error ? crea.error.message : "Non sono riuscito a preparare i link."}</p>
-            <Button size="sm" variant="outline" onClick={() => crea.mutate(chiave.split(","))}>Riprova</Button>
+            <p>{crea.error instanceof Error ? crea.error.message : t("Non sono riuscito a preparare i link.")}</p>
+            <Button size="sm" variant="outline" onClick={() => crea.mutate(chiave.split(","))}>{t("Riprova")}</Button>
           </div>
         )}
         <ul className="divide-y">
@@ -65,13 +67,13 @@ export function LinkAccessoDialog({ aperto, onAperto, employeeIds, onUsaEmail }:
             return (
               <li key={r.employee_id} className="flex items-center gap-2 py-2">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{r.nome || "Senza nome"}</p>
+                  <p className="truncate text-sm font-medium">{r.nome || t("Senza nome")}</p>
                   {r.errore && <p className="text-xs text-muted-foreground">{r.errore}</p>}
                 </div>
                 {r.url && (
                   <>
-                    {mandato && <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Mandato" />}
-                    <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0" aria-label={`Copia il messaggio per ${r.nome}`} onClick={() => void copia(r)}>
+                    {mandato && <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-label={t("Mandato")} />}
+                    <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0" aria-label={t("Copia il messaggio per {nome}", { nome: String(r.nome ?? "") })} onClick={() => void copia(r)}>
                       <Copy className="h-4 w-4" aria-hidden="true" />
                     </Button>
                     {wa ? (
@@ -81,7 +83,7 @@ export function LinkAccessoDialog({ aperto, onAperto, employeeIds, onUsaEmail }:
                         </a>
                       </Button>
                     ) : (
-                      <span className="shrink-0 text-xs text-muted-foreground">Senza numero</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{t("Senza numero")}</span>
                     )}
                   </>
                 )}
@@ -90,7 +92,7 @@ export function LinkAccessoDialog({ aperto, onAperto, employeeIds, onUsaEmail }:
           })}
         </ul>
         {onUsaEmail && !crea.isPending && (
-          <button type="button" className="text-left text-sm text-primary underline" onClick={onUsaEmail}>Ha un'email? Usa quella</button>
+          <button type="button" className="text-left text-sm text-primary underline" onClick={onUsaEmail}>{t("Ha un'email? Usa quella")}</button>
         )}
       </DialogContent>
     </Dialog>

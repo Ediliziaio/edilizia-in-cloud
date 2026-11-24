@@ -11,6 +11,7 @@ import { apriFileRiservato } from "@/lib/storagePrivato";
 import { CAMPI_EMERGENZE_POS, type CampoEmergenzePos, type PianoEmergenzePos } from "../../../../supabase/functions/_shared/posEvidenzeOperative";
 import type { FontiEmergenzePsc, PropostaEmergenzaPsc } from "../../../../supabase/functions/_shared/posEmergenzePsc";
 import type { ContestoLetturaPsc } from "./LetturaOcrPsc";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function EmergenzeDalPsc({ origine, piano, fonti, applica }: {
   origine: ContestoLetturaPsc;
@@ -18,6 +19,7 @@ export function EmergenzeDalPsc({ origine, piano, fonti, applica }: {
   fonti?: FontiEmergenzePsc;
   applica: (proposte: PropostaEmergenzaPsc[]) => void;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [legge, setLegge] = useState(false);
   const [proposte, setProposte] = useState<PropostaEmergenzaPsc[]>([]);
@@ -32,7 +34,7 @@ export function EmergenzeDalPsc({ origine, piano, fonti, applica }: {
   async function cerca() {
     setAperto(true); setLegge(true); setProposte([]); setScelte({}); setAvviso(""); setErrore(""); conferma(false);
     try {
-      if (salva && !await salva()) throw new Error("Salva il PSC collegato prima di cercare indicazioni.");
+      if (salva && !await salva()) throw new Error(t("Salva il PSC collegato prima di cercare indicazioni."));
       const r = await chiamaServerPos<{ proposte?: PropostaEmergenzaPsc[]; avviso?: string }>({
         azione: "stato_ocr_psc", emergenze: true, company_id: companyId, pos_id: posId,
         documento_id: fonte.id, revisione: fonte.revisione, sha256: fonte.sha256,
@@ -46,34 +48,34 @@ export function EmergenzeDalPsc({ origine, piano, fonti, applica }: {
       })));
       setAvviso(r.avviso ?? "");
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Il PSC non è stato letto. Riprova.");
+      setErrore(e instanceof Error ? e.message : t("Il PSC non è stato letto. Riprova."));
     } finally { setLegge(false); }
   }
 
   const apriPagina = (pagina: number) => {
     void apriFileRiservato(fonte.archivio === "sicurezza_documenti" ? "sicurezza-documenti" : "fascicoli-cantiere", fonte.file_path, pagina)
-      .catch(() => toast.error("Pagina originale non disponibile"));
+      .catch(() => toast.error(t("Pagina originale non disponibile")));
   };
   return <>
     <Button type="button" size="sm" variant="outline" onClick={() => void cerca()} disabled={legge}>
-      <FileSearch className="mr-1.5 size-4" aria-hidden />Cerca indicazioni nel PSC
+      <FileSearch className="mr-1.5 size-4" aria-hidden />{t("Cerca indicazioni nel PSC")}
     </Button>
     {aperto && <Dialog open onOpenChange={setAperto}>
       <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Indicazioni di emergenza dal PSC</DialogTitle>
-          <DialogDescription>Seleziona gli estratti pertinenti alla tua lavorazione e confrontali con l’originale. I campi selezionati verranno aggiornati nella bozza.</DialogDescription>
+          <DialogTitle>{t("Indicazioni di emergenza dal PSC")}</DialogTitle>
+          <DialogDescription>{t("Seleziona gli estratti pertinenti alla tua lavorazione e confrontali con l’originale. I campi selezionati verranno aggiornati nella bozza.")}</DialogDescription>
         </DialogHeader>
-        {legge ? <ProgressiveFluxLoader label="Ricerca delle indicazioni nel PSC" /> : <>
+        {legge ? <ProgressiveFluxLoader label={t("Ricerca delle indicazioni nel PSC")} /> : <>
           {avviso && <p className="text-xs text-muted-foreground">{avviso}</p>}
           {errore && <p className="text-sm text-destructive" role="alert">{errore}</p>}
-          {!proposte.length && !errore && <p className="rounded-md border bg-muted/30 p-3 text-sm">Nessuna indicazione operativa trovata nelle pagine disponibili. Puoi integrare il piano direttamente nell’editor.</p>}
+          {!proposte.length && !errore && <p className="rounded-md border bg-muted/30 p-3 text-sm">{t("Nessuna indicazione operativa trovata nelle pagine disponibili. Puoi integrare il piano direttamente nell’editor.")}</p>}
           {(Object.keys(CAMPI_EMERGENZE_POS) as CampoEmergenzePos[]).map(campo => {
             const alternative = proposte.flatMap((p, i) => p.campo === campo ? [{ p, i }] : []);
             if (!alternative.length) return null;
             return <fieldset key={campo} className="space-y-2 rounded-lg border p-3">
-              <legend className="px-1 text-sm font-semibold">{CAMPI_EMERGENZE_POS[campo]}</legend>
-              {!!piano?.[campo]?.trim() && <p className="text-xs text-muted-foreground">Le indicazioni selezionate sostituiranno quelle già presenti in questo campo.</p>}
+              <legend className="px-1 text-sm font-semibold">{t(CAMPI_EMERGENZE_POS[campo])}</legend>
+              {!!piano?.[campo]?.trim() && <p className="text-xs text-muted-foreground">{t("Le indicazioni selezionate sostituiranno quelle già presenti in questo campo.")}</p>}
               {alternative.map(({ p, i }) => <div key={i} className="space-y-2 rounded-md border p-2">
                 <label className="flex items-start gap-2 text-sm">
                   <Checkbox checked={i in scelte} onCheckedChange={v => {
@@ -84,30 +86,30 @@ export function EmergenzeDalPsc({ origine, piano, fonti, applica }: {
                       return aggiornate;
                     });
                     conferma(false);
-                  }} aria-label={`Seleziona ${CAMPI_EMERGENZE_POS[campo]} da pagina ${p.pagina}`} />
+                  }} aria-label={t("Seleziona {valore} da pagina {pagina}", { valore: t(CAMPI_EMERGENZE_POS[campo]), pagina: String(p.pagina ?? "") })} />
                   <span>{p.estratto}</span>
                 </label>
                 <Button type="button" variant="link" size="sm" className="ml-5 h-auto p-0 text-xs" onClick={() => apriPagina(p.pagina)}>
-                  <ExternalLink className="mr-1 size-3" aria-hidden />Pagina {p.pagina}{p.metodo === "ocr" && " · OCR"}
+                  <ExternalLink className="mr-1 size-3" aria-hidden />{t("Pagina")} {p.pagina}{p.metodo === "ocr" && ` ${t("· OCR")}`}
                 </Button>
                 {i in scelte && <label className="ml-5 block space-y-1 text-xs font-medium">
-                  <span>Fase o ambito · pagina {p.pagina}</span>
-                  <Input className="h-8" value={scelte[i]} maxLength={100} placeholder="Es. Posa della barriera, corsia est"
+                  <span>{t("Fase o ambito · pagina {pagina}", { pagina: String(p.pagina ?? "") })}</span>
+                  <Input className="h-8" value={scelte[i]} maxLength={100} placeholder={t("Es. Posa della barriera, corsia est")}
                     onChange={e => { setScelte(s => ({ ...s, [i]: e.target.value })); conferma(false); }} />
                 </label>}
               </div>)}
             </fieldset>;
           })}
-          {fasiMancanti && <p className="text-sm text-muted-foreground" role="status">Indica la fase o l’ambito di ogni estratto quando ne usi più di uno per la stessa voce.</p>}
+          {fasiMancanti && <p className="text-sm text-muted-foreground" role="status">{t("Indica la fase o l’ambito di ogni estratto quando ne usi più di uno per la stessa voce.")}</p>}
           {!!selezionate.length && <label className="flex items-start gap-2 rounded-md bg-muted/30 p-3 text-sm">
             <Checkbox checked={confermato} onCheckedChange={v => conferma(v === true)} />
-            Ho confrontato gli estratti selezionati con il PSC originale e ne ho verificato la pertinenza.
+            {t("Ho confrontato gli estratti selezionati con il PSC originale e ne ho verificato la pertinenza.")}
           </label>}
         </>}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={() => setAperto(false)}>Chiudi</Button>
+          <Button type="button" variant="ghost" onClick={() => setAperto(false)}>{t("Chiudi")}</Button>
           {!!proposte.length && <Button type="button" disabled={!confermato || !selezionate.length || fasiMancanti} onClick={() => { applica(selezionate); setAperto(false); }}>
-            Inserisci nella bozza
+            {t("Inserisci nella bozza")}
           </Button>}
         </div>
       </DialogContent>

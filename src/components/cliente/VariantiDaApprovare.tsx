@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileSignature, CheckCircle2, Clock, CalendarPlus, Euro } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Variante {
   id: string;
@@ -39,6 +39,7 @@ interface Variante {
 const IN_ATTESA = new Set(["inviata", "in_attesa_firma", "da_firmare"]);
 
 export function VariantiDaApprovare({ orderId }: { orderId: string }) {
+  const t = useT();
   const { data: varianti = [], isLoading } = useQuery<Variante[]>({
     queryKey: ["cliente-varianti", orderId],
     enabled: !!orderId,
@@ -61,7 +62,7 @@ export function VariantiDaApprovare({ orderId }: { orderId: string }) {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <FileSignature className="h-5 w-5" /> Varianti
+            <FileSignature className="h-5 w-5" /> {t("Varianti")}
           </CardTitle>
         </CardHeader>
         <CardContent><Skeleton className="h-20 w-full" /></CardContent>
@@ -77,18 +78,16 @@ export function VariantiDaApprovare({ orderId }: { orderId: string }) {
     <Card className={daFirmare.length > 0 ? "border-amber-300" : undefined}>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
-          <FileSignature className="h-5 w-5" /> Varianti
+          <FileSignature className="h-5 w-5" /> {t("Varianti")}
           {daFirmare.length > 0 && (
-            <Badge variant="destructive" className="text-[10px]">
-              {daFirmare.length} da approvare
-            </Badge>
+            <Badge variant="destructive" className="text-[10px]">{t("{n} da approvare", { n: daFirmare.length })}</Badge>
           )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {daFirmare.length > 0 && (
           <p className="text-sm text-amber-800">
-            Finché non approvi, questi lavori non partono.
+            {t("Finché non approvi, questi lavori non partono.")}
           </p>
         )}
 
@@ -98,9 +97,7 @@ export function VariantiDaApprovare({ orderId }: { orderId: string }) {
             <div key={v.id} className="space-y-2 rounded-lg border p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">
-                    Variante n. {v.numero_odv} — {v.titolo}
-                  </p>
+                  <p className="text-sm font-medium">{t("Variante n. {numero_odv} — {titolo}", { numero_odv: String(v.numero_odv ?? ""), titolo: String(v.titolo ?? "") })}</p>
                   {v.descrizione && (
                     <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{v.descrizione}</p>
                   )}
@@ -108,11 +105,11 @@ export function VariantiDaApprovare({ orderId }: { orderId: string }) {
                 {v.firmato_il ? (
                   <Badge variant="secondary" className="shrink-0 gap-1 text-[10px]">
                     <CheckCircle2 className="h-3 w-3" />
-                    Approvata il {format(parseISO(v.firmato_il), "d MMM yyyy", { locale: it })}
+                    {t("Approvata il {data}", { data: format(parseISO(v.firmato_il), "d MMM yyyy", { locale: dateFnsCampo() }) })}
                   </Badge>
                 ) : attesa ? (
                   <Badge variant="destructive" className="shrink-0 gap-1 text-[10px]">
-                    <Clock className="h-3 w-3" /> In attesa della tua firma
+                    <Clock className="h-3 w-3" /> {t("In attesa della tua firma")}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="shrink-0 text-[10px]">{v.status}</Badge>
@@ -127,7 +124,7 @@ export function VariantiDaApprovare({ orderId }: { orderId: string }) {
                 {v.impatto_giorni != null && v.impatto_giorni !== 0 && (
                   <span className="flex items-center gap-1">
                     <CalendarPlus className="h-3.5 w-3.5" />
-                    {v.impatto_giorni > 0 ? "+" : ""}{v.impatto_giorni} giorni sui tempi
+                    {t("{giorni} giorni sui tempi", { giorni: `${v.impatto_giorni > 0 ? "+" : ""}${v.impatto_giorni}` })}
                   </span>
                 )}
               </div>
@@ -136,13 +133,13 @@ export function VariantiDaApprovare({ orderId }: { orderId: string }) {
                 <Button asChild size="sm" className="w-full sm:w-auto">
                   <Link to={`/firma-odv/${v.firma_token}`}>
                     <FileSignature className="mr-1.5 h-4 w-4" />
-                    Leggi e firma
+                    {t("Leggi e firma")}
                   </Link>
                 </Button>
               )}
               {attesa && !v.firma_token && (
                 <p className="text-xs text-muted-foreground">
-                  Il link per firmare non è ancora stato generato: chiedilo all'impresa.
+                  {t("Il link per firmare non è ancora stato generato: chiedilo all'impresa.")}
                 </p>
               )}
             </div>

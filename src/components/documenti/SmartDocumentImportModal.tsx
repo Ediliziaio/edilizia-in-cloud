@@ -59,6 +59,7 @@ import {
   type SmartValidationWarning,
 } from "@/lib/documenti/smartDocumentImport";
 import type { JSX } from "react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Sostituiamo i tip di AIProcessingStage iniettando un wrapper minimale.
 // (Per non duplicare tutto il file riusiamo lo stesso componente — i tip
@@ -213,6 +214,7 @@ function SmartFilePreview({
   resultFile?: ClassifyResponse["file"];
   previewUrl: string | null;
 }) {
+  const t = useT();
   const name = file?.name ?? resultFile?.name ?? "Documento";
   const mime = file?.type || resultFile?.mime_type || "";
   const size = file?.size ?? resultFile?.size ?? null;
@@ -225,7 +227,7 @@ function SmartFilePreview({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-slate-900" title={name}>{name}</p>
           <p className="text-xs text-muted-foreground">
-            {kind === "computo_data" ? "File computo" : kind}
+            {kind === "computo_data" ? t("File computo") : kind}
             {size ? ` · ${formatBytes(size)}` : ""}
           </p>
         </div>
@@ -240,8 +242,8 @@ function SmartFilePreview({
       ) : (
         <div className="flex h-[220px] flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground">
           {getFileIcon(name)}
-          <p>Anteprima visuale non disponibile per questo formato.</p>
-          <p className="text-xs">Il file resta comunque collegato al job AI e al modulo di destinazione.</p>
+          <p>{t("Anteprima visuale non disponibile per questo formato.")}</p>
+          <p className="text-xs">{t("Il file resta comunque collegato al job AI e al modulo di destinazione.")}</p>
         </div>
       )}
     </div>
@@ -256,6 +258,7 @@ export function SmartDocumentImportModal({
   initialFile,
   onAnalysisReady,
 }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -320,11 +323,11 @@ export function SmartDocumentImportModal({
   const handleFileSelect = useCallback((f: File) => {
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
     if (!ACCEPTED_EXT.some(accepted => accepted === ext)) {
-      toast.error("Formato non supportato. Usa PDF, immagine, Excel, XPWE o DCF.");
+      toast.error(t("Formato non supportato. Usa PDF, immagine, Excel, XPWE o DCF."));
       return;
     }
     if (f.size > MAX_SIZE) {
-      toast.error(`File troppo grande (max ${formatBytes(MAX_SIZE)}).`);
+      toast.error(t("File troppo grande (max {MAX_SIZE}).", { MAX_SIZE: formatBytes(MAX_SIZE) }));
       return;
     }
     setFile(f);
@@ -345,7 +348,7 @@ export function SmartDocumentImportModal({
     setStep(2);
     setError(null);
     setClassifyStatus("uploading");
-    setProgress("Carico il file…");
+    setProgress(t("Carico il file…"));
 
     try {
       // 1. Upload to storage. Try preferred bucket first, fallback su "computi"
@@ -364,11 +367,11 @@ export function SmartDocumentImportModal({
       if (upErr) throw new Error(`Upload: ${upErr.message}`);
 
       setClassifyStatus("extracting_text");
-      setProgress("Preparo il documento per l'AI…");
+      setProgress(t("Preparo il documento per l'AI…"));
 
       // 2. Invoke analyzer: classifica, salva audit e prova il parser verticale.
       setClassifyStatus("analyzing_ai");
-      setProgress("L'AI classifica il documento ed estrae i dati utili…");
+      setProgress(t("L'AI classifica il documento ed estrae i dati utili…"));
       const { data, error: fnErr } = await supabase.functions.invoke<AnalyzerResponse>(
         "ai-document-analyzer",
         {
@@ -387,7 +390,7 @@ export function SmartDocumentImportModal({
         // supabase-js maschera il body dell'errore con "Edge Function returned
         // a non-2xx status code": qui si ripesca il messaggio vero (es. crediti
         // AI esauriti, saldo OpenRouter, documento illeggibile…).
-        let realMsg = fnErr?.message || "Analisi documento fallita";
+        let realMsg = fnErr?.message || t("Analisi documento fallita");
         const ctx = (fnErr as unknown as { context?: Response } | null)?.context;
         if (ctx && typeof ctx.text === "function") {
           try {
@@ -409,7 +412,7 @@ export function SmartDocumentImportModal({
         key_fields: data.key_fields ?? {},
         next_action: data.next_action ?? {
           kind: "manual",
-          hint: "Documento analizzato. Verifica manualmente il tipo prima di proseguire.",
+          hint: t("Documento analizzato. Verifica manualmente il tipo prima di proseguire."),
         },
         ai_meta: {
           model_used: data.parser_used ?? "ai-document-analyzer",
@@ -430,7 +433,7 @@ export function SmartDocumentImportModal({
       };
 
       setClassifyStatus("validating");
-      setProgress(`Riconosciuto: ${DOC_TYPE_LABEL[normalized.doc_type] ?? normalized.doc_type}`);
+      setProgress(t("Riconosciuto: {tipo}", { tipo: DOC_TYPE_LABEL[normalized.doc_type] ? t(DOC_TYPE_LABEL[normalized.doc_type]) : normalized.doc_type }));
       // Lascia un attimo per mostrare il "validating" pulse
       await new Promise((r) => setTimeout(r, 400));
       setClassifyStatus("review");
@@ -456,7 +459,7 @@ export function SmartDocumentImportModal({
     });
 
     if (plan.kind === "computo_review") {
-      toast.success("Computo estratto: apro la revisione delle voci.");
+      toast.success(t("Computo estratto: apro la revisione delle voci."));
       handleClose();
       if (onComputoReady) {
         onComputoReady(plan.computoUploadId);
@@ -471,9 +474,9 @@ export function SmartDocumentImportModal({
       setDeepResult({
         success: true,
         extracted,
-        summary: `Documento analizzato e salvato${result.analysis_id ? ` (#${result.analysis_id.slice(0, 8)})` : ""}.`,
+        summary: result.analysis_id ? t("Documento analizzato e salvato (#{id}).", { id: result.analysis_id.slice(0, 8) }) : t("Documento analizzato e salvato."),
         confidence: result.validation?.score ?? result.confidence,
-        warnings: result.validation?.warnings?.map((warning) => warning.message ?? "Verifica consigliata"),
+        warnings: result.validation?.warnings?.map((warning) => warning.message ?? t("Verifica consigliata")),
         ai_meta: {
           model_used: result.parser_used ?? result.ai_meta.model_used,
           cost_billed_eur: result.cost_eur ?? result.ai_meta.cost_billed_eur,
@@ -494,11 +497,11 @@ export function SmartDocumentImportModal({
       });
       handleClose();
       navigate(redirectPath);
-      toast.info("Documento salvato: continuo nel modulo corretto.");
+      toast.info(t("Documento salvato: continuo nel modulo corretto."));
       return;
     }
 
-    toast.info(plan.hint ?? "Verifica manualmente il documento.");
+    toast.info(plan.hint ?? t("Verifica manualmente il documento."));
     handleClose();
   };
 
@@ -529,7 +532,7 @@ export function SmartDocumentImportModal({
         }
       );
       if (fnErr || !data?.success) {
-        toast.error(`Linker fallito: ${fnErr?.message ?? "?"}`);
+        toast.error(t("Linker fallito: {messaggio}", { messaggio: fnErr?.message ?? "?" }));
         return;
       }
       setLinkerResult(data);
@@ -539,8 +542,8 @@ export function SmartDocumentImportModal({
         const top = data.suggestions[0];
         await attachToEntity(top, true, data);
         toast.success(
-          `🔗 Allegato automaticamente a ${top.label} (confidence ${(top.scores.combined * 100).toFixed(0)}%)`,
-          { duration: 6000, action: { label: "Annulla", onClick: () => undoLastAttach() } }
+          t("🔗 Allegato automaticamente a {label} (confidence {valore}%)", { label: String(top.label ?? ""), valore: (top.scores.combined * 100).toFixed(0) }),
+          { duration: 6000, action: { label: t("Annulla"), onClick: () => undoLastAttach() } }
         );
         setStep(5);
       } else if (data.suggestions.length > 0) {
@@ -550,7 +553,7 @@ export function SmartDocumentImportModal({
         setStep(5);
       }
     } catch (e) {
-      toast.error(`Linker errore: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(t("Linker errore: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
     } finally {
       setLinking(false);
     }
@@ -594,7 +597,7 @@ export function SmartDocumentImportModal({
         .select("id")
         .single();
       if (insErr) {
-        toast.error(`Allegato fallito: ${insErr.message}`);
+        toast.error(t("Allegato fallito: {message}", { message: String(insErr.message ?? "") }));
         return null;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -602,7 +605,7 @@ export function SmartDocumentImportModal({
       setLastAttachId(id);
       return id;
     } catch (e) {
-      toast.error(`Allegato eccezione: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(t("Allegato eccezione: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
       return null;
     }
   };
@@ -613,7 +616,7 @@ export function SmartDocumentImportModal({
       .from("entity_attachments")
       .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
       .eq("id", lastAttachId);
-    toast.info("Allegato annullato");
+    toast.info(t("Allegato annullato"));
     setLastAttachId(null);
   };
 
@@ -621,7 +624,7 @@ export function SmartDocumentImportModal({
     if (!linkerResult) return;
     const id = await attachToEntity(suggestion, false, linkerResult);
     if (id) {
-      toast.success(`Allegato a ${suggestion.label}`);
+      toast.success(t("Allegato a {label}", { label: String(suggestion.label ?? "") }));
       handleClose();
     }
   };
@@ -632,16 +635,16 @@ export function SmartDocumentImportModal({
       return <span className="text-muted-foreground italic">—</span>;
     }
     if (typeof val === "boolean") {
-      return <span className={val ? "text-green-600" : "text-red-600"}>{val ? "sì" : "no"}</span>;
+      return <span className={val ? "text-green-600" : "text-red-600"}>{val ? t("sì") : t("no")}</span>;
     }
     if (typeof val === "number") {
-      return <span className="tabular-nums">{val.toLocaleString("it-IT")}</span>;
+      return <span className="tabular-nums">{val.toLocaleString(intlCampo())}</span>;
     }
     if (typeof val === "string") {
       return <span title={val}>{val.length > 100 ? val.slice(0, 100) + "…" : val}</span>;
     }
     if (Array.isArray(val)) {
-      if (val.length === 0) return <span className="text-muted-foreground italic">vuoto</span>;
+      if (val.length === 0) return <span className="text-muted-foreground italic">{t("vuoto")}</span>;
       if (typeof val[0] !== "object") {
         return (
           <span>
@@ -667,7 +670,7 @@ export function SmartDocumentImportModal({
                 : String(item)}
             </li>
           ))}
-          {val.length > 8 && <li className="text-xs text-slate-500">…+{val.length - 8} altre</li>}
+          {val.length > 8 && <li className="text-xs text-slate-500">{t("…+{n} altre", { n: val.length - 8 })}</li>}
         </ul>
       );
     }
@@ -699,7 +702,7 @@ export function SmartDocumentImportModal({
       })
     : null;
   const riskLevel = result ? getSmartImportRiskLevel(result.confidence, result.validation?.warnings) : "ok";
-  const selectedDocLabel = DOC_TYPE_LABEL[selectedDocType] ?? selectedDocType;
+  const selectedDocLabel = DOC_TYPE_LABEL[selectedDocType] ? t(DOC_TYPE_LABEL[selectedDocType]) : selectedDocType;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -711,28 +714,26 @@ export function SmartDocumentImportModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-orange-500" />
-            {step === 1 && "Importa documento intelligente"}
-            {step === 2 && "Analisi documento in corso…"}
-            {step === 3 && "Documento riconosciuto"}
+            {step === 1 && t("Importa documento intelligente")}
+            {step === 2 && t("Analisi documento in corso…")}
+            {step === 3 && t("Documento riconosciuto")}
             {step === 4 && result && (
               <>
                 <span>{DOC_TYPE_EMOJI[result.doc_type] ?? "📄"}</span>
-                Dati estratti: {DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}
+                {t("Dati estratti: {tipo}", { tipo: DOC_TYPE_LABEL[result.doc_type] ? t(DOC_TYPE_LABEL[result.doc_type]) : result.doc_type })}
               </>
             )}
             {step === 5 && (
               <>
                 <Link2 className="h-5 w-5 text-orange-500" />
-                Collegamenti suggeriti dall'AI
+                {t("Collegamenti suggeriti dall'AI")}
               </>
             )}
           </DialogTitle>
           {/* Mobile: niente spiegazione, basta il riquadro per scegliere il file. */}
           {step === 1 && (
             <p className="text-sm text-muted-foreground max-sm:hidden">
-              Carica un PDF, una foto, un Excel o un file computo. L'AI lo classifica,
-              prova a estrarre i dati e lo porta al modulo corretto senza farti
-              ricaricare il documento.
+              {t("Carica un PDF, una foto, un Excel o un file computo. L'AI lo classifica, prova a estrarre i dati e lo porta al modulo corretto senza farti ricaricare il documento.")}
             </p>
           )}
         </DialogHeader>
@@ -777,18 +778,16 @@ export function SmartDocumentImportModal({
                 <>
                   <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3 max-sm:mb-2 max-sm:h-8 max-sm:w-8" />
                   {/* Sul telefono non si trascina: si tocca il riquadro. */}
-                  <p className="text-sm font-medium max-sm:hidden">Trascina qui un documento</p>
-                  <p className="text-sm font-medium sm:hidden">Tocca per scegliere il file</p>
-                  <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">
-                    PDF, immagine, Excel, XPWE o DCF — Max {formatBytes(MAX_SIZE)}
-                  </p>
+                  <p className="text-sm font-medium max-sm:hidden">{t("Trascina qui un documento")}</p>
+                  <p className="text-sm font-medium sm:hidden">{t("Tocca per scegliere il file")}</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">{t("PDF, immagine, Excel, XPWE o DCF — Max {MAX_SIZE}", { MAX_SIZE: formatBytes(MAX_SIZE) })}</p>
                 </>
               )}
             </div>
 
             <div className="flex justify-end">
               <Button onClick={handleStartClassify} disabled={!file} className="max-sm:w-full">
-                <Sparkles className="h-4 w-4 mr-1" /> Analizza e prepara importazione
+                <Sparkles className="h-4 w-4 mr-1" /> {t("Analizza e prepara importazione")}
               </Button>
             </div>
           </div>
@@ -824,10 +823,10 @@ export function SmartDocumentImportModal({
               <div className="text-5xl mb-2 max-sm:mb-0 max-sm:text-2xl">{DOC_TYPE_EMOJI[result.doc_type] ?? "📄"}</div>
               <div className="max-sm:min-w-0 max-sm:flex-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide max-sm:hidden">
-                Tipo documento rilevato
+                {t("Tipo documento rilevato")}
               </p>
               <p className="text-xl font-semibold text-slate-800 mt-0.5 max-sm:mt-0 max-sm:truncate max-sm:text-base">
-                {DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}
+                {DOC_TYPE_LABEL[result.doc_type] ? t(DOC_TYPE_LABEL[result.doc_type]) : result.doc_type}
               </p>
               </div>
               <div className="mt-2 flex items-center justify-center gap-2 max-sm:mt-0 max-sm:shrink-0">
@@ -841,11 +840,11 @@ export function SmartDocumentImportModal({
                         : "border-red-400 text-red-700"
                   }
                 >
-                  <span className="max-sm:hidden">Confidence: </span>{(result.confidence * 100).toFixed(0)}%
+                  <span className="max-sm:hidden">{t("Confidence:")} </span>{(result.confidence * 100).toFixed(0)}%
                 </Badge>
                 {result.parser_used && (
                   <Badge variant="secondary" className="max-sm:hidden">
-                    {result.parser_used === "router_only" ? "solo classificazione" : "parser attivo"}
+                    {result.parser_used === "router_only" ? t("solo classificazione") : t("parser attivo")}
                   </Badge>
                 )}
               </div>
@@ -856,33 +855,33 @@ export function SmartDocumentImportModal({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Conferma destinazione
+                    {t("Conferma destinazione")}
                   </p>
                   <p className="text-sm text-slate-700 max-sm:hidden">
-                    Se l'AI ha sbagliato, scegli il modulo corretto prima di proseguire.
+                    {t("Se l'AI ha sbagliato, scegli il modulo corretto prima di proseguire.")}
                   </p>
                 </div>
                 {requiresDocTypeConfirmation(result.confidence) && (
                   <Badge variant="outline" className="border-amber-400 text-amber-700 shrink-0">
-                    verifica richiesta
+                    {t("verifica richiesta")}
                   </Badge>
                 )}
               </div>
               <Select value={selectedDocType} onValueChange={setSelectedDocType}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Tipo documento" />
+                  <SelectValue placeholder={t("Tipo documento")} />
                 </SelectTrigger>
                 <SelectContent>
                   {SMART_DOC_TYPE_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {DOC_TYPE_EMOJI[option.value] ?? "📄"} {option.label}
+                      {DOC_TYPE_EMOJI[option.value] ?? "📄"} {t(option.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {!selectedMatchesAi && (
                 <p className="text-xs text-amber-700">
-                  Procedo come {selectedDocLabel}<span className="max-sm:hidden">: uso il modulo dedicato e conservo il job AI come audit</span>.
+                  {t("Procedo come {tipo}", { tipo: selectedDocLabel })}<span className="max-sm:hidden">{t(": uso il modulo dedicato e conservo il job AI come audit")}</span>.
                 </p>
               )}
             </div>
@@ -890,7 +889,7 @@ export function SmartDocumentImportModal({
             {/* Reasoning — mobile no: spiegazione, non serve per proseguire. */}
             <div className="text-sm bg-slate-50 rounded-lg p-3 max-sm:hidden">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                Perché?
+                {t("Perché?")}
               </p>
               <p className="text-slate-700 italic">{result.reasoning}</p>
             </div>
@@ -898,13 +897,13 @@ export function SmartDocumentImportModal({
             {result.validation?.warnings && result.validation.warnings.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
                 <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-1">
-                  Controlli qualità
+                  {t("Controlli qualità")}
                 </p>
                 <ul className="space-y-1 text-amber-900">
                   {result.validation.warnings.slice(0, 3).map((warning, index) => (
                     <li key={`${warning.message ?? "warning"}-${index}`}>
-                      {warning.severity === "error" ? "Errore: " : "Avviso: "}
-                      {warning.message ?? "Verifica consigliata"}
+                      {warning.severity === "error" ? `${t("Errore:")} ` : `${t("Avviso:")} `}
+                      {warning.message ?? t("Verifica consigliata")}
                     </li>
                   ))}
                 </ul>
@@ -915,7 +914,7 @@ export function SmartDocumentImportModal({
             {Object.keys(result.key_fields).length > 0 && (
               <div className="text-sm">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                  Dati estratti
+                  {t("Dati estratti")}
                 </p>
                 <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                   {Object.entries(result.key_fields).map(([k, v]) => (
@@ -932,17 +931,17 @@ export function SmartDocumentImportModal({
 
             {/* AI meta — mobile no: modello, tempi e costo sono dati tecnici. */}
             <p className="text-[10px] text-muted-foreground text-right max-sm:hidden">
-              {result.analysis_id ? `job ${result.analysis_id.slice(0, 8)} · ` : ""}
+              {result.analysis_id ? t("job {analysis_id} · ", { analysis_id: result.analysis_id.slice(0, 8) }) : ""}
               {result.ai_meta.model_used} · {(result.ai_meta.elapsed_ms / 1000).toFixed(1)}s · €{result.ai_meta.cost_billed_eur.toFixed(4)}
             </p>
 
             {/* CTA — mobile: il passo avanti riempie la riga. */}
             <div className="flex justify-between gap-2 pt-2 border-t">
               <Button variant="outline" onClick={handleClose}>
-                Chiudi
+                {t("Chiudi")}
               </Button>
               <Button onClick={handleAction} className="gap-1 max-sm:flex-1">
-                {actionPlan?.label ?? "Continua"}
+                {actionPlan?.label ?? t("Continua")}
                 {actionPlan?.kind === "redirect" && <ExternalLink className="h-4 w-4" />}
                 {actionPlan?.kind === "computo_review" && <ArrowRight className="h-4 w-4" />}
                 {actionPlan?.kind === "review_extracted" && <ArrowRight className="h-4 w-4" />}
@@ -960,7 +959,7 @@ export function SmartDocumentImportModal({
             {deepResult.summary && (
               <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-sm">
                 <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1">
-                  Sintesi
+                  {t("Sintesi")}
                 </p>
                 <p className="text-slate-700">{deepResult.summary}</p>
               </div>
@@ -969,7 +968,7 @@ export function SmartDocumentImportModal({
             {/* Warnings */}
             {deepResult.warnings && deepResult.warnings.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
-                <p className="font-semibold mb-1">⚠️ Attenzione</p>
+                <p className="font-semibold mb-1">{t("⚠️ Attenzione")}</p>
                 <ul className="list-disc list-inside space-y-0.5">
                   {deepResult.warnings.map((w, i) => (<li key={i}>{w}</li>))}
                 </ul>
@@ -979,7 +978,7 @@ export function SmartDocumentImportModal({
             {/* Dati estratti — JSON tree readable */}
             <div className="flex-1 overflow-auto border rounded-lg p-3 bg-slate-50/50">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                Dati estratti<span className="max-sm:hidden"> (JSON strutturato)</span>
+                {t("Dati estratti")}<span className="max-sm:hidden"> {t("(JSON strutturato)")}</span>
               </p>
               {renderValue(deepResult.ddt ?? deepResult.extracted ?? {})}
             </div>
@@ -989,27 +988,27 @@ export function SmartDocumentImportModal({
               <div className="text-[10px] text-muted-foreground max-sm:hidden">
                 {deepResult.ai_meta.model_used} · {(deepResult.ai_meta.elapsed_ms / 1000).toFixed(1)}s · €{deepResult.ai_meta.cost_billed_eur.toFixed(4)}
                 {deepResult.confidence != null && (
-                  <span className="ml-2">· confidence {(deepResult.confidence * 100).toFixed(0)}%</span>
+                  <span className="ml-2">{t("· confidence {valore}%", { valore: (deepResult.confidence * 100).toFixed(0) })}</span>
                 )}
               </div>
               <div className="flex gap-2 max-sm:w-full">
                 <Button variant="outline" size="sm" className="max-sm:hidden" onClick={() => {
                   const payload = JSON.stringify(deepResult.ddt ?? deepResult.extracted ?? {}, null, 2);
                   navigator.clipboard?.writeText(payload).then(
-                    () => toast.success("JSON copiato negli appunti"),
-                    () => toast.error("Copia non riuscita"),
+                    () => toast.success(t("JSON copiato negli appunti")),
+                    () => toast.error(t("Copia non riuscita")),
                   );
                 }}>
-                  Copia JSON
+                  {t("Copia JSON")}
                 </Button>
                 {linking && (
                   <div className="flex items-center text-xs text-muted-foreground gap-1">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Cerco collegamenti…
+                    {t("Cerco collegamenti…")}
                   </div>
                 )}
                 <Button onClick={handleClose} className="max-sm:flex-1">
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Fatto
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> {t("Fatto")}
                 </Button>
               </div>
             </div>
@@ -1023,12 +1022,12 @@ export function SmartDocumentImportModal({
             {linkerResult.supplier_match && (
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">
                 <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
-                  Fornitore identificato
+                  {t("Fornitore identificato")}
                 </p>
                 <p className="text-slate-800 font-medium">
                   {linkerResult.supplier_match.name}
                   <span className="ml-2 text-xs text-blue-600 max-sm:hidden">
-                    ({linkerResult.supplier_match.match_kind === "vat_exact" ? "match P.IVA esatto" : "match nome fuzzy"})
+                    ({linkerResult.supplier_match.match_kind === "vat_exact" ? t("match P.IVA esatto") : t("match nome fuzzy")})
                   </span>
                 </p>
               </div>
@@ -1039,7 +1038,7 @@ export function SmartDocumentImportModal({
             {linkerResult.best_reasoning && (
               <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-sm max-sm:hidden">
                 <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1">
-                  💡 Cosa ha capito l'AI
+                  {t("💡 Cosa ha capito l'AI")}
                 </p>
                 <p className="text-slate-700 italic">{linkerResult.best_reasoning}</p>
               </div>
@@ -1049,9 +1048,9 @@ export function SmartDocumentImportModal({
             {linkerResult.suggestions.length === 0 && (
               <div className="text-center py-5 px-4 bg-slate-50 rounded-lg space-y-3">
                 <div>
-                  <p className="text-sm text-slate-700 font-medium mb-1">Nessun collegamento trovato</p>
+                  <p className="text-sm text-slate-700 font-medium mb-1">{t("Nessun collegamento trovato")}</p>
                   <p className="text-xs text-muted-foreground">
-                    {linkerResult.message ?? "L'AI non ha trovato un OdA o entità a cui collegare questo documento."}
+                    {linkerResult.message ?? t("L'AI non ha trovato un OdA o entità a cui collegare questo documento.")}
                   </p>
                 </div>
                 {linkerResult.doc_type === "ddt" && (() => {
@@ -1068,11 +1067,11 @@ export function SmartDocumentImportModal({
                   return (
                     <div className="bg-white border border-orange-200 rounded-lg p-3 text-left">
                       <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1.5">
-                        💡 Crea il fornitore con i dati del DDT
+                        {t("💡 Crea il fornitore con i dati del DDT")}
                       </p>
                       <div className="text-xs space-y-0.5 text-slate-700 mb-2.5">
                         <p><strong>{ragSoc}</strong></p>
-                        {piva && <p>P.IVA: {piva}</p>}
+                        {piva && <p>{t("P.IVA: {piva}", { piva: String(piva ?? "") })}</p>}
                         {indirizzo && <p>{indirizzo}</p>}
                         {(comune || provincia || paese) && (
                           <p className="text-slate-500">{[comune, provincia, paese].filter(Boolean).join(", ")}</p>
@@ -1101,10 +1100,10 @@ export function SmartDocumentImportModal({
                               .select("id, name")
                               .single();
                             if (insErr) {
-                              toast.error(`Creazione fornitore: ${insErr.message}`);
+                              toast.error(t("Creazione fornitore: {message}", { message: String(insErr.message ?? "") }));
                               return;
                             }
-                            toast.success(`Fornitore "${ragSoc}" creato. Ricerco i collegamenti…`);
+                            toast.success(t("Fornitore \"{ragSoc}\" creato. Ricerco i collegamenti…", { ragSoc: String(ragSoc ?? "") }));
                             // Re-run linker per cercare di nuovo (ora con il fornitore esistente, troverà OdA se ce ne sono)
                             await runLinker(linkerResult.doc_type, ddt, result?.file);
                           } catch (e) {
@@ -1112,7 +1111,7 @@ export function SmartDocumentImportModal({
                           }
                         }}
                       >
-                        + Crea fornitore al volo
+                        {t("+ Crea fornitore al volo")}
                       </Button>
                     </div>
                   );
@@ -1123,7 +1122,7 @@ export function SmartDocumentImportModal({
                   // «/azienda/operativo/fornitori» non esiste: i fornitori stanno nelle impostazioni.
                   onClick={() => navigate(linkerResult.doc_type === "ddt" ? "/azienda/impostazioni/fornitori" : "/azienda")}
                 >
-                  Apri sezione gestione →
+                  {t("Apri sezione gestione →")}
                 </Button>
               </div>
             )}
@@ -1132,14 +1131,13 @@ export function SmartDocumentImportModal({
             {linkerResult.auto_executable && linkerResult.suggestions[0] && lastAttachId && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
                 <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-1 flex items-center gap-1">
-                  <Zap className="h-3.5 w-3.5" /> Auto-collegato
+                  <Zap className="h-3.5 w-3.5" /> {t("Auto-collegato")}
                 </p>
                 <p className="text-slate-800">
-                  Allegato a <strong>{linkerResult.suggestions[0].label}</strong> (confidence{" "}
-                  {(linkerResult.suggestions[0].scores.combined * 100).toFixed(0)}%).
+                  {t("Allegato a {label} (confidence {valore}%).", { label: linkerResult.suggestions[0].label, valore: (linkerResult.suggestions[0].scores.combined * 100).toFixed(0) })}
                 </p>
                 <Button variant="link" size="sm" onClick={undoLastAttach} className="text-red-600 px-0 h-auto">
-                  Annulla collegamento
+                  {t("Annulla collegamento")}
                 </Button>
               </div>
             )}
@@ -1148,7 +1146,7 @@ export function SmartDocumentImportModal({
             {linkerResult.suggestions.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  {linkerResult.auto_executable ? "Alternative considerate" : "Scegli a cosa allegare"}
+                  {linkerResult.auto_executable ? t("Alternative considerate") : t("Scegli a cosa allegare")}
                 </p>
                 {linkerResult.suggestions.map((s) => {
                   const isTop = s.rank === 1;
@@ -1180,14 +1178,14 @@ export function SmartDocumentImportModal({
                           </div>
                           {s.summary?.order_description ? (
                             <p className="text-xs text-slate-600 mb-1">
-                              📁 Commessa: <em>{String(s.summary.order_description)}</em>
+                              {t("📁 Commessa:")} <em>{String(s.summary.order_description)}</em>
                             </p>
                           ) : null}
                           <p className="text-xs text-muted-foreground italic max-sm:hidden">{s.reasoning}</p>
                           <div className="flex gap-3 mt-1.5 text-[10px] text-slate-500 max-sm:hidden">
-                            <span>Fornitore: {(s.scores.layer1_supplier * 100).toFixed(0)}%</span>
-                            <span>Heuristic: {(s.scores.layer2_heuristic * 100).toFixed(0)}%</span>
-                            <span>AI: {(s.scores.layer3_ai * 100).toFixed(0)}%</span>
+                            <span>{t("Fornitore: {valore}%", { valore: (s.scores.layer1_supplier * 100).toFixed(0) })}</span>
+                            <span>{t("Heuristic: {valore}%", { valore: (s.scores.layer2_heuristic * 100).toFixed(0) })}</span>
+                            <span>{t("AI: {valore}%", { valore: (s.scores.layer3_ai * 100).toFixed(0) })}</span>
                           </div>
                         </div>
                         <Button
@@ -1197,9 +1195,9 @@ export function SmartDocumentImportModal({
                           onClick={() => handleConfirmManual(s)}
                         >
                           {isAlreadyAttached ? (
-                            <><CheckCircle2 className="h-4 w-4 mr-1" /> Allegato</>
+                            <><CheckCircle2 className="h-4 w-4 mr-1" /> {t("Allegato")}</>
                           ) : (
-                            <>Allega</>
+                            <>{t("Allega")}</>
                           )}
                         </Button>
                       </div>
@@ -1212,16 +1210,16 @@ export function SmartDocumentImportModal({
             {/* Footer */}
             <div className="flex items-center justify-between border-t pt-3">
               <p className="text-[10px] text-muted-foreground max-sm:hidden">
-                Policy: soglia auto {(linkerResult.policy.auto_execute_threshold * 100).toFixed(0)}%
-                {linkerResult.policy.always_confirm && " · sempre conferma"}
+                {t("Policy: soglia auto {valore}%", { valore: (linkerResult.policy.auto_execute_threshold * 100).toFixed(0) })}
+                {linkerResult.policy.always_confirm && ` ${t("· sempre conferma")}`}
                 {linkerResult.ai_meta && ` · ${linkerResult.ai_meta.model_used} · €${linkerResult.ai_meta.cost_billed_eur.toFixed(4)}`}
               </p>
               <div className="flex gap-2 max-sm:w-full">
                 <Button variant="outline" onClick={() => setStep(4)}>
-                  ← Dati
+                  {t("← Dati")}
                 </Button>
                 <Button onClick={handleClose} className="max-sm:flex-1">
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Fatto
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> {t("Fatto")}
                 </Button>
               </div>
             </div>

@@ -2,6 +2,7 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { fmtCur } from "@/components/marketing/dashboard/utils";
 import { safeNumber } from "@/hooks/useCruscottoData";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   current: number;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export const TargetProgressBar = memo(function TargetProgressBar({ current, target, label }: Props) {
+  const t = useT();
   const pct = target > 0 ? Math.min(100, (safeNumber(current) / target) * 100) : 0;
   const reached = current >= target;
 
@@ -21,7 +23,7 @@ export const TargetProgressBar = memo(function TargetProgressBar({ current, targ
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
         <span className="text-xs text-slate-300">
-          {reached ? "Target raggiunto" : `Mancano ${fmtCur(manca)}`}
+          {reached ? t("Target raggiunto") : t("Mancano {manca}", { manca: fmtCur(manca) })}
         </span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -40,8 +42,8 @@ export const TargetProgressBar = memo(function TargetProgressBar({ current, targ
           />
         </div>
         <dl className="flex gap-5 text-[11px]">
-          <div><dt className="text-slate-400">Fatto</dt><dd className="font-semibold tabular-nums">{fmtCur(safeNumber(current))}</dd></div>
-          <div><dt className="text-slate-400">Obiettivo</dt><dd className="font-semibold tabular-nums">{fmtCur(target)}</dd></div>
+          <div><dt className="text-slate-400">{t("Fatto")}</dt><dd className="font-semibold tabular-nums">{fmtCur(safeNumber(current))}</dd></div>
+          <div><dt className="text-slate-400">{t("Obiettivo")}</dt><dd className="font-semibold tabular-nums">{fmtCur(target)}</dd></div>
         </dl>
       </div>
     </div>

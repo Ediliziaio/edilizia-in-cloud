@@ -16,22 +16,18 @@ import {
   type VarianteKPI,
 } from "@/lib/fotovoltaico/varianti";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const eur = (v: number) =>
-  new Intl.NumberFormat("it-IT", {
+  new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
-const anni = (v: number | null) =>
-  v == null
-    ? "oltre 25 anni"
-    : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })} anni`;
-
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 const lcoe = (v: number) =>
-  `${v.toLocaleString("it-IT", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/kWh`;
+  `${v.toLocaleString(intlCampo(), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/kWh`;
 
 function Kpi({
   icon: Icon,
@@ -58,6 +54,7 @@ function Kpi({
 }
 
 function VarianteCard({ v }: { v: VarianteKPI }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -69,7 +66,7 @@ function VarianteCard({ v }: { v: VarianteKPI }) {
     >
       {v.is_consigliata && (
         <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-orange-500 to-eic-amber px-2.5 py-0.5 text-[10px] font-bold text-white shadow">
-          <Check className="h-3 w-3" /> Consigliata
+          <Check className="h-3 w-3" /> {t("Consigliata")}
         </span>
       )}
 
@@ -81,23 +78,23 @@ function VarianteCard({ v }: { v: VarianteKPI }) {
       <div className="flex flex-wrap gap-1 mb-2 min-h-[18px]">
         {v.is_best_payback && (
           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 border border-emerald-200">
-            <Clock className="h-2.5 w-2.5" /> Rientro più rapido
+            <Clock className="h-2.5 w-2.5" /> {t("Rientro più rapido")}
           </span>
         )}
         {v.is_best_npv && (
           <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border border-blue-200">
-            <TrendingUp className="h-2.5 w-2.5" /> Massimo guadagno
+            <TrendingUp className="h-2.5 w-2.5" /> {t("Massimo guadagno")}
           </span>
         )}
       </div>
 
       <div className="mt-auto">
-        <Kpi icon={Wallet} label="Investimento" value={eur(v.investimento_eur)} />
-        <Kpi icon={PiggyBank} label="Risparmio 1° anno" value={`${eur(v.beneficio_lordo_anno_1_eur)}/anno`} strong />
-        <Kpi icon={Clock} label="Rientro" value={anni(v.payback_anni)} strong />
-        <Kpi icon={TrendingUp} label="Guadagno netto 25 anni" value={eur(v.beneficio_totale_eur)} />
-        <Kpi icon={Sun} label="Autoconsumo" value={pct(v.autoconsumo_pct)} />
-        <Kpi icon={Zap} label="Costo kWh prodotto" value={lcoe(v.lcoe_eur_kwh)} />
+        <Kpi icon={Wallet} label={t("Investimento")} value={eur(v.investimento_eur)} />
+        <Kpi icon={PiggyBank} label={t("Risparmio 1° anno")} value={t("{importo}/anno", { importo: eur(v.beneficio_lordo_anno_1_eur) })} strong />
+        <Kpi icon={Clock} label={t("Rientro")} value={v.payback_anni == null ? t("oltre 25 anni") : t("{n} anni", { n: v.payback_anni.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })} strong />
+        <Kpi icon={TrendingUp} label={t("Guadagno netto 25 anni")} value={eur(v.beneficio_totale_eur)} />
+        <Kpi icon={Sun} label={t("Autoconsumo")} value={pct(v.autoconsumo_pct)} />
+        <Kpi icon={Zap} label={t("Costo kWh prodotto")} value={lcoe(v.lcoe_eur_kwh)} />
       </div>
     </div>
   );
@@ -110,6 +107,7 @@ export function FvConfrontoVarianti({
   ctx: ContestoVariantiVicine | null;
   className?: string;
 }) {
+  const t = useT();
   const confronto = useMemo(() => (ctx ? costruisciConfrontoVicino(ctx) : null), [ctx]);
 
   // Serve almeno un'alternativa oltre alla base per avere senso.
@@ -120,11 +118,10 @@ export function FvConfrontoVarianti({
       <div className="mb-3">
         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
           <Sun className="h-4 w-4 text-orange-500" />
-          Confronta le soluzioni
+          {t("Confronta le soluzioni")}
         </h3>
         <p className="text-[11px] text-slate-500 mt-0.5">
-          Tre scenari a confronto: scegli quello giusto per il cliente. Evidenziata la soluzione
-          con il miglior equilibrio tra spesa e rendimento.
+          {t("Tre scenari a confronto: scegli quello giusto per il cliente. Evidenziata la soluzione con il miglior equilibrio tra spesa e rendimento.")}
         </p>
       </div>
 
@@ -135,9 +132,7 @@ export function FvConfrontoVarianti({
       </div>
 
       <p className="text-[10px] text-slate-400 mt-3 leading-snug">
-        Stima indicativa: gli scenari diversi dalla configurazione scelta usano i costi medi €/kWp
-        e €/kWh del tuo listino. Il preventivo definitivo è calcolato sui componenti reali della
-        configurazione selezionata.
+        {t("Stima indicativa: gli scenari diversi dalla configurazione scelta usano i costi medi €/kWp e €/kWh del tuo listino. Il preventivo definitivo è calcolato sui componenti reali della configurazione selezionata.")}
       </p>
     </section>
   );

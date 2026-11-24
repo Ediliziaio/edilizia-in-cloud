@@ -41,6 +41,7 @@ import {
 } from "@/lib/dashboardBuilder/hooks";
 import { toast } from "@/hooks/use-toast";
 import type { AppRole, DashboardTemplate } from "@/lib/dashboardBuilder/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─────────────────────────────────────────────────────────────────
 // Mappatura nome-icona (string dal DB) → componente Lucide
@@ -77,6 +78,7 @@ interface Props {
 }
 
 export function NewDashboardDialog({ open, onOpenChange }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const templates = useDashboardTemplates();
   const clone = useCloneTemplateToCompany();
@@ -98,14 +100,14 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
       });
       onOpenChange(false);
       toast({
-        title: "Dashboard creata",
-        description: `"${tpl.name}" è pronta — personalizzala come vuoi.`,
+        title: t("Dashboard creata"),
+        description: t("\"{name}\" è pronta — personalizzala come vuoi.", { name: String(tpl.name ?? "") }),
       });
       navigate(`/azienda/dashboards/${newId}/modifica`);
     } catch (e) {
       setChoice(null);
       toast({
-        title: "Errore nella creazione",
+        title: t("Errore nella creazione"),
         description: (e as Error).message,
         variant: "destructive",
       });
@@ -120,10 +122,9 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
       <DialogContent className="max-w-3xl p-0 overflow-hidden">
         <div className="px-6 pt-6 pb-4 border-b bg-muted/30">
           <DialogHeader className="text-left">
-            <DialogTitle className="text-xl">Nuova dashboard</DialogTitle>
+            <DialogTitle className="text-xl">{t("Nuova dashboard")}</DialogTitle>
             <DialogDescription>
-              Parti da un template predefinito — lo personalizzi dopo — oppure
-              inizia da un canvas vuoto.
+              {t("Parti da un template predefinito — lo personalizzi dopo — oppure inizia da un canvas vuoto.")}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -144,13 +145,13 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
               <Plus className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Inizia da zero</p>
+              <p className="text-sm font-semibold">{t("Inizia da zero")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Canvas vuoto: aggiungi widget dalla palette.
+                {t("Canvas vuoto: aggiungi widget dalla palette.")}
               </p>
             </div>
             <span className="text-[11px] text-muted-foreground/80 shrink-0 hidden sm:inline">
-              ⌘ Nuovo
+              {t("⌘ Nuovo")}
             </span>
           </button>
 
@@ -158,7 +159,7 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
           <div className="mt-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Template predefiniti
+                {t("Template predefiniti")}
               </p>
               {templates.isFetching && (
                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -175,13 +176,10 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
                 ))}
               </div>
             ) : templates.error ? (
-              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-                Errore nel caricamento dei template:{" "}
-                {(templates.error as Error).message}
-              </div>
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">{t("Errore nel caricamento dei template: {message}", { message: String((templates.error as Error).message ?? "") })}</div>
             ) : items.length === 0 ? (
               <div className="rounded-lg border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                Nessun template predefinito disponibile.
+                {t("Nessun template predefinito disponibile.")}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -235,7 +233,7 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
                       </div>
                       {isActive && (
                         <span className="absolute top-2 right-2 text-[10px] inline-flex items-center gap-1 text-primary">
-                          <Check className="h-3 w-3" /> Clonazione…
+                          <Check className="h-3 w-3" /> {t("Clonazione…")}
                         </span>
                       )}
                     </button>
@@ -245,16 +243,14 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
             )}
 
             <p className="text-[11px] text-muted-foreground mt-4 leading-snug">
-              I template vengono copiati nella tua area personale: puoi modificarli
-              liberamente senza alterare l'originale. Se serve condividerli con
-              l'azienda, cambia la visibilità dopo la creazione.
+              {t("I template vengono copiati nella tua area personale: puoi modificarli liberamente senza alterare l'originale. Se serve condividerli con l'azienda, cambia la visibilità dopo la creazione.")}
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 px-6 py-3 border-t bg-muted/20">
           <span className="text-[11px] text-muted-foreground">
-            {items.length > 0 && `${items.length} template disponibili`}
+            {items.length > 0 && t("{n} template disponibili", { n: items.length })}
           </span>
           <Button
             variant="ghost"
@@ -262,7 +258,7 @@ export function NewDashboardDialog({ open, onOpenChange }: Props) {
             onClick={() => onOpenChange(false)}
             disabled={isCloning}
           >
-            Annulla
+            {t("Annulla")}
           </Button>
         </div>
       </DialogContent>

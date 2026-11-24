@@ -61,6 +61,7 @@ import { FV_ARCHETIPI_LABEL, type FvArchetipo } from "@/lib/fotovoltaico/tipi";
 import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
 import { leggiDisegnoCommerciale } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 import { statoMisureFv } from "../../../../supabase/functions/_shared/fvVerificaMisure";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
   configurato: { label: "Configurato", variant: "navy" as const },
@@ -70,6 +71,7 @@ const STATI_LABEL = {
 };
 
 export default function FotovoltaicoDettaglio() {
+  const t = useT();
   const [anteprimaHtml, setAnteprimaHtml] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
@@ -146,7 +148,7 @@ export default function FotovoltaicoDettaglio() {
     return (
       <div className="flex items-center justify-center py-20 text-slate-500">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-        Caricamento progetto…
+        {t("Caricamento progetto…")}
       </div>
     );
   }
@@ -157,9 +159,9 @@ export default function FotovoltaicoDettaglio() {
         <FvCard>
           <div className="py-10 text-center space-y-3">
             <Sun className="h-12 w-12 mx-auto text-slate-400" />
-            <p className="font-semibold text-slate-900">Progetto non trovato</p>
+            <p className="font-semibold text-slate-900">{t("Progetto non trovato")}</p>
             <Button asChild variant="outline">
-              <Link to="/azienda/marketing/fotovoltaico">Torna alla lista</Link>
+              <Link to="/azienda/marketing/fotovoltaico">{t("Torna alla lista")}</Link>
             </Button>
           </div>
         </FvCard>
@@ -174,7 +176,7 @@ export default function FotovoltaicoDettaglio() {
   const formatEur = (n: number | null | undefined, frac = 0) =>
     n == null
       ? "—"
-      : `€ ${Number(n).toLocaleString("it-IT", {
+      : `€ ${Number(n).toLocaleString(intlCampo(), {
           minimumFractionDigits: frac,
           maximumFractionDigits: frac,
         })}`;
@@ -187,7 +189,7 @@ export default function FotovoltaicoDettaglio() {
     options?: { autoPrint?: boolean },
   ) => {
     if (!path) {
-      toast.error("Anteprima non ancora generata. Completa il wizard fino allo Step 8.");
+      toast.error(t("Anteprima non ancora generata. Completa il wizard fino allo Step 8."));
       return;
     }
     setScaricando(tipo);
@@ -230,17 +232,17 @@ export default function FotovoltaicoDettaglio() {
   // La stampa nativa conserva testo e grafici del documento emesso e delle schede tecniche.
   const handleScaricaPdf = async (path: string | null, tipo: string) => {
     if (!path) {
-      toast.error("Anteprima non ancora generata. Completa il wizard fino allo Step 8.");
+      toast.error(t("Anteprima non ancora generata. Completa il wizard fino allo Step 8."));
       return;
     }
     setScaricando(tipo);
-    const tid = toast.loading("Preparazione stampa…");
+    const tid = toast.loading(t("Preparazione stampa…"));
     try {
       if (progetto.stato === "firmato") {
         const file = await pdfFirmatoPreventivo({ companyId: progetto.company_id, progettoId: progetto.id, tipo: "fv" });
         if (!file) throw new Error("La copia firmata non è disponibile. Riprova senza rigenerare il documento.");
         scaricaCopiaPdf(file);
-        toast.success("Copia firmata scaricata", { id: tid });
+        toast.success(t("Copia firmata scaricata"), { id: tid });
         return;
       }
       const { data, error } = await supabase.storage
@@ -256,7 +258,7 @@ export default function FotovoltaicoDettaglio() {
       const finale = inserisciPagineSchede(html, pagineSchede);
       await stampaPreventivoNativo(finale, `Preventivo-${progetto?.numero ?? "FV"}`);
       toast.success(
-        "Nella finestra di stampa scegli “Salva come PDF”: il file sarà identico all'anteprima.",
+        t("Nella finestra di stampa scegli “Salva come PDF”: il file sarà identico all'anteprima."),
         { id: tid, duration: 7000 },
       );
     } catch (e) {
@@ -270,7 +272,7 @@ export default function FotovoltaicoDettaglio() {
   };
 
   const handleElimina = async () => {
-    if (!confirm("Annullare questo progetto?")) return;
+    if (!confirm(t("Annullare questo progetto?"))) return;
     try {
       await elimina.mutateAsync(progetto.id);
       navigate("/azienda/marketing/preventivi");
@@ -285,7 +287,7 @@ export default function FotovoltaicoDettaglio() {
   return (
     <div className="min-h-screen bg-slate-50">
       <FvAnteprimaDocumento html={anteprimaHtml} numero={progetto.numero} onClose={() => setAnteprimaHtml(null)}
-        onPrint={() => { if (anteprimaHtml) void stampaPreventivoNativo(anteprimaHtml, "Preventivo-" + progetto.numero).catch(e => toast.error(e instanceof Error ? e.message : "Stampa non disponibile")); }}
+        onPrint={() => { if (anteprimaHtml) void stampaPreventivoNativo(anteprimaHtml, "Preventivo-" + progetto.numero).catch(e => toast.error(e instanceof Error ? e.message : t("Stampa non disponibile"))); }}
         loading={scaricando !== null}/>
       <FvIntestazioneProgetto titolo={progetto.titolo} numero={progetto.numero} indirizzo={progetto.indirizzo}
         stato={<FvChip variant={stato.variant}>{stato.label}</FvChip>}
@@ -293,7 +295,7 @@ export default function FotovoltaicoDettaglio() {
               {((progettoApribile && progetto.pdf_vendita_url) || puoAnnullare || puoRichiedereFirma) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="size-11 lg:hidden" aria-label="Altre azioni progetto">
+                    <Button variant="outline" size="icon" className="size-11 lg:hidden" aria-label={t("Altre azioni progetto")}>
                       <MoreHorizontal aria-hidden="true" className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -301,19 +303,19 @@ export default function FotovoltaicoDettaglio() {
                     {progettoApribile && progetto.pdf_vendita_url && (
                       <DropdownMenuItem disabled={scaricando === "header-pdf"}
                         onSelect={() => void handleScaricaPdf(progetto.pdf_vendita_url, "header-pdf")}>
-                        <Download className="mr-2 size-4" />Scarica PDF
+                        <Download className="mr-2 size-4" />{t("Scarica PDF")}
                       </DropdownMenuItem>
                     )}
                     {puoRichiedereFirma && progettoApribile && (
                       <DropdownMenuItem asChild>
                         <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
-                          <Pencil className="mr-2 size-4" />Apri progetto
+                          <Pencil className="mr-2 size-4" />{t("Apri progetto")}
                         </Link>
                       </DropdownMenuItem>
                     )}
                     {puoAnnullare && (
                       <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleElimina()}>
-                        <Trash2 className="mr-2 size-4" />Annulla progetto
+                        <Trash2 className="mr-2 size-4" />{t("Annulla progetto")}
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -330,7 +332,7 @@ export default function FotovoltaicoDettaglio() {
                   ) : (
                     <Download className="h-4 w-4 mr-1.5" />
                   )}
-                  Scarica PDF
+                  {t("Scarica PDF")}
                 </Button>
               )}
               {progettoApribile && (
@@ -348,9 +350,9 @@ export default function FotovoltaicoDettaglio() {
                   variant="outline"
                   onClick={handleElimina}
                   className="border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 max-lg:hidden"
-                  aria-label="Annulla progetto"
+                  aria-label={t("Annulla progetto")}
                 >
-                  <Trash2 className="h-4 w-4 mr-1.5 max-sm:mr-0" /> <span className="max-sm:hidden">Annulla</span>
+                  <Trash2 className="h-4 w-4 mr-1.5 max-sm:mr-0" /> <span className="max-sm:hidden">{t("Annulla")}</span>
                 </Button>
               )}
               {puoRichiedereFirma && (
@@ -358,7 +360,7 @@ export default function FotovoltaicoDettaglio() {
                   onClick={() => setFirmaOpen(true)}
                   className="min-h-11 bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200"
                 >
-                  <FileSignature className="h-4 w-4 mr-1.5" /> Richiedi firma
+                  <FileSignature className="h-4 w-4 mr-1.5" /> {t("Richiedi firma")}
                 </Button>
               )}
               <SendSignatureDialog
@@ -397,17 +399,17 @@ export default function FotovoltaicoDettaglio() {
         {/* KPI cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:gap-2">
           <FvKpi
-            label="Potenza"
-            value={progetto.potenza_kwp != null ? Number(progetto.potenza_kwp).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+            label={t("Potenza")}
+            value={progetto.potenza_kwp != null ? Number(progetto.potenza_kwp).toLocaleString(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
             unit="kWp"
             variant="orange"
           />
           <FvKpi
-            label="Investimento"
+            label={t("Investimento")}
             value={
               // Col prezzo a corpo non ancora ricalcolato qui c'era 0 €.
               importoPreventivoFv(progetto as ImportoPreventivoFvInput) != null
-                ? Number(importoPreventivoFv(progetto as ImportoPreventivoFvInput)).toLocaleString("it-IT", {
+                ? Number(importoPreventivoFv(progetto as ImportoPreventivoFvInput)).toLocaleString(intlCampo(), {
                     minimumFractionDigits: 2, maximumFractionDigits: 2,
                   })
                 : "—"
@@ -415,16 +417,16 @@ export default function FotovoltaicoDettaglio() {
             unit="€"
           />
           <FvKpi
-            label="Payback"
+            label={t("Payback")}
             value={progetto.payback_anni ?? "—"}
             unit="anni"
             variant="green"
           />
           <FvKpi
-            label="Risparmio anno 1"
+            label={t("Risparmio anno 1")}
             value={
               progetto.risparmio_anno1 != null
-                ? Number(progetto.risparmio_anno1).toLocaleString("it-IT", {
+                ? Number(progetto.risparmio_anno1).toLocaleString(intlCampo(), {
                     minimumFractionDigits: 2, maximumFractionDigits: 2,
                   })
                 : "—"
@@ -438,7 +440,7 @@ export default function FotovoltaicoDettaglio() {
         {progetto.capienza_irpef_warning && (
           <FvCallout
             variant="error"
-            title="Capienza IRPEF da verificare"
+            title={t("Capienza IRPEF da verificare")}
             icon={<AlertTriangle className="h-4 w-4" />}
           >
             {progetto.capienza_irpef_warning}
@@ -448,26 +450,26 @@ export default function FotovoltaicoDettaglio() {
         <Tabs defaultValue="riepilogo">
           {/* Telefono: le quattro schede coi nomi corti stanno in una riga. */}
           <TabsList className="bg-white border border-slate-200 rounded-xl p-1 max-sm:grid max-sm:w-full max-sm:grid-cols-4">
-            <TabsTrigger value="riepilogo" className="max-sm:px-1 max-sm:text-xs">Riepilogo</TabsTrigger>
-            <TabsTrigger value="componenti" className="max-sm:px-1 max-sm:text-xs">Componenti<span className="max-sm:hidden"> ({componenti.length})</span></TabsTrigger>
-            <TabsTrigger value="calcolo" className="max-sm:px-1 max-sm:text-xs">Calcolo<span className="max-sm:hidden"> finanziario</span></TabsTrigger>
-            <TabsTrigger value="allegati" className="max-sm:px-1 max-sm:text-xs">Preventivo</TabsTrigger>
+            <TabsTrigger value="riepilogo" className="max-sm:px-1 max-sm:text-xs">{t("Riepilogo")}</TabsTrigger>
+            <TabsTrigger value="componenti" className="max-sm:px-1 max-sm:text-xs">{t("Componenti")}<span className="max-sm:hidden"> ({componenti.length})</span></TabsTrigger>
+            <TabsTrigger value="calcolo" className="max-sm:px-1 max-sm:text-xs">{t("Calcolo")}<span className="max-sm:hidden"> {t("finanziario")}</span></TabsTrigger>
+            <TabsTrigger value="allegati" className="max-sm:px-1 max-sm:text-xs">{t("Preventivo")}</TabsTrigger>
           </TabsList>
 
           {/* TAB Riepilogo */}
           <TabsContent value="riepilogo" className="mt-4">
             <div className="grid md:grid-cols-2 gap-4">
-              <FvCard title="Cliente e immobile">
-                <Row label="Archetipo" value={FV_ARCHETIPI_LABEL[progetto.archetipo as FvArchetipo] ?? progetto.archetipo} />
-                <Row label="Indirizzo" value={progetto.indirizzo} />
+              <FvCard title={t("Cliente e immobile")}>
+                <Row label={t("Archetipo")} value={FV_ARCHETIPI_LABEL[progetto.archetipo as FvArchetipo] ?? progetto.archetipo} />
+                <Row label={t("Indirizzo")} value={progetto.indirizzo} />
                 <Row
-                  label="Comune"
+                  label={t("Comune")}
                   value={`${progetto.comune ?? "—"} (${progetto.provincia ?? "—"})`}
                 />
-                <Row label="Tipologia" value={progetto.tipologia_immobile ?? "—"} />
-                <Row label="Prima casa" value={progetto.prima_casa ? "Sì" : "No"} />
+                <Row label={t("Tipologia")} value={progetto.tipologia_immobile ?? "—"} />
+                <Row label={t("Prima casa")} value={progetto.prima_casa ? "Sì" : "No"} />
                 <Row
-                  label="Superficie"
+                  label={t("Superficie")}
                   value={
                     progetto.superficie_immobile_mq != null
                       ? `${progetto.superficie_immobile_mq} m²`
@@ -475,31 +477,31 @@ export default function FotovoltaicoDettaglio() {
                   }
                 />
               </FvCard>
-              <FvCard title="Consumi">
+              <FvCard title={t("Consumi")}>
                 <Row
-                  label="Consumo annuo"
+                  label={t("Consumo annuo")}
                   value={
                     progetto.consumo_annuo_kwh != null
-                      ? `${progetto.consumo_annuo_kwh.toLocaleString("it-IT")} kWh`
+                      ? `${progetto.consumo_annuo_kwh.toLocaleString(intlCampo())} kWh`
                       : "—"
                   }
                 />
                 <Row
-                  label="Costo €/kWh"
+                  label={t("Costo €/kWh")}
                   value={
                     progetto.costo_kwh_attuale != null
                       ? `€ ${Number(progetto.costo_kwh_attuale).toFixed(3)}`
                       : "—"
                   }
                 />
-                <Row label="Tariffa" value={progetto.tariffa_tipo ?? "—"} />
-                <Row label="Profilo" value={progetto.profilo_consumo ?? "—"} />
+                <Row label={t("Tariffa")} value={progetto.tariffa_tipo ?? "—"} />
+                <Row label={t("Profilo")} value={progetto.profilo_consumo ?? "—"} />
                 <Row
                   label="ISEE"
                   value={progetto.isee != null ? formatEur(progetto.isee) : "—"}
                 />
                 <Row
-                  label="Reddito dichiarato"
+                  label={t("Reddito dichiarato")}
                   value={
                     progetto.reddito_annuo_dichiarato != null
                       ? formatEur(progetto.reddito_annuo_dichiarato)
@@ -507,13 +509,13 @@ export default function FotovoltaicoDettaglio() {
                   }
                 />
               </FvCard>
-              <FvCard title="Tetto e impianto">
-                <Row label="Fonte della produzione" value={progetto.fonte_dati_tetto === "pvgis" ? "PVGIS" : progetto.fonte_dati_tetto === "solar_api" ? "Google Solar" : "Stima manuale"} />
-                <Row label="Foto del tetto" value={fotoTetto ? "Google Solar" : disegnoTetto?.mappa ? "Google Maps" : "Non prevista"} />
-                {fotoTetto && <><Row label="Data della foto" value={new Date(`${fotoTetto.data}T12:00:00`).toLocaleDateString("it-IT")} /><Row label="Qualità della foto" value={`${({ HIGH: "Alta", MEDIUM: "Media", BASE: "Base" })[fotoTetto.qualita]} · ${Math.round(fotoTetto.risoluzione * 100)} cm/pixel`} /></>}
-                {verificaTetto && <Row label="Misure del tetto" value={verificaTetto.confermata ? "Confrontate con il rilievo" : "Indicative, da verificare"} />}
+              <FvCard title={t("Tetto e impianto")}>
+                <Row label={t("Fonte della produzione")} value={progetto.fonte_dati_tetto === "pvgis" ? "PVGIS" : progetto.fonte_dati_tetto === "solar_api" ? "Google Solar" : "Stima manuale"} />
+                <Row label={t("Foto del tetto")} value={fotoTetto ? "Google Solar" : disegnoTetto?.mappa ? "Google Maps" : "Non prevista"} />
+                {fotoTetto && <><Row label={t("Data della foto")} value={new Date(`${fotoTetto.data}T12:00:00`).toLocaleDateString(intlCampo())} /><Row label={t("Qualità della foto")} value={`${({ HIGH: "Alta", MEDIUM: "Media", BASE: "Base" })[fotoTetto.qualita]} · ${Math.round(fotoTetto.risoluzione * 100)} cm/pixel`} /></>}
+                {verificaTetto && <Row label={t("Misure del tetto")} value={verificaTetto.confermata ? "Confrontate con il rilievo" : "Indicative, da verificare"} />}
                 <Row
-                  label="Ore sole annue"
+                  label={t("Ore sole annue")}
                   value={
                     progetto.ore_sole_annue != null
                       ? `${progetto.ore_sole_annue} h`
@@ -521,7 +523,7 @@ export default function FotovoltaicoDettaglio() {
                   }
                 />
                 <Row
-                  label="Pannelli installati"
+                  label={t("Pannelli installati")}
                   value={
                     progetto.numero_pannelli_scelti != null
                       ? `${progetto.numero_pannelli_scelti}`
@@ -529,7 +531,7 @@ export default function FotovoltaicoDettaglio() {
                   }
                 />
                 <Row
-                  label="Accumulo"
+                  label={t("Accumulo")}
                   value={
                     progetto.con_accumulo
                       ? progetto.capacita_accumulo_kwh != null
@@ -538,43 +540,43 @@ export default function FotovoltaicoDettaglio() {
                       : "No"
                   }
                 />
-                <Row label="Wallbox" value={progetto.con_wallbox ? "Sì" : "No"} />
-                <Row label="Ottimizzatori" value={progetto.con_ottimizzatori ? "Sì" : "No"} />
+                <Row label={t("Wallbox")} value={progetto.con_wallbox ? "Sì" : "No"} />
+                <Row label={t("Ottimizzatori")} value={progetto.con_ottimizzatori ? "Sì" : "No"} />
               </FvCard>
-              <FvCard title="Risultati finanziari">
+              <FvCard title={t("Risultati finanziari")}>
                 <Row
-                  label="Produzione anno 1"
+                  label={t("Produzione anno 1")}
                   value={
                     progetto.produzione_annua_kwh != null
-                      ? `${Number(progetto.produzione_annua_kwh).toLocaleString("it-IT")} kWh`
+                      ? `${Number(progetto.produzione_annua_kwh).toLocaleString(intlCampo())} kWh`
                       : "—"
                   }
                 />
-                <Row label="Autoconsumo" value={formatPct(progetto.autoconsumo_pct)} />
-                <Row label="NPV 25 anni" value={formatEur(progetto.npv_25_anni)} />
+                <Row label={t("Autoconsumo")} value={formatPct(progetto.autoconsumo_pct)} />
+                <Row label={t("NPV 25 anni")} value={formatEur(progetto.npv_25_anni)} />
                 <Row label="IRR" value={formatPct(progetto.irr_pct, 2)} />
                 <Row
-                  label="CO₂ evitata"
+                  label={t("CO₂ evitata")}
                   value={
                     progetto.co2_evitata_25_anni_kg != null
-                      ? `${progetto.co2_evitata_25_anni_kg.toLocaleString("it-IT")} kg`
+                      ? `${progetto.co2_evitata_25_anni_kg.toLocaleString(intlCampo())} kg`
                       : "—"
                   }
                 />
                 {isAdmin && (
                   <>
                     <Row
-                      label="Costo netto"
+                      label={t("Costo netto")}
                       value={formatEur(progetto.costo_totale_netto)}
                       muted
                     />
                     <Row
-                      label="Margine €"
+                      label={t("Margine €")}
                       value={formatEur(progetto.margine_eur)}
                       muted
                     />
                     <Row
-                      label="Margine %"
+                      label={t("Margine %")}
                       value={formatPct(progetto.margine_pct)}
                       muted
                     />
@@ -592,27 +594,27 @@ export default function FotovoltaicoDettaglio() {
                   <TableHeader>
                     <TableRow className="bg-slate-50 hover:bg-slate-50">
                       <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                        Categoria
+                        {t("Categoria")}
                       </TableHead>
                       <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                        Descrizione
+                        {t("Descrizione")}
                       </TableHead>
                       <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                        Marca/Modello
+                        {t("Marca/Modello")}
                       </TableHead>
                       <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 text-right">
-                        Qta
+                        {t("Qta")}
                       </TableHead>
                       {isAdmin && (
                         <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 text-right">
-                          Netto
+                          {t("Netto")}
                         </TableHead>
                       )}
                       <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 text-right">
-                        Vendita
+                        {t("Vendita")}
                       </TableHead>
                       <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 text-right">
-                        Tot. vendita
+                        {t("Tot. vendita")}
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -623,7 +625,7 @@ export default function FotovoltaicoDettaglio() {
                           colSpan={isAdmin ? 7 : 6}
                           className="text-center py-6 text-slate-500"
                         >
-                          Nessun componente.
+                          {t("Nessun componente.")}
                         </TableCell>
                       </TableRow>
                     )}
@@ -657,7 +659,7 @@ export default function FotovoltaicoDettaglio() {
               {/* Mobile: una card per componente (niente tabella a 6-7 colonne) */}
               <div className="md:hidden space-y-2">
                 {componenti.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-slate-500">Nessun componente.</p>
+                  <p className="py-6 text-center text-sm text-slate-500">{t("Nessun componente.")}</p>
                 ) : componenti.map((c) => (
                   <div key={c.id} className="rounded-lg border border-slate-200 bg-white p-3">
                     <div className="flex items-start justify-between gap-3">
@@ -675,7 +677,7 @@ export default function FotovoltaicoDettaglio() {
                     <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
                       <span className="tabular-nums">{c.quantita ?? 1} × € {(Number(c.prezzo_unitario_vendita) || 0).toFixed(2)}</span>
                       {isAdmin && (
-                        <span className="tabular-nums">netto € {((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_netto) || 0)).toFixed(2)}</span>
+                        <span className="tabular-nums">{t("netto € {valore}", { valore: ((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_netto) || 0)).toFixed(2) })}</span>
                       )}
                     </div>
                   </div>
@@ -686,7 +688,7 @@ export default function FotovoltaicoDettaglio() {
             {(manodopera.length > 0 || servizi.length > 0) && (
               <div className="grid md:grid-cols-2 gap-4 mt-4">
                 {manodopera.length > 0 && (
-                  <FvCard title="Manodopera">
+                  <FvCard title={t("Manodopera")}>
                     {manodopera.map((m) => (
                       <div
                         key={m.id}
@@ -704,7 +706,7 @@ export default function FotovoltaicoDettaglio() {
                   </FvCard>
                 )}
                 {servizi.length > 0 && (
-                  <FvCard title="Servizi e pratiche">
+                  <FvCard title={t("Servizi e pratiche")}>
                     {servizi.map((s) => (
                       <div
                         key={s.id}
@@ -724,10 +726,10 @@ export default function FotovoltaicoDettaglio() {
 
           {/* TAB Calcolo finanziario */}
           <TabsContent value="calcolo" className="mt-4">
-            <FvCard title="Incentivi applicati">
+            <FvCard title={t("Incentivi applicati")}>
               {(progetto.incentivi_applicati ?? []).length === 0 && (
                 <p className="text-sm text-slate-500">
-                  Nessun incentivo calcolato. Ricalcola dal wizard.
+                  {t("Nessun incentivo calcolato. Ricalcola dal wizard.")}
                 </p>
               )}
               <div className="space-y-2">
@@ -740,11 +742,11 @@ export default function FotovoltaicoDettaglio() {
                       <div className="font-semibold text-slate-900">{inc.nome}</div>
                       <div className="text-xs text-slate-500 mt-0.5">
                         {inc.tipo} ·{" "}
-                        {inc.durata_anni ? `${inc.durata_anni} anni` : "una tantum"}
+                        {inc.durata_anni ? t("{durata_anni} anni", { durata_anni: String(inc.durata_anni ?? "") }) : t("una tantum")}
                       </div>
                     </div>
                     <div className="text-right text-orange-600 font-bold tabular-nums shrink-0">
-                      {inc.importo_eur != null ? formatEur(inc.importo_eur) : "Disponibile"}
+                      {inc.importo_eur != null ? formatEur(inc.importo_eur) : t("Disponibile")}
                     </div>
                   </div>
                 ))}
@@ -755,23 +757,20 @@ export default function FotovoltaicoDettaglio() {
           {/* TAB Allegati / Preventivo */}
           <TabsContent value="allegati" className="mt-4">
             {progetto.stato!=="firmato"&&<FvAllegatiTecniciPreventivo companyId={progetto.company_id} articoloIds={(componenti??[]).map(c=>(c as {articolo_id?:string|null}).articolo_id)}/>}
-            <FvCard title="Preventivo cliente professionale">
+            <FvCard title={t("Preventivo cliente professionale")}>
               {!progetto.pdf_vendita_url && (
                 <>
                   {/* Telefono: una riga al posto della spiegazione. */}
                   <p className="text-[13px] text-muted-foreground sm:hidden">
-                    Il preventivo si genera all'ultimo passo del wizard.
+                    {t("Il preventivo si genera all'ultimo passo del wizard.")}
                   </p>
                   <div className="max-sm:hidden">
                     <FvCallout
                       variant="info"
-                      title="Anteprima non ancora generata"
+                      title={t("Anteprima non ancora generata")}
                       icon={<FileText className="h-4 w-4" />}
                     >
-                      Completa il wizard fino allo Step 8 e premi "Genera ed emetti preventivo".
-                      Verrà creato un documento HTML configurabile (cover, viste tetto, componenti,
-                      produzione, flussi energetici, risparmio, costi futuri, piano economico,
-                      cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
+                      {t("Completa il wizard fino allo Step 8 e premi \"Genera ed emetti preventivo\". Verrà creato un documento HTML configurabile (cover, viste tetto, componenti, produzione, flussi energetici, risparmio, costi futuri, piano economico, cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).")}
                     </FvCallout>
                   </div>
                 </>
@@ -780,9 +779,8 @@ export default function FotovoltaicoDettaglio() {
                 <>
                   {/* Telefono: la spiegazione parla di stampa e «Salva come PDF», che lì non ci sono. */}
                   <div className="max-sm:hidden">
-                    <FvCallout variant="success" title="Preventivo pronto">
-                      <strong>Apri preventivo</strong> mostra le pagine qui nell’app, con zoom e adattamento alla larghezza.
-                      La stampa comprende anche le schede tecniche abilitate: scegli “Salva come PDF” nella finestra del browser.
+                    <FvCallout variant="success" title={t("Preventivo pronto")}>
+                      <strong>{t("Apri preventivo")}</strong> {t("mostra le pagine qui nell’app, con zoom e adattamento alla larghezza. La stampa comprende anche le schede tecniche abilitate: scegli “Salva come PDF” nella finestra del browser.")}
                     </FvCallout>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3 mt-4 max-sm:mt-0">
@@ -796,7 +794,7 @@ export default function FotovoltaicoDettaglio() {
                       ) : (
                         <FileText className="h-4 w-4 mr-2" />
                       )}
-                      Apri preventivo (anteprima)
+                      {t("Apri preventivo (anteprima)")}
                     </Button>
                     {/* Solo questo scarica davvero: `handleScarica` apre in una
                         scheda, e aprire non è scaricare — quindi resta. */}
@@ -811,7 +809,7 @@ export default function FotovoltaicoDettaglio() {
                         ) : (
                           <Download className="h-4 w-4 mr-2" />
                         )}
-                        Scarica PDF
+                        {t("Scarica PDF")}
                       </Button>
                     )}
                   </div>
@@ -819,7 +817,7 @@ export default function FotovoltaicoDettaglio() {
               )}
               {isAdmin && (progetto.pdf_tecnico_url || progetto.pdf_mobile_url) && (
                 <div className={`mt-6 pt-4 border-t border-slate-200 ${progetto.pdf_mobile_url ? "" : "max-sm:hidden"}`}>
-                  <h4 className="text-sm font-semibold text-slate-900 mb-2">Versioni alternative</h4>
+                  <h4 className="text-sm font-semibold text-slate-900 mb-2">{t("Versioni alternative")}</h4>
                   <div className="space-y-2">
                     {isAdmin && progetto.pdf_tecnico_url && (
                       <Button
@@ -834,7 +832,7 @@ export default function FotovoltaicoDettaglio() {
                         ) : (
                           <Download className="h-4 w-4 mr-2" />
                         )}
-                        Versione tecnica interna (BOM + margini)
+                        {t("Versione tecnica interna (BOM + margini)")}
                       </Button>
                     )}
                     {progetto.pdf_mobile_url && (
@@ -850,7 +848,7 @@ export default function FotovoltaicoDettaglio() {
                         ) : (
                           <Download className="h-4 w-4 mr-2" />
                         )}
-                        Versione mobile / WhatsApp
+                        {t("Versione mobile / WhatsApp")}
                       </Button>
                     )}
                   </div>

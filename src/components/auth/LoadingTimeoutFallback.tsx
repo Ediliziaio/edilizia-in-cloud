@@ -1,5 +1,6 @@
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface LoadingTimeoutFallbackProps {
   title: string;
@@ -18,6 +19,7 @@ export function LoadingTimeoutFallback({
   retryLabel = "Riprova",
   homePath = "/azienda",
 }: LoadingTimeoutFallbackProps) {
+  const t = useT();
   const handleReload = () => {
     if (onRetry) {
       onRetry();
@@ -46,7 +48,7 @@ export function LoadingTimeoutFallback({
           </Button>
           <Button variant="outline" onClick={() => { window.location.href = homePath; }}>
             <Home className="mr-2 h-4 w-4" />
-            Vai alla home
+            {t("Vai alla home")}
           </Button>
         </div>
       </div>

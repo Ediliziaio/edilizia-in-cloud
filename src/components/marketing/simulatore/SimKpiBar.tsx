@@ -24,6 +24,7 @@ import { Banknote, TrendingUp, Wallet, Receipt, CalendarClock, Percent, Layers, 
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { SimulazioneRisultato } from "@/lib/simulatore/tipi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SimKpiBarProps {
   risultato: SimulazioneRisultato;
@@ -129,7 +130,7 @@ function MetricCard({
 }
 
 function fmtPct(pct: number): string {
-  return `${(Math.round(pct * 10) / 10).toLocaleString("it-IT")}%`;
+  return `${(Math.round(pct * 10) / 10).toLocaleString(intlCampo())}%`;
 }
 
 /** Semaforo margine per la card eroe: verde ≥20%, arancio 5–20%, rosso <5%. */
@@ -140,6 +141,7 @@ function margineSemaforo(pct: number): Semaforo {
 }
 
 export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
+  const t = useT();
   const hasSpese = risultato.spese_generali > 0;
   const hasSconto = risultato.sconto_valore > 0;
   const hasProvvigioni = risultato.provvigioni_totale > 0;
@@ -151,38 +153,38 @@ export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
     <div className="space-y-2.5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 max-sm:gap-2">
         <MetricCard
-          label="Costo totale"
+          label={t("Costo totale")}
           value={formatCurrency(risultato.costo_totale)}
-          hint={hasSpese ? `+ spese ${formatCurrency(risultato.spese_generali)}` : "diretto"}
+          hint={hasSpese ? t("+ spese {spese_generali}", { spese_generali: formatCurrency(risultato.spese_generali) }) : t("diretto")}
           icon={Wallet}
           chipTone="neutral"
         />
         <MetricCard
-          label="Ricavo"
+          label={t("Ricavo")}
           value={formatCurrency(risultato.ricavo_imponibile)}
-          hint={hasSconto ? `− sconto ${formatCurrency(risultato.sconto_valore)}` : "imponibile"}
+          hint={hasSconto ? t("− sconto {sconto_valore}", { sconto_valore: formatCurrency(risultato.sconto_valore) }) : t("imponibile")}
           icon={Banknote}
           chipTone="primary"
         />
         <MetricCard
-          label="Margine"
+          label={t("Margine")}
           value={hasRicavo ? fmtPct(risultato.margine_pct) : "—"}
-          hint={hasRicavo ? formatCurrency(risultato.margine_valore) : "nessun ricavo"}
+          hint={hasRicavo ? formatCurrency(risultato.margine_valore) : t("nessun ricavo")}
           icon={TrendingUp}
           semaforo={margineSemaforoValue}
         />
         <MetricCard
-          label="Prezzo cliente"
+          label={t("Prezzo cliente")}
           value={formatCurrency(risultato.prezzo_cliente)}
-          hint={`IVA ${fmtPct(ivaRate)} inclusa`}
+          hint={t("IVA {ivaRate} inclusa", { ivaRate: fmtPct(ivaRate) })}
           icon={Receipt}
           chipTone="primary"
           highlight
         />
         <MetricCard
-          label="Rata"
+          label={t("Rata")}
           value={risultato.rata_mensile != null ? formatCurrency(risultato.rata_mensile) : "—"}
-          hint={risultato.rata_mensile != null ? "al mese" : "nessun finanziamento"}
+          hint={risultato.rata_mensile != null ? t("al mese") : t("nessun finanziamento")}
           icon={CalendarClock}
           chipTone={risultato.rata_mensile != null ? "primary" : "neutral"}
           // Telefono: senza finanziamento la rata («—») non occupa una riga da sola.
@@ -198,19 +200,19 @@ export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
           {hasSconto ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 px-2.5 py-1 tabular-nums">
               <Percent className="h-3.5 w-3.5" style={{ color: "hsl(var(--chart-5))" }} />
-              Sconto {formatCurrency(risultato.sconto_valore)}
+              {t("Sconto")} {formatCurrency(risultato.sconto_valore)}
             </span>
           ) : null}
           {hasSpese ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 px-2.5 py-1 tabular-nums">
               <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-              Spese generali {formatCurrency(risultato.spese_generali)}
+              {t("Spese generali")} {formatCurrency(risultato.spese_generali)}
             </span>
           ) : null}
           {hasProvvigioni ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 px-2.5 py-1 tabular-nums">
               <HandCoins className="h-3.5 w-3.5" style={{ color: "hsl(var(--chart-5))" }} />
-              Provvigioni {formatCurrency(risultato.provvigioni_totale)}
+              {t("Provvigioni")} {formatCurrency(risultato.provvigioni_totale)}
             </span>
           ) : null}
         </div>

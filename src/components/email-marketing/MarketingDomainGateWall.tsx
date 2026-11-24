@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Globe, ShieldCheck, TrendingUp, BadgeCheck, ArrowRight } from "lucide-react";
 import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function MarketingDomainGateWall() {
+  const t = useT();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
@@ -21,8 +23,8 @@ export function MarketingDomainGateWall() {
   if (isMobile) {
     return (
       <div className="space-y-3">
-        <h1 className="text-lg font-bold text-foreground">Email Marketing</h1>
-        <AvvisoSoloDaComputer titolo="Per inviare campagne serve il dominio email dell'azienda: si collega da computer o tablet" />
+        <h1 className="text-lg font-bold text-foreground">{t("Email Marketing")}</h1>
+        <AvvisoSoloDaComputer titolo={t("Per inviare campagne serve il dominio email dell'azienda: si collega da computer o tablet")} />
       </div>
     );
   }
@@ -36,12 +38,10 @@ export function MarketingDomainGateWall() {
 
         <div className="space-y-2">
           <h2 className="text-xl font-bold text-slate-950">
-            Collega il dominio email della tua azienda
+            {t("Collega il dominio email della tua azienda")}
           </h2>
           <p className="text-sm text-slate-600 max-w-md mx-auto">
-            Per inviare campagne di email marketing devi prima collegare e
-            verificare il tuo dominio (es. <strong>tuaazienda.it</strong>).
-            Le email partiranno a nome tuo, con il tuo brand.
+            {t("Per inviare campagne di email marketing devi prima collegare e verificare il tuo dominio")} ({t("es.")} <strong>tuaazienda.it</strong>).{" "}{t("Le email partiranno a nome tuo, con il tuo brand.")}
           </p>
         </div>
 
@@ -49,22 +49,19 @@ export function MarketingDomainGateWall() {
           <li className="flex gap-2.5 items-start">
             <BadgeCheck className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
             <span>
-              <strong>Mittente professionale</strong> — i clienti ricevono
-              email da <em>info@tuaazienda.it</em>, non da un dominio generico
+              <strong>{t("Mittente professionale")}</strong> {t("— i clienti ricevono email da")} <em>info@tuaazienda.it</em>{t(", non da un dominio generico")}
             </span>
           </li>
           <li className="flex gap-2.5 items-start">
             <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
             <span>
-              <strong>Più consegne in inbox</strong> — SPF e DKIM sul tuo
-              dominio aumentano la deliverability
+              <strong>{t("Più consegne in inbox")}</strong> {t("— SPF e DKIM sul tuo dominio aumentano la deliverability")}
             </span>
           </li>
           <li className="flex gap-2.5 items-start">
             <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
             <span>
-              <strong>Reputazione protetta</strong> — ogni azienda invia con
-              la propria reputazione, indipendente dalle altre
+              <strong>{t("Reputazione protetta")}</strong> {t("— ogni azienda invia con la propria reputazione, indipendente dalle altre")}
             </span>
           </li>
         </ul>
@@ -75,12 +72,11 @@ export function MarketingDomainGateWall() {
             className="gap-2"
             onClick={() => navigate("/azienda/impostazioni/dominio-email")}
           >
-            Configura il dominio email
+            {t("Configura il dominio email")}
             <ArrowRight className="h-4 w-4" />
           </Button>
           <p className="text-xs text-slate-500">
-            Servono ~5 minuti: aggiungi il dominio, copia i record DNS dal
-            pannello del tuo registrar (Aruba, Register, GoDaddy…) e verifica.
+            {t("Servono ~5 minuti: aggiungi il dominio, copia i record DNS dal pannello del tuo registrar (Aruba, Register, GoDaddy…) e verifica.")}
           </p>
         </div>
       </CardContent>

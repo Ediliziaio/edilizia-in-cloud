@@ -40,6 +40,7 @@ import {
   totaleCollegamenti,
   type CollegamentiContatti,
 } from "@/lib/marketing/confermaEliminazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Conteggi dei record collegati ai contatti selezionati. */
 export type ContactLinks = CollegamentiContatti;
@@ -65,6 +66,7 @@ export function DeleteContactsDialog({
   loading = false,
   onConfirm,
 }: Props) {
+  const t = useT();
   // Nessun useEffect per svuotare il campo a ogni apertura: il chiamante
   // passa una `key` che cambia a ogni richiesta di eliminazione, quindi il
   // componente si rimonta gia' pulito. Resettare con un effetto sarebbe un
@@ -80,21 +82,21 @@ export function DeleteContactsDialog({
   const richiesta = richiestaConferma(count, links);
   const serveConferma = richiesta.serve;
   const confermaValida = testoCombacia(testo, richiesta);
-  const soggetto = count === 1 ? (nome ? `"${nome}"` : "il contatto") : `${count} contatti`;
+  const soggetto = count === 1 ? (nome ? `"${nome}"` : t("il contatto")) : t("{n} contatti", { n: count });
 
   const daEliminare: string[] = [];
   const daScollegare: string[] = [];
   if (links) {
     if (links.opportunities > 0)
-      daEliminare.push(`${links.opportunities} opportunità`);
+      daEliminare.push(t("{n} opportunità", { n: links.opportunities }));
     if (links.appointments > 0)
-      daScollegare.push(`${links.appointments} appuntament${links.appointments === 1 ? "o" : "i"}`);
+      daScollegare.push(t(links.appointments === 1 ? "{n} appuntamento" : "{n} appuntamenti", { n: links.appointments }));
     if (links.quotes > 0)
-      daScollegare.push(`${links.quotes} preventiv${links.quotes === 1 ? "o" : "i"}`);
-    if (links.tasks > 0) daScollegare.push(`${links.tasks} task`);
+      daScollegare.push(t(links.quotes === 1 ? "{n} preventivo" : "{n} preventivi", { n: links.quotes }));
+    if (links.tasks > 0) daScollegare.push(t("{n} task", { n: links.tasks }));
     if ((links.progettiFv ?? 0) > 0)
       daScollegare.push(
-        `${links.progettiFv} preventiv${links.progettiFv === 1 ? "o" : "i"} fotovoltaic${links.progettiFv === 1 ? "o" : "i"}`
+        t(links.progettiFv === 1 ? "{n} preventivo fotovoltaico" : "{n} preventivi fotovoltaici", { n: links.progettiFv ?? 0 })
       );
   }
 
@@ -104,21 +106,21 @@ export function DeleteContactsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />
-            Eliminare {soggetto}?
+            {t("Eliminare {soggetto}?", { soggetto })}
           </DialogTitle>
           <DialogDescription>
             {richiesta.motivo === "quantita"
-              ? "Stai eliminando un blocco di anagrafiche. Non c'è cestino: una volta fatto non si torna indietro."
+              ? t("Stai eliminando un blocco di anagrafiche. Non c'è cestino: una volta fatto non si torna indietro.")
               : richiesta.motivo === "collegamenti"
-                ? "Ci sono record collegati. Leggi cosa succede a ciascuno prima di procedere: l'operazione non è reversibile."
-                : "L'operazione non è reversibile."}
+                ? t("Ci sono record collegati. Leggi cosa succede a ciascuno prima di procedere: l'operazione non è reversibile.")
+                : t("L'operazione non è reversibile.")}
           </DialogDescription>
         </DialogHeader>
 
         {links === null ? (
           <div className="flex items-center gap-2 py-4 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Controllo i collegamenti…
+            {t("Controllo i collegamenti…")}
           </div>
         ) : (
           <div className="space-y-3">
@@ -126,11 +128,9 @@ export function DeleteContactsDialog({
               <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3">
                 <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
                 <div className="text-sm leading-relaxed text-red-900">
-                  <p className="font-semibold">Verranno eliminate: {daEliminare.join(", ")}</p>
+                  <p className="font-semibold">{t("Verranno eliminate: {daEliminare}", { daEliminare: daEliminare.join(", ") })}</p>
                   <p className="mt-1">
-                    Un&apos;opportunità non può esistere senza il suo contatto, quindi non è
-                    possibile scollegarla. Se ti serve conservarla, annulla e sposta prima
-                    l&apos;opportunità su un altro contatto.
+                    {t("Un'opportunità non può esistere senza il suo contatto, quindi non è possibile scollegarla. Se ti serve conservarla, annulla e sposta prima l'opportunità su un altro contatto.")}
                   </p>
                 </div>
               </div>
@@ -140,11 +140,9 @@ export function DeleteContactsDialog({
               <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <Unlink className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
                 <div className="text-sm leading-relaxed text-amber-900">
-                  <p className="font-semibold">Verranno scollegati: {daScollegare.join(", ")}</p>
+                  <p className="font-semibold">{t("Verranno scollegati: {daScollegare}", { daScollegare: daScollegare.join(", ") })}</p>
                   <p className="mt-1">
-                    Restano nello storico con tutti i loro dati, perdono solo il riferimento a
-                    questo contatto. Sui preventivi fotovoltaici nome, telefono e mail del
-                    cliente restano scritti dentro il preventivo.
+                    {t("Restano nello storico con tutti i loro dati, perdono solo il riferimento a questo contatto. Sui preventivi fotovoltaici nome, telefono e mail del cliente restano scritti dentro il preventivo.")}
                   </p>
                 </div>
               </div>
@@ -152,7 +150,7 @@ export function DeleteContactsDialog({
 
             {totale === 0 && richiesta.motivo !== "quantita" && (
               <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
-                Nessun record collegato: si elimina solo l&apos;anagrafica.
+                {t("Nessun record collegato: si elimina solo l'anagrafica.")}
               </p>
             )}
 
@@ -160,13 +158,11 @@ export function DeleteContactsDialog({
               <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3">
                 <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
                 <div className="text-sm leading-relaxed text-red-900">
-                  <p className="font-semibold">
-                    {count.toLocaleString("it-IT")} anagrafiche verranno eliminate.
-                  </p>
+                  <p className="font-semibold">{t("{count} anagrafiche verranno eliminate.", { count: count.toLocaleString(intlCampo()) })}</p>
                   <p className="mt-1">
                     {totale > 0
-                      ? "Oltre a quanto elencato qui sopra."
-                      : "Nessuna di queste ha opportunità, preventivi o appuntamenti collegati — è la forma tipica di un'anagrafica importata, e resta comunque una perdita definitiva."}
+                      ? t("Oltre a quanto elencato qui sopra.")
+                      : t("Nessuna di queste ha opportunità, preventivi o appuntamenti collegati — è la forma tipica di un'anagrafica importata, e resta comunque una perdita definitiva.")}
                   </p>
                 </div>
               </div>
@@ -177,12 +173,12 @@ export function DeleteContactsDialog({
                 <Label htmlFor="conferma-eliminazione" className="text-sm font-medium">
                   {richiesta.motivo === "quantita" ? (
                     <>
-                      Per procedere scrivi quante ne stai eliminando:{" "}
+                      {t("Per procedere scrivi quante ne stai eliminando:")}{" "}
                       <span className="font-bold">{richiesta.parola}</span>
                     </>
                   ) : (
                     <>
-                      Per procedere scrivi <span className="font-bold">{richiesta.parola}</span>
+                      {t("Per procedere scrivi")} <span className="font-bold">{richiesta.parola}</span>
                     </>
                   )}
                 </Label>
@@ -206,7 +202,7 @@ export function DeleteContactsDialog({
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             variant="destructive"
@@ -216,12 +212,12 @@ export function DeleteContactsDialog({
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Eliminazione…
+                {t("Eliminazione…")}
               </>
             ) : (
               <>
                 <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Elimina definitivamente
+                {t("Elimina definitivamente")}
               </>
             )}
           </Button>

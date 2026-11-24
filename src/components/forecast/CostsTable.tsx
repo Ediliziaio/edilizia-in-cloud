@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { format, addDays, differenceInCalendarDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import {
   Plus, Check, Pencil, Trash2, Receipt, Repeat,
@@ -33,6 +32,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { COST_ID_PREFIX, RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const CATEGORY_COLORS: Record<string, string> = {
   finanziaria: "border-indigo-400 text-indigo-600 dark:text-indigo-400",
@@ -138,6 +138,7 @@ export function CostsTable({
   bulkMarkPaidPending,
   bulkMarkUnpaidPending,
 }: CostsTableProps) {
+  const t = useT();
   const todayRef = useMemo(() => startOfDay(new Date()), []);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE_COLUMNS));
 
@@ -249,11 +250,11 @@ export function CostsTable({
     const uscita = statoUscitaById?.get(cost.id);
 
     if (costoAnnullato(cost as unknown as CostoForseAnnullato)) {
-      return <Badge variant="outline" className="border-slate-400 text-slate-600">Annullato</Badge>;
+      return <Badge variant="outline" className="border-slate-400 text-slate-600">{t("Annullato")}</Badge>;
     }
 
     if (cost.is_paid) {
-      const paidLabel = cost.paid_date ? `Pagato il ${format(parseISO(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
+      const paidLabel = cost.paid_date ? t("Pagato il {data}", { data: format(parseISO(cost.paid_date), "dd/MM/yyyy", { locale: dateFnsCampo() }) }) : t("Pagato");
       return (
         <div className="flex items-center gap-1 flex-wrap">
           <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 gap-1">
@@ -275,14 +276,14 @@ export function CostsTable({
       return (
         <Badge className="gap-1 border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-300">
           <AlertTriangle className="h-3 w-3" />
-          {g === null ? "In uscita a breve" : g <= 1 ? "Esce domani" : `Esce tra ${g}gg`}
+          {g === null ? t("In uscita a breve") : g <= 1 ? t("Esce domani") : t("Esce tra {g}gg", { g: String(g ?? "") })}
         </Badge>
       );
     }
     if (uscita?.stato === "scaduta" && uscita.giorni !== null && !dueDate) {
       return (
         <Badge className="gap-1 border-red-300 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-900/30 dark:text-red-400">
-          <AlertTriangle className="h-3 w-3" /> Scaduto {Math.abs(uscita.giorni)}gg
+          <AlertTriangle className="h-3 w-3" /> {t("Scaduto {n}gg", { n: Math.abs(uscita.giorni) })}
         </Badge>
       );
     }
@@ -291,7 +292,7 @@ export function CostsTable({
       const days = differenceInCalendarDays(todayRef, dueDate);
       return (
         <Badge className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 gap-1">
-          <AlertTriangle className="h-3 w-3" /> Scaduto {days}gg
+          <AlertTriangle className="h-3 w-3" /> {t("Scaduto {n}gg", { n: days })}
         </Badge>
       );
     }
@@ -300,7 +301,7 @@ export function CostsTable({
       const days = differenceInCalendarDays(dueDate, todayRef);
       return (
         <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 gap-1">
-          <Clock className="h-3 w-3" /> In scadenza ({days}gg)
+          <Clock className="h-3 w-3" /> {t("In scadenza ({n}gg)", { n: days })}
         </Badge>
       );
     }
@@ -308,14 +309,14 @@ export function CostsTable({
     if (cost.recurrence !== "once" && dueDate && dueDate > soonRef) {
       return (
         <Badge className="bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-400 gap-1">
-          <CircleDot className="h-3 w-3" /> Previsto
+          <CircleDot className="h-3 w-3" /> {t("Previsto")}
         </Badge>
       );
     }
 
     return (
       <Badge className="bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400 gap-1">
-        Da pagare
+        {t("Da pagare")}
       </Badge>
     );
   };
@@ -325,15 +326,15 @@ export function CostsTable({
       const dueDate = parseCostDate(cost.due_date);
       if (!dueDate) return <span className="text-muted-foreground text-xs">—</span>;
       const delta = differenceInCalendarDays(parseISO(cost.paid_date), dueDate);
-      if (delta > 0) return <span className="text-red-600 font-medium text-xs">+{delta}gg</span>;
-      if (delta < 0) return <span className="text-green-600 font-medium text-xs">{delta}gg</span>;
-      return <span className="text-muted-foreground text-xs">0gg</span>;
+      if (delta > 0) return <span className="text-red-600 font-medium text-xs">{t("+{delta}gg", { delta: String(delta ?? "") })}</span>;
+      if (delta < 0) return <span className="text-green-600 font-medium text-xs">{t("{delta}gg", { delta: String(delta ?? "") })}</span>;
+      return <span className="text-muted-foreground text-xs">{t("0gg")}</span>;
     }
     if (!cost.is_paid) {
       const d = parseCostDate(cost.due_date);
       if (d && d < todayRef) {
         const days = differenceInCalendarDays(todayRef, d);
-        return <span className="text-red-600 font-semibold text-xs">+{days}gg</span>;
+        return <span className="text-red-600 font-semibold text-xs">{t("+{days}gg", { days: String(days ?? "") })}</span>;
       }
     }
     return <span className="text-muted-foreground text-xs">—</span>;
@@ -364,11 +365,11 @@ export function CostsTable({
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" className="gap-1">
               <Settings2 className="h-4 w-4" />
-              Colonne
+              {t("Colonne")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("Colonne visibili")}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {CONFIGURABLE_COLUMNS
               .filter(col => col.key !== "costType" || type === "all")
@@ -380,7 +381,7 @@ export function CostsTable({
                   onCheckedChange={() => toggleColumn(col.key)}
                   onSelect={(e) => e.preventDefault()}
                 >
-                  {col.label}
+                  {t(col.label)}
                 </DropdownMenuCheckboxItem>
               ))}
           </DropdownMenuContent>
@@ -390,14 +391,14 @@ export function CostsTable({
       {someSelected && (
         <div className="flex items-center gap-2 flex-wrap p-3 rounded-lg bg-muted border max-sm:hidden">
           <span className="text-sm font-medium">
-            {selectedIds.size} costi selezionati
+            {t("{n} costi selezionati", { n: selectedIds.size })}
             <span className="ml-1.5 tabular-nums text-muted-foreground">
-              · {formatCurrency(items
+              · {t("{importo} lordi", { importo: formatCurrency(items
                 .filter((c) => selectedIds.has(c.id))
                 .reduce((sum, c) => {
                   const rate = Number((c as any).vat_rate ?? (c as any).supplier?.vat_rate ?? 0) || 0;
                   return sum + calculateGrossFromNet(Number(c.amount) || 0, rate).grossAmount;
-                }, 0))} lordi
+                }, 0)) })}
             </span>
           </span>
           <div className="flex items-center gap-1.5 ml-auto">
@@ -407,7 +408,7 @@ export function CostsTable({
               onClick={() => onBulkMarkPaid(Array.from(selectedIds))}
               disabled={bulkMarkPaidPending}
             >
-              <Check className="h-3.5 w-3.5" /> Segna pagati
+              <Check className="h-3.5 w-3.5" /> {t("Segna pagati")}
             </Button>
             <Button
               size="sm" variant="outline"
@@ -415,13 +416,13 @@ export function CostsTable({
               onClick={() => onBulkMarkUnpaid(Array.from(selectedIds))}
               disabled={bulkMarkUnpaidPending}
             >
-              <Undo2 className="h-3.5 w-3.5" /> Segna non pagati
+              <Undo2 className="h-3.5 w-3.5" /> {t("Segna non pagati")}
             </Button>
             <Button size="sm" variant="destructive" className="gap-1" onClick={onBulkDelete}>
-              <Trash2 className="h-3.5 w-3.5" /> Elimina
+              <Trash2 className="h-3.5 w-3.5" /> {t("Elimina")}
             </Button>
             <Button size="sm" variant="ghost" className="gap-1" onClick={onClearSelection}>
-              <X className="h-3.5 w-3.5" /> Deseleziona
+              <X className="h-3.5 w-3.5" /> {t("Deseleziona")}
             </Button>
           </div>
         </div>
@@ -431,11 +432,11 @@ export function CostsTable({
         // Mobile: una riga di testo (il «+» è accanto alla ricerca).
         <div className="text-center py-12 text-muted-foreground max-sm:py-3 max-sm:text-xs">
           <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40 max-sm:hidden" />
-          <p className="mb-3 max-sm:mb-0">Nessun costo trovato</p>
+          <p className="mb-3 max-sm:mb-0">{t("Nessun costo trovato")}</p>
           {type !== "all" && !soloLettura && (
             <Button size="sm" variant="outline" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1 max-sm:hidden">
               <Plus className="h-4 w-4" />
-              Aggiungi il primo costo
+              {t("Aggiungi il primo costo")}
             </Button>
           )}
         </div>
@@ -469,23 +470,23 @@ export function CostsTable({
                       (cost as any).supplier?.name || cost.supplierName,
                       dueM && cost.due_date !== "9999-12-31" ? format(dueM, "dd/MM") : null,
                     ].filter(Boolean).join(" · ")}
-                    {ritardo ? <span className="font-medium text-red-600"> · da {ritardo} gg</span> : null}
+                    {ritardo ? <span className="font-medium text-red-600">{" "}{t("· da {ritardo} gg", { ritardo: String(ritardo ?? "") })}</span> : null}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-[13px] font-semibold leading-tight tabular-nums">{formatCurrency(grossM)}</p>
                   {cost.is_paid ? (
-                    <p className="mt-0.5 text-[11px] leading-tight text-emerald-700">Pagato</p>
+                    <p className="mt-0.5 text-[11px] leading-tight text-emerald-700">{t("Pagato")}</p>
                   ) : payable ? (
                     <button
                       type="button"
                       className="tap-compact mt-0.5 text-[11px] font-medium leading-tight text-primary"
                       onClick={(e) => { e.stopPropagation(); onMarkPaid(cost.id); }}
                     >
-                      Paga
+                      {t("Paga")}
                     </button>
                   ) : (
-                    <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{annullatoM ? "Annullato" : "Da pagare"}</p>
+                    <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{annullatoM ? t("Annullato") : t("Da pagare")}</p>
                   )}
                 </div>
               </div>
@@ -505,25 +506,25 @@ export function CostsTable({
                     riviste perché a 1024 ci stiano anche data con icona e stato. */}
                 <TableHead className="w-[5%]">
                   {!soloLettura && (
-                    <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
+                    <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label={t("Seleziona tutti")} />
                   )}
                 </TableHead>
-                <SortableTableHead column="name" label="Costo" sortConfig={costSort} onSort={toggleCostSort} className="w-[24%]" />
-                {isColVisible("origin") && <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
-                {type === "all" && isColVisible("costType") && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
-                {isColVisible("supplier") && <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%] md:max-xl:w-[10%]" />}
-                {isColVisible("category") && <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
-                {isColVisible("amount") && <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />}
+                <SortableTableHead column="name" label={t("Costo")} sortConfig={costSort} onSort={toggleCostSort} className="w-[24%]" />
+                {isColVisible("origin") && <SortableTableHead column="origin" label={t("Origine")} sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
+                {type === "all" && isColVisible("costType") && <SortableTableHead column="costType" label={t("Tipo")} sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
+                {isColVisible("supplier") && <SortableTableHead column="supplier" label={t("Fornitore")} sortConfig={costSort} onSort={toggleCostSort} className="w-[13%] md:max-xl:w-[10%]" />}
+                {isColVisible("category") && <SortableTableHead column="category" label={t("Categoria")} sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
+                {isColVisible("amount") && <SortableTableHead column="amount" label={t("Imponibile")} sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />}
                 {isColVisible("vatRate") && <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
-                {isColVisible("gross") && <SortableTableHead column="gross" label="Totale IVA inclusa" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[12%]" />}
-                {isColVisible("recurrence") && <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
-                {isColVisible("dueDate") && <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
-                {isColVisible("status") && <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
-                {isColVisible("delay") && <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
-                {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} className="w-[10%]" />}
+                {isColVisible("gross") && <SortableTableHead column="gross" label={t("Totale IVA inclusa")} sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[12%]" />}
+                {isColVisible("recurrence") && <SortableTableHead column="recurrence" label={t("Ricorrenza")} sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
+                {isColVisible("dueDate") && <SortableTableHead column="dueDate" label={t("Scadenza")} sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
+                {isColVisible("status") && <SortableTableHead column="status" label={t("Stato")} sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
+                {isColVisible("delay") && <SortableTableHead column="delay" label={t("Ritardo")} sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
+                {hasOrderCol && <SortableTableHead column="order" label={t("Ordine")} sortConfig={costSort} onSort={toggleCostSort} className="w-[10%]" />}
                 {/* Tra 768 e 1280 un po' di Fornitore passa ad Azioni: tre icone da
                     28px non stavano in 81px e si schiacciavano una sull'altra. */}
-                <TableHead className="text-right w-[11%] md:max-xl:w-[15%]">Azioni</TableHead>
+                <TableHead className="text-right w-[11%] md:max-xl:w-[15%]">{t("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -543,7 +544,7 @@ export function CostsTable({
                   <TableRow key={cost.id} className={`${isOverdue ? "bg-red-50/60 dark:bg-red-900/10" : isExpiring ? "bg-orange-50/60 dark:bg-orange-900/10" : cost.isFromOrder ? "bg-orange-50/30 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
                     <TableCell>
                       {!cost.isFromOrder && !soloLettura ? (
-                        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(cost.id)} aria-label={`Seleziona ${cost.name}`} />
+                        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(cost.id)} aria-label={t("Seleziona {name}", { name: String(cost.name ?? "") })} />
                       ) : (
                         <span className="block w-4" />
                       )}
@@ -551,26 +552,24 @@ export function CostsTable({
                     <TableCell title={cost.name}>
                       <p className={cn("truncate font-medium", annullatoRiga && "text-muted-foreground line-through")}>{cost.name}</p>
                       {annullatoRiga && (
-                        <Badge variant="outline" className="mt-0.5 border-slate-400 px-1.5 text-[10px] text-slate-600" title={(cost as unknown as CostoForseAnnullato).annullato_motivo ?? undefined}>
-                          Annullato · era {formatCurrency(importoOriginale(cost as unknown as CostoForseAnnullato))}
-                        </Badge>
+                        <Badge variant="outline" className="mt-0.5 border-slate-400 px-1.5 text-[10px] text-slate-600" title={(cost as unknown as CostoForseAnnullato).annullato_motivo ?? undefined}>{t("Annullato · era {valore}", { valore: formatCurrency(importoOriginale(cost as unknown as CostoForseAnnullato)) })}</Badge>
                       )}
                       {/* Categoria e origine vivono qui sotto: così le colonne
                           dedicate possono restare spente senza perdere nulla. */}
                       <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                        {cost.isFromOrder && <Package className="h-3 w-3 shrink-0 text-orange-500" aria-label="Dal modulo ordini" />}
-                        {cost.category || (cost.cost_type === "fixed" ? "Fisso" : "Variabile")}
+                        {cost.isFromOrder && <Package className="h-3 w-3 shrink-0 text-orange-500" aria-label={t("Dal modulo ordini")} />}
+                        {cost.category || (cost.cost_type === "fixed" ? t("Fisso") : t("Variabile"))}
                       </p>
                     </TableCell>
                     {isColVisible("origin") && (
                     <TableCell>
                       {cost.isFromOrder ? (
                         <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
-                          <Package className="h-3 w-3" /> Da modulo
+                          <Package className="h-3 w-3" /> {t("Da modulo")}
                         </Badge>
                       ) : (
                         <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 gap-1 text-[10px] px-1.5">
-                          <Pencil className="h-3 w-3" /> Manuale
+                          <Pencil className="h-3 w-3" /> {t("Manuale")}
                         </Badge>
                       )}
                     </TableCell>
@@ -578,7 +577,7 @@ export function CostsTable({
                     {type === "all" && isColVisible("costType") && (
                       <TableCell>
                         <Badge variant="outline" className={cost.cost_type === "fixed" ? "border-red-400 text-red-600" : "border-amber-400 text-amber-600"}>
-                          {cost.cost_type === "fixed" ? "Fisso" : "Variabile"}
+                          {cost.cost_type === "fixed" ? t("Fisso") : t("Variabile")}
                         </Badge>
                       </TableCell>
                     )}
@@ -609,10 +608,10 @@ export function CostsTable({
                         {vatRate > 0 && (
                           <TooltipContent>
                             <div className="text-xs space-y-0.5">
-                              <p>Imponibile: {formatCurrency(cost.amount)}</p>
-                              <p>IVA ({vatRate}%): {formatCurrency(vatAmount)}</p>
+                              <p>{t("Imponibile: {amount}", { amount: formatCurrency(cost.amount) })}</p>
+                              <p>{t("IVA ({vatRate}%): {vatAmount}", { vatRate: String(vatRate ?? ""), vatAmount: formatCurrency(vatAmount) })}</p>
                               <Separator className="my-1" />
-                              <p className="font-semibold">Totale: {formatCurrency(grossAmount)}</p>
+                              <p className="font-semibold">{t("Totale: {grossAmount}", { grossAmount: formatCurrency(grossAmount) })}</p>
                             </div>
                           </TooltipContent>
                         )}
@@ -626,7 +625,7 @@ export function CostsTable({
                           {vatRate}%
                         </Badge>
                       ) : (
-                        <span className="text-muted-foreground text-xs">Esente</span>
+                        <span className="text-muted-foreground text-xs">{t("Esente")}</span>
                       )}
                     </TableCell>
                     )}
@@ -638,8 +637,8 @@ export function CostsTable({
                         </TooltipTrigger>
                         <TooltipContent>
                           <div className="text-xs space-y-0.5">
-                            <p>Imponibile: {formatCurrency(cost.amount)}</p>
-                            <p>IVA {vatRate > 0 ? `(${vatRate}%)` : "esente"}: {formatCurrency(vatAmount)}</p>
+                            <p>{t("Imponibile: {amount}", { amount: formatCurrency(cost.amount) })}</p>
+                            <p>{vatRate > 0 ? t("IVA ({vatRate}%): {vatAmount}", { vatRate, vatAmount: formatCurrency(vatAmount) }) : t("IVA esente: {vatAmount}", { vatAmount: formatCurrency(vatAmount) })}</p>
                           </div>
                         </TooltipContent>
                       </Tooltip>
@@ -656,7 +655,7 @@ export function CostsTable({
                     {isColVisible("dueDate") && (
                     <TableCell>
                       <span className="inline-flex items-center gap-1">
-                        {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: it }) : "—"}
+                        {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : "—"}
                         {cost.recurrence !== "once" && (
                           <Repeat
                             className="h-3 w-3 text-muted-foreground"
@@ -672,7 +671,7 @@ export function CostsTable({
                       <TableCell>
                         {cost.order ? (
                           <Link to={`/azienda/ordini/${cost.order.id}`} className="text-primary hover:underline text-sm flex items-center gap-1">
-                            {cost.order.order_code || "Ordine"}
+                            {cost.order.order_code || t("Ordine")}
                             <ExternalLink className="h-3 w-3" />
                           </Link>
                         ) : (
@@ -687,52 +686,52 @@ export function CostsTable({
                             {annullatoRiga ? null : !cost.is_paid ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label={t("Segna come pagato")}>
                                     <CheckSquare className="h-3.5 w-3.5 text-green-600" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Segna come pagato</TooltipContent>
+                                <TooltipContent>{t("Segna come pagato")}</TooltipContent>
                               </Tooltip>
                             ) : (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkUnpaid(cost.id)} aria-label="Riporta a non pagato">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkUnpaid(cost.id)} aria-label={t("Riporta a non pagato")}>
                                     <Undo2 className="h-3.5 w-3.5 text-orange-600" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Riporta a non pagato</TooltipContent>
+                                <TooltipContent>{t("Riporta a non pagato")}</TooltipContent>
                               </Tooltip>
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="hidden h-7 w-7 xl:inline-flex" onClick={() => onOpenTasks(cost.id)} aria-label="Task collegate">
+                                <Button variant="ghost" size="icon" className="hidden h-7 w-7 xl:inline-flex" onClick={() => onOpenTasks(cost.id)} aria-label={t("Task collegate")}>
                                   <AlertCircle className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Task collegate</TooltipContent>
+                              <TooltipContent>{t("Task collegate")}</TooltipContent>
                             </Tooltip>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenEdit(cost)} aria-label="Modifica costo">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenEdit(cost)} aria-label={t("Modifica costo")}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Altre azioni">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t("Altre azioni")}>
                                   <MoreHorizontal className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem className="xl:hidden" onClick={() => onOpenTasks(cost.id)}>
-                                  <AlertCircle className="h-4 w-4 mr-2" /> Task collegate
+                                  <AlertCircle className="h-4 w-4 mr-2" /> {t("Task collegate")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onOpenDuplicate(cost)}>
-                                  <Copy className="h-4 w-4 mr-2" /> Duplica (+1 mese)
+                                  <Copy className="h-4 w-4 mr-2" /> {t("Duplica (+1 mese)")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(cost.id)}>
-                                  <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                                  <Trash2 className="h-4 w-4 mr-2" /> {t("Elimina")}
                                 </DropdownMenuItem>
                                 {(costNameCounts.get(cost.name) || 0) > 1 && (
                                   <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDeleteGroup(cost.name)}>
-                                    <Trash2 className="h-4 w-4 mr-2" /> Elimina tutti "{cost.name}" ({costNameCounts.get(cost.name)})
+                                    <Trash2 className="h-4 w-4 mr-2" /> {t("Elimina tutti \"{nome}\" ({n})", { nome: cost.name, n: costNameCounts.get(cost.name) ?? 0 })}
                                   </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
@@ -744,41 +743,41 @@ export function CostsTable({
                             {isSalaryRow ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className="inline-flex h-7 w-7 items-center justify-center text-slate-300" aria-label="Stipendio dal contratto">
+                                  <span className="inline-flex h-7 w-7 items-center justify-center text-slate-300" aria-label={t("Stipendio dal contratto")}>
                                     <CheckSquare className="h-3.5 w-3.5" />
                                   </span>
                                 </TooltipTrigger>
-                                <TooltipContent>Calcolato dal contratto: risulta pagato da solo a mese chiuso</TooltipContent>
+                                <TooltipContent>{t("Calcolato dal contratto: risulta pagato da solo a mese chiuso")}</TooltipContent>
                               </Tooltip>
                             ) : soloLettura ? null : !cost.is_paid ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label={t("Segna come pagato")}>
                                     <CheckSquare className="h-3.5 w-3.5 text-green-600" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Segna come pagato</TooltipContent>
+                                <TooltipContent>{t("Segna come pagato")}</TooltipContent>
                               </Tooltip>
                             ) : (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkOrderItemUnpaid(cost)} aria-label="Riporta a non pagato">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkOrderItemUnpaid(cost)} aria-label={t("Riporta a non pagato")}>
                                     <Undo2 className="h-3.5 w-3.5 text-orange-600" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Riporta a non pagato</TooltipContent>
+                                <TooltipContent>{t("Riporta a non pagato")}</TooltipContent>
                               </Tooltip>
                             )}
                             {cost.order && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild aria-label="Vai all'ordine collegato">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild aria-label={t("Vai all'ordine collegato")}>
                                     <Link to={`/azienda/ordini/${cost.order.id}`}>
                                       <ExternalLink className="h-3.5 w-3.5" />
                                     </Link>
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Vai all'ordine</TooltipContent>
+                                <TooltipContent>{t("Vai all'ordine")}</TooltipContent>
                               </Tooltip>
                             )}
                           </>
@@ -792,17 +791,15 @@ export function CostsTable({
             {items.length > 0 && (
               <TableFooter>
               <TableRow className="bg-muted/50 font-semibold">
-                  <TableCell colSpan={footerLeadingCols}>
-                    Totale ({items.length})
-                  </TableCell>
+                  <TableCell colSpan={footerLeadingCols}>{t("Totale ({n})", { n: items.length })}</TableCell>
                   {isColVisible("amount") && <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>}
                   {isColVisible("vatRate") && <TableCell className="text-right tabular-nums text-xs text-violet-600 dark:text-violet-400">{formatCurrency(footerTotals.totalVat)}</TableCell>}
                   {isColVisible("gross") && <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalGross)}</TableCell>}
                   {footerTrailingCols > 0 && (
                     <TableCell colSpan={footerTrailingCols}>
                       <div className="flex flex-col gap-0.5 text-xs">
-                        <span className="text-red-600">Da pagare (IVA inclusa): {formatCurrency(footerTotals.unpaidGross)}</span>
-                        <span className="text-green-600">Pagato (IVA inclusa): {formatCurrency(footerTotals.paidGross)}</span>
+                        <span className="text-red-600">{t("Da pagare (IVA inclusa): {unpaidGross}", { unpaidGross: formatCurrency(footerTotals.unpaidGross) })}</span>
+                        <span className="text-green-600">{t("Pagato (IVA inclusa): {paidGross}", { paidGross: formatCurrency(footerTotals.paidGross) })}</span>
                       </div>
                     </TableCell>
                   )}
@@ -828,11 +825,11 @@ export function CostsTable({
         )}
         {totalPages > 1 && (
           <div className="flex items-center justify-between sm:hidden">
-            <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Pagina precedente">
+            <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label={t("Pagina precedente")}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-xs tabular-nums text-muted-foreground">{currentPage} di {totalPages}</span>
-            <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Pagina successiva">
+            <span className="text-xs tabular-nums text-muted-foreground">{t("{currentPage} di {totalPages}", { currentPage: String(currentPage ?? ""), totalPages: String(totalPages ?? "") })}</span>
+            <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label={t("Pagina successiva")}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

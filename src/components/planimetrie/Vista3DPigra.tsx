@@ -5,14 +5,16 @@
  */
 import { forwardRef, lazy, Suspense } from "react";
 import type { Vista3DHandle, Vista3DProps } from "./Vista3D";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const Vista3D = lazy(() => import("./Vista3D"));
 
 export const Vista3DPigra = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3DPigra(props, ref) {
+  const t = useT();
   return (
     <Suspense fallback={<div role="status" className={props.anteprimaEditor
       ? "grid flex-1 place-content-center bg-muted/25 px-3 text-center text-sm text-muted-foreground"
-      : "flex h-[60vh] min-h-[320px] items-center justify-center rounded-lg border text-sm text-muted-foreground"}>Preparo il 3D…</div>}>
+      : "flex h-[60vh] min-h-[320px] items-center justify-center rounded-lg border text-sm text-muted-foreground"}>{t("Preparo il 3D…")}</div>}>
       <Vista3D ref={ref} {...props} />
     </Suspense>
   );

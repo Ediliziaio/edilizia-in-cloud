@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { DashboardWidget, ResolvedWidget } from "@/lib/dashboardBuilder/types";
 import { formatValue } from "../formatValue";
 import { widgetLabel } from "@/lib/dashboardBuilder/widgetLabels";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   widget: DashboardWidget;
@@ -26,6 +27,7 @@ function displayTitle(widget: DashboardWidget): string {
 }
 
 export function TableWidget({ widget, resolved }: Props) {
+  const t = useT();
   const cfg = widget.config ?? {};
   const title = displayTitle(widget);
   const rows = resolved?.status === "ok" ? resolved.breakdown ?? [] : [];
@@ -36,8 +38,8 @@ export function TableWidget({ widget, resolved }: Props) {
     cfg.columns && cfg.columns.length >= 2
       ? cfg.columns
       : [
-          { key: "label", label: "Categoria" },
-          { key: "value", label: "Valore" },
+          { key: "label", label: t("Categoria") },
+          { key: "value", label: t("Valore") },
         ];
   const labelCol = columns[0];
   const valueCol = columns[1];
@@ -86,7 +88,7 @@ export function TableWidget({ widget, resolved }: Props) {
               <Inbox className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Nessun dato nel periodo
+              {t("Nessun dato nel periodo")}
             </p>
           </div>
         ) : (

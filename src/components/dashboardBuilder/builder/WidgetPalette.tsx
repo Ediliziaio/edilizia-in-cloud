@@ -38,6 +38,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WidgetConfig, WidgetType } from "@/lib/dashboardBuilder/types";
 import { ALL_RECIPES, RECIPE_CATEGORIES } from "@/lib/dashboardBuilder/widgetRecipes";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PaletteItem {
   type: WidgetType;
@@ -175,6 +176,7 @@ function ItemRow({
   item: PaletteItem;
   onClick: () => void;
 }) {
+  const t = useT();
   const Icon = item.icon;
   return (
     <button
@@ -187,10 +189,10 @@ function ItemRow({
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium leading-tight truncate">
-          {item.label}
+          {t(item.label)}
         </div>
         <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-          {item.description}
+          {t(item.description)}
         </div>
       </div>
     </button>
@@ -202,6 +204,7 @@ function ItemRow({
 // ─────────────────────────────────────────────────────────────────
 
 export function WidgetPalette({ onAdd }: Props) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"templates" | "generic">("templates");
 
@@ -228,14 +231,14 @@ export function WidgetPalette({ onAdd }: Props) {
     <div className="flex flex-col h-full min-h-0">
       {/* Panel title + search */}
       <div className="px-4 pt-3 pb-2 shrink-0 space-y-2">
-        <p className="text-xs font-semibold text-foreground">Aggiungi widget</p>
+        <p className="text-xs font-semibold text-foreground">{t("Aggiungi widget")}</p>
 
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca in template e widget…"
+            placeholder={t("Cerca in template e widget…")}
             className="pl-8 h-8 text-sm pr-7"
           />
           {search && (
@@ -254,15 +257,13 @@ export function WidgetPalette({ onAdd }: Props) {
       {searchMode ? (
         <div className="flex-1 overflow-auto min-h-0 px-2 pb-4">
           {searchTotal === 0 ? (
-            <div className="py-10 text-center text-sm text-muted-foreground px-4">
-              Nessun widget trovato per "{search}"
-            </div>
+            <div className="py-10 text-center text-sm text-muted-foreground px-4">{t("Nessun widget trovato per \"{search}\"", { search: String(search ?? "") })}</div>
           ) : (
             <div className="space-y-3">
               {searchTemplates.length > 0 && (
                 <section>
                   <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> Template ({searchTemplates.length})
+                    <Sparkles className="h-3 w-3" /> {t("Template ({n})", { n: searchTemplates.length })}
                   </p>
                   <div className="space-y-0.5">
                     {searchTemplates.map((item, i) => (
@@ -274,7 +275,7 @@ export function WidgetPalette({ onAdd }: Props) {
               {searchGeneric.length > 0 && (
                 <section>
                   <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
-                    <LayoutGrid className="h-3 w-3" /> Widget generici ({searchGeneric.length})
+                    <LayoutGrid className="h-3 w-3" /> {t("Widget generici ({n})", { n: searchGeneric.length })}
                   </p>
                   <div className="space-y-0.5">
                     {searchGeneric.map((item, i) => (
@@ -296,11 +297,11 @@ export function WidgetPalette({ onAdd }: Props) {
             <TabsList className="w-full h-8 rounded-lg">
               <TabsTrigger value="templates" className="flex-1 text-xs h-6 rounded-md gap-1">
                 <Sparkles className="h-3 w-3" />
-                Template
+                {t("Template")}
               </TabsTrigger>
               <TabsTrigger value="generic" className="flex-1 text-xs h-6 rounded-md gap-1">
                 <LayoutGrid className="h-3 w-3" />
-                Generici
+                {t("Generici")}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -311,8 +312,7 @@ export function WidgetPalette({ onAdd }: Props) {
             className="flex-1 overflow-auto min-h-0 px-2 pb-4 mt-2"
           >
             <p className="px-2 pb-2 text-[11px] text-muted-foreground leading-snug">
-              Widget pre-configurati pronti all'uso. Scegli per area e
-              personalizza dopo.
+              {t("Widget pre-configurati pronti all'uso. Scegli per area e personalizza dopo.")}
             </p>
             <Accordion
               type="multiple"
@@ -322,7 +322,7 @@ export function WidgetPalette({ onAdd }: Props) {
               {RECIPE_CATEGORIES.map((cat) => (
                 <AccordionItem key={cat.id} value={cat.id} className="border-none">
                   <AccordionTrigger className="py-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:no-underline rounded-md hover:bg-accent/40 transition-colors">
-                    {cat.label}
+                    {t(cat.label)}
                     <span className="ml-auto mr-2 text-[10px] text-muted-foreground/60 font-normal normal-case tracking-normal">
                       {cat.items.length}
                     </span>
@@ -349,7 +349,7 @@ export function WidgetPalette({ onAdd }: Props) {
             className="flex-1 overflow-auto min-h-0 px-2 pb-4 mt-2"
           >
             <p className="px-2 pb-2 text-[11px] text-muted-foreground leading-snug">
-              Widget vuoti da configurare manualmente scegliendo la metrica.
+              {t("Widget vuoti da configurare manualmente scegliendo la metrica.")}
             </p>
             <Accordion
               type="multiple"
@@ -359,7 +359,7 @@ export function WidgetPalette({ onAdd }: Props) {
               {GENERIC_CATEGORIES.map((cat) => (
                 <AccordionItem key={cat.id} value={cat.id} className="border-none">
                   <AccordionTrigger className="py-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:no-underline rounded-md hover:bg-accent/40 transition-colors">
-                    {cat.label}
+                    {t(cat.label)}
                   </AccordionTrigger>
                   <AccordionContent className="pb-1 pt-0">
                     <div className="space-y-0.5">

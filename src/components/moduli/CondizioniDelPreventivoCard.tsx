@@ -29,6 +29,7 @@ import {
   condizioniRiscritte, condizioniTolteDalPdf, haTesto, puoRiscrivereLeCondizioni,
   type CondizioniDelPreventivo,
 } from "@/lib/preventivi/condizioniDelPreventivo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   progetto: CondizioniDelPreventivo | null | undefined;
@@ -42,6 +43,7 @@ interface Props {
 }
 
 export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModello, modelloAssociatoId, spenteNelModello }: Props) {
+  const t = useT();
   const permessi = usePermissions();
   const puoRiscrivere = puoRiscrivereLeCondizioni(permessi);
   const riscritte = condizioniRiscritte(progetto);
@@ -70,7 +72,7 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
   // L'anteprima mostra quello che esce davvero: il testo di questo preventivo, o quello del modello.
   const [anteprima, setAnteprima] = useState(false);
   const daMostrare: ModelloArchivio = riscritte || !dallArchivio
-    ? { id: "documento", nome: riscritte ? "Condizioni di questo preventivo" : "Condizioni", ambito: "preventivo", attivo: true, versione: 1,
+    ? { id: "documento", nome: riscritte ? t("Condizioni di questo preventivo") : t("Condizioni"), ambito: "preventivo", attivo: true, versione: 1,
         clausole: [{ titolo: "", testo: riscritte ? String(progetto?.condizioni_testo ?? "") : base }] }
     : dallArchivio;
   const salva = () => {
@@ -84,31 +86,31 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-xs font-medium">
             <FileText className="h-3.5 w-3.5 text-slate-600" aria-hidden="true" />
-            Condizioni contrattuali
+            {t("Condizioni contrattuali")}
           </p>
           <p className={cn("mt-0.5 text-xs text-muted-foreground", !spenteNelModello && !fuoriDalPdf && "max-lg:hidden")}>
             {spenteNelModello
-              ? "Disattivate nel modello."
+              ? t("Disattivate nel modello.")
               : fuoriDalPdf
-                ? "Escluse dalla copia PDF. Incluse nella firma."
+                ? t("Escluse dalla copia PDF. Incluse nella firma.")
                 : riscritte
-                  ? "Nel PDF escono le condizioni scritte per questo preventivo."
+                  ? t("Nel PDF escono le condizioni scritte per questo preventivo.")
                   : dallArchivio
-                    ? `Nel PDF esce «${dallArchivio.nome}», da Contratti e condizioni.`
-                    : "Nel PDF escono le condizioni del modello dell'azienda."}
+                    ? t("Nel PDF esce «{nome}», da Contratti e condizioni.", { nome: String(dallArchivio.nome ?? "") })
+                    : t("Nel PDF escono le condizioni del modello dell'azienda.")}
           </p>
         </div>
         {!spenteNelModello && (
           <div className="flex items-center gap-2">
             <label className="flex min-h-11 shrink-0 items-center gap-2 text-xs font-medium">
-              <span>Nel PDF</span>
+              <span>{t("Nel PDF")}</span>
               <Switch
                 checked={!fuoriDalPdf}
-                aria-label="Includi le condizioni contrattuali nel PDF"
+                aria-label={t("Includi le condizioni contrattuali nel PDF")}
                 onCheckedChange={(v) => onChange({ condizioni_nel_pdf: v ? null : false })}
               />
             </label>
-            <button type="button" aria-label="Dettagli condizioni contrattuali"
+            <button type="button" aria-label={t("Dettagli condizioni contrattuali")}
               aria-controls={dettaglioId} aria-expanded={dettagliAperti}
               className="inline-flex size-11 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 lg:hidden"
               onClick={() => setDettagliAperti((aperti) => !aperti)}>
@@ -123,42 +125,42 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
           {fuoriDalPdf && (
             <p className="flex items-start gap-1.5 rounded bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600">
               <TriangleAlert aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0" />
-              Le condizioni si includono automaticamente nel PDF da firmare.
+              {t("Le condizioni si includono automaticamente nel PDF da firmare.")}
             </p>
           )}
 
           {apertoEditor ? (
             <>
               {perPreventivi.length > 1 && (
-                <UniformSelect aria-label="Parti dalle condizioni di un altro modello" className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                <UniformSelect aria-label={t("Parti dalle condizioni di un altro modello")} className="h-8 w-full rounded-md border bg-background px-2 text-xs"
                   value="" onChange={(e) => e.target.value && partiDa(e.target.value)}>
-                  <option value="">Parti da un altro modello di «Contratti e condizioni»…</option>
+                  <option value="">{t("Parti da un altro modello di «Contratti e condizioni»…")}</option>
                   {perPreventivi.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </UniformSelect>
               )}
               <RichTextEditor value={bozza} onChange={setBozza} minHeight={220}
-                placeholder="Le condizioni di questo preventivo, scritte per questo cliente." />
+                placeholder={t("Le condizioni di questo preventivo, scritte per questo cliente.")} />
               <div className="flex flex-wrap items-center gap-1.5">
-                <Button type="button" size="sm" onClick={salva}>Salva per questo preventivo</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setApertoEditor(false)}>Annulla</Button>
-                <span className="text-[10px] text-muted-foreground">Valgono solo qui: il modello dell'azienda non cambia.</span>
+                <Button type="button" size="sm" onClick={salva}>{t("Salva per questo preventivo")}</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setApertoEditor(false)}>{t("Annulla")}</Button>
+                <span className="text-[10px] text-muted-foreground">{t("Valgono solo qui: il modello dell'azienda non cambia.")}</span>
               </div>
             </>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               {(riscritte || haTesto(base)) && (
                 <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={() => setAnteprima(true)}>
-                  <Eye className="h-3.5 w-3.5" />Anteprima
+                  <Eye className="h-3.5 w-3.5" />{t("Anteprima")}
                 </Button>
               )}
               {puoRiscrivere ? (
                 <>
                   <Button type="button" size="sm" variant="outline" onClick={apriEditor}>
-                    {riscritte ? "Modifica le condizioni di questo preventivo" : "Scrivi condizioni solo per questo preventivo"}
+                    {riscritte ? t("Modifica le condizioni di questo preventivo") : t("Scrivi condizioni solo per questo preventivo")}
                   </Button>
                   {riscritte && (
                     <Button type="button" size="sm" variant="ghost" className="gap-1 text-slate-500" onClick={() => onChange({ condizioni_testo: null })}>
-                      <RotateCcw className="h-3 w-3" />Torna a quelle del modello
+                      <RotateCcw className="h-3 w-3" />{t("Torna a quelle del modello")}
                     </Button>
                   )}
                 </>
@@ -166,8 +168,8 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
                 <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Lock aria-hidden="true" className="h-3 w-3" />
                   {riscritte
-                    ? "Queste condizioni sono state scritte per questo preventivo. Per cambiarle serve il permesso «Riscrivere le condizioni su un documento»."
-                    : "Per scrivere condizioni diverse serve il permesso «Riscrivere le condizioni su un documento»."}
+                    ? t("Queste condizioni sono state scritte per questo preventivo. Per cambiarle serve il permesso «Riscrivere le condizioni su un documento».")
+                    : t("Per scrivere condizioni diverse serve il permesso «Riscrivere le condizioni su un documento».")}
                 </p>
               )}
             </div>
@@ -182,14 +184,14 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
 
           {!riscritte && !haTesto(base) && (
             <p className="text-[11px] text-muted-foreground">
-              L'azienda non ha ancora scritto le sue condizioni: il documento usa quelle di base del tuo settore.{" "}
-              <Link to={PAGINA_CONDIZIONI} className="underline">Scrivile in Contratti e condizioni</Link> per averle su tutti i preventivi.
+              {t("L'azienda non ha ancora scritto le sue condizioni: il documento usa quelle di base del tuo settore.")}{" "}
+              <Link to={PAGINA_CONDIZIONI} className="underline">{t("Scrivile in Contratti e condizioni")}</Link> {t("per averle su tutti i preventivi.")}
             </p>
           )}
         </div>
       )}
       <AnteprimaCondizioniDialog open={anteprima} onOpenChange={setAnteprima} modello={daMostrare}
-        titolo={riscritte ? "Le condizioni di questo preventivo, come escono nel PDF" : undefined} />
+        titolo={riscritte ? t("Le condizioni di questo preventivo, come escono nel PDF") : undefined} />
     </div>
   );
 }

@@ -3,9 +3,9 @@
 // il passo delle frecce e l'etichetta; il valore resta sempre un mese (l'inizio
 // del periodo lo calcola chi consuma).
 import { addMonths, format, getQuarter, isSameMonth, isSameQuarter, isSameYear, startOfMonth } from "date-fns";
-import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type PeriodMode = "mese" | "trimestre" | "anno";
 
@@ -20,6 +20,7 @@ export function MonthPicker({
   onChange: (m: Date) => void;
   mode?: PeriodMode;
 }) {
+  const t = useT();
   const now = new Date();
   const isCurrent =
     mode === "anno" ? isSameYear(month, now)
@@ -28,7 +29,7 @@ export function MonthPicker({
   const label =
     mode === "anno" ? format(month, "yyyy")
     : mode === "trimestre" ? `${getQuarter(month)}° trim. ${format(month, "yyyy")}`
-    : format(month, "MMMM yyyy", { locale: it });
+    : format(month, "MMMM yyyy", { locale: dateFnsCampo() });
   const step = STEP[mode];
 
   return (
@@ -39,7 +40,7 @@ export function MonthPicker({
         size="icon"
         className="tap-compact h-8 w-8"
         onClick={() => onChange(startOfMonth(addMonths(month, -step)))}
-        aria-label="Periodo precedente"
+        aria-label={t("Periodo precedente")}
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
@@ -51,7 +52,7 @@ export function MonthPicker({
         size="icon"
         className="tap-compact h-8 w-8"
         onClick={() => onChange(startOfMonth(addMonths(month, step)))}
-        aria-label="Periodo successivo"
+        aria-label={t("Periodo successivo")}
       >
         <ChevronRight className="h-4 w-4" />
       </Button>
@@ -62,7 +63,7 @@ export function MonthPicker({
           className="tap-compact h-8 text-xs"
           onClick={() => onChange(startOfMonth(now))}
         >
-          Oggi
+          {t("Oggi")}
         </Button>
       )}
     </div>

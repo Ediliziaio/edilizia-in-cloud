@@ -65,6 +65,7 @@ import {
   SezioneAllegati, SezioneEmergenze, SezioneFigure, SezioneFormazione, SezioneImpresa, SezioneLavorazioni,
   SezioneLavoratori, SezioneOpera, SezionePsc, SezioneRumore, type Modifica,
 } from "@/components/sicurezza/pos/PosSezioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const AnteprimaBozzaPos = lazy(() => import("@/components/sicurezza/pos/AnteprimaBozzaPos")
   .then(m => ({ default: m.AnteprimaBozzaPos })));
@@ -107,6 +108,7 @@ const conControlliAggiornati = (base: PosContenuto): PosContenuto =>
   ({ ...base, versione_controlli: 2, versione_prodotti: 1, ...(base.procedure_psc.psc_presente ? { versione_psc: 1 as const } : {}) });
 
 export default function PosEditor() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const companyId = useEffectiveCompanyId();
   const perms = usePermissions();
@@ -133,10 +135,10 @@ export default function PosEditor() {
   if (!pos) {
     return (
       <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
-        <p className="text-sm">{error ? "Non riesco a caricare il POS." : "POS non trovato."}</p>
+        <p className="text-sm">{error ? t("Non riesco a caricare il POS.") : t("POS non trovato.")}</p>
         <div className="flex justify-center gap-2">
-          {error && <Button variant="outline" onClick={() => refetch()}>Riprova</Button>}
-          <Button asChild variant="outline"><Link to="/azienda/sicurezza-cantiere">Torna a Sicurezza cantiere</Link></Button>
+          {error && <Button variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>}
+          <Button asChild variant="outline"><Link to="/azienda/sicurezza-cantiere">{t("Torna a Sicurezza cantiere")}</Link></Button>
         </div>
       </div>
     );
@@ -146,15 +148,15 @@ export default function PosEditor() {
   if (pos.daCompilare && puoScrivere && pos.status !== "approvato" && !datiApp?.contenuto && compilazioneManuale !== identita) {
     if (fonti.isLoading || fonti.isFetching) {
       return <div role="status" className="flex flex-col items-center gap-2 py-20 text-sm text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />Recupero i dati della commessa…
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />{t("Recupero i dati della commessa…")}
       </div>;
     }
     if (fonti.isError) {
       return <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
-        <p role="alert" className="text-sm">I dati della commessa non sono disponibili per la precompilazione.</p>
+        <p role="alert" className="text-sm">{t("I dati della commessa non sono disponibili per la precompilazione.")}</p>
         <div className="flex flex-wrap justify-center gap-2">
-          <Button variant="outline" onClick={() => void fonti.refetch()}>Riprova a recuperare i dati</Button>
-          <Button variant="outline" onClick={() => setCompilazioneManuale(identita)}>Compila a mano</Button>
+          <Button variant="outline" onClick={() => void fonti.refetch()}>{t("Riprova a recuperare i dati")}</Button>
+          <Button variant="outline" onClick={() => setCompilazioneManuale(identita)}>{t("Compila a mano")}</Button>
         </div>
       </div>;
     }
@@ -181,6 +183,7 @@ interface EditorProps {
 }
 
 function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompilazione, fontiNonDisponibili, fontiInCaricamento, rileggiFonti }: EditorProps) {
+  const tr = useT();
   const schedaCommessa = useContext(ContestoSchedaCommessa);
   const location = useLocation();
   const companyId = useEffectiveCompanyId();
@@ -207,7 +210,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
   const documentiPsc = usePscCommessa(pos.company_id, pscCorrente ? pos.order_id : "");
   const pscDisponibile = !pscCorrente || !!documentiPsc.data?.some((f) => stessaFontePsc(pscCorrente, f));
   const avvio = avvioQuery.data && !pscDisponibile ? { ...avvioQuery.data, psc: null } : avvioQuery.data;
-  const erroreAvvio = avvioQuery.isError ? "Riprova a caricare la decisione del PSC in Avvio sicurezza."
+  const erroreAvvio = avvioQuery.isError ? tr("Riprova a caricare la decisione del PSC in Avvio sicurezza.")
     : errorePscAvvio(bozza.procedure_psc, avvio);
   const [iter, setIter] = useState<IterPos>(() => pos.iter);
   const [sporco, setSporco] = useState(!!precompilato || aggiornaControlli);
@@ -215,7 +218,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
   useModificheSchedaCommessa(sporco || iterSporco, salva.isPending || approva.isPending || nuovaRevisione.isPending);
   const [avvisi, setAvvisi] = useState<string[]>(() =>
     [...(precompilato && datiApp ? datiApp.contesto.avvisi : ((location.state as { avvisi?: string[] } | null)?.avvisi ?? [])),
-      ...(aggiornaControlli ? ["Controlli aggiornati proposti per questa bozza: verifica formazione, prodotti e il riferimento PSC della commessa; salva prima dell’approvazione. Lo storico approvato resta invariato."] : [])]);
+      ...(aggiornaControlli ? [tr("Controlli aggiornati proposti per questa bozza: verifica formazione, prodotti e il riferimento PSC della commessa; salva prima dell’approvazione. Lo storico approvato resta invariato.")] : [])]);
   const anteprima=useAnteprimaPos();
   const [erroreApprovazione,setErroreApprovazione]=useState<string|null>(null);
   const [mancantiServer, setMancantiServer] = useState<VoceMancante[] | null>(null);
@@ -319,7 +322,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
     if (prima) vaiAVoce(prima);
   }
 
-  const sezioniMenu: VoceMenuSezione[] = SEZIONI.map((x) => ({ id: x.id, titolo: x.titolo, mancanti: x.id === "iter" ? undefined : (perSezione.get(x.id) ?? 0) }));
+  const sezioniMenu: VoceMenuSezione[] = SEZIONI.map((x) => ({ id: x.id, titolo: tr(x.titolo), mancanti: x.id === "iter" ? undefined : (perSezione.get(x.id) ?? 0) }));
 
   const salvaOra = useCallback(async () => {
     if(salvando.current) return false;
@@ -329,12 +332,12 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       const aggiornato=await salva.mutateAsync({ contenuto: sporco ? bozza : undefined, iter: iterSporco ? iter : undefined, attesa_updated_at:versioneLetta.current });
       versioneLetta.current=aggiornato.updated_at;
       if(modifiche.current!==numeroModifiche) {
-        toast.success("Versione salvata; le nuove modifiche restano da salvare");
+        toast.success(tr("Versione salvata; le nuove modifiche restano da salvare"));
         return false;
       }
       setSporco(false);
       setIterSporco(false);
-      toast.success("POS salvato");
+      toast.success(tr("POS salvato"));
       return true;
     } catch {
       return false;
@@ -379,7 +382,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       setMancantiServer(null);
     } catch (e) {
       if (e instanceof ErrorePos && e.mancanti.length) setMancantiServer(e.mancanti);
-      else {const messaggio=e instanceof Error?e.message:"POS non approvato";setErroreApprovazione(messaggio);toast.error(messaggio);}
+      else {const messaggio=e instanceof Error?e.message:tr("POS non approvato");setErroreApprovazione(messaggio);toast.error(messaggio);}
     }
   };
 
@@ -398,7 +401,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
     setProponendo(true);
     try {
       if (sporco && !await salvaOra()) {
-        setErroreProposte("Salva la bozza prima di generare le proposte.");
+        setErroreProposte(tr("Salva la bozza prima di generare le proposte."));
         return;
       }
       const risultato = await lavorazioniAiPos(companyId, pos.id, perimetro);
@@ -407,7 +410,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       setProposte({ ...risultato, destinazioneId: conservaDestinazione ? perimetroAi.destinazioneId : undefined });
       setPerimetroAi(null);
     } catch (e) {
-      setErroreProposte(e instanceof Error ? e.message : "Proposte non arrivate. Riprova tra poco.");
+      setErroreProposte(e instanceof Error ? e.message : tr("Proposte non arrivate. Riprova tra poco."));
     } finally {
       setProponendo(false);
     }
@@ -419,7 +422,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
     setIterSporco(true);
   };
 
-  const titoloCommessa = [pos.commessa?.order_code, pos.commessa?.description].filter(Boolean).join(" — ") || "Commessa";
+  const titoloCommessa = [pos.commessa?.order_code, pos.commessa?.description].filter(Boolean).join(" — ") || tr("Commessa");
   const subappalto = bozza.impresa.ruolo === "esecutrice_subappalto";
   const conCse = avvio?.stato === "previsto" || bozza.procedure_psc.psc_presente;
   // L'invio del POS parte dal PDF approvato della revisione corrente; il CSE della commessa precompila il destinatario.
@@ -434,7 +437,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       const aggiornato = await salva.mutateAsync({ iter: nuovo, attesa_updated_at: versioneLetta.current });
       versioneLetta.current = aggiornato.updated_at;
       setIter(nuovo);
-      toast.success("Invio registrato: da oggi corrono i 15 giorni per la verifica");
+      toast.success(tr("Invio registrato: da oggi corrono i 15 giorni per la verifica"));
     } catch {
       // Il salvataggio ha già mostrato il suo errore: la data resta nella bozza della consegna, da salvare.
       setIter(nuovo); setIterSporco(true);
@@ -449,12 +452,12 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
   // Art. 101 c. 3: con una verifica negativa i lavori non possono iniziare, anche se il POS è approvato nell'app.
   const verificaNegativa = verificaIterNegativa(bozza, iter);
   const prossimo = prossimoPassoPos({ status: pos.status, contenuto: bozza, iter }, avvio);
-  const statoTesto = approvato ? (verificaNegativa ? "Approvato, verifica negativa" : prossimo ? "PDF approvato · iter da completare" : "Iter registrato") : "Bozza";
+  const statoTesto = approvato ? (verificaNegativa ? tr("Approvato, verifica negativa") : prossimo ? tr("PDF approvato · iter da completare") : tr("Iter registrato")) : tr("Bozza");
   const baseProps = { d: bozza, modifica, ro };
-  const azioneApprovazione = approva.isPending ? etichettaFasePdf(approva.fase) ?? "Approvazione…" : "Approva e prepara PDF";
+  const azioneApprovazione = approva.isPending ? etichettaFasePdf(approva.fase) ?? tr("Approvazione…") : tr("Approva e prepara PDF");
   const anteprimaBozza = anteprimaAperta && !approvato && (
     <Suspense fallback={<p role="status" className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
-      <Loader2 aria-hidden="true" className="size-4 animate-spin" /> Apro il visore PDF…
+      <Loader2 aria-hidden="true" className="size-4 animate-spin" /> {tr("Apro il visore PDF…")}
     </p>}>
       <AnteprimaBozzaPos contenuto={bozza} revisione={pos.revisione} revisioni={pos.revisioni} codiceCommessa={pos.commessa?.order_code} />
     </Suspense>
@@ -465,22 +468,22 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       {/* Su mobile la barra dei comandi usa icone per lasciare spazio al pulsante principale. */}
       <div className="rounded-2xl border bg-card p-4 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         {!schedaCommessa && <Link to="/azienda/sicurezza-cantiere" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground max-sm:hidden">
-          <ArrowLeft className="h-3.5 w-3.5" />Sicurezza cantiere
+          <ArrowLeft className="h-3.5 w-3.5" />{tr("Sicurezza cantiere")}
         </Link>}
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3 max-sm:mt-0 max-sm:flex-col max-sm:flex-nowrap max-sm:items-stretch max-sm:gap-2">
           <div className="min-w-0">
             {/* Stato e revisione stanno accanto al titolo: su telefono diventano testo semplice (niente riquadri), prima
                 da telefono non si vedeva né bozza/approvato né la revisione. Un solo elemento per breakpoint: niente testi doppi. */}
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <h1 aria-label="Piano Operativo di Sicurezza" className="text-lg font-bold sm:text-xl max-sm:leading-tight"><span aria-hidden="true" className="max-sm:hidden">Piano Operativo di Sicurezza</span><span aria-hidden="true" className="sm:hidden">POS</span></h1>
+              <h1 aria-label={tr("Piano Operativo di Sicurezza")} className="text-lg font-bold sm:text-xl max-sm:leading-tight"><span aria-hidden="true" className="max-sm:hidden">{tr("Piano Operativo di Sicurezza")}</span><span aria-hidden="true" className="sm:hidden">POS</span></h1>
               <Badge variant="outline" className={`${approvato ? (verificaNegativa ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700") : "border-slate-200 bg-slate-50"} max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:text-xs ${approvato ? (verificaNegativa ? "max-sm:text-red-700" : "max-sm:text-emerald-700") : "max-sm:text-amber-700"}`}>
                 {statoTesto}
               </Badge>
-              <Badge variant="outline" className="max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:text-xs max-sm:font-semibold max-sm:text-muted-foreground max-sm:before:mr-2 max-sm:before:content-['·']">Rev. {pos.revisione}</Badge>
+              <Badge variant="outline" className="max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:text-xs max-sm:font-semibold max-sm:text-muted-foreground max-sm:before:mr-2 max-sm:before:content-['·']">{tr("Rev. {revisione}", { revisione: pos.revisione })}</Badge>
             </div>
             <p className="truncate text-sm text-muted-foreground max-sm:text-xs">{titoloCommessa}</p>
             {approvato && pos.approvato_da_nome && (
-              <p className="mt-1 truncate text-xs text-muted-foreground">da {pos.approvato_da_nome}{pos.approvato_il ? ` il ${dataIt(pos.approvato_il)}` : ""}</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{pos.approvato_il ? tr("da {nome} il {data}", { nome: pos.approvato_da_nome, data: dataIt(pos.approvato_il) }) : tr("da {nome}", { nome: pos.approvato_da_nome })}</p>
             )}
           </div>
           {riusoAperto && <RiusoPosDialog pos={pos} onClose={()=>setRiusoAperto(false)}/>}
@@ -488,28 +491,28 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
               «Approva» usciva dallo schermo e non si raggiungeva). */}
           <div className="flex flex-wrap gap-2 empty:hidden">
             {puoScrivere && !pos.daCompilare && (
-              <Button variant="outline" aria-label="Riutilizza POS" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" disabled={sporco||iterSporco||salva.isPending} title={sporco||iterSporco ? "Salva le modifiche prima di riutilizzare il POS" : "Duplica POS o salva modello aziendale"} onClick={()=>setRiusoAperto(true)}>
-                <Copy className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">Riutilizza POS</span>
+              <Button variant="outline" aria-label={tr("Riutilizza POS")} className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" disabled={sporco||iterSporco||salva.isPending} title={sporco||iterSporco ? tr("Salva le modifiche prima di riutilizzare il POS") : tr("Duplica POS o salva modello aziendale")} onClick={()=>setRiusoAperto(true)}>
+                <Copy className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">{tr("Riutilizza POS")}</span>
               </Button>
             )}
             {!approvato && <Button ref={pulsanteAnteprima} type="button" variant={anteprimaAffiancata ? "secondary" : "outline"}
-              aria-label={anteprimaAperta ? "Chiudi anteprima PDF dal vivo" : "Anteprima PDF dal vivo"}
-              aria-expanded={anteprimaAperta} title="Guarda il PDF mentre compili la bozza"
+              aria-label={anteprimaAperta ? tr("Chiudi anteprima PDF dal vivo") : tr("Anteprima PDF dal vivo")}
+              aria-expanded={anteprimaAperta} title={tr("Guarda il PDF mentre compili la bozza")}
               className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" onClick={() => setAnteprimaAperta(v => !v)}>
               <Eye className="size-4 sm:mr-1" aria-hidden="true" />
-              <span className="max-sm:hidden">{anteprimaAperta ? "Chiudi anteprima PDF" : "Anteprima PDF dal vivo"}</span>
+              <span className="max-sm:hidden">{anteprimaAperta ? tr("Chiudi anteprima PDF") : tr("Anteprima PDF dal vivo")}</span>
             </Button>}
             <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0"
-              aria-label={anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "PDF dalla versione salvata"}
+              aria-label={anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? tr("Preparazione…") : tr("PDF dalla versione salvata")}
               disabled={anteprima.inCorso || sporco || iterSporco || salva.isPending}
-              title={sporco || iterSporco ? "Salva le modifiche prima di preparare l’anteprima" : "Anteprima del PDF con filigrana BOZZA"}
+              title={sporco || iterSporco ? tr("Salva le modifiche prima di preparare l’anteprima") : tr("Anteprima del PDF con filigrana BOZZA")}
               onClick={() => void anteprima.apri(pos.company_id, pos.id)}>
               {anteprima.inCorso ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1" aria-hidden /> : <FileDown className="h-4 w-4 sm:mr-1" aria-hidden />}
-              <span className="max-sm:hidden">{anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "PDF dalla versione salvata"}</span>
+              <span className="max-sm:hidden">{anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? tr("Preparazione…") : tr("PDF dalla versione salvata")}</span>
             </Button>
             <AnnullaPdf fase={anteprima.fase} onAnnulla={anteprima.annulla} />
             {!ro && (
-              <Button variant="outline" size="icon" aria-label="Confronta dati dell’app" title="Confronta con i dati aggiornati dell’app"
+              <Button variant="outline" size="icon" aria-label={tr("Confronta dati dell’app")} title={tr("Confronta con i dati aggiornati dell’app")}
                 className="tap-compact shrink-0" onClick={() => setAggiornaAperto(true)}>
                 <RefreshCw className="size-4" aria-hidden="true" />
               </Button>
@@ -519,7 +522,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
                 aria-label={azioneApprovazione} className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-2">
                 {approva.isPending ? <Loader2 className="size-4 animate-spin sm:mr-1" /> : <ShieldCheck className="size-4 sm:mr-1" />}
                 <span className="max-sm:hidden">{azioneApprovazione}</span>
-                <span className="sm:hidden">{approva.isPending ? "In corso…" : "Approva"}</span>
+                <span className="sm:hidden">{approva.isPending ? tr("In corso…") : tr("Approva")}</span>
               </Button>
             )}
             {puoScrivere && !approvato && (
@@ -530,9 +533,9 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
             )}
             {puoScrivere && approvato && (
               <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3" disabled={iterSporco || salva.isPending}
-                title={iterSporco ? "Salva prima le date di firma e consegna: con la nuova revisione ripartono da capo" : undefined}
+                title={iterSporco ? tr("Salva prima le date di firma e consegna: con la nuova revisione ripartono da capo") : undefined}
                 onClick={() => { setDescrRevisione(""); setRevisioneAperta(true); }}>
-                <RotateCcw className="mr-1 h-4 w-4" />Nuova revisione
+                <RotateCcw className="mr-1 h-4 w-4" />{tr("Nuova revisione")}
               </Button>
             )}
           </div>
@@ -540,49 +543,49 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
 
         <div className="mt-4 space-y-1.5 max-lg:hidden">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium">Contenuti minimi dell'Allegato XV</span>
+            <span className="font-medium">{tr("Contenuti minimi dell'Allegato XV")}</span>
             {mancanti.length ? (
               <button type="button" className="font-medium text-amber-800 underline-offset-2 hover:underline" onClick={() => setMancantiServer(mancanti)}>
-                {mancanti.length === 1 ? "Manca 1 voce" : `Mancano ${mancanti.length} voci`}
+                {mancanti.length === 1 ? tr("Manca 1 voce") : tr("Mancano {n} voci", { n: mancanti.length })}
               </button>
             ) : (
-              <span className="inline-flex items-center gap-1 font-medium text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />Tutti presenti</span>
+              <span className="inline-flex items-center gap-1 font-medium text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />{tr("Tutti presenti")}</span>
             )}
           </div>
-          <Progress value={percento} className="h-2" aria-label={`Completezza ${percento}%`} />
+          <Progress value={percento} className="h-2" aria-label={tr("Completezza {percento}%", { percento })} />
         </div>
 
         {approvato && (
           <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800 max-sm:hidden">
-            Il POS approvato si legge soltanto. Per cambiarlo apri una nuova revisione: torna in bozza e va riapprovato. L'approvazione nell'app non sostituisce le firme sul documento.
+            {tr("Il POS approvato si legge soltanto. Per cambiarlo apri una nuova revisione: torna in bozza e va riapprovato. L'approvazione nell'app non sostituisce le firme sul documento.")}
           </p>
         )}
-        {!puoScrivere && <p className="mt-3 text-xs text-muted-foreground">Sei in sola lettura.</p>}
+        {!puoScrivere && <p className="mt-3 text-xs text-muted-foreground">{tr("Sei in sola lettura.")}</p>}
       </div>
 
       {guidaAttiva && !ro ? (
-        <div role="region" aria-label="Compilazione guidata del POS" className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background/95 p-2 backdrop-blur">
+        <div role="region" aria-label={tr("Compilazione guidata del POS")} className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background/95 p-2 backdrop-blur">
           <div className="min-w-0 text-sm" aria-live="polite">
-            <p className="font-medium">{vociGuida.length ? `${vociGuida.length} ${vociGuida.length === 1 ? "voce da completare" : "voci da completare"}` : "Controlli completati"}</p>
+            <p className="font-medium">{vociGuida.length ? tr(vociGuida.length === 1 ? "{n} voce da completare" : "{n} voci da completare", { n: vociGuida.length }) : tr("Controlli completati")}</p>
             {indiceGuida >= 0 && <p className="max-w-lg truncate text-xs text-muted-foreground max-sm:max-w-[calc(100vw-5rem)]">{vociGuida[indiceGuida].testo}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {prossimaVoce ? <>
-              <Button type="button" size="sm" onClick={() => vaiAVoce(prossimaVoce)}>Prossima voce <ArrowRight className="size-4" aria-hidden /></Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setMancantiServer(vociGuida)}>Elenco</Button>
-            </> : <Button type="button" size="sm" onClick={() => void approvaOra()} disabled={approva.isPending || salva.isPending || proponendo}>Approva e genera PDF</Button>}
-            <Button type="button" size="sm" variant="ghost" aria-label="Esci dalla compilazione guidata" onClick={() => setGuidaAttiva(false)}>Esci</Button>
+              <Button type="button" size="sm" onClick={() => vaiAVoce(prossimaVoce)}>{tr("Prossima voce")} <ArrowRight className="size-4" aria-hidden /></Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setMancantiServer(vociGuida)}>{tr("Elenco")}</Button>
+            </> : <Button type="button" size="sm" onClick={() => void approvaOra()} disabled={approva.isPending || salva.isPending || proponendo}>{tr("Approva e genera PDF")}</Button>}
+            <Button type="button" size="sm" variant="ghost" aria-label={tr("Esci dalla compilazione guidata")} onClick={() => setGuidaAttiva(false)}>{tr("Esci")}</Button>
           </div>
         </div>
       ) : <>
         {!ro && !!vociGuida.length && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
           <div className="min-w-0">
-            <p className="text-sm font-semibold">Compila il POS</p>
-            <p className="text-xs text-muted-foreground">Recupera dati e testi già disponibili, poi verifica la bozza.</p>
+            <p className="text-sm font-semibold">{tr("Compila il POS")}</p>
+            <p className="text-xs text-muted-foreground">{tr("Recupera dati e testi già disponibili, poi verifica la bozza.")}</p>
           </div>
           <Dialog open={preparazioneAperta} onOpenChange={setPreparazioneAperta}>
             <DialogTrigger asChild>
-              <Button type="button" size="sm">Prepara la bozza POS <ArrowRight className="size-4" aria-hidden="true" /></Button>
+              <Button type="button" size="sm">{tr("Prepara la bozza POS")} <ArrowRight className="size-4" aria-hidden="true" /></Button>
             </DialogTrigger>
             {preparazioneAperta && <PreparaBozzaPos bozza={bozza} fonte={datiApp?.contenuto} companyId={pos.company_id} orderId={pos.order_id}
               fontiInCaricamento={fontiInCaricamento} fontiNonDisponibili={fontiNonDisponibili} rileggiFonti={rileggiFonti}
@@ -604,12 +607,12 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
           onComprimiComplete={() => sezioniApertura.comprimiComplete((id) => perSezione.get(id) ?? 0)} onEspandiTutto={sezioniApertura.espandiTutto} />
       </>}
 
-      {erroreApprovazione&&<div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"><p className="font-medium">POS non approvato</p><p>{erroreApprovazione}</p></div>}
+      {erroreApprovazione&&<div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"><p className="font-medium">{tr("POS non approvato")}</p><p>{erroreApprovazione}</p></div>}
 
       {!ro && fontiNonDisponibili && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          <p>Le fonti aggiornate della commessa non sono disponibili.</p>
-          <Button size="sm" variant="outline" onClick={() => setAggiornaAperto(true)}>Rileggi le fonti</Button>
+          <p>{tr("Le fonti aggiornate della commessa non sono disponibili.")}</p>
+          <Button size="sm" variant="outline" onClick={() => setAggiornaAperto(true)}>{tr("Rileggi le fonti")}</Button>
         </div>
       )}
       <AvvioSicurezzaPos companyId={pos.company_id} orderId={pos.order_id} solaLettura={!puoScrivere || approva.isPending}
@@ -637,7 +640,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <ul className="flex-1 space-y-0.5">{avvisi.map((a) => <li key={a}>{a}</li>)}</ul>
-          <button type="button" onClick={() => setAvvisi([])} aria-label="Chiudi gli avvisi" className="rounded p-1 hover:bg-amber-100"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setAvvisi([])} aria-label={tr("Chiudi gli avvisi")} className="rounded p-1 hover:bg-amber-100"><X className="h-4 w-4" /></button>
         </div>
       )}
 
@@ -674,21 +677,20 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
             <header className="border-b px-4 py-3">
               <h2 id="pos-iter-titolo" className="flex items-center gap-2 text-sm font-semibold sm:text-base">
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900 text-xs font-bold text-white">11</span>
-                Firme e consegna
+                {tr("Firme e consegna")}
               </h2>
-              <p className="mt-0.5 pl-8 text-[11px] text-muted-foreground">Art. 101 comma 3 del D.Lgs 81/2008</p>
+              <p className="mt-0.5 pl-8 text-[11px] text-muted-foreground">{tr("Art. 101 comma 3 del D.Lgs 81/2008")}</p>
             </header>
             <div className="space-y-4 p-4">
               {(subappalto || conCse) && (
                 <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                  Prima di iniziare, l'impresa esecutrice consegna il POS all'impresa affidataria, che ne verifica la congruenza e lo trasmette al coordinatore per l'esecuzione.
-                  I lavori iniziano solo dopo l'esito positivo delle verifiche, che vanno fatte entro 15 giorni dalla ricezione.
+                  {tr("Prima di iniziare, l'impresa esecutrice consegna il POS all'impresa affidataria, che ne verifica la congruenza e lo trasmette al coordinatore per l'esecuzione. I lavori iniziano solo dopo l'esito positivo delle verifiche, che vanno fatte entro 15 giorni dalla ricezione.")}
                 </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
-                <Campo id="iter-firma" label="Firmato dal datore di lavoro il" type="date" value={iter.firma_datore_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                <Campo id="iter-firma" label={tr("Firmato dal datore di lavoro il")} type="date" value={iter.firma_datore_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                   onChange={(v) => modificaIter((x) => ({ ...x, firma_datore_il: v || null }))} />
-                <Campo id="iter-rls" label="RLS / RLST consultato il" type="date" value={iter.consultazione_rls_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                <Campo id="iter-rls" label={tr("RLS / RLST consultato il")} type="date" value={iter.consultazione_rls_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                   onChange={(v) => modificaIter((x) => ({ ...x, consultazione_rls_il: v || null }))} />
               </div>
               {approvato && (
@@ -698,45 +700,45 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
               {subappalto && (
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
-                    <h3 className="text-sm font-semibold">Impresa affidataria: {bozza.impresa.subappalto_a || "da indicare"}</h3>
+                    <h3 className="text-sm font-semibold">{tr("Impresa affidataria:")} {bozza.impresa.subappalto_a || tr("da indicare")}</h3>
                     {approvato && puoScrivere && !erroreAvvio && invio("affidataria")}
                   </div>
-                  <Campo id="iter-aff-inv" label="Consegnato il" type="date" value={iter.affidataria_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                  <Campo id="iter-aff-inv" label={tr("Consegnato il")} type="date" value={iter.affidataria_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_inviato_il: v || null }))} />
-                  <Campo id="iter-aff-ricezione" label="Ricevuto il" type="date" value={iter.affidataria_ricevuto_il ?? ""} readOnly={!puoScrivere || approva.isPending}
-                    hint={iter.affidataria_ricevuto_il ? `Verifica entro il ${dataIt(piu15(iter.affidataria_ricevuto_il))}` : undefined}
+                  <Campo id="iter-aff-ricezione" label={tr("Ricevuto il")} type="date" value={iter.affidataria_ricevuto_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                    hint={iter.affidataria_ricevuto_il ? tr("Verifica entro il {data}", { data: dataIt(piu15(iter.affidataria_ricevuto_il)) }) : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_ricevuto_il: v || null }))} />
                   <EsitoSelect id="iter-aff-esito" value={iter.affidataria_esito ?? null} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_esito: v }))} />
-                  <Campo id="iter-aff-data" label="Data dell'esito" type="date" value={iter.affidataria_esito_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                  <Campo id="iter-aff-data" label={tr("Data dell'esito")} type="date" value={iter.affidataria_esito_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_esito_il: v || null }))} />
                 </div>
               )}
               {conCse && (
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
-                    <h3 className="text-sm font-semibold">Coordinatore per l'esecuzione (CSE)</h3>
+                    <h3 className="text-sm font-semibold">{tr("Coordinatore per l'esecuzione (CSE)")}</h3>
                     {approvato && puoScrivere && !erroreAvvio && !subappalto && invio("cse")}
                   </div>
-                  {subappalto && <p className="text-xs text-muted-foreground sm:col-span-3">Registra qui il passaggio effettuato dall’impresa affidataria e il riscontro del CSE.</p>}
-                  <Campo id="iter-cse-inv" label="Trasmesso il" type="date" value={iter.cse_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                  {subappalto && <p className="text-xs text-muted-foreground sm:col-span-3">{tr("Registra qui il passaggio effettuato dall’impresa affidataria e il riscontro del CSE.")}</p>}
+                  <Campo id="iter-cse-inv" label={tr("Trasmesso il")} type="date" value={iter.cse_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_inviato_il: v || null }))} />
-                  <Campo id="iter-cse-ricezione" label="Ricevuto dal CSE il" type="date" value={iter.cse_ricevuto_il ?? ""} readOnly={!puoScrivere || approva.isPending}
-                    hint={iter.cse_ricevuto_il ? `Verifica entro il ${dataIt(piu15(iter.cse_ricevuto_il))}` : undefined}
+                  <Campo id="iter-cse-ricezione" label={tr("Ricevuto dal CSE il")} type="date" value={iter.cse_ricevuto_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                    hint={iter.cse_ricevuto_il ? tr("Verifica entro il {data}", { data: dataIt(piu15(iter.cse_ricevuto_il)) }) : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_ricevuto_il: v || null }))} />
                   <EsitoSelect id="iter-cse-esito" value={iter.cse_esito ?? null} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_esito: v }))} />
-                  <Campo id="iter-cse-data" label="Data dell'esito" type="date" value={iter.cse_esito_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                  <Campo id="iter-cse-data" label={tr("Data dell'esito")} type="date" value={iter.cse_esito_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_esito_il: v || null }))} />
                 </div>
               )}
               {verificaNegativa && (
                 <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                  Verifica con esito negativo: i lavori non possono iniziare. Apri una nuova revisione e correggi il POS.
+                  {tr("Verifica con esito negativo: i lavori non possono iniziare. Apri una nuova revisione e correggi il POS.")}
                 </p>
               )}
               <div className="space-y-1">
-                <Label htmlFor="iter-note" className="text-xs font-medium text-slate-700">Note</Label>
+                <Label htmlFor="iter-note" className="text-xs font-medium text-slate-700">{tr("Note")}</Label>
                 <Textarea id="iter-note" rows={2} value={iter.note ?? ""} disabled={!puoScrivere || approva.isPending}
                   onChange={(e) => modificaIter((x) => ({ ...x, note: e.target.value || null }))} />
               </div>
@@ -744,10 +746,10 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
           </section>
         </div>
         </AperturaSezioniContext.Provider>
-        {anteprimaAffiancata && <aside aria-label="Anteprima PDF dal vivo" className={`sticky top-20 flex min-h-0 min-w-0 flex-col gap-2 self-start ${sporco || iterSporco ? "h-[calc(100dvh-10rem)]" : "h-[calc(100dvh-7rem)]"}`}>
+        {anteprimaAffiancata && <aside aria-label={tr("Anteprima PDF dal vivo")} className={`sticky top-20 flex min-h-0 min-w-0 flex-col gap-2 self-start ${sporco || iterSporco ? "h-[calc(100dvh-10rem)]" : "h-[calc(100dvh-7rem)]"}`}>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">Anteprima della bozza in modifica</p>
-            <Button type="button" size="icon" variant="ghost" className="size-8" aria-label="Chiudi pannello PDF" onClick={() => {
+            <p className="text-xs text-muted-foreground">{tr("Anteprima della bozza in modifica")}</p>
+            <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={tr("Chiudi pannello PDF")} onClick={() => {
               setAnteprimaAperta(false);
               pulsanteAnteprima.current?.focus({ preventScroll: true });
             }}><X className="size-4" aria-hidden="true" /></Button>
@@ -763,8 +765,8 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
             pulsanteAnteprima.current?.focus({ preventScroll: true });
           }}>
           <DialogHeader className="shrink-0 pr-10">
-            <DialogTitle>Anteprima PDF dal vivo</DialogTitle>
-            <DialogDescription className="sr-only">PDF della bozza in modifica.</DialogDescription>
+            <DialogTitle>{tr("Anteprima PDF dal vivo")}</DialogTitle>
+            <DialogDescription className="sr-only">{tr("PDF della bozza in modifica.")}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1">{anteprimaBozza}</div>
         </DialogContent>
@@ -776,14 +778,14 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       {(sporco || iterSporco) && puoScrivere && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 shadow-lg backdrop-blur" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-            <span className="text-sm text-muted-foreground">Modifiche non salvate</span>
+            <span className="text-sm text-muted-foreground">{tr("Modifiche non salvate")}</span>
             <div className="flex gap-2">
               <Button variant="ghost" disabled={salva.isPending||approva.isPending} onClick={() => {
                 modifiche.current++; versioneLetta.current=pos.updated_at;
                 setBozza(contenutoDiPartenza()); setIter(pos.iter); setSporco(!!precompilato || aggiornaControlli); setIterSporco(false);
-              }}>Annulla</Button>
+              }}>{tr("Annulla")}</Button>
               <Button onClick={() => void salvaOra()} disabled={salva.isPending||approva.isPending}>
-                {salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}Salva
+                {salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}{tr("Salva")}
               </Button>
             </div>
           </div>
@@ -801,9 +803,9 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
           else vaiAVoce(destinazione);
         }}>
           <DialogHeader>
-            <DialogTitle>{guidaAttiva ? "Voci da completare" : "Il POS non ha ancora tutti i contenuti minimi"}</DialogTitle>
+            <DialogTitle>{guidaAttiva ? tr("Voci da completare") : tr("Il POS non ha ancora tutti i contenuti minimi")}</DialogTitle>
             <DialogDescription>
-              Scegli una voce per aprirla nella bozza.
+              {tr("Scegli una voce per aprirla nella bozza.")}
             </DialogDescription>
           </DialogHeader>
           <CosaManca voci={mancantiServer ?? []} lavorazioni={bozza.lavorazioni} ro={ro}
@@ -817,7 +819,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
               const dopo = structuredClone(bozza); applica(dopo);
               const restano = vociMancanti(dopo);
               setMancantiServer(restano.length ? restano : null);
-              toast.success(ids.length === 1 ? "Elenco dei prodotti confermato" : `Elenco dei prodotti confermato per ${ids.length} lavorazioni`);
+              toast.success(ids.length === 1 ? tr("Elenco dei prodotti confermato") : tr("Elenco dei prodotti confermato per {n} lavorazioni", { n: ids.length }));
             }} />
         </DialogContent>
       </Dialog>
@@ -825,7 +827,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       {aggiornaAperto && companyId && !ro && <ConfrontoFontiPos companyId={companyId} posId={pos.id} bozza={bozza}
         onClose={()=>setAggiornaAperto(false)} onApplica={(contenuto,avvisiFonti)=>{
           modifiche.current++;setBozza(prev=>{invalidaRiesameTecnico(prev,contenuto);return contenuto;});setSporco(true);setAvvisi(avvisiFonti);setAggiornaAperto(false);
-          toast.success("Modifiche applicate alla bozza: controlla e salva");
+          toast.success(tr("Modifiche applicate alla bozza: controlla e salva"));
         }}/>}
 
       {perimetroAi && !ro && <PerimetroAiPos companyId={pos.company_id} orderId={pos.order_id} posId={pos.id} inSubappalto={subappalto} psc={contestoLetturaPsc}
@@ -868,18 +870,18 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
       <Dialog open={revisioneAperta} onOpenChange={setRevisioneAperta}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuova revisione (rev. {pos.revisione + 1})</DialogTitle>
+            <DialogTitle>{tr("Nuova revisione (rev. {revisione})", { revisione: pos.revisione + 1 })}</DialogTitle>
             <DialogDescription>
-              Il POS torna in bozza per le modifiche e va riapprovato. Le date di firma e verifica ripartono da capo. Se ne hai già consegnato copia, avvisa chi l'ha ricevuta.
+              {tr("Il POS torna in bozza per le modifiche e va riapprovato. Le date di firma e verifica ripartono da capo. Se ne hai già consegnato copia, avvisa chi l'ha ricevuta.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
-            <Label htmlFor="descr-rev" className="text-xs font-medium">Cosa cambia in questa revisione</Label>
+            <Label htmlFor="descr-rev" className="text-xs font-medium">{tr("Cosa cambia in questa revisione")}</Label>
             <Textarea id="descr-rev" rows={2} value={descrRevisione} onChange={(e) => setDescrRevisione(e.target.value)}
-              placeholder="Es.: nuova fase di lavori in quota sul tetto" />
+              placeholder={tr("Es.: nuova fase di lavori in quota sul tetto")} />
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setRevisioneAperta(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setRevisioneAperta(false)}>{tr("Annulla")}</Button>
             <Button disabled={!descrRevisione.trim() || nuovaRevisione.isPending} onClick={async () => {
               try {
                 await nuovaRevisione.mutateAsync(descrRevisione.trim());
@@ -888,7 +890,7 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
                 // l'errore lo mostra la mutation
               }
             }}>
-              {nuovaRevisione.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Apri la revisione
+              {nuovaRevisione.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{tr("Apri la revisione")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -900,9 +902,10 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
 }
 
 function EsitoSelect({ id, value, onChange, readOnly }: { id: string; value: "positivo" | "negativo" | null; onChange: (v: "positivo" | "negativo" | null) => void; readOnly: boolean }) {
+  const t = useT();
   return (
     <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs font-medium text-slate-700">Esito della verifica</Label>
+      <Label htmlFor={id} className="text-xs font-medium text-slate-700">{t("Esito della verifica")}</Label>
       <UniformSelect
         id={id}
         className="h-9 w-full rounded-md border bg-background px-2 text-sm"
@@ -910,9 +913,9 @@ function EsitoSelect({ id, value, onChange, readOnly }: { id: string; value: "po
         disabled={readOnly}
         onChange={(e) => onChange((e.target.value || null) as "positivo" | "negativo" | null)}
       >
-        <option value="">In attesa</option>
-        <option value="positivo">Positivo</option>
-        <option value="negativo">Negativo</option>
+        <option value="">{t("In attesa")}</option>
+        <option value="positivo">{t("Positivo")}</option>
+        <option value="negativo">{t("Negativo")}</option>
       </UniformSelect>
     </div>
   );

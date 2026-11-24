@@ -6,6 +6,7 @@
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { VendorKPI } from "@/hooks/useVendorReport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ObiettivoTeam({
   kpiList,
@@ -17,6 +18,7 @@ export function ObiettivoTeam({
   /** «tutti» o l'agente scelto nel filtro. */
   agentId: string;
 }) {
+  const t = useT();
   if (!obiettivi || obiettivi.size === 0) return null;
   const righe = kpiList
     .map((k) => ({ k, obiettivo: obiettivi.get(k.agent_id)?.fatturato ?? 0 }))
@@ -34,19 +36,19 @@ export function ObiettivoTeam({
     <div className="grid gap-3 rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 dark:border-slate-700 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          {agentId === "tutti" ? "Obiettivo del team" : "Obiettivo dell'agente"}
+          {agentId === "tutti" ? t("Obiettivo del team") : t("Obiettivo dell'agente")}
         </p>
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="text-3xl font-bold tabular-nums tracking-tight">{Math.round(pct)}%</span>
-          <span className="text-xs text-slate-400">{raggiunto ? "raggiunto" : "del fatturato previsto"}</span>
+          <span className="text-xs text-slate-400">{raggiunto ? t("raggiunto") : t("del fatturato previsto")}</span>
         </div>
-        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pct, 100))} aria-label="Obiettivo del team">
+        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pct, 100))} aria-label={t("Obiettivo del team")}>
           <div className={cn("cg-barra-cresce h-full rounded-full bg-gradient-to-r", raggiunto ? "from-emerald-400 to-teal-300" : "from-orange-400 to-amber-300")} style={{ width: `${Math.max(2, Math.min(pct, 100))}%` }} />
         </div>
         <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-          <div><dt className="text-slate-400">Fatturato</dt><dd className="font-semibold tabular-nums" title={formatCurrency(fatto)}>{formatCurrencyCompact(fatto)}</dd></div>
-          <div><dt className="text-slate-400">Obiettivo</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo)}>{formatCurrencyCompact(obiettivo)}</dd></div>
-          <div><dt className="text-slate-400">Manca</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? "niente" : formatCurrencyCompact(manca)}</dd></div>
+          <div><dt className="text-slate-400">{t("Fatturato")}</dt><dd className="font-semibold tabular-nums" title={formatCurrency(fatto)}>{formatCurrencyCompact(fatto)}</dd></div>
+          <div><dt className="text-slate-400">{t("Obiettivo")}</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo)}>{formatCurrencyCompact(obiettivo)}</dd></div>
+          <div><dt className="text-slate-400">{t("Manca")}</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? t("niente") : formatCurrencyCompact(manca)}</dd></div>
         </dl>
       </div>
       {righe.length > 1 && (

@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FormData {
   contratto_id: string;
@@ -49,6 +50,7 @@ const EMPTY: FormData = {
 };
 
 export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isSubmitting }: Props) {
+  const t = useT();
   const [form, setForm] = useState<FormData>(EMPTY);
 
   function set<K extends keyof FormData>(key: K, value: FormData[K]) {
@@ -82,20 +84,20 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Aggiungi Ritenuta di Garanzia</DialogTitle>
+          <DialogTitle>{t("Aggiungi Ritenuta di Garanzia")}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Contratto */}
           <div className="space-y-1">
-            <Label htmlFor="contratto_id">Contratto di subappalto</Label>
+            <Label htmlFor="contratto_id">{t("Contratto di subappalto")}</Label>
             <Select
               value={form.contratto_id}
               onValueChange={(v) => set('contratto_id', v)}
               required
             >
               <SelectTrigger id="contratto_id">
-                <SelectValue placeholder="Seleziona contratto…" />
+                <SelectValue placeholder={t("Seleziona contratto…")} />
               </SelectTrigger>
               <SelectContent>
                 {contratti.map((c) => (
@@ -122,24 +124,26 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
               }}
               disabled={!form.contratto_id}
             >
-              <SelectTrigger id="sal_id"><SelectValue placeholder={form.contratto_id ? 'Scegli il SAL' : 'Prima scegli il contratto'} /></SelectTrigger>
+              <SelectTrigger id="sal_id"><SelectValue placeholder={form.contratto_id ? t("Scegli il SAL") : t("Prima scegli il contratto")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="nessuno">Nessun SAL (ritenuta sul contratto)</SelectItem>
+                <SelectItem value="nessuno">{t("Nessun SAL (ritenuta sul contratto)")}</SelectItem>
                 {salDelContratto.map((x) => (
                   <SelectItem key={x.id} value={x.id}>
-                    SAL n. {x.numero_sal}{x.data_emissione ? ` del ${x.data_emissione.split('-').reverse().join('/')}` : ''} · ritenuta {formatCurrency(Number(x.ritenuta_importo) || 0)}
+                    {x.data_emissione
+                      ? t("SAL n. {numero} del {data} · ritenuta {importo}", { numero: String(x.numero_sal ?? ""), data: x.data_emissione.split('-').reverse().join('/'), importo: formatCurrency(Number(x.ritenuta_importo) || 0) })
+                      : t("SAL n. {numero} · ritenuta {importo}", { numero: String(x.numero_sal ?? ""), importo: formatCurrency(Number(x.ritenuta_importo) || 0) })}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {form.contratto_id && salDelContratto.length === 0 && (
-              <p className="text-xs text-muted-foreground">I SAL di questo contratto hanno già la loro ritenuta.</p>
+              <p className="text-xs text-muted-foreground">{t("I SAL di questo contratto hanno già la loro ritenuta.")}</p>
             )}
           </div>
 
           {/* Importo */}
           <div className="space-y-1">
-            <Label htmlFor="importo">Importo (€)</Label>
+            <Label htmlFor="importo">{t("Importo (€)")}</Label>
             <Input
               id="importo"
               type="number"
@@ -153,7 +157,7 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
 
           {/* Percentuale */}
           <div className="space-y-1">
-            <Label htmlFor="percentuale_applicata">Percentuale applicata (%)</Label>
+            <Label htmlFor="percentuale_applicata">{t("Percentuale applicata (%)")}</Label>
             <Input
               id="percentuale_applicata"
               type="number"
@@ -169,7 +173,7 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
 
           {/* Data svincolo prevista */}
           <div className="space-y-1">
-            <Label htmlFor="data_svincolo_prevista">Data svincolo prevista</Label>
+            <Label htmlFor="data_svincolo_prevista">{t("Data svincolo prevista")}</Label>
             <Input
               id="data_svincolo_prevista"
               type="date"
@@ -180,11 +184,11 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
 
           {/* Note */}
           <div className="space-y-1">
-            <Label htmlFor="note">Note</Label>
+            <Label htmlFor="note">{t("Note")}</Label>
             <Textarea
               id="note"
               rows={3}
-              placeholder="Note facoltative…"
+              placeholder={t("Note facoltative…")}
               value={form.note ?? ''}
               onChange={(e) => set('note', e.target.value || undefined)}
             />
@@ -192,10 +196,10 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Salvataggio…' : 'Salva'}
+              {isSubmitting ? t("Salvataggio…") : t("Salva")}
             </Button>
           </DialogFooter>
         </form>

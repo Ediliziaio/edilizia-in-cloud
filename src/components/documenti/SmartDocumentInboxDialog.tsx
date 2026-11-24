@@ -45,6 +45,7 @@ import {
   type SmartValidationWarning,
 } from "@/lib/documenti/smartDocumentImport";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type DocumentAnalysisRow = Pick<
   Database["public"]["Tables"]["document_analysis_results"]["Row"],
@@ -135,7 +136,7 @@ function toInboxRuleRow(row: DocumentAnalysisRow): SmartDocumentInboxRow {
 
 function formatDate(value: string | null): string {
   if (!value) return "Data non disponibile";
-  return new Intl.DateTimeFormat("it-IT", {
+  return new Intl.DateTimeFormat(intlCampo(), {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -158,6 +159,7 @@ function statusIcon(tone: SmartDocumentInboxStatusTone) {
 }
 
 export function SmartDocumentInboxDialog({ open, onOpenChange, onComputoReady, onImportNew }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -211,8 +213,8 @@ export function SmartDocumentInboxDialog({ open, onOpenChange, onComputoReady, o
 
     if (action.kind === "computo_review") {
       if (!onComputoReady) {
-        toast.error("Revisione non disponibile", {
-          description: "Questo punto di ingresso non puo aprire il computo estratto.",
+        toast.error(t("Revisione non disponibile"), {
+          description: t("Questo punto di ingresso non puo aprire il computo estratto."),
         });
         return;
       }
@@ -228,7 +230,7 @@ export function SmartDocumentInboxDialog({ open, onOpenChange, onComputoReady, o
     }
 
     toast.info(action.label, {
-      description: ("hint" in action ? action.hint : undefined) ?? "Apri il documento dal modulo dedicato o ripeti l'analisi se mancano dati.",
+      description: ("hint" in action ? action.hint : undefined) ?? t("Apri il documento dal modulo dedicato o ripeti l'analisi se mancano dati."),
     });
   };
 
@@ -245,10 +247,10 @@ export function SmartDocumentInboxDialog({ open, onOpenChange, onComputoReady, o
             <div>
               <DialogTitle className="flex items-center gap-2 text-xl">
                 <Inbox className="h-5 w-5 text-orange-500" />
-                Inbox documenti AI
+                {t("Inbox documenti AI")}
               </DialogTitle>
               <DialogDescription className="mt-1">
-                Riprendi gli ultimi import, verifica gli scarti e apri il modulo corretto.
+                {t("Riprendi gli ultimi import, verifica gli scarti e apri il modulo corretto.")}
               </DialogDescription>
             </div>
             <div className="flex shrink-0 gap-2">
@@ -261,21 +263,21 @@ export function SmartDocumentInboxDialog({ open, onOpenChange, onComputoReady, o
                 className="h-9"
               >
                 {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Aggiorna
+                {t("Aggiorna")}
               </Button>
               <Button type="button" size="sm" onClick={handleImportNew} className="h-9">
                 <UploadCloud className="mr-2 h-4 w-4" />
-                Importa
+                {t("Importa")}
               </Button>
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-5">
-            <SummaryPill label="Totali" value={summary.total} />
-            <SummaryPill label="Pronti" value={summary.ready} tone="success" />
-            <SummaryPill label="Da verificare" value={summary.reviewRequired} tone="warning" />
-            <SummaryPill label="In analisi" value={summary.processing} tone="processing" />
-            <SummaryPill label="Errori" value={summary.failed} tone="error" />
+            <SummaryPill label={t("Totali")} value={summary.total} />
+            <SummaryPill label={t("Pronti")} value={summary.ready} tone="success" />
+            <SummaryPill label={t("Da verificare")} value={summary.reviewRequired} tone="warning" />
+            <SummaryPill label={t("In analisi")} value={summary.processing} tone="processing" />
+            <SummaryPill label={t("Errori")} value={summary.failed} tone="error" />
           </div>
         </DialogHeader>
 
@@ -289,17 +291,17 @@ export function SmartDocumentInboxDialog({ open, onOpenChange, onComputoReady, o
           <EmptyState
             inline
             icon={AlertTriangle}
-            title="Inbox non caricata"
-            description="Non riesco a leggere lo storico delle analisi. Riprova tra poco."
+            title={t("Inbox non caricata")}
+            description={t("Non riesco a leggere lo storico delle analisi. Riprova tra poco.")}
             action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
           />
         ) : rows.length === 0 ? (
           <EmptyState
             inline
             icon={FileText}
-            title="Nessun documento analizzato"
-            description="Carica un computo, una fattura, un listino o una foto: qui rimarra lo storico operativo."
-            action={{ label: "Importa documento", onClick: handleImportNew }}
+            title={t("Nessun documento analizzato")}
+            description={t("Carica un computo, una fattura, un listino o una foto: qui rimarra lo storico operativo.")}
+            action={{ label: t("Importa documento"), onClick: handleImportNew }}
           />
         ) : (
           <div className="grid min-h-0 md:grid-cols-[minmax(0,1fr)_390px]">
@@ -352,16 +354,18 @@ function InboxResultRow({
   onSelect: (id: string) => void;
   onOpen: (row: DocumentAnalysisRow) => void;
 }) {
+  const t = useT();
   const inboxRow = toInboxRuleRow(row);
   const tone = getSmartDocumentInboxStatusTone(inboxRow);
   const StatusIcon = statusIcon(tone);
   const warnings = asWarnings(row.validation_warnings);
-  const docLabel = SMART_DOC_TYPE_LABEL[row.doc_type] ?? row.doc_type;
+  const docLabel = SMART_DOC_TYPE_LABEL[row.doc_type] ? t(SMART_DOC_TYPE_LABEL[row.doc_type]) : row.doc_type;
   const confidence =
     typeof row.classification_confidence === "number"
       ? `${Math.round(row.classification_confidence * 100)}%`
       : null;
-  const status = STATUS_LABEL[(row.status ?? "").toLowerCase()] ?? row.status ?? "Sconosciuto";
+  const statoNoto = STATUS_LABEL[(row.status ?? "").toLowerCase()];
+  const status = statoNoto ? t(statoNoto) : row.status ?? t("Sconosciuto");
   const action = buildSmartDocumentInboxAction(inboxRow);
 
   return (
@@ -387,9 +391,9 @@ function InboxResultRow({
 
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>{docLabel}</span>
-          <span>{formatFileSize(row.file_size_bytes)}</span>
-          <span>{formatDate(row.created_at)}</span>
-          {confidence ? <span>Confidenza {confidence}</span> : null}
+          <span>{row.file_size_bytes && row.file_size_bytes > 0 ? formatFileSize(row.file_size_bytes) : t("Dimensione non disponibile")}</span>
+          <span>{row.created_at ? formatDate(row.created_at) : t("Data non disponibile")}</span>
+          {confidence ? <span>{t("Confidenza {confidence}", { confidence: String(confidence ?? "") })}</span> : null}
           {row.parser_used ? <span>{row.parser_used}</span> : null}
         </div>
 
@@ -397,7 +401,7 @@ function InboxResultRow({
           <p className="mt-2 text-xs text-rose-700">{row.error_message}</p>
         ) : warnings.length > 0 ? (
           <p className="mt-2 line-clamp-1 text-xs text-amber-700">
-            {warnings.length} avvisi: {warnings[0]?.message ?? "verifica consigliata"}
+            {t("{n} avvisi: {messaggio}", { n: warnings.length, messaggio: warnings[0]?.message ?? t("verifica consigliata") })}
           </p>
         ) : null}
       </div>
@@ -405,10 +409,10 @@ function InboxResultRow({
       <div className="flex shrink-0 gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => onSelect(row.id)} className="h-9">
           <ListChecks className="mr-2 h-4 w-4" />
-          Review
+          {t("Review")}
         </Button>
         <Button type="button" size="sm" onClick={() => onOpen(row)} className="h-9">
-          {action.kind === "computo_review" ? "Apri revisione" : action.label}
+          {action.kind === "computo_review" ? t("Apri revisione") : action.label}
           <ExternalLink className="ml-2 h-4 w-4" />
         </Button>
       </div>
@@ -423,10 +427,11 @@ function SmartDocumentReviewPanel({
   row: DocumentAnalysisRow | null;
   onOpen: (row: DocumentAnalysisRow) => void;
 }) {
+  const t = useT();
   if (!row) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-        Seleziona un documento per vedere la review AI.
+        {t("Seleziona un documento per vedere la review AI.")}
       </div>
     );
   }
@@ -443,10 +448,10 @@ function SmartDocumentReviewPanel({
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Review AI
+                {t("Review AI")}
               </div>
               <h3 className="mt-1 line-clamp-2 font-semibold leading-snug">
-                {SMART_DOC_TYPE_LABEL[row.doc_type] ?? row.doc_type}
+                {SMART_DOC_TYPE_LABEL[row.doc_type] ? t(SMART_DOC_TYPE_LABEL[row.doc_type]) : row.doc_type}
               </h3>
             </div>
             <Badge variant="outline" className={cn(
@@ -461,9 +466,9 @@ function SmartDocumentReviewPanel({
             </Badge>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-            <MiniMetric label="Campi" value={review.fields.length} />
-            <MiniMetric label="Fonti" value={review.sourceEvidenceCount} />
-            <MiniMetric label="Bassa fid." value={review.lowConfidenceCount} />
+            <MiniMetric label={t("Campi")} value={review.fields.length} />
+            <MiniMetric label={t("Fonti")} value={review.sourceEvidenceCount} />
+            <MiniMetric label={t("Bassa fid.")} value={review.lowConfidenceCount} />
           </div>
         </div>
 
@@ -471,14 +476,14 @@ function SmartDocumentReviewPanel({
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             <div className="mb-2 flex items-center gap-2 font-medium">
               <AlertTriangle className="h-4 w-4" />
-              Da verificare
+              {t("Da verificare")}
             </div>
             <div className="space-y-1 text-xs">
               {review.missingCritical.map((item) => (
-                <p key={item}>Manca: {item}</p>
+                <p key={item}>{t("Manca: {item}", { item: String(item ?? "") })}</p>
               ))}
               {review.warnings.slice(0, 3).map((warning, index) => (
-                <p key={`${warning.message}-${index}`}>{warning.message ?? "Avviso AI da controllare"}</p>
+                <p key={`${warning.message}-${index}`}>{warning.message ?? t("Avviso AI da controllare")}</p>
               ))}
             </div>
           </div>
@@ -486,14 +491,14 @@ function SmartDocumentReviewPanel({
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
             <div className="flex items-center gap-2 font-medium">
               <ShieldCheck className="h-4 w-4" />
-              Dati principali presenti
+              {t("Dati principali presenti")}
             </div>
           </div>
         )}
 
         {review.groups.length > 0 ? (
           <section className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Righe e gruppi</h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Righe e gruppi")}</h4>
             {review.groups.map((group) => (
               <div key={group.path} className="rounded-md border p-3 text-sm">
                 <div className="flex items-center justify-between gap-2">
@@ -507,10 +512,10 @@ function SmartDocumentReviewPanel({
         ) : null}
 
         <section className="space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Campi estratti</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Campi estratti")}</h4>
           {review.fields.length === 0 ? (
             <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-              Nessun campo strutturato disponibile: ripeti l'analisi o apri il modulo dedicato.
+              {t("Nessun campo strutturato disponibile: ripeti l'analisi o apri il modulo dedicato.")}
             </p>
           ) : (
             <div className="space-y-2">
@@ -523,11 +528,11 @@ function SmartDocumentReviewPanel({
 
         {suggestions.length > 0 ? (
           <section className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Collegamenti suggeriti</h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Collegamenti suggeriti")}</h4>
             {suggestions.map((suggestion, index) => (
               <div key={`${suggestion.label}-${index}`} className="rounded-md border p-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="line-clamp-1 font-medium">{suggestion.label ?? suggestion.entity_table ?? "Entita suggerita"}</span>
+                  <span className="line-clamp-1 font-medium">{suggestion.label ?? suggestion.entity_table ?? t("Entita suggerita")}</span>
                   {typeof suggestion.scores?.combined === "number" ? (
                     <Badge variant="outline">{Math.round(suggestion.scores.combined * 100)}%</Badge>
                   ) : null}
@@ -539,7 +544,7 @@ function SmartDocumentReviewPanel({
         ) : null}
 
         <Button type="button" className="w-full" onClick={() => onOpen(row)}>
-          {action.kind === "computo_review" ? "Apri revisione completa" : action.label}
+          {action.kind === "computo_review" ? t("Apri revisione completa") : action.label}
           <ExternalLink className="ml-2 h-4 w-4" />
         </Button>
       </aside>
@@ -557,6 +562,7 @@ function MiniMetric({ label, value }: { label: string; value: number }) {
 }
 
 function ReviewFieldRow({ field }: { field: SmartDocumentReviewField }) {
+  const t = useT();
   return (
     <div className="rounded-md border p-3 text-sm">
       <div className="flex items-start justify-between gap-2">
@@ -573,7 +579,7 @@ function ReviewFieldRow({ field }: { field: SmartDocumentReviewField }) {
       {field.source ? (
         <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{field.source}</p>
       ) : (
-        <p className="mt-2 text-xs text-muted-foreground">Fonte puntuale non disponibile</p>
+        <p className="mt-2 text-xs text-muted-foreground">{t("Fonte puntuale non disponibile")}</p>
       )}
     </div>
   );

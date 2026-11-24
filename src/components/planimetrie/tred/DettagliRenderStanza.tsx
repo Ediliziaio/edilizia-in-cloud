@@ -13,6 +13,7 @@ import { leggiRenderVisita, salvaRenderVisita, type RenderVisitaSalvato, type Ve
 import type { RiscontroRenderLocale } from "@/lib/planimetrie/riscontroRenderLocale";
 import { nomeDelTipo, TIPI_ARREDO_3D } from "../editor/catalogo";
 import { ConfrontoRender3D } from "./ConfrontoRender3D";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Tipo = "apertura" | "arredo";
 type Dettaglio = {
@@ -25,7 +26,7 @@ type Dettaglio = {
 };
 type Dimensioni = { larghezza: number; altezza: number };
 type Stanza = { pianta: PiantaPer3D; vista: Vista3D; localeId: string; dimensioni: Dimensioni };
-const formato = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 });
+const formato = { format: (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 1 }).format(n) };
 
 function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, salvata, nomeFile, onSalva }: Stanza & {
   soggetto: Dettaglio;
@@ -33,6 +34,7 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
   nomeFile: string;
   onSalva: (anteprima: Blob, png: Blob, localeCamera: string) => Promise<void>;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [vistaPronta, setVistaPronta] = useState<{ anteprima: Blob; scena: Scena3D; telecamera: Telecamera3D; localeCamera: string }>();
   const [erroreVista, setErroreVista] = useState("");
@@ -63,7 +65,7 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
       setAngoloDisponibile(vista !== null);
       if (vista) setVistaPronta(vista);
     }).catch(() => {
-      if (!controller.signal.aborted) setErroreVista("Anteprima 3D da ricaricare.");
+      if (!controller.signal.aborted) setErroreVista(t("Anteprima 3D da ricaricare."));
     });
     return () => controller.abort();
   }, [preparaVista, salvata, tentativo]);
@@ -78,7 +80,7 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
     setErroreSalvataggio(false);
     try {
       const inquadratura = vistaPronta ?? await preparaVista(controller.signal);
-      if (!inquadratura) throw new Error("Lo spazio per la camera è insufficiente.");
+      if (!inquadratura) throw new Error(t("Lo spazio per la camera è insufficiente."));
       controller.signal.throwIfAborted();
       const { anteprima, scena, telecamera, localeCamera } = inquadratura;
       const png = await renderFotorealisticoLocale(scena, { telecamera, ...dimensioni, ambiente: "interni" }, controller.signal, undefined, { companyId });
@@ -87,7 +89,7 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
         if (!controller.signal.aborted) setErroreSalvataggio(true);
       });
     } catch (err) {
-      if (!controller.signal.aborted) setErroreRender(err instanceof Error ? err.message : "Render del dettaglio da riprovare.");
+      if (!controller.signal.aborted) setErroreRender(err instanceof Error ? err.message : t("Render del dettaglio da riprovare."));
     } finally {
       richiesta.current = null;
       if (!controller.signal.aborted) setInCorso(false);
@@ -100,30 +102,30 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h3 className="text-base font-semibold">{soggetto.nome}</h3>
-        <p className="text-xs text-muted-foreground">Quote del modello{nomeVista && " · Vista da " + nomeVista}</p>
+        <p className="text-xs text-muted-foreground">{nomeVista ? t("Quote del modello · Vista da {nome}", { nome: nomeVista }) : t("Quote del modello")}</p>
       </div>
       {(vistaPronta || salvata) && <Button size="sm" variant={salvata ? "outline" : "default"} disabled={inCorso} onClick={() => void calcola()}>
         {inCorso ? <Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" /> : <Sparkles aria-hidden="true" className="size-4" />}
-        {inCorso ? "Calcolo del dettaglio…" : erroreRender ? "Riprova il render" : salvata ? "Ricalcola render" : "Calcola render del dettaglio"}
+        {inCorso ? t("Calcolo del dettaglio…") : erroreRender ? t("Riprova il render") : salvata ? t("Ricalcola render") : t("Calcola render del dettaglio")}
       </Button>}
       {erroreVista && <Button size="sm" variant="outline" onClick={() => { setErroreVista(""); setTentativo(n => n + 1); }}>
-        <RotateCcw aria-hidden="true" className="size-4" /> Ricarica il 3D
+        <RotateCcw aria-hidden="true" className="size-4" /> {t("Ricarica il 3D")}
       </Button>}
     </div>
     <dl className={cn("grid grid-cols-2 gap-2", soggetto.misure.length === 3 && "sm:grid-cols-3")}>
       {soggetto.misure.map(([nome, cm]) => <div key={nome} className="rounded-lg border bg-muted/30 px-3 py-2">
-        <dt className="text-xs text-muted-foreground">{nome}</dt>
-        <dd className="text-sm font-semibold tabular-nums">{formato.format(cm)} cm</dd>
+        <dt className="text-xs text-muted-foreground">{t(nome)}</dt>
+        <dd className="text-sm font-semibold tabular-nums">{t("{cm} cm", { cm: formato.format(cm) })}</dd>
       </div>)}
     </dl>
     {soggetto.avviso && <p className="text-sm text-amber-800 dark:text-amber-300">{soggetto.avviso}</p>}
-    {erroreSalvataggio && <p role="status" className="text-sm text-amber-800 dark:text-amber-300">Salvataggio nel browser da riprovare. Puoi scaricare il PNG.</p>}
+    {erroreSalvataggio && <p role="status" className="text-sm text-amber-800 dark:text-amber-300">{t("Salvataggio nel browser da riprovare. Puoi scaricare il PNG.")}</p>}
     {salvata && erroreRender && <p role="alert" className="text-sm text-destructive">{erroreRender}</p>}
     {!angoloDisponibile || erroreVista ? <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
-      {erroreVista || "Lo spazio per la camera è insufficiente. Puoi controllare il dettaglio nella pianta."}
+      {erroreVista || t("Lo spazio per la camera è insufficiente. Puoi controllare il dettaglio nella pianta.")}
     </p> : <ConfrontoRender3D nome={soggetto.nome} nomeFile={nomeFile} rapporto={rapporto}
       riferimento={salvata?.anteprima ?? vistaPronta?.anteprima} risultato={salvata?.render} errore={erroreRender || undefined}
-      testoAttesa={inCorso ? "Sto calcolando il render fotorealistico: può servire fino a un paio di minuti." : "Calcola il render dalla stessa inquadratura."} />}
+      testoAttesa={inCorso ? t("Sto calcolando il render fotorealistico: può servire fino a un paio di minuti.") : t("Calcola il render dalla stessa inquadratura.")} />}
   </article>;
 }
 
@@ -134,6 +136,7 @@ export function DettagliRenderStanza({ pianta, vista, localeId, dimensioni, tele
   idVista: string;
   nomePiano: string;
 }) {
+  const t = useT();
   const locale = pianta.locali.find(l => l.id === localeId);
   const rapporto = dimensioni.larghezza / dimensioni.altezza;
   const camera = useMemo(() => telecamera ?? (locale ? vistaInternaArredata(pianta, localeId, { vista, aspetto: rapporto }) : undefined),
@@ -186,7 +189,7 @@ export function DettagliRenderStanza({ pianta, vista, localeId, dimensioni, tele
 
   const elenco = filtro === "apertura" ? aperture : arrediDistinti;
   const soggetto = elenco.find(e => e.id === selezione) ?? elenco[0];
-  if (!soggetto) return <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">Nella stanza non ci sono aperture o arredi da inquadrare.</p>;
+  if (!soggetto) return <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{t("Nella stanza non ci sono aperture o arredi da inquadrare.")}</p>;
 
   const chiave = [idVista, soggetto.tipo, soggetto.id].join("/");
   const salva = async (anteprima: Blob, png: Blob, localeCamera: string) => {
@@ -194,17 +197,17 @@ export function DettagliRenderStanza({ pianta, vista, localeId, dimensioni, tele
     setCache(prec => ({ ...prec, [chiave]: dettaglio }));
     if (serie) await salvaRenderVisita(serie, dettaglio);
   };
-  return <section aria-label="Dettagli e misure della stanza" className="grid gap-4 rounded-xl border bg-card p-3 sm:p-4 lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)]">
+  return <section aria-label={t("Dettagli e misure della stanza")} className="grid gap-4 rounded-xl border bg-card p-3 sm:p-4 lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)]">
     <div className="min-w-0 space-y-2">
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Elementi della stanza">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("Elementi della stanza")}>
         {!!aperture.length && <Button size="sm" variant={filtro === "apertura" ? "default" : "outline"} aria-pressed={filtro === "apertura"} onClick={() => setFiltro("apertura")}>
-          <DoorOpen className="size-4" aria-hidden="true" /> Aperture {aperture.length}
+          <DoorOpen className="size-4" aria-hidden="true" /> {t("Aperture {n}", { n: aperture.length })}
         </Button>}
         {!!arredi.length && <Button size="sm" variant={filtro === "arredo" ? "default" : "outline"} aria-pressed={filtro === "arredo"} onClick={() => setFiltro("arredo")}>
-          <Armchair className="size-4" aria-hidden="true" /> Arredi {arredi.length}
+          <Armchair className="size-4" aria-hidden="true" /> {t("Arredi {n}", { n: arredi.length })}
         </Button>}
       </div>
-      {filtro === "apertura" && <p className="text-xs text-muted-foreground">Posizione nella vista della stanza</p>}
+      {filtro === "apertura" && <p className="text-xs text-muted-foreground">{t("Posizione nella vista della stanza")}</p>}
       <ul className="max-h-40 space-y-1.5 overflow-y-auto p-0.5 lg:max-h-[26rem]">
         {elenco.map(e => <li key={e.id}>
           <button type="button" aria-pressed={e.id === soggetto.id} onClick={() => setSelezione(e.id)}
@@ -213,7 +216,7 @@ export function DettagliRenderStanza({ pianta, vista, localeId, dimensioni, tele
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium">{e.nome}</span>
               <span className="block text-xs text-muted-foreground">
-                {e.misure.slice(0, 2).map(([, cm]) => formato.format(cm)).join(" × ")} cm{e.nelFotogramma && " · " + e.nelFotogramma}
+                {e.misure.slice(0, 2).map(([, cm]) => formato.format(cm)).join(" × ")} cm{e.nelFotogramma && " · " + t(e.nelFotogramma)}
               </span>
             </span>
             <Focus className={cn("size-4 shrink-0", e.id === soggetto.id ? "text-primary" : "text-muted-foreground")} aria-hidden="true" />
@@ -223,6 +226,6 @@ export function DettagliRenderStanza({ pianta, vista, localeId, dimensioni, tele
     </div>
     {lettoArchivio ? <InquadraturaDettaglio key={chiave} {...{ pianta, vista, localeId, dimensioni }} soggetto={soggetto}
       salvata={cache[chiave]} nomeFile={chiave.replace(/[^\p{L}\d-]+/gu, "-") + "-cycles.png"} onSalva={salva} />
-      : <p role="status" className="p-3 text-sm text-muted-foreground">Carico i dettagli della stanza…</p>}
+      : <p role="status" className="p-3 text-sm text-muted-foreground">{t("Carico i dettagli della stanza…")}</p>}
   </section>;
 }

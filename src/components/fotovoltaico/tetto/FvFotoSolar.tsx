@@ -4,6 +4,7 @@ import {
   type PosizioneMappaFv,
 } from "../../../../supabase/functions/_shared/fvMappa";
 import type { FotoSolarFv } from "../../../../supabase/functions/_shared/fvGoogleSolar";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function FvFotoSolar(
   { foto, centro, zoom, w, h }: {
     foto?: FotoSolarFv;
@@ -13,6 +14,7 @@ export function FvFotoSolar(
     h: number;
   },
 ) {
+  const t = useT();
   const carica = useFotoSolarFv(foto);
   if (!foto || !carica?.url) {
     return carica?.errore
@@ -33,7 +35,7 @@ export function FvFotoSolar(
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full"
       viewBox={`0 0 ${w} ${h}`}
-      aria-label={`Foto Google Solar del ${foto.data}`}
+      aria-label={t("Foto Google Solar del {data}", { data: String(foto.data ?? "") })}
       style={{ clipPath: "inset(0 0 28px 0)" }}
     >
       <image

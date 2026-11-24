@@ -22,6 +22,7 @@ import { WhatsAppNumberCard } from "./WhatsAppNumberCard";
 import { ConnectNumberWizard } from "./ConnectNumberWizard";
 import { WhatsAppStatsBar } from "./WhatsAppStatsBar";
 import { useWhatsAppBase } from "@/pages/azienda/whatsapp/useWhatsAppBase";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PURPOSE_ICONS: Record<WAPurpose, typeof MessageSquare> = {
   bot_operativo: MessageSquare,
@@ -38,6 +39,7 @@ const LINE_ORDER: WAPurposeGroup[] = [
 ];
 
 export function WhatsAppMultiNumeroTab() {
+  const t = useT();
   const navigate = useNavigate();
   const { base: waBase } = useWhatsAppBase();
   const { byPurpose, isLoading, isError, error, refetch, isFetching } = useWhatsAppNumbersByPurpose();
@@ -58,7 +60,7 @@ export function WhatsAppMultiNumeroTab() {
       <div className="space-y-6 p-4 md:p-0">
         <div className="flex items-center justify-center rounded-xl border bg-card py-12" aria-live="polite">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Caricamento numeri WhatsApp</span>
+          <span className="ml-2 text-sm text-muted-foreground">{t("Caricamento numeri WhatsApp")}</span>
         </div>
         <ConnectNumberWizard
           open={wizardOpen}
@@ -74,9 +76,9 @@ export function WhatsAppMultiNumeroTab() {
       <div className="space-y-6 p-4 md:p-0">
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-8 text-center">
           <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
-          <h2 className="font-semibold">Numeri WhatsApp non caricati</h2>
+          <h2 className="font-semibold">{t("Numeri WhatsApp non caricati")}</h2>
           <p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">
-            {(error as Error)?.message || "Non riesco a leggere la configurazione WhatsApp in questo momento."}
+            {(error as Error)?.message || t("Non riesco a leggere la configurazione WhatsApp in questo momento.")}
           </p>
           <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             {isFetching ? (
@@ -84,7 +86,7 @@ export function WhatsAppMultiNumeroTab() {
             ) : (
               <RefreshCw className="mr-2 h-4 w-4" />
             )}
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
         <ConnectNumberWizard
@@ -106,14 +108,14 @@ export function WhatsAppMultiNumeroTab() {
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         {/* Un'etichetta di sezione accanto al bottone. */}
-        <h2 className="text-base font-semibold">I tuoi numeri</h2>
+        <h2 className="text-base font-semibold">{t("I tuoi numeri")}</h2>
         <Button
           onClick={() => openWizard(null)}
           disabled={!hasAvailablePurposes}
-          aria-label="Collega nuovo numero WhatsApp"
+          aria-label={t("Collega nuovo numero WhatsApp")}
         >
           <Plus className="mr-2 h-4 w-4" />
-          {hasAvailablePurposes ? "Collega nuovo numero" : "Tutti i tipi di numero sono collegati"}
+          {hasAvailablePurposes ? t("Collega nuovo numero") : t("Tutti i tipi di numero sono collegati")}
         </Button>
       </div>
 
@@ -131,9 +133,9 @@ export function WhatsAppMultiNumeroTab() {
                 <div>
                   <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                     <Icon className="h-4 w-4" />
-                    {group.label}
+                    {t(group.label)}
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">{group.description}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t(group.description)}</p>
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -151,14 +153,14 @@ export function WhatsAppMultiNumeroTab() {
                     key={p}
                     onClick={() => openWizard(p)}
                     className="rounded-lg border-2 border-dashed border-muted-foreground/20 p-4 text-left hover:border-primary hover:bg-primary/5 transition-colors"
-                    aria-label={`Collega numero ${PURPOSE_LABELS[p]}`}
+                    aria-label={t("Collega numero {scopo}", { scopo: t(PURPOSE_LABELS[p]) })}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <MissingIcon className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">{PURPOSE_LABELS[p]}</span>
+                      <span className="text-sm font-medium">{t(PURPOSE_LABELS[p])}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{PURPOSE_DESCRIPTIONS[p]}</p>
-                    <p className="mt-2 text-[11px] font-semibold text-primary">{PURPOSE_AUTONOMY[p]}</p>
+                    <p className="text-xs text-muted-foreground">{t(PURPOSE_DESCRIPTIONS[p])}</p>
+                    <p className="mt-2 text-[11px] font-semibold text-primary">{t(PURPOSE_AUTONOMY[p])}</p>
                   </button>
                   );
                 })}

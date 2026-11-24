@@ -4,7 +4,7 @@
 // Step 3: segmento destinatari (tipo + stato + exclude_opt_out) con preview count
 // Step 4: schedulazione (now / data/ora) + finestra oraria + riepilogo
 
-import { useState, useMemo } from "react";
+import { Fragment, useState, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useQuery } from "@tanstack/react-query";
 import { useWhatsAppBase } from "./useWhatsAppBase";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Mette pezzi di interfaccia (grassetti, numeri) al posto dei segnaposto di una frase già tradotta. */
+function conPezzi(frase: string, pezzi: Record<string, ReactNode>): ReactNode[] {
+  return frase.split(/(\{\w+\})/).map((p, i) => {
+    const nome = /^\{(\w+)\}$/.exec(p)?.[1];
+    return <Fragment key={i}>{nome && nome in pezzi ? pezzi[nome] : p}</Fragment>;
+  });
+}
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -37,6 +46,7 @@ const CONTACT_FIELD_OPTIONS = [
 ];
 
 export default function BroadcastCreatePage() {
+  const tr = useT();
   const navigate = useNavigate();
   const { base: waBase } = useWhatsAppBase();
   const companyId = useEffectiveCompanyId();
@@ -161,19 +171,17 @@ export default function BroadcastCreatePage() {
   };
 
   const headerSteps = [
-    "Info base",
-    "Template",
-    "Destinatari",
-    "Schedulazione",
+    tr("Info base"),
+    tr("Template"),
+    tr("Destinatari"),
+    tr("Schedulazione"),
   ];
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 p-4 md:p-6">
       <div>
-        <h1 className="text-2xl font-semibold">Nuova campagna broadcast</h1>
-        <p className="text-sm text-muted-foreground">
-          Step {step} di 4 — {headerSteps[step - 1]}
-        </p>
+        <h1 className="text-2xl font-semibold">{tr("Nuova campagna broadcast")}</h1>
+        <p className="text-sm text-muted-foreground">{tr("Step {step} di 4 — {nome}", { step, nome: headerSteps[step - 1] })}</p>
       </div>
 
       <div className="flex gap-2">
@@ -190,7 +198,7 @@ export default function BroadcastCreatePage() {
                   ? "bg-primary/60"
                   : "bg-muted"
               }`}
-              aria-label={`Step ${idx}: ${label} — ${state}`}
+              aria-label={tr("Step {idx}: {label} — {state}", { idx, label, state })}
             />
           );
         })}
@@ -205,30 +213,30 @@ export default function BroadcastCreatePage() {
           {step === 1 && (
             <>
               <div className="space-y-1">
-                <Label htmlFor="bc-nome">Nome campagna</Label>
+                <Label htmlFor="bc-nome">{tr("Nome campagna")}</Label>
                 <Input
                   id="bc-nome"
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
-                  placeholder="es. Promo primavera 2026"
+                  placeholder={tr("es. Promo primavera 2026")}
                   maxLength={80}
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="bc-number">Numero WhatsApp mittente</Label>
+                <Label htmlFor="bc-number">{tr("Numero WhatsApp mittente")}</Label>
                 <Select value={waNumberId} onValueChange={setWaNumberId}>
                   <SelectTrigger id="bc-number">
-                    <SelectValue placeholder="Scegli numero..." />
+                    <SelectValue placeholder={tr("Scegli numero...")} />
                   </SelectTrigger>
                   <SelectContent>
                     {eligibleNumbers.length === 0 && (
                       <div className="px-2 py-2 text-sm text-muted-foreground">
-                        Nessun numero per marketing e invii di massa. Collega prima il WhatsApp commerciale.
+                        {tr("Nessun numero per marketing e invii di massa. Collega prima il WhatsApp commerciale.")}
                       </div>
                     )}
                     {numbersError && (
                       <div className="px-2 py-2 text-sm text-destructive">
-                        Errore nel caricamento dei numeri.
+                        {tr("Errore nel caricamento dei numeri.")}
                       </div>
                     )}
                     {eligibleNumbers.map((n) => (
@@ -248,11 +256,11 @@ export default function BroadcastCreatePage() {
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Solo template <b>APPROVED</b> da Meta. Se la lista è vuota, vai in Template e clicca "Sincronizza".
+                  {conPezzi(tr("Solo template {stato} da Meta. Se la lista è vuota, vai in Template e clicca \"Sincronizza\"."), { stato: <b>APPROVED</b> })}
                 </AlertDescription>
               </Alert>
               <div className="space-y-1">
-                <Label htmlFor="bc-template">Template approvato</Label>
+                <Label htmlFor="bc-template">{tr("Template approvato")}</Label>
                 <Select
                   value={templateName}
                   onValueChange={(v) => {
@@ -261,22 +269,22 @@ export default function BroadcastCreatePage() {
                   }}
                 >
                   <SelectTrigger id="bc-template">
-                    <SelectValue placeholder="Scegli template..." />
+                    <SelectValue placeholder={tr("Scegli template...")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(templates ?? []).length === 0 && (
                       <div className="px-2 py-2 text-sm text-muted-foreground">
-                        Nessun template APPROVED disponibile.
+                        {tr("Nessun template APPROVED disponibile.")}
                       </div>
                     )}
                     {templatesError && (
                       <div className="px-2 py-2 text-sm text-destructive">
-                        Errore nel caricamento dei template.
+                        {tr("Errore nel caricamento dei template.")}
                       </div>
                     )}
                     {(templates ?? []).map((t) => (
                       <SelectItem key={t.id} value={t.template_name}>
-                        {t.template_name} — {t.category} ({t.variables_count ?? 0} var)
+                        {t.template_name} — {t.category} ({tr("{n} var", { n: t.variables_count ?? 0 })})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -284,7 +292,7 @@ export default function BroadcastCreatePage() {
               </div>
               {selectedTemplate && variableIds.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Mapping variabili → campo contatto</Label>
+                  <Label>{tr("Mapping variabili → campo contatto")}</Label>
                   {variableIds.map((v) => (
                     <div key={v} className="flex items-center gap-2">
                       <span className="font-mono text-sm w-14 text-muted-foreground">{`{{${v}}}`}</span>
@@ -295,12 +303,12 @@ export default function BroadcastCreatePage() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Scegli campo..." />
+                          <SelectValue placeholder={tr("Scegli campo...")} />
                         </SelectTrigger>
                         <SelectContent>
                           {CONTACT_FIELD_OPTIONS.map((o) => (
                             <SelectItem key={o.value} value={o.value}>
-                              {o.label}
+                              {tr(o.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -332,7 +340,7 @@ export default function BroadcastCreatePage() {
                   className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  Chiedi a Silvio aiuto configurazione
+                  {tr("Chiedi a Silvio aiuto configurazione")}
                 </button>
               )}
             </>
@@ -343,27 +351,27 @@ export default function BroadcastCreatePage() {
             <>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="bc-tipo">Tipo contatto (opzionale)</Label>
+                  <Label htmlFor="bc-tipo">{tr("Tipo contatto (opzionale)")}</Label>
                   <Select value={tipoFilter} onValueChange={setTipoFilter}>
                     <SelectTrigger id="bc-tipo">
-                      <SelectValue placeholder="Tutti i tipi" />
+                      <SelectValue placeholder={tr("Tutti i tipi")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tutti i tipi</SelectItem>
+                      <SelectItem value="all">{tr("Tutti i tipi")}</SelectItem>
                       <SelectItem value="lead">Lead</SelectItem>
-                      <SelectItem value="cliente_prospect">Cliente prospect</SelectItem>
-                      <SelectItem value="cliente">Cliente</SelectItem>
-                      <SelectItem value="lead_qualificato">Lead qualificato</SelectItem>
+                      <SelectItem value="cliente_prospect">{tr("Cliente prospect")}</SelectItem>
+                      <SelectItem value="cliente">{tr("Cliente")}</SelectItem>
+                      <SelectItem value="lead_qualificato">{tr("Lead qualificato")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="bc-stato">Stato (opzionale)</Label>
+                  <Label htmlFor="bc-stato">{tr("Stato (opzionale)")}</Label>
                   <Input
                     id="bc-stato"
                     value={statoFilter}
                     onChange={(e) => setStatoFilter(e.target.value)}
-                    placeholder="es. nuovo"
+                    placeholder={tr("es. {esempio}", { esempio: "nuovo" })}
                   />
                 </div>
               </div>
@@ -373,27 +381,27 @@ export default function BroadcastCreatePage() {
                   checked={excludeOptOut}
                   onCheckedChange={setExcludeOptOut}
                 />
-                <Label htmlFor="bc-exclude-optout">Escludi opt-out (raccomandato)</Label>
+                <Label htmlFor="bc-exclude-optout">{tr("Escludi opt-out (raccomandato)")}</Label>
               </div>
               <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-sm text-muted-foreground mb-1">Anteprima destinatari</p>
+                <p className="text-sm text-muted-foreground mb-1">{tr("Anteprima destinatari")}</p>
                 <p className="text-3xl font-bold">
                   {previewE164Count ?? "…"}
-                  <span className="text-sm text-muted-foreground font-normal ml-2">contatti contattabili</span>
+                  <span className="text-sm text-muted-foreground font-normal ml-2">{tr("contatti contattabili")}</span>
                 </p>
                 {(previewE164Count ?? 0) === 0 && (previewCount ?? 0) > 0 && (
                   <p className="text-xs text-red-600 mt-2">
-                    ⚠️ {previewCount} contatti hanno telefono ma <strong>nessuno è in formato internazionale</strong> (es. +39 333 ...). Meta API rifiuta i numeri senza prefisso paese. Sistema il formato dei contatti prima di inviare.
+                    ⚠️ {conPezzi(tr("{n} contatti hanno telefono ma {evidenza} (es. +39 333 ...). Meta API rifiuta i numeri senza prefisso paese. Sistema il formato dei contatti prima di inviare.", { n: previewCount ?? 0 }), { evidenza: <strong>{tr("nessuno è in formato internazionale")}</strong> })}
                   </p>
                 )}
                 {(previewE164Count ?? 0) === 0 && (previewCount ?? 0) === 0 && (
                   <p className="text-xs text-red-600 mt-2">
-                    Nessun contatto con questi filtri. Allenta i criteri.
+                    {tr("Nessun contatto con questi filtri. Allenta i criteri.")}
                   </p>
                 )}
                 {phonesInvalidCount > 0 && (previewE164Count ?? 0) > 0 && (
                   <p className="text-xs text-amber-600 mt-2">
-                    🟡 <strong>{phonesInvalidCount} contatti esclusi</strong> perché il telefono non è in formato internazionale (+39...). Meta non li accetterà. Correggi i numeri se vuoi includerli.
+                    🟡 {conPezzi(tr("{esclusi} perché il telefono non è in formato internazionale (+39...). Meta non li accetterà. Correggi i numeri se vuoi includerli."), { esclusi: <strong>{tr("{n} contatti esclusi", { n: phonesInvalidCount })}</strong> })}
                   </p>
                 )}
               </div>
@@ -404,27 +412,27 @@ export default function BroadcastCreatePage() {
           {step === 4 && (
             <>
               <div className="space-y-2">
-                <Label>Quando inviare</Label>
+                <Label>{tr("Quando inviare")}</Label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
                     variant={scheduleMode === "now" ? "default" : "outline"}
                     onClick={() => setScheduleMode("now")}
                   >
-                    Subito
+                    {tr("Subito")}
                   </Button>
                   <Button
                     type="button"
                     variant={scheduleMode === "later" ? "default" : "outline"}
                     onClick={() => setScheduleMode("later")}
                   >
-                    Programma
+                    {tr("Programma")}
                   </Button>
                 </div>
               </div>
               {scheduleMode === "later" && (
                 <div className="space-y-1">
-                  <Label htmlFor="bc-scheduled">Data e ora</Label>
+                  <Label htmlFor="bc-scheduled">{tr("Data e ora")}</Label>
                   <Input
                     id="bc-scheduled"
                     type="datetime-local"
@@ -435,7 +443,7 @@ export default function BroadcastCreatePage() {
               )}
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="bc-win-start">Finestra oraria (inizio)</Label>
+                  <Label htmlFor="bc-win-start">{tr("Finestra oraria (inizio)")}</Label>
                   <Input
                     id="bc-win-start"
                     type="time"
@@ -444,7 +452,7 @@ export default function BroadcastCreatePage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="bc-win-end">Finestra oraria (fine)</Label>
+                  <Label htmlFor="bc-win-end">{tr("Finestra oraria (fine)")}</Label>
                   <Input
                     id="bc-win-end"
                     type="time"
@@ -457,13 +465,13 @@ export default function BroadcastCreatePage() {
                 <Info className="h-4 w-4" />
                 <AlertDescription>
                   <div className="text-sm space-y-1">
-                    <p><b>Riepilogo</b></p>
+                    <p><b>{tr("Riepilogo")}</b></p>
                     <ul className="list-disc pl-5 space-y-0.5 text-xs">
-                      <li>Campagna: {nome}</li>
-                      <li>Template: {templateName}</li>
-                      <li>Destinatari: ~{previewE164Count ?? "—"} contattabili{phonesInvalidCount > 0 ? ` (${phonesInvalidCount} esclusi per formato telefono)` : ""}</li>
-                      <li>Invio: {scheduleMode === "now" ? "tra 1 minuto" : new Date(scheduledDate).toLocaleString("it-IT")}</li>
-                      <li>Finestra oraria: {windowStart}–{windowEnd}</li>
+                      <li>{tr("Campagna: {nome}", { nome })}</li>
+                      <li>{tr("Template: {templateName}", { templateName })}</li>
+                      <li>{tr("Destinatari: ~{n} contattabili", { n: previewE164Count ?? "—" })}{phonesInvalidCount > 0 ? ` ${tr("({n} esclusi per formato telefono)", { n: phonesInvalidCount })}` : ""}</li>
+                      <li>{tr("Invio: {quando}", { quando: scheduleMode === "now" ? tr("tra 1 minuto") : new Date(scheduledDate).toLocaleString(intlCampo()) })}</li>
+                      <li>{tr("Finestra oraria: {windowStart}–{windowEnd}", { windowStart, windowEnd })}</li>
                     </ul>
                   </div>
                 </AlertDescription>
@@ -482,7 +490,7 @@ export default function BroadcastCreatePage() {
           }}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          {step === 1 ? "Annulla" : "Indietro"}
+          {step === 1 ? tr("Annulla") : tr("Indietro")}
         </Button>
 
         {step < 4 && (
@@ -490,7 +498,7 @@ export default function BroadcastCreatePage() {
             disabled={!canAdvance()}
             onClick={() => setStep((s) => ((s + 1) as Step))}
           >
-            Avanti
+            {tr("Avanti")}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         )}
@@ -501,7 +509,7 @@ export default function BroadcastCreatePage() {
             ) : (
               <Send className="mr-2 h-4 w-4" />
             )}
-            Conferma e invia
+            {tr("Conferma e invia")}
           </Button>
         )}
       </div>
@@ -521,6 +529,7 @@ function TemplatePreviewCard({
   template: { components_json: unknown; template_name: string; category: string | null };
   variableMapping: Record<string, string>;
 }) {
+  const t = useT();
   const bodyText = useMemo(() => {
     const json = template.components_json as { components?: Array<{ type?: string; text?: string }> } | null;
     if (!json?.components) return null;
@@ -541,11 +550,11 @@ function TemplatePreviewCard({
     if (!bodyText) return null;
     return bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, idx: string) => {
       const field = variableMapping[idx];
-      if (!field) return `[{{${idx}}} — non mappato]`;
+      if (!field) return t("[{variabile} — non mappato]", { variabile: `{{${idx}}}` });
       return SAMPLE_VALUES[field] ?? `[${field}]`;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodyText, variableMapping]);
+  }, [bodyText, variableMapping, t]);
 
   const unmappedVars = useMemo(() => {
     if (!bodyText) return [] as string[];
@@ -559,15 +568,16 @@ function TemplatePreviewCard({
     <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900">
         <Eye className="h-3.5 w-3.5" />
-        Anteprima messaggio (cliente di esempio: Mario Rossi)
+        {t("Anteprima messaggio (cliente di esempio: Mario Rossi)")}
       </div>
       <div className="rounded-md bg-white border border-slate-200 p-3 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap font-[system-ui]">
         {renderedBody}
       </div>
       {unmappedVars.length > 0 && (
         <p className="text-[11px] text-amber-700">
-          ⚠️ {unmappedVars.length} variabile{unmappedVars.length > 1 ? "/i" : ""} non mappata
-          {unmappedVars.length > 1 ? "/e" : ""}: {unmappedVars.map((v) => `{{${v}}}`).join(", ")}. Il messaggio arriverebbe ai destinatari con il placeholder grezzo.
+          ⚠️ {unmappedVars.length === 1
+            ? t("{n} variabile non mappata: {elenco}. Il messaggio arriverebbe ai destinatari con il placeholder grezzo.", { n: 1, elenco: `{{${unmappedVars[0]}}}` })
+            : t("{n} variabili non mappate: {elenco}. Il messaggio arriverebbe ai destinatari con il placeholder grezzo.", { n: unmappedVars.length, elenco: unmappedVars.map((v) => `{{${v}}}`).join(", ") })}
         </p>
       )}
     </div>

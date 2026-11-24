@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { TipologiaListino } from "@/lib/listino/lineeListino";
 import { nomeBottone } from "@/lib/serramenti/complementiFinestra";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   tipologie: readonly TipologiaListino[];
@@ -26,6 +27,7 @@ interface Props {
 export function BarraComplementi({
   tipologie, onAggiungi, onAMano, inCorso = null, occupata = false, destinazione, className,
 }: Props) {
+  const tr = useT();
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {tipologie.map((t) => {
@@ -38,7 +40,7 @@ export function BarraComplementi({
             variant="outline"
             disabled={occupata}
             onClick={() => onAggiungi(t)}
-            aria-label={destinazione ? `${destinazione}: aggiungi ${nome}` : `Aggiungi ${nome}`}
+            aria-label={destinazione ? tr("{destinazione}: aggiungi {nome}", { destinazione: String(destinazione ?? ""), nome: String(nome ?? "") }) : tr("Aggiungi {tipo}", { tipo: String(nome ?? "") })}
             // tap-compact: da telefono la regola dei 44px li faceva grossi e su due righe.
             className="tap-compact h-7 gap-1 border-dashed border-orange-300 bg-white px-2 text-[11px] font-medium text-orange-700 hover:bg-orange-50 max-sm:h-8"
           >
@@ -57,7 +59,7 @@ export function BarraComplementi({
           className="tap-compact h-7 gap-1 px-2 text-[11px] text-slate-600 max-sm:h-8"
         >
           <Plus className="h-3 w-3" />
-          {tipologie.length > 0 ? "A mano" : "Complemento a mano"}
+          {tipologie.length > 0 ? tr("A mano") : tr("Complemento a mano")}
         </Button>
       )}
     </div>

@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type AdProvider = "meta" | "google";
 export type GoogleAdsChannel = "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX";
@@ -66,6 +67,7 @@ const GOOGLE_CHANNELS: Array<{
 ];
 
 export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
+  const t = useT();
   const [selected, setSelected] = useState<AdProvider | null>(null);
   const [googleChannel, setGoogleChannel] = useState<GoogleAdsChannel>("SEARCH");
   const [mode, setMode] = useState<"quick" | "advanced">("quick");
@@ -86,16 +88,16 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Crea una nuova campagna pubblicitaria</DialogTitle>
+          <DialogTitle>{t("Crea una nuova campagna pubblicitaria")}</DialogTitle>
           <DialogDescription>
-            1) Scegli la modalità · 2) Scegli la piattaforma · Click Continua.
+            {t("1) Scegli la modalità · 2) Scegli la piattaforma · Click Continua.")}
           </DialogDescription>
         </DialogHeader>
 
         {/* MODE SELECTOR — Quick Start vs Avanzato */}
         <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-4">
           <p className="mb-3 text-xs font-semibold uppercase text-slate-600">
-            ⚡ Modalità di setup
+            {t("⚡ Modalità di setup")}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <button
@@ -117,11 +119,11 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-semibold text-slate-950">Quick Start AI</p>
+                  <p className="text-sm font-semibold text-slate-950">{t("Quick Start AI")}</p>
                   <Badge className="bg-emerald-500 text-[9px] text-white">~60s</Badge>
                 </div>
                 <p className="text-[11px] leading-tight text-slate-600">
-                  Scrivi cosa vuoi in italiano normale, l'AI prepara tutto: pubblico, copy, budget.
+                  {t("Scrivi cosa vuoi in italiano normale, l'AI prepara tutto: pubblico, copy, budget.")}
                 </p>
               </div>
             </button>
@@ -144,9 +146,9 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
                 <Wand2 className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-950">Wizard avanzato</p>
+                <p className="text-sm font-semibold text-slate-950">{t("Wizard avanzato")}</p>
                 <p className="text-[11px] leading-tight text-slate-600">
-                  5 step guidati: targeting fine, A/B test, automazioni. Per chi sa già cosa fare.
+                  {t("5 step guidati: targeting fine, A/B test, automazioni. Per chi sa già cosa fare.")}
                 </p>
               </div>
             </button>
@@ -154,7 +156,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
         </div>
 
         <p className="mt-2 text-xs font-semibold uppercase text-slate-600">
-          📣 Piattaforma
+          {t("📣 Piattaforma")}
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -177,7 +179,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
                 </div>
                 <div>
                   <p className="text-base font-semibold text-slate-950">Meta Ads</p>
-                  <p className="text-xs text-slate-500">Facebook · Instagram · Messenger · WhatsApp</p>
+                  <p className="text-xs text-slate-500">{t("Facebook · Instagram · Messenger · WhatsApp")}</p>
                 </div>
               </div>
               {selected === "meta" && (
@@ -187,18 +189,16 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
               )}
             </div>
             <p className="text-sm text-slate-700">
-              Mostra gli annunci per <strong>interessi</strong>, <strong>abitudini</strong> e <strong>zona</strong>.
-              È la scelta giusta per farsi trovare da chi non ti conosce ancora e chiede
-              un preventivo o un sopralluogo.
+              {t("Mostra gli annunci per")} <strong>{t("interessi")}</strong>, <strong>{t("abitudini")}</strong> e <strong>{t("zona")}</strong>{t(". È la scelta giusta per farsi trovare da chi non ti conosce ancora e chiede un preventivo o un sopralluogo.")}
             </p>
             <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Il modulo si compila dentro Facebook</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Scegli comuni e raggio di lavoro</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> In edilizia una richiesta costa di solito 8–25 €</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Puoi ripartire dai tuoi clienti già acquisiti</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("Il modulo si compila dentro Facebook")}</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("Scegli comuni e raggio di lavoro")}</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("In edilizia una richiesta costa di solito 8–25 €")}</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("Puoi ripartire dai tuoi clienti già acquisiti")}</li>
             </ul>
             <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800">
-              Va online direttamente da qui.
+              {t("Va online direttamente da qui.")}
             </p>
           </button>
 
@@ -221,7 +221,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
                 </div>
                 <div>
                   <p className="text-base font-semibold text-slate-950">Google Ads</p>
-                  <p className="text-xs text-slate-500">Search · Display · YouTube · Performance Max</p>
+                  <p className="text-xs text-slate-500">{t("Search · Display · YouTube · Performance Max")}</p>
                 </div>
               </div>
               {selected === "google" && (
@@ -231,15 +231,13 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
               )}
             </div>
             <p className="text-sm text-slate-700">
-              Mostra gli annunci a chi <strong>cerca</strong> quel lavoro su Google.
-              Sono persone che sanno già cosa vogliono: costano di più per clic,
-              ma rendono molto quando il tuo nome è già conosciuto.
+              {t("Mostra gli annunci a chi")} <strong>{t("cerca")}</strong> {t("quel lavoro su Google. Sono persone che sanno già cosa vogliono: costano di più per clic, ma rendono molto quando il tuo nome è già conosciuto.")}
             </p>
             <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Ricerca: chi sta già cercando il lavoro</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Banner: massima visibilità sui siti</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Video su YouTube</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Performance Max: tutti i canali insieme</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("Ricerca: chi sta già cercando il lavoro")}</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("Banner: massima visibilità sui siti")}</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("Video su YouTube")}</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> {t("Performance Max: tutti i canali insieme")}</li>
             </ul>
             {/*
               Detto chiaro prima di cominciare: la campagna Google si prepara
@@ -248,7 +246,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
               wizard è il modo più sicuro per far arrabbiare qualcuno.
             */}
             <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
-              Per ora la prepari qui e la carichi a mano su Google: la pubblicazione automatica non è ancora attiva.
+              {t("Per ora la prepari qui e la carichi a mano su Google: la pubblicazione automatica non è ancora attiva.")}
             </p>
           </button>
         </div>
@@ -256,7 +254,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
         {/* Sotto-selettore canale Google (visibile solo se Google scelto) */}
         {selected === "google" && (
           <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-            <p className="mb-3 text-sm font-semibold text-amber-900">Quale canale Google vuoi usare?</p>
+            <p className="mb-3 text-sm font-semibold text-amber-900">{t("Quale canale Google vuoi usare?")}</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {GOOGLE_CHANNELS.map((channel) => {
                 const Icon = channel.icon;
@@ -279,8 +277,8 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-950">{channel.label}</p>
-                      <p className="text-[11px] leading-snug text-slate-500">{channel.description}</p>
+                      <p className="text-sm font-semibold text-slate-950">{t(channel.label)}</p>
+                      <p className="text-[11px] leading-snug text-slate-500">{t(channel.description)}</p>
                     </div>
                     {active && (
                       <span className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
@@ -295,18 +293,18 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
         )}
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={handleConfirm} disabled={!selected}>
             {selected === "google" ? (
               <>
-                <Target className="mr-2 h-4 w-4" /> Continua con Google {googleChannel === "SEARCH" ? "Search" : googleChannel === "DISPLAY" ? "Display" : googleChannel === "VIDEO" ? "Video" : "PMax"}
+                <Target className="mr-2 h-4 w-4" /> {t("Continua con Google")} {googleChannel === "SEARCH" ? "Search" : googleChannel === "DISPLAY" ? "Display" : googleChannel === "VIDEO" ? t("Video") : "PMax"}
               </>
             ) : selected === "meta" ? (
               <>
-                <Megaphone className="mr-2 h-4 w-4" /> Continua con Meta
+                <Megaphone className="mr-2 h-4 w-4" /> {t("Continua con Meta")}
               </>
             ) : (
-              <>Seleziona una piattaforma</>
+              <>{t("Seleziona una piattaforma")}</>
             )}
           </Button>
         </DialogFooter>

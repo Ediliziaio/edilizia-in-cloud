@@ -42,6 +42,7 @@ import {
 import { FileDown, Loader2, Mail, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { isValidEmail } from "@/lib/email/preferencesValidators";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PdfPreview = lazy(() =>
   import("@/components/shared/PdfBlobLivePreviewPanel").then((m) => ({
@@ -80,6 +81,7 @@ function DocumentoInvioContent({
   modificaRighe = false,
   initialMode = "testo",
 }: Props) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const [d, setD] = useState(() =>
     (documento.tipo === "trasporti" && !documento.rendicontoTrasporti) || documento.tipo === "economia"
@@ -230,7 +232,7 @@ function DocumentoInvioContent({
         await supabase.storage.from("email-attachments").remove([uploaded]);
       if (op === operazione.current) {
         const msg =
-          e instanceof Error ? e.message : "Preparazione non riuscita";
+          e instanceof Error ? e.message : tr("Preparazione non riuscita");
         setErrore(msg);
         toast.error(msg);
       }
@@ -242,24 +244,24 @@ function DocumentoInvioContent({
     <>
       <Button variant={d.rendicontoTrasporti ? "default" : "outline"} onClick={anteprima} disabled={busy}>
         <FileDown className="mr-2 h-4 w-4" />
-        Anteprima PDF
+        {tr("Anteprima PDF")}
       </Button>
       {url && (
         <Button asChild variant="outline">
-          <a href={url} download={nomeFileDocumento(d)}>Scarica PDF</a>
+          <a href={url} download={nomeFileDocumento(d)}>{tr("Scarica PDF")}</a>
         </Button>
       )}
     </>
   );
   const anteprimaPdf = blob && (
     <div className="h-[60vh] min-h-80 overflow-hidden rounded-lg border">
-      <Suspense fallback={<p className="p-4 text-sm">Caricamento anteprima…</p>}>
+      <Suspense fallback={<p className="p-4 text-sm">{tr("Caricamento anteprima…")}</p>}>
         <PdfPreview
           renderBlobUrl={async () => URL.createObjectURL(blob)}
           depsKey={chiave}
           debounceMs={0}
           downloadFileName={nomeFileDocumento(d)}
-          headerLabel="Anteprima PDF documento"
+          headerLabel={tr("Anteprima PDF documento")}
           showDownloadOnMobile
         />
       </Suspense>
@@ -275,11 +277,11 @@ function DocumentoInvioContent({
       >
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{d.rendicontoTrasporti ? "Rendiconto trasporti al cliente" : "Prepara documento e invio"}</DialogTitle>
+            <DialogTitle>{d.rendicontoTrasporti ? tr("Rendiconto trasporti al cliente") : tr("Prepara documento e invio")}</DialogTitle>
             <DialogDescription>
               {d.rendicontoTrasporti
-                ? "Controlla il cliente e i viaggi ripresi dai rapportini approvati, poi apri l’anteprima per scaricare il PDF."
-                : "Controlla i dati, scegli testo nell’email o PDF allegato. L’email si apre per la revisione: l’invio avviene solo dal pulsante Invia."}
+                ? tr("Controlla il cliente e i viaggi ripresi dai rapportini approvati, poi apri l’anteprima per scaricare il PDF.")
+                : tr("Controlla i dati, scegli testo nell’email o PDF allegato. L’email si apre per la revisione: l’invio avviene solo dal pulsante Invia.")}
             </DialogDescription>
           </DialogHeader>
           {d.rendicontoTrasporti && (
@@ -291,7 +293,7 @@ function DocumentoInvioContent({
           <fieldset disabled={busy} className="space-y-4 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
-                <Label htmlFor="doc-tipo">Documento</Label>
+                <Label htmlFor="doc-tipo">{tr("Documento")}</Label>
                 <UniformSelect
                   id="doc-tipo"
                   value={d.tipo}
@@ -313,7 +315,7 @@ function DocumentoInvioContent({
                 </UniformSelect>
               </div>
               <div>
-                <Label htmlFor="doc-numero">Numero / riferimento</Label>
+                <Label htmlFor="doc-numero">{tr("Numero / riferimento")}</Label>
                 <Input
                   id="doc-numero"
                   readOnly={!modificaRighe}
@@ -322,7 +324,7 @@ function DocumentoInvioContent({
                 />
               </div>
               <div>
-                <Label htmlFor="doc-data">Data documento</Label>
+                <Label htmlFor="doc-data">{tr("Data documento")}</Label>
                 <Input
                   id="doc-data"
                   type="date"
@@ -333,7 +335,7 @@ function DocumentoInvioContent({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="doc-nome">{d.rendicontoTrasporti ? "Cliente" : d.tipo === "trasporti" ? "Trasportatore" : "Destinatario"}</Label>
+                <Label htmlFor="doc-nome">{d.rendicontoTrasporti ? tr("Cliente") : d.tipo === "trasporti" ? tr("Trasportatore") : tr("Destinatario")}</Label>
                 <Input
                   id="doc-nome"
                   value={d.destinatario.nome}
@@ -347,7 +349,7 @@ function DocumentoInvioContent({
               </div>
               <div>
                 <Label htmlFor="doc-email-destinatario">
-                  Email destinatario
+                  {tr("Email destinatario")}
                 </Label>
                 <Input
                   id="doc-email-destinatario"
@@ -359,27 +361,26 @@ function DocumentoInvioContent({
                       email: e.target.value,
                     })
                   }
-                  placeholder={d.rendicontoTrasporti ? "Email del cliente" : "Email ordini o referente del fornitore"}
+                  placeholder={d.rendicontoTrasporti ? tr("Email del cliente") : tr("Email ordini o referente del fornitore")}
                 />
                 {d.fornitoreId && (
                   <p className="mt-1 text-xs text-slate-500">
-                    Ripresa dall’anagrafica di questo fornitore; puoi
-                    correggerla per questo invio.
+                    {tr("Ripresa dall’anagrafica di questo fornitore; puoi correggerla per questo invio.")}
                   </p>
                 )}
               </div>
               {d.rendicontoTrasporti ? (
                 <div>
-                  <Label htmlFor="doc-commessa">Commessa</Label>
+                  <Label htmlFor="doc-commessa">{tr("Commessa")}</Label>
                   <Input id="doc-commessa" value={d.commessa ?? ""} readOnly />
                 </div>
               ) : <div className="space-y-1">
-                <Label>Commessa</Label>
+                <Label>{tr("Commessa")}</Label>
                 <CommessaCombobox
                   value={commessaId}
                   onChange={setCommessaId}
                   nessunaLabel={
-                    d.commessa || "Nessuna commessa (acquisto generico)"
+                    d.commessa || tr("Nessuna commessa (acquisto generico)")
                   }
                   onSelection={(c) =>
                     setD((prev) => {
@@ -415,9 +416,7 @@ function DocumentoInvioContent({
                   }
                 />
                 <p className="text-xs text-slate-500">
-                  Cerca per codice, cliente o indirizzo. La scelta compila il
-                  riferimento e l’indirizzo nella copia; non cambia il
-                  collegamento dell’ordine originale.
+                  {tr("Cerca per codice, cliente o indirizzo. La scelta compila il riferimento e l’indirizzo nella copia; non cambia il collegamento dell’ordine originale.")}
                 </p>
               </div>}
               {/* Consegna e referente del fornitore: non riguardano il rapporto dei lavori al committente (14/11/2026). */}
@@ -431,7 +430,7 @@ function DocumentoInvioContent({
               {d.tipo !== "economia" && !!d.referentiFornitore?.length && (
                 <div className="sm:col-span-2">
                   <Label htmlFor="doc-referente-scelta">
-                    Referenti registrati presso il fornitore
+                    {tr("Referenti registrati presso il fornitore")}
                   </Label>
                   <UniformSelect
                     id="doc-referente-scelta"
@@ -449,7 +448,7 @@ function DocumentoInvioContent({
                     }}
                   >
                     <option value="">
-                      Scegli un referente da riportare nel documento
+                      {tr("Scegli un referente da riportare nel documento")}
                     </option>
                     {d.referentiFornitore.map((r, i) => (
                       <option key={i} value={i}>
@@ -461,7 +460,7 @@ function DocumentoInvioContent({
               )}
               {d.tipo !== "economia" && !d.rendicontoTrasporti && (<>
               <div>
-                <Label htmlFor="doc-referente">Nome referente fornitore</Label>
+                <Label htmlFor="doc-referente">{tr("Nome referente fornitore")}</Label>
                 <Input
                   id="doc-referente"
                   value={d.referente ?? ""}
@@ -470,7 +469,7 @@ function DocumentoInvioContent({
               </div>
               <div>
                 <Label htmlFor="doc-referente-email">
-                  Email referente fornitore
+                  {tr("Email referente fornitore")}
                 </Label>
                 <Input
                   id="doc-referente-email"
@@ -481,7 +480,7 @@ function DocumentoInvioContent({
               </div>
               <div>
                 <Label htmlFor="doc-referente-telefono">
-                  Telefono referente fornitore
+                  {tr("Telefono referente fornitore")}
                 </Label>
                 <Input
                   id="doc-referente-telefono"
@@ -506,7 +505,7 @@ function DocumentoInvioContent({
                 )
                 .map(([key, label]) => (
                   <div key={key}>
-                    <Label htmlFor={`doc-${key}`}>{label}</Label>
+                    <Label htmlFor={`doc-${key}`}>{tr(label)}</Label>
                     <Input
                       id={`doc-${key}`}
                       value={d[key] ?? ""}
@@ -529,7 +528,7 @@ function DocumentoInvioContent({
                     : [["consegna", "Consegna prevista"]]
               ).map(([key, label]) => (
                 <div key={key}>
-                  <Label htmlFor={`doc-${key}`}>{label}</Label>
+                  <Label htmlFor={`doc-${key}`}>{tr(label)}</Label>
                   <Input
                     id={`doc-${key}`}
                     type="date"
@@ -542,7 +541,7 @@ function DocumentoInvioContent({
             {(d.tipo === "materiali" || d.tipo === "servizi") && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
                 <Label htmlFor="doc-prezzi">
-                  Prezzi dell’ordine da inviare
+                  {tr("Prezzi dell’ordine da inviare")}
                 </Label>
                 <UniformSelect
                   id="doc-prezzi"
@@ -552,17 +551,14 @@ function DocumentoInvioContent({
                   }
                   className="mt-1 h-10 w-full rounded-md border bg-white px-2 text-sm"
                 >
-                  <option value="concordati">Con prezzi concordati</option>
+                  <option value="concordati">{tr("Con prezzi concordati")}</option>
                   <option value="attesa">
-                    Senza prezzi — attendo la conferma del fornitore
+                    {tr("Senza prezzi — attendo la conferma del fornitore")}
                   </option>
                 </UniformSelect>
                 {senzaPrezzi(d) && (
                   <p className="mt-2 text-xs text-amber-900">
-                    Invii descrizioni, quantità e consegna senza prezzi, sconti,
-                    IVA o totali, sia nell’email sia nel PDF. Quando arriva la
-                    conferma del fornitore, allega l’originale all’ordine e
-                    riporta gli importi concordati.
+                    {tr("Invii descrizioni, quantità e consegna senza prezzi, sconti, IVA o totali, sia nell’email sia nel PDF. Quando arriva la conferma del fornitore, allega l’originale all’ordine e riporta gli importi concordati.")}
                   </p>
                 )}
               </div>
@@ -582,8 +578,8 @@ function DocumentoInvioContent({
                   }
                 />
                 {!modificaRighe && (documento.totali?.iva ?? 0) > 0
-                  ? "Per l’inversione contabile, aggiorna prima l’IVA nelle righe dell’ordine."
-                  : "Inversione contabile concordata per questo ordine"}
+                  ? tr("Per l’inversione contabile, aggiorna prima l’IVA nelle righe dell’ordine.")
+                  : tr("Inversione contabile concordata per questo ordine")}
               </label>
             )}
             {modificaRighe && d.tipo === "economia" ? (
@@ -593,11 +589,11 @@ function DocumentoInvioContent({
               />
             ) : modificaRighe ? (
               <div className="space-y-2">
-                <p className="text-sm font-semibold">{d.rendicontoTrasporti ? "Viaggi dai rapportini approvati" : "Voci del rapporto"}</p>
+                <p className="text-sm font-semibold">{d.rendicontoTrasporti ? tr("Viaggi dai rapportini approvati") : tr("Voci del rapporto")}</p>
                 <p className="text-xs text-slate-500">
                   {d.rendicontoTrasporti
-                    ? "Puoi completare i dati per questa copia. Gli importi sono al netto dell’IVA."
-                    : "Inserisci i prezzi di vendita concordati: i costi interni non vengono usati. Le modifiche valgono per questo documento e non cambiano i rapportini originali."}
+                    ? tr("Puoi completare i dati per questa copia. Gli importi sono al netto dell’IVA.")
+                    : tr("Inserisci i prezzi di vendita concordati: i costi interni non vengono usati. Le modifiche valgono per questo documento e non cambiano i rapportini originali.")}
                 </p>
                 {d.righe.map((r, i) => (
                   <div
@@ -626,10 +622,10 @@ function DocumentoInvioContent({
                       )
                       .map(([key, label]) => (
                         <label className="text-xs" key={key}>
-                          {label}
+                          {tr(label)}
                           <Input
                             type={key === "data" ? "date" : "text"}
-                            aria-label={`${label} voce ${i + 1}`}
+                            aria-label={tr("{label} voce {i}", { label: tr(String(label ?? "")), i: i + 1 })}
                             value={String(r[key as keyof typeof r] ?? "")}
                             onChange={(e) =>
                               cambia(
@@ -649,7 +645,7 @@ function DocumentoInvioContent({
                           ...(d.rendicontoTrasporti
                             ? [
                                 ...(r.unita === "km" ? [] : [["km", "Km percorsi"]]),
-                                ["quantita", r.unita === "km" ? "Km percorsi" : r.unita === "viaggio" ? "Viaggi" : `Quantità (${r.unita})`],
+                                ["quantita", r.unita === "km" ? "Km percorsi" : r.unita === "viaggio" ? "Viaggi" : tr("Quantità ({unita})", { unita: String(r.unita ?? "") })],
                                 ["prezzo", r.unita === "km" ? "Tariffa €/km" : "Prezzo unitario"],
                               ]
                             : [["prezzo", "Importo viaggio"], ["iva", "IVA %"]]),
@@ -668,7 +664,7 @@ function DocumentoInvioContent({
                       )
                       .map(([key, label]) => (
                         <label className="text-xs" key={key}>
-                          {label}
+                          {tr(label)}
                           <Input
                             type="number"
                             min="0"
@@ -678,7 +674,7 @@ function DocumentoInvioContent({
                                 : undefined
                             }
                             step="0.01"
-                            aria-label={`${label} voce ${i + 1}`}
+                            aria-label={tr("{label} voce {i}", { label: tr(String(label ?? "")), i: i + 1 })}
                             value={r[key as "quantita" | "prezzo" | "sconto" | "iva" | "km" | "oreUomo" | "oreMezzo"] ?? ""}
                             onChange={(e) =>
                               cambia(
@@ -703,9 +699,7 @@ function DocumentoInvioContent({
                           d.righe.filter((_, n) => n !== i),
                         )
                       }
-                    >
-                      Rimuovi voce {i + 1}
-                    </Button>
+                    >{tr("Rimuovi voce {i}", { i: i + 1 })}</Button>
                   </div>
                 ))}
                 {!d.rendicontoTrasporti && <Button
@@ -723,27 +717,27 @@ function DocumentoInvioContent({
                     ])
                   }
                 >
-                  Aggiungi voce
+                  {tr("Aggiungi voce")}
                 </Button>}
               </div>
             ) : (
               <p className="rounded-lg bg-slate-50 p-3 text-sm">
-                {d.righe.length} voci dal documento originale.{" "}
+                {tr(d.righe.length === 1 ? "{n} voce dal documento originale." : "{n} voci dal documento originale.", { n: d.righe.length })}{" "}
                 {d.tipo === "richiesta"
-                  ? "La richiesta riporta descrizioni e quantità, con le colonne economiche vuote da compilare dal fornitore."
+                  ? tr("La richiesta riporta descrizioni e quantità, con le colonne economiche vuote da compilare dal fornitore.")
                   : senzaPrezzi(d)
-                    ? "La copia riporta descrizioni e quantità, con spazi vuoti per la conferma dei prezzi."
-                    : "La copia include quantità, prezzi, sconti e IVA."}{" "}
-                Per cambiare le voci, modifica prima il documento originale.
+                    ? tr("La copia riporta descrizioni e quantità, con spazi vuoti per la conferma dei prezzi.")
+                    : tr("La copia include quantità, prezzi, sconti e IVA.")}{" "}
+                {tr("Per cambiare le voci, modifica prima il documento originale.")}
               </p>
             )}
             <div>
               <Label htmlFor="doc-note">
                 {d.tipo === "richiesta"
-                  ? "Note della richiesta per il destinatario"
+                  ? tr("Note della richiesta per il destinatario")
                   : d.tipo === "economia" || d.tipo === "trasporti"
-                    ? "Note del rapporto per il destinatario"
-                    : "Note dell’ordine per il destinatario"}
+                    ? tr("Note del rapporto per il destinatario")
+                    : tr("Note dell’ordine per il destinatario")}
               </Label>
               <Textarea
                 id="doc-note"
@@ -751,17 +745,15 @@ function DocumentoInvioContent({
                 onChange={(e) => cambia("note", e.target.value)}
                 placeholder={
                   d.rendicontoTrasporti
-                    ? "Note per il cliente sui viaggi del periodo"
+                    ? tr("Note per il cliente sui viaggi del periodo")
                     : d.tipo === "economia"
-                    ? "Es. lavori eseguiti su richiesta del vostro direttore lavori; prezzi come da listino concordato."
-                    : "Accordi con il fornitore, caratteristiche richieste, imballo o altre indicazioni…"
+                    ? tr("Es. lavori eseguiti su richiesta del vostro direttore lavori; prezzi come da listino concordato.")
+                    : tr("Accordi con il fornitore, caratteristiche richieste, imballo o altre indicazioni…")
                 }
                 rows={4}
               />
               <p className="mt-1 text-xs text-slate-500">
-                Le note del documento originale sono già riportate qui. Queste
-                note compaiono nella copia PDF e nell’email completa; le note
-                interne restano escluse.
+                {tr("Le note del documento originale sono già riportate qui. Queste note compaiono nella copia PDF e nell’email completa; le note interne restano escluse.")}
               </p>
               <label className="mt-2 flex items-center gap-2 text-sm">
                 <input
@@ -769,28 +761,28 @@ function DocumentoInvioContent({
                   checked={!!d.noteNelMessaggio}
                   onChange={(e) => cambia("noteNelMessaggio", e.target.checked)}
                 />
-                Riporta le note anche nel messaggio che accompagna il PDF
+                {tr("Riporta le note anche nel messaggio che accompagna il PDF")}
               </label>
             </div>
             <details className="rounded-lg border border-slate-200 p-3">
               <summary className="cursor-pointer text-sm font-semibold">
-                {d.rendicontoTrasporti ? "Condizioni del rendiconto" : "Consegna, condizioni e note delle singole voci"}
+                {d.rendicontoTrasporti ? tr("Condizioni del rendiconto") : tr("Consegna, condizioni e note delle singole voci")}
               </summary>
               <div className="mt-3 space-y-3">
                 {!d.rendicontoTrasporti && <div>
                   <Label htmlFor="doc-consegna-note">
-                    Istruzioni per consegna o accesso al cantiere
+                    {tr("Istruzioni per consegna o accesso al cantiere")}
                   </Label>
                   <Textarea
                     id="doc-consegna-note"
                     value={d.noteConsegna ?? ""}
                     onChange={(e) => cambia("noteConsegna", e.target.value)}
-                    placeholder="Orari di scarico, preavviso, referente, mezzi necessari…"
+                    placeholder={tr("Orari di scarico, preavviso, referente, mezzi necessari…")}
                   />
                 </div>}
                 <div>
                   <Label htmlFor="doc-condizioni">
-                    Condizioni da riportare nella copia
+                    {tr("Condizioni da riportare nella copia")}
                   </Label>
                   <Textarea
                     id="doc-condizioni"
@@ -821,20 +813,18 @@ function DocumentoInvioContent({
                             ),
                           )
                         }
-                        placeholder="Nota per questa voce: finitura, dimensioni, confezione, lavorazione…"
+                        placeholder={tr("Nota per questa voce: finitura, dimensioni, confezione, lavorazione…")}
                       />
                     </div>
                   ))}
                 {!d.rendicontoTrasporti && <p className="text-xs text-slate-500">
-                  Le modifiche qui valgono per la copia da inviare. Per
-                  conservarle nell’ordine, modifica le note nella scheda
-                  dell’ordine.
+                  {tr("Le modifiche qui valgono per la copia da inviare. Per conservarle nell’ordine, modifica le note nella scheda dell’ordine.")}
                 </p>}
               </div>
             </details>
             <div
               role="radiogroup"
-              aria-label="Come inviare il documento"
+              aria-label={tr("Come inviare il documento")}
               className="grid gap-2 sm:grid-cols-2"
             >
               {(
@@ -852,13 +842,12 @@ function DocumentoInvioContent({
                   className={`flex items-center gap-2 rounded-xl border p-3 text-left text-sm ${modo === value ? "border-orange-400 bg-orange-50 font-semibold" : "border-slate-200"}`}
                 >
                   <Icon className="h-4 w-4" />
-                  {label}
+                  {tr(label)}
                 </button>
               ))}
             </div>
             {!d.rendicontoTrasporti && <p className="text-xs text-slate-500">
-              PDF standard: logo in alto; dati dell’azienda nel piè di pagina,
-              su massimo due righe.
+              {tr("PDF standard: logo in alto; dati dell’azienda nel piè di pagina, su massimo due righe.")}
             </p>}
             {errore && (
               <p role="alert" className="text-sm text-red-700">
@@ -869,7 +858,7 @@ function DocumentoInvioContent({
               {!d.rendicontoTrasporti && azioniPdf}
               <Button className="ml-auto" onClick={prepara}>
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Prepara email
+                {tr("Prepara email")}
               </Button>
             </div>
           </fieldset>
@@ -902,7 +891,8 @@ function RigheEconomia({ righe, onChange }: {
   righe: DocumentoOperativo["righe"];
   onChange: (righe: DocumentoOperativo["righe"]) => void;
 }) {
-  const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  const t = useT();
+  const euro = (n: number) => n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" });
   const importo = (r: DocumentoOperativo["righe"][number]) =>
     r.prezzo == null ? null : Math.round(Number(r.quantita || 0) * Number(r.prezzo) * 100) / 100;
   const totale = righe.reduce((s, r) => s + (importo(r) ?? 0), 0);
@@ -914,18 +904,18 @@ function RigheEconomia({ righe, onChange }: {
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold">Voci del rapporto</p>
-        <p className="text-xs text-slate-500">Prezzi di vendita: i costi interni non ci sono. Le modifiche valgono solo per questo documento.</p>
+        <p className="text-sm font-semibold">{t("Voci del rapporto")}</p>
+        <p className="text-xs text-slate-500">{t("Prezzi di vendita: i costi interni non ci sono. Le modifiche valgono solo per questo documento.")}</p>
       </div>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-2 py-1.5 text-left font-medium">Voce</th>
+              <th className="px-2 py-1.5 text-left font-medium">{t("Voce")}</th>
               <th className="w-20 px-1 py-1.5 text-left font-medium">U.M.</th>
-              <th className="w-20 px-1 py-1.5 text-right font-medium">Q.tà</th>
-              <th className="w-24 px-1 py-1.5 text-right font-medium">Prezzo</th>
-              <th className="w-24 px-2 py-1.5 text-right font-medium">Importo</th>
+              <th className="w-20 px-1 py-1.5 text-right font-medium">{t("Q.tà")}</th>
+              <th className="w-24 px-1 py-1.5 text-right font-medium">{t("Prezzo")}</th>
+              <th className="w-24 px-2 py-1.5 text-right font-medium">{t("Importo")}</th>
               <th className="w-8" />
             </tr>
           </thead>
@@ -942,24 +932,24 @@ function RigheEconomia({ righe, onChange }: {
                 ) : null,
                 <tr key={i} className="border-t">
                   <td className="px-1 py-1">
-                    <Input aria-label={`Descrizione voce ${i + 1}`} className="h-8 text-sm" value={r.descrizione}
+                    <Input aria-label={t("Descrizione voce {i}", { i: i + 1 })} className="h-8 text-sm" value={r.descrizione}
                       onChange={(e) => cambiaRiga(i, { descrizione: e.target.value })} />
                   </td>
                   <td className="px-1 py-1">
-                    <Input aria-label={`U.M. voce ${i + 1}`} className="h-8 text-sm" value={r.unita}
+                    <Input aria-label={t("U.M. voce {i}", { i: i + 1 })} className="h-8 text-sm" value={r.unita}
                       onChange={(e) => cambiaRiga(i, { unita: e.target.value })} />
                   </td>
                   <td className="px-1 py-1">
-                    <Input aria-label={`Quantità voce ${i + 1}`} inputMode="decimal" className="h-8 text-right text-sm tabular-nums" value={r.quantita ?? ""}
+                    <Input aria-label={t("Quantità voce {i}", { i: i + 1 })} inputMode="decimal" className="h-8 text-right text-sm tabular-nums" value={r.quantita ?? ""}
                       onChange={(e) => cambiaRiga(i, { quantita: numero(e.target.value) ?? 0, importo: undefined })} />
                   </td>
                   <td className="px-1 py-1">
-                    <Input aria-label={`Prezzo unitario voce ${i + 1}`} inputMode="decimal" placeholder="da definire" className="h-8 text-right text-sm tabular-nums" value={r.prezzo ?? ""}
+                    <Input aria-label={t("Prezzo unitario voce {i}", { i: i + 1 })} inputMode="decimal" placeholder={t("da definire")} className="h-8 text-right text-sm tabular-nums" value={r.prezzo ?? ""}
                       onChange={(e) => cambiaRiga(i, { prezzo: numero(e.target.value), importo: undefined })} />
                   </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${imp == null ? "text-amber-700" : ""}`}>{imp == null ? "da definire" : euro(imp)}</td>
+                  <td className={`px-2 py-1 text-right tabular-nums ${imp == null ? "text-amber-700" : ""}`}>{imp == null ? t("da definire") : euro(imp)}</td>
                   <td className="px-1 py-1 text-right">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Rimuovi voce ${i + 1}`}
+                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t("Rimuovi voce {i}", { i: i + 1 })}
                       onClick={() => onChange(righe.filter((_, n) => n !== i))}>×</Button>
                   </td>
                 </tr>,
@@ -969,7 +959,7 @@ function RigheEconomia({ righe, onChange }: {
           <tfoot className="border-t bg-slate-50">
             <tr>
               <td colSpan={4} className="px-2 py-1.5 text-right text-xs text-slate-600">
-                Totale IVA esclusa{daDefinire ? ` (parziale: ${daDefinire} ${daDefinire === 1 ? "voce" : "voci"} da definire)` : ""}
+                {t("Totale IVA esclusa")}{daDefinire ? ` ${t(daDefinire === 1 ? "(parziale: {n} voce da definire)" : "(parziale: {n} voci da definire)", { n: daDefinire })}` : ""}
               </td>
               <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{euro(totale)}</td>
               <td />
@@ -979,7 +969,7 @@ function RigheEconomia({ righe, onChange }: {
       </div>
       <Button variant="outline" size="sm"
         onClick={() => onChange([...righe, { gruppo: righe.at(-1)?.gruppo, descrizione: "", unita: "h", quantita: 1, prezzo: null, iva: null }])}>
-        Aggiungi voce
+        {t("Aggiungi voce")}
       </Button>
     </div>
   );

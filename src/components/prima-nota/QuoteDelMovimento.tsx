@@ -11,6 +11,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RigaQuota {
   id: string;
@@ -35,6 +36,7 @@ export function QuoteDelMovimento({ gruppo, correnteId, onApri, apribile = () =>
   puoAnnullare?: boolean;
   onAnnullato?: () => void;
 }) {
+  const t = useT();
   const cache = useQueryClient();
   const [chiediMotivo, setChiediMotivo] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -45,13 +47,13 @@ export function QuoteDelMovimento({ gruppo, correnteId, onApri, apribile = () =>
       return Number(data ?? 0);
     },
     onSuccess: n => {
-      toast.success(`Movimento annullato: ${n} quote tolte`, { description: "Fatture, costi e cedolini tornano come prima; il movimento di banca, se c'era, torna libero." });
+      toast.success(t("Movimento annullato: {n} quote tolte", { n }), { description: t("Fatture, costi e cedolini tornano come prima; il movimento di banca, se c'era, torna libero.") });
       refreshFinancialQueries(cache);
       void cache.invalidateQueries({ queryKey: ["prima-nota"] });
       void cache.invalidateQueries({ queryKey: ["prima-nota-documenti-aperti"] });
       onAnnullato?.();
     },
-    onError: (e: Error) => toast.error("Movimento non annullato", { description: e.message, duration: 12000 }),
+    onError: (e: Error) => toast.error(t("Movimento non annullato"), { description: e.message, duration: 12000 }),
   });
   const righe = useQuery({
     queryKey: ["prima-nota-quote-gruppo", gruppo.id],
@@ -66,25 +68,25 @@ export function QuoteDelMovimento({ gruppo, correnteId, onApri, apribile = () =>
   });
   const somma = (righe.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
   return (
-    <section aria-label="Quote del movimento" className="space-y-2 rounded-lg border p-3 text-sm">
+    <section aria-label={t("Quote del movimento")} className="space-y-2 rounded-lg border p-3 text-sm">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="font-medium">Movimento diviso: {gruppo.descrizione}</p>
+        <p className="font-medium">{t("Movimento diviso: {descrizione}", { descrizione: gruppo.descrizione ?? "" })}</p>
         <span className="shrink-0 font-semibold tabular-nums">{formatCurrency(Number(gruppo.importo))}</span>
       </div>
-      {righe.isPending && <p className="text-xs text-muted-foreground">Carico le quote…</p>}
-      {righe.isError && <p className="text-xs text-destructive">Quote non caricate.</p>}
+      {righe.isPending && <p className="text-xs text-muted-foreground">{t("Carico le quote…")}</p>}
+      {righe.isError && <p className="text-xs text-destructive">{t("Quote non caricate.")}</p>}
       {righe.data && (
         <ul className="divide-y rounded-md border">
           {righe.data.map(r => (
             <li key={r.id}>
               <button type="button" disabled={r.id === correnteId || !apribile(r.id)} onClick={() => onApri(r.id)}
-                title={r.id !== correnteId && !apribile(r.id) ? "Fuori dai filtri o dalla pagina dell'elenco" : undefined}
+                title={r.id !== correnteId && !apribile(r.id) ? t("Fuori dai filtri o dalla pagina dell'elenco") : undefined}
                 className={cn("flex w-full items-center gap-2 px-3 py-2 text-left", r.id === correnteId ? "bg-primary/5" : "hover:bg-muted/50")}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{r.description}</span>
-                  {r.orders?.order_code && <span className="block text-xs text-muted-foreground">Commessa {r.orders.order_code}</span>}
+                  {r.orders?.order_code && <span className="block text-xs text-muted-foreground">{t("Commessa {codice}", { codice: r.orders.order_code })}</span>}
                 </span>
-                {r.id === correnteId && <span className="shrink-0 text-xs text-muted-foreground">questa</span>}
+                {r.id === correnteId && <span className="shrink-0 text-xs text-muted-foreground">{t("questa")}</span>}
                 <span className="shrink-0 tabular-nums">{formatCurrency(Number(r.amount))}</span>
               </button>
             </li>
@@ -92,24 +94,22 @@ export function QuoteDelMovimento({ gruppo, correnteId, onApri, apribile = () =>
         </ul>
       )}
       {righe.data && Math.abs(somma - Number(gruppo.importo)) > 0.005 && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">
-          Le quote attive fanno {formatCurrency(somma)}: una quota è stata tolta o stornata dopo la registrazione.
-        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-400">{t("Le quote attive fanno {somma}: una quota è stata tolta o stornata dopo la registrazione.", { somma: formatCurrency(somma) })}</p>
       )}
       {puoAnnullare && !chiediMotivo && (
         <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setChiediMotivo(true)}>
-          Annulla tutto il movimento
+          {t("Annulla tutto il movimento")}
         </Button>
       )}
       {puoAnnullare && chiediMotivo && (
         <div className="space-y-2 rounded-md border border-destructive/40 p-2">
-          <p className="text-xs">Si tolgono tutte le quote: fatture e costi tornano da pagare o incassare, i cedolini tornano da pagare e il movimento di banca, se c'era, torna libero.</p>
-          <Input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Perché lo annulli" aria-label="Motivo dell'annullamento" />
+          <p className="text-xs">{t("Si tolgono tutte le quote: fatture e costi tornano da pagare o incassare, i cedolini tornano da pagare e il movimento di banca, se c'era, torna libero.")}</p>
+          <Input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder={t("Perché lo annulli")} aria-label={t("Motivo dell'annullamento")} />
           <div className="flex gap-2">
             <Button type="button" size="sm" variant="destructive" disabled={!motivo.trim() || annulla.isPending} onClick={() => annulla.mutate()}>
-              {annulla.isPending ? "Annullo…" : "Annulla le quote"}
+              {annulla.isPending ? t("Annullo…") : t("Annulla le quote")}
             </Button>
-            <Button type="button" size="sm" variant="ghost" disabled={annulla.isPending} onClick={() => setChiediMotivo(false)}>Lascia stare</Button>
+            <Button type="button" size="sm" variant="ghost" disabled={annulla.isPending} onClick={() => setChiediMotivo(false)}>{t("Lascia stare")}</Button>
           </div>
         </div>
       )}

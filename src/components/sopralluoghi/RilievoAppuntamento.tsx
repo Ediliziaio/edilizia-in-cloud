@@ -10,15 +10,17 @@ import { Link } from "react-router-dom";
 import { ClipboardCheck } from "lucide-react";
 import type { RilievoAppuntamentoStato } from "@/hooks/useRilievoAppuntamento";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RilievoAppuntamentoCampo({ stato }: { stato: RilievoAppuntamentoStato }) {
+  const t = useT();
   if (!stato.visibile) return null;
   if (stato.esistente) {
     return (
       <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-sm">
         <ClipboardCheck className="h-4 w-4 shrink-0 text-orange-600" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate">Rilievo {stato.esistente.code ?? ""} collegato: segue ora e tecnico dell'appuntamento</span>
-        <Link to={`/azienda/sopralluoghi/${stato.esistente.id}`} className="shrink-0 text-xs font-medium text-primary hover:underline">Apri</Link>
+        <span className="min-w-0 flex-1 truncate">{t("Rilievo {codice} collegato: segue ora e tecnico dell'appuntamento", { codice: stato.esistente.code ?? "" })}</span>
+        <Link to={`/azienda/sopralluoghi/${stato.esistente.id}`} className="shrink-0 text-xs font-medium text-primary hover:underline">{t("Apri")}</Link>
       </div>
     );
   }
@@ -33,12 +35,12 @@ export function RilievoAppuntamentoCampo({ stato }: { stato: RilievoAppuntamento
           disabled={senzaModelli}
           onChange={(e) => stato.setAttivo(e.target.checked)}
         />
-        Prepara il rilievo {stato.tipo === "commerciale" ? "commerciale" : "per il tecnico"}
+        {stato.tipo === "commerciale" ? t("Prepara il rilievo commerciale") : t("Prepara il rilievo per il tecnico")}
       </label>
       {stato.attivo && !senzaModelli && (
         <Select value={stato.modelloId ?? undefined} onValueChange={stato.setModelloId} disabled={stato.caricaModelli}>
-          <SelectTrigger className="h-9" aria-label="Modello del rilievo">
-            <SelectValue placeholder={stato.caricaModelli ? "Carico i modelli…" : "Scegli il modello"} />
+          <SelectTrigger className="h-9" aria-label={t("Modello del rilievo")}>
+            <SelectValue placeholder={stato.caricaModelli ? t("Carico i modelli…") : t("Scegli il modello")} />
           </SelectTrigger>
           <SelectContent>
             {stato.modelli.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
@@ -47,10 +49,10 @@ export function RilievoAppuntamentoCampo({ stato }: { stato: RilievoAppuntamento
       )}
       <p className="text-xs text-muted-foreground">
         {senzaModelli
-          ? "Nessun modello di sopralluogo attivo: si attivano in Impostazioni → Sopralluoghi."
+          ? t("Nessun modello di sopralluogo attivo: si attivano in Impostazioni → Sopralluoghi.")
           : stato.tipo === "commerciale"
-            ? "Misure di massima per l'offerta. Il rilievo tecnico, preciso, si fa dopo."
-            : "Il tecnico lo trova pronto con cliente, indirizzo e ora; se è un operaio lo compila dall'app."}
+            ? t("Misure di massima per l'offerta. Il rilievo tecnico, preciso, si fa dopo.")
+            : t("Il tecnico lo trova pronto con cliente, indirizzo e ora; se è un operaio lo compila dall'app.")}
       </p>
     </div>
   );

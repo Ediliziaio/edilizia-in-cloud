@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActionProposalCard } from "./ActionProposalCard";
 import { Inbox } from "lucide-react";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ProposalLite {
   id: string;
@@ -19,6 +20,7 @@ interface ProposalLite {
 }
 
 export function ActionProposalsList() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [pending, setPending] = useState<ProposalLite[]>([]);
   const [recent, setRecent] = useState<ProposalLite[]>([]);
@@ -94,19 +96,15 @@ export function ActionProposalsList() {
   return (
     <Tabs defaultValue="pending" className="mt-4">
       <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="pending">
-          In attesa ({pending.length})
-        </TabsTrigger>
-        <TabsTrigger value="recent">
-          Recenti ({recent.length})
-        </TabsTrigger>
+        <TabsTrigger value="pending">{t("In attesa ({n})", { n: pending.length })}</TabsTrigger>
+        <TabsTrigger value="recent">{t("Recenti ({n})", { n: recent.length })}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="pending" className="space-y-3 mt-3">
         {pending.length === 0 ? (
           <div className="rounded-md border border-dashed p-8 text-center">
             <Inbox className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Nessuna azione in attesa di conferma.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessuna azione in attesa di conferma.")}</p>
           </div>
         ) : (
           pending.map((p) => <ActionProposalCard key={p.id} proposalId={p.id} />)
@@ -117,7 +115,7 @@ export function ActionProposalsList() {
         {recent.length === 0 ? (
           <div className="rounded-md border border-dashed p-8 text-center">
             <Inbox className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Nessuna azione recente.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessuna azione recente.")}</p>
           </div>
         ) : (
           recent.map((p) => <ActionProposalCard key={p.id} proposalId={p.id} />)

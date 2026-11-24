@@ -44,6 +44,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { FiltriScadenzario, FiltriScadenzarioAttivi, FiltroStatoScadenzeCompatto, type ValoriFiltriScadenzario } from "@/components/scadenzario/FiltriScadenzario";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
 // Periodi rapidi nella barra; le date personalizzate stanno in «Altri filtri».
@@ -88,6 +89,7 @@ function getDateRange(preset: string, today = new Date()): { from: string; to: s
 }
 
 export default function Scadenzario() {
+  const tr = useT();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const permessi = usePermissions();
@@ -185,7 +187,7 @@ export default function Scadenzario() {
     setPage(1);
   };
   const vistaElenco = !["rate", "settimane", "adempimenti"].includes(tab);
-  const viste = [{ value: "rate", label: "Rate fornitori" }, { value: "settimane", label: "Per settimana" }, { value: "adempimenti", label: "Adempimenti fiscali" }];
+  const viste = [{ value: "rate", label: tr("Rate fornitori") }, { value: "settimane", label: tr("Per settimana") }, { value: "adempimenti", label: tr("Adempimenti fiscali") }];
 
   // La ricerca va al server con un attimo di attesa: prima filtrava solo le
   // righe gia' scaricate, quindi cercare una fattura finita in seconda pagina
@@ -281,7 +283,7 @@ export default function Scadenzario() {
           residuo: String(Math.round((Number(r.amount || 0) - Number(r.paid_amount || 0)) * 100) / 100).replace(".", ","),
           stato: r.status === "da_pagare" ? (r.direction === "entrata" ? "Da incassare" : "Da pagare") : r.status === "pagata" ? (r.direction === "entrata" ? "Incassata" : "Pagata") : r.status === "parziale" ? "Parziale" : r.status === "annullata" ? "Annullata" : r.status || "",
         }));
-      if (rows.length === 0) { toast.info("Nessuna scadenza da esportare"); return; }
+      if (rows.length === 0) { toast.info(tr("Nessuna scadenza da esportare")); return; }
       exportToCSV(rows, [
         { key: "scadenza", label: "Scadenza" },
         { key: "tipo", label: "Tipo" },
@@ -295,7 +297,7 @@ export default function Scadenzario() {
         { key: "stato", label: "Stato" },
       ], `scadenzario_${yearFilter}.csv`);
     } catch {
-      toast.error("Errore durante l'export");
+      toast.error(tr("Errore durante l'export"));
     } finally {
       setExporting(false);
     }
@@ -312,14 +314,14 @@ export default function Scadenzario() {
     const righe = [...annullabili];
     if (righe.length === 0 || cancelMany.isPending) return;
     const somma = (verso: string) => righe.filter((s) => s.direction === verso).reduce((n, s) => n + Number(s.amount), 0);
-    if (!await confirm({ title: `Annullare ${righe.length} scadenze?`, description: `Entrate previste: ${formatCurrency(somma("entrata"))}. Uscite previste: ${formatCurrency(somma("uscita"))}. ${escluse.length ? `${escluse.length} righe collegate a documenti o pagamenti restano escluse. ` : ""}Le scadenze manuali selezionate usciranno dagli importi ancora aperti. I pagamenti registrati restano invariati.`, confirmLabel: "Annulla scadenze", variant: "destructive" })) return;
+    if (!await confirm({ title: tr("Annullare {n} scadenze?", { n: righe.length }), description: tr("Entrate previste: {entrate}. Uscite previste: {uscite}. {escluse}Le scadenze manuali selezionate usciranno dagli importi ancora aperti. I pagamenti registrati restano invariati.", { entrate: formatCurrency(somma("entrata")), uscite: formatCurrency(somma("uscita")), escluse: escluse.length ? `${tr("{n} righe collegate a documenti o pagamenti restano escluse.", { n: escluse.length })} ` : "" }), confirmLabel: tr("Annulla scadenze"), variant: "destructive" })) return;
     setErroriAnnullamento([]);
     const esito = await cancelMany.mutateAsync(righe);
     selezione.mantieni(esito.errori.map((e) => e.riga.id));
     setErroriAnnullamento(esito.errori.map((e) => ({ nome: e.riga.description, motivo: e.motivo })));
   };
   const annullaSingola = async (s: Scadenza) => {
-    if (!await confirm({ title: "Annullare questa scadenza?", description: `${s.description}: ${formatCurrency(s.amount)}. La scadenza uscirà dagli importi ancora aperti.`, confirmLabel: "Annulla scadenza", variant: "destructive" })) return;
+    if (!await confirm({ title: tr("Annullare questa scadenza?"), description: tr("{description}: {amount}. La scadenza uscirà dagli importi ancora aperti.", { description: String(s.description ?? ""), amount: formatCurrency(s.amount) }), confirmLabel: tr("Annulla scadenza"), variant: "destructive" })) return;
     try { await cancel.mutateAsync(s.id); setDettaglio(null); } catch { /* Il messaggio è gestito dalla mutation. */ }
   };
 
@@ -338,19 +340,20 @@ export default function Scadenzario() {
   }, [tab, totalCount, summary]);
 
   const anni = Array.from({ length: 6 }, (_, i) => String(currentYear - i));
+  const periodiRapidi = DATE_PRESETS.map((p) => ({ ...p, label: tr(p.label) }));
   const periodiAnno = [
-    ...anni.map(anno => ({ value: `anno:${anno}`, label: `Tutto il ${anno}` })),
-    { value: "anno:all", label: "Tutti gli anni" },
+    ...anni.map(anno => ({ value: `anno:${anno}`, label: tr("Tutto il {anno}", { anno }) })),
+    { value: "anno:all", label: tr("Tutti gli anni") },
   ];
   const visteCompatte = [
-    { value: "aperte", label: "Aperte" },
-    { value: "tutte", label: "Tutte" },
-    { value: "da_incassare", label: "Da incassare" },
-    { value: "da_pagare", label: "Da pagare" },
-    { value: "scadute", label: "Scadute" },
-    { value: "pagate", label: "Pagate" },
+    { value: "aperte", label: tr("Aperte") },
+    { value: "tutte", label: tr("Tutte") },
+    { value: "da_incassare", label: tr("Da incassare") },
+    { value: "da_pagare", label: tr("Da pagare") },
+    { value: "scadute", label: tr("Scadute") },
+    { value: "pagate", label: tr("Pagate") },
     ...viste,
-    ...((summary?.senza_data_count || tab === "senza_data") ? [{ value: "senza_data", label: "Senza data" }] : []),
+    ...((summary?.senza_data_count || tab === "senza_data") ? [{ value: "senza_data", label: tr("Senza data") }] : []),
   ];
   const nSenzaData = summary?.senza_data_count ?? 0;
   const exportDisabilitato = exporting || isLoading || isError || ricercaInAttesa || dateInvertite;
@@ -359,15 +362,15 @@ export default function Scadenzario() {
     <div className="space-y-4 max-sm:space-y-3">
       <div className="flex items-center justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold max-sm:text-lg">Scadenzario</h1>
+          <h1 className="text-2xl font-bold max-sm:text-lg">{tr("Scadenzario")}</h1>
         </div>
         <div className="flex items-center gap-2">
           {/* «Per settimana» guarda avanti e tutto lo scaduto: l'anno lì non conta. */}
           {tab !== "settimane" && tab !== "senza_data" && (
             <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
-              <SelectTrigger className="hidden h-9 w-[140px] font-semibold lg:flex" aria-label="Anno"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="hidden h-9 w-[140px] font-semibold lg:flex" aria-label={tr("Anno")}><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti gli anni</SelectItem>
+                <SelectItem value="all">{tr("Tutti gli anni")}</SelectItem>
                 {anni.map((y) => (
                   <SelectItem key={y} value={y}>{y}</SelectItem>
                 ))}
@@ -377,40 +380,40 @@ export default function Scadenzario() {
           {vistaElenco && <div className="lg:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="icon" className="size-11" aria-label="Altre azioni dello scadenzario">
+                <Button type="button" variant="outline" size="icon" className="size-11" aria-label={tr("Altre azioni dello scadenzario")}>
                   <Ellipsis aria-hidden="true" className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem disabled={exportDisabilitato} onSelect={() => void handleExport()}>
                   <Download aria-hidden="true" className="mr-2 size-4" />
-                  Esporta CSV
+                  {tr("Esporta CSV")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>}
           <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-lg:min-h-11 max-sm:px-3 max-sm:text-sm">
-            <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Nuova Scadenza</span><span className="sm:hidden">Nuova</span>
+            <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">{tr("Nuova Scadenza")}</span><span className="sm:hidden">{tr("Nuova")}</span>
           </Button>
         </div>
       </div>
 
       {nSenzaData > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border text-sm lg:p-3">
-          <span className="max-lg:hidden">{nSenzaData} importi aperti senza data. Completa la data nella commessa o nel costo.</span>
+          <span className="max-lg:hidden">{tr("{nSenzaData} importi aperti senza data. Completa la data nella commessa o nel costo.", { nSenzaData: String(nSenzaData ?? "") })}</span>
           {tab === "senza_data" ? (
             <Button size="sm" variant="ghost" className="max-lg:min-h-11 max-lg:w-full max-lg:justify-start"
               onClick={() => { setTab("aperte"); setPage(1); }}>
               <ChevronLeft aria-hidden="true" className="mr-1.5 size-4 lg:hidden" />
-              Torna alle aperte
+              {tr("Torna alle aperte")}
             </Button>
           ) : (
             <Button size="sm" variant="outline" className="max-lg:min-h-11 max-lg:w-full max-lg:justify-between max-lg:border-0"
               onClick={() => { clearFilters(); setTab("senza_data"); }}>
-              <span className="hidden lg:inline">Mostra senza data</span>
+              <span className="hidden lg:inline">{tr("Mostra senza data")}</span>
               <span className="flex items-center gap-2 lg:hidden">
                 <CalendarClock aria-hidden="true" className="size-4 text-muted-foreground" />
-                {nSenzaData} senza data
+                {tr("{n} senza data", { n: nSenzaData })}
               </span>
               <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground lg:hidden" />
             </Button>
@@ -423,8 +426,8 @@ export default function Scadenzario() {
           scadenze dell'anno scelto, e accanto a quell'elenco dicevano cifre diverse per la stessa domanda. */}
       {tab !== "rate" && tab !== "settimane" && (isSummaryError ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
-          <p>Riepilogo scadenze non disponibile. I totali non sono aggiornati.</p>
-          <Button variant="outline" size="sm" onClick={() => void refetchSummary()}>Riprova riepilogo</Button>
+          <p>{tr("Riepilogo scadenze non disponibile. I totali non sono aggiornati.")}</p>
+          <Button variant="outline" size="sm" onClick={() => void refetchSummary()}>{tr("Riprova riepilogo")}</Button>
         </div>
       ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-lg:hidden" scaduteAttive={tab === "scadute"} onScadute={() => { setTab((t) => (t === "scadute" ? "aperte" : "scadute")); setPage(1); }} />)}
       {summary && !isSummaryError && tab !== "rate" && tab !== "settimane" && (
@@ -433,15 +436,15 @@ export default function Scadenzario() {
           voci={[
             {
               // filtra l'elenco sulle scadute: il numero è quello delle scadenze qui sotto
-              label: "Scadenze scadute",
-              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
+              label: tr("Scadenze scadute"),
+              valore: new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
               tono: (summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0) > 0 ? "text-rose-600" : undefined,
               onClick: () => { setTab((t) => (t === "scadute" ? "aperte" : "scadute")); setPage(1); },
               attivo: tab === "scadute",
             },
             {
-              label: "Prossimi 30 giorni",
-              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.prossimi_30gg_amount ?? 0),
+              label: tr("Prossimi 30 giorni"),
+              valore: new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.prossimi_30gg_amount ?? 0),
             },
           ]}
         />
@@ -450,10 +453,10 @@ export default function Scadenzario() {
       {conGraficoMesi && mesiScadenze && mesiScadenze.some((m) => m.entrate > 0 || m.uscite > 0) && (
         <GraficoEntrateUscite
           dati={mesiScadenze}
-          titolo={`Incassi e pagamenti per mese di scadenza, ${yearFilter}`}
-          nomeEntrate="Incassi"
-          nomeUscite="Pagamenti"
-          notaPeriodo={`scadenze del ${yearFilter}`}
+          titolo={tr("Incassi e pagamenti per mese di scadenza, {yearFilter}", { yearFilter })}
+          nomeEntrate={tr("Incassi")}
+          nomeUscite={tr("Pagamenti")}
+          notaPeriodo={tr("scadenze del {anno}", { anno: yearFilter })}
           onMese={scegliMeseGrafico}
           meseScelto={meseGrafico}
         />
@@ -468,7 +471,7 @@ export default function Scadenzario() {
       {/* Mobile: ricerca e bottone dei filtri (linguette, periodo e tipo nel pannello). */}
       <CercaConFiltri
         className="lg:hidden"
-        segnaposto="Cerca scadenze"
+        segnaposto={tr("Cerca scadenze")}
         valore={search}
         onCambia={(v) => { setSearch(v); setPage(1); }}
         filtriAttivi={nFiltriMobile}
@@ -479,17 +482,17 @@ export default function Scadenzario() {
         <div className="flex min-w-0 items-center gap-2">
           <Tabs className="min-w-0 flex-1 overflow-x-auto" value={tab} onValueChange={v => { setTab(v); setPage(1); }}>
             <TabsList className="inline-flex h-9 w-max justify-start gap-0.5 p-0.5 [&>button]:px-2.5 [&>button]:text-xs">
-              <TabsTrigger value="aperte">Aperte<span className="hidden xl:inline">&nbsp;({counts.aperte})</span></TabsTrigger>
-              <TabsTrigger value="tutte">Tutte<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
-              <TabsTrigger value="da_incassare">Da Incassare<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
-              <TabsTrigger value="da_pagare">Da Pagare<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
-              <TabsTrigger value="scadute">Scadute{counts.scadute > 0 && <span className="ml-1 font-semibold text-destructive">({counts.scadute})</span>}</TabsTrigger>
-              <TabsTrigger value="pagate">Pagate<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
+              <TabsTrigger value="aperte">{tr("Aperte")}<span className="hidden xl:inline">&nbsp;({counts.aperte})</span></TabsTrigger>
+              <TabsTrigger value="tutte">{tr("Tutte")}<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
+              <TabsTrigger value="da_incassare">{tr("Da Incassare")}<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
+              <TabsTrigger value="da_pagare">{tr("Da Pagare")}<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
+              <TabsTrigger value="scadute">{tr("Scadute")}{counts.scadute > 0 && <span className="ml-1 font-semibold text-destructive">({counts.scadute})</span>}</TabsTrigger>
+              <TabsTrigger value="pagate">{tr("Pagate")}<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
             </TabsList>
           </Tabs>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant={vistaElenco ? "outline" : "secondary"} size="sm" className="h-9 shrink-0 gap-1.5" aria-label="Altre viste dello scadenzario">
-              {viste.find(v => v.value === tab)?.label ?? "Altre viste"}<ChevronDown className="h-3.5 w-3.5" />
+            <DropdownMenuTrigger asChild><Button variant={vistaElenco ? "outline" : "secondary"} size="sm" className="h-9 shrink-0 gap-1.5" aria-label={tr("Altre viste dello scadenzario")}>
+              {viste.find(v => v.value === tab)?.label ?? tr("Altre viste")}<ChevronDown className="h-3.5 w-3.5" />
             </Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">{viste.map(v => <DropdownMenuItem key={v.value} onSelect={() => { setTab(v.value); setPage(1); }}>{v.label}</DropdownMenuItem>)}</DropdownMenuContent>
           </DropdownMenu>
@@ -497,14 +500,14 @@ export default function Scadenzario() {
         {tab !== "adempimenti" && <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input aria-label="Cerca nello scadenzario" placeholder="Cerca cliente, fornitore o descrizione…" value={search}
+            <Input aria-label={tr("Cerca nello scadenzario")} placeholder={tr("Cerca cliente, fornitore o descrizione…")} value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-9 pl-8 text-xs" />
           </div>
           {vistaElenco && <>
-            <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} periodi={DATE_PRESETS}
+            <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} periodi={periodiRapidi}
               aperto={showFilters} onAperto={setShowFilters} cambia={cambiaFiltri} azzera={clearFilters} />
             <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={handleExport}
-              disabled={exportDisabilitato} title="Esporta CSV" aria-label="Esporta CSV">
+              disabled={exportDisabilitato} title={tr("Esporta CSV")} aria-label={tr("Esporta CSV")}>
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             </Button>
           </>}
@@ -522,23 +525,23 @@ export default function Scadenzario() {
       ) : (
         /* Table */
         dateInvertite ? (
-          <p role="alert" className="text-sm text-destructive">La data finale deve essere uguale o successiva a quella iniziale.</p>
+          <p role="alert" className="text-sm text-destructive">{tr("La data finale deve essere uguale o successiva a quella iniziale.")}</p>
         ) : isLoading || ricercaInAttesa ? (
-          <div role="status" aria-label="Caricamento scadenze" className="flex justify-center py-12">
+          <div role="status" aria-label={tr("Caricamento scadenze")} className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : isError ? (
           <div role="alert" className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
-            <p>Non riesco a caricare le scadenze. Riprova senza modificare i filtri.</p>
-            <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova scadenze</Button>
+            <p>{tr("Non riesco a caricare le scadenze. Riprova senza modificare i filtri.")}</p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>{tr("Riprova scadenze")}</Button>
           </div>
         ) : (
           <>
-            {!permessi.solaLettura && selezione.selezionate.length > 0 && <BarraSelezioneRighe nome="le scadenze" selezionate={selezione.selezionate.length} consentite={annullabili.length}
+            {!permessi.solaLettura && selezione.selezionate.length > 0 && <BarraSelezioneRighe nome={tr("le scadenze")} selezionate={selezione.selezionate.length} consentite={annullabili.length}
               tutte={selezione.tutte} parziale={selezione.parziale}
               entrate={annullabili.filter((s) => s.direction === "entrata").reduce((n, s) => n + Number(s.amount), 0)}
               uscite={annullabili.filter((s) => s.direction === "uscita").reduce((n, s) => n + Number(s.amount), 0)}
-              azione="Annulla selezionate" inCorso={cancelMany.isPending} escluse={escluse} onPagina={selezione.pagina} onAzione={() => void annullaSelezionate()} />}
+              azione={tr("Annulla selezionate")} inCorso={cancelMany.isPending} escluse={escluse} onPagina={selezione.pagina} onAzione={() => void annullaSelezionate()} />}
             <ErroriOperazioneRighe errori={erroriAnnullamento} />
             <ScadenzarioTable
               scadenze={filtered}
@@ -574,11 +577,11 @@ export default function Scadenzario() {
             )}
             {totalPages > 1 && (
               <div className="flex items-center justify-between lg:hidden">
-                <Button variant="outline" size="icon" className="size-11" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Pagina precedente">
+                <Button variant="outline" size="icon" className="size-11" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label={tr("Pagina precedente")}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-xs tabular-nums text-muted-foreground">{page} di {totalPages}</span>
-                <Button variant="outline" size="icon" className="size-11" disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Pagina successiva">
+                <span className="text-xs tabular-nums text-muted-foreground">{tr("{n} di {totale}", { n: String(page ?? ""), totale: String(totalPages ?? "") })}</span>
+                <Button variant="outline" size="icon" className="size-11" disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label={tr("Pagina successiva")}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -596,11 +599,11 @@ export default function Scadenzario() {
         risultati={isLoading || ricercaInAttesa || dateInvertite || !vistaElenco ? undefined : totalCount}
       >
         <GruppoFiltri>
-          <SceltaFiltro titolo="Vista" valore={tab} scelte={visteCompatte}
+          <SceltaFiltro titolo={tr("Vista")} valore={tab} scelte={visteCompatte}
             onScegli={v => { setTab(v); setPage(1); }} />
           {((vistaElenco && tab !== "senza_data") || tab === "rate") && (
-            <SceltaFiltro titolo="Periodo" valore={tab === "rate" ? `anno:${yearFilter}` : datePreset || `anno:${yearFilter}`}
-              scelte={tab === "rate" ? periodiAnno : [...periodiAnno, ...DATE_PRESETS]}
+            <SceltaFiltro titolo={tr("Periodo")} valore={tab === "rate" ? `anno:${yearFilter}` : datePreset || `anno:${yearFilter}`}
+              scelte={tab === "rate" ? periodiAnno : [...periodiAnno, ...periodiRapidi]}
               onScegli={v => {
                 if (v.startsWith("anno:")) {
                   setYearFilter(v.slice(5));
@@ -615,19 +618,19 @@ export default function Scadenzario() {
             <DateFiltro dal={customFrom} al={customTo}
               cambiaDal={dal => cambiaFiltri({ dal })} cambiaAl={al => cambiaFiltri({ al })} />
           )}
-          {vistaElenco && <DettaglioFiltri titolo="Altri filtri" riepilogo={nAltriFiltri ? String(nAltriFiltri) : undefined}>
-            <SceltaFiltro titolo="Pagamento" valore={filterMetodo || "all"}
+          {vistaElenco && <DettaglioFiltri titolo={tr("Altri filtri")} riepilogo={nAltriFiltri ? String(nAltriFiltri) : undefined}>
+            <SceltaFiltro titolo={tr("Pagamento")} valore={filterMetodo || "all"}
               onScegli={v => cambiaFiltri({ metodo: v === "all" ? "" : v })}
-              scelte={[{ value: "all", label: "Tutti" }, ...GRUPPI_METODO]} />
-            <SceltaFiltro titolo="Tipo" valore={filterTipo || "all"}
+              scelte={[{ value: "all", label: tr("Tutti") }, ...GRUPPI_METODO.map((g) => ({ ...g, label: tr(g.label) }))]} />
+            <SceltaFiltro titolo={tr("Tipo")} valore={filterTipo || "all"}
               onScegli={v => cambiaFiltri({ tipo: v === "all" ? "" : v })}
               scelte={[
-                { value: "all", label: "Tutti" },
-                { value: "incasso_cliente", label: "Incasso cliente" },
-                { value: "pagamento_fornitore", label: "Fornitore" },
-                { value: "costo_aziendale", label: "Costo aziendale" },
-                { value: "scadenza_fiscale", label: "Fiscale" },
-                { value: "altro", label: "Altro" },
+                { value: "all", label: tr("Tutti") },
+                { value: "incasso_cliente", label: tr("Incasso cliente") },
+                { value: "pagamento_fornitore", label: tr("Fornitore") },
+                { value: "costo_aziendale", label: tr("Costo aziendale") },
+                { value: "scadenza_fiscale", label: tr("Fiscale") },
+                { value: "altro", label: tr("Altro") },
               ]} />
             <FiltroStatoScadenzeCompatto stato={filterStatus} cambia={stato => cambiaFiltri({ stato })} />
           </DettaglioFiltri>}

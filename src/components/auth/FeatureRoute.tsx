@@ -5,6 +5,7 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
 import { PreviewModeWrapper } from "@/components/feature-preview/PreviewModeWrapper";
 import { shouldSoftOpenFeatureCheck } from "@/lib/featureRouteSoftOpen";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const FEATURE_ROUTE_LOADING_TIMEOUT_MS = 12_000;
 
@@ -32,6 +33,7 @@ export function FeatureRoute({
   featureKey,
   fallbackPath = "/azienda/upgrade",
 }: FeatureRouteProps) {
+  const t = useT();
   const location = useLocation();
   // v8.6.62 — Tri-state: enabled = passa, preview = lascia passare (UI demo
   // + guard sulle azioni), disabled = redirect a fallback.
@@ -72,7 +74,7 @@ export function FeatureRoute({
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Verifica accesso…</p>
+          <p className="text-muted-foreground">{t("Verifica accesso…")}</p>
         </div>
       </div>
     );
@@ -85,9 +87,9 @@ export function FeatureRoute({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
             <AlertTriangle className="h-6 w-6" />
           </div>
-          <h1 className="text-lg font-semibold">Non riesco a verificare l'accesso</h1>
+          <h1 className="text-lg font-semibold">{t("Non riesco a verificare l'accesso")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Il controllo permessi per questa sezione non ha risposto in tempo. Riprova senza perdere la pagina corrente.
+            {t("Il controllo permessi per questa sezione non ha risposto in tempo. Riprova senza perdere la pagina corrente.")}
           </p>
           {errorMessage && (
             <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
@@ -96,8 +98,7 @@ export function FeatureRoute({
           )}
           {!errorMessage && loadingTimedOut && (
             <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              La verifica permessi richiede più del solito. Connessione lenta? Riprova
-              o ricarica la pagina.
+              {t("La verifica permessi richiede più del solito. Connessione lenta? Riprova o ricarica la pagina.")}
             </p>
           )}
           <Button className="mt-5" onClick={refetch} disabled={isFetching && !loadingTimedOut}>
@@ -106,7 +107,7 @@ export function FeatureRoute({
             ) : (
               <RefreshCw className="mr-2 h-4 w-4" />
             )}
-            Riprova verifica
+            {t("Riprova verifica")}
           </Button>
         </div>
       </div>

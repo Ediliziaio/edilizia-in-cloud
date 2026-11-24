@@ -13,6 +13,7 @@ import { useState, useEffect } from "react";
 import { WifiOff, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOnlineStatusDetail } from "@/hooks/useOnlineStatus";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function formatOfflineDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
@@ -24,6 +25,7 @@ function formatOfflineDuration(ms: number): string {
 }
 
 export function OfflineBanner() {
+  const tr = useT();
   const { isOnline, isReachable, isOffline, offlineSince, retry } = useOnlineStatusDetail();
   const [retrying, setRetrying] = useState(false);
   const [tick, setTick] = useState(0);
@@ -40,10 +42,10 @@ export function OfflineBanner() {
   const duration = offlineSince ? Date.now() - offlineSince : 0;
   // Distinguere i 2 stati per UX più precisa
   const message = !isOnline
-    ? "Connessione assente"
+    ? tr("Connessione assente")
     : !isReachable
-      ? "Server irraggiungibile (controlla WiFi cantiere)"
-      : "Connessione instabile";
+      ? tr("Server irraggiungibile (controlla WiFi cantiere)")
+      : tr("Connessione instabile");
 
   const handleRetry = () => {
     setRetrying(true);
@@ -57,9 +59,7 @@ export function OfflineBanner() {
       <span className="truncate">
         {message}
         {duration > 5000 && (
-          <span className="ml-1 opacity-80 font-normal" data-tick={tick}>
-            · da {formatOfflineDuration(duration)}
-          </span>
+          <span className="ml-1 opacity-80 font-normal" data-tick={tick}>{tr("· da {duration}", { duration: formatOfflineDuration(duration) })}</span>
         )}
       </span>
       <Button
@@ -74,7 +74,7 @@ export function OfflineBanner() {
         ) : (
           <RefreshCw className="h-3 w-3 mr-1" />
         )}
-        {retrying ? "Verifica…" : "Riprova"}
+        {retrying ? tr("Verifica…") : tr("Riprova")}
       </Button>
     </div>
   );

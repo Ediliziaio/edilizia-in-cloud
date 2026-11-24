@@ -17,6 +17,7 @@ import {
   type CampoConSoglia,
   type Semaforo,
 } from "@/lib/reporting/venditoriRegole";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const RANK_ICONS = [Crown, Medal, Award];
 const RANK_COLORS = ["text-yellow-500", "text-gray-400", "text-amber-600"];
@@ -41,12 +42,13 @@ function kpiBadge(val: number | null, field: CampoConSoglia, conVendite = true) 
 
 /** A che punto è il venditore sull'obiettivo del periodo. */
 function Obiettivo({ fatto, obiettivo }: { fatto: number; obiettivo: number }) {
+  const t = useT();
   if (!(obiettivo > 0)) return <span className="text-xs text-muted-foreground">—</span>;
   const pct = Math.round((fatto / obiettivo) * 100);
   const colore = pct >= 100 ? "bg-emerald-500" : pct >= 60 ? "bg-amber-500" : "bg-red-500";
   const testo = pct >= 100 ? "text-emerald-700 dark:text-emerald-400" : pct >= 60 ? "text-amber-700" : "text-red-700 dark:text-red-400";
   return (
-    <div className="flex min-w-[92px] items-center gap-1.5" title={`${formatCurrency(fatto)} su ${formatCurrency(obiettivo)}`}>
+    <div className="flex min-w-[92px] items-center gap-1.5" title={t("{accesi} su {totale}", { accesi: formatCurrency(fatto), totale: formatCurrency(obiettivo) })}>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
         <div className={`h-full rounded-full ${colore}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
@@ -68,6 +70,7 @@ export function VenditoriRanking({
   /** Obiettivi del periodo per venditore (somma dei mesi che tocca). */
   obiettivi?: Map<string, { fatturato: number; contratti: number }>;
 }) {
+  const t = useT();
   const accessors = useMemo(() => ({
     nome_agente: (k: VendorKPI) => k.nome_agente,
     fatturato_generato: (k: VendorKPI) => k.fatturato_generato,
@@ -100,8 +103,8 @@ export function VenditoriRanking({
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-16 text-center">
           <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
-          <h3 className="font-medium text-muted-foreground">Nessun dato agente</h3>
-          <p className="text-sm text-muted-foreground/70 mt-1">Nessun dato disponibile per il periodo selezionato.</p>
+          <h3 className="font-medium text-muted-foreground">{t("Nessun dato agente")}</h3>
+          <p className="text-sm text-muted-foreground/70 mt-1">{t("Nessun dato disponibile per il periodo selezionato.")}</p>
         </CardContent>
       </Card>
     );
@@ -125,7 +128,7 @@ export function VenditoriRanking({
               onClick={onApriVenditore ? () => onApriVenditore(k.agent_id) : undefined}
               sinistra={<span className="w-5 shrink-0 text-center text-[11px] font-semibold text-muted-foreground">{idx + 1}</span>}
               titolo={k.nome_agente}
-              sottotitolo={`${k.opp_vinte} vinte su ${k.opp_vinte + k.opp_perse} chiuse · pipeline ${formatCurrency(k.pipeline_valore)}`}
+              sottotitolo={t("{vinte} vinte su {chiuse} chiuse · pipeline {pipeline}", { vinte: Number(k.opp_vinte) || 0, chiuse: k.opp_vinte + k.opp_perse, pipeline: formatCurrency(k.pipeline_valore) })}
               valore={formatCurrency(k.fatturato_generato)}
               stato={kpiBadge(k.tasso_chiusura, "tasso_chiusura")}
             />
@@ -135,17 +138,17 @@ export function VenditoriRanking({
           <TableHeader>
             <TableRow>
               <SortableTableHead column="" label="#" sortConfig={null} onSort={() => {}} className="w-10 text-center" />
-              <SortableTableHead column="nome_agente" label="Agente" sortConfig={sortConfig} onSort={toggleSort} />
-              <SortableTableHead column="fatturato_generato" label="Fatturato" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="tasso_chiusura" label="Chiusura%" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
-              <SortableTableHead column="tasso_show_up" label="Show-Up%" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
-              <SortableTableHead column="importo_medio_chiusura" label="Deal Medio" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="opp_vinte" label="Vinte / chiuse" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
-              <SortableTableHead column="tasso_app_to_close" label="App→Close" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
-              <SortableTableHead column="avg_giorni_chiusura" label="Ciclo" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
-              <SortableTableHead column="pipeline_valore" label="Pipeline" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="nuovi_contatti" label="Contatti" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
-              {conObiettivi && <SortableTableHead column="" label="Obiettivo" sortConfig={null} onSort={() => {}} className="text-center" />}
+              <SortableTableHead column="nome_agente" label={t("Agente")} sortConfig={sortConfig} onSort={toggleSort} />
+              <SortableTableHead column="fatturato_generato" label={t("Fatturato")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="tasso_chiusura" label={t("Chiusura%")} sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              <SortableTableHead column="tasso_show_up" label={t("Show-Up%")} sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              <SortableTableHead column="importo_medio_chiusura" label={t("Deal Medio")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="opp_vinte" label={t("Vinte / chiuse")} sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              <SortableTableHead column="tasso_app_to_close" label={t("App→Close")} sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              <SortableTableHead column="avg_giorni_chiusura" label={t("Ciclo")} sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              <SortableTableHead column="pipeline_valore" label={t("Pipeline")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="nuovi_contatti" label={t("Contatti")} sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              {conObiettivi && <SortableTableHead column="" label={t("Obiettivo")} sortConfig={null} onSort={() => {}} className="text-center" />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -159,7 +162,7 @@ export function VenditoriRanking({
                   onClick={onApriVenditore ? () => onApriVenditore(k.agent_id) : undefined}
                   onKeyDown={onApriVenditore ? (e) => { if (e.key === "Enter") onApriVenditore(k.agent_id); } : undefined}
                   tabIndex={onApriVenditore ? 0 : undefined}
-                  title={onApriVenditore ? `Apri le opportunità di ${k.nome_agente}` : undefined}
+                  title={onApriVenditore ? t("Apri le opportunità di {nome_agente}", { nome_agente: String(k.nome_agente ?? "") }) : undefined}
                 >
                   <TableCell className="text-center font-medium">
                     {RankIcon ? <RankIcon className={`h-4 w-4 mx-auto ${rankColor}`} /> : idx + 1}
@@ -193,7 +196,7 @@ export function VenditoriRanking({
             <TableFooter>
               <TableRow>
                 <TableCell />
-                <TableCell className="font-semibold">Totale Team</TableCell>
+                <TableCell className="font-semibold">{t("Totale Team")}</TableCell>
                 <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(team.fatturato_generato)}</TableCell>
                 <TableCell className="text-center text-xs text-muted-foreground">{tassoTesto(team.tasso_chiusura)}</TableCell>
                 <TableCell className="text-center text-xs text-muted-foreground">{tassoTesto(team.tasso_show_up)}</TableCell>
@@ -218,11 +221,11 @@ export function VenditoriRanking({
       </CardContent>
 
       <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-xs text-muted-foreground max-sm:hidden">
-        <span><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">val</Badge> Ottimo</span>
-        <span><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">val</Badge> Da migliorare</span>
-        <span><Badge variant="outline" className="bg-red-50 text-red-700 dark:text-red-400 border-red-200 text-xs">val</Badge> Critico</span>
-        <span>«—» = non calcolabile (niente chiuso o nessun appuntamento con esito)</span>
-        {onApriVenditore && <span>Clic su un venditore per aprire le sue opportunità</span>}
+        <span><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">val</Badge> {t("Ottimo")}</span>
+        <span><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">val</Badge> {t("Da migliorare")}</span>
+        <span><Badge variant="outline" className="bg-red-50 text-red-700 dark:text-red-400 border-red-200 text-xs">val</Badge> {t("Critico")}</span>
+        <span>{t("«—» = non calcolabile (niente chiuso o nessun appuntamento con esito)")}</span>
+        {onApriVenditore && <span>{t("Clic su un venditore per aprire le sue opportunità")}</span>}
       </div>
     </Card>
   );

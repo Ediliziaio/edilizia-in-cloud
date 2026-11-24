@@ -11,6 +11,7 @@ import { getDateRange } from "@/lib/dateRangeUtils";
 import { cn } from "@/lib/utils";
 import type { DashboardFiltersState } from "@/hooks/useMarketingDashboard";
 import { fmt, fmtCur } from "./utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Risposta di marketing_percorso_lead (20281021220000). */
 interface Conteggi {
@@ -75,11 +76,11 @@ export function tempo(ore: number | null): string {
   if (ore === null || ore === undefined) return "—";
   if (ore < 1) return `${Math.max(1, Math.round(ore * 60))} min`;
   if (ore < 48) return `${Math.round(ore)} h`;
-  return `${(ore / 24).toLocaleString("it-IT", { maximumFractionDigits: 1 })} gg`;
+  return `${(ore / 24).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} gg`;
 }
 
 const giorni = (g: number | null) =>
-  g === null || g === undefined ? "—" : `${g.toLocaleString("it-IT", { maximumFractionDigits: 1 })} gg`;
+  g === null || g === undefined ? "—" : `${g.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} gg`;
 
 export function usePercorsoLead(filters: DashboardFiltersState, assignedUserIds: string[] | null) {
   const { effectiveCompany } = useAuth();
@@ -112,6 +113,7 @@ export function usePercorsoLead(filters: DashboardFiltersState, assignedUserIds:
  * commerciale. Le fasi sono il percorso della pipeline (le uscite a parte).
  */
 export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserIds }: Props) {
+  const t = useT();
   const { data, isLoading, error } = usePercorsoLead(filters, assignedUserIds);
   const isMobile = useIsMobile();
   const [aperto, setAperto] = useState<string | null>(null);
@@ -125,7 +127,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Percorso dei lead</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("Percorso dei lead")}</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
         </CardContent>
@@ -136,7 +138,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Non riesco a caricare il percorso dei lead.
+          {t("Non riesco a caricare il percorso dei lead.")}
         </CardContent>
       </Card>
     );
@@ -144,20 +146,20 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
   if (totale.arrivati === 0) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Percorso dei lead</CardTitle></CardHeader>
-        <CardContent className="py-6 text-center text-sm text-muted-foreground">Nessun lead arrivato nel periodo.</CardContent>
+        <CardHeader><CardTitle className="text-base">{t("Percorso dei lead")}</CardTitle></CardHeader>
+        <CardContent className="py-6 text-center text-sm text-muted-foreground">{t("Nessun lead arrivato nel periodo.")}</CardContent>
       </Card>
     );
   }
 
   const chiusura = pct(totale.vinti, totale.vinti + totale.persi);
   const sintesi: { label: string; valore: string; nota?: string; soloComputer?: boolean }[] = [
-    { label: "Arrivati", valore: fmt(totale.arrivati) },
-    { label: "Presi in carico", valore: pctTxt(pct(totale.presi, totale.arrivati)), nota: `${fmt(totale.presi)} · in ${tempo(totale.ore_presa_mediana)}` },
-    { label: "Con appuntamento", valore: pctTxt(pct(totale.appuntamenti, totale.arrivati)), nota: fmt(totale.appuntamenti), soloComputer: true },
-    { label: "Vinti", valore: fmt(totale.vinti), nota: totale.valore_vinto > 0 ? fmtCur(totale.valore_vinto) : undefined },
-    { label: "Lead → vendita", valore: pctTxt(pct(totale.vinti, totale.arrivati)), nota: totale.giorni_vendita !== null ? `in ${giorni(totale.giorni_vendita)}` : undefined },
-    { label: "Chiusura", valore: pctTxt(chiusura), nota: `${fmt(totale.persi)} persi · ${fmt(totale.scartati)} scartati`, soloComputer: true },
+    { label: t("Arrivati"), valore: fmt(totale.arrivati) },
+    { label: t("Presi in carico"), valore: pctTxt(pct(totale.presi, totale.arrivati)), nota: t("{presi} · in {ore_presa_mediana}", { presi: fmt(totale.presi), ore_presa_mediana: String(tempo(totale.ore_presa_mediana) ?? "") }) },
+    { label: t("Con appuntamento"), valore: pctTxt(pct(totale.appuntamenti, totale.arrivati)), nota: fmt(totale.appuntamenti), soloComputer: true },
+    { label: t("Vinti"), valore: fmt(totale.vinti), nota: totale.valore_vinto > 0 ? fmtCur(totale.valore_vinto) : undefined },
+    { label: t("Lead → vendita"), valore: pctTxt(pct(totale.vinti, totale.arrivati)), nota: totale.giorni_vendita !== null ? t("in {magazzino}", { magazzino: String(giorni(totale.giorni_vendita) ?? "") }) : undefined },
+    { label: t("Chiusura"), valore: pctTxt(chiusura), nota: t("{persi} persi · {scartati} scartati", { persi: fmt(totale.persi), scartati: fmt(totale.scartati) }), soloComputer: true },
   ];
 
   return (
@@ -166,11 +168,11 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <CardTitle className="flex items-center gap-2 text-base">
             <Route className="h-4 w-4 text-muted-foreground" />
-            Percorso dei lead
+            {t("Percorso dei lead")}
           </CardTitle>
           <p className="text-xs text-muted-foreground max-sm:hidden">
-            Lead arrivati nel periodo e cosa è successo dopo, fino a oggi
-            {data.pipeline && data.pipelines > 1 && <> · fasi di «{data.pipeline.name}»</>}
+            {t("Lead arrivati nel periodo e cosa è successo dopo, fino a oggi")}
+            {data.pipeline && data.pipelines > 1 && <>{" "}{`· ${t("fasi di «{nome}»", { nome: data.pipeline.name })}`}</>}
           </p>
         </div>
       </CardHeader>
@@ -191,11 +193,11 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_260px] max-sm:hidden">
           <div className="space-y-1">
             <div className="hidden grid-cols-[minmax(0,1fr)_56px_56px_64px_56px] gap-2 px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 sm:grid">
-              <span>Fase</span>
+              <span>{t("Fase")}</span>
               <span className="text-right">Lead</span>
-              <span className="text-right">Passano</span>
-              <span className="text-right">Tempo</span>
-              <span className="text-right">Fermi</span>
+              <span className="text-right">{t("Passano")}</span>
+              <span className="text-right">{t("Tempo")}</span>
+              <span className="text-right">{t("Fermi")}</span>
             </div>
             {fasi.map((f, i) => {
               const prima = i === 0 ? totale.in_pipeline : fasi[i - 1].raggiunte;
@@ -218,7 +220,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
             })}
             <div className="grid grid-cols-[minmax(0,1fr)_56px_56px] items-center gap-2 rounded-md bg-emerald-50 px-1 py-1 text-xs sm:grid-cols-[minmax(0,1fr)_56px_56px_64px_56px]">
               <div className="min-w-0">
-                <div className="font-semibold text-emerald-700 dark:text-emerald-400">Vinti</div>
+                <div className="font-semibold text-emerald-700 dark:text-emerald-400">{t("Vinti")}</div>
                 <div className="mt-1 h-1.5 rounded-full bg-emerald-100">
                   <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.max(2, (totale.vinti / massimo) * 100)}%` }} />
                 </div>
@@ -229,7 +231,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
               <span className="hidden sm:block" />
             </div>
             <p className="px-1 pt-1 text-[11px] text-muted-foreground max-sm:hidden">
-              «Passano» = quota arrivata dalla fase prima; «Tempo» = giorni medi nella fase; «Fermi» = ancora lì oggi.
+              {t("«Passano» = quota arrivata dalla fase prima; «Tempo» = giorni medi nella fase; «Fermi» = ancora lì oggi.")}
             </p>
           </div>
 
@@ -237,8 +239,8 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
             <div className="rounded-xl border border-border p-3">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <LogOut className="h-3.5 w-3.5 text-muted-foreground/80" />
-                Dove escono
-                <span className="ml-auto font-normal text-muted-foreground">{fmt(uscitaTotale)} lead</span>
+                {t("Dove escono")}
+                <span className="ml-auto font-normal text-muted-foreground">{t("{uscitaTotale} lead", { uscitaTotale: fmt(uscitaTotale) })}</span>
               </div>
               <div className="space-y-1.5">
                 {data.uscite.slice(0, isMobile ? 4 : 8).map((u) => (
@@ -259,14 +261,14 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
 
         {/* Per commerciale */}
         <div>
-          <h4 className="mb-2 text-sm font-semibold text-foreground">Per commerciale</h4>
+          <h4 className="mb-2 text-sm font-semibold text-foreground">{t("Per commerciale")}</h4>
           {isMobile ? (
             <div className="space-y-1.5">
               {data.commerciali.slice(0, 5).map((c) => (
                 <div key={c.user_id ?? "nessuno"} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                   <span className={cn("truncate font-medium", !c.user_id && "text-amber-700")}>{c.name}</span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {fmt(c.arrivati)} lead · <b className="text-foreground">{fmt(c.vinti)}</b> vinti · {pctTxt(pct(c.vinti, c.arrivati))}
+                    {fmt(c.arrivati)} {t("lead ·")} <b className="text-foreground">{fmt(c.vinti)}</b> {t("vinti ·")} {pctTxt(pct(c.vinti, c.arrivati))}
                   </span>
                 </div>
               ))}
@@ -276,19 +278,19 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs">Commerciale</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Arrivati</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Presi in carico</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">1° contatto</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Appuntam.</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Vinti</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Persi</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Scartati</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Aperti</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Lead → vendita</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Chiusura</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Giorni</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Valore</TableHead>
+                    <TableHead className="text-xs">{t("Commerciale")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Arrivati")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Presi in carico")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("1° contatto")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Appuntam.")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Vinti")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Persi")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Scartati")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Aperti")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Lead → vendita")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Chiusura")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Giorni")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Valore")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -347,8 +349,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
                 </TableBody>
               </Table>
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Commerciale = chi ha in carico il lead, altrimenti chi ha l'opportunità, altrimenti chi l'ha lavorato per primo.
-                Chiusura = vinti ÷ (vinti + persi), gli scartati non contano. Clic su una riga per le sue fasi.
+                {t("Commerciale = chi ha in carico il lead, altrimenti chi ha l'opportunità, altrimenti chi l'ha lavorato per primo. Chiusura = vinti ÷ (vinti + persi), gli scartati non contano. Clic su una riga per le sue fasi.")}
               </p>
             </div>
           )}

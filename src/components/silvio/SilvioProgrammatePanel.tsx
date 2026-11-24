@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { CalendarClock, Check, X, Plus, Loader2, AlertTriangle, Clock, Pencil, RotateCcw, MoreVertical, Repeat, Flag, Users } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Reminder {
   id: string;
@@ -49,16 +50,16 @@ const daysFromToday = (iso: string) => {
   const b = new Date(`${todayISO()}T00:00:00`).getTime();
   return Math.round((a - b) / 86_400_000);
 };
-const relLabel = (iso: string) => {
+const relLabel = (iso: string, t: ReturnType<typeof useT>) => {
   const d = daysFromToday(iso);
-  if (d < 0) return `In ritardo di ${-d} ${-d === 1 ? "giorno" : "giorni"}`;
-  if (d === 0) return "Oggi";
-  if (d === 1) return "Domani";
-  if (d <= 7) return `Tra ${d} giorni`;
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+  if (d < 0) return t(-d === 1 ? "In ritardo di {n} giorno" : "In ritardo di {n} giorni", { n: -d });
+  if (d === 0) return t("Oggi");
+  if (d === 1) return t("Domani");
+  if (d <= 7) return t("Tra {n} giorni", { n: d });
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short", year: "numeric" });
 };
 const fmtDate = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+  new Date(`${iso}T00:00:00`).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short", year: "numeric" });
 
 const PRESETS: { label: string; days: number }[] = [
   { label: "Oggi", days: 0 },
@@ -103,6 +104,7 @@ const nextOccurrence = (iso: string, rec: string) => {
 };
 
 export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
@@ -174,7 +176,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     if (!id) return "";
     const p = colleghi.find((c) => c.id === id);
     if (!p) return "";
-    return [p.first_name, p.last_name].filter(Boolean).join(" ") || "Collega";
+    return [p.first_name, p.last_name].filter(Boolean).join(" ") || tr("Collega");
   };
 
   const groups = useMemo(() => {
@@ -211,9 +213,9 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     onSuccess: () => {
       setTitolo(""); setNota(""); setData(""); setRicorrenza("none"); setPriorita("warning"); setOra(""); setAssegnatario("");
       invalidaTutto();
-      toast.success("Promemoria creato");
+      toast.success(tr("Promemoria creato"));
     },
-    onError: (e: Error) => toast.error("Creazione fallita", { description: e.message }),
+    onError: (e: Error) => toast.error(tr("Creazione fallita"), { description: e.message }),
   });
 
   const updateMut = useMutation({
@@ -222,32 +224,32 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
       if (error) throw error;
     },
     onSuccess: invalidaTutto,
-    onError: (e: Error) => toast.error("Operazione fallita", { description: e.message }),
+    onError: (e: Error) => toast.error(tr("Operazione fallita"), { description: e.message }),
   });
 
   const setStatus = (id: string, status: string, opts?: { undo?: boolean; label?: string }) => {
     updateMut.mutate({ id, patch: { status } });
     if (opts?.undo) {
-      toast.success(opts.label ?? "Fatto", {
-        action: { label: "Annulla", onClick: () => updateMut.mutate({ id, patch: { status: "pending" } }) },
+      toast.success(opts.label ?? tr("Fatto"), {
+        action: { label: tr("Annulla"), onClick: () => updateMut.mutate({ id, patch: { status: "pending" } }) },
       });
     }
   };
   const snooze = (id: string, days: number) => {
     const iso = addDaysISO(days);
     updateMut.mutate({ id, patch: { remind_on: iso, status: "pending" } });
-    toast.success(`Posticipato a ${relLabel(iso).toLowerCase()}`);
+    toast.success(tr("Posticipato a {quando}", { quando: relLabel(iso, tr).toLowerCase() }));
   };
   // "Fatto": se ricorrente → riprogramma alla prossima occorrenza (resta pending); altrimenti chiude.
   const completa = (r: Reminder) => {
     if (r.recurrence && r.recurrence !== "none") {
       const next = nextOccurrence(r.remind_on, r.recurrence);
       updateMut.mutate({ id: r.id, patch: { remind_on: next } });
-      toast.success(`Fatto · prossima ${relLabel(next).toLowerCase()}`, {
-        action: { label: "Annulla", onClick: () => updateMut.mutate({ id: r.id, patch: { remind_on: r.remind_on } }) },
+      toast.success(tr("Fatto · prossima {quando}", { quando: relLabel(next, tr).toLowerCase() }), {
+        action: { label: tr("Annulla"), onClick: () => updateMut.mutate({ id: r.id, patch: { remind_on: r.remind_on } }) },
       });
     } else {
-      setStatus(r.id, "done", { undo: true, label: "Segnato come fatto" });
+      setStatus(r.id, "done", { undo: true, label: tr("Segnato come fatto") });
     }
   };
 
@@ -266,12 +268,12 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     if (editId === r.id) {
       return (
         <div key={r.id} className="space-y-2 rounded-xl border border-orange-200 bg-orange-50/30 p-3">
-          <Input value={eTitle} onChange={(e) => setETitle(e.target.value)} placeholder="Titolo" />
-          <Input value={eNote} onChange={(e) => setENote(e.target.value)} placeholder="Nota (opzionale)" className="text-sm" />
+          <Input value={eTitle} onChange={(e) => setETitle(e.target.value)} placeholder={tr("Titolo")} />
+          <Input value={eNote} onChange={(e) => setENote(e.target.value)} placeholder={tr("Nota (opzionale)")} className="text-sm" />
           <div className="flex gap-2">
             <Input type="date" value={eDate} onChange={(e) => setEDate(e.target.value)} className="flex-1" />
-            <Button size="sm" disabled={!eTitle.trim() || !eDate} onClick={saveEdit}>Salva</Button>
-            <Button size="sm" variant="ghost" onClick={cancelEdit}>Annulla</Button>
+            <Button size="sm" disabled={!eTitle.trim() || !eDate} onClick={saveEdit}>{tr("Salva")}</Button>
+            <Button size="sm" variant="ghost" onClick={cancelEdit}>{tr("Annulla")}</Button>
           </div>
         </div>
       );
@@ -291,17 +293,17 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
               )}>
                 {tone === "overdue" ? <AlertTriangle className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
                 {done
-                  ? `${r.status === "cancelled" ? "Annullato" : r.status === "promoted" ? "Notificato" : "Fatto"} · ${fmtDate(r.remind_on)}`
-                  : relLabel(r.remind_on) + (r.remind_at ? ` · ${new Date(r.remind_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : "")}
+                  ? `${r.status === "cancelled" ? tr("Annullato") : r.status === "promoted" ? tr("Notificato") : tr("Fatto")} · ${fmtDate(r.remind_on)}`
+                  : relLabel(r.remind_on, tr) + (r.remind_at ? ` · ${new Date(r.remind_at).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" })}` : "")}
               </span>
               {isRec && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600">
-                  <Repeat className="h-3 w-3" /> {recLabel(r.recurrence)}
+                  <Repeat className="h-3 w-3" /> {tr(recLabel(r.recurrence))}
                 </span>
               )}
               {isUrgente(r.severity) && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
-                  <Flag className="h-2.5 w-2.5" /> Urgente
+                  <Flag className="h-2.5 w-2.5" /> {tr("Urgente")}
                 </span>
               )}
               {r.user_id && r.user_id !== user?.id && nomeUtente(r.user_id) && (
@@ -313,27 +315,27 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {done ? (
-              <button onClick={() => setStatus(r.id, "pending")} title="Ripristina"
+              <button onClick={() => setStatus(r.id, "pending")} title={tr("Ripristina")}
                 className="rounded-md p-1 text-slate-400 transition hover:bg-orange-50 hover:text-orange-600"><RotateCcw className="h-4 w-4" /></button>
             ) : (
               <>
-                <button onClick={() => completa(r)} title="Segna come fatto"
+                <button onClick={() => completa(r)} title={tr("Segna come fatto")}
                   className="rounded-md p-1 text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-600"><Check className="h-4 w-4" /></button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button title="Altre azioni" className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+                    <button title={tr("Altre azioni")} className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
                       <MoreVertical className="h-4 w-4" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuLabel className="flex items-center gap-1.5 text-xs"><Clock className="h-3.5 w-3.5" /> Posticipa</DropdownMenuLabel>
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-xs"><Clock className="h-3.5 w-3.5" /> {tr("Posticipa")}</DropdownMenuLabel>
                     {SNOOZE.map((s) => (
-                      <DropdownMenuItem key={s.days} onClick={() => snooze(r.id, s.days)}>{s.label}</DropdownMenuItem>
+                      <DropdownMenuItem key={s.days} onClick={() => snooze(r.id, s.days)}>{tr(s.label)}</DropdownMenuItem>
                     ))}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => startEdit(r)} className="gap-2"><Pencil className="h-3.5 w-3.5" /> Modifica</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setStatus(r.id, "cancelled", { undo: true, label: "Annullato" })} className="gap-2 text-rose-600">
-                      <X className="h-3.5 w-3.5" /> Annulla promemoria
+                    <DropdownMenuItem onClick={() => startEdit(r)} className="gap-2"><Pencil className="h-3.5 w-3.5" /> {tr("Modifica")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setStatus(r.id, "cancelled", { undo: true, label: tr("Annullato") })} className="gap-2 text-rose-600">
+                      <X className="h-3.5 w-3.5" /> {tr("Annulla promemoria")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -358,18 +360,18 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
       <SheetContent className="flex w-full flex-col sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-base">
-            <CalendarClock className="h-4 w-4 text-orange-500" /> Attività programmate
+            <CalendarClock className="h-4 w-4 text-orange-500" /> {tr("Attività programmate")}
             {reminders.length > 0 && <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{reminders.length}</span>}
-            {groups.overdue.length > 0 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">{groups.overdue.length} in ritardo</span>}
+            {groups.overdue.length > 0 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">{tr("{n} in ritardo", { n: groups.overdue.length })}</span>}
           </SheetTitle>
         </SheetHeader>
-        <p className="mt-1 text-xs text-muted-foreground">Promemoria e follow-up datati. Alla scadenza riappaiono come avviso (campanella + briefing); le ricorrenti si rinnovano da sole.</p>
+        <p className="mt-1 text-xs text-muted-foreground">{tr("Promemoria e follow-up datati. Alla scadenza riappaiono come avviso (campanella + briefing); le ricorrenti si rinnovano da sole.")}</p>
 
         {/* Nuovo promemoria */}
         <div className="mt-4 space-y-2 rounded-xl border border-slate-200 p-3">
-          <div className="text-xs font-medium text-slate-600">Nuovo promemoria</div>
-          <Input value={titolo} onChange={(e) => setTitolo(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder="Es. Ricontrollare pagamento Rossi" />
-          <Input value={nota} onChange={(e) => setNota(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder="Nota (opzionale) — es. fattura 2025/128, € 4.500" className="text-sm" />
+          <div className="text-xs font-medium text-slate-600">{tr("Nuovo promemoria")}</div>
+          <Input value={titolo} onChange={(e) => setTitolo(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder={tr("Es. Ricontrollare pagamento Rossi")} />
+          <Input value={nota} onChange={(e) => setNota(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder={tr("Nota (opzionale) — es. fattura 2025/128, € 4.500")} className="text-sm" />
           <div className="flex flex-wrap gap-1.5">
             {PRESETS.map((p) => {
               const iso = addDaysISO(p.days);
@@ -378,53 +380,53 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
                 <button key={p.label} type="button" onClick={() => setData(iso)}
                   className={cn("rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
                     active ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
-                  {p.label}
+                  {tr(p.label)}
                 </button>
               );
             })}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500"><Repeat className="h-3 w-3" /> Ripeti:</span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500"><Repeat className="h-3 w-3" /> {tr("Ripeti:")}</span>
             {RECURRENCE_OPTS.map((o) => (
               <button key={o.value} type="button" onClick={() => setRicorrenza(o.value)}
                 className={cn("rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
                   ricorrenza === o.value ? "border-violet-300 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
-                {o.label}
+                {tr(o.label)}
               </button>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500"><Flag className="h-3 w-3" /> Priorità:</span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500"><Flag className="h-3 w-3" /> {tr("Priorità:")}</span>
             {PRIORITA_OPTS.map((o) => (
               <button key={o.value} type="button" onClick={() => setPriorita(o.value)}
                 className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
                   priorita === o.value
                     ? (o.value === "critical" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-slate-300 bg-slate-100 text-slate-700")
                     : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
-                <span className={cn("h-2 w-2 rounded-full", o.dot)} /> {o.label}
+                <span className={cn("h-2 w-2 rounded-full", o.dot)} /> {tr(o.label)}
               </button>
             ))}
           </div>
           {colleghi.length > 1 && (
             <div className="flex items-center gap-2">
-              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-500"><Users className="h-3 w-3" /> Assegna a:</span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-500"><Users className="h-3 w-3" /> {tr("Assegna a:")}</span>
               <UniformSelect
                 value={assegnatario}
                 onChange={(e) => setAssegnatario(e.target.value)}
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-300"
               >
-                <option value="">Io</option>
+                <option value="">{tr("Io")}</option>
                 {colleghi.filter((c) => c.id !== user?.id).map((c) => (
-                  <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || "Collega"}</option>
+                  <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || tr("Collega")}</option>
                 ))}
               </UniformSelect>
             </div>
           )}
           <div className="flex gap-2">
             <Input type="date" value={data} min={todayISO()} onChange={(e) => setData(e.target.value)} className="flex-1" />
-            <Input type="time" value={ora} onChange={(e) => setOra(e.target.value)} className="w-28" title="Ora (opzionale)" aria-label="Ora (opzionale)" />
+            <Input type="time" value={ora} onChange={(e) => setOra(e.target.value)} className="w-28" title={tr("Ora (opzionale)")} aria-label={tr("Ora (opzionale)")} />
             <Button className="gap-1.5" disabled={!canAdd} onClick={submit}>
-              {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Aggiungi
+              {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {tr("Aggiungi")}
             </Button>
           </div>
         </div>
@@ -434,7 +436,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
           {([["todo", "Da fare"], ["done", "Storico"]] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={cn("flex-1 rounded-md px-3 py-1.5 font-medium transition", tab === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
-              {label}{key === "todo" && reminders.length > 0 ? ` (${reminders.length})` : ""}
+              {tr(label)}{key === "todo" && reminders.length > 0 ? ` (${reminders.length})` : ""}
             </button>
           ))}
         </div>
@@ -446,19 +448,19 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
               <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : reminders.length === 0 ? (
               <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
-                Nessuna attività da fare. Aggiungi un promemoria o chiedi a Silvio "ricordami…".
+                {tr("Nessuna attività da fare. Aggiungi un promemoria o chiedi a Silvio \"ricordami…\".")}
               </div>
             ) : (
               <>
-                {sezione("In ritardo", groups.overdue, "overdue", "text-rose-500")}
-                {sezione("Oggi", groups.today, "today", "text-orange-500")}
-                {sezione("Prossimi", groups.upcoming, "upcoming")}
+                {sezione(tr("In ritardo"), groups.overdue, "overdue", "text-rose-500")}
+                {sezione(tr("Oggi"), groups.today, "today", "text-orange-500")}
+                {sezione(tr("Prossimi"), groups.upcoming, "upcoming")}
               </>
             )
           ) : loadingStorico ? (
             <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : storico.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">Nessuna attività passata.</div>
+            <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">{tr("Nessuna attività passata.")}</div>
           ) : (
             <div className="space-y-1.5">{storico.map((r) => riga(r, "done"))}</div>
           )}

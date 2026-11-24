@@ -2,12 +2,14 @@ import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PageSelectionStepProps {
   hook: any;
 }
 
 export function PageSelectionStep({ hook }: PageSelectionStepProps) {
+  const t = useT();
   const { pages, togglePageSelection, isLoadingPages } = hook;
   const [query, setQuery] = useState("");
 
@@ -26,7 +28,7 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-        <p className="text-sm">Caricamento pagine…</p>
+        <p className="text-sm">{t("Caricamento pagine…")}</p>
       </div>
     );
   }
@@ -35,8 +37,7 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <p className="text-sm">
-          Nessuna pagina trovata. Verifica che il tuo account Meta gestisca almeno una
-          pagina Facebook e che tu abbia dato i permessi richiesti.
+          {t("Nessuna pagina trovata. Verifica che il tuo account Meta gestisca almeno una pagina Facebook e che tu abbia dato i permessi richiesti.")}
         </p>
       </div>
     );
@@ -51,8 +52,7 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Seleziona le pagine Facebook di questa azienda da usare per le sponsorizzate e da cui ricevere i lead. Le pagine
-        non selezionate non verranno collegate.
+        {t("Seleziona le pagine Facebook di questa azienda da usare per le sponsorizzate e da cui ricevere i lead. Le pagine non selezionate non verranno collegate.")}
       </p>
 
       {/* Con account che gestiscono molte pagine (agenzie), la ricerca è
@@ -63,7 +63,7 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cerca per nome pagina, ID o Business Manager…"
+            placeholder={t("Cerca per nome pagina, ID o Business Manager…")}
             className="pl-9"
             autoFocus
           />
@@ -72,9 +72,7 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
 
       <div className="border rounded-lg divide-y max-h-[340px] overflow-y-auto">
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            Nessuna pagina corrisponde a “{query}”.
-          </p>
+          <p className="text-sm text-muted-foreground text-center py-6">{t("Nessuna pagina corrisponde a “{query}”.", { query: String(query ?? "") })}</p>
         ) : (
           filtered.map((page: any) => (
             <label
@@ -89,13 +87,13 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{page.asset_name}</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  ID: {page.asset_id}
+                  {t("ID:")} {page.asset_id}
                   {page.metadata?.biz_name ? ` · ${page.metadata.biz_name}` : ""}
                 </p>
               </div>
               {page.metadata?.instagram_business_account && (
                 <span className="text-xs bg-accent text-accent-foreground px-2 py-0.5 rounded-full shrink-0">
-                  + Instagram
+                  {t("+ Instagram")}
                 </span>
               )}
             </label>
@@ -104,8 +102,8 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {selectedCount} di {pages.length} pagine selezionate
-        {query && ` · ${filtered.length} risultati`}
+        {t("{n} di {totale} pagine selezionate", { n: selectedCount, totale: pages.length })}
+        {query && <> · {t("{n} risultati", { n: filtered.length })}</>}
       </p>
     </div>
   );

@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface CostsDialogsProps {
   // Delete confirm
   deleteConfirmId: string | null;
@@ -71,6 +72,7 @@ export function CostsDialogs({
   taskCostId,
   onTaskDialogChange,
 }: CostsDialogsProps) {
+  const t = useT();
   const conferma = useConfermaQuantita(selectedCount, bulkDeleteConfirm);
   return (
     <>
@@ -78,12 +80,12 @@ export function CostsDialogs({
       <AlertDialog open={!!deleteConfirmId} onOpenChange={() => onDeleteConfirmChange(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questo costo?</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare questo costo?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Questa azione non può essere annullata.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (deleteConfirmId) onDeleteConfirm(deleteConfirmId); onDeleteConfirmChange(null); }}>Elimina</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (deleteConfirmId) onDeleteConfirm(deleteConfirmId); onDeleteConfirmChange(null); }}>{t("Elimina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -92,15 +94,15 @@ export function CostsDialogs({
       <AlertDialog open={!!deleteGroupName} onOpenChange={() => onDeleteGroupChange(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare tutti i costi "{deleteGroupName}"?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare tutti i costi \"{deleteGroupName}\"?", { deleteGroupName: String(deleteGroupName ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare {costNameCounts.get(deleteGroupName || "") || 0} costi con il nome "{deleteGroupName}". Questa azione non può essere annullata.
+              {t("Stai per eliminare {n} costi con il nome \"{nome}\". Questa azione non può essere annullata.", { n: costNameCounts.get(deleteGroupName || "") || 0, nome: deleteGroupName ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => { if (deleteGroupName) onDeleteGroupConfirm(deleteGroupName); }}>
-              Elimina tutti
+              {t("Elimina tutti")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -110,14 +112,14 @@ export function CostsDialogs({
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={onBulkDeleteChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {selectedCount} costi selezionati?</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare {selectedCount} costi selezionati?", { selectedCount: String(selectedCount ?? "") })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Questa azione non può essere annullata.")}</AlertDialogDescription>
           </AlertDialogHeader>
           {/* Sono dati che entrano nei margini: cancellarne un blocco per
               sbaglio sposta i conti di ogni commessa collegata. */}
           <ConfermaQuantita stato={conferma} cosa="costi" />
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 if (!conferma.valida) { e.preventDefault(); return; }
@@ -125,7 +127,7 @@ export function CostsDialogs({
               }}
               disabled={!conferma.valida}
             >
-              Elimina selezionati
+              {t("Elimina selezionati")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -135,16 +137,16 @@ export function CostsDialogs({
       <Dialog open={payDialogOpen} onOpenChange={(open) => { if (!open) onPayDialogChange(false); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Registra Pagamento</DialogTitle>
-            <DialogDescription className="max-sm:sr-only">Seleziona data e metodo di pagamento.</DialogDescription>
+            <DialogTitle>{t("Registra Pagamento")}</DialogTitle>
+            <DialogDescription className="max-sm:sr-only">{t("Seleziona data e metodo di pagamento.")}</DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4 max-sm:space-y-3 max-sm:py-0">
             <div>
-              <Label>Data pagamento</Label>
+              <Label>{t("Data pagamento")}</Label>
               <Input type="date" value={paymentDate} onChange={(e) => onPaymentDateChange(e.target.value)} className="mt-2" />
             </div>
             <div>
-              <Label className="mb-2 block">Metodo di pagamento</Label>
+              <Label className="mb-2 block">{t("Metodo di pagamento")}</Label>
               <RadioGroup value={paymentMethod} onValueChange={onPaymentMethodChange} className="grid grid-cols-3 gap-2">
                 {METODI_PAGAMENTO_COSTO.map((opt) => (
                   <div key={opt.value} className="flex items-center space-x-2">
@@ -156,9 +158,9 @@ export function CostsDialogs({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => onPayDialogChange(false)} className="max-sm:hidden">Annulla</Button>
+            <Button variant="outline" onClick={() => onPayDialogChange(false)} className="max-sm:hidden">{t("Annulla")}</Button>
             <Button onClick={onPaymentConfirm} disabled={!paymentDate || isPaymentPending}>
-              {isPaymentPending ? "Salvataggio..." : "Conferma Pagamento"}
+              {isPaymentPending ? t("Salvataggio...") : t("Conferma Pagamento")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -168,8 +170,8 @@ export function CostsDialogs({
       <Dialog open={!!taskCostId} onOpenChange={(v) => { if (!v) onTaskDialogChange(false); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Task collegate</DialogTitle>
-            <DialogDescription>Attività collegate a questo costo</DialogDescription>
+            <DialogTitle>{t("Task collegate")}</DialogTitle>
+            <DialogDescription>{t("Attività collegate a questo costo")}</DialogDescription>
           </DialogHeader>
           {taskCostId && <LinkedTasks costId={taskCostId} category="costi" />}
         </DialogContent>

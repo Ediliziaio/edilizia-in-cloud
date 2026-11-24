@@ -29,6 +29,7 @@ import type {
   ColonnaAcquisti,
 } from "@/lib/acquisti/pipelineAcquisti";
 import { DaOrdinareMateriali } from "./DaOrdinareMateriali";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const RDO_CHIP: Record<string, "default" | "blue" | "yellow"> = {
   bozza: "default",
@@ -37,6 +38,7 @@ const RDO_CHIP: Record<string, "default" | "blue" | "yellow"> = {
 };
 
 function Carta({ c, vedeCosti }: { c: CartaAcquisto; vedeCosti: boolean }) {
+  const t = useT();
   const chip =
     c.tipo === "oda"
       ? {
@@ -50,7 +52,7 @@ function Carta({ c, vedeCosti }: { c: CartaAcquisto; vedeCosti: boolean }) {
   const Icona = c.tipo === "oda" ? ShoppingCart : FileQuestion;
   return (
     <article
-      aria-label={`${c.tipo === "oda" ? "Ordine" : "Richiesta d'offerta"} ${c.numero}`}
+      aria-label={c.tipo === "oda" ? t("Ordine {numero}", { numero: c.numero }) : t("Richiesta d'offerta {numero}", { numero: c.numero })}
       className={cn(
         "block rounded-lg border border-slate-200 bg-card p-2 text-xs shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
         c.ritardo !== null && "border-orange-300",
@@ -60,7 +62,7 @@ function Carta({ c, vedeCosti }: { c: CartaAcquisto; vedeCosti: boolean }) {
         <Icona className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <Link
           to={c.href}
-          aria-label={`${c.tipo === "oda" ? "Ordine" : "Richiesta d’offerta"} ${c.numero}`}
+          aria-label={c.tipo === "oda" ? t("Ordine {numero}", { numero: c.numero }) : t("Richiesta d’offerta {numero}", { numero: c.numero })}
           className="min-w-0 flex-1 truncate font-mono font-semibold"
           title={c.numero}
         >
@@ -70,11 +72,11 @@ function Carta({ c, vedeCosti }: { c: CartaAcquisto; vedeCosti: boolean }) {
           variant={chip.variant}
           className="shrink-0 !px-1.5 !py-0 text-[10px]"
         >
-          {chip.label}
+          {t(chip.label)}
         </QuoteChip>
       </PipelineCardHeading>
       <p className="mt-1 text-[10px] text-muted-foreground">
-        {c.tipo === "oda" ? "Ordine d’acquisto" : "Richiesta d’offerta"}
+        {c.tipo === "oda" ? t("Ordine d’acquisto") : t("Richiesta d’offerta")}
       </p>
       <p className="mt-0.5 truncate text-sm font-medium" title={c.titolo}>
         {c.titolo}
@@ -86,25 +88,24 @@ function Carta({ c, vedeCosti }: { c: CartaAcquisto; vedeCosti: boolean }) {
             {c.commessa}
           </span>
         ) : (
-          <span>Senza commessa</span>
+          <span>{t("Senza commessa")}</span>
         )}
         {c.data && (
           <span>
-            {c.etichettaData} {format(new Date(c.data), "dd/MM")}
+            {t(c.etichettaData)} {format(new Date(c.data), "dd/MM")}
           </span>
         )}
         {c.ritardo !== null && (
           <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/10 px-1.5 font-semibold text-destructive">
             <AlertTriangle className="h-3 w-3" />
-            Ritardo: {c.ritardo} giorni
+            {t(c.ritardo === 1 ? "Ritardo: {n} giorno" : "Ritardo: {n} giorni", { n: c.ritardo })}
           </span>
         )}
       </div>
       {c.ricezione && c.stato !== "bozza" && (
         <p className="mt-1 text-[11px] text-muted-foreground">
-          {c.ricezione.complete}/{c.ricezione.righe} righe ricevute ·{" "}
-          {c.ricezione.righe - c.ricezione.complete} da completare
-          {c.ricezione.parziali ? ` (${c.ricezione.parziali} parziali)` : ""}
+          {t("{complete}/{righe} righe ricevute · {mancanti} da completare", { complete: c.ricezione.complete, righe: c.ricezione.righe, mancanti: c.ricezione.righe - c.ricezione.complete })}
+          {c.ricezione.parziali ? ` ${t("({n} parziali)", { n: c.ricezione.parziali })}` : ""}
         </p>
       )}
       <div className="mt-2 flex min-h-9 items-center justify-between gap-2 border-t border-slate-100 pt-2">
@@ -118,8 +119,8 @@ function Carta({ c, vedeCosti }: { c: CartaAcquisto; vedeCosti: boolean }) {
             className="ml-auto shrink-0 font-semibold tabular-nums"
             title={
               c.tipo === "rfq"
-                ? "Offerta migliore ricevuta"
-                : "Totale dell'ordine"
+                ? t("Offerta migliore ricevuta")
+                : t("Totale dell'ordine")
             }
           >
             {formatCurrency(c.importo)}
@@ -143,6 +144,7 @@ function Colonna({
   puoAgire: boolean;
   caricamento: boolean;
 }) {
+  const t = useT();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const elenco = new URLSearchParams(params);
@@ -154,11 +156,11 @@ function Colonna({
   return (
     <OperationalColumnFrame
       id={col.id}
-      label={col.titolo}
+      label={t(col.titolo)}
       color={col.colore}
       count={col.conteggio}
-      alert={inRitardo ? `${inRitardo} in ritardo` : undefined}
-      hint={`${vedeCosti && col.importo > 0 ? `${formatCurrency(col.importo)} · ` : ""}${col.descrizione}`}
+      alert={inRitardo ? t("{n} in ritardo", { n: inRitardo }) : undefined}
+      hint={`${vedeCosti && col.importo > 0 ? `${formatCurrency(col.importo)} · ` : ""}${t(col.descrizione)}`}
     >
       {caricamento ? (
         <div className="space-y-2" aria-busy="true">
@@ -189,16 +191,14 @@ function Colonna({
           ))}
           {!larga && col.carte.length === 0 && (
             <p className="py-4 text-center text-xs text-muted-foreground/60">
-              Nessun acquisto in questa fase
+              {t("Nessun acquisto in questa fase")}
             </p>
           )}
           {col.nascoste > 0 && (
             <Link
               to={`/azienda/ordini?${elenco}`}
               className="block py-2 text-center text-xs font-medium text-primary hover:underline"
-            >
-              Vedi tutti i {col.conteggio} ordini ricevuti
-            </Link>
+            >{t("Vedi tutti i {conteggio} ordini ricevuti", { conteggio: String(col.conteggio ?? "") })}</Link>
           )}
         </div>
       )}
@@ -221,12 +221,12 @@ export function PipelineAcquisti({
   puoAgire: boolean;
   caricamento: boolean;
 }) {
+  const t = useT();
   const [scorrimento, setScorrimento] = useState<HTMLDivElement | null>(null);
   if (!caricamento && colonne.every((col) => col.conteggio === 0))
     return (
       <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Nessun elemento per questi filtri. Cambia contenuto o consulta lo
-        storico.
+        {t("Nessun elemento per questi filtri. Cambia contenuto o consulta lo storico.")}
       </div>
     );
   return (

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PlanLimitResult {
   allowed: boolean;
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function PlanLimitWarning({ resourceType = "orders", className }: Props) {
+  const t = useT();
   const { user } = useAuth();
   const navigate = useNavigate();
   // Dal telefono il piano non si cambia: il limite resta come informazione.
@@ -58,9 +60,9 @@ export function PlanLimitWarning({ resourceType = "orders", className }: Props) 
   if (pct < 80) return null;
 
   const resourceLabel: Record<string, string> = {
-    orders: "Ordini",
-    users: "Utenti",
-    storage_mb: "Storage",
+    orders: t("Ordini"),
+    users: t("Utenti"),
+    storage_mb: t("Storage"),
   };
   const label = resourceLabel[resourceType] ?? resourceType;
 
@@ -86,11 +88,11 @@ export function PlanLimitWarning({ resourceType = "orders", className }: Props) 
               <div className="flex items-center gap-2">
                 <span className={`text-sm font-semibold ${isAtLimit ? "text-destructive" : "text-yellow-700 dark:text-yellow-400"}`}>
                   {isAtLimit
-                    ? `Limite ${label} raggiunto`
-                    : `${label} al ${pct}% del limite`}
+                    ? t("Limite {label} raggiunto", { label: String(label ?? "") })
+                    : t("{label} al {pct}% del limite", { label: String(label ?? ""), pct: String(pct ?? "") })}
                 </span>
                 {isAtLimit && (
-                  <Badge variant="destructive" className="text-[10px] h-4">BLOCCATO</Badge>
+                  <Badge variant="destructive" className="text-[10px] h-4">{t("BLOCCATO")}</Badge>
                 )}
               </div>
               <span className="text-xs text-muted-foreground font-mono">
@@ -103,7 +105,7 @@ export function PlanLimitWarning({ resourceType = "orders", className }: Props) 
             />
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                Piano: <span className="font-medium capitalize">{data.plan_name}</span>
+                {t("Piano:")} <span className="font-medium capitalize">{data.plan_name}</span>
               </span>
               {/* App Store 3.1.1: niente CTA upgrade/acquisto nell'app mobile.
                   Il warning resta informativo (uso/limite del piano). */}
@@ -115,7 +117,7 @@ export function PlanLimitWarning({ resourceType = "orders", className }: Props) 
                   onClick={() => navigate("/azienda/impostazioni/abbonamento")}
                 >
                   <TrendingUp className="h-3 w-3" />
-                  Aggiorna piano
+                  {t("Aggiorna piano")}
                 </Button>
               )}
             </div>

@@ -29,7 +29,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ConversationV2 {
   id: string;
@@ -59,6 +59,7 @@ interface ConversazioniTabProps {
 }
 
 export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [agentFilter, setAgentFilter] = useState(agentIdFilter || "tutti");
 
@@ -97,7 +98,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
     return (
       <ConversazioneDetail
         conv={selectedConv}
-        agentName={agents.find((a) => a.id === selectedConv.agent_id)?.nome || "Agente"}
+        agentName={agents.find((a) => a.id === selectedConv.agent_id)?.nome || t("Agente")}
         onBack={() => setSelectedConv(null)}
       />
     );
@@ -112,10 +113,10 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
       <div className="flex items-center justify-between">
         <Select value={agentFilter} onValueChange={setAgentFilter}>
           <SelectTrigger className="w-52 h-8 text-sm max-md:h-9 max-md:w-full">
-            <SelectValue placeholder="Filtra per agente" />
+            <SelectValue placeholder={t("Filtra per agente")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti gli agenti</SelectItem>
+            <SelectItem value="tutti">{t("Tutti gli agenti")}</SelectItem>
             {agents.map((a) => (
               <SelectItem key={a.id} value={a.id}>
                 {a.nome}
@@ -131,22 +132,22 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : isError ? (
-        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare le chiamate.</p>
-          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
+        <div role="alert" className="rounded-lg border p-4"><p>{t("Impossibile caricare le chiamate.")}</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>{t("Riprova")}</Button></div>
       ) : conversations.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center max-md:py-4">
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-3 max-md:hidden">
             <MessageSquare className="h-7 w-7 text-primary" />
           </div>
-          <p className="text-foreground font-medium max-md:text-[13px]">Nessuna conversazione</p>
+          <p className="text-foreground font-medium max-md:text-[13px]">{t("Nessuna conversazione")}</p>
           <p className="text-sm text-muted-foreground mt-1 max-md:hidden">
-            Le conversazioni appariranno qui dopo che gli agenti gestiscono le prime chiamate o chat.
+            {t("Le conversazioni appariranno qui dopo che gli agenti gestiscono le prime chiamate o chat.")}
           </p>
           {/* Audit AI 2026-06: senza il webhook eventi del provider vocale i
               dati non arrivano MAI — dirlo evita di scambiare il vuoto per
               "nessuna attività". */}
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 max-md:mt-1.5 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:text-[11px]">
-            Qui compaiono le chiamate effettive ricevute dal backend. Le prove vocali e le simulazioni sono separate dallo storico reale.
+            {t("Qui compaiono le chiamate effettive ricevute dal backend. Le prove vocali e le simulazioni sono separate dallo storico reale.")}
           </p>
         </div>
       ) : (
@@ -174,7 +175,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        {agente?.nome || "Agente sconosciuto"}
+                        {agente?.nome || t("Agente sconosciuto")}
                         {conv.voice_provider === "fish_audio" && <Badge variant="outline" className="ml-2 text-[10px]">Fish Audio</Badge>}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -192,7 +193,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {format(new Date(conv.creato_il), "dd MMM HH:mm", { locale: it })}
+                        {format(new Date(conv.creato_il), "dd MMM HH:mm", { locale: dateFnsCampo() })}
                       </p>
                     </div>
                     <Badge
@@ -239,6 +240,7 @@ function ConversazioneDetail({
   agentName: string;
   onBack: () => void;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -268,12 +270,12 @@ function ConversazioneDetail({
         company_id: companyId!,
         payload: { conversation_id: conv.elevenlabs_conversation_id },
       });
-      if (!result?.audio_base64) throw new Error("Registrazione non disponibile");
+      if (!result?.audio_base64) throw new Error(t("Registrazione non disponibile"));
       const source = `data:${result.content_type};base64,${result.audio_base64}`;
       setAudioSrc(source);
       return source;
     } catch (e: any) {
-      toast.error("Impossibile caricare l'audio");
+      toast.error(t("Impossibile caricare l'audio"));
       return null;
     } finally {
       setLoadingAudio(false);
@@ -289,7 +291,7 @@ function ConversazioneDetail({
       // The first click precedes React's next render: set src before play().
       if (audio.src !== source) audio.src = source;
       await audio.play();
-    } catch { setPlaying(false); toast.error("Impossibile riprodurre la registrazione"); }
+    } catch { setPlaying(false); toast.error(t("Impossibile riprodurre la registrazione")); }
   };
 
   const seekTo = (time: number) => {
@@ -297,7 +299,7 @@ function ConversazioneDetail({
       audioRef.current.currentTime = time;
       setCurrentTime(time);
       if (!playing) {
-        audioRef.current.play().catch(() => toast.error("Impossibile riprodurre la registrazione"));
+        audioRef.current.play().catch(() => toast.error(t("Impossibile riprodurre la registrazione")));
       }
     }
   };
@@ -307,15 +309,15 @@ function ConversazioneDetail({
       {/* Back + Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}>
-          <ChevronLeft className="h-4 w-4 mr-1" /> Indietro
+          <ChevronLeft className="h-4 w-4 mr-1" /> {t("Indietro")}
         </Button>
         <div className="flex-1">
           <h2 className="text-lg font-semibold text-foreground">{agentName}</h2>
           <p className="text-xs text-muted-foreground">
-            {format(new Date(conv.creato_il), "dd MMMM yyyy, HH:mm", { locale: it })}
+            {format(new Date(conv.creato_il), "dd MMMM yyyy, HH:mm", { locale: dateFnsCampo() })}
             {" · "}
-            {Math.floor(dur / 60)}:{(dur % 60).toString().padStart(2, "0")} min
-            {conv.direzione && ` · ${conv.direzione === "inbound" ? "In entrata" : "In uscita"}`}
+            {Math.floor(dur / 60)}:{(dur % 60).toString().padStart(2, "0")} {t("min")}
+            {conv.direzione && ` · ${conv.direzione === "inbound" ? t("In entrata") : t("In uscita")}`}
           </p>
         </div>
         <Badge variant={conv.stato === "completata" ? "default" : "secondary"}>{conv.stato}</Badge>
@@ -376,12 +378,12 @@ function ConversazioneDetail({
         {/* Transcription */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Trascrizione</CardTitle>
+            <CardTitle className="text-sm">{t("Trascrizione")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 max-h-[500px] overflow-y-auto">
             {transcript.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Nessuna trascrizione disponibile
+                {t("Nessuna trascrizione disponibile")}
               </p>
             ) : (
               transcript.map((msg, i) => {
@@ -406,7 +408,7 @@ function ConversazioneDetail({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-foreground">
-                          {isAgent ? "Agente" : "Utente"}
+                          {isAgent ? t("Agente") : t("Utente")}
                         </span>
                         {msg.time != null && (
                           <span className="text-[10px] text-muted-foreground">
@@ -428,7 +430,7 @@ function ConversazioneDetail({
           {conv.riassunto && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Riassunto</CardTitle>
+                <CardTitle className="text-sm">{t("Riassunto")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">{conv.riassunto}</p>
@@ -438,35 +440,35 @@ function ConversazioneDetail({
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Dettagli</CardTitle>
+              <CardTitle className="text-sm">{t("Dettagli")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {conv.numero_chiamante && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Chiamante</span>
+                  <span className="text-muted-foreground">{t("Chiamante")}</span>
                   <span className="font-mono text-foreground">{conv.numero_chiamante}</span>
                 </div>
               )}
               {conv.numero_chiamato && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Chiamato</span>
+                  <span className="text-muted-foreground">{t("Chiamato")}</span>
                   <span className="font-mono text-foreground">{conv.numero_chiamato}</span>
                 </div>
               )}
               {conv.costo_crediti != null && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Costo</span>
+                  <span className="text-muted-foreground">{t("Costo")}</span>
                   <span className="text-foreground">€{conv.costo_crediti.toFixed(4)}</span>
                 </div>
               )}
               {conv.sentiment && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sentiment</span>
+                  <span className="text-muted-foreground">{t("Sentiment")}</span>
                   <Badge variant="outline" className="text-xs">{conv.sentiment}</Badge>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Canale</span>
+                <span className="text-muted-foreground">{t("Canale")}</span>
                 <span className="text-foreground capitalize">{conv.canale}</span>
               </div>
             </CardContent>

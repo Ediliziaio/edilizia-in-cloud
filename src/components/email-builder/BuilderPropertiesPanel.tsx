@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, Link, Plus, Sparkles, Variable, Palette, ExternalLink } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface BuilderPlaceholder {
   key: string;
@@ -55,6 +56,7 @@ function ColorField({
   onChange: (v: string | undefined) => void;
   allowClear?: boolean;
 }) {
+  const t = useT();
   const current = value || "";
   return (
     <div className="space-y-1.5">
@@ -64,12 +66,12 @@ function ColorField({
           value={current || "#000000"}
           onChange={(e) => onChange(e.target.value)}
           className="h-8 w-8 shrink-0 cursor-pointer rounded border"
-          aria-label="Scegli colore"
+          aria-label={t("Scegli colore")}
         />
         <Input
           className="h-8 flex-1 text-xs font-mono"
           value={current}
-          placeholder={allowClear ? "nessuno" : "#000000"}
+          placeholder={allowClear ? t("nessuno") : "#000000"}
           onChange={(e) => onChange(e.target.value || (allowClear ? undefined : ""))}
         />
         {allowClear && current && (
@@ -121,6 +123,7 @@ function VariableInsertButton({
   onInsert: (tag: string) => void;
   placeholders?: BuilderPlaceholder[];
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const variables = useMemo(() => {
     if (placeholders.length === 0) {
@@ -146,7 +149,7 @@ function VariableInsertButton({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-7 text-xs w-full">
-          <Variable className="h-3 w-3 mr-1" /> Inserisci variabile
+          <Variable className="h-3 w-3 mr-1" /> {t("Inserisci variabile")}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="bg-background z-50 max-h-[360px] w-[320px] overflow-y-auto">
@@ -155,7 +158,7 @@ function VariableInsertButton({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={(event) => event.stopPropagation()}
-            placeholder="Cerca variabile"
+            placeholder={t("Cerca variabile")}
             className="h-8 text-xs"
           />
         </div>
@@ -167,12 +170,12 @@ function VariableInsertButton({
         ))}
         {filtered.length > 120 && (
           <div className="px-3 py-2 text-xs text-muted-foreground">
-            Mostro i primi 120 risultati. Usa la ricerca per filtrare meglio.
+            {t("Mostro i primi 120 risultati. Usa la ricerca per filtrare meglio.")}
           </div>
         )}
         {filtered.length === 0 && (
           <div className="px-3 py-5 text-center text-xs text-muted-foreground">
-            Nessuna variabile trovata.
+            {t("Nessuna variabile trovata.")}
           </div>
         )}
       </DropdownMenuContent>
@@ -190,6 +193,7 @@ export function BuilderPropertiesPanel({
   onApplyTextColor,
   className,
 }: BuilderPropertiesPanelProps) {
+  const t = useT();
   const [librarySearch, setLibrarySearch] = useState("");
   const [themeBtnColor, setThemeBtnColor] = useState("#F97316");
   const [themeTextColor, setThemeTextColor] = useState("#333333");
@@ -212,27 +216,27 @@ export function BuilderPropertiesPanel({
           <div className="space-y-1">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <Sparkles className="h-4 w-4 text-primary" />
-              Personalizzazione
+              {t("Personalizzazione")}
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Seleziona un blocco per modificarlo oppure aggiungi subito sezioni e variabili dinamiche.
+              {t("Seleziona un blocco per modificarlo oppure aggiungi subito sezioni e variabili dinamiche.")}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Sezioni rapide</Label>
+            <Label className="text-xs">{t("Sezioni rapide")}</Label>
             <div className="grid gap-2">
               <Button variant="outline" size="sm" className="justify-start" onClick={() => onAddQuickSection?.("greeting")}>
                 <Plus className="mr-2 h-4 w-4" />
-                Saluto con nome utente
+                {t("Saluto con nome utente")}
               </Button>
               <Button variant="outline" size="sm" className="justify-start" onClick={() => onAddQuickSection?.("cta")}>
                 <Link className="mr-2 h-4 w-4" />
-                Pulsante accesso
+                {t("Pulsante accesso")}
               </Button>
               <Button variant="outline" size="sm" className="justify-start" onClick={() => onAddQuickSection?.("signature")}>
                 <Plus className="mr-2 h-4 w-4" />
-                Firma aziendale
+                {t("Firma aziendale")}
               </Button>
             </div>
           </div>
@@ -240,23 +244,23 @@ export function BuilderPropertiesPanel({
           {(onApplyButtonColor || onApplyTextColor) && (
             <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
               <Label className="flex items-center gap-1.5 text-xs font-semibold">
-                <Palette className="h-3.5 w-3.5 text-primary" /> Tema colori (tutta l'email)
+                <Palette className="h-3.5 w-3.5 text-primary" /> {t("Tema colori (tutta l'email)")}
               </Label>
               {onApplyButtonColor && (
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] text-muted-foreground">Colore di tutti i pulsanti</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("Colore di tutti i pulsanti")}</Label>
                   <ColorField value={themeBtnColor} onChange={(v) => setThemeBtnColor(v ?? "#F97316")} />
                   <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={() => onApplyButtonColor(themeBtnColor)}>
-                    Applica a tutti i pulsanti
+                    {t("Applica a tutti i pulsanti")}
                   </Button>
                 </div>
               )}
               {onApplyTextColor && (
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] text-muted-foreground">Colore di tutti i testi</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("Colore di tutti i testi")}</Label>
                   <ColorField value={themeTextColor} onChange={(v) => setThemeTextColor(v ?? "#333333")} />
                   <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={() => onApplyTextColor(themeTextColor)}>
-                    Applica a tutti i testi
+                    {t("Applica a tutti i testi")}
                   </Button>
                 </div>
               )}
@@ -264,11 +268,11 @@ export function BuilderPropertiesPanel({
           )}
 
           <div className="space-y-2">
-            <Label className="text-xs">Variabili email</Label>
+            <Label className="text-xs">{t("Variabili email")}</Label>
             <Input
               value={librarySearch}
               onChange={(event) => setLibrarySearch(event.target.value)}
-              placeholder="Cerca nome, email, fattura..."
+              placeholder={t("Cerca nome, email, fattura...")}
               className="h-8 text-xs"
             />
             <div className="max-h-[420px] space-y-1.5 overflow-y-auto pr-1">
@@ -280,7 +284,7 @@ export function BuilderPropertiesPanel({
                     type="button"
                     onClick={() => onInsertVariable?.(tag)}
                     className="w-full rounded-md border bg-muted/30 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
-                    title={placeholder.example ? `Esempio: ${placeholder.example}` : undefined}
+                    title={placeholder.example ? t("Esempio: {example}", { example: String(placeholder.example ?? "") }) : undefined}
                   >
                     <span className="block truncate text-xs font-medium">{placeholder.label}</span>
                     <span className="mt-0.5 block truncate font-mono text-[11px] text-primary">{tag}</span>
@@ -289,12 +293,12 @@ export function BuilderPropertiesPanel({
               })}
               {filteredPlaceholders.length > 160 && (
                 <p className="rounded-md border border-dashed px-2.5 py-2 text-xs text-muted-foreground">
-                  Mostro i primi 160 risultati. Cerca una parola specifica per restringere.
+                  {t("Mostro i primi 160 risultati. Cerca una parola specifica per restringere.")}
                 </p>
               )}
               {filteredPlaceholders.length === 0 && (
                 <p className="rounded-md border border-dashed px-2.5 py-3 text-xs text-muted-foreground">
-                  Nessuna variabile trovata.
+                  {t("Nessuna variabile trovata.")}
                 </p>
               )}
             </div>
@@ -309,7 +313,7 @@ export function BuilderPropertiesPanel({
   return (
     <div className={className ?? "w-[340px] border-l bg-background p-5 shrink-0 overflow-y-auto"}>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-        Proprietà: {block.type === "columns" ? "Layout" : block.type}
+        {t("Proprietà:")} {block.type === "columns" ? t("Layout") : block.type}
       </p>
 
       <div className="space-y-4">
@@ -334,62 +338,63 @@ function TextProperties({
   update: (p: Partial<TextProps>) => void;
   placeholders: BuilderPlaceholder[];
 }) {
+  const t = useT();
   return (
     <>
       <div className="space-y-1.5">
-        <Label className="text-xs">Contenuto</Label>
+        <Label className="text-xs">{t("Contenuto")}</Label>
         <Textarea className="min-h-[120px] text-sm" value={props.content} onChange={(e) => update({ content: e.target.value })} />
         <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ content: props.content + " " + tag })} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label className="text-xs">Font</Label>
+          <Label className="text-xs">{t("Font")}</Label>
           <Select value={props.fontFamily} onValueChange={(v) => update({ fontFamily: v })}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>{FONT_FAMILIES.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Peso</Label>
+          <Label className="text-xs">{t("Peso")}</Label>
           <Select value={normalizeWeight(props.fontWeight)} onValueChange={(v) => update({ fontWeight: v })}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>{FONT_WEIGHTS.map((w) => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}</SelectContent>
+            <SelectContent>{FONT_WEIGHTS.map((w) => <SelectItem key={w.value} value={w.value}>{t(w.label)}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label className="text-xs">Dimensione</Label>
-          <Input className="h-8 text-xs" value={props.fontSize} onChange={(e) => update({ fontSize: e.target.value })} placeholder="16px" />
+          <Label className="text-xs">{t("Dimensione")}</Label>
+          <Input className="h-8 text-xs" value={props.fontSize} onChange={(e) => update({ fontSize: e.target.value })} placeholder={t("16px")} />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Interlinea</Label>
+          <Label className="text-xs">{t("Interlinea")}</Label>
           <Input className="h-8 text-xs" value={props.lineHeight ?? "1.6"} onChange={(e) => update({ lineHeight: e.target.value })} placeholder="1.6" />
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Colore testo</Label>
+        <Label className="text-xs">{t("Colore testo")}</Label>
         <ColorField value={props.color} onChange={(v) => update({ color: v ?? "#333333" })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Sfondo blocco (opzionale)</Label>
+        <Label className="text-xs">{t("Sfondo blocco (opzionale)")}</Label>
         <ColorField value={props.backgroundColor} onChange={(v) => update({ backgroundColor: v })} allowClear />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label className="text-xs">Allineamento</Label>
+          <Label className="text-xs">{t("Allineamento")}</Label>
           <AlignButtons value={props.textAlign} onChange={(v) => update({ textAlign: v })} />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Stile</Label>
+          <Label className="text-xs">{t("Stile")}</Label>
           <div className="flex gap-1">
-            <Button variant={isBold(props.fontWeight) ? "default" : "outline"} size="icon" className="h-8 w-8" title="Grassetto" onClick={() => update({ fontWeight: isBold(props.fontWeight) ? "400" : "700" })}>
+            <Button variant={isBold(props.fontWeight) ? "default" : "outline"} size="icon" className="h-8 w-8" title={t("Grassetto")} onClick={() => update({ fontWeight: isBold(props.fontWeight) ? "400" : "700" })}>
               <Bold className="h-3.5 w-3.5" />
             </Button>
-            <Button variant={props.italic ? "default" : "outline"} size="icon" className="h-8 w-8" title="Corsivo" onClick={() => update({ italic: !props.italic })}>
+            <Button variant={props.italic ? "default" : "outline"} size="icon" className="h-8 w-8" title={t("Corsivo")} onClick={() => update({ italic: !props.italic })}>
               <Italic className="h-3.5 w-3.5" />
             </Button>
-            <Button variant={props.underline ? "default" : "outline"} size="icon" className="h-8 w-8" title="Sottolineato" onClick={() => update({ underline: !props.underline })}>
+            <Button variant={props.underline ? "default" : "outline"} size="icon" className="h-8 w-8" title={t("Sottolineato")} onClick={() => update({ underline: !props.underline })}>
               <Underline className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -409,10 +414,11 @@ function isBold(w: string): boolean {
 }
 
 function ImageProperties({ props, update }: { props: ImageProps; update: (p: Partial<ImageProps>) => void }) {
+  const t = useT();
   return (
     <>
       <div className="space-y-1.5">
-        <Label className="text-xs">URL immagine</Label>
+        <Label className="text-xs">{t("URL immagine")}</Label>
         <Input className="h-8 text-xs" placeholder="https://..." value={props.src} onChange={(e) => update({ src: e.target.value })} />
       </div>
       {props.src && (
@@ -421,15 +427,15 @@ function ImageProperties({ props, update }: { props: ImageProps; update: (p: Par
         </div>
       )}
       <div className="space-y-1.5">
-        <Label className="text-xs">Testo alternativo</Label>
+        <Label className="text-xs">{t("Testo alternativo")}</Label>
         <Input className="h-8 text-xs" value={props.alt} onChange={(e) => update({ alt: e.target.value })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Larghezza</Label>
-        <Input className="h-8 text-xs" value={props.width} onChange={(e) => update({ width: e.target.value })} placeholder="100% o 300px" />
+        <Label className="text-xs">{t("Larghezza")}</Label>
+        <Input className="h-8 text-xs" value={props.width} onChange={(e) => update({ width: e.target.value })} placeholder={t("100% o 300px")} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Allineamento</Label>
+        <Label className="text-xs">{t("Allineamento")}</Label>
         <AlignButtons value={props.align} onChange={(v) => update({ align: v })} />
       </div>
     </>
@@ -445,11 +451,12 @@ function ButtonProperties({
   update: (p: Partial<ButtonProps>) => void;
   placeholders: BuilderPlaceholder[];
 }) {
+  const t = useT();
   return (
     <>
       {/* URL prima di tutto — è il campo più importante per un bottone */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-foreground">Link (URL)</Label>
+        <Label className="text-xs font-semibold text-foreground">{t("Link (URL)")}</Label>
         <div className="flex gap-1">
           <Input
             className={`h-8 text-xs flex-1 ${!props.url ? "border-destructive focus-visible:ring-destructive" : ""}`}
@@ -458,7 +465,7 @@ function ButtonProperties({
             onChange={(e) => update({ url: e.target.value })}
           />
           {props.url && !props.url.startsWith("{{") && (
-            <a href={props.url} target="_blank" rel="noopener noreferrer" title="Apri link in nuova scheda">
+            <a href={props.url} target="_blank" rel="noopener noreferrer" title={t("Apri link in nuova scheda")}>
               <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0">
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
@@ -466,51 +473,51 @@ function ButtonProperties({
           )}
         </div>
         {!props.url && (
-          <p className="text-[11px] text-destructive">URL obbligatorio: il bottone non funzionerà senza link.</p>
+          <p className="text-[11px] text-destructive">{t("URL obbligatorio: il bottone non funzionerà senza link.")}</p>
         )}
         <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ url: props.url + tag })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Testo del pulsante</Label>
+        <Label className="text-xs">{t("Testo del pulsante")}</Label>
         <Input className="h-8 text-xs" value={props.text} onChange={(e) => update({ text: e.target.value })} />
         <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ text: props.text + " " + tag })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Colore sfondo</Label>
+        <Label className="text-xs">{t("Colore sfondo")}</Label>
         <ColorField value={props.backgroundColor} onChange={(v) => update({ backgroundColor: v ?? "#F97316" })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Colore testo</Label>
+        <Label className="text-xs">{t("Colore testo")}</Label>
         <ColorField value={props.textColor} onChange={(v) => update({ textColor: v ?? "#FFFFFF" })} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label className="text-xs">Dimensione testo</Label>
-          <Input className="h-8 text-xs" value={props.fontSize ?? "16px"} onChange={(e) => update({ fontSize: e.target.value })} placeholder="16px" />
+          <Label className="text-xs">{t("Dimensione testo")}</Label>
+          <Input className="h-8 text-xs" value={props.fontSize ?? "16px"} onChange={(e) => update({ fontSize: e.target.value })} placeholder={t("16px")} />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Bordo arrotondato</Label>
-          <Input className="h-8 text-xs" value={props.borderRadius} onChange={(e) => update({ borderRadius: e.target.value })} placeholder="6px" />
+          <Label className="text-xs">{t("Bordo arrotondato")}</Label>
+          <Input className="h-8 text-xs" value={props.borderRadius} onChange={(e) => update({ borderRadius: e.target.value })} placeholder={t("6px")} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label className="text-xs">Padding verticale</Label>
-          <Input className="h-8 text-xs" value={props.paddingY ?? "13px"} onChange={(e) => update({ paddingY: e.target.value })} placeholder="13px" />
+          <Label className="text-xs">{t("Padding verticale")}</Label>
+          <Input className="h-8 text-xs" value={props.paddingY ?? "13px"} onChange={(e) => update({ paddingY: e.target.value })} placeholder={t("13px")} />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Padding orizzontale</Label>
-          <Input className="h-8 text-xs" value={props.paddingX ?? "26px"} onChange={(e) => update({ paddingX: e.target.value })} placeholder="26px" />
+          <Label className="text-xs">{t("Padding orizzontale")}</Label>
+          <Input className="h-8 text-xs" value={props.paddingX ?? "26px"} onChange={(e) => update({ paddingX: e.target.value })} placeholder={t("26px")} />
         </div>
       </div>
       <div className="flex items-center justify-between rounded-md border px-3 py-2">
-        <Label className="text-xs">Larghezza piena</Label>
+        <Label className="text-xs">{t("Larghezza piena")}</Label>
         <Button variant={props.fullWidth ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => update({ fullWidth: !props.fullWidth })}>
-          {props.fullWidth ? "Sì" : "No"}
+          {props.fullWidth ? t("Sì") : t("No")}
         </Button>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Allineamento</Label>
+        <Label className="text-xs">{t("Allineamento")}</Label>
         <AlignButtons value={props.align} onChange={(v) => update({ align: v })} />
       </div>
     </>
@@ -518,18 +525,19 @@ function ButtonProperties({
 }
 
 function DividerProperties({ props, update }: { props: DividerProps; update: (p: Partial<DividerProps>) => void }) {
+  const t = useT();
   return (
     <>
       <div className="space-y-1.5">
-        <Label className="text-xs">Spessore</Label>
+        <Label className="text-xs">{t("Spessore")}</Label>
         <Input className="h-8 text-xs" value={props.thickness} onChange={(e) => update({ thickness: e.target.value })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Colore</Label>
+        <Label className="text-xs">{t("Colore")}</Label>
         <ColorField value={props.color} onChange={(v) => update({ color: v ?? "#E5E7EB" })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Margine</Label>
+        <Label className="text-xs">{t("Margine")}</Label>
         <Input className="h-8 text-xs" value={props.margin} onChange={(e) => update({ margin: e.target.value })} />
       </div>
     </>
@@ -537,10 +545,11 @@ function DividerProperties({ props, update }: { props: DividerProps; update: (p:
 }
 
 function SpacerProperties({ props, update }: { props: SpacerProps; update: (p: Partial<SpacerProps>) => void }) {
+  const t = useT();
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">Altezza</Label>
-      <Input className="h-8 text-xs" value={props.height} onChange={(e) => update({ height: e.target.value })} placeholder="32px" />
+      <Label className="text-xs">{t("Altezza")}</Label>
+      <Input className="h-8 text-xs" value={props.height} onChange={(e) => update({ height: e.target.value })} placeholder={t("32px")} />
     </div>
   );
 }
@@ -554,9 +563,10 @@ function HtmlProperties({
   update: (p: Partial<HtmlProps>) => void;
   placeholders: BuilderPlaceholder[];
 }) {
+  const t = useT();
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">Codice HTML</Label>
+      <Label className="text-xs">{t("Codice HTML")}</Label>
       <Textarea className="min-h-[150px] text-xs font-mono" value={props.code} onChange={(e) => update({ code: e.target.value })} />
       <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ code: props.code + tag })} />
     </div>
@@ -564,23 +574,24 @@ function HtmlProperties({
 }
 
 function ColumnsProperties({ props, update }: { props: ColumnsProps; update: (p: Partial<ColumnsProps>) => void }) {
+  const t = useT();
   return (
     <>
       <div className="space-y-1.5">
-        <Label className="text-xs">Layout</Label>
+        <Label className="text-xs">{t("Layout")}</Label>
         <Select value={props.layout} onValueChange={(v) => update({ layout: v as ColumnLayout })}>
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="1">1 colonna</SelectItem>
-            <SelectItem value="1/2-1/2">2 colonne (50/50)</SelectItem>
-            <SelectItem value="1/3-1/3-1/3">3 colonne</SelectItem>
+            <SelectItem value="1">{t("1 colonna")}</SelectItem>
+            <SelectItem value="1/2-1/2">{t("2 colonne (50/50)")}</SelectItem>
+            <SelectItem value="1/3-1/3-1/3">{t("3 colonne")}</SelectItem>
             <SelectItem value="1/3-2/3">1/3 + 2/3</SelectItem>
             <SelectItem value="2/3-1/3">2/3 + 1/3</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Spaziatura</Label>
+        <Label className="text-xs">{t("Spaziatura")}</Label>
         <Input className="h-8 text-xs" value={props.gap} onChange={(e) => update({ gap: e.target.value })} />
       </div>
     </>

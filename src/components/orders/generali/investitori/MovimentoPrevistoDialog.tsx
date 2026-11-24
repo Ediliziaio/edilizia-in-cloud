@@ -8,6 +8,7 @@ import { formatDateIt } from "@/lib/formatters";
 import type { Movimento } from "@/lib/orders/generali/investitoriConti";
 import { messaggioInvestitori, useAggiornaMovimentoPrevisto, type AzioneMovimentoPrevisto } from "@/hooks/useGeneraleInvestitori";
 import { euro } from "../piano/formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function MovimentoPrevistoDialog({
   generaleId,
@@ -24,27 +25,26 @@ export function MovimentoPrevistoDialog({
   azione: AzioneMovimentoPrevisto;
   onClose: () => void;
 }) {
+  const t = useT();
   const riprogramma = azione === "riprogramma";
   const [data, setData] = useState(riprogramma && movimento.data > oggi ? movimento.data : oggi);
   const aggiorna = useAggiornaMovimentoPrevisto(generaleId);
   const descrizioneData = useId();
-  const etichettaData = riprogramma ? "Nuova data prevista" : "Data effettiva del movimento";
+  const etichettaData = riprogramma ? t("Nuova data prevista") : t("Data effettiva del movimento");
   const puoSalvare = !!data && !aggiorna.isPending && (riprogramma ? data >= oggi && data !== movimento.data : data <= oggi);
   return (
     <Dialog open onOpenChange={(v) => { if (!v && !aggiorna.isPending) onClose(); }}>
       <DialogContent ampiezza="conferma" className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{riprogramma ? "Riprogramma movimento" : "Conferma movimento effettuato"}</DialogTitle>
-          <DialogDescription>
-            {fonte} · {euro(movimento.importo)} · Previsto il {formatDateIt(`${movimento.data}T12:00:00`, "long")}
-          </DialogDescription>
+          <DialogTitle>{riprogramma ? t("Riprogramma movimento") : t("Conferma movimento effettuato")}</DialogTitle>
+          <DialogDescription>{t("{fonte} · {importo} · Previsto il {data}", { fonte, importo: euro(movimento.importo), data: formatDateIt(`${movimento.data}T12:00:00`, "long") })}</DialogDescription>
         </DialogHeader>
         <form className="space-y-3" onSubmit={e => {
           e.preventDefault();
           if (!puoSalvare) return;
           aggiorna.mutate({ movimento, data, azione }, {
             onSuccess: () => {
-              toast.success(riprogramma ? "Nuova data prevista salvata" : "Movimento confermato");
+              toast.success(riprogramma ? t("Nuova data prevista salvata") : t("Movimento confermato"));
               onClose();
             },
             onError: e => toast.error(messaggioInvestitori(e, "il movimento")),
@@ -58,12 +58,12 @@ export function MovimentoPrevistoDialog({
           </label>
           {data && <p id={descrizioneData} className="text-xs font-medium">{formatDateIt(`${data}T12:00:00`, "long")}</p>}
           <p className="text-xs text-muted-foreground">{riprogramma
-            ? "Il movimento resta previsto fino alla conferma."
-            : "Indica quando è avvenuto il versamento o il pagamento."}</p>
+            ? t("Il movimento resta previsto fino alla conferma.")
+            : t("Indica quando è avvenuto il versamento o il pagamento.")}</p>
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={aggiorna.isPending} onClick={onClose}>Annulla</Button>
+            <Button type="button" variant="outline" disabled={aggiorna.isPending} onClick={onClose}>{t("Annulla")}</Button>
             <Button type="submit" disabled={!puoSalvare}>
-              {riprogramma ? "Salva nuova data" : "Conferma effettuato"}
+              {riprogramma ? t("Salva nuova data") : t("Conferma effettuato")}
             </Button>
           </DialogFooter>
         </form>

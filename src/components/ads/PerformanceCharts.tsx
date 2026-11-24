@@ -34,6 +34,7 @@ import {
 } from "recharts";
 import { useMemo } from "react";
 import type { MetaInsightDay, MetaInsightsSummary } from "@/hooks/useMetaInsights";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   insights: MetaInsightDay[];
@@ -45,7 +46,7 @@ interface Props {
 }
 
 function formatEuro(cents: number) {
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0, useGrouping: "always" }).format(cents / 100);
@@ -64,6 +65,7 @@ export function PerformanceCharts({
   onSync,
   targetCplCents,
 }: Props) {
+  const t = useT();
   const chartData = useMemo(
     () =>
       insights.map((d) => ({
@@ -81,11 +83,11 @@ export function PerformanceCharts({
   // Funnel data per visualizzazione
   const funnelData = useMemo(
     () => [
-      { stage: "Impressioni", value: summary.total_impressions, fill: "#3b82f6" },
-      { stage: "Click", value: summary.total_clicks, fill: "#f97316" },
-      { stage: "Lead", value: summary.total_leads, fill: "#10b981" },
+      { stage: t("Impressioni"), value: summary.total_impressions, fill: "#3b82f6" },
+      { stage: t("Click"), value: summary.total_clicks, fill: "#f97316" },
+      { stage: t("Lead"), value: summary.total_leads, fill: "#10b981" },
     ],
-    [summary],
+    [summary, t],
   );
 
   if (isLoading) {
@@ -93,7 +95,7 @@ export function PerformanceCharts({
       <Card>
         <CardContent className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Caricamento dati performance...
+          {t("Caricamento dati performance...")}
         </CardContent>
       </Card>
     );
@@ -106,9 +108,9 @@ export function PerformanceCharts({
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
             <TrendingUp className="h-6 w-6" />
           </div>
-          <p className="text-lg font-bold text-slate-950">Nessun dato performance ancora</p>
+          <p className="text-lg font-bold text-slate-950">{t("Nessun dato performance ancora")}</p>
           <p className="max-w-md text-sm text-slate-600">
-            I dati arriveranno dopo che la campagna sarà pubblicata su Meta e avrà accumulato qualche giorno di spesa.
+            {t("I dati arriveranno dopo che la campagna sarà pubblicata su Meta e avrà accumulato qualche giorno di spesa.")}
           </p>
           <Button onClick={onSync} disabled={isSyncing} variant="outline" size="sm">
             {isSyncing ? (
@@ -116,7 +118,7 @@ export function PerformanceCharts({
             ) : (
               <RefreshCw className="h-3 w-3" />
             )}
-            Forza sync ora
+            {t("Forza sync ora")}
           </Button>
         </CardContent>
       </Card>
@@ -130,26 +132,26 @@ export function PerformanceCharts({
         <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiSmall
             icon={Euro}
-            label="Spesa totale"
+            label={t("Spesa totale")}
             value={formatEuro(summary.total_spend_cents)}
-            detail={`${summary.days_count} giorni`}
+            detail={t("{n} giorni", { n: summary.days_count })}
             tone="blue"
           />
           <KpiSmall
             icon={Users}
-            label="Lead totali"
+            label={t("Lead totali")}
             value={String(summary.total_leads)}
             detail={`CTR ${(summary.avg_ctr * 100).toFixed(2)}%`}
             tone="orange"
           />
           <KpiSmall
             icon={Target}
-            label="Costo medio per lead"
+            label={t("Costo medio per lead")}
             value={summary.avg_cpl_cents ? formatEuro(summary.avg_cpl_cents) : "—"}
             detail={
               targetCplCents
                 ? `Target ${formatEuro(targetCplCents)}`
-                : "Nessun target impostato"
+                : t("Nessun target impostato")
             }
             tone={
               targetCplCents && summary.avg_cpl_cents > 0
@@ -161,9 +163,9 @@ export function PerformanceCharts({
           />
           <KpiSmall
             icon={TrendingUp}
-            label="Impressioni"
-            value={summary.total_impressions.toLocaleString("it-IT")}
-            detail={`${summary.total_clicks.toLocaleString("it-IT")} click`}
+            label={t("Impressioni")}
+            value={summary.total_impressions.toLocaleString(intlCampo())}
+            detail={t("{n} click", { n: summary.total_clicks.toLocaleString(intlCampo()) })}
             tone="violet"
           />
         </CardContent>
@@ -171,16 +173,14 @@ export function PerformanceCharts({
 
       {/* Action bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-500">
-          Dati ultimi {summary.days_count} giorni · ultimo update: dati cache
-        </p>
+        <p className="text-sm text-slate-500">{t("Dati ultimi {days_count} giorni · ultimo update: dati cache", { days_count: String(summary.days_count ?? "") })}</p>
         <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing}>
           {isSyncing ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
             <RefreshCw className="h-3 w-3" />
           )}
-          {isSyncing ? "Sync in corso..." : "Aggiorna ora"}
+          {isSyncing ? t("Sync in corso...") : t("Aggiorna ora")}
         </Button>
       </div>
 
@@ -188,8 +188,8 @@ export function PerformanceCharts({
         {/* SPEND nel tempo */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Spesa giornaliera</CardTitle>
-            <CardDescription>Andamento spend nel tempo</CardDescription>
+            <CardTitle className="text-base">{t("Spesa giornaliera")}</CardTitle>
+            <CardDescription>{t("Andamento spend nel tempo")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -199,7 +199,7 @@ export function PerformanceCharts({
                 <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
                 <RechartsTooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  formatter={(value: number) => [`${value.toFixed(2)} €`, "Spesa"]}
+                  formatter={(value: number) => [`${value.toFixed(2)} €`, t("Spesa")]}
                 />
                 <Line
                   type="monotone"
@@ -217,8 +217,8 @@ export function PerformanceCharts({
         {/* LEAD per giorno */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Lead giornalieri</CardTitle>
-            <CardDescription>Conversioni acquisite per giornata</CardDescription>
+            <CardTitle className="text-base">{t("Lead giornalieri")}</CardTitle>
+            <CardDescription>{t("Conversioni acquisite per giornata")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -236,13 +236,13 @@ export function PerformanceCharts({
         {/* CPL trend */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">CPL trend</CardTitle>
+            <CardTitle className="text-base">{t("CPL trend")}</CardTitle>
             <CardDescription>
-              Costo per lead nel tempo
+              {t("Costo per lead nel tempo")}
               {targetCplCents && (
                 <>
                   {" "}
-                  · Target{" "}
+                  {t("· Target")}{" "}
                   <Badge
                     variant="outline"
                     className="ml-1 border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -268,7 +268,7 @@ export function PerformanceCharts({
                     y={targetCplCents / 100}
                     stroke="#10b981"
                     strokeDasharray="5 5"
-                    label={{ value: "Target", fontSize: 10, fill: "#10b981" }}
+                    label={{ value: t("Target"), fontSize: 10, fill: "#10b981" }}
                   />
                 )}
                 <Line
@@ -286,8 +286,8 @@ export function PerformanceCharts({
         {/* Funnel impressions → click → lead */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Funnel conversione</CardTitle>
-            <CardDescription>Dal display alla richiesta preventivo</CardDescription>
+            <CardTitle className="text-base">{t("Funnel conversione")}</CardTitle>
+            <CardDescription>{t("Dal display alla richiesta preventivo")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -307,13 +307,13 @@ export function PerformanceCharts({
             {summary.total_impressions > 0 && (
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
                 <div>
-                  CTR:{" "}
+                  {t("CTR:")}{" "}
                   <strong className="text-slate-950">
                     {((summary.total_clicks / summary.total_impressions) * 100).toFixed(2)}%
                   </strong>
                 </div>
                 <div>
-                  Conv. rate:{" "}
+                  {t("Conv. rate:")}{" "}
                   <strong className="text-slate-950">
                     {summary.total_clicks > 0
                       ? ((summary.total_leads / summary.total_clicks) * 100).toFixed(2)

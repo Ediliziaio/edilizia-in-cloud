@@ -24,6 +24,7 @@ import { dimensioniRenderLocale, NOMI_LUCE_RENDER_LOCALE as LUCI, type LuceRende
 import { CAMPIONI_FINITURE, campioneFinitura } from "../../../../shared/planimetrie/finiture";
 import { CREDITO_MODEL_3_HIGHLAND, modelloArredo, modelliArredo, quotePiscina } from "../../../../shared/planimetrie/modelliArredo";
 import { nomeDelTipo } from "../editor/catalogo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type InquadraturaRender3D = {
   scena: Scena3D; pianta: PiantaPer3D; vista: Vista3D; telecamera: Telecamera3D; proporzioni: number; aspetto: OpzioniAspetto;
@@ -34,9 +35,10 @@ export type InquadraturaRender3D = {
 
 const QUALITA = { rapida: "Rapida · 1200 px", alta: "Alta · 2048 px" } satisfies Record<QualitaRenderLocale, string>;
 const INIZIALI: VariantiRender = {};
-const misuraMetri = (cm: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(cm / 100);
+const misuraMetri = (cm: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 }).format(cm / 100);
 
 export default function RenderInquadratura3D({ data, onChiudi }: { data: InquadraturaRender3D; onChiudi: () => void }) {
+  const t = useT();
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
   const [rif, setRif] = useState<Blob>();
@@ -95,7 +97,7 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
         }, controller.signal, campioni, { companyId });
         if (!controller.signal.aborted) setPng(risultato);
       } catch (e) {
-        if (!controller.signal.aborted) setErrore(e instanceof Error ? e.message : "Render non disponibile.");
+        if (!controller.signal.aborted) setErrore(e instanceof Error ? e.message : t("Render non disponibile."));
       }
     };
     void esegui();
@@ -174,53 +176,53 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
   return <Dialog open onOpenChange={apri => { if (!apri) onChiudi(); }}>
     <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col gap-3 overflow-hidden p-4 sm:p-6">
       <DialogHeader className="shrink-0 pr-6 text-left">
-        <DialogTitle className="flex items-center gap-2"><Sparkles className="size-5 text-primary" />Render dalla vista 3D</DialogTitle>
-        <DialogDescription>{[data.nome, data.piano, data.versione ? `Versione ${data.versione}` : null, descrizioneMotoreFotorealistico()].filter(Boolean).join(" · ")}</DialogDescription>
+        <DialogTitle className="flex items-center gap-2"><Sparkles className="size-5 text-primary" />{t("Render dalla vista 3D")}</DialogTitle>
+        <DialogDescription>{[data.nome, data.piano, data.versione ? t("Versione {numero}", { numero: String(data.versione) }) : null, descrizioneMotoreFotorealistico()].filter(Boolean).join(" · ")}</DialogDescription>
       </DialogHeader>
       <div className="flex shrink-0 flex-wrap items-end gap-2">
-        <label className="space-y-1 text-xs font-medium">Illuminazione
+        <label className="space-y-1 text-xs font-medium">{t("Illuminazione")}
           <UniformSelect value={luce} disabled={inCorso} onChange={e=>setLuce(e.target.value as LuceRenderLocale)}>
-            {Object.entries(LUCI).map(([id,nome]) => <option key={id} value={id}>{nome}</option>)}
+            {Object.entries(LUCI).map(([id,nome]) => <option key={id} value={id}>{t(nome)}</option>)}
           </UniformSelect>
         </label>
-        <label className="space-y-1 text-xs font-medium">Qualità
+        <label className="space-y-1 text-xs font-medium">{t("Qualità")}
           <UniformSelect value={qualita} disabled={inCorso} onChange={e=>setQualita(e.target.value as QualitaRenderLocale)}>
-            {Object.entries(QUALITA).map(([id,nome]) => <option key={id} value={id}>{nome}</option>)}
+            {Object.entries(QUALITA).map(([id,nome]) => <option key={id} value={id}>{t(nome)}</option>)}
           </UniformSelect>
         </label>
-        {orientata && <label className="space-y-1 text-xs font-medium">Ora del sole indicativo
+        {orientata && <label className="space-y-1 text-xs font-medium">{t("Ora del sole indicativo")}
           <UniformSelect value={String(ora)} disabled={inCorso} onChange={e=>setOra(Number(e.target.value))}>
             {Array.from({ length: 49 }, (_, i) => 7 + i / 4).map(h =>
               <option key={h} value={h}>{String(Math.floor(h)).padStart(2, "0")}:{String(Math.round(h % 1 * 60)).padStart(2, "0")}</option>)}
           </UniformSelect>
         </label>}
         <Button type="button" variant={modifiche ? "default" : "outline"} disabled={inCorso || salvataggio === "in_corso" || (!errore && !modifiche)}
-          onClick={() => setCalcolo({ luce, ora, qualita, varianti })}><RotateCcw className="size-4"/>{errore ? "Riprova" : "Ricalcola"}</Button>
+          onClick={() => setCalcolo({ luce, ora, qualita, varianti })}><RotateCcw className="size-4"/>{errore ? t("Riprova") : t("Ricalcola")}</Button>
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/35 px-3 py-2">
         <p role="status" className="flex items-center gap-2 text-sm">
           {inCorso && <LoaderCircle aria-hidden className="size-4 text-primary motion-safe:animate-spin"/>}
           {png && <Check aria-hidden className="size-4 text-emerald-600"/>}
-          {errore ? "Calcolo da riprovare" : png ? "Render pronto" : rif ? "Calcolo della luce e dei materiali" : "Preparo l’inquadratura 3D"}
+          {errore ? t("Calcolo da riprovare") : png ? t("Render pronto") : rif ? t("Calcolo della luce e dei materiali") : t("Preparo l’inquadratura 3D")}
         </p>
         {png && data.archivio && <div className="flex flex-wrap items-center gap-2">
-          {salvataggio === "errore" && <span role="alert" className="text-xs text-destructive">Archivio del browser non disponibile.</span>}
+          {salvataggio === "errore" && <span role="alert" className="text-xs text-destructive">{t("Archivio del browser non disponibile.")}</span>}
           <Button type="button" size="sm" variant="outline" disabled={salvataggio === "in_corso" || salvataggio === "salvato"} onClick={() => void includi()}>
             {salvataggio === "salvato" ? <Check className="size-4"/> : <FileText className="size-4"/>}
-            {salvataggio === "salvato" ? "Aggiunto al PDF" : salvataggio === "in_corso" ? "Salvataggio…" : "Includi nel PDF"}
+            {salvataggio === "salvato" ? t("Aggiunto al PDF") : salvataggio === "in_corso" ? t("Salvataggio…") : t("Includi nel PDF")}
           </Button>
           {locale && data.ambiente === "interni" && data.vista !== "confronto" && <Button type="button" size="sm" disabled={modifiche} onClick={apriRenderAI}>
-            <Sparkles className="size-4" aria-hidden="true" />Configura Render AI da questa vista
+            <Sparkles className="size-4" aria-hidden="true" />{t("Configura Render AI da questa vista")}
           </Button>}
         </div>}
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">
         {(finiture || elemento) && <details className="rounded-lg border bg-card">
           <summary className="cursor-pointer rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Paintbrush aria-hidden="true" className="mr-1.5 inline size-4 text-primary" /> Materiali e arredi
+            <Paintbrush aria-hidden="true" className="mr-1.5 inline size-4 text-primary" /> {t("Materiali e arredi")}
           </summary>
           <div className="space-y-3 border-t p-3">
-            <p className="text-xs text-muted-foreground">Scegli le varianti per questa immagine e premi Ricalcola.</p>
+            <p className="text-xs text-muted-foreground">{t("Scegli le varianti per questa immagine e premi Ricalcola.")}</p>
             {finiture && <div className="grid gap-2 sm:grid-cols-2">
               {(["pavimento", "pareti"] as const).map(superficie => {
                 const base = superficie === "pareti" && locale?.finiture?.rivestimento ? locale.finiture.rivestimento.materiale : locale?.finiture?.[superficie];
@@ -228,15 +230,15 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
                 const foto = campione && FOTO_FINITURE[campione.trama];
                 const nome = superficie === "pavimento" ? "Pavimento" : locale?.finiture?.rivestimento ? "Rivestimento" : "Pareti";
                 return <div key={superficie} className="space-y-1 text-xs font-medium">
-                  <span>{nome}</span>
+                  <span>{t(nome)}</span>
                   <span className="flex items-center gap-2">
                     {foto && <img src={foto} alt="" className="size-9 shrink-0 rounded-md border object-cover" />}
                     <Select disabled={inCorso} value={varianti[superficie] ?? "progetto"} onValueChange={id => {
                       setVarianti(prec => ({ ...prec, [superficie]: id === "progetto" ? undefined : id }));
                     }}>
-                      <SelectTrigger aria-label={nome} className="min-w-0 grow"><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label={t(nome)} className="min-w-0 grow"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="progetto">Da progetto</SelectItem>
+                        <SelectItem value="progetto">{t("Da progetto")}</SelectItem>
                         {CAMPIONI_FINITURE[superficie].map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -245,53 +247,49 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
               })}
             </div>}
             {elemento && <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-              <label className="space-y-1 text-xs font-medium">Oggetto
+              <label className="space-y-1 text-xs font-medium">{t("Oggetto")}
                 <UniformSelect disabled={inCorso} value={elemento.id} onChange={e => scegliElemento(e.target.value)}>
                   {oggetti.map((e, i) => <option key={e.id} value={e.id}>{nomeDelTipo(e.tipo)}{oggetti.filter(o => o.tipo === e.tipo).length > 1 ? ` (${oggetti.slice(0, i + 1).filter(o => o.tipo === e.tipo).length})` : ""}</option>)}
                 </UniformSelect>
               </label>
-              {!!modelli.length && <label className="space-y-1 text-xs font-medium">Modello
+              {!!modelli.length && <label className="space-y-1 text-xs font-medium">{t("Modello")}
                 <UniformSelect disabled={inCorso} value={scelta?.modello ?? ""} onChange={e => cambiaArredo({ modello: e.target.value || undefined })}>
-                  <option value="">Da progetto</option>
+                  <option value="">{t("Da progetto")}</option>
                   {modelli.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </UniformSelect>
               </label>}
-              {elemento.tipo !== "piscina" && <label className="flex flex-col gap-1 text-xs font-medium">Colore
+              {elemento.tipo !== "piscina" && <label className="flex flex-col gap-1 text-xs font-medium">{t("Colore")}
                 <input type="color" disabled={inCorso} value={scelta?.colore ?? elemento.colore ?? "#d4c4af"} className="h-9 w-16 rounded-md border bg-background p-1"
                   onChange={e => cambiaArredo({ colore: e.target.value })} />
               </label>}
             </div>}
             {elemento && haPianoCucina(elemento.tipo) && <div className="max-w-sm space-y-1 text-xs font-medium">
-              <span>Piano di lavoro</span>
+              <span>{t("Piano di lavoro")}</span>
               <span className="flex items-center gap-2">
                 {pianoCucina && <img src={FOTO_FINITURE[pianoCucina.trama]} alt="" className="size-9 shrink-0 rounded-md border object-cover" />}
                 <Select disabled={inCorso} value={scelta?.pianoCucina ?? "progetto"}
                   onValueChange={id => cambiaArredo({ pianoCucina: id === "progetto" ? undefined : id })}>
-                  <SelectTrigger aria-label="Piano di lavoro" className="min-w-0 grow"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Piano di lavoro")} className="min-w-0 grow"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="progetto">Da progetto</SelectItem>
+                    <SelectItem value="progetto">{t("Da progetto")}</SelectItem>
                     {PIANI_CUCINA_RENDER.map(c => <SelectItem key={c.id} value={c.id}>
-                      {c.id === "marmo" ? "Marmo bianco di Carrara" : c.nome}
+                      {c.id === "marmo" ? t("Marmo bianco di Carrara") : c.nome}
                     </SelectItem>)}
                   </SelectContent>
                 </Select>
               </span>
             </div>}
             {vasca && dimensioni && <p className="text-xs text-muted-foreground">
-              Bordo esterno {misuraMetri(dimensioni.p)} × {misuraMetri(dimensioni.l)} m · Vasca interna {misuraMetri(vasca.lungo)} × {misuraMetri(vasca.luce)} m · Profondità {misuraMetri(vasca.vasca)} m
+              {t("Bordo esterno {p} × {l} m · Vasca interna {lungo} × {luce} m · Profondità {profondita} m", { p: misuraMetri(dimensioni.p), l: misuraMetri(dimensioni.l), lungo: misuraMetri(vasca.lungo), luce: misuraMetri(vasca.luce), profondita: misuraMetri(vasca.vasca) })}
             </p>}
-            {elemento?.tipo === "auto" && dimensioni && <p className="text-xs text-muted-foreground">
-              Ingombro sulla pianta {misuraMetri(dimensioni.p)} × {misuraMetri(dimensioni.l)} m · Altezza {misuraMetri(dimensioni.h)} m
-            </p>}
+            {elemento?.tipo === "auto" && dimensioni && <p className="text-xs text-muted-foreground">{t("Ingombro sulla pianta {p} × {l} m · Altezza {h} m", { p: misuraMetri(dimensioni.p), l: misuraMetri(dimensioni.l), h: misuraMetri(dimensioni.h) })}</p>}
             {varianti !== INIZIALI && <Button size="sm" variant="ghost" disabled={inCorso} type="button" onClick={() => setVarianti(INIZIALI)}>
-              Ripristina materiali e arredi del progetto
+              {t("Ripristina materiali e arredi del progetto")}
             </Button>}
           </div>
         </details>}
         <ConfrontoRender3D nome={data.nome} riferimento={rif} risultato={png} errore={errore} nomeFile={nomeFile} rapporto={larghezza / altezza} />
-        {highland && <a className="block text-xs text-muted-foreground underline underline-offset-2" href={CREDITO_MODEL_3_HIGHLAND.fonte} target="_blank" rel="noreferrer">
-          Modello Tesla Model 3 Highland · {CREDITO_MODEL_3_HIGHLAND.attribuzione}
-        </a>}
+        {highland && <a className="block text-xs text-muted-foreground underline underline-offset-2" href={CREDITO_MODEL_3_HIGHLAND.fonte} target="_blank" rel="noreferrer">{t("Modello Tesla Model 3 Highland · {attribuzione}", { attribuzione: CREDITO_MODEL_3_HIGHLAND.attribuzione })}</a>}
       </div>
     </DialogContent>
   </Dialog>;

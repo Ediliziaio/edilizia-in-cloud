@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { logger } from "@/utils/logger";
 import {
   FileText,
@@ -55,6 +54,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ExternalTeamAttachment {
   id: string;
@@ -95,6 +95,7 @@ export function ExternalTeamAttachments({
   open,
   onOpenChange,
 }: ExternalTeamAttachmentsProps) {
+  const t = useT();
   const { user } = useAuth();
   
   const queryClient = useQueryClient();
@@ -160,12 +161,12 @@ export function ExternalTeamAttachments({
       queryClient.invalidateQueries({
         queryKey: ["external-team-attachments", team.id],
       });
-      toast.success("Documento caricato", { description: "Il documento è stato caricato con successo." });
+      toast.success(t("Documento caricato"), { description: t("Il documento è stato caricato con successo.") });
       resetUploadForm();
     },
     onError: (error) => {
       logger.error("Upload error:", error);
-      toast.error("Errore", { description: "Si è verificato un errore durante il caricamento." });
+      toast.error(t("Errore"), { description: t("Si è verificato un errore durante il caricamento.") });
     },
   });
 
@@ -200,10 +201,10 @@ export function ExternalTeamAttachments({
       queryClient.invalidateQueries({
         queryKey: ["external-team-attachments", team.id],
       });
-      toast.success("Documento eliminato", { description: "Il documento è stato eliminato." });
+      toast.success(t("Documento eliminato"), { description: t("Il documento è stato eliminato.") });
     },
     onError: () => {
-      toast.error("Errore", { description: "Si è verificato un errore durante l'eliminazione." });
+      toast.error(t("Errore"), { description: t("Si è verificato un errore durante l'eliminazione.") });
     },
   });
 
@@ -223,12 +224,12 @@ export function ExternalTeamAttachments({
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("File troppo grande", { description: "Il file non può superare i 10MB." });
+      toast.error(t("File troppo grande"), { description: t("Il file non può superare i 10MB.") });
       return;
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error("Tipo file non supportato", { description: "Formati supportati: PDF, Word, Excel, immagini." });
+      toast.error(t("Tipo file non supportato"), { description: t("Formati supportati: PDF, Word, Excel, immagini.") });
       return;
     }
 
@@ -278,7 +279,7 @@ export function ExternalTeamAttachments({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Documenti - {team.name}
+            {t("Documenti - {nome}", { nome: String(team.name ?? "") })}
           </DialogTitle>
         </DialogHeader>
 
@@ -297,7 +298,7 @@ export function ExternalTeamAttachments({
               disabled={isUploading}
             >
               <Upload className="h-4 w-4 mr-2" />
-              Carica Documento
+              {t("Carica Documento")}
             </Button>
           </div>
 
@@ -314,7 +315,7 @@ export function ExternalTeamAttachments({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Tipo Documento</Label>
+                  <Label>{t("Tipo Documento")}</Label>
                   <Select value={documentType} onValueChange={setDocumentType}>
                     <SelectTrigger>
                       <SelectValue />
@@ -330,7 +331,7 @@ export function ExternalTeamAttachments({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Data Scadenza (opzionale)</Label>
+                  <Label>{t("Data Scadenza (opzionale)")}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -339,8 +340,8 @@ export function ExternalTeamAttachments({
                       >
                         <Calendar className="mr-2 h-4 w-4" />
                         {expiryDate
-                          ? format(expiryDate, "dd/MM/yyyy", { locale: it })
-                          : "Seleziona data"}
+                          ? format(expiryDate, "dd/MM/yyyy", { locale: dateFnsCampo() })
+                          : t("Seleziona data")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -356,21 +357,21 @@ export function ExternalTeamAttachments({
               </div>
 
               <div className="space-y-2">
-                <Label>Note (opzionale)</Label>
+                <Label>{t("Note (opzionale)")}</Label>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Note aggiuntive..."
+                  placeholder={t("Note aggiuntive...")}
                   rows={2}
                 />
               </div>
 
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={resetUploadForm}>
-                  Annulla
+                  {t("Annulla")}
                 </Button>
                 <Button onClick={handleUpload} disabled={isUploading}>
-                  {isUploading ? "Caricamento..." : "Carica"}
+                  {isUploading ? t("Caricamento...") : t("Carica")}
                 </Button>
               </div>
             </div>
@@ -380,11 +381,11 @@ export function ExternalTeamAttachments({
           <ScrollArea className="h-[400px]">
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">
-                Caricamento...
+                {t("Caricamento...")}
               </div>
             ) : attachments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Nessun documento caricato.
+                {t("Nessun documento caricato.")}
               </div>
             ) : (
               <div className="space-y-3">
@@ -423,19 +424,19 @@ export function ExternalTeamAttachments({
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>
-                                Eliminare il documento?
+                                {t("Eliminare il documento?")}
                               </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Questa azione è irreversibile.
+                                {t("Questa azione è irreversibile.")}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteMutation.mutate(attachment)}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
-                                Elimina
+                                {t("Elimina")}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -466,9 +467,9 @@ export function ExternalTeamAttachments({
                           {isExpired(attachment.expiry_date) && (
                             <AlertCircle className="h-3 w-3" />
                           )}
-                          Scadenza:{" "}
+                          {t("Scadenza:")}{" "}
                           {format(new Date(attachment.expiry_date), "dd/MM/yyyy", {
-                            locale: it,
+                            locale: dateFnsCampo(),
                           })}
                         </Badge>
                       )}

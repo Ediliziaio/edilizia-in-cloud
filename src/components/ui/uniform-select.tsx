@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Option = { key: string; label: string; disabled: boolean; group: string };
 type Snapshot = { options: Option[]; selected: string; value: string; label?: string };
@@ -8,6 +9,7 @@ type Snapshot = { options: Option[]; selected: string; value: string; label?: st
 /** The native control remains the form/event source; only the visible menu is replaced. */
 export const UniformSelect = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
   ({ children, className, style, autoFocus, onBlur, onInvalid, onFocus, ...props }, forwardedRef) => {
+  const t = useT();
     const native = React.useRef<HTMLSelectElement>(null);
     const trigger = React.useRef<HTMLButtonElement>(null);
     const [snapshot, setSnapshot] = React.useState<Snapshot>({ options: [], selected: "", value: "" });
@@ -79,7 +81,7 @@ export const UniformSelect = React.forwardRef<HTMLSelectElement, React.SelectHTM
           aria-label={props["aria-label"] || (props.id ? undefined : label)} aria-labelledby={props["aria-labelledby"]} aria-describedby={props["aria-describedby"]}
           aria-required={props.required} aria-invalid={props["aria-invalid"] ?? invalid} title={invalid ? native.current?.validationMessage : props.title}
           onBlur={event => {event.stopPropagation();if (!open) native.current?.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: event.relatedTarget }));}}>
-          <SelectValue placeholder="Seleziona…" />
+          <SelectValue placeholder={t("Seleziona…")} />
         </SelectTrigger>
       <select {...props} ref={node => {
         native.current = node;
@@ -93,7 +95,7 @@ export const UniformSelect = React.forwardRef<HTMLSelectElement, React.SelectHTM
 
         <SelectContent onClick={event => event.stopPropagation()} onPointerDownOutside={() => {queueMicrotask(() => native.current?.dispatchEvent(new FocusEvent("focusout", {bubbles:true})));}}>
           {blocks.map((block, index) => {
-            const items = block.options.map(option => <SelectItem key={option.key} data-uniform-select-option-key={option.key} value={option.key} disabled={option.disabled}>{option.label || "Seleziona…"}</SelectItem>);
+            const items = block.options.map(option => <SelectItem key={option.key} data-uniform-select-option-key={option.key} value={option.key} disabled={option.disabled}>{option.label || t("Seleziona…")}</SelectItem>);
             return block.group ? <SelectGroup key={index}><SelectLabel>{block.group}</SelectLabel>{items}</SelectGroup> : <React.Fragment key={index}>{items}</React.Fragment>;
           })}
         </SelectContent>

@@ -8,6 +8,7 @@
 import { Badge } from "@/components/ui/badge";
 import type { SmsStatus } from "@/types/sms";
 import { SMS_STATUS_LABELS } from "@/types/sms";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsStatusBadgeProps {
   status: SmsStatus;
@@ -24,11 +25,12 @@ const STATUS_VARIANTS: Record<SmsStatus, { variant: "default" | "secondary" | "d
 };
 
 export function SmsStatusBadge({ status, className = "" }: SmsStatusBadgeProps) {
+  const t = useT();
   const { variant, className: variantClass } = STATUS_VARIANTS[status] ?? STATUS_VARIANTS.queued;
 
   return (
     <Badge variant={variant} className={`text-xs ${variantClass} ${className}`}>
-      {SMS_STATUS_LABELS[status] ?? status}
+      {SMS_STATUS_LABELS[status] ? t(SMS_STATUS_LABELS[status]) : status}
     </Badge>
   );
 }

@@ -17,6 +17,7 @@ import {
 } from "@/hooks/controlloGestione/useDettaglioVoceMese";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -47,12 +48,13 @@ const SOURCE_LABELS: Record<DettaglioRiga["source_table"], string> = {
 export function DettaglioVoceMeseSheet({
   open, onOpenChange, anno, mese, codice, labelFallback,
 }: Props) {
+  const t = useT();
   const q = useDettaglioVoceMese(anno, mese, codice);
   const focusReturn = useDialogFocusReturn();
 
-  const titolo = q.data?.meta.label ?? labelFallback ?? "Dettaglio voce";
+  const titolo = q.data?.meta.label ?? labelFallback ?? t("Dettaglio voce");
   const sottotitolo =
-    mese !== null ? `${MESI_FULL[mese - 1]} ${anno}` : `Anno ${anno} (totale)`;
+    mese !== null ? `${t(MESI_FULL[mese - 1])} ${anno}` : t("Anno {anno} (totale)", { anno });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -83,29 +85,26 @@ export function DettaglioVoceMeseSheet({
           {q.isError && <ErrorBlock onRetry={() => q.refetch()} />}
 
           {q.data && q.data.righe.length === 0 && (
-            <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Nessun movimento registrato per questa voce nel mese di{" "}
-              {sottotitolo}.
-            </div>
+            <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">{t("Nessun movimento registrato per questa voce nel mese di {sottotitolo}.", { sottotitolo })}</div>
           )}
 
           {q.data && q.data.raggruppamento.length > 0 && (
             <section>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Riepilogo
+                {t("Riepilogo")}
               </h3>
               <div className="overflow-x-auto rounded-xl border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                        Categoria
+                        {t("Categoria")}
                       </th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
                         N°
                       </th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                        Totale
+                        {t("Totale")}
                       </th>
                     </tr>
                   </thead>
@@ -134,9 +133,7 @@ export function DettaglioVoceMeseSheet({
 
           {q.data && q.data.righe.length > 0 && (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Movimenti ({q.data.righe.length})
-              </h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Movimenti ({n})", { n: q.data.righe.length })}</h3>
               <ul className="divide-y rounded-xl border">
                 {q.data.righe.map((r) => (
                   <li key={`${r.source_table}-${r.id}`} className="p-3">
@@ -151,7 +148,7 @@ export function DettaglioVoceMeseSheet({
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1">
                           <Badge variant="outline" className="text-[10px]">
-                            {SOURCE_LABELS[r.source_table] ?? r.source_table}
+                            {SOURCE_LABELS[r.source_table] ? t(SOURCE_LABELS[r.source_table]) : r.source_table}
                           </Badge>
                           {/* La categoria come la scrive l'utente, non la chiave
                               tecnica («salari_stipendi_cc»). */}

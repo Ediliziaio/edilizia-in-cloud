@@ -4,6 +4,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
 import { BloccoAccessoCard } from "@/components/users/BloccoAccessoCard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AccessoOperaio {
   profilo_id: string;
@@ -30,8 +31,9 @@ export function useStatiAppOperai() {
 const etichette = { attivo: "App attiva", bloccato: "App bloccata", mai_dato: "Accesso mai dato", revocato: "Accesso revocato" };
 
 export function StatoAppOperaio({ accesso }: { accesso?: AccessoOperaio }) {
+  const t = useT();
   return <Badge variant="outline" className={accesso?.stato === "attivo" ? "text-emerald-700" : accesso?.stato === "bloccato" ? "text-red-700" : "text-muted-foreground"}>
-    {accesso ? etichette[accesso.stato] : "Stato app da verificare"}
+    {accesso ? t(etichette[accesso.stato]) : t("Stato app da verificare")}
   </Badge>;
 }
 

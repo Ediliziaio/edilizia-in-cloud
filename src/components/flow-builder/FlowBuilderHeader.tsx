@@ -10,6 +10,7 @@ import type { AutomationFlow } from "@/types/automationBuilder";
 import { useLatestFlowExecution } from "@/hooks/useFlowExecutions";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type BuilderTab = "builder" | "impostazioni" | "cronologia" | "registro";
 
@@ -57,6 +58,7 @@ export function FlowBuilderHeader({
   onBack,
   tabBadges,
 }: FlowBuilderHeaderProps) {
+  const tr = useT();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const isPublished = flow?.status === "published";
@@ -86,7 +88,7 @@ export function FlowBuilderHeader({
         onClick={() => onBack ? onBack() : navigate(`${routePrefix}/automazioni`)}
       >
         <ArrowLeft className="h-4 w-4" />
-        <span className="hidden sm:inline text-xs">Flussi</span>
+        <span className="hidden sm:inline text-xs">{tr("Flussi")}</span>
       </Button>
 
       <div className="h-5 w-px bg-border shrink-0" />
@@ -116,7 +118,7 @@ export function FlowBuilderHeader({
           onClick={startEditing}
           className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors group min-w-0"
         >
-          <span className="truncate max-w-[180px]">{flow?.name || "Nuova Automazione"}</span>
+          <span className="truncate max-w-[180px]">{flow?.name || tr("Nuova Automazione")}</span>
           <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
         </button>
       )}
@@ -135,7 +137,7 @@ export function FlowBuilderHeader({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t.label}
+              {tr(t.label)}
               {badge != null && badge > 0 && (
                 <span className={`absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center ${
                   activeTab === t.key ? "bg-white text-primary" : "bg-primary text-primary-foreground"
@@ -159,7 +161,7 @@ export function FlowBuilderHeader({
               <Undo2 className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">Annulla (Ctrl+Z)</TooltipContent>
+          <TooltipContent side="bottom" className="text-xs">{tr("Annulla (Ctrl+Z)")}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -168,7 +170,7 @@ export function FlowBuilderHeader({
               <Redo2 className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">Ripeti (Ctrl+Y)</TooltipContent>
+          <TooltipContent side="bottom" className="text-xs">{tr("Ripeti (Ctrl+Y)")}</TooltipContent>
         </Tooltip>
 
         <div className="h-5 w-px bg-border mx-1" />
@@ -177,15 +179,15 @@ export function FlowBuilderHeader({
           <TooltipTrigger asChild>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={onTest}>
               <FlaskConical className="h-3.5 w-3.5" />
-              Verifica flusso
+              {tr("Verifica flusso")}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">Anteprima senza invii o modifiche ai dati</TooltipContent>
+          <TooltipContent side="bottom" className="text-xs">{tr("Anteprima senza invii o modifiche ai dati")}</TooltipContent>
         </Tooltip>
 
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 relative" onClick={onSave} disabled={isSaving}>
           {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          Salva
+          {tr("Salva")}
           {hasUnsavedChanges && (
             <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-orange-500 border-2 border-background" />
           )}
@@ -201,12 +203,12 @@ export function FlowBuilderHeader({
           {isPublished ? (
             <>
               <Pause className="h-3.5 w-3.5" />
-              Metti in bozza
+              {tr("Metti in bozza")}
             </>
           ) : (
             <>
               <Play className="h-3.5 w-3.5" />
-              Pubblica
+              {tr("Pubblica")}
             </>
           )}
         </Button>
@@ -217,7 +219,7 @@ export function FlowBuilderHeader({
               <Archive className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">Archivia</TooltipContent>
+          <TooltipContent side="bottom" className="text-xs">{tr("Archivia")}</TooltipContent>
         </Tooltip>
       </div>
     </div>

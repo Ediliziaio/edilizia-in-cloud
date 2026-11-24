@@ -13,6 +13,7 @@ import { applicaValutazione, lavorazioneVuota, valutazioneDaElenchi, type Lavora
 import {
   nuovaDaSchedaStandard, SCHEDE_STANDARD_POS, suggerisciSchedePos, testoRicercaSchedePos,
 } from "../../../../supabase/functions/_shared/posSchedeStandard";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string;
@@ -33,11 +34,12 @@ interface Voce {
 
 const bloccoVoci = 50;
 const statoComputo: Record<string, string> = { contrattuale: "Contrattuale", verificato: "Verificato", bozza: "Bozza" };
-const formattaQuantita = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 4 });
+const formattaQuantita = { format: (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 4 }).format(n) };
 
 export function FasiDaCommessaPos(props: Props) {
   const [aperto, setAperto] = useState(false);
-  const etichetta = props.puoLeggereComputo ? "Fasi e computo" : "Dalle fasi";
+  const t = useT();
+  const etichetta = props.puoLeggereComputo ? t("Fasi e computo") : t("Dalle fasi");
   return (
     <Dialog open={aperto} onOpenChange={setAperto}>
       <DialogTrigger asChild>
@@ -51,6 +53,7 @@ export function FasiDaCommessaPos(props: Props) {
 }
 
 function SceltaLavorazioni({ companyId, orderId, lavorazioni, puoLeggereComputo, ditte, onAggiungi, chiudi }: Props & { chiudi: () => void }) {
+  const tr = useT();
   const fasi = useFasiFascicolo(companyId, orderId);
   const [fonte, setFonte] = useState<"fasi" | "computo">("fasi");
   const computo = useQuery({
@@ -123,35 +126,35 @@ function SceltaLavorazioni({ companyId, orderId, lavorazioni, puoLeggereComputo,
   return (
     <DialogContent className="flex max-h-[90dvh] min-h-0 max-w-3xl flex-col gap-0 p-0">
       <DialogHeader className="shrink-0 space-y-1 px-5 pb-3 pt-5 pr-10">
-        <DialogTitle>{puoLeggereComputo ? "Prepara lavorazioni" : "Prepara lavorazioni dalle fasi"}</DialogTitle>
-        <DialogDescription>Seleziona le lavorazioni che rientrano in questo POS. Puoi scegliere il testo di partenza per ognuna.</DialogDescription>
+        <DialogTitle>{puoLeggereComputo ? tr("Prepara lavorazioni") : tr("Prepara lavorazioni dalle fasi")}</DialogTitle>
+        <DialogDescription>{tr("Seleziona le lavorazioni che rientrano in questo POS. Puoi scegliere il testo di partenza per ognuna.")}</DialogDescription>
       </DialogHeader>
       {puoLeggereComputo && <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 pb-3">
-        <Button type="button" size="sm" variant={daComputo ? "outline" : "secondary"} aria-pressed={!daComputo} onClick={() => cambiaFonte("fasi")}>Fasi della commessa</Button>
-        <Button type="button" size="sm" variant={daComputo ? "secondary" : "outline"} aria-pressed={daComputo} onClick={() => cambiaFonte("computo")}>Computo</Button>
+        <Button type="button" size="sm" variant={daComputo ? "outline" : "secondary"} aria-pressed={!daComputo} onClick={() => cambiaFonte("fasi")}>{tr("Fasi della commessa")}</Button>
+        <Button type="button" size="sm" variant={daComputo ? "secondary" : "outline"} aria-pressed={daComputo} onClick={() => cambiaFonte("computo")}>{tr("Computo")}</Button>
       </div>}
       {daComputo && documento && <p className="mx-5 mb-2 shrink-0 break-words text-xs text-muted-foreground">
-        {documento.titolo} · {statoComputo[documento.stato] ?? documento.stato} · {righe.length} voci
+        {documento.titolo} · {statoComputo[documento.stato] ? tr(statoComputo[documento.stato]) : documento.stato} · {tr(righe.length === 1 ? "{n} voce" : "{n} voci", { n: righe.length })}
       </p>}
       {righe.length > 0 && <div className="relative mx-5 mb-3 shrink-0">
         <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
-        <Input type="search" className="pl-9" aria-label={daComputo ? "Cerca nelle voci del computo" : "Cerca nelle fasi della commessa"}
-          placeholder={daComputo ? "Cerca una voce, un codice o un capitolo" : "Cerca una fase"}
+        <Input type="search" className="pl-9" aria-label={daComputo ? tr("Cerca nelle voci del computo") : tr("Cerca nelle fasi della commessa")}
+          placeholder={daComputo ? tr("Cerca una voce, un codice o un capitolo") : tr("Cerca una fase")}
           value={ricerca} onChange={event => { setRicerca(event.target.value); setLimite(bloccoVoci); }} />
       </div>}
       <div className="min-h-0 overflow-y-auto border-y px-5 py-3">
         {query.isLoading && <p role="status" className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-          <Loader2 aria-hidden="true" className="size-4 animate-spin" /> {daComputo ? "Caricamento computo…" : "Caricamento fasi…"}
+          <Loader2 aria-hidden="true" className="size-4 animate-spin" /> {daComputo ? tr("Caricamento computo…") : tr("Caricamento fasi…")}
         </p>}
         {query.isError && <div role="alert" className="flex flex-wrap items-center gap-2 py-2 text-sm">
-          {daComputo ? "Impossibile caricare il computo." : "Impossibile caricare le fasi."}
-          <Button type="button" size="sm" variant="outline" onClick={() => void query.refetch()}>Riprova</Button>
+          {daComputo ? tr("Impossibile caricare il computo.") : tr("Impossibile caricare le fasi.")}
+          <Button type="button" size="sm" variant="outline" onClick={() => void query.refetch()}>{tr("Riprova")}</Button>
         </div>}
         {!query.isLoading && !query.isError && righe.length === 0 && <p className="py-2 text-sm text-muted-foreground">
-          {daComputo ? computo.data?.avviso : "La commessa non ha fasi. Puoi partire dalle schede standard o creare una scheda vuota."}
+          {daComputo ? computo.data?.avviso : tr("La commessa non ha fasi. Puoi partire dalle schede standard o creare una scheda vuota.")}
         </p>}
         {righe.length > 0 && <ul className="divide-y">
-          {!visibili.length && <li className="py-2 text-sm text-muted-foreground">Nessuna corrispondenza.</li>}
+          {!visibili.length && <li className="py-2 text-sm text-muted-foreground">{tr("Nessuna corrispondenza.")}</li>}
           {visibili.slice(0, limite).map(voce => {
             const selezionata = selezionate.has(voce.chiave);
             const collegata = giaCollegate.has(voce.chiave);
@@ -169,54 +172,52 @@ function SceltaLavorazioni({ companyId, orderId, lavorazioni, puoLeggereComputo,
                 <span className="min-w-0 break-words">
                   {voce.titolo}
                   {voce.dettaglio && <span className="block text-xs text-muted-foreground">{voce.dettaglio}</span>}
-                  {collegata && <span className="block text-xs text-muted-foreground">Già nel POS</span>}
+                  {collegata && <span className="block text-xs text-muted-foreground">{tr("Già nel POS")}</span>}
                 </span>
               </label>
               {!collegata && !selezionata && <p className="min-w-0 pl-6 text-xs text-muted-foreground sm:pl-0">
-                {proposte.length === 1 ? `Suggerita: ${proposte[0].titolo}`
-                  : proposte.length > 1 ? `${proposte.length} schede suggerite` : "Solo il titolo"}
+                {proposte.length === 1 ? tr("Suggerita: {titolo}", { titolo: String(proposte[0].titolo ?? "") })
+                  : proposte.length > 1 ? tr("{n} schede suggerite", { n: proposte.length }) : tr("Solo il titolo")}
               </p>}
               {!collegata && selezionata && <div className="grid min-w-0 gap-2">
-                <select aria-label={`Testo di partenza per ${voce.titolo}`}
+                <select aria-label={tr("Testo di partenza per {titolo}", { titolo: String(voce.titolo ?? "") })}
                   className="h-9 min-w-0 w-full rounded-md border bg-background px-2 text-sm"
                   value={schedaScelta(voce, proposte)} disabled={query.isError}
                   onChange={event => setSchede(prev => ({ ...prev, [voce.chiave]: event.target.value }))}>
-                  <option value="">Solo il titolo</option>
-                  {proposte.length > 0 && <optgroup label="Schede suggerite">
+                  <option value="">{tr("Solo il titolo")}</option>
+                  {proposte.length > 0 && <optgroup label={tr("Schede suggerite")}>
                     {proposte.map(s => <option key={s.id} value={s.id}>{s.titolo}</option>)}
                   </optgroup>}
-                  <optgroup label="Altre schede standard">
+                  <optgroup label={tr("Altre schede standard")}>
                     {SCHEDE_STANDARD_POS.filter(s => !opzioniSuggerite.has(s.id)).map(s =>
                       <option key={s.id} value={s.id}>{s.titolo}</option>)}
                   </optgroup>
                 </select>
-                {richiedeAssegnazione && <select aria-label={`Chi svolge ${voce.titolo}`}
+                {richiedeAssegnazione && <select aria-label={tr("Chi svolge {titolo}", { titolo: String(voce.titolo ?? "") })}
                   className="h-9 min-w-0 w-full rounded-md border bg-background px-2 text-sm"
                   value={assegnazioni[voce.chiave] ?? ""} disabled={query.isError}
                   onChange={event => setAssegnazioni(prev => ({ ...prev, [voce.chiave]: event.target.value }))}>
-                  <option value="">Chi svolge la lavorazione?</option>
-                  <option value="diretto">Impresa di questo POS</option>
-                  {imprese.map(nome => <option key={nome} value={`ditta:${nome}`}>{nome} · Subappalto</option>)}
+                  <option value="">{tr("Chi svolge la lavorazione?")}</option>
+                  <option value="diretto">{tr("Impresa di questo POS")}</option>
+                  {imprese.map(nome => <option key={nome} value={`ditta:${nome}`}>{tr("{nome} · Subappalto", { nome: String(nome ?? "") })}</option>)}
                 </select>}
               </div>}
             </li>;
           })}
         </ul>}
-        {visibili.length > limite && <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setLimite(limite + bloccoVoci)}>
-          Mostra altre voci ({visibili.length - limite})
-        </Button>}
+        {visibili.length > limite && <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setLimite(limite + bloccoVoci)}>{tr("Mostra altre voci ({n})", { n: visibili.length - limite })}</Button>}
       </div>
       {daAssegnare.length > 0 && <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 px-5 pt-2">
-        <p role="status" className="text-xs text-muted-foreground">{daAssegnare.length} da assegnare su {daInserire.length} selezionate</p>
+        <p role="status" className="text-xs text-muted-foreground">{tr("{n} da assegnare su {n2} selezionate", { n: daAssegnare.length, n2: daInserire.length })}</p>
         {daAssegnare.length > 1 && <Button type="button" size="sm" variant="ghost" className="max-w-full whitespace-normal"
           onClick={() => setAssegnazioni(prev => ({
             ...prev, ...Object.fromEntries(daAssegnare.map(voce => [voce.chiave, "diretto"])),
-          }))}>Assegna le rimanenti all’impresa del POS</Button>}
+          }))}>{tr("Assegna le rimanenti all’impresa del POS")}</Button>}
       </div>}
       <DialogFooter className="shrink-0 items-center gap-2 px-5 py-4">
-        <Button type="button" variant="outline" onClick={chiudi}>Annulla</Button>
+        <Button type="button" variant="outline" onClick={chiudi}>{tr("Annulla")}</Button>
         <Button type="button" disabled={!daInserire.length || daAssegnare.length > 0 || erroreSelezione} onClick={inserisci}>
-          {daInserire.length === 1 ? "Inserisci 1 lavorazione" : `Inserisci ${daInserire.length} lavorazioni`}
+          {daInserire.length === 1 ? tr("Inserisci 1 lavorazione") : tr("Inserisci {n} lavorazioni", { n: daInserire.length })}
         </Button>
       </DialogFooter>
     </DialogContent>

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { COLORI_GRAFICO, TooltipScheda, euroAsse } from "./comune";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface FettaCiambella {
   nome: string;
@@ -47,6 +48,7 @@ export function Ciambella({
   className?: string;
   legenda?: boolean;
 }) {
+  const t = useT();
   const fermo = usePreferisceMenoMovimento();
   const positive = fette.filter((f) => f.valore > 0);
   const tenute = positive.length > massimo ? positive.slice(0, massimo - 1) : positive;
@@ -95,7 +97,7 @@ export function Ciambella({
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
-          <span className="text-[10px] uppercase leading-tight tracking-wide text-muted-foreground">{etichettaCentro}</span>
+          <span className="text-[10px] uppercase leading-tight tracking-wide text-muted-foreground">{t(etichettaCentro)}</span>
           <span className="text-sm font-bold tabular-nums leading-tight text-foreground">{valoreCentro ?? formatoCentro(tot)}</span>
         </div>
       </div>
@@ -106,7 +108,7 @@ export function Ciambella({
               <>
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: f.colore }} />
                 <span className="min-w-0 flex-1 truncate text-foreground">
-                  {f.nome}
+                  {f.nome === "Altro" ? t("Altro") : f.nome}
                   {f.nota && <span className="ml-1.5 text-muted-foreground">{f.nota}</span>}
                 </span>
                 <span className="shrink-0 font-medium tabular-nums text-foreground">{formato(f.valore)}</span>

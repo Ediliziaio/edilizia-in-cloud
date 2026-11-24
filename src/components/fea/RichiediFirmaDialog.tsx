@@ -17,6 +17,7 @@ import {
   clampSignatureExpiryDays,
   validateRichiediFirmaForm,
 } from "@/lib/fea/richiediFirmaValidation";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -33,6 +34,7 @@ export function RichiediFirmaDialog({
   open, onOpenChange, tipo_documento, documento_id, documento_titolo,
   default_email = "", default_nome = "", pdf_missing = false,
 }: Props) {
+  const t = useT();
   const [email, setEmail] = useState(default_email);
   const [nome, setNome] = useState(default_nome);
   const [tipoFirmatario, setTipoFirmatario] = useState<"b2b" | "b2c">("b2c");
@@ -91,8 +93,8 @@ export function RichiediFirmaDialog({
         setResult({ link: res.firma_link, token: res.token, otpSent: res.otp_inviato });
         toast.success(
           res.otp_inviato
-            ? "Richiesta di firma inviata per email"
-            : "Richiesta creata. Copia il link e invia al firmatario.",
+            ? t("Richiesta di firma inviata per email")
+            : t("Richiesta creata. Copia il link e invia al firmatario."),
         );
       },
       onSettled: () => setIsSubmitting(false),
@@ -105,9 +107,9 @@ export function RichiediFirmaDialog({
       await navigator.clipboard.writeText(result.link);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      toast.success("Link copiato negli appunti");
+      toast.success(t("Link copiato negli appunti"));
     } catch {
-      toast.error("Non riesco a copiare il link. Selezionalo e copialo manualmente.");
+      toast.error(t("Non riesco a copiare il link. Selezionalo e copialo manualmente."));
     }
   };
 
@@ -117,17 +119,17 @@ export function RichiediFirmaDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSignature className="h-5 w-5 text-orange-500" />
-            Richiedi firma elettronica
+            {t("Richiedi firma elettronica")}
           </DialogTitle>
           <DialogDescription>
-            {documento_titolo ? `Documento: "${documento_titolo}"` : "Compila i dati del firmatario."}
+            {documento_titolo ? t("Documento: \"{documento_titolo}\"", { documento_titolo: String(documento_titolo ?? "") }) : t("Compila i dati del firmatario.")}
           </DialogDescription>
         </DialogHeader>
 
         {pdf_missing && !result && (
           <Alert className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
             <AlertDescription className="text-sm text-yellow-900 dark:text-yellow-200">
-              ⚠️ Il PDF del documento non è ancora stato generato. Generalo prima di inviare la richiesta.
+              {t("⚠️ Il PDF del documento non è ancora stato generato. Generalo prima di inviare la richiesta.")}
             </AlertDescription>
           </Alert>
         )}
@@ -135,7 +137,7 @@ export function RichiediFirmaDialog({
         {!result ? (
           <div className="space-y-3">
             <div>
-              <Label>Email firmatario *</Label>
+              <Label>{t("Email firmatario *")}</Label>
               <Input
                 type="email"
                 value={email}
@@ -144,7 +146,7 @@ export function RichiediFirmaDialog({
               />
             </div>
             <div>
-              <Label>Nome e cognome *</Label>
+              <Label>{t("Nome e cognome *")}</Label>
               <Input
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
@@ -153,17 +155,17 @@ export function RichiediFirmaDialog({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Tipo firmatario</Label>
+                <Label>{t("Tipo firmatario")}</Label>
                 <Select value={tipoFirmatario} onValueChange={(v) => setTipoFirmatario(v as "b2b" | "b2c")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="b2c">B2C (consumatore)</SelectItem>
-                    <SelectItem value="b2b">B2B (azienda)</SelectItem>
+                    <SelectItem value="b2c">{t("B2C (consumatore)")}</SelectItem>
+                    <SelectItem value="b2b">{t("B2B (azienda)")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Scadenza link (giorni)</Label>
+                <Label>{t("Scadenza link (giorni)")}</Label>
                 <Input
                   type="number"
                   min="1"
@@ -174,8 +176,7 @@ export function RichiediFirmaDialog({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Privato: oltre al codice accetta il diritto di recesso e le clausole da approvare a parte.
-              Azienda: inserisce il codice e firma.
+              {t("Privato: oltre al codice accetta il diritto di recesso e le clausole da approvare a parte. Azienda: inserisce il codice e firma.")}
             </p>
           </div>
         ) : (
@@ -183,20 +184,20 @@ export function RichiediFirmaDialog({
             <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
               <AlertDescription className="text-sm">
                 {result.otpSent ? (
-                  <>✅ Richiesta inviata con successo.
-                    <br />Email con il link inviata a <strong>{email}</strong>.
-                    <br />Il firmatario può cliccare il link e firmare.
+                  <>{t("✅ Richiesta inviata con successo.")}
+                    <br />{t("Email con il link inviata a {email}.", { email: String(email ?? "") })}
+                    <br />{t("Il firmatario può cliccare il link e firmare.")}
                   </>
                 ) : (
                   <>
-                    ✅ Richiesta creata, ma l'email non è partita: copia il link e mandalo tu al firmatario.
+                    {t("✅ Richiesta creata, ma l'email non è partita: copia il link e mandalo tu al firmatario.")}
                   </>
                 )}
               </AlertDescription>
             </Alert>
 
             <div>
-              <Label className="text-xs">Link firma (condividilo con il cliente)</Label>
+              <Label className="text-xs">{t("Link firma (condividilo con il cliente)")}</Label>
               <div className="flex items-center gap-2 mt-1">
                 <Input value={result.link} readOnly className="font-mono text-xs" />
                 <Button variant="outline" size="icon" onClick={copyLink}>
@@ -208,9 +209,7 @@ export function RichiediFirmaDialog({
                   </a>
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Scade tra {scadenzaGiorni} giorni. Il codice di 6 cifre arriva quando il firmatario lo chiede e vale 10 minuti.
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">{t("Scade tra {scadenzaGiorni} giorni. Il codice di 6 cifre arriva quando il firmatario lo chiede e vale 10 minuti.", { scadenzaGiorni: String(scadenzaGiorni ?? "") })}</p>
             </div>
           </div>
         )}
@@ -218,19 +217,19 @@ export function RichiediFirmaDialog({
         <DialogFooter>
           {!result ? (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
               <Button onClick={submit} disabled={isPending || isSubmitting || pdf_missing}>
                 {isPending || isSubmitting ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Invio...</>
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("Invio...")}</>
                 ) : pdf_missing ? (
-                  "Genera PDF prima"
+                  t("Genera PDF prima")
                 ) : (
-                  <><Send className="h-4 w-4 mr-2" />Invia richiesta firma</>
+                  <><Send className="h-4 w-4 mr-2" />{t("Invia richiesta firma")}</>
                 )}
               </Button>
             </>
           ) : (
-            <Button onClick={() => onOpenChange(false)}>Chiudi</Button>
+            <Button onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
           )}
         </DialogFooter>
       </DialogContent>

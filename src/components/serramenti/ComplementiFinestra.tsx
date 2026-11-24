@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { SR_ACCESSORI_TIPI, type SrAccessorioRow, type SrSerramentoRow } from "@/types/serramenti";
 import { BarraComplementi } from "./BarraComplementi";
 import { SceltaVariante } from "./SceltaVariante";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PatchComplemento = (patch: Partial<SrAccessorioRow>) => void;
 
@@ -176,6 +177,7 @@ function CampoMisura({
   /** La misura serve e manca: il campo si vede. */
   manca?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="w-[4.75rem]">
       <Label htmlFor={id} className={cn("text-[10px]", manca ? "font-semibold text-amber-700" : "text-muted-foreground")}>
@@ -213,12 +215,13 @@ interface RigaProps {
 export function ComplementoRiga({
   a, tariffePrezzi, supplierLineMap, onPatch, onElimina, onCambiaModello, finestre,
 }: RigaProps) {
+  const tr = useT();
   const { famiglia, aggiorna, fuoriMisura, assi, scelteRiga, prezzoAutomatico, mancaMisura } =
     useRicalcoloComplemento(a, tariffePrezzi, supplierLineMap, onPatch);
   const dalListino = !!a.family_id;
   const nome = a.descrizione || nomeBreve(a.tipo);
   // Solo le misure che mancano: un cassonetto ha già la larghezza della finestra.
-  const misureMancanti = [!a.larghezza_mm && "la larghezza", !a.altezza_mm && "l'altezza"].filter(Boolean).join(" e ");
+  const misureMancanti = !a.larghezza_mm && !a.altezza_mm ? tr("la larghezza e l'altezza") : !a.larghezza_mm ? tr("la larghezza") : !a.altezza_mm ? tr("l'altezza") : "";
 
   const daPrezzare = !(Number(a.prezzo_unitario) > 0);
   return (
@@ -240,7 +243,7 @@ export function ComplementoRiga({
               ) : (
                 <div className="flex min-w-0 gap-1">
                   <Select value={a.tipo} onValueChange={(v) => onPatch({ tipo: v })}>
-                    <SelectTrigger className="h-8 w-32 shrink-0 text-xs" aria-label="Tipo di complemento">
+                    <SelectTrigger className="h-8 w-32 shrink-0 text-xs" aria-label={tr("Tipo di complemento")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -255,8 +258,8 @@ export function ComplementoRiga({
                       const descrizione = e.target.value.trim() || null;
                       if (descrizione !== (a.descrizione ?? null)) onPatch({ descrizione });
                     }}
-                    placeholder="Descrizione"
-                    aria-label="Descrizione del complemento"
+                    placeholder={tr("Descrizione")}
+                    aria-label={tr("Descrizione del complemento")}
                     className="h-8 min-w-0 text-xs"
                   />
                 </div>
@@ -269,12 +272,12 @@ export function ComplementoRiga({
                   size="sm"
                   variant="ghost"
                   onClick={onCambiaModello}
-                  title={dalListino ? "Cambia modello" : "Scegli dal listino"}
-                  aria-label={dalListino ? `Cambia modello di ${nome}` : `Scegli ${nome} dal listino`}
+                  title={dalListino ? tr("Cambia modello") : tr("Scegli dal listino")}
+                  aria-label={dalListino ? tr("Cambia modello di {nome}", { nome: String(nome ?? "") }) : tr("Scegli {nome} dal listino", { nome: String(nome ?? "") })}
                   className="h-7 gap-1 px-2 text-[11px] text-slate-600"
                 >
                   <RefreshCw className="h-3 w-3" />
-                  <span className="max-sm:hidden">{dalListino ? "Cambia" : "Dal listino"}</span>
+                  <span className="max-sm:hidden">{dalListino ? tr("Cambia") : tr("Dal listino")}</span>
                 </Button>
               )}
               <Button
@@ -283,7 +286,7 @@ export function ComplementoRiga({
                 variant="ghost"
                 onClick={onElimina}
                 className="h-7 w-7"
-                aria-label={`Elimina ${nome}`}
+                aria-label={tr("Elimina {nome}", { nome: String(nome ?? "") })}
               >
                 <Trash2 className="h-3.5 w-3.5 text-rose-600" />
               </Button>
@@ -294,14 +297,14 @@ export function ComplementoRiga({
           <div className="mt-1.5 flex flex-wrap items-end gap-x-2 gap-y-1.5">
             <CampoMisura
               id={`${a.id}-larghezza`}
-              etichetta="Largh."
+              etichetta={tr("Largh.")}
               valore={a.larghezza_mm}
               onCambia={(mm) => aggiorna({ larghezza_mm: mm })}
               manca={mancaMisura && !a.larghezza_mm}
             />
             <CampoMisura
               id={`${a.id}-altezza`}
-              etichetta="Alt."
+              etichetta={tr("Alt.")}
               valore={a.altezza_mm}
               onCambia={(mm) => aggiorna({ altezza_mm: mm })}
               manca={mancaMisura && !a.altezza_mm}
@@ -309,14 +312,14 @@ export function ComplementoRiga({
             {haProfondita(a) && (
               <CampoMisura
                 id={`${a.id}-profondita`}
-                etichetta="Prof."
+                etichetta={tr("Prof.")}
                 valore={a.profondita_mm ?? null}
                 onCambia={(mm) => onPatch({ profondita_mm: mm })}
                 manca={!a.profondita_mm}
               />
             )}
             <div className="w-14">
-              <Label htmlFor={`${a.id}-pezzi`} className="text-[10px] text-muted-foreground">Pezzi</Label>
+              <Label htmlFor={`${a.id}-pezzi`} className="text-[10px] text-muted-foreground">{tr("Pezzi")}</Label>
               <CampoNumeroVivo
                 id={`${a.id}-pezzi`}
                 key={`${a.id}-pezzi`}
@@ -329,7 +332,7 @@ export function ComplementoRiga({
               />
             </div>
             <div className="w-24">
-              <Label htmlFor={`${a.id}-prezzo`} className="text-[10px] text-muted-foreground">Prezzo cad. (€)</Label>
+              <Label htmlFor={`${a.id}-prezzo`} className="text-[10px] text-muted-foreground">{tr("Prezzo cad. (€)")}</Label>
               <Input
                 id={`${a.id}-prezzo`}
                 key={`${a.id}-prezzo-${a.prezzo_unitario ?? ""}`}
@@ -340,13 +343,13 @@ export function ComplementoRiga({
                   const valore = e.target.value ? Number(e.target.value) : null;
                   if (valore !== a.prezzo_unitario) onPatch({ prezzo_unitario: valore });
                 }}
-                title={prezzoAutomatico ? "Dal listino: si ricalcola quando cambi misure, pezzi o varianti." : undefined}
+                title={prezzoAutomatico ? tr("Dal listino: si ricalcola quando cambi misure, pezzi o varianti.") : undefined}
                 className={cn("h-8 px-2 text-xs", daPrezzare && "border-amber-300 bg-amber-50/60")}
               />
             </div>
             <div className="ml-auto min-w-[4.5rem] pb-1.5 text-right">
               {daPrezzare ? (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">da prezzare</span>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">{tr("da prezzare")}</span>
               ) : (
                 <span className="text-sm font-semibold tabular-nums text-orange-600">{formatEuro(a.prezzo_totale)}</span>
               )}
@@ -356,9 +359,9 @@ export function ComplementoRiga({
       </div>
 
       {fuoriMisura ? (
-        <p className="mt-1 text-[10px] font-medium text-rose-700">Misure fuori dal listino: il prezzo non si aggiorna</p>
+        <p className="mt-1 text-[10px] font-medium text-rose-700">{tr("Misure fuori dal listino: il prezzo non si aggiorna")}</p>
       ) : mancaMisura ? (
-        <p className="mt-1 text-[10px] font-medium text-amber-700">Scrivi {misureMancanti}: il prezzo del listino si calcola da lì</p>
+        <p className="mt-1 text-[10px] font-medium text-amber-700">{tr("Scrivi {misure}: il prezzo del listino si calcola da lì", { misure: misureMancanti })}</p>
       ) : null}
 
       {assi.length > 0 && (
@@ -382,7 +385,7 @@ export function ComplementoRiga({
                     if (valueId === scelto) onPatch({ scelte_assi });
                     else aggiorna({ valori_assi: { ...scelteRiga, [axis.codice]: valueId }, scelte_assi });
                   }}
-                  placeholder="Scegli…"
+                  placeholder={tr("Scegli…")}
                   aria-label={axis.nome}
                   className={cn("h-7 text-xs", manca && "border-rose-300")}
                 />
@@ -394,10 +397,10 @@ export function ComplementoRiga({
 
       {finestre && finestre.length > 0 && (
         <div className="mt-1.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-1.5">
-          <span className="text-[10px] text-muted-foreground">Di quale finestra è?</span>
+          <span className="text-[10px] text-muted-foreground">{tr("Di quale finestra è?")}</span>
           <Select value="" onValueChange={(id) => onPatch({ serramento_id: id })}>
-            <SelectTrigger className="h-7 w-auto min-w-[14rem] text-xs" aria-label={`Aggancia ${nome} a una finestra`}>
-              <SelectValue placeholder="Agganciala a una finestra" />
+            <SelectTrigger className="h-7 w-auto min-w-[14rem] text-xs" aria-label={tr("Aggancia {nome} a una finestra", { nome: String(nome ?? "") })}>
+              <SelectValue placeholder={tr("Agganciala a una finestra")} />
             </SelectTrigger>
             <SelectContent>
               {finestre.map((f) => (
@@ -440,21 +443,22 @@ export function ComplementiFinestra({
   onAggiungi, onAMano, onCambiaModello, onPatch, onElimina, inCorso, occupata, destinazione,
   daCompletare = [],
 }: BloccoProps) {
+  const t = useT();
   const misure = finestra.larghezza_mm && finestra.altezza_mm
     ? `${finestra.larghezza_mm} × ${finestra.altezza_mm} mm · ${finestra.quantita} pz`
     : null;
   const totaleComplementi = complementi.reduce((somma, c) => somma + (Number(c.prezzo_totale) || 0), 0);
   return (
-    <section aria-label="Complementi di questa finestra" className="rounded-md border border-orange-100 bg-orange-50/40 p-2.5">
+    <section aria-label={t("Complementi di questa finestra")} className="rounded-md border border-orange-100 bg-orange-50/40 p-2.5">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <h4 className="text-[10px] font-semibold uppercase tracking-wide text-orange-700">
-          Complementi di questa finestra{complementi.length > 0 ? ` · ${complementi.length}` : ""}
+          {t("Complementi di questa finestra")}{complementi.length > 0 ? ` · ${complementi.length}` : ""}
           {totaleComplementi > 0 ? ` · ${formatEuro(totaleComplementi)}` : ""}
         </h4>
         <p className={cn("text-[10px]", misure ? "text-muted-foreground" : "font-medium text-amber-700")}>
           {misure
-            ? `Misure della finestra: ${misure}`
-            : "Scrivi le misure della finestra: i complementi le prendono da qui"}
+            ? t("Misure della finestra: {misure}", { misure: String(misure) })
+            : t("Scrivi le misure della finestra: i complementi le prendono da qui")}
         </p>
       </div>
       {complementi.length > 0 && (
@@ -475,7 +479,7 @@ export function ComplementiFinestra({
       {/* Nessun bottone rapido perché il listino non propone i complementi: si dice, e dove si accendono. */}
       {tipologie.length === 0 && daCompletare.length > 0 && (
         <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
-          <span>Nel listino, ma non ancora proposti nei preventivi:</span>
+          <span>{t("Nel listino, ma non ancora proposti nei preventivi:")}</span>
           {daCompletare.map((d) => (
             <a
               key={d.chiave}
@@ -513,17 +517,18 @@ export function ComplementiSuTutteLeFinestre({
   inCorso: string | null;
   occupata: boolean;
 }) {
+  const t = useT();
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50/60 p-2.5">
-      <span className="text-xs font-semibold text-slate-700">Complementi su tutte le finestre:</span>
+      <span className="text-xs font-semibold text-slate-700">{t("Complementi su tutte le finestre:")}</span>
       <BarraComplementi
         tipologie={tipologie}
         onAggiungi={onAggiungi}
         inCorso={inCorso}
         occupata={occupata}
-        destinazione="Su tutte le finestre"
+        destinazione={t("Su tutte le finestre")}
       />
-      <span className="text-[10px] text-muted-foreground max-sm:hidden">solo dove manca, col modello già usato</span>
+      <span className="text-[10px] text-muted-foreground max-sm:hidden">{t("solo dove manca, col modello già usato")}</span>
     </div>
   );
 }
@@ -536,19 +541,20 @@ export function EliminaComplementoDialog({
   onAnnulla: () => void;
   onConferma: () => void;
 }) {
+  const t = useT();
   return (
     <AlertDialog open={!!complemento} onOpenChange={(aperto) => { if (!aperto) onAnnulla(); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            Eliminare {complemento ? complemento.descrizione || nomeBreve(complemento.tipo) : "il complemento"}?
+            {t("Eliminare {nome}?", { nome: complemento ? complemento.descrizione || nomeBreve(complemento.tipo) : t("il complemento") })}
           </AlertDialogTitle>
-          <AlertDialogDescription>Esce dal preventivo; la finestra resta com'è.</AlertDialogDescription>
+          <AlertDialogDescription>{t("Esce dal preventivo; la finestra resta com'è.")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
           <AlertDialogAction className="bg-rose-600 hover:bg-rose-700" onClick={onConferma}>
-            Elimina
+            {t("Elimina")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

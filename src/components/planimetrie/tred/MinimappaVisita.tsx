@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { muroPresente, type PiantaPer3D, type Vista3D } from "@/lib/planimetrie/tred";
 import type { PassaggioVisita } from "@/lib/planimetrie/tred/visita";
 import { eAmbienteInterno } from "../../../../shared/planimetrie/modello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const W = 416, H = 248, MARGINE = 19;
 type Posizione = { x: number; z: number; dx: number; dz: number };
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export const MinimappaVisita = forwardRef<MinimappaVisitaHandle, Props>(function MinimappaVisita({ piano, vista, localeId, esterno, passaggi, leggiPosizione, onVediInPianta }, ref) {
+  const t = useT();
   const base = useRef<HTMLCanvasElement>(null);
   const indicatore = useRef<HTMLCanvasElement>(null);
   const { pianta } = piano;
@@ -102,11 +104,11 @@ export const MinimappaVisita = forwardRef<MinimappaVisitaHandle, Props>(function
 
   return <div id="minimappa-visita" className="pointer-events-auto absolute right-3 top-[4.5rem] z-10 w-[clamp(138px,37%,208px)] overflow-hidden rounded-xl border bg-card shadow-md motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-150">
     <figure className="relative border-b bg-[#edf2f7]">
-      <canvas ref={base} role="img" aria-label={`Minimappa 2D, ${piano.nome}. La freccia indica posizione e direzione della visita.`}
+      <canvas ref={base} role="img" aria-label={t("Minimappa 2D, {nome}. La freccia indica posizione e direzione della visita.", { nome: piano.nome })}
         width={W} height={H} className="block h-auto w-full"/>
       <canvas ref={indicatore} aria-hidden="true" width={W} height={H} className="pointer-events-none absolute inset-0 h-full w-full"/>
     </figure>
     {onVediInPianta && <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-between gap-1 rounded-none px-2.5 text-xs"
-      onClick={onVediInPianta}>Mostra sulla pianta<ArrowUpRight className="size-3.5 shrink-0"/></Button>}
+      onClick={onVediInPianta}>{t("Mostra sulla pianta")}<ArrowUpRight className="size-3.5 shrink-0"/></Button>}
   </div>;
 });

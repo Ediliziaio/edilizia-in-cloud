@@ -13,6 +13,7 @@
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 import { cn } from "@/lib/utils";
+import { intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Formato: { NOME_TEMA: SELETTORE_CSS }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -192,7 +193,7 @@ function ChartTooltipContent({
                 </div>
                 {item.value != null && (
                   <span className="font-mono font-medium tabular-nums text-foreground">
-                    {typeof item.value === "number" && valueFormatter ? valueFormatter(item.value) : item.value.toLocaleString("it-IT")}
+                    {typeof item.value === "number" && valueFormatter ? valueFormatter(item.value) : item.value.toLocaleString(intlCampo())}
                   </span>
                 )}
               </div>

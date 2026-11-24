@@ -12,8 +12,10 @@
 import { Sparkles } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ActionProposalsList } from "@/components/ai/ActionProposals/ActionProposalsList";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function AzioniProposteAi() {
+  const t = useT();
   return (
     <div className="p-4 md:p-6 max-w-screen-xl mx-auto space-y-4">
       <div className="flex items-start gap-3">
@@ -21,24 +23,18 @@ export default function AzioniProposteAi() {
           <Sparkles className="h-5 w-5 text-violet-600 dark:text-violet-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Azioni proposte da AI</h1>
+          <h1 className="text-2xl font-bold">{t("Azioni proposte da AI")}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Silvio e le personas AI propongono azioni che richiedono il tuo OK.
-            Approva o rifiuta dal pannello qui sotto. Le azioni rifiutate
-            alimentano il self-learning loop per migliorare i prossimi suggerimenti.
+            {t("Silvio e le personas AI propongono azioni che richiedono il tuo OK. Approva o rifiuta dal pannello qui sotto. Le azioni rifiutate alimentano il self-learning loop per migliorare i prossimi suggerimenti.")}
           </p>
         </div>
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Come funzionano</CardTitle>
+          <CardTitle className="text-sm font-medium">{t("Come funzionano")}</CardTitle>
           <CardDescription className="text-xs">
-            Quando l'AI propone un'azione marcata come <strong>yellow</strong> (rischio medio)
-            o <strong>red</strong> (rischio alto) — ad esempio inviare un'email a un cliente o
-            modificare una fattura — non viene eseguita immediatamente. Viene creata una
-            proposta che vedi qui, con TTL (es. 60 minuti). Se confermi entro il TTL,
-            viene applicata. Se ignori o rifiuti, l'AI impara dal tuo feedback.
+            {t("Quando l'AI propone un'azione marcata come")} <strong>yellow</strong> {t("(rischio medio) o")} <strong>red</strong> {t("(rischio alto) — ad esempio inviare un'email a un cliente o modificare una fattura — non viene eseguita immediatamente. Viene creata una proposta che vedi qui, con TTL (es. 60 minuti). Se confermi entro il TTL, viene applicata. Se ignori o rifiuti, l'AI impara dal tuo feedback.")}
           </CardDescription>
         </CardHeader>
       </Card>

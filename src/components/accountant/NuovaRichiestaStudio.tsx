@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubmitChangeRequest } from "@/hooks/accountant/useAccountantChangeRequests";
 import type { AccountantCompanyAccessRow } from "@/hooks/accountant/useAccountantPortalData";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const selectClasses = "h-10 w-full rounded-md border bg-background px-2 text-sm";
 
@@ -15,6 +16,7 @@ export function NuovaRichiestaStudio({ studioId, aziende, aziendaIniziale, comme
   aziendaIniziale: string;
   commessaIniziale: string;
 }) {
+  const t = useT();
   const [aziendaId, setAziendaId] = useState(aziendaIniziale || (aziende.length === 1 ? aziende[0].company_id : ""));
   const [ordineId, setOrdineId] = useState(commessaIniziale);
   const [testo, setTesto] = useState("");
@@ -37,9 +39,9 @@ export function NuovaRichiestaStudio({ studioId, aziende, aziendaIniziale, comme
   });
   const commessa = ordini.data?.find(riga => riga.id === ordineId);
 
-  if (!aziende.length) return <p className="text-sm text-muted-foreground">Per inviare una proposta ti serve una delega attiva «Con approvazione».</p>;
+  if (!aziende.length) return <p className="text-sm text-muted-foreground">{t("Per inviare una proposta ti serve una delega attiva «Con approvazione».")}</p>;
   return <Card>
-    <CardHeader><CardTitle className="text-base">Nuova richiesta</CardTitle></CardHeader>
+    <CardHeader><CardTitle className="text-base">{t("Nuova richiesta")}</CardTitle></CardHeader>
     <CardContent>
       <form className="space-y-3" onSubmit={async event => {
         event.preventDefault();
@@ -51,41 +53,41 @@ export function NuovaRichiestaStudio({ studioId, aziende, aziendaIniziale, comme
             precedente: commessa?.description ?? null, testo, motivo,
           });
           setTesto(""); setMotivo(""); setOrdineId(""); setCerca("");
-        } catch (error) { setErrore(error instanceof Error ? error.message : "Impossibile inviare la richiesta."); }
+        } catch (error) { setErrore(error instanceof Error ? error.message : t("Impossibile inviare la richiesta.")); }
       }}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1 text-sm font-medium">Azienda
+          <label className="space-y-1 text-sm font-medium">{t("Azienda")}
             <select className={selectClasses} value={aziendaId} required onChange={event => {
               setAziendaId(event.target.value); setOrdineId(""); setCerca("");
             }}>
-              <option value="">Scegli l’azienda</option>
-              {aziende.map(riga => <option key={riga.id} value={riga.company_id}>{riga.company?.name ?? "Azienda"}</option>)}
+              <option value="">{t("Scegli l’azienda")}</option>
+              {aziende.map(riga => <option key={riga.id} value={riga.company_id}>{riga.company?.name ?? t("Azienda")}</option>)}
             </select>
           </label>
-          <label className="space-y-1 text-sm font-medium">Modifica da proporre
+          <label className="space-y-1 text-sm font-medium">{t("Modifica da proporre")}
             <select className={selectClasses} value={ordineId} required disabled={!azienda} onChange={event => setOrdineId(event.target.value)}>
-              <option value="">Seleziona una modifica</option>
-              <option value="libera">Richiesta libera · applicazione manuale</option>
-              {ordini.data?.map(riga => <option key={riga.id} value={riga.id}>Descrizione commessa · {riga.order_code ?? riga.description.slice(0, 60)}</option>)}
+              <option value="">{t("Seleziona una modifica")}</option>
+              <option value="libera">{t("Richiesta libera · applicazione manuale")}</option>
+              {ordini.data?.map(riga => <option key={riga.id} value={riga.id}>{t("Descrizione commessa · {codice}", { codice: riga.order_code ?? riga.description.slice(0, 60) })}</option>)}
             </select>
           </label>
         </div>
-        {azienda && !commessa && ordineId !== "libera" && <label className="block text-sm">Filtra commesse per codice
+        {azienda && !commessa && ordineId !== "libera" && <label className="block text-sm">{t("Filtra commesse per codice")}
           <input className={selectClasses} value={cerca} maxLength={40} onChange={event => setCerca(event.target.value)} />
         </label>}
-        {ordini.isError && <p role="alert" className="text-sm text-destructive">Impossibile leggere le commesse. <Button variant="ghost" size="sm" onClick={() => void ordini.refetch()}>Riprova</Button></p>}
+        {ordini.isError && <p role="alert" className="text-sm text-destructive">{t("Impossibile leggere le commesse.")} <Button variant="ghost" size="sm" onClick={() => void ordini.refetch()}>{t("Riprova")}</Button></p>}
         {commessa && <div className="rounded-md border bg-muted/30 p-2 text-sm">
-          <p className="font-medium">Descrizione attuale</p>
+          <p className="font-medium">{t("Descrizione attuale")}</p>
           <p className="whitespace-pre-wrap break-words text-muted-foreground">{commessa.description}</p>
         </div>}
-        <label className="block space-y-1 text-sm font-medium">{commessa ? "Nuova descrizione" : "Modifica proposta"}
+        <label className="block space-y-1 text-sm font-medium">{commessa ? t("Nuova descrizione") : t("Modifica proposta")}
           <Textarea required rows={3} value={testo} minLength={3} maxLength={3000} onChange={event => setTesto(event.target.value)} />
         </label>
-        <label className="block space-y-1 text-sm font-medium">Motivazione (facoltativa)
+        <label className="block space-y-1 text-sm font-medium">{t("Motivazione (facoltativa)")}
           <Textarea rows={2} value={motivo} maxLength={1000} onChange={event => setMotivo(event.target.value)} />
         </label>
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
-        <Button type="submit" disabled={invia.isPending || !azienda || (!commessa && ordineId !== "libera")}>Invia per approvazione</Button>
+        <Button type="submit" disabled={invia.isPending || !azienda || (!commessa && ordineId !== "libera")}>{t("Invia per approvazione")}</Button>
       </form>
     </CardContent>
   </Card>;

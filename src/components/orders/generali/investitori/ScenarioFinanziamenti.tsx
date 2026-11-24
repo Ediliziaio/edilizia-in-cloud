@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import type { ContiInvestitori, ScenarioDebito } from "@/lib/orders/generali/investitoriConti";
 import { euro, euroSegno, nomeMese, percento } from "../piano/formato";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TASSI = [-1, -0.5, 0, 0.5, 1, 2];
 const IMPEGNI = [-50, -30, -20, -10, 0, 10, 20];
-const CON_SEGNO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1, signDisplay: "exceptZero" });
+/** Creato a ogni uso: la lingua può cambiare dopo il caricamento del modulo. */
+const conSegno = (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 1, signDisplay: "exceptZero" }).format(n);
 type Riga = { titolo: string; prima: number; dopo: number; crescitaPositiva?: boolean; mesePrima?: string | null; meseDopo?: string | null };
 
 export function ScenarioFinanziamenti({ valore, cambia, base, ipotesi, haTassi, haBanca, apriMese }: {
@@ -18,19 +20,20 @@ export function ScenarioFinanziamenti({ valore, cambia, base, ipotesi, haTassi, 
   haBanca: boolean;
   apriMese: (mese: string) => void;
 }) {
+  const t = useT();
   return <section aria-labelledby="investitori-titolo-scenario" className="generale-panel">
     <header className="flex flex-wrap items-center gap-2 px-3 py-2">
       <h3 id="investitori-titolo-scenario" className="mr-auto flex items-center gap-2 text-sm font-semibold">
-        <SlidersHorizontal className="size-4 text-primary" aria-hidden="true" /> Simula i finanziamenti
+        <SlidersHorizontal className="size-4 text-primary" aria-hidden="true" /> {t("Simula i finanziamenti")}
       </h3>
-      {haTassi && <OfficeSelect label="Variazione del tasso annuo" className="h-8 w-44 text-xs" value={String(valore.tassoPunti)}
-        options={TASSI.map(n => ({ value: String(n), label: n === 0 ? "Tassi attuali" : `Tassi ${CON_SEGNO.format(n)} ${Math.abs(n) === 1 ? "punto" : "punti"}` }))}
+      {haTassi && <OfficeSelect label={t("Variazione del tasso annuo")} className="h-8 w-44 text-xs" value={String(valore.tassoPunti)}
+        options={TASSI.map(n => ({ value: String(n), label: n === 0 ? t("Tassi attuali") : t(Math.abs(n) === 1 ? "Tassi {n} punto" : "Tassi {n} punti", { n: conSegno(n) }) }))}
         onValueChange={v => cambia({ ...valore, tassoPunti: Number(v) })} />}
-      {haBanca && <OfficeSelect label="Variazione di banca e finanziamenti" className="h-8 w-52 text-xs" value={String(valore.debitoPct)}
-        options={IMPEGNI.map(n => ({ value: String(n), label: n === 0 ? "Importi attuali" : `Finanziamenti ${CON_SEGNO.format(n)}%` }))}
+      {haBanca && <OfficeSelect label={t("Variazione di banca e finanziamenti")} className="h-8 w-52 text-xs" value={String(valore.debitoPct)}
+        options={IMPEGNI.map(n => ({ value: String(n), label: n === 0 ? t("Importi attuali") : t("Finanziamenti {n}%", { n: conSegno(n) }) }))}
         onValueChange={v => cambia({ ...valore, debitoPct: Number(v) })} />}
       {ipotesi && <Button type="button" size="sm" variant="outline" className="h-8"
-        onClick={() => cambia({ tassoPunti: 0, debitoPct: 0 })}>Azzera ipotesi</Button>}
+        onClick={() => cambia({ tassoPunti: 0, debitoPct: 0 })}>{t("Azzera ipotesi")}</Button>}
     </header>
     {ipotesi && <ConfrontoFinanziamenti base={base} ipotesi={ipotesi} apriMese={apriMese} />}
   </section>;
@@ -41,14 +44,15 @@ function ConfrontoFinanziamenti({ base, ipotesi, apriMese }: {
   ipotesi: ContiInvestitori;
   apriMese: (mese: string) => void;
 }) {
+  const t = useT();
   const baseRoe = base.rendimenti.mezziPropri?.roe ?? null;
   const ipotesiRoe = ipotesi.rendimenti.mezziPropri?.roe ?? null;
   const righe: Riga[] = [
-    { titolo: "Costo stimato del debito", prima: base.costoDebito.totale, dopo: ipotesi.costoDebito.totale },
+    { titolo: t("Costo stimato del debito"), prima: base.costoDebito.totale, dopo: ipotesi.costoDebito.totale },
     ...(base.haPiano ? [
-      { titolo: "Utile da ripartire", prima: base.utile.stima, dopo: ipotesi.utile.stima, crescitaPositiva: true },
-      { titolo: "Scoperto negli impegni", prima: base.scopertoImpegni, dopo: ipotesi.scopertoImpegni },
-      { titolo: "Scoperto mensile massimo", prima: base.scopertoCalendario.importo, dopo: ipotesi.scopertoCalendario.importo,
+      { titolo: t("Utile da ripartire"), prima: base.utile.stima, dopo: ipotesi.utile.stima, crescitaPositiva: true },
+      { titolo: t("Scoperto negli impegni"), prima: base.scopertoImpegni, dopo: ipotesi.scopertoImpegni },
+      { titolo: t("Scoperto mensile massimo"), prima: base.scopertoCalendario.importo, dopo: ipotesi.scopertoCalendario.importo,
         mesePrima: base.scopertoCalendario.mese, meseDopo: ipotesi.scopertoCalendario.mese },
     ] : []),
   ];
@@ -57,16 +61,16 @@ function ConfrontoFinanziamenti({ base, ipotesi, apriMese }: {
     {euro(n)}
     {mese && (collegamento
       ? <button type="button" className="ml-2 text-xs font-medium text-primary hover:underline"
-        aria-label={`Apri copertura di ${nomeMese(mese)}`} onClick={() => apriMese(mese)}>{nomeMese(mese)}</button>
+        aria-label={t("Apri copertura di {mese}", { mese: nomeMese(mese) })} onClick={() => apriMese(mese)}>{nomeMese(mese)}</button>
       : <span className="ml-2 text-xs text-muted-foreground">{nomeMese(mese)}</span>)}
   </>;
 
   return <>
     <div className="overflow-x-auto border-t">
-      <table aria-label="Confronto delle ipotesi di finanziamento" className="generale-registro-tabella min-w-[34rem]">
+      <table aria-label={t("Confronto delle ipotesi di finanziamento")} className="generale-registro-tabella min-w-[34rem]">
         <thead className="bg-muted/40"><tr>
-          <th scope="col">Indicatore</th><th scope="col" className="text-right">Base</th>
-          <th scope="col" className="text-right">Con ipotesi</th><th scope="col" className="text-right">Differenza</th>
+          <th scope="col">{t("Indicatore")}</th><th scope="col" className="text-right">{t("Base")}</th>
+          <th scope="col" className="text-right">{t("Con ipotesi")}</th><th scope="col" className="text-right">{t("Differenza")}</th>
         </tr></thead>
         <tbody>{righe.map(r => {
           const delta = r.dopo - r.prima;
@@ -80,17 +84,17 @@ function ConfrontoFinanziamenti({ base, ipotesi, apriMese }: {
           </tr>;
         })}
           {(baseRoe !== null || ipotesiRoe !== null) && <tr>
-            <th scope="row" className="text-left">Rendimento dei mezzi propri</th>
+            <th scope="row" className="text-left">{t("Rendimento dei mezzi propri")}</th>
             <td className="text-right tabular-nums">{percento(baseRoe)}</td>
             <td className="text-right font-semibold tabular-nums">{percento(ipotesiRoe)}</td>
             <td className="text-right tabular-nums">{baseRoe === null || ipotesiRoe === null
-              ? "—" : `${CON_SEGNO.format((ipotesiRoe - baseRoe) * 100)} punti`}</td>
+              ? "—" : t("{n} punti", { n: conSegno((ipotesiRoe - baseRoe) * 100) })}</td>
           </tr>}
         </tbody>
       </table>
     </div>
     <p className="border-t px-3 py-1.5 text-xs text-muted-foreground">
-      L’ipotesi conserva gli importi di erogazioni e rimborsi già inseriti. Le variazioni qui sono temporanee.
+      {t("L’ipotesi conserva gli importi di erogazioni e rimborsi già inseriti. Le variazioni qui sono temporanee.")}
     </p>
   </>;
 }

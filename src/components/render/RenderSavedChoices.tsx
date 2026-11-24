@@ -3,6 +3,7 @@ import {
   savedRenderSamples,
 } from "@/lib/render/renderSavedChoices";
 import { ReferenceThumb } from "./ReferenceThumb";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RenderSavedChoices({
   config,
@@ -11,6 +12,7 @@ export function RenderSavedChoices({
   config: unknown;
   comparisonKeys?: Set<string>;
 }) {
+  const t = useT();
   const choices = savedRenderChoices(config);
   const samples = savedRenderSamples(config);
   const groups = new Map<string, typeof choices>();
@@ -18,19 +20,18 @@ export function RenderSavedChoices({
     groups.set(choice.group, [...(groups.get(choice.group) ?? []), choice]);
   return (
     <section
-      aria-label="Scelte salvate di questo render"
+      aria-label={t("Scelte salvate di questo render")}
       className="space-y-4 rounded-xl border bg-card p-4"
     >
       <div>
-        <h2 className="text-base font-semibold">Scelte di questo render</h2>
+        <h2 className="text-base font-semibold">{t("Scelte di questo render")}</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Valori registrati con questa immagine, anche se il progetto è stato
-          aggiornato.
+          {t("Valori registrati con questa immagine, anche se il progetto è stato aggiornato.")}
         </p>
       </div>
       {!choices.length && (
         <p className="text-sm text-muted-foreground">
-          Non sono disponibili scelte dettagliate per questo render.
+          {t("Non sono disponibili scelte dettagliate per questo render.")}
         </p>
       )}
       {[...groups].map(([group, values], index) => (
@@ -71,7 +72,7 @@ export function RenderSavedChoices({
       {!!samples.length && (
         <div>
           <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-            Campioni di catalogo delle scelte salvate
+            {t("Campioni di catalogo delle scelte salvate")}
           </h3>
           <div className="grid grid-cols-3 gap-2">
             {samples.map((sample) => (

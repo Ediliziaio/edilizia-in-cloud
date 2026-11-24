@@ -71,11 +71,15 @@ import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { cn } from "@/lib/utils";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 type PriorityTone = "critical" | "warning" | "good" | "info";
 
 type PriorityAction = {
   title: string;
   detail: string;
+  /** Frase con i segnaposto e i suoi valori: a schermo si traduce da qui (title e detail restano in italiano). */
+  detailKey?: string;
+  detailValues?: Record<string, string | number>;
   tone: PriorityTone;
 };
 
@@ -89,6 +93,7 @@ export function CrmSalesReportPanel({
 }: {
   daysBack?: number;
 }) {
+  const tr = useT();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -108,6 +113,11 @@ export function CrmSalesReportPanel({
     periodKey === "custom"
       ? `${from.toLocaleDateString("it-IT")} – ${to.toLocaleDateString("it-IT")}`
       : PERIOD_OPTIONS.find((o) => o.key === periodKey)?.label ?? "Periodo";
+  // periodLabel va nel CSV e resta in italiano; a schermo si usa quello tradotto.
+  const periodLabelUi =
+    periodKey === "custom"
+      ? `${from.toLocaleDateString(intlCampo())} – ${to.toLocaleDateString(intlCampo())}`
+      : tr(PERIOD_OPTIONS.find((o) => o.key === periodKey)?.label ?? "Periodo");
   const adsDaysBack = Math.max(1, differenceInCalendarDays(to, from));
   const effectiveGranularity = granularity === "auto" ? autoGranularity(from, to) : granularity;
 
@@ -178,22 +188,22 @@ export function CrmSalesReportPanel({
     const rowsCsv: Array<[string, string, string]> = [
       ["Sezione", "Metrica", "Valore"],
       ["Periodo", "Intervallo", periodLabel],
-      ["KPI", "Fatturato attribuito (Ads)", formatMoney(ads.totals.revenueCents)],
-      ["KPI", "Pipeline aperta", formatMoney(report.forecast.openValueCents)],
+      ["KPI", "Fatturato attribuito (Ads)", formatMoneyCsv(ads.totals.revenueCents)],
+      ["KPI", "Pipeline aperta", formatMoneyCsv(report.forecast.openValueCents)],
       ["KPI", "Preventivi emessi", String(report.quotes.issued)],
       ["KPI", "Tasso accettazione %", String(report.quotes.acceptanceRate)],
       ["KPI", "Salute CRM /100", String(report.sync.healthScore)],
       ["Funnel", "Lead paid", String(ads.totals.leads)],
       ["Funnel", "Appuntamenti", String(ads.totals.appointments)],
       ["Funnel", "Vendite vinte", String(ads.totals.won)],
-      ["Forecast", "Atteso 30 giorni", formatMoney(report.forecast.weighted30Cents)],
-      ["Forecast", "Margine stimato", formatMoney(report.margin.estimatedMarginCents)],
+      ["Forecast", "Atteso 30 giorni", formatMoneyCsv(report.forecast.weighted30Cents)],
+      ["Forecast", "Margine stimato", formatMoneyCsv(report.margin.estimatedMarginCents)],
     ];
     for (const point of trend) {
       rowsCsv.push([
         "Andamento",
         point.label,
-        `${formatMoney(point.fatturatoCents)} · ${point.preventivi} prev · ${point.lead} lead · ${point.vinte} vend`,
+        `${formatMoneyCsv(point.fatturatoCents)} · ${point.preventivi} prev · ${point.lead} lead · ${point.vinte} vend`,
       ]);
     }
     const csv = rowsCsv.map((row) => row.map((cell) => escapeCsvCell(cell, ";")).join(";")).join("\r\n");
@@ -210,7 +220,7 @@ export function CrmSalesReportPanel({
             <SelectTrigger className="h-9 w-[200px] max-sm:w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PERIOD_OPTIONS.map((o) => (
-                <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                <SelectItem key={o.key} value={o.key}>{tr(o.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -221,7 +231,7 @@ export function CrmSalesReportPanel({
                 value={customFrom}
                 max={customTo || undefined}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                aria-label="Data inizio"
+                aria-label={tr("Data inizio")}
                 className="h-9 rounded-md border border-border px-2 text-sm text-muted-foreground"
               />
               <span className="text-muted-foreground/80">→</span>
@@ -230,7 +240,7 @@ export function CrmSalesReportPanel({
                 value={customTo}
                 min={customFrom || undefined}
                 onChange={(e) => setCustomTo(e.target.value)}
-                aria-label="Data fine"
+                aria-label={tr("Data fine")}
                 className="h-9 rounded-md border border-border px-2 text-sm text-muted-foreground"
               />
             </div>
@@ -240,7 +250,7 @@ export function CrmSalesReportPanel({
         {!isMobile && (
           <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
             <Download className="h-4 w-4" />
-            Esporta CSV
+            {tr("Esporta CSV")}
           </Button>
         )}
       </div>
@@ -250,42 +260,42 @@ export function CrmSalesReportPanel({
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-2xl max-sm:hidden">
             <Badge variant="outline" className="mb-3 border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200">
-              {periodLabel}
+              {periodLabelUi}
             </Badge>
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">CRM e vendite</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">{tr("CRM e vendite")}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Pipeline, preventivi, margini e campagne che generano vendite — con le azioni da fare per prime.
+              {tr("Pipeline, preventivi, margini e campagne che generano vendite — con le azioni da fare per prime.")}
             </p>
           </div>
 
           <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-3xl max-sm:grid-cols-2 max-sm:gap-2">
             <ExecutiveKpi
               icon={CircleDollarSign}
-              label="Fatturato da Meta e Google"
+              label={tr("Fatturato da Meta e Google")}
               value={formatMoney(ads.totals.revenueCents)}
-              detail={`${ads.totals.won} vendite vinte da Meta + Google`}
+              detail={tr("{n} vendite vinte da Meta + Google", { n: ads.totals.won })}
               loading={loading}
               tone="green"
             />
             <ExecutiveKpi
               icon={LineChart}
-              label="Pipeline aperta"
+              label={tr("Pipeline aperta")}
               value={formatMoney(report.forecast.openValueCents)}
-              detail={`${formatMoney(report.forecast.weighted30Cents)} attesi entro 30 giorni`}
+              detail={tr("{importo} attesi entro 30 giorni", { importo: formatMoney(report.forecast.weighted30Cents) })}
               loading={commercial.isLoading}
             />
             <ExecutiveKpi
               icon={FileSignature}
-              label="Preventivi emessi"
+              label={tr("Preventivi emessi")}
               value={String(report.quotes.issued)}
-              detail={`${report.quotes.acceptanceRate}% accettazione · ${formatMoney(report.quotes.averageValueCents)} medio`}
+              detail={tr("{percentuale}% accettazione · {importo} medio", { percentuale: report.quotes.acceptanceRate, importo: formatMoney(report.quotes.averageValueCents) })}
               loading={commercial.isLoading}
             />
             <ExecutiveKpi
               icon={ShieldAlert}
-              label="Salute CRM"
+              label={tr("Salute CRM")}
               value={`${report.sync.healthScore}/100`}
-              detail={`${report.sync.totalIssues} criticità da sistemare`}
+              detail={tr("{n} criticità da sistemare", { n: report.sync.totalIssues })}
               loading={commercial.isLoading}
               tone={report.sync.healthScore >= 90 ? "green" : report.sync.healthScore >= 70 ? "amber" : "red"}
             />
@@ -295,7 +305,7 @@ export function CrmSalesReportPanel({
         {errors.length > 0 && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>Dati parziali: {errors.join(" · ")}</span>
+            <span>{tr("Dati parziali: {errors}", { errors: errors.join(" · ") })}</span>
           </div>
         )}
       </section>
@@ -304,15 +314,15 @@ export function CrmSalesReportPanel({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeader
             icon={TrendingUp}
-            title={isMobile ? "Vs periodo precedente" : "Confronto periodo"}
-            description={compareMode === "yoy" ? "Vs stesso periodo dell'anno scorso." : "Vs periodo precedente di pari durata."}
+            title={isMobile ? tr("Vs periodo precedente") : tr("Confronto periodo")}
+            description={compareMode === "yoy" ? tr("Vs stesso periodo dell'anno scorso.") : tr("Vs periodo precedente di pari durata.")}
           />
           {/* Telefono: il confronto resta sul periodo precedente. */}
           <Select value={compareMode} onValueChange={(v) => setCompareMode(v as "prev" | "yoy")}>
             <SelectTrigger className="h-9 w-[200px] max-sm:hidden"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="prev">Vs periodo precedente</SelectItem>
-              <SelectItem value="yoy">Vs anno scorso</SelectItem>
+              <SelectItem value="prev">{tr("Vs periodo precedente")}</SelectItem>
+              <SelectItem value="yoy">{tr("Vs anno scorso")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -329,7 +339,7 @@ export function CrmSalesReportPanel({
       </section>
 
       <section className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
-        <SectionHeader icon={TrendingUp} title="Funnel commerciale" description="Dal lead alla vendita: barre proporzionali e % di conversione tra gli stadi (sui primi appuntamenti)." />
+        <SectionHeader icon={TrendingUp} title={tr("Funnel commerciale")} description={tr("Dal lead alla vendita: barre proporzionali e % di conversione tra gli stadi (sui primi appuntamenti).")} />
         <div className="mt-4 grid gap-5 lg:grid-cols-[1.5fr_1fr] max-sm:mt-1.5 max-sm:gap-2">
           {commercial.isLoading ? (
             <Skeleton className="h-40 w-full rounded-lg" />
@@ -337,10 +347,10 @@ export function CrmSalesReportPanel({
             <CommercialFunnel conv={funnelConv} />
           )}
           <div className="grid grid-cols-2 gap-3 self-start max-sm:grid-cols-3 max-sm:gap-2">
-            <MiniMetric label="Fatturato comm." value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
-            <MiniMetric label="Ticket medio" value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
+            <MiniMetric label={tr("Fatturato comm.")} value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
+            <MiniMetric label={tr("Ticket medio")} value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
             {/* 0 €/g voleva dire «non calcolabile» (nessuna vendita chiusa), non zero. */}
-            <MiniMetric label="Sales velocity" value={salesEff.velocityCentsPerDay > 0 ? `${formatMoney(salesEff.velocityCentsPerDay)}/g` : "—"} loading={commercial.isLoading} />
+            <MiniMetric label={tr("Sales velocity")} value={salesEff.velocityCentsPerDay > 0 ? `${formatMoney(salesEff.velocityCentsPerDay)}/g` : "—"} loading={commercial.isLoading} />
             {!commercial.isLoading && (report.forecast.monthlyTargetCents ?? 0) > 0 && (
               <div className="col-span-2 max-sm:col-span-3">
                 <ObiettivoMese vintoCents={report.forecast.wonThisMonthCents ?? 0} obiettivoCents={report.forecast.monthlyTargetCents ?? 0} />
@@ -350,8 +360,14 @@ export function CrmSalesReportPanel({
         </div>
         {!commercial.isLoading && (
           <p className="mt-2 text-[11px] leading-snug text-muted-foreground max-sm:hidden">
-            Conversioni sui <strong>primi appuntamenti</strong> del calendario marketing: {funnelConv.appuntamenti} primi su{" "}
-            {funnelConv.appuntamentiTotali} totali ({Math.max(funnelConv.appuntamentiTotali - funnelConv.appuntamenti, 0)} follow-up).
+            {/* Le parentesi quadre segnano il pezzo in grassetto: il traduttore le tiene attorno alle sue parole. */}
+            {tr("Conversioni sui [primi appuntamenti] del calendario marketing: {primi} primi su {totali} totali ({followup} follow-up).", {
+              primi: funnelConv.appuntamenti,
+              totali: funnelConv.appuntamentiTotali,
+              followup: Math.max(funnelConv.appuntamentiTotali - funnelConv.appuntamenti, 0),
+            })
+              .split(/[[\]]/)
+              .map((pezzo, i) => (i === 1 ? <strong key={i}>{pezzo}</strong> : pezzo))}
           </p>
         )}
       </section>
@@ -359,15 +375,15 @@ export function CrmSalesReportPanel({
       {/* Telefono: il grafico dell'andamento, il dettaglio operativo e i canali paid restano al computer. */}
       <section className="rounded-xl border border-border bg-card p-4 shadow-sm max-sm:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <SectionHeader icon={TrendingUp} title="Andamento nel tempo" description={`Aggregato per ${effectiveGranularity === "month" ? "mese" : effectiveGranularity === "week" ? "settimana" : "giorno"}.`} />
+          <SectionHeader icon={TrendingUp} title={tr("Andamento nel tempo")} description={effectiveGranularity === "month" ? tr("Aggregato per mese.") : effectiveGranularity === "week" ? tr("Aggregato per settimana.") : tr("Aggregato per giorno.")} />
           <div className="flex flex-wrap items-center gap-2">
             <Select value={granularity} onValueChange={(v) => setGranularity(v as TimeGranularity | "auto")}>
               <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">Auto</SelectItem>
-                <SelectItem value="day">Giorno</SelectItem>
-                <SelectItem value="week">Settimana</SelectItem>
-                <SelectItem value="month">Mese</SelectItem>
+                <SelectItem value="auto">{tr("Auto")}</SelectItem>
+                <SelectItem value="day">{tr("Giorno")}</SelectItem>
+                <SelectItem value="week">{tr("Settimana")}</SelectItem>
+                <SelectItem value="month">{tr("Mese")}</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-1.5">
@@ -383,7 +399,7 @@ export function CrmSalesReportPanel({
                       : "border-border text-muted-foreground hover:bg-muted/50",
                   )}
                 >
-                  {m.label}
+                  {tr(m.label)}
                 </button>
               ))}
             </div>
@@ -393,65 +409,63 @@ export function CrmSalesReportPanel({
           {commercial.isLoading ? (
             <Skeleton className="h-64 w-full rounded-lg" />
           ) : trend.length === 0 ? (
-            <p className="flex h-64 items-center justify-center text-sm text-muted-foreground">Nessun dato nel periodo selezionato.</p>
+            <p className="flex h-64 items-center justify-center text-sm text-muted-foreground">{tr("Nessun dato nel periodo selezionato.")}</p>
           ) : (
             <TrendChart data={trend} metric={trendMetric} />
           )}
         </div>
       </section>
 
-      <CollapsibleSection icon={BarChart3} title="Dettaglio operativo" description="Apri per i numeri di dettaglio: preventivi, forecast, qualità lead, perdite, fonti." defaultOpen={false} className="max-sm:hidden">
+      <CollapsibleSection icon={BarChart3} title={tr("Dettaglio operativo")} description={tr("Apri per i numeri di dettaglio: preventivi, forecast, qualità lead, perdite, fonti.")} defaultOpen={false} className="max-sm:hidden">
         <div className="grid gap-4 xl:grid-cols-2">
-          <DetailPanel title="Preventivi e tempi" icon={FileSignature}>
+          <DetailPanel title={tr("Preventivi e tempi")} icon={FileSignature}>
             <div className="grid gap-3 sm:grid-cols-3">
-              <MiniMetric label="Emessi" value={String(report.quotes.issued)} loading={commercial.isLoading} />
-              <MiniMetric label="Accettati" value={String(report.quotes.accepted)} loading={commercial.isLoading} tone="green" />
-              <MiniMetric label="Rifiutati" value={String(report.quotes.rejected)} loading={commercial.isLoading} tone="red" />
+              <MiniMetric label={tr("Emessi")} value={String(report.quotes.issued)} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Accettati")} value={String(report.quotes.accepted)} loading={commercial.isLoading} tone="green" />
+              <MiniMetric label={tr("Rifiutati")} value={String(report.quotes.rejected)} loading={commercial.isLoading} tone="red" />
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <MiniMetric label="App -> preventivo" value={formatDays(report.quotes.avgAppointmentToQuoteDays)} loading={commercial.isLoading} />
-              <MiniMetric label="Preventivo -> vendita" value={formatDays(report.quotes.avgQuoteToSaleDays)} loading={commercial.isLoading} />
+              <MiniMetric label={tr("App -> preventivo")} value={report.quotes.avgAppointmentToQuoteDays === null ? "N/D" : tr("{n} giorni", { n: report.quotes.avgAppointmentToQuoteDays })} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Preventivo -> vendita")} value={report.quotes.avgQuoteToSaleDays === null ? "N/D" : tr("{n} giorni", { n: report.quotes.avgQuoteToSaleDays })} loading={commercial.isLoading} />
             </div>
           </DetailPanel>
 
-          <DetailPanel title="Forecast e margine" icon={WalletCards}>
+          <DetailPanel title={tr("Forecast e margine")} icon={WalletCards}>
             <div className="grid gap-3 sm:grid-cols-3">
-              <MiniMetric label="Atteso 30g" value={formatMoney(report.forecast.weighted30Cents)} loading={commercial.isLoading} />
-              <MiniMetric label="Atteso 60g" value={formatMoney(report.forecast.weighted60Cents)} loading={commercial.isLoading} />
-              <MiniMetric label="Atteso 90g" value={formatMoney(report.forecast.weighted90Cents)} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Atteso 30g")} value={formatMoney(report.forecast.weighted30Cents)} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Atteso 60g")} value={formatMoney(report.forecast.weighted60Cents)} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Atteso 90g")} value={formatMoney(report.forecast.weighted90Cents)} loading={commercial.isLoading} />
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <MiniMetric label="Margine stimato" value={formatMoney(report.margin.estimatedMarginCents)} loading={commercial.isLoading} tone="green" />
-              <MiniMetric label="Margine medio" value={report.margin.averageMarginPct === null ? "N/D" : `${report.margin.averageMarginPct}%`} loading={commercial.isLoading} />
-              <MiniMetric label="Copertura" value={`${report.margin.coveragePct}%`} loading={commercial.isLoading} tone={report.margin.coveragePct >= 80 ? "green" : "amber"} />
+              <MiniMetric label={tr("Margine stimato")} value={formatMoney(report.margin.estimatedMarginCents)} loading={commercial.isLoading} tone="green" />
+              <MiniMetric label={tr("Margine medio")} value={report.margin.averageMarginPct === null ? "N/D" : `${report.margin.averageMarginPct}%`} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Copertura")} value={`${report.margin.coveragePct}%`} loading={commercial.isLoading} tone={report.margin.coveragePct >= 80 ? "green" : "amber"} />
             </div>
             {aging.stale90 > 0 && !commercial.isLoading && (
-              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3 text-sm text-amber-800">
-                Pipeline ferma: {aging.stale90} opportunità aperte da oltre 90 giorni ({formatMoney(aging.staleValueCents)}) — da chiudere o archiviare.
-              </p>
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3 text-sm text-amber-800">{tr("Pipeline ferma: {stale90} opportunità aperte da oltre 90 giorni ({staleValueCents}) — da chiudere o archiviare.", { stale90: String(aging.stale90 ?? ""), staleValueCents: formatMoney(aging.staleValueCents) })}</p>
             )}
             {report.margin.dataQualityWarning && !commercial.isLoading && (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3 text-sm text-amber-800">
-                {report.margin.dataQualityWarning}
+                {tr(report.margin.dataQualityWarning)}
               </p>
             )}
           </DetailPanel>
 
-          <DetailPanel title="Qualità lead" icon={Users}>
+          <DetailPanel title={tr("Qualità lead")} icon={Users}>
             <div className="grid gap-3 sm:grid-cols-4">
-              <MiniMetric label="Totali" value={String(report.leadQuality.total)} loading={commercial.isLoading} />
-              <MiniMetric label="Buoni" value={String(report.leadQuality.good)} loading={commercial.isLoading} tone="green" />
-              <MiniMetric label="Scarsi" value={String(report.leadQuality.poor)} loading={commercial.isLoading} tone="red" />
-              <MiniMetric label="Score medio" value={report.leadQuality.averageScore === null ? "N/D" : String(report.leadQuality.averageScore)} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Totali")} value={String(report.leadQuality.total)} loading={commercial.isLoading} />
+              <MiniMetric label={tr("Buoni")} value={String(report.leadQuality.good)} loading={commercial.isLoading} tone="green" />
+              <MiniMetric label={tr("Scarsi")} value={String(report.leadQuality.poor)} loading={commercial.isLoading} tone="red" />
+              <MiniMetric label={tr("Score medio")} value={report.leadQuality.averageScore === null ? "N/D" : String(report.leadQuality.averageScore)} loading={commercial.isLoading} />
             </div>
             <LeadSegmentTable rows={report.leadQuality.topSegments} loading={commercial.isLoading} />
           </DetailPanel>
 
-          <DetailPanel title="Motivi di perdita" icon={Trophy}>
+          <DetailPanel title={tr("Motivi di perdita")} icon={Trophy}>
             <LossReasonsList rows={report.lossReasons} perVenditore={report.lossByOwner ?? []} loading={commercial.isLoading} />
           </DetailPanel>
 
-          <DetailPanel title="Fatturato e margine per fonte" icon={Megaphone}>
+          <DetailPanel title={tr("Fatturato e margine per fonte")} icon={Megaphone}>
             <SourceBreakdownTable rows={sourceRows} loading={commercial.isLoading} onDrill={handleSourceDrill} />
           </DetailPanel>
         </div>
@@ -460,29 +474,29 @@ export function CrmSalesReportPanel({
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
         {/* Telefono: le tre letture ripetono i numeri in alto; resta solo «Da fare adesso». */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm max-sm:hidden">
-          <SectionHeader icon={Target} title="Cosa guardare" description="Le tre letture chiave di salute commerciale." />
+          <SectionHeader icon={Target} title={tr("Cosa guardare")} description={tr("Le tre letture chiave di salute commerciale.")} />
           <div className="mt-4 grid gap-3">
             <FocusCard
               label="1"
-              title="Il dato è affidabile?"
-              value={report.sync.healthLabel}
-              detail={`${report.sync.quotesWithoutOpportunity} preventivi senza opportunità · ${report.sync.appointmentsWithoutContact} appuntamenti senza contatto`}
+              title={tr("Il dato è affidabile?")}
+              value={tr(report.sync.healthLabel)}
+              detail={tr("{preventivi} preventivi senza opportunità · {appuntamenti} appuntamenti senza contatto", { preventivi: report.sync.quotesWithoutOpportunity, appuntamenti: report.sync.appointmentsWithoutContact })}
               loading={commercial.isLoading}
               tone={report.sync.healthScore >= 90 ? "green" : report.sync.healthScore >= 70 ? "amber" : "red"}
             />
             <FocusCard
               label="2"
-              title="La pipeline ha prossime azioni?"
-              value={`${report.forecast.openWithoutNextStep} senza prossimo step`}
-              detail={`${formatMoney(report.forecast.weighted30Cents)} attesi a 30 giorni`}
+              title={tr("La pipeline ha prossime azioni?")}
+              value={tr("{n} senza prossimo step", { n: report.forecast.openWithoutNextStep })}
+              detail={tr("{importo} attesi a 30 giorni", { importo: formatMoney(report.forecast.weighted30Cents) })}
               loading={commercial.isLoading}
               tone={report.forecast.openWithoutNextStep ? "amber" : "green"}
             />
             <FocusCard
               label="3"
-              title="Il marketing produce vendite?"
+              title={tr("Il marketing produce vendite?")}
               value={formatMoney(ads.totals.revenueCents)}
-              detail={`${ads.totals.leads} lead paid · ${ads.totals.appointments} appuntamenti · ROAS ${formatRoas(ads.totals)}`}
+              detail={tr("{lead} lead paid · {appuntamenti} appuntamenti · ROAS {roas}", { lead: ads.totals.leads, appuntamenti: ads.totals.appointments, roas: formatRoas(ads.totals) })}
               loading={ads.isLoading}
               tone={ads.totals.revenueCents > 0 ? "green" : "amber"}
             />
@@ -490,7 +504,7 @@ export function CrmSalesReportPanel({
         </div>
 
         <div className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
-          <SectionHeader icon={ListIcon} title="Da fare adesso" description="Priorità ordinate per impatto commerciale." />
+          <SectionHeader icon={ListIcon} title={tr("Da fare adesso")} description={tr("Priorità ordinate per impatto commerciale.")} />
           <div className="mt-4 space-y-3 max-sm:mt-1.5 max-sm:space-y-2">
             {loading ? (
               <>
@@ -504,8 +518,8 @@ export function CrmSalesReportPanel({
                   <div className="flex items-start gap-3 max-sm:gap-2">
                     {action.tone === "good" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
                     <div>
-                      <p className="text-sm font-semibold max-sm:text-[13px]">{action.title}</p>
-                      <p className="mt-1 text-sm leading-5 opacity-85 max-sm:mt-0.5 max-sm:text-[11px] max-sm:leading-4">{action.detail}</p>
+                      <p className="text-sm font-semibold max-sm:text-[13px]">{tr(action.title)}</p>
+                      <p className="mt-1 text-sm leading-5 opacity-85 max-sm:mt-0.5 max-sm:text-[11px] max-sm:leading-4">{action.detailKey ? tr(action.detailKey, action.detailValues) : tr(action.detail)}</p>
                     </div>
                   </div>
                 </div>
@@ -515,7 +529,7 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <CollapsibleSection icon={Trophy} title="Canali paid che generano vendite" description="Meta e Google: lead, appuntamenti, vendite e fatturato (tenuti separati)." defaultOpen={false} className="max-sm:hidden">
+      <CollapsibleSection icon={Trophy} title={tr("Canali paid che generano vendite")} description={tr("Meta e Google: lead, appuntamenti, vendite e fatturato (tenuti separati).")} defaultOpen={false} className="max-sm:hidden">
         <AdsSalesReportPanel provider="all" daysBack={adsDaysBack} compact className="border-border bg-card shadow-sm" />
       </CollapsibleSection>
     </div>
@@ -529,6 +543,8 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
     actions.push({
       title: "Prima rendi affidabile il CRM",
       detail: `${report.sync.totalIssues} collegamenti mancanti tra preventivi, opportunità e appuntamenti.`,
+      detailKey: "{n} collegamenti mancanti tra preventivi, opportunità e appuntamenti.",
+      detailValues: { n: report.sync.totalIssues },
       tone: report.sync.healthScore < 70 ? "critical" : "warning",
     });
   }
@@ -537,6 +553,8 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
     actions.push({
       title: "Assegna un prossimo step alla pipeline aperta",
       detail: `${report.forecast.openWithoutNextStep} opportunità aperte senza prossima azione.`,
+      detailKey: "{n} opportunità aperte senza prossima azione.",
+      detailValues: { n: report.forecast.openWithoutNextStep },
       tone: "warning",
     });
   }
@@ -545,6 +563,8 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
     actions.push({
       title: "Rivedi la qualità dei lead prima dei volumi",
       detail: `${report.leadQuality.poor} lead scarsi su ${report.leadQuality.total}: guarda zona, urgenza, budget e campagna.`,
+      detailKey: "{scarsi} lead scarsi su {totale}: guarda zona, urgenza, budget e campagna.",
+      detailValues: { scarsi: report.leadQuality.poor, totale: report.leadQuality.total },
       tone: "warning",
     });
   }
@@ -561,6 +581,8 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
     actions.push({
       title: "Completa margini e costi interni",
       detail: `Margine noto sul ${report.margin.coveragePct}% del fatturato.`,
+      detailKey: "Margine noto sul {percentuale}% del fatturato.",
+      detailValues: { percentuale: report.margin.coveragePct },
       tone: "info",
     });
   }
@@ -569,6 +591,8 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
     actions.push({
       title: "Non giudicare le Ads solo dal CPL",
       detail: `${adsTotals.leads} lead da Ads senza vendite: prima follow-up e preventivi, poi creatività e budget.`,
+      detailKey: "{n} lead da Ads senza vendite: prima follow-up e preventivi, poi creatività e budget.",
+      detailValues: { n: adsTotals.leads },
       tone: "warning",
     });
   }
@@ -660,15 +684,16 @@ function FocusCard({
 }
 
 function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
+  const t = useT();
   // 15/11/2026: la barra più lunga è lo stadio più grande (gli appuntamenti possono superare i
   // lead del periodo: comprendono lead arrivati prima), e un passaggio sopra il 100% non è una
   // conversione: si scrive che lo stadio comprende contatti di prima.
   const max = Math.max(conv.lead, conv.appuntamenti, conv.preventivi, conv.vinti, 1);
   const stages: Array<{ label: string; value: number; conv: number | null }> = [
     { label: "Lead", value: conv.lead, conv: null },
-    { label: "1° appuntamento", value: conv.appuntamenti, conv: conv.convLeadAppt },
-    { label: "Preventivi", value: conv.preventivi, conv: conv.convApptQuote },
-    { label: "Vendite", value: conv.vinti, conv: conv.convQuoteWon },
+    { label: t("1° appuntamento"), value: conv.appuntamenti, conv: conv.convLeadAppt },
+    { label: t("Preventivi"), value: conv.preventivi, conv: conv.convApptQuote },
+    { label: t("Vendite"), value: conv.vinti, conv: conv.convQuoteWon },
   ];
   return (
     <div className="space-y-3 max-sm:space-y-1.5">
@@ -682,12 +707,12 @@ function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
                 <span className="font-semibold text-foreground">{s.value}</span>
                 {s.conv != null && s.conv <= 100 && (
                   <span className="ml-2 text-muted-foreground/80">
-                    {s.conv}%<span className="max-sm:hidden"> dal precedente</span>
+                    {s.conv}%<span className="max-sm:hidden"> {t("dal precedente")}</span>
                   </span>
                 )}
                 {s.conv != null && s.conv > 100 && (
-                  <span className="ml-2 text-muted-foreground/80" title="Più dello stadio precedente: comprende contatti arrivati prima del periodo.">
-                    anche contatti di prima
+                  <span className="ml-2 text-muted-foreground/80" title={t("Più dello stadio precedente: comprende contatti arrivati prima del periodo.")}>
+                    {t("anche contatti di prima")}
                   </span>
                 )}
               </span>
@@ -792,6 +817,7 @@ function SectionHeader({
 }
 
 function ComparisonCard({ metric, loading, spark }: { metric: PeriodComparisonMetric; loading: boolean; spark?: number[] }) {
+  const t = useT();
   const value = metric.money ? formatMoney(metric.current) : String(metric.current);
   const delta = metric.deltaPct;
   const up = delta != null && delta >= 0;
@@ -799,10 +825,10 @@ function ComparisonCard({ metric, loading, spark }: { metric: PeriodComparisonMe
     // Telefono: nome, cifra e variazione sulla stessa riga; senza minigrafico.
     <div className="rounded-lg border border-border bg-muted/50 p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase text-muted-foreground max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{metric.label}</p>
+        <p className="text-xs font-medium uppercase text-muted-foreground max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{t(metric.label)}</p>
         {!loading && spark && spark.length >= 2 && (
           <span className="mt-0.5 shrink-0 max-sm:hidden">
-            <Tendenza valori={spark} colore={up ? "#10b981" : "#ef4444"} etichetta={`Andamento di ${metric.label}`} />
+            <Tendenza valori={spark} colore={up ? "#10b981" : "#ef4444"} etichetta={t("Andamento di {label}", { label: t(metric.label) })} />
           </span>
         )}
       </div>
@@ -812,9 +838,9 @@ function ComparisonCard({ metric, loading, spark }: { metric: PeriodComparisonMe
         <div className="max-sm:flex max-sm:items-baseline max-sm:justify-between max-sm:gap-1">
           <p className="mt-1 text-lg font-semibold text-foreground max-sm:mt-0 max-sm:truncate max-sm:text-base">{value}</p>
           {delta === null ? (
-            <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">nessun confronto</p>
+            <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">{t("nessun confronto")}</p>
           ) : (
-            <PillolaVariazione pct={delta} className="mt-1 max-sm:mt-0 max-sm:shrink-0" titolo="Rispetto al periodo di confronto" />
+            <PillolaVariazione pct={delta} className="mt-1 max-sm:mt-0 max-sm:shrink-0" titolo={t("Rispetto al periodo di confronto")} />
           )}
         </div>
       )}
@@ -852,9 +878,10 @@ function LeadSegmentTable({
   rows: Array<{ label: string; leads: number; good: number; poor: number; averageScore: number | null }>;
   loading: boolean;
 }) {
+  const t = useT();
   if (loading) return <Skeleton className="mt-3 h-28 w-full rounded-lg" />;
   if (!rows.length) {
-    return <p className="mt-3 rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">Nessun lead con score ICP/AI nel periodo.</p>;
+    return <p className="mt-3 rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">{t("Nessun lead con score ICP/AI nel periodo.")}</p>;
   }
 
   return (
@@ -862,10 +889,10 @@ function LeadSegmentTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Segmento</TableHead>
+            <TableHead>{t("Segmento")}</TableHead>
             <TableHead className="text-right">Lead</TableHead>
-            <TableHead className="text-right">Buoni</TableHead>
-            <TableHead className="text-right">Scarsi</TableHead>
+            <TableHead className="text-right">{t("Buoni")}</TableHead>
+            <TableHead className="text-right">{t("Scarsi")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -895,12 +922,13 @@ function LossReasonsList({
   perVenditore: Array<{ ownerId: string | null; count: number; valueCents: number; topReason: string }>;
   loading: boolean;
 }) {
+  const tr = useT();
   const [tutti, setTutti] = useState(false);
   const { data: staff = [] } = useCompanyStaff();
-  const nome = (id: string | null) => (id ? staff.find((s) => s.id === id)?.name || "Venditore" : "Senza venditore");
+  const nome = (id: string | null) => (id ? staff.find((s) => s.id === id)?.name || tr("Venditore") : tr("Senza venditore"));
   if (loading) return <Skeleton className="h-32 w-full rounded-lg" />;
   if (!rows.length) {
-    return <p className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">Nessun motivo di perdita registrato nel periodo.</p>;
+    return <p className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">{tr("Nessun motivo di perdita registrato nel periodo.")}</p>;
   }
 
   const totale = rows.reduce((t, r) => t + r.count, 0);
@@ -911,7 +939,7 @@ function LossReasonsList({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-medium capitalize text-foreground">{row.reason}</p>
-              <p className="text-xs text-muted-foreground">{row.count} casi{totale ? ` · ${Math.round((row.count / totale) * 100)}%` : ""}</p>
+              <p className="text-xs text-muted-foreground">{tr("{n} casi", { n: row.count })}{totale ? ` · ${Math.round((row.count / totale) * 100)}%` : ""}</p>
             </div>
             <p className="font-semibold tabular-nums text-foreground">{formatMoney(row.valueCents)}</p>
           </div>
@@ -920,12 +948,12 @@ function LossReasonsList({
       ))}
       {rows.length > 5 && (
         <button type="button" className="text-xs font-medium text-muted-foreground hover:underline" onClick={() => setTutti((v) => !v)}>
-          {tutti ? "Mostra i primi 5" : `Mostra tutti i ${rows.length} motivi`}
+          {tutti ? tr("Mostra i primi 5") : tr("Mostra tutti i {n} motivi", { n: rows.length })}
         </button>
       )}
       {perVenditore.length > 0 && (
         <div className="pt-2">
-          <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Perse per venditore</p>
+          <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Perse per venditore")}</p>
           <table className="w-full text-sm">
             <tbody>
               {perVenditore.slice(0, 8).map((v) => (
@@ -953,20 +981,21 @@ function SourceBreakdownTable({
   loading: boolean;
   onDrill?: (source: string) => void;
 }) {
+  const t = useT();
   if (loading) return <Skeleton className="h-32 w-full rounded-lg" />;
   if (!rows.length) {
-    return <p className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">Nessuna fonte con dati nel periodo.</p>;
+    return <p className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">{t("Nessuna fonte con dati nel periodo.")}</p>;
   }
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Fonte</TableHead>
+            <TableHead>{t("Fonte")}</TableHead>
             <TableHead className="text-right">Lead</TableHead>
-            <TableHead className="text-right">Vinti</TableHead>
-            <TableHead className="text-right">Fatturato</TableHead>
-            <TableHead className="text-right">Margine</TableHead>
+            <TableHead className="text-right">{t("Vinti")}</TableHead>
+            <TableHead className="text-right">{t("Fatturato")}</TableHead>
+            <TableHead className="text-right">{t("Margine")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -975,7 +1004,7 @@ function SourceBreakdownTable({
               key={row.source}
               className={onDrill ? "cursor-pointer hover:bg-muted/50" : undefined}
               onClick={onDrill ? () => onDrill(row.source) : undefined}
-              title={onDrill ? `Apri i contatti con fonte "${row.source}"` : undefined}
+              title={onDrill ? t("Apri i contatti con fonte \"{source}\"", { source: String(row.source ?? "") }) : undefined}
             >
               <TableCell className="font-medium capitalize">
                 <span className="inline-flex items-center gap-1">
@@ -1014,23 +1043,20 @@ function toneClassName(tone: "default" | "green" | "amber" | "red") {
   return "border-border";
 }
 
-function formatDays(value: number | null) {
-  return value === null ? "N/D" : `${value} giorni`;
-}
-
 function formatRoas(metrics: Pick<AdsSalesTotals, "revenueCents" | "spendCents" | "roas">) {
   if (metrics.spendCents === 0) return "N/D";
   return `${metrics.roas.toFixed(2)}x`;
 }
 
 function TrendChart({ data, metric }: { data: CommercialTrendPoint[]; metric: CommercialTrendMetric }) {
+  const t = useT();
   const meta = TREND_METRICS.find((m) => m.key === metric);
   const isMoney = !!meta?.money;
   const isPercent = !!meta?.percent;
-  const labelForMetric = meta?.label ?? "";
+  const labelForMetric = meta ? t(meta.label) : "";
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
-  const fmt = (v: number) => (isMoney ? formatMoney(v) : isPercent ? `${v}%` : v.toLocaleString("it-IT"));
+  const fmt = (v: number) => (isMoney ? formatMoney(v) : isPercent ? `${v}%` : v.toLocaleString(intlCampo()));
   // Riga sopra il grafico: punto più alto, più basso e media della metrica scelta.
   const valori = data.map((d) => ({ d, v: d[metric] })).filter((x): x is { d: CommercialTrendPoint; v: number } => typeof x.v === "number");
   const alto = valori.length ? valori.reduce((a, b) => (b.v > a.v ? b : a)) : null;
@@ -1041,9 +1067,9 @@ function TrendChart({ data, metric }: { data: CommercialTrendPoint[]; metric: Co
       {/* Senza nessun valore diverso da zero la riga direbbe tre volte «0». */}
       {alto && basso && media != null && alto.v !== 0 && (
         <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-          <StatGrafico etichetta="Più alto" valore={fmt(alto.v)} nota={alto.d.label} />
-          <StatGrafico etichetta="Più basso" valore={fmt(basso.v)} nota={basso.d.label} />
-          <StatGrafico etichetta="Media" valore={fmt(isMoney ? Math.round(media) : Math.round(media * 10) / 10)} nota={`su ${valori.length} punti`} />
+          <StatGrafico etichetta={t("Più alto")} valore={fmt(alto.v)} nota={alto.d.label} />
+          <StatGrafico etichetta={t("Più basso")} valore={fmt(basso.v)} nota={basso.d.label} />
+          <StatGrafico etichetta={t("Media")} valore={fmt(isMoney ? Math.round(media) : Math.round(media * 10) / 10)} nota={t("su {n} punti", { n: valori.length })} />
         </div>
       )}
       <div className="h-56 w-full">
@@ -1093,6 +1119,7 @@ function TrendChart({ data, metric }: { data: CommercialTrendPoint[]; metric: Co
 
 /** Riquadro scuro: il venduto del mese contro l'obiettivo mensile (se c'è). */
 function ObiettivoMese({ vintoCents, obiettivoCents }: { vintoCents: number; obiettivoCents: number }) {
+  const t = useT();
   const pct = obiettivoCents > 0 ? (vintoCents / obiettivoCents) * 100 : 0;
   const oggi = new Date();
   const fineMese = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0);
@@ -1101,18 +1128,18 @@ function ObiettivoMese({ vintoCents, obiettivoCents }: { vintoCents: number; obi
   const raggiunto = pct >= 100;
   return (
     <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">Obiettivo del mese</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{t("Obiettivo del mese")}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span className="text-3xl font-bold tabular-nums tracking-tight">{Math.round(pct)}%</span>
-        <span className="text-xs text-muted-foreground/80">{raggiunto ? "raggiunto" : `${giorniRimasti} giorni alla fine del mese`}</span>
+        <span className="text-xs text-muted-foreground/80">{raggiunto ? t("raggiunto") : t("{giorniRimasti} giorni alla fine del mese", { giorniRimasti: String(giorniRimasti ?? "") })}</span>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pct, 100))} aria-label="Obiettivo del mese">
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pct, 100))} aria-label={t("Obiettivo del mese")}>
         <div className={cn("cg-barra-cresce h-full rounded-full bg-gradient-to-r", raggiunto ? "from-emerald-400 to-teal-300" : "from-orange-400 to-amber-300")} style={{ width: `${Math.max(2, Math.min(pct, 100))}%` }} />
       </div>
       <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-        <div><dt className="text-muted-foreground/80">Venduto</dt><dd className="font-semibold tabular-nums">{formatMoneyShort(vintoCents)}</dd></div>
-        <div><dt className="text-muted-foreground/80">Obiettivo</dt><dd className="font-semibold tabular-nums">{formatMoneyShort(obiettivoCents)}</dd></div>
-        <div><dt className="text-muted-foreground/80">Manca</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? "niente" : formatMoneyShort(manca)}</dd></div>
+        <div><dt className="text-muted-foreground/80">{t("Venduto")}</dt><dd className="font-semibold tabular-nums">{formatMoneyShort(vintoCents)}</dd></div>
+        <div><dt className="text-muted-foreground/80">{t("Obiettivo")}</dt><dd className="font-semibold tabular-nums">{formatMoneyShort(obiettivoCents)}</dd></div>
+        <div><dt className="text-muted-foreground/80">{t("Manca")}</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? t("niente") : formatMoneyShort(manca)}</dd></div>
       </dl>
     </div>
   );
@@ -1163,9 +1190,18 @@ function formatMoneyShort(cents: number) {
   return `${Math.round(eur)} €`;
 }
 
-function formatMoney(cents: number) {
+/** Importi per il CSV: sempre in formato italiano, qualunque sia la lingua dell'app. */
+function formatMoneyCsv(cents: number) {
   if (!cents) return "0 €";
   return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2, useGrouping: "always" }).format(cents / 100);
+}
+
+function formatMoney(cents: number) {
+  if (!cents) return "0 €";
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: cents % 100 === 0 ? 0 : 2, useGrouping: "always" }).format(cents / 100);

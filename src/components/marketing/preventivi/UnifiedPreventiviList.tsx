@@ -46,7 +46,6 @@ import {
   Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator, Hourglass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { UnifiedFiltersSheet, type UnifiedFilters, DEFAULT_FILTERS } from "./UnifiedFiltersSheet";
 import {
@@ -78,6 +77,7 @@ import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovo
 import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import { elencaComputiPreventivo } from "@/lib/computo/editorNativo";
 import { totaleElencoComputo } from "@/lib/computo/economiaComputo";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const GraficiPreventivi = lazy(() => import("./GraficiPreventivi"));
 
@@ -157,10 +157,11 @@ function formatDateSafe(s: string | null | undefined): string {
   if (!s) return "—";
   const d = new Date(s);
   if (isNaN(d.getTime())) return "—";
-  return format(d, "d MMM yyyy", { locale: it });
+  return format(d, "d MMM yyyy", { locale: dateFnsCampo() });
 }
 
 export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () => void } = {}) {
+  const tr = useT();
   const navigate = useNavigate();
   const isMobile = useIsMobile(1024);
   // Telefono: stato, tipo e ordine in un pannello dal basso (erano una barra
@@ -211,7 +212,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         const { avvisoSchedeNonAllegate } = await import("@/lib/quotes/allegatiPreventivo");
         const { id, nonAllegate } = await duplicaPreventivo(r.id, companyId, { comeRevisione: false });
         const avviso = avvisoSchedeNonAllegate(nonAllegate);
-        if (avviso) toast.warning(`Preventivo duplicato: ${avviso.conteggio}`, { description: avviso.descrizione, duration: 10000 });
+        if (avviso) toast.warning(tr("Preventivo duplicato: {conteggio}", { conteggio: String(avviso.conteggio ?? "") }), { description: avviso.descrizione, duration: 10000 });
         vai = `/azienda/marketing/preventivi/${id}/modifica`;
       } else if (r.tipo === "serramenti") {
         const { duplicaProgetto } = await import("@/lib/serramenti/api");
@@ -223,10 +224,10 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         vai = `/azienda/marketing/fotovoltaico/${String(data)}`;
       }
       void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith("unified-prev") });
-      toast.success("Preventivo duplicato", { description: "La copia parte in bozza: aprila e adattala." });
+      toast.success(tr("Preventivo duplicato"), { description: tr("La copia parte in bozza: aprila e adattala.") });
       navigate(vai);
     } catch (e) {
-      toast.error("Duplicazione non riuscita", { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
+      toast.error(tr("Duplicazione non riuscita"), { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
     } finally {
       setInDuplicazione(null);
     }
@@ -961,7 +962,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
   const handleExportExcel = async () => {
     if (!canExportClients || !companyId) return;
     if (filtered.length === 0) {
-      toast.error("Nessun preventivo da esportare");
+      toast.error(tr("Nessun preventivo da esportare"));
       return;
     }
     setExporting(true);
@@ -1029,7 +1030,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       a.download = `preventivi-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(`Esportati ${filtered.length} preventivi`);
+      toast.success(tr("Esportati {n} preventivi", { n: filtered.length }));
     } catch (e) {
       console.error("[unified-prev] export failed", e);
       toast.error(messaggioEsportazioneNonRiuscita(e));
@@ -1067,9 +1068,9 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
     if (!riga || !companyId) return;
     const computo = riga.tipo === "computo";
     const { deleted, errors } = computo ? await eliminaComputi([riga.id], companyId, user?.id) : await spostaNelCestino([riga], companyId);
-    if (errors.length) toast.error((computo ? "Non sono riuscito a eliminarlo: " : "Non sono riuscito a spostarlo nel cestino: ") + errors[0]);
-    else if (deleted === 0) toast.warning("Non eliminato: non hai i permessi su questo preventivo. Chiedi al titolare dell'azienda di darti l'accesso.");
-    else toast.success(computo ? "Computo eliminato" : "Spostato nel cestino — recuperabile per 30 giorni");
+    if (errors.length) toast.error(computo ? tr("Non sono riuscito a eliminarlo: {errore}", { errore: String(errors[0]) }) : tr("Non sono riuscito a spostarlo nel cestino: {errore}", { errore: String(errors[0]) }));
+    else if (deleted === 0) toast.warning(tr("Non eliminato: non hai i permessi su questo preventivo. Chiedi al titolare dell'azienda di darti l'accesso."));
+    else toast.success(computo ? tr("Computo eliminato") : tr("Spostato nel cestino — recuperabile per 30 giorni"));
     void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith("unified-prev") });
   };
   const freccia = (primo: UnifiedFilters["sort"], secondo: UnifiedFilters["sort"]) =>
@@ -1087,43 +1088,43 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       {/* ─── KPI Hero 4 cards — solo desktop: su mobile i conteggi sono già nei tab
           di stato qui sotto, e quattro card di numeri piccoli occupano mezzo schermo. ─── */}
       <div className="hidden lg:grid lg:grid-cols-4 gap-2 sm:gap-3">
-        <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" attivo={statoTab === "bozza"} onClick={() => setStatoTab(statoTab === "bozza" ? "all" : "bozza")} icon={<FileText className="h-4 w-4" />} tone="slate" />
-        <KpiCard label="In corso" value={kpi.inCorsoCount} attivo={statoTab === "in_corso"} onClick={() => setStatoTab(statoTab === "in_corso" ? "all" : "in_corso")} hint={[kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in trattativa` : "nessuna pipeline", conteggiVista.in_scadenza > 0 ? `${conteggiVista.in_scadenza} in scadenza` : null].filter(Boolean).join(" · ")} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
-        <KpiCard label="Vinte" value={kpi.vintaCount} attivo={statoTab === "vinto"} onClick={() => setStatoTab(statoTab === "vinto" ? "all" : "vinto")} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% delle chiuse` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
-        <KpiCard label="Ricavo firmato" value={importoKpi(kpi.ricavoVinte)} titolo={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
+        <KpiCard label={tr("Bozze")} value={kpi.bozzeCount} hint={tr("da completare")} attivo={statoTab === "bozza"} onClick={() => setStatoTab(statoTab === "bozza" ? "all" : "bozza")} icon={<FileText className="h-4 w-4" />} tone="slate" />
+        <KpiCard label={tr("In corso")} value={kpi.inCorsoCount} attivo={statoTab === "in_corso"} onClick={() => setStatoTab(statoTab === "in_corso" ? "all" : "in_corso")} hint={[kpi.pipeline > 0 ? tr("{importo} in trattativa", { importo: formatCurrency(kpi.pipeline) }) : tr("nessuna pipeline"), conteggiVista.in_scadenza > 0 ? tr("{n} in scadenza", { n: conteggiVista.in_scadenza }) : null].filter(Boolean).join(" · ")} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
+        <KpiCard label={tr("Vinte")} value={kpi.vintaCount} attivo={statoTab === "vinto"} onClick={() => setStatoTab(statoTab === "vinto" ? "all" : "vinto")} hint={kpi.tassoConv !== null ? tr("{tassoConv}% delle chiuse", { tassoConv: String(kpi.tassoConv ?? "") }) : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
+        <KpiCard label={tr("Ricavo firmato")} value={importoKpi(kpi.ricavoVinte)} titolo={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? tr("ticket medio {ticketMedio}", { ticketMedio: formatCurrency(kpi.ticketMedio) }) : tr("nessuna firmata")} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
 
       {!isMobile && <details className="rounded-xl border bg-card" onToggle={event => setInsightsOpen(event.currentTarget.open)}>
-        <summary className="cursor-pointer rounded-xl px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Andamento e statistiche dei preventivi</summary>
+        <summary className="cursor-pointer rounded-xl px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{tr("Andamento e statistiche dei preventivi")}</summary>
         {insightsOpen && <div className="space-y-4 px-4 pb-4">
       {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
           sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
       {!isMobile && (
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-eic-navy to-[#2C5184] p-4 sm:p-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label="Tasso conversione" value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? `${kpi.vintaCount}/${kpi.vintaCount + kpi.persoCount} con risposta` : undefined} />
-          <AdvKpi icon={<TrendingUp className="h-4 w-4 text-orange-300" />} label="Pipeline attiva" value={formatCurrency(kpi.pipeline)} hint={`${kpi.inCorsoCount} offert${kpi.inCorsoCount === 1 ? "a" : "e"}`} />
-          <AdvKpi icon={<FileText className="h-4 w-4 text-orange-300" />} label="Valore medio" value={formatCurrency(kpi.valoreMedio)} hint={`su ${kpi.total - kpi.bozzeCount} offert${kpi.total - kpi.bozzeCount === 1 ? "a" : "e"}`} />
-          <AdvKpi icon={<Clock className="h-4 w-4 text-orange-300" />} label="Cross-modulo" value={`${allRows.length}`} hint={[
-            quotesData.length > 0 ? `${quotesData.length} classici` : null,
-            serramentiData.length > 0 ? `${serramentiData.length} serramenti` : null,
-            fvData.length > 0 ? `${fvData.length} fotovoltaico` : null,
-            ristrutturazioneData.length > 0 ? `${ristrutturazioneData.length} ristrutturazione` : null,
-            bagniData.length > 0 ? `${bagniData.length} bagni` : null,
-            tettiData.length > 0 ? `${tettiData.length} tetti` : null,
-            climatizzazioneData.length > 0 ? `${climatizzazioneData.length} climatizzazione` : null,
-            elettricoData.length > 0 ? `${elettricoData.length} elettrico` : null,
-            termoidraulicoData.length > 0 ? `${termoidraulicoData.length} termoidraulico` : null,
-            pavimentiData.length > 0 ? `${pavimentiData.length} pavimenti` : null,
-            piscineData.length > 0 ? `${piscineData.length} piscine` : null,
-          ].filter(Boolean).join(" · ") || "totale preventivi"} />
+          <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label={tr("Tasso conversione")} value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? tr("{vintaCount}/{vintaCount2} con risposta", { vintaCount: String(kpi.vintaCount ?? ""), vintaCount2: kpi.vintaCount + kpi.persoCount }) : undefined} />
+          <AdvKpi icon={<TrendingUp className="h-4 w-4 text-orange-300" />} label={tr("Pipeline attiva")} value={formatCurrency(kpi.pipeline)} hint={tr(kpi.inCorsoCount === 1 ? "{n} offerta" : "{n} offerte", { n: kpi.inCorsoCount })} />
+          <AdvKpi icon={<FileText className="h-4 w-4 text-orange-300" />} label={tr("Valore medio")} value={formatCurrency(kpi.valoreMedio)} hint={tr(kpi.total - kpi.bozzeCount === 1 ? "su {n} offerta" : "su {n} offerte", { n: kpi.total - kpi.bozzeCount })} />
+          <AdvKpi icon={<Clock className="h-4 w-4 text-orange-300" />} label={tr("Cross-modulo")} value={`${allRows.length}`} hint={[
+            quotesData.length > 0 ? tr("{n} classici", { n: quotesData.length }) : null,
+            serramentiData.length > 0 ? tr("{n} serramenti", { n: serramentiData.length }) : null,
+            fvData.length > 0 ? tr("{n} fotovoltaico", { n: fvData.length }) : null,
+            ristrutturazioneData.length > 0 ? tr("{n} ristrutturazione", { n: ristrutturazioneData.length }) : null,
+            bagniData.length > 0 ? tr("{n} bagni", { n: bagniData.length }) : null,
+            tettiData.length > 0 ? tr("{n} tetti", { n: tettiData.length }) : null,
+            climatizzazioneData.length > 0 ? tr("{n} climatizzazione", { n: climatizzazioneData.length }) : null,
+            elettricoData.length > 0 ? tr("{n} elettrico", { n: elettricoData.length }) : null,
+            termoidraulicoData.length > 0 ? tr("{n} termoidraulico", { n: termoidraulicoData.length }) : null,
+            pavimentiData.length > 0 ? tr("{n} pavimenti", { n: pavimentiData.length }) : null,
+            piscineData.length > 0 ? tr("{n} piscine", { n: piscineData.length }) : null,
+          ].filter(Boolean).join(" · ") || tr("totale preventivi")} />
         </div>
       </div>
       )}
 
-      <Suspense fallback={<p role="status" className="flex h-48 items-center justify-center text-sm text-muted-foreground">Caricamento dei grafici…</p>}>
+      <Suspense fallback={<p role="status" className="flex h-48 items-center justify-center text-sm text-muted-foreground">{tr("Caricamento dei grafici…")}</p>}>
         <GraficiPreventivi righe={allRows} ricavoFirmato={kpi.ricavoVinte} distribuzione={tipiConteggio.map(({ tipo, n }) => ({
-          name: TIPO_LABEL[tipo].label,
+          name: tr(TIPO_LABEL[tipo].label),
           color: TIPO_LABEL[tipo].color,
           value: n,
         }))} />
@@ -1137,7 +1138,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         className="lg:hidden [&_input]:h-11 [&_input]:text-base [&_button]:h-11 [&_button]:w-11"
         valore={search}
         onCambia={setSearch}
-        segnaposto="Cerca preventivi"
+        segnaposto={tr("Cerca preventivi")}
         filtriAttivi={filtriMobileAttivi}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
@@ -1149,37 +1150,37 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         risultati={isLoading ? undefined : filtered.length}
       >
         <GruppoFiltri>
-          <SceltaFiltro<UnifiedStato | "all"> titolo="Stato" valore={statoTab} onScegli={setStatoTab} scelte={[
-            { value: "all", label: "Tutti" },
-            { value: "bozza", label: "Bozze" },
-            { value: "in_corso", label: "In corso" },
-            { value: "vinto", label: "Vinti" },
-            { value: "perso", label: "Persi" },
-            ...(tabCounts.altro > 0 || statoTab === "altro" ? [{ value: "altro" as const, label: "Altri" }] : []),
+          <SceltaFiltro<UnifiedStato | "all"> titolo={tr("Stato")} valore={statoTab} onScegli={setStatoTab} scelte={[
+            { value: "all", label: tr("Tutti") },
+            { value: "bozza", label: tr("Bozze") },
+            { value: "in_corso", label: tr("In corso") },
+            { value: "vinto", label: tr("Vinti") },
+            { value: "perso", label: tr("Persi") },
+            ...(tabCounts.altro > 0 || statoTab === "altro" ? [{ value: "altro" as const, label: tr("Altri") }] : []),
           ]} />
-          <SceltaFiltro<VistaElenco> titolo="Da fare" valore={vista} onScegli={setVista} scelte={[
-            { value: "tutte", label: "Tutti" },
-            { value: "da_seguire", label: "Da seguire" },
-            { value: "in_scadenza", label: "In scadenza" },
-            { value: "bozze_vuote", label: "Bozze vuote" },
+          <SceltaFiltro<VistaElenco> titolo={tr("Da fare")} valore={vista} onScegli={setVista} scelte={[
+            { value: "tutte", label: tr("Tutti") },
+            { value: "da_seguire", label: tr("Da seguire") },
+            { value: "in_scadenza", label: tr("In scadenza") },
+            { value: "bozze_vuote", label: tr("Bozze vuote") },
           ]} />
-          <DettaglioFiltri titolo="Altri filtri" riepilogo={advancedFiltersCount ? String(advancedFiltersCount) : undefined}>
+          <DettaglioFiltri titolo={tr("Altri filtri")} riepilogo={advancedFiltersCount ? String(advancedFiltersCount) : undefined}>
             {(tipiPresenti.length > 1 || filters.tipi.length > 0) && (
-              <SceltaFiltro titolo="Tipo" valore={filters.tipi.length > 1 ? "multipli" : filters.tipi[0] ?? "tutti"}
+              <SceltaFiltro titolo={tr("Tipo")} valore={filters.tipi.length > 1 ? "multipli" : filters.tipi[0] ?? "tutti"}
                 onScegli={v => {
                   if (v !== "multipli") setFilters(f => ({ ...f, tipi: v === "tutti" ? [] : [v] }));
                 }}
                 scelte={[
-                  { value: "tutti", label: "Tutti" },
-                  ...(filters.tipi.length > 1 ? [{ value: "multipli" as const, label: `${filters.tipi.length} selezionati` }] : []),
-                  ...Array.from(new Set([...tipiPresenti, ...filters.tipi])).map(t => ({ value: t, label: TIPO_LABEL[t].label })),
+                  { value: "tutti", label: tr("Tutti") },
+                  ...(filters.tipi.length > 1 ? [{ value: "multipli" as const, label: tr("{n} selezionati", { n: filters.tipi.length }) }] : []),
+                  ...Array.from(new Set([...tipiPresenti, ...filters.tipi])).map(t => ({ value: t, label: tr(TIPO_LABEL[t].label) })),
                 ]} />
             )}
-            <SceltaFiltro titolo="Ordine" valore={filters.sort} onScegli={v => setFilters(f => ({ ...f, sort: v }))}
-              scelte={(Object.keys(SORT_LABEL) as UnifiedFilters["sort"][]).map(value => ({ value, label: SORT_LABEL[value] }))} />
+            <SceltaFiltro titolo={tr("Ordine")} valore={filters.sort} onScegli={v => setFilters(f => ({ ...f, sort: v }))}
+              scelte={(Object.keys(SORT_LABEL) as UnifiedFilters["sort"][]).map(value => ({ value, label: tr(SORT_LABEL[value]) }))} />
             <button type="button" className="min-h-12 w-full px-3 text-left text-sm font-medium text-primary hover:bg-muted/40"
               onClick={() => { setFiltriMobileAperti(false); setFiltersOpen(true); }}>
-              Filtri avanzati
+              {tr("Filtri avanzati")}
             </button>
           </DettaglioFiltri>
         </GruppoFiltri>
@@ -1191,15 +1192,15 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
           <div className="relative flex-1 min-w-[140px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Cerca per numero, cliente, P.IVA o commerciale…"
+              placeholder={tr("Cerca per numero, cliente, P.IVA o commerciale…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-9"
             />
           </div>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setFiltersOpen(true)} aria-label="Filtri">
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setFiltersOpen(true)} aria-label={tr("Filtri")}>
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Filtri</span>
+            <span className="hidden sm:inline">{tr("Filtri")}</span>
             {advancedFiltersCount > 0 && (
               <Badge className="ml-1 h-5 px-1.5 bg-orange-500 hover:bg-orange-500 text-[10px]">
                 {advancedFiltersCount}
@@ -1213,25 +1214,25 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
             variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3"
             onClick={handleExportExcel}
             disabled={exporting || filtered.length === 0}
-            aria-label="Esporta Excel"
+            aria-label={tr("Esporta Excel")}
           >
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Excel</span>
           </Button>
           )}
-          {onApriCestino && <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={onApriCestino} aria-label="Cestino">
+          {onApriCestino && <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={onApriCestino} aria-label={tr("Cestino")}>
             <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Cestino</span>
+            <span className="hidden sm:inline">{tr("Cestino")}</span>
           </Button>}
           {hasAnyFilter && (
-            <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1 px-2.5" aria-label="Azzera filtri">
-              <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Azzera</span>
+            <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1 px-2.5" aria-label={tr("Azzera filtri")}>
+              <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{tr("Azzera")}</span>
             </Button>
           )}
-          <span className="text-xs text-muted-foreground ml-auto tabular-nums" title={filtered.length !== allRows.length && valoreFiltrati > 0 ? `Valore dei ${filtered.length} preventivi mostrati: ${formatCurrency(valoreFiltrati)}` : undefined}>
+          <span className="text-xs text-muted-foreground ml-auto tabular-nums" title={filtered.length !== allRows.length && valoreFiltrati > 0 ? tr("Valore dei {n} preventivi mostrati: {valoreFiltrati}", { n: filtered.length, valoreFiltrati: formatCurrency(valoreFiltrati) }) : undefined}>
             {filtered.length === allRows.length
-              ? `${allRows.length} preventivi`
-              : `${filtered.length} di ${allRows.length} preventivi`}
+              ? tr("{n} preventivi", { n: allRows.length })
+              : tr("{n} di {n2} preventivi", { n: filtered.length, n2: allRows.length })}
             {/* Con un filtro acceso, quanto valgono i preventivi che si stanno guardando (31/10/2026). */}
             {filtered.length !== allRows.length && valoreFiltrati > 0 && <> · <b className="font-semibold text-slate-700">{importoKpi(valoreFiltrati)}</b></>}
           </span>
@@ -1242,64 +1243,64 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       {advancedFiltersCount > 0 && (
         <div className="flex flex-wrap gap-1.5 max-lg:hidden">
           {filters.tipi.length > 0 && (
-            <FilterChip label={`Tipi: ${filters.tipi.map((t) => TIPO_LABEL[t].label).join(", ")}`} onClear={() => setFilters({ ...filters, tipi: [] })} />
+            <FilterChip label={tr("Tipi: {elenco}", { elenco: filters.tipi.map((t) => tr(TIPO_LABEL[t].label)).join(", ") })} onClear={() => setFilters({ ...filters, tipi: [] })} />
           )}
           {filters.commercialeId !== "all" && (
             <FilterChip
-              label={`Comm: ${filters.commercialeId === "none" ? "non assegnato" : commercialeNameById.get(filters.commercialeId) ?? "—"}`}
+              label={tr("Comm: {nome}", { nome: filters.commercialeId === "none" ? tr("non assegnato") : commercialeNameById.get(filters.commercialeId) ?? "—" })}
               onClear={() => setFilters({ ...filters, commercialeId: "all" })}
             />
           )}
           {filters.stati.length > 0 && (
-            <FilterChip label={`Stati: ${filters.stati.map((s) => STATO_UNIF_LABEL[s].label).join(", ")}`} onClear={() => setFilters({ ...filters, stati: [] })} />
+            <FilterChip label={tr("Stati: {elenco}", { elenco: filters.stati.map((s) => tr(STATO_UNIF_LABEL[s].label)).join(", ") })} onClear={() => setFilters({ ...filters, stati: [] })} />
           )}
-          {filters.importoMin !== "" && <FilterChip label={`Min: €${filters.importoMin}`} onClear={() => setFilters({ ...filters, importoMin: "" })} />}
-          {filters.importoMax !== "" && <FilterChip label={`Max: €${filters.importoMax}`} onClear={() => setFilters({ ...filters, importoMax: "" })} />}
-          {filters.dateFrom !== "" && <FilterChip label={`Da: ${filters.dateFrom}`} onClear={() => setFilters({ ...filters, dateFrom: "" })} />}
-          {filters.dateTo !== "" && <FilterChip label={`A: ${filters.dateTo}`} onClear={() => setFilters({ ...filters, dateTo: "" })} />}
-          {filters.sort !== "recent" && <FilterChip label={`Ordine: ${SORT_LABEL[filters.sort]}`} onClear={() => setFilters({ ...filters, sort: "recent" })} />}
+          {filters.importoMin !== "" && <FilterChip label={tr("Min: €{importoMin}", { importoMin: String(filters.importoMin ?? "") })} onClear={() => setFilters({ ...filters, importoMin: "" })} />}
+          {filters.importoMax !== "" && <FilterChip label={tr("Max: €{importoMax}", { importoMax: String(filters.importoMax ?? "") })} onClear={() => setFilters({ ...filters, importoMax: "" })} />}
+          {filters.dateFrom !== "" && <FilterChip label={tr("Da: {fonti}", { fonti: String(filters.dateFrom ?? "") })} onClear={() => setFilters({ ...filters, dateFrom: "" })} />}
+          {filters.dateTo !== "" && <FilterChip label={tr("A: {data}", { data: filters.dateTo })} onClear={() => setFilters({ ...filters, dateTo: "" })} />}
+          {filters.sort !== "recent" && <FilterChip label={tr("Ordine: {prezzo}", { prezzo: tr(SORT_LABEL[filters.sort]) })} onClear={() => setFilters({ ...filters, sort: "recent" })} />}
         </div>
       )}
 
       {/* ─── Sub-tab stati (telefono: nel pannello dei filtri) ─── */}
       <div className="flex items-center gap-1 overflow-x-auto pb-px max-lg:hidden">
-        <StatoTab label="Tutti" count={tabCounts.all} active={statoTab === "all"} onClick={() => setStatoTab("all")} />
-        <StatoTab label="Bozze" count={tabCounts.bozza} active={statoTab === "bozza"} onClick={() => setStatoTab("bozza")} tone="slate" />
-        <StatoTab label="In corso" count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
-        <StatoTab label="Vinte" count={tabCounts.vinto} active={statoTab === "vinto"} onClick={() => setStatoTab("vinto")} tone="emerald" />
-        <StatoTab label="Perse" count={tabCounts.perso} active={statoTab === "perso"} onClick={() => setStatoTab("perso")} tone="rose" />
+        <StatoTab label={tr("Tutti")} count={tabCounts.all} active={statoTab === "all"} onClick={() => setStatoTab("all")} />
+        <StatoTab label={tr("Bozze")} count={tabCounts.bozza} active={statoTab === "bozza"} onClick={() => setStatoTab("bozza")} tone="slate" />
+        <StatoTab label={tr("In corso")} count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
+        <StatoTab label={tr("Vinte")} count={tabCounts.vinto} active={statoTab === "vinto"} onClick={() => setStatoTab("vinto")} tone="emerald" />
+        <StatoTab label={tr("Perse")} count={tabCounts.perso} active={statoTab === "perso"} onClick={() => setStatoTab("perso")} tone="rose" />
         {tabCounts.altro > 0 && (
-          <StatoTab label="Altre" count={tabCounts.altro} active={statoTab === "altro"} onClick={() => setStatoTab("altro")} />
+          <StatoTab label={tr("Altre")} count={tabCounts.altro} active={statoTab === "altro"} onClick={() => setStatoTab("altro")} />
         )}
       </div>
 
       {/* ─── Viste rapide e tipi: un clic invece di aprire il pannello filtri ─── */}
-      <div className="flex flex-wrap items-center gap-1.5 max-lg:hidden" aria-label="Viste rapide">
+      <div className="flex flex-wrap items-center gap-1.5 max-lg:hidden" aria-label={tr("Viste rapide")}>
         <VistaChip
           attiva={vista === "da_seguire"}
           onClick={() => setVista(vista === "da_seguire" ? "tutte" : "da_seguire")}
           icon={<AlertTriangle className="h-3 w-3" />}
-          label={`Da seguire`}
+          label={tr("Da seguire")}
           n={conteggiVista.da_seguire}
-          titolo={`Preventivi in corso fermi da almeno ${GIORNI_DA_SEGUIRE} giorni`}
+          titolo={tr("Preventivi in corso fermi da almeno {GIORNI_DA_SEGUIRE} giorni", { GIORNI_DA_SEGUIRE: String(GIORNI_DA_SEGUIRE ?? "") })}
           tono="amber"
         />
         {(conteggiVista.in_scadenza > 0 || vista === "in_scadenza") && <VistaChip
           attiva={vista === "in_scadenza"}
           onClick={() => setVista(vista === "in_scadenza" ? "tutte" : "in_scadenza")}
           icon={<Hourglass className="h-3 w-3" />}
-          label="In scadenza"
+          label={tr("In scadenza")}
           n={conteggiVista.in_scadenza}
-          titolo={`Preventivi in corso che scadono entro ${GIORNI_IN_SCADENZA} giorni o sono già scaduti: da richiamare prima che decadano`}
+          titolo={tr("Preventivi in corso che scadono entro {GIORNI_IN_SCADENZA} giorni o sono già scaduti: da richiamare prima che decadano", { GIORNI_IN_SCADENZA: String(GIORNI_IN_SCADENZA ?? "") })}
           tono="amber"
         />}
         <VistaChip
           attiva={vista === "bozze_vuote"}
           onClick={() => setVista(vista === "bozze_vuote" ? "tutte" : "bozze_vuote")}
           icon={<FileX2 className="h-3 w-3" />}
-          label="Bozze vuote"
+          label={tr("Bozze vuote")}
           n={conteggiVista.bozze_vuote}
-          titolo="Bozze senza importo: spesso tentativi abbandonati"
+          titolo={tr("Bozze senza importo: spesso tentativi abbandonati")}
           tono="slate"
         />
         {tipiConteggio.length > 1 && <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />}
@@ -1317,7 +1318,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                 attivo ? cfg.className + " ring-1 ring-current" : "bg-background text-muted-foreground hover:bg-muted",
               )}
             >
-              <cfg.Icon className="h-3 w-3" /> {cfg.label}
+              <cfg.Icon className="h-3 w-3" /> {tr(cfg.label)}
               <span className="tabular-nums opacity-70">{n}</span>
             </button>
           );
@@ -1329,7 +1330,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
             onClick={() => sel.toggleAll(bozzeVuoteVisibili.map((r) => `${r.tipo}:${r.id}`))}
           >
             <Trash2 className="h-3 w-3" />
-            {bozzeVuoteVisibili.every((r) => sel.isSelected(`${r.tipo}:${r.id}`)) ? "Deseleziona" : "Seleziona"} le {bozzeVuoteVisibili.length} bozze vuote
+            {tr(bozzeVuoteVisibili.every((r) => sel.isSelected(`${r.tipo}:${r.id}`)) ? "Deseleziona le {n} bozze vuote" : "Seleziona le {n} bozze vuote", { n: bozzeVuoteVisibili.length })}
           </Button>
         )}
       </div>
@@ -1346,21 +1347,21 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
           ) : allRows.length === 0 ? (
             <div className="p-10 text-center max-lg:p-5">
               <Inbox className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-lg:hidden" />
-              <p className="text-sm font-medium">Nessun preventivo ancora</p>
+              <p className="text-sm font-medium">{tr("Nessun preventivo ancora")}</p>
               <p className="text-xs text-muted-foreground mt-1 max-lg:hidden">
-                Crea il primo preventivo dal bottone in alto.
+                {tr("Crea il primo preventivo dal bottone in alto.")}
               </p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center max-lg:p-5">
               <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-lg:hidden" />
-              <p className="text-sm font-medium">Nessun risultato con i filtri attuali</p>
+              <p className="text-sm font-medium">{tr("Nessun risultato con i filtri attuali")}</p>
               <div className="flex gap-2 justify-center mt-3">
                 <Button variant="outline" size="sm" onClick={() => isMobile ? setFiltriMobileAperti(true) : setFiltersOpen(true)} className="text-xs gap-1">
-                  <SlidersHorizontal className="h-3.5 w-3.5" /> Modifica filtri
+                  <SlidersHorizontal className="h-3.5 w-3.5" /> {tr("Modifica filtri")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={reset} className="text-xs gap-1">
-                  <X className="h-3.5 w-3.5" /> Azzera tutto
+                  <X className="h-3.5 w-3.5" /> {tr("Azzera tutto")}
                 </Button>
               </div>
             </div>
@@ -1383,25 +1384,25 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                         <Checkbox
                           checked={pageRows.length > 0 && pageRows.every((r) => sel.isSelected(`${r.tipo}:${r.id}`))}
                           onCheckedChange={() => sel.toggleAll(pageRows.map((r) => `${r.tipo}:${r.id}`))}
-                          aria-label="Seleziona pagina"
+                          aria-label={tr("Seleziona pagina")}
                         />
                       </TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("code_asc","code_desc")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("code_asc", "code_desc")}>Numero{freccia("code_asc","code_desc")}</button>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("code_asc", "code_desc")}>{tr("Numero")}{freccia("code_asc","code_desc")}</button>
                       </TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("client_asc","client_desc")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("client_asc", "client_desc")}>Cliente{freccia("client_asc","client_desc")}</button>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("client_asc", "client_desc")}>{tr("Cliente")}{freccia("client_asc","client_desc")}</button>
                       </TableHead>
-                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">Tipo</TableHead>
-                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">Commerciale</TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Stato</TableHead>
+                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">{tr("Tipo")}</TableHead>
+                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">{tr("Commerciale")}</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">{tr("Stato")}</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right" aria-sort={ordinaAria("value_desc","value_asc")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("value_desc", "value_asc")}>Totale{freccia("value_desc","value_asc")}</button>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("value_desc", "value_asc")}>{tr("Totale")}{freccia("value_desc","value_asc")}</button>
                       </TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("recent","oldest")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("recent", "oldest")}>Aggiornato{freccia("recent","oldest")}</button>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("recent", "oldest")}>{tr("Aggiornato")}{freccia("recent","oldest")}</button>
                       </TableHead>
-                      <TableHead className="w-10"><span className="sr-only">Azioni</span></TableHead>
+                      <TableHead className="w-10"><span className="sr-only">{tr("Azioni")}</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1419,12 +1420,12 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                             <Checkbox
                               checked={sel.isSelected(`${r.tipo}:${r.id}`)}
                               onCheckedChange={() => sel.toggle(`${r.tipo}:${r.id}`)}
-                              aria-label="Seleziona riga"
+                              aria-label={tr("Seleziona riga")}
                             />
                           </TableCell>
                           <TableCell className="max-w-[220px]">
                             {/* Sotto i 1280 px la colonna Tipo non c'è (la tabella usciva di lato): il tipo è l'icona accanto al numero. */}
-                            <span className={cn("mr-1.5 inline-flex rounded border p-0.5 align-[-3px] xl:hidden", tipoCfg.className)} title={tipoCfg.label} aria-label={tipoCfg.label}>
+                            <span className={cn("mr-1.5 inline-flex rounded border p-0.5 align-[-3px] xl:hidden", tipoCfg.className)} title={tr(tipoCfg.label)} aria-label={tr(tipoCfg.label)}>
                               <TipoIcon className="h-3 w-3" />
                             </span>
                             <span className="font-mono text-xs font-semibold text-orange-600">{r.numero}</span>
@@ -1433,7 +1434,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                           <TableCell className="text-xs font-medium text-slate-900 max-w-[180px] truncate 2xl:max-w-[260px]" title={r.cliente}>{r.cliente}</TableCell>
                           <TableCell className="hidden xl:table-cell">
                             <Badge variant="outline" className={cn("text-[10px] font-medium gap-1", tipoCfg.className)}>
-                              <TipoIcon className="h-3 w-3" /> {tipoCfg.label}
+                              <TipoIcon className="h-3 w-3" /> {tr(tipoCfg.label)}
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden text-xs text-slate-600 max-w-[140px] truncate xl:table-cell">
@@ -1441,24 +1442,22 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn("text-[10px] font-medium", statoCfg.className)}>
-                              {statoCfg.label}
+                              {tr(statoCfg.label)}
                             </Badge>
                             {eDaSeguire(r, adessoElenco) && (
-                              <p className="mt-0.5 whitespace-nowrap text-[10px] font-medium text-amber-700">
-                                Fermo da {giorniDa(r.data, adessoElenco)} giorni
-                              </p>
+                              <p className="mt-0.5 whitespace-nowrap text-[10px] font-medium text-amber-700">{tr("Fermo da {n} giorni", { n: giorniDa(r.data, adessoElenco) ?? "" })}</p>
                             )}
-                            {eBozzaVuota(r) && <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">Da completare</p>}
+                            {eBozzaVuota(r) && <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">{tr("Da completare")}</p>}
                             {r.stato_unif === "in_corso" && etichettaScadenza(r, adessoElenco) && (
                               <p className={cn("mt-0.5 whitespace-nowrap text-[10px] font-medium",
                                 (giorniAllaScadenza(r, adessoElenco) ?? 99) < 0 ? "text-rose-700" : eInScadenza(r, adessoElenco) ? "text-amber-700" : "text-muted-foreground")}
-                                title={r.scadenza ? `Offerta valida fino al ${formatDateSafe(r.scadenza)}` : undefined}>
+                                title={r.scadenza ? tr("Offerta valida fino al {scadenza}", { scadenza: formatDateSafe(r.scadenza) }) : undefined}>
                                 {etichettaScadenza(r, adessoElenco)}
                               </p>
                             )}
                             {r.stato_unif === "in_corso" && r.tipo === "classico" && (
-                              <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground" title={r.apertoIl ? `Aperto dal cliente il ${formatDateSafe(r.apertoIl)}` : undefined}>
-                                {r.apertoIl ? `aperto ${etichettaEta(r.apertoIl, adessoElenco)}` : "non ancora aperto"}
+                              <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground" title={r.apertoIl ? tr("Aperto dal cliente il {apertoIl}", { apertoIl: formatDateSafe(r.apertoIl) }) : undefined}>
+                                {r.apertoIl ? tr("aperto {apertoIl}", { apertoIl: String(etichettaEta(r.apertoIl, adessoElenco) ?? "") }) : tr("non ancora aperto")}
                               </p>
                             )}
                           </TableCell>
@@ -1471,26 +1470,26 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                           <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Azioni per ${r.numero}`}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={tr("Azioni per {nome}", { nome: String(r.numero ?? "") })}>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => navigate(r.href)}>
-                                  <ChevronRight className="mr-2 h-3.5 w-3.5" /> Apri
+                                  <ChevronRight className="mr-2 h-3.5 w-3.5" /> {tr("Apri")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => window.open(r.href, "_blank", "noopener,noreferrer")}>
-                                  <ExternalLink className="mr-2 h-3.5 w-3.5" /> Apri in una nuova scheda
+                                  <ExternalLink className="mr-2 h-3.5 w-3.5" /> {tr("Apri in una nuova scheda")}
                                 </DropdownMenuItem>
                                 {sapDuplicare(r) && (
                                   <DropdownMenuItem disabled={inDuplicazione === r.id} onClick={() => void duplica(r)}>
-                                    <Copy className="mr-2 h-3.5 w-3.5" /> {inDuplicazione === r.id ? "Duplico…" : "Duplica"}
+                                    <Copy className="mr-2 h-3.5 w-3.5" /> {inDuplicazione === r.id ? tr("Duplico…") : tr("Duplica")}
                                   </DropdownMenuItem>
                                 )}
                                 {puoEliminare && <DropdownMenuSeparator />}
                                 {puoEliminare && (
                                   <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDaCestinare(r)}>
-                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> {r.tipo === "computo" ? "Elimina" : "Sposta nel cestino"}
+                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> {r.tipo === "computo" ? tr("Elimina") : tr("Sposta nel cestino")}
                                   </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
@@ -1524,7 +1523,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                       <Checkbox
                         checked={sel.isSelected(`${r.tipo}:${r.id}`)}
                         onCheckedChange={() => sel.toggle(`${r.tipo}:${r.id}`)}
-                        aria-label={`Seleziona ${r.numero}`}
+                        aria-label={tr("Seleziona {nome}", { nome: String(r.numero ?? "") })}
                       />
                     </label>
                     <div className="min-w-0 flex-1"><RigaMobile
@@ -1533,20 +1532,20 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                       titolo={senzaCliente ? r.numero : r.cliente}
                       sottotitolo={[senzaCliente ? null : r.numero,
                         eInScadenza(r, adessoElenco) ? etichettaScadenza(r, adessoElenco) : null,
-                        r.titolo && r.titolo !== r.cliente ? r.titolo : tipoCfg.label].filter(Boolean).join(" · ")}
+                        r.titolo && r.titolo !== r.cliente ? r.titolo : tr(tipoCfg.label)].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
-                      stato={<span className={coloreStato}>{statoCfg.label}</span>}
+                      stato={<span className={coloreStato}>{tr(statoCfg.label)}</span>}
                     /></div>
                     {r.tipo === "ristrutturazione" && canEditPreventivi && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label={`Altre azioni per ${r.numero}`}>
+                          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label={tr("Altre azioni per {nome}", { nome: String(r.numero ?? "") })}>
                             <MoreHorizontal aria-hidden="true" className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem className="min-h-11" disabled={inDuplicazione === r.id} onSelect={() => void duplica(r)}>
-                            <Copy className="mr-2 size-4" /> Duplica preventivo
+                            <Copy className="mr-2 size-4" /> {tr("Duplica preventivo")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1558,19 +1557,17 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between gap-2 p-3 border-t bg-slate-50/40">
-                  <span className="text-xs text-muted-foreground">
-                    {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} di {filtered.length}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{tr("{da}–{a} di {totale}", { da: (currentPage - 1) * PAGE_SIZE + 1, a: Math.min(currentPage * PAGE_SIZE, filtered.length), totale: filtered.length })}</span>
                   <div className="flex items-center gap-1">
                     <Button variant="outline" size="sm" className="h-11 w-11 p-0"
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1} aria-label="Pagina precedente">
+                      disabled={currentPage === 1} aria-label={tr("Pagina precedente")}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="text-xs px-2 tabular-nums">Pag {currentPage} / {totalPages}</span>
+                    <span className="text-xs px-2 tabular-nums">{tr("Pag {currentPage} / {totalPages}", { currentPage: String(currentPage ?? ""), totalPages: String(totalPages ?? "") })}</span>
                     <Button variant="outline" size="sm" className="h-11 w-11 p-0"
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages} aria-label="Pagina successiva">
+                      disabled={currentPage === totalPages} aria-label={tr("Pagina successiva")}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -1584,17 +1581,17 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       <AlertDialog open={!!daCestinare} onOpenChange={(o) => { if (!o) setDaCestinare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{daCestinare?.tipo === "computo" ? `Elimina il computo ${daCestinare?.titolo ?? ""}` : `Sposta ${daCestinare?.numero} nel cestino`}</AlertDialogTitle>
+            <AlertDialogTitle>{daCestinare?.tipo === "computo" ? tr("Elimina il computo {titolo}", { titolo: daCestinare?.titolo ?? "" }) : tr("Sposta {numero} nel cestino", { numero: String(daCestinare?.numero ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
               {daCestinare?.tipo === "computo"
-                ? "I computi non hanno il cestino: si elimina definitivamente e non si recupera. Il preventivo firmato, se c'è, resta."
-                : "Sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni. Dopo, l'eliminazione è definitiva."}
+                ? tr("I computi non hanno il cestino: si elimina definitivamente e non si recupera. Il preventivo firmato, se c'è, resta.")
+                : tr("Sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni. Dopo, l'eliminazione è definitiva.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={cestinaSingolo} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {daCestinare?.tipo === "computo" ? "Elimina" : "Sposta nel cestino"}
+              {daCestinare?.tipo === "computo" ? tr("Elimina") : tr("Sposta nel cestino")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1654,14 +1651,14 @@ const KPI_TONE: Record<KpiTone, { border: string; iconBg: string; iconColor: str
 };
 
 /** Dal milione in su la cifra intera non entra nel riquadro («19.796.108,5…»): «19,8 mln €», e l'intera al passaggio del mouse. */
-const IMPORTO_KPI = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 });
 function importoKpi(v: number): string {
-  return Math.abs(v) >= 1_000_000 ? `${IMPORTO_KPI.format(v / 1_000_000)} mln €` : formatCurrency(v);
+  return Math.abs(v) >= 1_000_000 ? `${new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 1 }).format(v / 1_000_000)} mln €` : formatCurrency(v);
 }
 
 function KpiCard({
   label, value, hint, icon, tone = "slate", titolo, onClick, attivo,
 }: { label: string; value: string | number; hint?: string; icon: React.ReactNode; tone?: KpiTone; titolo?: string; onClick?: () => void; attivo?: boolean }) {
+  const t = useT();
   const c = KPI_TONE[tone];
   // Con onClick il riquadro filtra l'elenco per quello stato (un secondo clic toglie il filtro).
   const Tag = onClick ? "button" : "div";
@@ -1673,7 +1670,7 @@ function KpiCard({
       className={cn("relative block w-full min-w-0 bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4 text-left", c.border,
         onClick && "transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         attivo && "ring-2 ring-slate-300")}
-      title={titolo ?? (onClick ? (attivo ? "Mostra tutti i preventivi" : `Mostra solo: ${label.toLowerCase()}`) : undefined)}
+      title={titolo ?? (onClick ? (attivo ? t("Mostra tutti i preventivi") : t("Mostra solo: {label}", { label: label.toLowerCase() })) : undefined)}
     >
       <span className={cn("absolute right-2 top-2 h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
       <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate pr-7 leading-tight">{label}</p>

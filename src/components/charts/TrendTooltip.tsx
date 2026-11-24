@@ -5,6 +5,7 @@
  */
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface TrendTooltipSeries {
   /** dataKey recharts della serie */
@@ -31,6 +32,7 @@ interface TrendTooltipProps {
 }
 
 export function TrendTooltip({ active, label, payload, data, xKey, series }: TrendTooltipProps) {
+  const t = useT();
   if (!active || !payload?.length) return null;
 
   const idx = data.findIndex((d) => d[xKey] === label);
@@ -83,7 +85,7 @@ export function TrendTooltip({ active, label, payload, data, xKey, series }: Tre
         })}
       </div>
       {prev === null && (
-        <p className="mt-1.5 text-[10px] text-muted-foreground">Primo mese del periodo — nessun confronto</p>
+        <p className="mt-1.5 text-[10px] text-muted-foreground">{t("Primo mese del periodo — nessun confronto")}</p>
       )}
     </div>
   );

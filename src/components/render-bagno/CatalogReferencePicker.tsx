@@ -10,6 +10,7 @@ import {
 } from "@/lib/render/renderCatalog";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId?: string;
@@ -27,6 +28,7 @@ interface Props {
  * Compatto anche su mobile: una riga scorrevole di miniature.
  */
 export function CatalogReferencePicker({ companyId, verticale, categorie, selectedIds, onChange }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const { assets, urls, loading } = useRenderCatalogAssets(companyId, verticale);
   const visibili = useMemo(() => assets.filter((a) => categorie.includes(a.categoria)), [assets, categorie]);
@@ -41,11 +43,11 @@ export function CatalogReferencePicker({ companyId, verticale, categorie, select
       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <ImagePlus className="h-3.5 w-3.5" />
         <span>
-          Nessuna foto prodotto per questa sezione.{" "}
+          {t("Nessuna foto prodotto per questa sezione.")}{" "}
           <Link to="/azienda/impostazioni/catalogo-render" className="underline underline-offset-2">
-            Aggiungila al catalogo render
+            {t("Aggiungila al catalogo render")}
           </Link>{" "}
-          e il render mostrerà il tuo prodotto.
+          {t("e il render mostrerà il tuo prodotto.")}
         </span>
       </p>
     );
@@ -54,10 +56,8 @@ export function CatalogReferencePicker({ companyId, verticale, categorie, select
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium max-md:text-[11px]">Dal tuo catalogo</span>
-        <span className={cn("text-[11px] tabular-nums", pieno ? "text-amber-600" : "text-muted-foreground")}>
-          {selectedIds.length}/{MAX_CATALOG_REFERENCES} riferimenti
-        </span>
+        <span className="text-xs font-medium max-md:text-[11px]">{t("Dal tuo catalogo")}</span>
+        <span className={cn("text-[11px] tabular-nums", pieno ? "text-amber-600" : "text-muted-foreground")}>{t("{n}/{MAX_CATALOG_REFERENCES} riferimenti", { n: selectedIds.length, MAX_CATALOG_REFERENCES })}</span>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         {visibili.map((a) => {

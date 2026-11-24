@@ -19,6 +19,7 @@
 import React from "react";
 import type { JSX } from "react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ChatMarkdownSource {
   id: string;          // "S1", "S2"
@@ -359,10 +360,11 @@ function parseTableRow(line: string): string[] {
 // Le sources restano nel payload ma non aprono piu' riquadri hover nella chat.
 // ─────────────────────────────────────────────────────────────────────────
 function CitationChip({ id }: { id: string }) {
+  const t = useT();
   return (
     <span
       className="inline-flex items-center px-1.5 py-0 mx-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 align-baseline"
-      aria-label={`Fonte ${id}`}
+      aria-label={t("Fonte {id}", { id: String(id ?? "") })}
     >
       {id}
     </span>

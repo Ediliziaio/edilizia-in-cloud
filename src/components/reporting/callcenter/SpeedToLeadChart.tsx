@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SpeedBucket } from "@/hooks/useCallCenterReport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BUCKET_COLORS: Record<number, string> = {
   1: "hsl(142, 71%, 45%)",  // green - 0-5 min
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function SpeedToLeadChart({ data, isLoading }: Props) {
+  const t = useT();
   if (isLoading) {
     return (
       <Card>
@@ -40,12 +42,12 @@ export function SpeedToLeadChart({ data, isLoading }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Distribuzione Speed to Lead</CardTitle>
-        <p className="text-sm text-muted-foreground">Tempo di risposta ai nuovi lead</p>
+        <CardTitle className="text-base">{t("Distribuzione Speed to Lead")}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t("Tempo di risposta ai nuovi lead")}</p>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <p className="text-center text-muted-foreground py-10">Nessun dato disponibile</p>
+          <p className="text-center text-muted-foreground py-10">{t("Nessun dato disponibile")}</p>
         ) : (
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 30 }}>
@@ -53,7 +55,7 @@ export function SpeedToLeadChart({ data, isLoading }: Props) {
               <XAxis type="number" tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip
-                formatter={(value: number) => [`${value}%`, "Percentuale"]}
+                formatter={(value: number) => [`${value}%`, t("Percentuale")]}
                 labelFormatter={(label: string) => label}
                 cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }}
               />
@@ -72,7 +74,7 @@ export function SpeedToLeadChart({ data, isLoading }: Props) {
             {data.filter(d => [1, 2, 3].includes(d.bucket_ordine)).map(d => (
               <div key={d.bucket_ordine} className="text-center">
                 <p className="text-xs text-muted-foreground">{d.bucket}</p>
-                <p className="text-lg font-semibold">{d.nr_lead} lead</p>
+                <p className="text-lg font-semibold">{t("{nr_lead} lead", { nr_lead: d.nr_lead ?? 0 })}</p>
                 <p className="text-xs text-muted-foreground">{d.pct}%</p>
               </div>
             ))}

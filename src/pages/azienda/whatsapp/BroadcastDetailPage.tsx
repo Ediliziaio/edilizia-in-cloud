@@ -29,6 +29,7 @@ import {
   useWABroadcast,
   useWABroadcastRecipients,
 } from "@/hooks/whatsapp/useWABroadcasts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function statusColor(status: string | null): string {
   switch ((status ?? "").toLowerCase()) {
@@ -47,6 +48,7 @@ function statusColor(status: string | null): string {
 }
 
 export default function BroadcastDetailPage() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const { data: bc, isLoading, isError, error, refetch, isFetching } = useWABroadcast(id);
   const { data: recipients, isError: recipientsError } = useWABroadcastRecipients(id);
@@ -65,13 +67,13 @@ export default function BroadcastDetailPage() {
       <div className="p-6">
         <Card className="p-8 text-center border-destructive/20 bg-destructive/5">
           <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
-          <h1 className="font-semibold">Campagna non caricata</h1>
+          <h1 className="font-semibold">{t("Campagna non caricata")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {(error as Error)?.message || "Non riesco a caricare questa campagna."}
+            {(error as Error)?.message || t("Non riesco a caricare questa campagna.")}
           </p>
           <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            Riprova
+            {t("Riprova")}
           </Button>
         </Card>
       </div>
@@ -79,7 +81,7 @@ export default function BroadcastDetailPage() {
   }
 
   if (!bc) {
-    return <div className="p-6 text-sm text-muted-foreground">Campagna non trovata.</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("Campagna non trovata.")}</div>;
   }
 
   const total = bc.total_contacts ?? 0;
@@ -91,9 +93,9 @@ export default function BroadcastDetailPage() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">{bc.nome ?? "Campagna"}</h1>
+          <h1 className="text-2xl font-semibold">{bc.nome ?? t("Campagna")}</h1>
           <p className="text-sm text-muted-foreground">
-            Template <code>{bc.template_name}</code>
+            {t("Template")} <code>{bc.template_name}</code>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -103,23 +105,23 @@ export default function BroadcastDetailPage() {
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm">
                   <XCircle className="mr-2 h-4 w-4" />
-                  Annulla
+                  {t("Annulla")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Annullare la campagna?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("Annullare la campagna?")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Impedirà l'invio ai destinatari rimanenti. Quelli già inviati restano.
+                    {t("Impedirà l'invio ai destinatari rimanenti. Quelli già inviati restano.")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>No, mantieni</AlertDialogCancel>
+                  <AlertDialogCancel>{t("No, mantieni")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => cancel.mutate(bc.id)}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    Sì, annulla
+                    {t("Sì, annulla")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -130,46 +132,46 @@ export default function BroadcastDetailPage() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Destinatari</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">{t("Destinatari")}</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{total}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Inviati</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">{t("Inviati")}</CardTitle></CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-green-600">{sent}</p>
             <p className="text-xs text-muted-foreground">{progressPct}%</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Falliti</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">{t("Falliti")}</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold text-red-600">{failed}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Risposte</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">{t("Risposte")}</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{bc.replied_count ?? 0}</p></CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Destinatari</CardTitle>
+          <CardTitle>{t("Destinatari")}</CardTitle>
         </CardHeader>
         <CardContent>
           {(recipients?.length ?? 0) === 0 ? (
             <p className="text-sm text-muted-foreground">
-              {recipientsError ? "Destinatari non caricati. Riprova aggiornando la pagina." : "Nessun destinatario."}
+              {recipientsError ? t("Destinatari non caricati. Riprova aggiornando la pagina.") : t("Nessun destinatario.")}
             </p>
           ) : (
             <div className="overflow-x-auto max-h-96">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Telefono</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Inviato</TableHead>
-                    <TableHead>Consegnato</TableHead>
-                    <TableHead>Letto</TableHead>
-                    <TableHead>Errore</TableHead>
+                    <TableHead>{t("Telefono")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead>{t("Inviato")}</TableHead>
+                    <TableHead>{t("Consegnato")}</TableHead>
+                    <TableHead>{t("Letto")}</TableHead>
+                    <TableHead>{t("Errore")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -180,13 +182,13 @@ export default function BroadcastDetailPage() {
                         <Badge variant="outline" className="text-xs">{r.status ?? "—"}</Badge>
                       </TableCell>
                       <TableCell className="text-xs">
-                        {r.sent_at ? new Date(r.sent_at).toLocaleString("it-IT") : "—"}
+                        {r.sent_at ? new Date(r.sent_at).toLocaleString(intlCampo()) : "—"}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {r.delivered_at ? new Date(r.delivered_at).toLocaleString("it-IT") : "—"}
+                        {r.delivered_at ? new Date(r.delivered_at).toLocaleString(intlCampo()) : "—"}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {r.read_at ? new Date(r.read_at).toLocaleString("it-IT") : "—"}
+                        {r.read_at ? new Date(r.read_at).toLocaleString(intlCampo()) : "—"}
                       </TableCell>
                       <TableCell className="text-xs text-red-600">
                         {r.error_message ? r.error_message.substring(0, 40) : "—"}
@@ -196,9 +198,7 @@ export default function BroadcastDetailPage() {
                 </TableBody>
               </Table>
               {(recipients?.length ?? 0) > 200 && (
-                <p className="text-xs text-muted-foreground text-center py-2">
-                  Mostrati primi 200 di {recipients?.length}. Export CSV in arrivo.
-                </p>
+                <p className="text-xs text-muted-foreground text-center py-2">{t("Mostrati primi 200 di {n}. Export CSV in arrivo.", { n: recipients?.length })}</p>
               )}
             </div>
           )}

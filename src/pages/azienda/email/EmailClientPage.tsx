@@ -63,6 +63,7 @@ import {
   X,
 } from "lucide-react";
 import { EmailLayout } from "./EmailLayout";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const demoEmailAccounts = [
   { email: "email@demo.srl", unread: 184, color: "bg-emerald-500" },
@@ -370,6 +371,7 @@ export default function EmailClientPage({
   emailContext = "azienda",
   aiSettingsPath,
 }: EmailClientPageProps = {}) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
   const companyId = effectiveCompany?.id;
@@ -451,7 +453,7 @@ export default function EmailClientPage({
           mode="error"
           settingsPath={emptyStatePath}
           context={emailContext}
-          errorMessage={error instanceof Error ? error.message : "Impossibile caricare le caselle email."}
+          errorMessage={error instanceof Error ? error.message : t("Impossibile caricare le caselle email.")}
           onRetry={() => void refetch()}
         />
       </div>
@@ -476,6 +478,7 @@ function EmailConnectingState({
 }: {
   settingsPath?: string;
 } = {}) {
+  const t = useT();
   return (
     <div className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-5xl place-items-center">
       <Card className="w-full overflow-hidden border-blue-100 bg-white shadow-sm">
@@ -485,22 +488,22 @@ function EmailConnectingState({
               <Loader2 className="h-5 w-5 animate-spin" />
             </span>
             <h2 className="mt-4 text-xl font-semibold tracking-tight text-slate-950">
-              Verifico le caselle email
+              {t("Verifico le caselle email")}
             </h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-              Sto controllando le tue caselle email: ci vuole qualche secondo.
+              {t("Sto controllando le tue caselle email: ci vuole qualche secondo.")}
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <Button asChild variant="outline" className="rounded-xl border-blue-200 bg-white">
                 <Link to="/azienda/email?__email_demo=1">
                   <Eye className="mr-2 h-4 w-4" />
-                  Apri demo
+                  {t("Apri demo")}
                 </Link>
               </Button>
               <Button asChild className="rounded-xl bg-blue-600 hover:bg-blue-700">
                 <Link to={settingsPath}>
                   <Settings2 className="mr-2 h-4 w-4" />
-                  Impostazioni email
+                  {t("Impostazioni email")}
                 </Link>
               </Button>
             </div>
@@ -508,9 +511,9 @@ function EmailConnectingState({
 
           <div className="grid gap-3">
             {[
-              { label: "Caselle collegate", status: "controllo in corso" },
-              { label: "Posta in arrivo", status: "controllo in corso" },
-              { label: "Aiuto dell'AI", status: "pronto dopo il primo controllo" },
+              { label: t("Caselle collegate"), status: t("controllo in corso") },
+              { label: t("Posta in arrivo"), status: t("controllo in corso") },
+              { label: t("Aiuto dell'AI"), status: t("pronto dopo il primo controllo") },
             ].map((item, index) => (
               <div
                 key={item.label}
@@ -550,6 +553,7 @@ function EmptyConnectionsState({
   settingsPath?: string;
   context?: "azienda" | "admin";
 }) {
+  const t = useT();
   const isLoadingMode = mode === "loading";
   const isErrorMode = mode === "error";
   const isAdmin = context === "admin";
@@ -558,19 +562,19 @@ function EmptyConnectionsState({
   // cantiere (Acquisti/DDT/fornitori); in admin è la gestione clienti e
   // operatività piattaforma (CS, outbound, ticket).
   const adminBenefits = [
-    { icon: Tags, title: "Inbox condivisa team", text: "Florin + collaboratori vedono ognuno la propria casella." },
-    { icon: Sparkles, title: "AI Triage clienti", text: "Classifica ticket, lead e renewals automaticamente." },
-    { icon: Plug, title: "Outbound + CS", text: "Email transazionali, dunning, follow-up sotto controllo." },
+    { icon: Tags, title: t("Inbox condivisa team"), text: t("Florin + collaboratori vedono ognuno la propria casella.") },
+    { icon: Sparkles, title: t("AI Triage clienti"), text: t("Classifica ticket, lead e renewals automaticamente.") },
+    { icon: Plug, title: t("Outbound + CS"), text: t("Email transazionali, dunning, follow-up sotto controllo.") },
   ];
   const aziendaBenefits = [
-    { icon: Tags, title: "Cartelle + caselle", text: "Posta, bozze, inviate e account sotto ogni voce." },
-    { icon: Sparkles, title: "AI operativa", text: "Classifica, riassume e propone azioni." },
-    { icon: Truck, title: "Acquisti + DDT", text: "Ritardi, ODA, fornitori e consegne sotto controllo." },
+    { icon: Tags, title: t("Cartelle + caselle"), text: t("Posta, bozze, inviate e account sotto ogni voce.") },
+    { icon: Sparkles, title: t("AI operativa"), text: t("Classifica, riassume e propone azioni.") },
+    { icon: Truck, title: t("Acquisti + DDT"), text: t("Ritardi, ODA, fornitori e consegne sotto controllo.") },
   ];
   const benefits = isAdmin ? adminBenefits : aziendaBenefits;
   const heroDescription = isAdmin
-    ? "Il centro email Superadmin per il team interno: Gmail, Outlook e IMAP/SMTP in un'unica vista, con AI che separa ticket clienti, lead in arrivo, fatture e operations."
-    : "EiC diventa il tuo centro email operativo: Gmail, Outlook e le altre caselle (Aruba, Libero…) in un'unica vista, con cartelle per ogni casella, ricerca, invio e AI che riconosce priorità, lead e preventivi.";
+    ? t("Il centro email Superadmin per il team interno: Gmail, Outlook e IMAP/SMTP in un'unica vista, con AI che separa ticket clienti, lead in arrivo, fatture e operations.")
+    : t("EiC diventa il tuo centro email operativo: Gmail, Outlook e le altre caselle (Aruba, Libero…) in un'unica vista, con cartelle per ogni casella, ricerca, invio e AI che riconosce priorità, lead e preventivi.");
 
   return (
     <Card className="overflow-hidden border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-orange-50/40 shadow-sm">
@@ -580,13 +584,13 @@ function EmptyConnectionsState({
             <Plug className="h-7 w-7 text-blue-600" />
           </div>
           <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-            {isLoadingMode ? "Sto caricando le caselle email" : isErrorMode ? "Non riesco a caricare le caselle" : "Collega una o più caselle email"}
+            {isLoadingMode ? t("Sto caricando le caselle email") : isErrorMode ? t("Non riesco a caricare le caselle") : t("Collega una o più caselle email")}
           </h2>
           <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">
             {isLoadingMode
-              ? "La pagina resta utilizzabile anche se il controllo delle connessioni impiega qualche secondo. Puoi riprovare senza ricaricare tutto."
+              ? t("La pagina resta utilizzabile anche se il controllo delle connessioni impiega qualche secondo. Puoi riprovare senza ricaricare tutto.")
               : isErrorMode
-                ? errorMessage ?? "C'è stato un problema nel leggere le connessioni email. La preview resta disponibile mentre riprovi."
+                ? errorMessage ?? t("C'è stato un problema nel leggere le connessioni email. La preview resta disponibile mentre riprovi.")
                 : heroDescription}
           </p>
           <div className="mt-6 grid gap-2 text-left sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
@@ -604,14 +608,14 @@ function EmptyConnectionsState({
           <div className="mt-6 flex flex-wrap gap-2">
             {(isLoadingMode || isErrorMode) && onRetry && (
               <Button type="button" variant="outline" className="gap-2 rounded-xl border-blue-200 bg-white" onClick={onRetry}>
-                Riprova caricamento
+                {t("Riprova caricamento")}
               </Button>
             )}
             <Dialog>
               <DialogTrigger asChild>
                 <Button type="button" variant="outline" className="w-fit gap-2 rounded-xl border-blue-200 bg-white text-blue-700 hover:bg-blue-50">
                   <Eye className="h-4 w-4" />
-                  Vedi visuale demo
+                  {t("Vedi visuale demo")}
                 </Button>
               </DialogTrigger>
               <EmailDemoDialog />
@@ -619,13 +623,13 @@ function EmptyConnectionsState({
             <Button asChild className="w-fit gap-2 rounded-xl bg-blue-600 hover:bg-blue-700">
               <Link to={settingsPath}>
                 <Mail className="h-4 w-4" />
-                Vai alle Impostazioni Email
+                {t("Vai alle Impostazioni Email")}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </div>
           <p className="mt-4 text-[11px] text-slate-500">
-            Gmail, Outlook e le altre caselle · ognuno vede solo la sua posta · l'AI segnala le priorità e riassume.
+            {t("Gmail, Outlook e le altre caselle · ognuno vede solo la sua posta · l'AI segnala le priorità e riassume.")}
           </p>
         </div>
 
@@ -638,14 +642,15 @@ function EmptyConnectionsState({
 }
 
 function MailboxPreview() {
+  const t = useT();
   const accounts = demoEmailAccounts;
   const folders = demoEmailFolders;
   const rows = demoEmailRows.slice(0, 5);
   const selectedRow = rows[0];
   const aiActions = [
-    { icon: CalendarClock, label: "Ritardo ODA", text: "Aggiorna data e avvisa cantiere", tone: "orange" },
-    { icon: PackageCheck, label: "Abbina DDT", text: "Collega colli e foto scarico", tone: "blue" },
-    { icon: Truck, label: "Prepara acquisto", text: "Suggerisci merce sostitutiva", tone: "green" },
+    { icon: CalendarClock, label: t("Ritardo ODA"), text: t("Aggiorna data e avvisa cantiere"), tone: "orange" },
+    { icon: PackageCheck, label: t("Abbina DDT"), text: t("Collega colli e foto scarico"), tone: "blue" },
+    { icon: Truck, label: t("Prepara acquisto"), text: t("Suggerisci merce sostitutiva"), tone: "green" },
   ];
 
   return (
@@ -653,17 +658,17 @@ function MailboxPreview() {
       {/* Etichetta esplicita: la preview è così realistica (caselle, contatori
           non lette) che senza badge sembrava una inbox vera con dati reali. */}
       <div className="absolute right-6 top-6 z-10 rounded-full border border-amber-200 bg-amber-50/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 shadow-sm">
-        Anteprima demo · dati di esempio
+        {t("Anteprima demo · dati di esempio")}
       </div>
       <div className="relative grid h-[560px] overflow-hidden rounded-[24px] border border-slate-200 bg-white md:grid-cols-[176px_minmax(0,1fr)] 2xl:grid-cols-[172px_minmax(0,1fr)_260px]">
         <aside className="hidden border-r border-slate-200 bg-slate-50/80 p-3 sm:block">
           <button className="mb-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-200">
             <PencilLine className="h-4 w-4" />
-            Scrivi
+            {t("Scrivi")}
           </button>
 
           <div className="mb-3 rounded-2xl border border-blue-100 bg-white p-2">
-            <p className="px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Caselle</p>
+            <p className="px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t("Caselle")}</p>
             <div className="mt-2 space-y-1">
               {accounts.map((account, index) => (
                 <div
@@ -709,18 +714,18 @@ function MailboxPreview() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-lg font-bold text-slate-950">Posta in arrivo</p>
+                  <p className="truncate text-lg font-bold text-slate-950">{t("Posta in arrivo")}</p>
                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    Sync
+                    {t("Sync")}
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-slate-500">email@demo.srl · 1-25 di 244 email</p>
               </div>
               <div className="flex items-center gap-1 text-slate-400">
-                <button className="rounded-xl p-2 hover:bg-slate-100" aria-label="Cerca nella posta">
+                <button className="rounded-xl p-2 hover:bg-slate-100" aria-label={t("Cerca nella posta")}>
                   <Search className="h-4 w-4" />
                 </button>
-                <button className="rounded-xl p-2 hover:bg-slate-100" aria-label="Azioni posta">
+                <button className="rounded-xl p-2 hover:bg-slate-100" aria-label={t("Azioni posta")}>
                   <MoreHorizontal className="h-4 w-4" />
                 </button>
               </div>
@@ -728,7 +733,7 @@ function MailboxPreview() {
 
             <div className="mt-3 flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 px-3 py-2.5 text-xs text-slate-500">
               <Search className="h-4 w-4 shrink-0 text-blue-600" />
-              <span className="min-w-0 truncate">Cerca: from:fornitore ODA after:2026-05-01</span>
+              <span className="min-w-0 truncate">{t("Cerca: from:fornitore ODA after:2026-05-01")}</span>
             </div>
 
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -740,7 +745,7 @@ function MailboxPreview() {
                     index === 0 ? "bg-blue-600 font-semibold text-white shadow-sm" : "bg-slate-50 text-slate-600",
                   )}
                 >
-                  {chip}
+                  {t(chip)}
                 </span>
               ))}
             </div>
@@ -749,7 +754,7 @@ function MailboxPreview() {
           <div className="border-b border-orange-100 bg-orange-50/55 px-4 py-3">
             <div className="flex items-center gap-2 text-xs font-bold text-orange-950">
               <Sparkles className="h-4 w-4 text-orange-600" />
-              Silvio ha trovato 3 priorità operative
+              {t("Silvio ha trovato 3 priorità operative")}
             </div>
             <div className="mt-2 grid gap-2 text-[11px] text-slate-600 sm:grid-cols-3">
               {aiActions.map((action) => {
@@ -814,15 +819,15 @@ function MailboxPreview() {
             <div className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm 2xl:hidden">
               <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
                 <Bot className="h-4 w-4 text-blue-600" />
-                Analisi operativa
+                {t("Analisi operativa")}
               </div>
               <p className="mt-2 text-[11px] leading-snug text-slate-600">
-                Ritardo ODA rilevato, DDT da abbinare e risposta al fornitore già pronta.
+                {t("Ritardo ODA rilevato, DDT da abbinare e risposta al fornitore già pronta.")}
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {["Crea task", "Aggiorna ODA", "Rispondi"].map((label) => (
                   <span key={label} className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">
-                    {label}
+                    {t(label)}
                   </span>
                 ))}
               </div>
@@ -839,43 +844,40 @@ function MailboxPreview() {
               <CircleCheck className="h-5 w-5 text-emerald-500" />
             </div>
             <h3 className="mt-3 line-clamp-2 text-sm font-bold leading-tight text-slate-950">{selectedRow.subject}</h3>
-            <p className="mt-1 truncate text-[11px] text-slate-500">
-              Da {selectedRow.email} a email@demo.srl
-            </p>
+            <p className="mt-1 truncate text-[11px] text-slate-500">{t("Da {email} a email@demo.srl", { email: String(selectedRow.email ?? "") })}</p>
           </div>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-hidden p-4">
             <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-3">
               <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
                 <Bot className="h-4 w-4 text-blue-600" />
-                Analisi operativa
+                {t("Analisi operativa")}
               </div>
               <div className="mt-3 space-y-2 text-[11px] leading-snug text-slate-600">
                 <p className="rounded-xl bg-white p-2">
-                  <span className="font-semibold text-slate-900">Ritardo rilevato:</span> ODA 2026-018 slitta al 28/05.
+                  <span className="font-semibold text-slate-900">{t("Ritardo rilevato:")}</span> {t("ODA 2026-018 slitta al 28/05.")}
                 </p>
                 <p className="rounded-xl bg-white p-2">
-                  <span className="font-semibold text-slate-900">Impatto:</span> aggiornare consegna e avvisare il capo cantiere.
+                  <span className="font-semibold text-slate-900">{t("Impatto:")}</span> {t("aggiornare consegna e avvisare il capo cantiere.")}
                 </p>
               </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Messaggio</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t("Messaggio")}</p>
               <p className="mt-2 text-xs leading-5 text-slate-600">
-                Buongiorno, confermiamo che la consegna prevista per l'ODA 2026-018 slitta al 28/05. Possiamo anticipare i
-                profili standard disponibili a magazzino e completare il saldo merce alla nuova data.
+                {t("Buongiorno, confermiamo che la consegna prevista per l'ODA 2026-018 slitta al 28/05. Possiamo anticipare i profili standard disponibili a magazzino e completare il saldo merce alla nuova data.")}
               </p>
               <div className="mt-3 rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-[11px] font-medium text-orange-800">
-                Allegati rilevati: DDT provvisorio, foto colli, conferma nuova data.
+                {t("Allegati rilevati: DDT provvisorio, foto colli, conferma nuova data.")}
               </div>
             </div>
 
             <div className="grid gap-2 text-[11px]">
               {[
-                { icon: CalendarClock, label: "Crea task logistica" },
-                { icon: PackageCheck, label: "Aggiorna ODA" },
-                { icon: Reply, label: "Scrivi risposta" },
+                { icon: CalendarClock, label: t("Crea task logistica") },
+                { icon: PackageCheck, label: t("Aggiorna ODA") },
+                { icon: Reply, label: t("Scrivi risposta") },
               ].map((action) => {
                 const Icon = action.icon;
                 return (
@@ -897,19 +899,20 @@ function MailboxPreview() {
 }
 
 function EmailDemoDialog() {
+  const t = useT();
   return (
     <DialogContent className="max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)] w-[calc(100vw-0.75rem)] sm:w-[calc(100vw-1.25rem)] max-w-[1500px] overflow-hidden rounded-2xl border-blue-100 p-0 shadow-2xl">
       <DialogHeader className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/80 to-orange-50/50 px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex flex-col gap-1.5 pr-8 md:flex-row md:items-center md:justify-between md:gap-2">
           <div className="min-w-0">
-            <DialogTitle className="text-base sm:text-lg text-slate-950">Demo casella email operativa</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg text-slate-950">{t("Demo casella email operativa")}</DialogTitle>
             <DialogDescription className="mt-0.5 hidden sm:block text-sm text-slate-500">
-              Vista realistica con più caselle, storico, categorie e azioni AI su lead, fornitori e DDT.
+              {t("Vista realistica con più caselle, storico, categorie e azioni AI su lead, fornitori e DDT.")}
             </DialogDescription>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
             <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 font-medium text-emerald-700">email@demo.srl</span>
-            <span className="rounded-full border border-blue-100 bg-white px-2.5 py-0.5">244 email</span>
+            <span className="rounded-full border border-blue-100 bg-white px-2.5 py-0.5">{t("244 email")}</span>
           </div>
         </div>
       </DialogHeader>
@@ -919,6 +922,7 @@ function EmailDemoDialog() {
 }
 
 function DemoMailboxExperience() {
+  const t = useT();
   const [selectedRowIndex, setSelectedRowIndex] = useState(0);
   const [composeMode, setComposeMode] = useState<"new" | "reply" | null>(null);
   const [composeExpanded, setComposeExpanded] = useState(false);
@@ -1004,9 +1008,9 @@ function DemoMailboxExperience() {
     count: number;
     icon: typeof Inbox;
   }> = [
-    { key: "all", label: "Tutte", count: folderRows.length, icon: Inbox },
-    { key: "unread", label: "Da leggere", count: folderRows.filter((row) => row.unread).length, icon: Mail },
-    { key: "starred", label: "Contrassegnate", count: folderRows.filter((row) => row.starred).length, icon: Star },
+    { key: "all", label: t("Tutte"), count: folderRows.length, icon: Inbox },
+    { key: "unread", label: t("Da leggere"), count: folderRows.filter((row) => row.unread).length, icon: Mail },
+    { key: "starred", label: t("Contrassegnate"), count: folderRows.filter((row) => row.starred).length, icon: Star },
   ];
 
   const applyQuickMailFilter = (filter: DemoQuickMailFilter) => {
@@ -1438,12 +1442,12 @@ function DemoMailboxExperience() {
     >
       {/* 2026-05-27 (a11y): h1 sr-only per orientamento screen reader.
           Le h2 visibili sono dentro le sezioni (subject thread, sender, etc.). */}
-      <h1 className="sr-only">Email — Cassetta postale</h1>
+      <h1 className="sr-only">{t("Email — Cassetta postale")}</h1>
       {/* Backdrop mobile per sidebar drawer */}
       {demoMobilePane === "sidebar" && (
         <button
           type="button"
-          aria-label="Chiudi caselle"
+          aria-label={t("Chiudi caselle")}
           className="lg:hidden fixed inset-0 z-40 bg-black/40"
           onClick={() => setDemoMobilePane("list")}
         />
@@ -1457,14 +1461,14 @@ function DemoMailboxExperience() {
       >
         {/* Header drawer mobile con X */}
         <div className="lg:hidden mb-2 flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-800">Caselle e cartelle</span>
+          <span className="text-sm font-semibold text-slate-800">{t("Caselle e cartelle")}</span>
           <Button
             type="button"
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             onClick={() => setDemoMobilePane("list")}
-            aria-label="Chiudi"
+            aria-label={t("Chiudi")}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -1475,11 +1479,11 @@ function DemoMailboxExperience() {
           onClick={() => { openNewCompose(); setDemoMobilePane("list"); }}
         >
           <PencilLine className="h-4 w-4" />
-          Scrivi
+          {t("Scrivi")}
         </Button>
         <div className="mt-3 flex items-center justify-between px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          <span>Cartelle</span>
-          <span>{demoEmailAccounts.length} caselle</span>
+          <span>{t("Cartelle")}</span>
+          <span>{t("{n} caselle", { n: demoEmailAccounts.length })}</span>
         </div>
         <form
           className="mt-2 flex items-center gap-1"
@@ -1489,17 +1493,17 @@ function DemoMailboxExperience() {
           }}
         >
           <input
-            aria-label="Nome nuova cartella demo"
+            aria-label={t("Nome nuova cartella demo")}
             className="h-8 min-w-0 flex-1 rounded-lg border border-blue-100 bg-white px-2 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300"
             value={newFolderName}
-            placeholder="Nuova cartella"
+            placeholder={t("Nuova cartella")}
             onChange={(event) => setNewFolderName(event.target.value)}
           />
           <Button
             type="submit"
             variant="outline"
             size="icon"
-            title="Crea nuova cartella"
+            title={t("Crea nuova cartella")}
             className="h-8 w-8 rounded-lg border-blue-100 bg-white"
           >
             <FolderPlus className="h-4 w-4" />
@@ -1522,8 +1526,8 @@ function DemoMailboxExperience() {
                       ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/90 hover:bg-white/15"
                       : "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-700"}
                     onClick={() => toggleDemoFolder(folder.label)}
-                    title={expanded ? `Chiudi ${folder.label}` : `Apri ${folder.label}`}
-                    aria-label={expanded ? `Chiudi ${folder.label}` : `Apri ${folder.label}`}
+                    title={expanded ? t("Chiudi {nome}", { nome: String(folder.label ?? "") }) : t("Apri {nome}", { nome: String(folder.label ?? "") })}
+                    aria-label={expanded ? t("Chiudi {nome}", { nome: String(folder.label ?? "") }) : t("Apri {nome}", { nome: String(folder.label ?? "") })}
                   >
                     {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                   </button>
@@ -1531,8 +1535,8 @@ function DemoMailboxExperience() {
                     type="button"
                     className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1.5 text-left"
                     onClick={() => selectDemoFolder(folder.label)}
-                    title={`Seleziona ${folder.label}`}
-                    aria-label={`Seleziona ${folder.label}`}
+                    title={t("Seleziona {nome}", { nome: String(folder.label ?? "") })}
+                    aria-label={t("Seleziona {nome}", { nome: String(folder.label ?? "") })}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{folder.label}</span>
@@ -1579,9 +1583,7 @@ function DemoMailboxExperience() {
               <span className="block truncate text-[11px]">{selectedIdentity.role}</span>
             </span>
           </div>
-          <p className="mt-2 rounded-lg bg-blue-50 px-2 py-1.5 text-[11px] leading-4 text-blue-900">
-            Firma attiva su {selectedIdentity.email}
-          </p>
+          <p className="mt-2 rounded-lg bg-blue-50 px-2 py-1.5 text-[11px] leading-4 text-blue-900">{t("Firma attiva su {email}", { email: String(selectedIdentity.email ?? "") })}</p>
           <Button
             type="button"
             variant="outline"
@@ -1589,12 +1591,12 @@ function DemoMailboxExperience() {
             onClick={() => setIdentityEditorOpen((open) => !open)}
           >
             <Settings2 className="mr-1.5 h-3.5 w-3.5" />
-            Modifica casella
+            {t("Modifica casella")}
           </Button>
           {identityEditorOpen && (
             <div className="mt-2 space-y-2 rounded-xl border border-blue-100 bg-blue-50/50 p-2">
               <UniformSelect
-                aria-label="Casella da modificare"
+                aria-label={t("Casella da modificare")}
                 className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-xs text-slate-700 outline-none"
                 value={selectedIdentityEmail}
                 onChange={(event) => {
@@ -1607,26 +1609,26 @@ function DemoMailboxExperience() {
                 ))}
               </UniformSelect>
               <input
-                aria-label="Nome visualizzato casella"
+                aria-label={t("Nome visualizzato casella")}
                 className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-xs text-slate-700 outline-none"
                 value={selectedIdentity.displayName}
                 onChange={(event) => updateSelectedIdentity("displayName", event.target.value)}
               />
               <input
-                aria-label="Ruolo casella"
+                aria-label={t("Ruolo casella")}
                 className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-xs text-slate-700 outline-none"
                 value={selectedIdentity.role}
                 onChange={(event) => updateSelectedIdentity("role", event.target.value)}
               />
               <input
-                aria-label="Avatar casella"
+                aria-label={t("Avatar casella")}
                 className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-xs text-slate-700 outline-none"
                 maxLength={2}
                 value={selectedIdentity.avatar}
                 onChange={(event) => updateSelectedIdentity("avatar", event.target.value.toUpperCase())}
               />
               <textarea
-                aria-label="Firma email demo"
+                aria-label={t("Firma email demo")}
                 className="min-h-[76px] w-full resize-none rounded-lg border border-blue-100 bg-white px-2 py-1.5 text-xs leading-5 text-slate-700 outline-none"
                 value={selectedIdentity.signature.join("\n")}
                 onChange={(event) => updateSelectedIdentity("signature", event.target.value)}
@@ -1638,7 +1640,7 @@ function DemoMailboxExperience() {
                 onClick={() => setActionStatus(`Impostazioni di ${selectedIdentity.email} aggiornate nella demo.`)}
               >
                 <Save className="mr-1.5 h-3.5 w-3.5" />
-                Salva demo
+                {t("Salva demo")}
               </Button>
             </div>
           )}
@@ -1663,12 +1665,12 @@ function DemoMailboxExperience() {
               size="icon"
               className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white"
               onClick={exitMultiSelect}
-              aria-label="Esci da selezione multipla"
+              aria-label={t("Esci da selezione multipla")}
             >
               <X className="h-5 w-5" />
             </Button>
             <span className="flex-1 text-sm font-semibold">
-              {selectedDemoRowKeys.size} {selectedDemoRowKeys.size === 1 ? "selezionata" : "selezionate"}
+              {selectedDemoRowKeys.size} {selectedDemoRowKeys.size === 1 ? t("selezionata") : t("selezionate")}
             </span>
             <Button
               type="button"
@@ -1677,8 +1679,8 @@ function DemoMailboxExperience() {
               className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white disabled:opacity-50"
               onClick={bulkMarkRead}
               disabled={selectedDemoRowKeys.size === 0}
-              aria-label="Segna come letta"
-              title="Segna come letta"
+              aria-label={t("Segna come letta")}
+              title={t("Segna come letta")}
             >
               <CheckCheck className="h-5 w-5" />
             </Button>
@@ -1689,8 +1691,8 @@ function DemoMailboxExperience() {
               className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white disabled:opacity-50"
               onClick={bulkArchive}
               disabled={selectedDemoRowKeys.size === 0}
-              aria-label="Archivia selezionate"
-              title="Archivia"
+              aria-label={t("Archivia selezionate")}
+              title={t("Archivia")}
             >
               <Archive className="h-5 w-5" />
             </Button>
@@ -1701,8 +1703,8 @@ function DemoMailboxExperience() {
               className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white disabled:opacity-50"
               onClick={bulkTrash}
               disabled={selectedDemoRowKeys.size === 0}
-              aria-label="Sposta nel cestino"
-              title="Cestino"
+              aria-label={t("Sposta nel cestino")}
+              title={t("Cestino")}
             >
               <Trash2 className="h-5 w-5" />
             </Button>
@@ -1718,13 +1720,13 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="lg:hidden h-9 w-9 shrink-0 -ml-1"
                 onClick={() => setDemoMobilePane("sidebar")}
-                aria-label="Apri caselle e cartelle"
+                aria-label={t("Apri caselle e cartelle")}
               >
                 <Menu className="h-5 w-5" />
               </Button>
               <div className="min-w-0">
                 <p className="text-base font-semibold text-slate-950">{selectedFolderLabel}</p>
-                <p className="truncate text-xs text-slate-500">{selectedIdentity.email} · 1-25 di {selectedFolderTotal} email</p>
+                <p className="truncate text-xs text-slate-500">{t("{email} · 1-25 di {selectedFolderTotal} email", { email: String(selectedIdentity.email ?? ""), selectedFolderTotal: String(selectedFolderTotal ?? "") })}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1734,14 +1736,14 @@ function DemoMailboxExperience() {
                 className="hidden h-8 rounded-lg border-blue-100 px-2 text-xs md:inline-flex"
                 onClick={() => setCompactView((value) => !value)}
               >
-                {compactView ? "Vista comoda" : "Vista compatta"}
+                {compactView ? t("Vista comoda") : t("Vista compatta")}
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 className="hidden lg:inline-flex h-8 w-8 rounded-lg border-blue-100"
-                title={detailVisible ? "Nascondi colonna lettura" : "Mostra colonna lettura"}
-                aria-label={detailVisible ? "Nascondi colonna lettura" : "Mostra colonna lettura"}
+                title={detailVisible ? t("Nascondi colonna lettura") : t("Mostra colonna lettura")}
+                aria-label={detailVisible ? t("Nascondi colonna lettura") : t("Mostra colonna lettura")}
                 onClick={() => setDetailVisible((visible) => !visible)}
               >
                 {detailVisible ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
@@ -1750,8 +1752,8 @@ function DemoMailboxExperience() {
                 variant="outline"
                 size="icon"
                 className="h-8 w-8 rounded-lg border-blue-100"
-                title="Aggiorna email demo"
-                aria-label="Aggiorna email demo"
+                title={t("Aggiorna email demo")}
+                aria-label={t("Aggiorna email demo")}
                 onClick={() => setActionStatus("Posta demo aggiornata. Nessun nuovo messaggio.")}
               >
                 <RefreshCw className="h-4 w-4" />
@@ -1760,8 +1762,8 @@ function DemoMailboxExperience() {
                 variant="outline"
                 size="icon"
                 className="hidden lg:inline-flex h-8 w-8 rounded-lg border-blue-100"
-                title="Apri impostazioni caselle"
-                aria-label="Apri impostazioni caselle"
+                title={t("Apri impostazioni caselle")}
+                aria-label={t("Apri impostazioni caselle")}
                 onClick={() => {
                   setIdentityEditorOpen(true);
                   setActionStatus("Impostazioni caselle aperte nella colonna sinistra.");
@@ -1774,10 +1776,10 @@ function DemoMailboxExperience() {
           <label className="mt-3 flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/40 px-3 py-2 text-sm text-slate-400">
             <Search className="h-4 w-4 text-blue-500 shrink-0" />
             <input
-              aria-label="Cerca email demo"
+              aria-label={t("Cerca email demo")}
               className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
               value={demoSearch}
-              placeholder="Cerca email…"
+              placeholder={t("Cerca email…")}
               onChange={(event) => setDemoSearch(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -1845,17 +1847,17 @@ function DemoMailboxExperience() {
               {isRefreshing ? (
                 <span className="flex items-center gap-2 text-sm font-medium">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Aggiornamento…
+                  {t("Aggiornamento…")}
                 </span>
               ) : pullDeltaY > 60 ? (
                 <span className="flex items-center gap-2 text-sm font-medium">
                   <RefreshCw className="h-4 w-4" />
-                  Rilascia per aggiornare
+                  {t("Rilascia per aggiornare")}
                 </span>
               ) : (
                 <span className="flex items-center gap-2 text-sm font-medium opacity-60">
                   <RefreshCw className="h-4 w-4" />
-                  Continua a tirare…
+                  {t("Continua a tirare…")}
                 </span>
               )}
             </div>
@@ -1865,7 +1867,7 @@ function DemoMailboxExperience() {
             <details className="group border-b border-orange-100 bg-orange-50/80 px-3 py-2 sm:px-4 sm:py-3">
               <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-orange-900 [&::-webkit-details-marker]:hidden">
                 <Sparkles className="h-4 w-4 shrink-0 text-orange-600" />
-                <span className="flex-1 truncate">Silvio ha trovato 3 email operative</span>
+                <span className="flex-1 truncate">{t("Silvio ha trovato 3 email operative")}</span>
                 <span className="text-xs font-normal text-orange-700 transition-transform group-open:rotate-180">▾</span>
               </summary>
               <div className="mt-2 grid gap-1.5 text-xs text-slate-600 sm:grid-cols-3 sm:gap-2">
@@ -1919,18 +1921,18 @@ function DemoMailboxExperience() {
                 {isSwipingThisRow && swipeDeltaX < 0 && (
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end bg-emerald-500 pr-5 text-white" style={{ width: `${Math.min(180, Math.abs(swipeDeltaX))}px` }}>
                     <Archive className="h-5 w-5" />
-                    <span className="ml-2 text-sm font-semibold">Archivia</span>
+                    <span className="ml-2 text-sm font-semibold">{t("Archivia")}</span>
                   </div>
                 )}
                 {isSwipingThisRow && swipeDeltaX > 0 && (
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-rose-500 pl-5 text-white" style={{ width: `${Math.min(180, swipeDeltaX)}px` }}>
                     <Trash2 className="h-5 w-5" />
-                    <span className="ml-2 text-sm font-semibold">Cestino</span>
+                    <span className="ml-2 text-sm font-semibold">{t("Cestino")}</span>
                   </div>
                 )}
                 <button
                   type="button"
-                  aria-label={isMultiSelectMode ? `Seleziona email ${row.subject}` : `Apri email ${row.subject}`}
+                  aria-label={isMultiSelectMode ? t("Seleziona email {subject}", { subject: String(row.subject ?? "") }) : t("Apri email {subject}", { subject: String(row.subject ?? "") })}
                   onClick={() => {
                     // Suppress click se l'utente ha appena fatto uno swipe (flag sincrono in ref)
                     if (swipeStartXRef?.__demoWasSwipe) {
@@ -1972,17 +1974,17 @@ function DemoMailboxExperience() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        {row.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600" title="Da leggere" />}
+                        {row.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600" title={t("Da leggere")} />}
                         <p className={`truncate text-sm ${row.unread ? "font-bold text-slate-950" : "font-semibold text-slate-700"}`}>
                           {row.from}
                         </p>
                         {row.starred && (
-                          <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Contrassegnata" />
+                          <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label={t("Contrassegnata")} />
                         )}
                         <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{row.badge}</span>
                         {row.unread && (
                           <span className="hidden rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 sm:inline-flex">
-                            Da leggere
+                            {t("Da leggere")}
                           </span>
                         )}
                         <span className={`ml-auto shrink-0 text-xs ${row.unread ? "font-semibold text-slate-700" : "text-slate-400"}`}>
@@ -2011,12 +2013,12 @@ function DemoMailboxExperience() {
           })()}
           {visibleEmailRows.length === 0 && (
             <div className="p-4 text-sm text-slate-500">
-              Nessuna email demo per questo filtro rapido.
+              {t("Nessuna email demo per questo filtro rapido.")}
             </div>
           )}
           {/* Anteprima selezionata: nascosta su mobile (detail full-screen è già la lettura), visibile solo su tablet medio per coerenza */}
           <div className="hidden md:block lg:hidden border-t border-blue-100 bg-blue-50/50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Anteprima selezionata</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{t("Anteprima selezionata")}</p>
             <p className="mt-1 text-sm font-semibold text-slate-950">{selectedRow.subject}</p>
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{getDemoEmailMessage(selectedRow)}</p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -2056,18 +2058,18 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="lg:hidden h-8 w-8 shrink-0 -ml-1"
                 onClick={() => setDemoMobilePane("list")}
-                aria-label="Torna alla lista"
+                aria-label={t("Torna alla lista")}
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">{selectedRow.badge}</span>
               {selectedRow.unread ? (
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Da leggere</span>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{t("Da leggere")}</span>
               ) : (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Letta</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{t("Letta")}</span>
               )}
               {selectedRow.contactLinked && (
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Contatto collegato</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{t("Contatto collegato")}</span>
               )}
             </div>
             <div className="flex gap-1.5 sm:gap-2">
@@ -2077,8 +2079,8 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="hidden sm:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 onClick={toggleSelectedReadStatus}
-                title={selectedRow.unread ? "Segna come letta" : "Segna come da leggere"}
-                aria-label={selectedRow.unread ? "Segna come letta" : "Segna come da leggere"}
+                title={selectedRow.unread ? t("Segna come letta") : t("Segna come da leggere")}
+                aria-label={selectedRow.unread ? t("Segna come letta") : t("Segna come da leggere")}
               >
                 <CheckCheck className="h-4 w-4" />
               </Button>
@@ -2088,8 +2090,8 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="h-8 w-8 rounded-lg border-blue-100"
                 onClick={archiveSelectedEmail}
-                title="Archivia"
-                aria-label="Archivia email demo"
+                title={t("Archivia")}
+                aria-label={t("Archivia email demo")}
               >
                 <Archive className="h-4 w-4" />
               </Button>
@@ -2099,8 +2101,8 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="h-8 w-8 rounded-lg border-blue-100"
                 onClick={openReplyDemo}
-                title="Rispondi"
-                aria-label="Rispondi email demo"
+                title={t("Rispondi")}
+                aria-label={t("Rispondi email demo")}
               >
                 <Reply className="h-4 w-4" />
               </Button>
@@ -2110,8 +2112,8 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="hidden sm:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 onClick={linkSelectedContact}
-                title="Aggiungi contatto"
-                aria-label="Aggiungi contatto email demo"
+                title={t("Aggiungi contatto")}
+                aria-label={t("Aggiungi contatto email demo")}
               >
                 <UserPlus className="h-4 w-4" />
               </Button>
@@ -2121,8 +2123,8 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="h-8 w-8 rounded-lg border-blue-100 text-slate-500 hover:text-red-600"
                 onClick={trashSelectedEmail}
-                title="Sposta nel cestino"
-                aria-label="Sposta email demo nel cestino"
+                title={t("Sposta nel cestino")}
+                aria-label={t("Sposta email demo nel cestino")}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -2132,8 +2134,8 @@ function DemoMailboxExperience() {
                 size="icon"
                 className="hidden lg:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 onClick={() => setDetailVisible(false)}
-                title="Chiudi pannello lettura"
-                aria-label="Chiudi pannello lettura"
+                title={t("Chiudi pannello lettura")}
+                aria-label={t("Chiudi pannello lettura")}
               >
                 <PanelRightClose className="h-4 w-4" />
               </Button>
@@ -2141,24 +2143,24 @@ function DemoMailboxExperience() {
           </div>
           <h3 className="mt-3 text-lg font-semibold leading-tight text-slate-950">{selectedRow.subject}</h3>
           <p className="mt-1.5 text-sm text-slate-500">
-            Da {selectedRow.email} a <span className="font-medium text-slate-700">{selectedIdentity.email}</span>
+            {t("Da")} {selectedRow.email} a <span className="font-medium text-slate-700">{selectedIdentity.email}</span>
           </p>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <button
               type="button"
-              title={aiPanelOpen ? "Comprimi analisi AI" : "Espandi analisi AI"}
+              title={aiPanelOpen ? t("Comprimi analisi AI") : t("Espandi analisi AI")}
               className="flex w-full items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-left"
               onClick={() => setAiPanelOpen((open) => !open)}
             >
               <span className="min-w-0">
                 <span className="flex items-center gap-2 text-sm font-semibold text-slate-950">
                   <Bot className="h-5 w-5 text-blue-600" />
-                  Analisi predittiva
+                  {t("Analisi predittiva")}
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-slate-600">
-                  Categoria, priorità e azioni suggerite per questa conversazione.
+                  {t("Categoria, priorità e azioni suggerite per questa conversazione.")}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
@@ -2173,12 +2175,12 @@ function DemoMailboxExperience() {
             {aiPanelOpen ? (
               <div className="grid gap-3 p-4 text-sm text-slate-700">
                 <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">Segnale principale</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">{t("Segnale principale")}</p>
                   <p className="mt-1 font-semibold text-slate-950">{aiInsight.title}</p>
                   <p className="mt-1 text-xs leading-5 text-slate-700">{aiInsight.body}</p>
                 </div>
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Prossima mossa</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">{t("Prossima mossa")}</p>
                   <p className="mt-1 text-xs font-medium leading-5 text-slate-800">{aiInsight.action}</p>
                 </div>
                 <div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3 text-xs leading-5 text-orange-950">
@@ -2193,18 +2195,16 @@ function DemoMailboxExperience() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Messaggio originale</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Messaggio originale")}</p>
             <p className="mt-3 text-sm leading-7 text-slate-800">{getDemoEmailMessage(selectedRow)}</p>
           </div>
 
           {attachments.length > 0 && (
             <div className="rounded-2xl border border-blue-100 bg-white p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Allegati ({attachments.length})
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t("Allegati ({n})", { n: attachments.length })}</p>
                 <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
-                  visibili nel thread
+                  {t("visibili nel thread")}
                 </span>
               </div>
               <div className="mt-3 grid gap-2">
@@ -2230,20 +2230,18 @@ function DemoMailboxExperience() {
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <button
               type="button"
-              title={timelineOpen ? "Comprimi timeline collegata" : "Espandi timeline collegata"}
+              title={timelineOpen ? t("Comprimi timeline collegata") : t("Espandi timeline collegata")}
               className="flex w-full items-center justify-between gap-3 bg-slate-50/90 px-4 py-3 text-left hover:bg-blue-50/60"
               onClick={() => setTimelineOpen((open) => !open)}
             >
               <span className="min-w-0">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Timeline collegata</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("Timeline collegata")}</span>
                 <span className="mt-0.5 block truncate text-xs text-slate-500">
-                  Eventi, agganci CRM e azioni collegate alla conversazione.
+                  {t("Eventi, agganci CRM e azioni collegate alla conversazione.")}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                  {threadEvents.length} eventi
-                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">{t("{n} eventi", { n: threadEvents.length })}</span>
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm">
                   {timelineOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </span>
@@ -2265,7 +2263,7 @@ function DemoMailboxExperience() {
               </div>
             ) : (
               <div className="border-t border-slate-200 px-4 py-3 text-xs leading-5 text-slate-600">
-                Ultimo evento: <span className="font-semibold text-slate-900">{threadEvents[0]?.title}</span>
+                {t("Ultimo evento:")} <span className="font-semibold text-slate-900">{threadEvents[0]?.title}</span>
                 {threadEvents[0]?.time ? ` · ${threadEvents[0].time}` : ""}
               </div>
             )}
@@ -2297,7 +2295,7 @@ function DemoMailboxExperience() {
         <Button
           type="button"
           onClick={openNewCompose}
-          aria-label="Scrivi nuova email demo"
+          aria-label={t("Scrivi nuova email demo")}
           className="lg:hidden absolute right-4 bottom-4 z-30 h-14 w-14 rounded-full p-0 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-300/40"
           style={{ bottom: "max(env(safe-area-inset-bottom), 1rem)" }}
         >
@@ -2314,16 +2312,16 @@ function DemoMailboxExperience() {
           <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50 px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-slate-950">
-                {composeMode === "reply" ? "Risposta demo" : "Nuova email demo"}
+                {composeMode === "reply" ? t("Risposta demo") : t("Nuova email demo")}
               </p>
-              <p className="text-xs text-slate-500">Autosave bozza · firma per casella · allegati pronti</p>
+              <p className="text-xs text-slate-500">{t("Autosave bozza · firma per casella · allegati pronti")}</p>
             </div>
             <div className="flex items-center gap-1">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                title={composeExpanded ? "Riduci composizione" : "Ingrandisci composizione"}
+                title={composeExpanded ? t("Riduci composizione") : t("Ingrandisci composizione")}
                 className="h-8 w-8 rounded-lg"
                 onClick={() => setComposeExpanded((expanded) => !expanded)}
               >
@@ -2333,7 +2331,7 @@ function DemoMailboxExperience() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                title="Chiudi composizione"
+                title={t("Chiudi composizione")}
                 className="h-8 w-8 rounded-lg"
                 onClick={() => setComposeMode(null)}
               >
@@ -2343,12 +2341,12 @@ function DemoMailboxExperience() {
           </div>
           <div className={composeExpanded ? "min-h-0 flex-1 space-y-2 overflow-y-auto p-4 text-sm" : "space-y-2 p-4 text-sm"}>
             <div className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
-              <span className="w-12 text-xs font-semibold uppercase text-slate-400">Da</span>
+              <span className="w-12 text-xs font-semibold uppercase text-slate-400">{t("Da")}</span>
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
                 {activeIdentity.avatar}
               </span>
               <UniformSelect
-                aria-label="Mittente"
+                aria-label={t("Mittente")}
                 className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none"
                 value={composeDraft.from}
                 onChange={(event) => setComposeDraft((draft) => ({ ...draft, from: event.target.value }))}
@@ -2363,7 +2361,7 @@ function DemoMailboxExperience() {
             <div className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
               <span className="w-12 text-xs font-semibold uppercase text-slate-400">A</span>
               <input
-                aria-label="Destinatario"
+                aria-label={t("Destinatario")}
                 className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                 value={composeDraft.to}
                 placeholder="cliente@esempio.it"
@@ -2374,15 +2372,15 @@ function DemoMailboxExperience() {
                 className="rounded-lg px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
                 onClick={() => setShowCcBcc((value) => !value)}
               >
-                Cc/Ccn
+                {t("Cc/Ccn")}
               </button>
             </div>
             {showCcBcc && (
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
-                  <span className="w-12 text-xs font-semibold uppercase text-slate-400">Cc</span>
+                  <span className="w-12 text-xs font-semibold uppercase text-slate-400">{t("Cc")}</span>
                   <input
-                    aria-label="Cc"
+                    aria-label={t("Cc")}
                     className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                     value={composeDraft.cc}
                     placeholder="capocantiere@demo.srl"
@@ -2390,9 +2388,9 @@ function DemoMailboxExperience() {
                   />
                 </div>
                 <div className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
-                  <span className="w-12 text-xs font-semibold uppercase text-slate-400">Ccn</span>
+                  <span className="w-12 text-xs font-semibold uppercase text-slate-400">{t("Ccn")}</span>
                   <input
-                    aria-label="Ccn"
+                    aria-label={t("Ccn")}
                     className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                     value={composeDraft.bcc}
                     placeholder="amministrazione@demo.srl"
@@ -2402,23 +2400,23 @@ function DemoMailboxExperience() {
               </div>
             )}
             <div className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
-              <span className="w-12 text-xs font-semibold uppercase text-slate-400">Oggetto</span>
+              <span className="w-12 text-xs font-semibold uppercase text-slate-400">{t("Oggetto")}</span>
               <input
-                aria-label="Oggetto"
+                aria-label={t("Oggetto")}
                 className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                 value={composeDraft.subject}
-                placeholder="Oggetto del messaggio"
+                placeholder={t("Oggetto del messaggio")}
                 onChange={(event) => setComposeDraft((draft) => ({ ...draft, subject: event.target.value }))}
               />
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
               <textarea
-                aria-label="Corpo email"
+                aria-label={t("Corpo email")}
                 className={composeExpanded
                   ? "min-h-[280px] w-full resize-none bg-transparent text-sm leading-7 text-slate-700 outline-none placeholder:text-slate-400"
                   : "min-h-[130px] w-full resize-none bg-transparent text-sm leading-7 text-slate-700 outline-none placeholder:text-slate-400"}
                 value={composeDraft.body}
-                placeholder="Scrivi qui il messaggio. Silvio può generare una bozza partendo dal contesto di cliente, fornitore, ordine, DDT o preventivo."
+                placeholder={t("Scrivi qui il messaggio. Silvio può generare una bozza partendo dal contesto di cliente, fornitore, ordine, DDT o preventivo.")}
                 onChange={(event) => setComposeDraft((draft) => ({ ...draft, body: event.target.value }))}
               />
               <div className="mt-5 border-t border-slate-200 pt-3 text-xs leading-5 text-slate-500">
@@ -2431,7 +2429,7 @@ function DemoMailboxExperience() {
               <div className="rounded-2xl border border-slate-100 bg-white p-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                   <Paperclip className="h-4 w-4 text-blue-600" />
-                  Allegati pronti da inviare
+                  {t("Allegati pronti da inviare")}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {composeDraft.attachments.map((attachment) => (
@@ -2440,7 +2438,7 @@ function DemoMailboxExperience() {
                       type="button"
                       className="inline-flex max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs text-slate-700 hover:bg-blue-100"
                       onClick={() => removeComposeAttachment(attachment.name)}
-                      title="Rimuovi allegato demo"
+                      title={t("Rimuovi allegato demo")}
                     >
                       <FileText className="h-3.5 w-3.5 shrink-0 text-blue-600" />
                       <span className="truncate">{attachment.name}</span>
@@ -2454,7 +2452,7 @@ function DemoMailboxExperience() {
               <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-blue-900">
                   <Paperclip className="h-4 w-4" />
-                  Allegati del thread visibili
+                  {t("Allegati del thread visibili")}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {attachments.map((attachment) => (
@@ -2473,9 +2471,9 @@ function DemoMailboxExperience() {
           <div className="flex items-center gap-2 border-t border-blue-100 bg-slate-50 px-4 py-3">
             <Button type="button" className="h-9 rounded-xl bg-blue-600 px-4 text-sm hover:bg-blue-700" onClick={handleSendDemo}>
               <Send className="mr-2 h-4 w-4" />
-              Invia demo
+              {t("Invia demo")}
             </Button>
-            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={addComposeAttachment} title="Aggiungi allegato demo">
+            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={addComposeAttachment} title={t("Aggiungi allegato demo")}>
               <Paperclip className="h-4 w-4" />
             </Button>
             <div className="hidden items-center gap-1 text-slate-500 sm:flex">
@@ -2484,16 +2482,16 @@ function DemoMailboxExperience() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-lg"
-                title="Annulla ultima azione"
+                title={t("Annulla ultima azione")}
                 onClick={() => setActionStatus("Ultima azione demo annullata. La bozza resta salvata.")}
               >
                 <Undo2 className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg" title="Inoltra" onClick={openForwardDemo}>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg" title={t("Inoltra")} onClick={openForwardDemo}>
                 <Forward className="h-4 w-4" />
               </Button>
             </div>
-            <span className="ml-auto text-xs font-medium text-emerald-700">Bozza salvata</span>
+            <span className="ml-auto text-xs font-medium text-emerald-700">{t("Bozza salvata")}</span>
           </div>
         </div>
       )}

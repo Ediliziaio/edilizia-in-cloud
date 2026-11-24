@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, HardHat, Loader2, Shield, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FotoQualityRow {
   id: string;
@@ -78,6 +79,7 @@ export function FotoAIQualityBadge({
   variant = "compact",
   className,
 }: Props) {
+  const t = useT();
   const autoAttempt = useRef<string | null>(null);
 
   // Fetch corrente stato AI della foto
@@ -137,7 +139,7 @@ export function FotoAIQualityBadge({
     return (
       <div className={cn("inline-flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
         <Loader2 className="h-3 w-3 animate-spin text-violet-500" />
-        <span>Silvio analizza…</span>
+        <span>{t("Silvio analizza…")}</span>
       </div>
     );
   }
@@ -154,7 +156,7 @@ export function FotoAIQualityBadge({
         )}
       >
         <Sparkles className="h-3 w-3" />
-        Analizza con AI
+        {t("Analizza con AI")}
       </button>
     );
   }
@@ -183,7 +185,7 @@ export function FotoAIQualityBadge({
         ) : dpiPresente.length > 0 ? (
           <Badge variant="outline" className="text-[10px] gap-1 bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-300">
             <Shield className="h-2.5 w-2.5" />
-            DPI ok
+            {t("DPI ok")}
           </Badge>
         ) : null}
       </div>
@@ -199,7 +201,7 @@ export function FotoAIQualityBadge({
             {score?.toFixed(0)}
           </span>
           <div>
-            <p className="text-xs font-medium">Qualità: {scoreLabel(score)}</p>
+            <p className="text-xs font-medium">{t("Qualità: {score}", { score: t(scoreLabel(score)) })}</p>
             {foto.ai_qualita_livello ? (
               <p className="text-[10px] text-muted-foreground">{foto.ai_qualita_livello}</p>
             ) : null}
@@ -223,7 +225,7 @@ export function FotoAIQualityBadge({
             <div className="flex items-start gap-1.5 text-[10px]">
               <HardHat className="h-3 w-3 text-emerald-600 mt-0.5 shrink-0" />
               <div>
-                <span className="font-medium text-emerald-700 dark:text-emerald-400">DPI presenti:</span>{" "}
+                <span className="font-medium text-emerald-700 dark:text-emerald-400">{t("DPI presenti:")}</span>{" "}
                 <span className="text-muted-foreground">{dpiPresente.join(", ")}</span>
               </div>
             </div>
@@ -232,7 +234,7 @@ export function FotoAIQualityBadge({
             <div className="flex items-start gap-1.5 text-[10px]">
               <AlertTriangle className="h-3 w-3 text-rose-600 mt-0.5 shrink-0" />
               <div>
-                <span className="font-medium text-rose-700 dark:text-rose-400">DPI MANCANTI:</span>{" "}
+                <span className="font-medium text-rose-700 dark:text-rose-400">{t("DPI MANCANTI:")}</span>{" "}
                 <span className="text-muted-foreground">{dpiMancante.join(", ")}</span>
               </div>
             </div>
@@ -244,7 +246,7 @@ export function FotoAIQualityBadge({
       {problemi.length > 0 && (
         <div className="space-y-0.5 pt-1 border-t">
           <p className="text-[10px] font-medium text-rose-700 dark:text-rose-400">
-            Problemi rilevati:
+            {t("Problemi rilevati:")}
           </p>
           <ul className="text-[10px] text-muted-foreground space-y-0.5">
             {problemi.slice(0, 3).map((p, i) => (

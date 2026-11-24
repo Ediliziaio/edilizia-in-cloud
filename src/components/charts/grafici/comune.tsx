@@ -7,6 +7,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export const COLORI_GRAFICO = {
   blu: "hsl(var(--chart-1))",
@@ -162,8 +163,8 @@ export function PillolaVariazione({
   const buona = neutra || Math.abs(pct) < 0.05 ? null : (pct > 0) === piuEMeglio;
   // 15/11/2026: oltre +999% un moltiplicatore («×58» invece di «+5723%»), che si legge subito.
   const testo = unita === "%" && pct >= 1000
-    ? `×${new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(1 + pct / 100)}`
-    : `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${new Intl.NumberFormat("it-IT", { maximumFractionDigits: Math.abs(pct) >= 100 ? 0 : 1 }).format(Math.abs(pct))}${unita}`;
+    ? `×${new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 0 }).format(1 + pct / 100)}`
+    : `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: Math.abs(pct) >= 100 ? 0 : 1 }).format(Math.abs(pct))}${unita}`;
   return (
     <span
       title={titolo}

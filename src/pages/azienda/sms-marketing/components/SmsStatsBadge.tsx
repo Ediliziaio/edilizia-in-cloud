@@ -5,6 +5,7 @@
  */
 import { Badge } from "@/components/ui/badge";
 import type { SmsCampagnaStato } from "@/types/sms-marketing";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsStatsBadgeProps {
   stato: SmsCampagnaStato;
@@ -19,10 +20,11 @@ const STATO_CONFIG: Record<SmsCampagnaStato, { label: string; variant: "default"
 };
 
 export function SmsStatsBadge({ stato }: SmsStatsBadgeProps) {
+  const t = useT();
   const config = STATO_CONFIG[stato] ?? STATO_CONFIG.bozza;
   return (
     <Badge variant="outline" className={`text-xs font-medium ${config.className}`}>
-      {config.label}
+      {t(config.label)}
     </Badge>
   );
 }

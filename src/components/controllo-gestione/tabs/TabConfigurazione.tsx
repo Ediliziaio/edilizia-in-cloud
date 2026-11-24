@@ -44,12 +44,14 @@ import { VociDaSistemare } from "@/components/controllo-gestione/ui/VociDaSistem
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { cn } from "@/lib/utils";
 import { categoriaLeggibile } from "@/lib/controlloGestione/formatCG";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TabConfigurazioneProps {
   anno?: number;
 }
 
 export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
+  const t = useT();
   const list = useClassificazioneVoci();
   const annoCurrent = anno ?? new Date().getFullYear();
   const update = useUpdateClassificazione();
@@ -91,9 +93,9 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
   if (!list.data || list.data.length === 0) {
     return (
       <EmptyState
-        title="Nessuna voce di classificazione"
-        description="Carica le 45 voci di costo e ricavo già pronte per un'impresa edile, poi cambiale come preferisci."
-        ctaLabel={bootstrap.isPending ? "Caricamento…" : "Carica le voci standard"}
+        title={t("Nessuna voce di classificazione")}
+        description={t("Carica le 45 voci di costo e ricavo già pronte per un'impresa edile, poi cambiale come preferisci.")}
+        ctaLabel={bootstrap.isPending ? t("Caricamento…") : t("Carica le voci standard")}
         onCta={bootstrap.isPending ? undefined : () => bootstrap.mutate()}
         icon={
           bootstrap.isPending ? (
@@ -113,17 +115,12 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
       <VociDaSistemare anno={annoCurrent} />
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Come si leggono i costi nel conto economico</CardTitle>
+          <CardTitle className="text-base">{t("Come si leggono i costi nel conto economico")}</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Ogni categoria di spesa va in una voce del conto economico. Il tipo dice se è un costo
-            fisso (c'è anche senza lavoro), variabile (cresce con i cantieri) o straordinario: serve
-            al calcolo del punto di pareggio.
+            {t("Ogni categoria di spesa va in una voce del conto economico. Il tipo dice se è un costo fisso (c'è anche senza lavoro), variabile (cresce con i cantieri) o straordinario: serve al calcolo del punto di pareggio.")}
           </p>
           <p className="text-xs text-muted-foreground">
-            La stessa spesa può comparire con due provenienze (un costo registrato e il bonifico in
-            banca): il conto economico conta il bonifico solo se non è già collegato a quel costo o
-            a una scadenza. Se ci sono cedolini, il costo del personale viene dai cedolini e le
-            altre voci «Costo del personale» non si sommano.
+            {t("La stessa spesa può comparire con due provenienze (un costo registrato e il bonifico in banca): il conto economico conta il bonifico solo se non è già collegato a quel costo o a una scadenza. Se ci sono cedolini, il costo del personale viene dai cedolini e le altre voci «Costo del personale» non si sommano.")}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -132,28 +129,28 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca voce o categoria…"
+                placeholder={t("Cerca voce o categoria…")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
               />
             </div>
             <Select value={macroFilter} onValueChange={(v) => setMacroFilter(v as MacroVoce | "all")}>
-              <SelectTrigger className="md:w-56" aria-label="Voce del conto economico"><SelectValue placeholder="Tutte le voci" /></SelectTrigger>
+              <SelectTrigger className="md:w-56" aria-label={t("Voce del conto economico")}><SelectValue placeholder={t("Tutte le voci")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte le voci</SelectItem>
+                <SelectItem value="all">{t("Tutte le voci")}</SelectItem>
                 {(Object.keys(MACRO_VOCE_LABELS) as MacroVoce[]).map((mv) => (
                   <SelectItem key={mv} value={mv}>{MACRO_VOCE_LABELS[mv]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={tipoFilter} onValueChange={(v) => setTipoFilter(v as ClassTipo | "all")}>
-              <SelectTrigger className="md:w-40" aria-label="Tipo di costo"><SelectValue placeholder="Tutti i tipi" /></SelectTrigger>
+              <SelectTrigger className="md:w-40" aria-label={t("Tipo di costo")}><SelectValue placeholder={t("Tutti i tipi")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i tipi</SelectItem>
-                <SelectItem value="F">F — Fissa</SelectItem>
-                <SelectItem value="V">V — Variabile</SelectItem>
-                <SelectItem value="Z">Z — Extra</SelectItem>
+                <SelectItem value="all">{t("Tutti i tipi")}</SelectItem>
+                <SelectItem value="F">{t("F — Fissa")}</SelectItem>
+                <SelectItem value="V">{t("V — Variabile")}</SelectItem>
+                <SelectItem value="Z">{t("Z — Extra")}</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -163,7 +160,7 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
               onClick={() => bootstrap.mutate()}
             >
               {bootstrap.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              <span className="ml-1.5">Aggiungi le voci standard</span>
+              <span className="ml-1.5">{t("Aggiungi le voci standard")}</span>
             </Button>
           </div>
 
@@ -172,18 +169,18 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[30%]">Nome</TableHead>
-                  <TableHead className="w-[24%]">Voce del conto economico</TableHead>
-                  <TableHead className="w-[16%]">Tipo</TableHead>
-                  <TableHead className="w-[18%]">Da dove arriva</TableHead>
-                  <TableHead className="w-[8%] text-center">Attiva</TableHead>
+                  <TableHead className="w-[30%]">{t("Nome")}</TableHead>
+                  <TableHead className="w-[24%]">{t("Voce del conto economico")}</TableHead>
+                  <TableHead className="w-[16%]">{t("Tipo")}</TableHead>
+                  <TableHead className="w-[18%]">{t("Da dove arriva")}</TableHead>
+                  <TableHead className="w-[8%] text-center">{t("Attiva")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                      Nessuna voce corrisponde ai filtri.
+                      {t("Nessuna voce corrisponde ai filtri.")}
                     </TableCell>
                   </TableRow>
                 )}
@@ -208,6 +205,7 @@ interface RowProps {
 }
 
 function ClassificazioneRow({ voce, onPatch }: RowProps) {
+  const t = useT();
   const [name, setName] = useState(voce.voce_descrizione);
   const dirty = name !== voce.voce_descrizione;
 
@@ -229,9 +227,9 @@ function ClassificazioneRow({ voce, onPatch }: RowProps) {
         {/* Il nome tecnico (es. «salari_stipendi_cc») solo nel tooltip. */}
         <p
           className="mt-1 text-[11px] text-muted-foreground"
-          title={`Codice: ${voce.voce_chiave}${voce.source_value ? ` · categoria salvata: ${voce.source_value}` : ""}`}
+          title={voce.source_value ? t("Codice: {codice} · categoria salvata: {categoria}", { codice: voce.voce_chiave, categoria: voce.source_value }) : t("Codice: {codice}", { codice: voce.voce_chiave })}
         >
-          {voce.source_value ? <>Categoria «{categoriaLeggibile(voce.source_value)}»</> : "Senza categoria"}
+          {voce.source_value ? <>{t("Categoria «{source_value}»", { source_value: String(categoriaLeggibile(voce.source_value) ?? "") })}</> : t("Senza categoria")}
         </p>
       </TableCell>
       <TableCell>

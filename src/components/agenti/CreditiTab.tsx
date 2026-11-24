@@ -14,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CreditCard, Wallet, Clock, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { formatEur, formatMinutes, estimateConversationsRemaining } from "@/modules/ai-agents/lib/creditCalculator";
 import { useAgentCredits, useCreditTopups, useCreditUsage, useUsageByAgent } from "@/modules/ai-agents/hooks/useAgentCredits";
 import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
@@ -22,6 +21,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useCompanyAiSpendStats } from "@/hooks/ai-provider";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CreditTransaction {
   id: string;
@@ -59,6 +59,7 @@ function humanTaskLabel(taskKind: string): string {
 }
 
 export function CreditiTab() {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const { role } = useAuth();
@@ -130,7 +131,7 @@ export function CreditiTab() {
   const topupAmount = selectedAmount ?? (customAmount ? parseFloat(customAmount) : 0);
 
   const handleTopup = async () => {
-    if (topupAmount < 5) { toast.error("Importo minimo €5.00"); return; }
+    if (topupAmount < 5) { toast.error(tr("Importo minimo €5.00")); return; }
     setIsTopupLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("topup-credits", {
@@ -138,11 +139,11 @@ export function CreditiTab() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success(`Ricarica di ${formatEur(topupAmount)} completata!`);
+      toast.success(tr("Ricarica di {topupAmount} completata!", { topupAmount: formatEur(topupAmount) }));
       queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.all });
       setShowConfirmDialog(false);
     } catch {
-      toast.error("Errore durante la ricarica");
+      toast.error(tr("Errore durante la ricarica"));
     } finally {
       setIsTopupLoading(false);
     }
@@ -166,12 +167,12 @@ export function CreditiTab() {
       if (error) throw error;
       // Una UPDATE che la RLS filtra non dà errore: senza righe non si è salvato nulla.
       if (!salvate || (salvate as unknown[]).length === 0) {
-        throw new Error("La ricarica automatica la cambia lo staff di piattaforma");
+        throw new Error(tr("La ricarica automatica la cambia lo staff di piattaforma"));
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.all });
-      toast.success("Impostazioni ricarica automatica salvate");
+      toast.success(tr("Impostazioni ricarica automatica salvate"));
     } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : "Errore nel salvataggio");
+      toast.error(e instanceof Error && e.message ? e.message : tr("Errore nel salvataggio"));
     } finally {
       setIsSavingAutoRecharge(false);
     }
@@ -181,51 +182,51 @@ export function CreditiTab() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-foreground">Crediti & Utilizzo</h2>
+      <h2 className="text-xl font-bold text-foreground">{tr("Crediti & Utilizzo")}</h2>
 
       {/* Hero Card — Balance */}
       <Card className={`border-2 ${borderColor}`}>
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <p className="text-sm font-semibold text-muted-foreground">Saldo Disponibile</p>
+              <p className="text-sm font-semibold text-muted-foreground">{tr("Saldo Disponibile")}</p>
               <p className={`text-5xl font-extrabold mt-1 ${balanceColor}`}>{formatEur(balance)}</p>
               <div className="mt-4">
                 <CreditUsageBar spentEur={spent} rechargedEur={recharged} />
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                Stima: <span className="font-mono font-medium text-foreground">~{estConversations} conversazioni da 5 min</span>
+                {tr("Stima:")} <span className="font-mono font-medium text-foreground">{tr("~{estConversations} conversazioni da 5 min", { estConversations: String(estConversations ?? "") })}</span>
               </p>
               {blocked && (
                 <Card className="bg-destructive/10 border-destructive/30 mt-4">
                   <CardContent className="p-3 flex items-center gap-2">
                     <ShieldAlert className="h-4 w-4 text-destructive" />
                     <div>
-                      <p className="text-sm font-semibold text-destructive">Chiamate bloccate — Saldo esaurito</p>
-                      <p className="text-xs text-destructive/80">Ricarica subito per riattivare gli agenti.</p>
+                      <p className="text-sm font-semibold text-destructive">{tr("Chiamate bloccate — Saldo esaurito")}</p>
+                      <p className="text-xs text-destructive/80">{tr("Ricarica subito per riattivare gli agenti.")}</p>
                     </div>
                   </CardContent>
                 </Card>
               )}
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">Ricarica Automatica</p>
+              <p className="text-sm font-semibold text-foreground">{tr("Ricarica Automatica")}</p>
               <div className="flex items-center gap-2 mt-2">
                 <Switch checked={autoRechargeEnabled} onCheckedChange={setAutoRechargeEnabled} />
-                <span className="text-sm text-muted-foreground">{autoRechargeEnabled ? "Attiva" : "Disattivata"}</span>
+                <span className="text-sm text-muted-foreground">{autoRechargeEnabled ? tr("Attiva") : tr("Disattivata")}</span>
               </div>
               {autoRechargeEnabled && (
                 <div className="mt-3 space-y-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Soglia (€)</Label>
+                    <Label className="text-xs">{tr("Soglia (€)")}</Label>
                     <Input type="number" min={1} value={autoRechargeThreshold} onChange={(e) => setAutoRechargeThreshold(e.target.value)} className="w-24 font-mono" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Importo ricarica (€)</Label>
+                    <Label className="text-xs">{tr("Importo ricarica (€)")}</Label>
                     <Input type="number" min={5} step={5} value={autoRechargeAmount} onChange={(e) => setAutoRechargeAmount(e.target.value)} className="w-24 font-mono" />
                   </div>
                   <Button size="sm" onClick={handleSaveAutoRecharge} disabled={isSavingAutoRecharge}>
-                    {isSavingAutoRecharge ? "Salvataggio..." : "Salva"}
+                    {isSavingAutoRecharge ? tr("Salvataggio...") : tr("Salva")}
                   </Button>
                 </div>
               )}
@@ -240,25 +241,25 @@ export function CreditiTab() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
-              Utilizzo AI (ultimi 30 giorni)
+              {tr("Utilizzo AI (ultimi 30 giorni)")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
               <div>
-                <p className="text-xs text-muted-foreground">Spesa totale</p>
+                <p className="text-xs text-muted-foreground">{tr("Spesa totale")}</p>
                 <p className="text-2xl font-bold text-foreground mt-1">
                   {formatEur(aiSpend.total_spent_eur)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Chiamate AI</p>
+                <p className="text-xs text-muted-foreground">{tr("Chiamate AI")}</p>
                 <p className="text-2xl font-bold text-foreground mt-1">
                   {aiSpend.total_calls}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Categorie usate</p>
+                <p className="text-xs text-muted-foreground">{tr("Categorie usate")}</p>
                 <p className="text-2xl font-bold text-foreground mt-1">
                   {aiSpend.by_task.length}
                 </p>
@@ -266,11 +267,11 @@ export function CreditiTab() {
             </div>
             {aiSpend.by_task.length > 0 && (
               <div className="space-y-1 pt-3 border-t">
-                <p className="text-xs text-muted-foreground mb-2">Per categoria:</p>
+                <p className="text-xs text-muted-foreground mb-2">{tr("Per categoria:")}</p>
                 {aiSpend.by_task.slice(0, 6).map((t) => (
                   <div key={t.task_kind} className="flex items-center justify-between text-sm">
                     <span className="text-foreground">
-                      {humanTaskLabel(t.task_kind)}
+                      {tr(humanTaskLabel(t.task_kind))}
                     </span>
                     <span className="text-muted-foreground font-mono">
                       {t.n_calls} · {formatEur(t.total_spent_eur)}
@@ -287,17 +288,17 @@ export function CreditiTab() {
       {!isSuperAdmin ? (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <p className="text-sm text-muted-foreground">Per ricaricare i crediti usa il pagamento con carta.</p>
+            <p className="text-sm text-muted-foreground">{tr("Per ricaricare i crediti usa il pagamento con carta.")}</p>
             <Button asChild size="sm">
               <Link to="/azienda/impostazioni/abbonamento?tab=portafoglio">
-                <CreditCard className="h-4 w-4 mr-2" /> Ricarica i crediti
+                <CreditCard className="h-4 w-4 mr-2" /> {tr("Ricarica i crediti")}
               </Link>
             </Button>
           </CardContent>
         </Card>
       ) : (
       <div>
-        <h3 className="text-lg font-bold text-foreground">Ricarica Manuale</h3>
+        <h3 className="text-lg font-bold text-foreground">{tr("Ricarica Manuale")}</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
           {TOPUP_OPTIONS.map((opt) => (
             <Card
@@ -306,9 +307,9 @@ export function CreditiTab() {
               onClick={() => { setSelectedAmount(opt.amount); setCustomAmount(""); }}
             >
               <CardContent className="p-5 text-center relative">
-                {opt.popular && <Badge className="absolute top-2 right-2 text-[10px]">Popolare</Badge>}
+                {opt.popular && <Badge className="absolute top-2 right-2 text-[10px]">{tr("Popolare")}</Badge>}
                 <p className="text-3xl font-extrabold">{opt.label}</p>
-                <p className="text-xs text-muted-foreground mt-1 font-mono">~{estimateConversationsRemaining(opt.amount, avgCostPerMin, 5)} conv.</p>
+                <p className="text-xs text-muted-foreground mt-1 font-mono">{tr("~{amount} conv.", { amount: String(estimateConversationsRemaining(opt.amount, avgCostPerMin, 5) ?? "") })}</p>
               </CardContent>
             </Card>
           ))}
@@ -317,13 +318,13 @@ export function CreditiTab() {
             onClick={() => setSelectedAmount(null)}
           >
             <CardContent className="p-5 text-center space-y-2">
-              <p className="text-sm text-muted-foreground">Personalizzato</p>
+              <p className="text-sm text-muted-foreground">{tr("Personalizzato")}</p>
               <Input type="number" min={5} max={500} placeholder="€" value={customAmount} onChange={(e) => { setCustomAmount(e.target.value); setSelectedAmount(null); }} className="text-center text-lg font-mono" />
             </CardContent>
           </Card>
         </div>
         <Button className="w-full mt-4" size="lg" disabled={topupAmount < 5} onClick={() => setShowConfirmDialog(true)}>
-          <CreditCard className="h-4 w-4 mr-2" /> Ricarica {topupAmount >= 5 ? formatEur(topupAmount) : ""}
+          <CreditCard className="h-4 w-4 mr-2" /> {tr("Ricarica")} {topupAmount >= 5 ? formatEur(topupAmount) : ""}
         </Button>
       </div>
       )}
@@ -331,17 +332,17 @@ export function CreditiTab() {
       {/* Usage by Agent */}
       {usageByAgent && usageByAgent.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4" /> Utilizzo per Agente</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4" /> {tr("Utilizzo per Agente")}</CardTitle></CardHeader>
           <CardContent>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Agente</TableHead>
-                    <TableHead>LLM + TTS</TableHead>
-                    <TableHead>Chiamate</TableHead>
-                    <TableHead>Minuti</TableHead>
-                    <TableHead>Costo (€)</TableHead>
+                    <TableHead>{tr("Agente")}</TableHead>
+                    <TableHead>{tr("LLM + TTS")}</TableHead>
+                    <TableHead>{tr("Chiamate")}</TableHead>
+                    <TableHead>{tr("Minuti")}</TableHead>
+                    <TableHead>{tr("Costo (€)")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -364,26 +365,26 @@ export function CreditiTab() {
       {/* Credit Transactions */}
       {transactions.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4" /> Storico Transazioni Crediti</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4" /> {tr("Storico Transazioni Crediti")}</CardTitle></CardHeader>
           <CardContent>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Crediti</TableHead>
-                    <TableHead>Saldo Dopo</TableHead>
-                    <TableHead>Descrizione</TableHead>
+                    <TableHead>{tr("Data")}</TableHead>
+                    <TableHead>{tr("Tipo")}</TableHead>
+                    <TableHead>{tr("Crediti")}</TableHead>
+                    <TableHead>{tr("Saldo Dopo")}</TableHead>
+                    <TableHead>{tr("Descrizione")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {transactions.map((t) => (
                     <TableRow key={t.id}>
-                      <TableCell className="font-mono text-xs">{format(new Date(t.creato_il), "dd/MM/yy HH:mm", { locale: it })}</TableCell>
+                      <TableCell className="font-mono text-xs">{format(new Date(t.creato_il), "dd/MM/yy HH:mm", { locale: dateFnsCampo() })}</TableCell>
                       <TableCell>
                         <Badge variant={t.tipo === "consumo" ? "destructive" : "default"} className="text-[10px]">
-                          {t.tipo === "consumo" ? "Consumo" : t.tipo === "ricarica" ? "Ricarica" : t.tipo}
+                          {t.tipo === "consumo" ? tr("Consumo") : t.tipo === "ricarica" ? tr("Ricarica") : t.tipo}
                         </Badge>
                       </TableCell>
                       <TableCell className="font-mono">
@@ -405,24 +406,24 @@ export function CreditiTab() {
       {/* Topup History from legacy table */}
       {topups && topups.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4" /> Storico Ricariche</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4" /> {tr("Storico Ricariche")}</CardTitle></CardHeader>
           <CardContent>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Importo</TableHead>
-                    <TableHead>N. Fattura</TableHead>
-                    <TableHead>Stato</TableHead>
+                    <TableHead>{tr("Data")}</TableHead>
+                    <TableHead>{tr("Tipo")}</TableHead>
+                    <TableHead>{tr("Importo")}</TableHead>
+                    <TableHead>{tr("N. Fattura")}</TableHead>
+                    <TableHead>{tr("Stato")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {topups.map((t) => (
                     <TableRow key={t.id}>
-                      <TableCell className="font-mono text-xs">{format(new Date(t.created_at), "dd/MM/yy HH:mm", { locale: it })}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-[10px]">{t.type === "manual" ? "Manuale" : t.type === "auto" ? "Automatica" : t.type}</Badge></TableCell>
+                      <TableCell className="font-mono text-xs">{format(new Date(t.created_at), "dd/MM/yy HH:mm", { locale: dateFnsCampo() })}</TableCell>
+                      <TableCell><Badge variant="secondary" className="text-[10px]">{t.type === "manual" ? tr("Manuale") : t.type === "auto" ? tr("Automatica") : t.type}</Badge></TableCell>
                       <TableCell className="font-mono font-semibold">{formatEur(t.amount_eur)}</TableCell>
                       <TableCell className="font-mono text-xs">{t.invoice_number || "—"}</TableCell>
                       <TableCell><Badge variant={t.status === "completed" ? "default" : "secondary"} className="text-[10px]">{t.status}</Badge></TableCell>
@@ -439,13 +440,13 @@ export function CreditiTab() {
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Conferma Ricarica</DialogTitle>
+            <DialogTitle>{tr("Conferma Ricarica")}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Stai per ricaricare <span className="font-bold text-foreground">{formatEur(topupAmount)}</span>.</p>
+          <p className="text-sm text-muted-foreground">{tr("Stai per ricaricare")} <span className="font-bold text-foreground">{formatEur(topupAmount)}</span>.</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>{tr("Annulla")}</Button>
             <Button onClick={handleTopup} disabled={isTopupLoading}>
-              {isTopupLoading ? "Elaborazione..." : "Conferma"}
+              {isTopupLoading ? tr("Elaborazione...") : tr("Conferma")}
             </Button>
           </DialogFooter>
         </DialogContent>

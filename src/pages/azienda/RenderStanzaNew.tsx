@@ -34,6 +34,7 @@ import {
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -55,6 +56,7 @@ function isIdleTimeoutMessage(message: string) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderStanzaNew() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -112,7 +114,7 @@ export default function RenderStanzaNew() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error(t("File troppo grande (max 20 MB)"));
       return;
     }
     setPhoto(file);
@@ -151,17 +153,17 @@ export default function RenderStanzaNew() {
         })
         .select("id")
         .single();
-      if (sessErr || !sess) throw new Error("Creazione sessione fallita");
+      if (sessErr || !sess) throw new Error(t("Creazione sessione fallita"));
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
 
       setStep(2);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
+      toast.error(err instanceof Error ? err.message : t("Upload foto fallito"));
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config, contactId, opportunityId]);
+  }, [photo, companyId, user, config, contactId, opportunityId, t]);
 
   // ── Polling helpers (declared before startRender so the callback can capture them stably) ──
   const stopPolling = useCallback(() => {
@@ -193,7 +195,7 @@ export default function RenderStanzaNew() {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         stopPolling();
         setGenerating(false);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
+        toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova."));
         setStep(2);
         return;
       }
@@ -220,7 +222,7 @@ export default function RenderStanzaNew() {
       if (s?.status === "failed") {
         stopPolling();
         setGenerating(false);
-        toast.error(s.error_message || "Render fallito. Riprova.");
+        toast.error(s.error_message || t("Render fallito. Riprova."));
         setStep(2);
         return;
       }
@@ -233,7 +235,7 @@ export default function RenderStanzaNew() {
     };
 
     poll();
-  }, [companyId, queryClient, stopPolling]);
+  }, [companyId, queryClient, stopPolling, t]);
 
   // ── Step 2 → Step 3: start render ──────────────────────────────────────────
   const startRender = useCallback(async () => {
@@ -294,16 +296,16 @@ export default function RenderStanzaNew() {
       const msg = await resolveEdgeFunctionErrorMessage({
         error: fnErr,
         data: fnData,
-        fallback: "Generazione fallita",
+        fallback: t("Generazione fallita"),
       });
       if (isIdleTimeoutMessage(msg)) {
-        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        toast.info(t("Render avviato: continuo a controllare lo stato in automatico."));
         return;
       }
       stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
-        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
+        toast.error(t("Crediti render insufficienti. Acquista nuovi crediti."));
       } else {
         toast.error(msg);
       }
@@ -326,15 +328,15 @@ export default function RenderStanzaNew() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (isIdleTimeoutMessage(msg)) {
-        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        toast.info(t("Render avviato: continuo a controllare lo stato in automatico."));
         return;
       }
       stopPolling();
       setGenerating(false);
       setStep(2);
-      toast.error(msg || "Render fallito");
+      toast.error(msg || t("Render fallito"));
     }
-  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, stopPolling, generating]);
+  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, stopPolling, generating, t]);
 
   // ── Save to gallery ─────────────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -355,13 +357,13 @@ export default function RenderStanzaNew() {
         .eq("id", sessionId);
       if (error) throw error;
       setSavedToGallery(true);
-      toast.success("Render salvato in galleria!");
+      toast.success(t("Render salvato in galleria!"));
     } catch (err) {
-      toast.error(`Salvataggio fallito: ${String(err)}`);
+      toast.error(t("Salvataggio fallito: {valore}", { valore: String(err) }));
     } finally {
       setSavingGallery(false);
     }
-  }, [sessionId, companyId, savedToGallery, config]);
+  }, [sessionId, companyId, savedToGallery, config, t]);
 
   // ── Download ────────────────────────────────────────────────────────────────
   const downloadResult = useCallback(async () => {
@@ -370,9 +372,9 @@ export default function RenderStanzaNew() {
     try {
       await downloadRenderImage(url, `render_stanza_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
-  }, [resultUrls]);
+  }, [resultUrls, t]);
 
   // ── WhatsApp ────────────────────────────────────────────────────────────────
   const shareWhatsApp = useCallback(() => {
@@ -417,12 +419,12 @@ export default function RenderStanzaNew() {
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Restyling stanza fotorealistico"
-        title="Stessa stanza, nuovo stile"
-        mobileTitle="Render Stanza"
-        description="Cambia colori, finiture e arredi mantenendo struttura e proporzioni della stanza originale."
-        badgeLabel="Render AI — Stanze"
-        stepLabels={["Foto", "Configura", "Elaborazione", "Risultati"]}
+        eyebrow={t("Restyling stanza fotorealistico")}
+        title={t("Stessa stanza, nuovo stile")}
+        mobileTitle={t("Render Stanza")}
+        description={t("Cambia colori, finiture e arredi mantenendo struttura e proporzioni della stanza originale.")}
+        badgeLabel={t("Render AI — Stanze")}
+        stepLabels={[t("Foto"), t("Configura"), t("Elaborazione"), t("Risultati")]}
         currentStep={step}
         accent="violet"
       />
@@ -443,7 +445,7 @@ export default function RenderStanzaNew() {
             <>
               <ZonaFotoMobile
                 onScegli={() => fileRef.current?.click()}
-                suggerimento="Frontale e luminosa, con pareti e pavimento visibili"
+                suggerimento={t("Frontale e luminosa, con pareti e pavimento visibili")}
                 accento="violet"
               />
               <input
@@ -459,7 +461,7 @@ export default function RenderStanzaNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                Foto della stanza
+                {t("Foto della stanza")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -467,7 +469,7 @@ export default function RenderStanzaNew() {
                 <div className="relative rounded-lg overflow-hidden">
                   <img loading="lazy"
                     src={photoPreview}
-                    alt="Foto caricata"
+                    alt={t("Foto caricata")}
                     className="w-full max-h-80 object-cover"
                   />
                   {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
@@ -483,7 +485,7 @@ export default function RenderStanzaNew() {
                   >
                     <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
                     <Camera className="hidden h-3.5 w-3.5 max-md:block" />
-                    Cambia foto
+                    {t("Cambia foto")}
                   </Button>
                 </div>
               ) : (
@@ -495,13 +497,13 @@ export default function RenderStanzaNew() {
                     <ImageIcon className="h-8 w-8 text-purple-500/60" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold">Carica foto della stanza</p>
+                    <p className="font-semibold">{t("Carica foto della stanza")}</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      JPG, PNG, WEBP &middot; Max 20 MB &middot; Foto frontale per risultati ottimali
+                      {t("JPG, PNG, WEBP · Max 20 MB · Foto frontale per risultati ottimali")}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" type="button">
-                    Sfoglia file
+                    {t("Sfoglia file")}
                   </Button>
                 </div>
               )}
@@ -519,12 +521,12 @@ export default function RenderStanzaNew() {
           {/* Tips — telefono: la riga nella zona foto basta. */}
           <Card className="bg-muted/30 max-md:hidden">
             <CardContent className="py-3">
-              <p className="text-xs font-semibold mb-1.5">Consigli per il miglior risultato</p>
+              <p className="text-xs font-semibold mb-1.5">{t("Consigli per il miglior risultato")}</p>
               <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
-                <li>Foto frontale della stanza con buona illuminazione</li>
-                <li>Pavimento e pareti visibili il piu possibile</li>
-                <li>Risoluzione almeno 800x600 px</li>
-                <li>Evita foto con persone o animali domestici</li>
+                <li>{t("Foto frontale della stanza con buona illuminazione")}</li>
+                <li>{t("Pavimento e pareti visibili il piu possibile")}</li>
+                <li>{t("Risoluzione almeno 800x600 px")}</li>
+                <li>{t("Evita foto con persone o animali domestici")}</li>
               </ul>
             </CardContent>
           </Card>
@@ -545,9 +547,9 @@ export default function RenderStanzaNew() {
             onClick={goToStep2}
           >
             {uploading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" />Caricamento in corso...</>
+              <><Loader2 className="h-4 w-4 animate-spin" />{t("Caricamento in corso...")}</>
             ) : (
-              <><Wand2 className="h-4 w-4" />Carica e configura</>
+              <><Wand2 className="h-4 w-4" />{t("Carica e configura")}</>
             )}
           </Button>
           )}
@@ -562,9 +564,9 @@ export default function RenderStanzaNew() {
           {/* Foto preview */}
           {photoPreview && (
             <div className="rounded-xl overflow-hidden h-40 relative">
-              <img loading="lazy" src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt={t("Stanza")} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto caricata</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">{t("Foto caricata")}</div>
             </div>
           )}
 
@@ -573,7 +575,7 @@ export default function RenderStanzaNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Sofa className="h-4 w-4" />
-                Configura la trasformazione
+                {t("Configura la trasformazione")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -587,7 +589,7 @@ export default function RenderStanzaNew() {
             onClick={startRender}
           >
             <Zap className="h-4 w-4" />
-            Genera render AI
+            {t("Genera render AI")}
           </Button>
         </div>
       )}
@@ -601,7 +603,7 @@ export default function RenderStanzaNew() {
           elapsedSec={pollState.elapsedSec}
           dots={pollState.dots}
           accent="violet"
-          subjectLabel="L'AI sta elaborando il render della stanza"
+          subjectLabel={t("L'AI sta elaborando il render della stanza")}
         />
       )}
 
@@ -614,9 +616,9 @@ export default function RenderStanzaNew() {
           <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900 max-md:hidden">
             <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
             <div>
-              <p className="font-semibold text-green-800 dark:text-green-400 text-sm">Render completato!</p>
+              <p className="font-semibold text-green-800 dark:text-green-400 text-sm">{t("Render completato!")}</p>
               <p className="text-xs text-green-700 dark:text-green-500">
-                Il render fotorealistico della stanza e pronto
+                {t("Il render fotorealistico della stanza e pronto")}
               </p>
             </div>
           </div>
@@ -625,7 +627,7 @@ export default function RenderStanzaNew() {
           {photoPreview && resultUrls[0] && (
             <Card className="overflow-hidden max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardHeader className="max-md:hidden">
-                <CardTitle className="text-base">Confronto Prima / Dopo</CardTitle>
+                <CardTitle className="text-base">{t("Confronto Prima / Dopo")}</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <BeforeAfterSlider
@@ -641,7 +643,7 @@ export default function RenderStanzaNew() {
               <CardContent className="p-0">
                 <img loading="lazy"
                   src={resultUrls[0]}
-                  alt="Render AI"
+                  alt={t("Render AI")}
                   className="w-full object-cover"
                 />
               </CardContent>
@@ -651,7 +653,7 @@ export default function RenderStanzaNew() {
           {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
           {isMobile && resultUrls[0] && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-stanza" className="min-w-0 flex-1" />
@@ -662,7 +664,7 @@ export default function RenderStanzaNew() {
           <div className="grid grid-cols-2 gap-3 max-md:hidden">
             <Button variant="outline" className="gap-2" onClick={downloadResult}>
               <Download className="h-4 w-4" />
-              Scarica
+              {t("Scarica")}
             </Button>
             <Button variant="outline" className="gap-2" onClick={shareWhatsApp}>
               <Share2 className="h-4 w-4" />
@@ -677,11 +679,11 @@ export default function RenderStanzaNew() {
             onClick={saveToGallery}
           >
             {savingGallery ? (
-              <><Loader2 className="h-4 w-4 animate-spin" />Salvataggio...</>
+              <><Loader2 className="h-4 w-4 animate-spin" />{t("Salvataggio...")}</>
             ) : savedToGallery ? (
-              <><CheckCircle2 className="h-4 w-4" />Salvato in galleria</>
+              <><CheckCircle2 className="h-4 w-4" />{t("Salvato in galleria")}</>
             ) : (
-              "Salva in galleria"
+              t("Salva in galleria")
             )}
           </Button>
 
@@ -694,7 +696,7 @@ export default function RenderStanzaNew() {
             onEditChoices={() => setStep(2)}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel="Genera nuova variante stanza"
+            regenerateLabel={t("Genera nuova variante stanza")}
           />
 
           {/* Telefono: «Nuovo render» sta accanto a «Manda al cliente», la galleria è nel modulo. */}
@@ -704,13 +706,13 @@ export default function RenderStanzaNew() {
               className="flex-1"
               onClick={nuovoRender}
             >
-              Nuovo render
+              {t("Nuovo render")}
             </Button>
             <Button
               className="flex-1"
               onClick={() => navigate("/azienda/render/stanza/gallery")}
             >
-              Vai alla galleria
+              {t("Vai alla galleria")}
             </Button>
           </div>
         </div>

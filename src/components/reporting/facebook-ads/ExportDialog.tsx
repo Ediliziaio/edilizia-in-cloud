@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import type { NormalizedCampaignRow } from "@/lib/metaInsightsNormalizer";
 import type { DateRange, ReportLevel } from "@/hooks/useMetaAdsReport";
 import { COLONNE } from "./CampaignTable";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, accountId, companyName, level }: Props) => {
+  const t = useT();
   // Numeri come numeri (il foglio li somma), testi con l'etichetta leggibile;
   // la gerarchia campagna → gruppo → inserzione sempre per esteso.
   const buildData = () =>
@@ -88,9 +90,9 @@ const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, acc
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[360px]">
         <DialogHeader>
-          <DialogTitle>Esporta report</DialogTitle>
+          <DialogTitle>{t("Esporta report")}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{rows.length} righe · {visibleColumns.length} colonne visibili</p>
+        <p className="text-sm text-muted-foreground">{t("{n} righe · {n2} colonne visibili", { n: rows.length, n2: visibleColumns.length })}</p>
         <DialogFooter className="flex gap-2 sm:justify-start">
           <Button variant="outline" onClick={exportCSV} className="gap-2">
             <FileText className="h-4 w-4" /> CSV

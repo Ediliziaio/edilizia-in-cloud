@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SceltaFiltro<T extends string>({ titolo, valore, scelte, onScegli }: {
   titolo: string;
@@ -12,12 +13,13 @@ export function SceltaFiltro<T extends string>({ titolo, valore, scelte, onScegl
   scelte: ReadonlyArray<{ value: T; label: string }>;
   onScegli: (v: T) => void;
 }) {
+  const t = useT();
   const scelta = scelte.find(opzione => opzione.value === valore);
   return (
     <label className="relative flex min-h-12 items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/40 focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring">
       <span className="min-w-0 text-sm font-medium">{titolo}</span>
       <span aria-hidden="true" className="flex min-w-0 max-w-[58%] items-center gap-2 text-right text-sm text-muted-foreground">
-        <span className="truncate">{scelta?.label ?? "Seleziona"}</span>
+        <span className="truncate">{scelta?.label ?? t("Seleziona")}</span>
         <ChevronDown className="size-4 shrink-0" />
       </span>
       <select
@@ -60,10 +62,11 @@ export function DateFiltro({ dal, al, cambiaDal, cambiaAl }: {
   cambiaDal: (data: string) => void;
   cambiaAl: (data: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="grid gap-2 p-3 min-[380px]:grid-cols-2">
       <label className="min-w-0 space-y-1 text-sm">
-        <span>Da</span>
+        <span>{t("Da")}</span>
         <Input type="date" className="h-11" value={dal} onChange={e => cambiaDal(e.target.value)} />
       </label>
       <label className="min-w-0 space-y-1 text-sm">
@@ -117,7 +120,7 @@ export function SelettoreSezione<T extends string>({ nome, valore, sezioni, onSc
 export function CercaConFiltri({
   valore,
   onCambia,
-  segnaposto = "Cerca",
+  segnaposto: segnapostoDato,
   filtriAttivi = 0,
   onApriFiltri,
   className,
@@ -130,6 +133,8 @@ export function CercaConFiltri({
   onApriFiltri?: () => void;
   className?: string;
 }) {
+  const t = useT();
+  const segnaposto = segnapostoDato ?? t("Cerca");
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <div className="relative min-w-0 flex-1">
@@ -151,6 +156,7 @@ export function CercaConFiltri({
 
 /** Bottone-icona dei filtri con il pallino del numero di filtri attivi. */
 export function BottoneFiltri({ attivi, onClick, className }: { attivi: number; onClick: () => void; className?: string }) {
+  const t = useT();
   return (
     <Button
       type="button"
@@ -158,7 +164,7 @@ export function BottoneFiltri({ attivi, onClick, className }: { attivi: number; 
       size="icon"
       className={cn("relative size-11 shrink-0 bg-background", className)}
       onClick={onClick}
-      aria-label="Filtri"
+      aria-label={t("Filtri")}
     >
       <SlidersHorizontal className="h-4 w-4" />
       {attivi > 0 && (
@@ -177,7 +183,7 @@ export function PannelloFiltri({
   attivi,
   onAzzera,
   risultati,
-  titolo = "Filtri",
+  titolo: titoloDato,
   children,
 }: {
   aperto: boolean;
@@ -189,6 +195,8 @@ export function PannelloFiltri({
   titolo?: string;
   children: ReactNode;
 }) {
+  const t = useT();
+  const titolo = titoloDato ?? t("Filtri");
   return (
     <Sheet open={aperto} onOpenChange={onAperto}>
       <SheetContent side="bottom" overlayClassName="bg-slate-950/45" aria-describedby={undefined} className="mx-auto flex max-h-[90dvh] max-w-md flex-col gap-0 overflow-hidden rounded-t-3xl p-0 pt-4 [&>button:last-child]:right-2 [&>button:last-child]:top-1 [&>button:last-child]:grid [&>button:last-child]:size-11 [&>button:last-child]:place-items-center">
@@ -199,11 +207,11 @@ export function PannelloFiltri({
         <div className="flex shrink-0 gap-2 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {attivi > 0 && (
             <Button variant="ghost" className="min-h-11 text-muted-foreground" onClick={onAzzera}>
-              Azzera
+              {t("Azzera")}
             </Button>
           )}
           <Button className="min-h-11 flex-1" onClick={() => onAperto(false)}>
-            {risultati === undefined ? "Fatto" : `Mostra ${risultati}`}
+            {risultati === undefined ? t("Fatto") : t("Mostra {cosa}", { cosa: String(risultati ?? "") })}
           </Button>
         </div>
       </SheetContent>

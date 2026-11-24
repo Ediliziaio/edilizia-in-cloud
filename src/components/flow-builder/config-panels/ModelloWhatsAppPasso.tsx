@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { corpoDelModello } from "../../../../supabase/functions/_shared/modelloWhatsApp";
 import { ETICHETTE_CAMPI } from "../../../../supabase/functions/_shared/variabiliModelloWhatsApp";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TESTO_LIBERO = "__testo_libero__";
 const NON_DISPONIBILE = "__non_disponibile__";
@@ -49,6 +50,7 @@ interface Props {
 const stringa = (v: unknown) => (typeof v === "string" ? v : "");
 
 export function ModelloWhatsAppPasso({ config, onPatch, companyId }: Props) {
+  const t = useT();
   const { data: modelli = [], isLoading } = useQuery({
     queryKey: ["flow-wa-modelli", companyId],
     enabled: !!companyId,
@@ -123,11 +125,11 @@ export function ModelloWhatsAppPasso({ config, onPatch, companyId }: Props) {
         value={scelto ? chiave(scelto) : nomeScelto ? NON_DISPONIBILE : TESTO_LIBERO}
         onValueChange={scegli}
       >
-        <SelectTrigger className="h-9 text-sm" aria-label="Modello WhatsApp">
-          <SelectValue placeholder="Nessun modello" />
+        <SelectTrigger className="h-9 text-sm" aria-label={t("Modello WhatsApp")}>
+          <SelectValue placeholder={t("Nessun modello")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={TESTO_LIBERO}>Nessun modello: testo libero (solo entro 24 ore)</SelectItem>
+          <SelectItem value={TESTO_LIBERO}>{t("Nessun modello: testo libero (solo entro 24 ore)")}</SelectItem>
           {modelli.map((m) => (
             <SelectItem key={chiave(m)} value={chiave(m)} disabled={m.status !== "APPROVED"}>
               {m.template_name} · {m.template_language}
@@ -136,24 +138,22 @@ export function ModelloWhatsAppPasso({ config, onPatch, companyId }: Props) {
             </SelectItem>
           ))}
           {nonPiuDisponibile && (
-            <SelectItem value={NON_DISPONIBILE} disabled>{nomeScelto} (non più disponibile)</SelectItem>
+            <SelectItem value={NON_DISPONIBILE} disabled>{t("{nomeScelto} (non più disponibile)", { nomeScelto: String(nomeScelto ?? "") })}</SelectItem>
           )}
         </SelectContent>
       </Select>
 
       {!nomeScelto && (
         <p className="text-[11px] text-muted-foreground">
-          Senza modello il messaggio parte solo se il cliente ha scritto nelle ultime 24 ore: a un contatto nuovo serve un modello approvato.
+          {t("Senza modello il messaggio parte solo se il cliente ha scritto nelle ultime 24 ore: a un contatto nuovo serve un modello approvato.")}
         </p>
       )}
       {nonPiuDisponibile && (
-        <p className="text-[11px] font-medium text-destructive">
-          Il modello «{nomeScelto}» non c'è più tra quelli dei tuoi numeri: scegline un altro.
-        </p>
+        <p className="text-[11px] font-medium text-destructive">{t("Il modello «{nomeScelto}» non c'è più tra quelli dei tuoi numeri: scegline un altro.", { nomeScelto: String(nomeScelto ?? "") })}</p>
       )}
       {scelto && scelto.status !== "APPROVED" && (
         <p className="text-[11px] font-medium text-destructive">
-          Il modello è {STATI[scelto.status] ?? scelto.status.toLowerCase()}: il passo non invia finché Meta non lo approva.
+          {t("Il modello è {stato}: il passo non invia finché Meta non lo approva.", { stato: STATI[scelto.status] ? t(STATI[scelto.status]) : scelto.status.toLowerCase() })}
         </p>
       )}
 
@@ -166,18 +166,18 @@ export function ModelloWhatsAppPasso({ config, onPatch, companyId }: Props) {
         if (campo) {
           return (
             <p key={n} className="text-[11px] text-muted-foreground">
-              {`{{${n}}}`} = {ETICHETTE_CAMPI[campo] ?? (campo.startsWith("cf:") ? "campo personalizzato" : campo)} del contatto
+              {`{{${n}}}`} = {t("{campo} del contatto", { campo: ETICHETTE_CAMPI[campo] ? t(ETICHETTE_CAMPI[campo]) : campo.startsWith("cf:") ? t("campo personalizzato") : campo })}
             </p>
           );
         }
         return (
           <div key={n} className="space-y-1">
-            <p className="text-[11px] text-muted-foreground">{`{{${n}}}`} è testo fisso: scrivilo qui</p>
+            <p className="text-[11px] text-muted-foreground">{t("{campo} è testo fisso: scrivilo qui", { campo: `{{${n}}}` })}</p>
             <Input
               className="h-8 text-xs"
-              aria-label={`Testo per {{${n}}}`}
+              aria-label={t("Testo per {campo}", { campo: `{{${n}}}` })}
               value={valori[n] ?? ""}
-              placeholder="Es. il nostro consulente, oppure {{contatto.city}}"
+              placeholder={t("Es. il nostro consulente, oppure {esempio}", { esempio: "{{contatto.city}}" })}
               onChange={(e) => onPatch({ modello_whatsapp_valori: { ...valori, [n]: e.target.value } })}
             />
           </div>

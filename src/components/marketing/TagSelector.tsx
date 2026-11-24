@@ -11,6 +11,7 @@ import { AlertCircle, Check, ChevronsUpDown, Loader2, Plus, X } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DEFAULT_TAG_COLOR, normalizeTagList, normalizeTagName } from "@/lib/marketingTags";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TagSelectorProps {
   selectedTags: string[];
@@ -31,6 +32,7 @@ function getTagErrorMessage(error: unknown) {
 }
 
 export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selectedTags, onTagsChange }, ref) => {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -75,15 +77,15 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
         onTagsChange(normalizeTagList([...selectedTags, normalized]));
       }
       setSearch("");
-      toast.success("Tag creato");
+      toast.success(tr("Tag creato"));
     },
     onError: (e: unknown) => {
       const message = getTagErrorMessage(e);
       const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
       if (message.includes("DUPLICATE_TAG") || message.includes("duplicate") || code === "23505") {
-        toast.error("Tag già esistente");
+        toast.error(tr("Tag già esistente"));
       } else {
-        toast.error("Errore nella creazione del tag");
+        toast.error(tr("Errore nella creazione del tag"));
       }
     },
   });
@@ -134,14 +136,14 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="w-full justify-between text-muted-foreground font-normal">
-            Seleziona o crea tag...
+            {tr("Seleziona o crea tag...")}
             <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder="Cerca o crea tag..."
+              placeholder={tr("Cerca o crea tag...")}
               value={search}
               onValueChange={(v) => { if (v.length <= 50) setSearch(v); }}
             />
@@ -149,22 +151,22 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
               {isLoading ? (
                 <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Caricamento tag...
+                  {tr("Caricamento tag...")}
                 </div>
               ) : isError ? (
                 <div className="space-y-2 px-3 py-3 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 text-destructive" />
-                    Tag non disponibili.
+                    {tr("Tag non disponibili.")}
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
-                    Riprova
+                    {tr("Riprova")}
                   </Button>
                 </div>
               ) : (
                 <>
                   <CommandEmpty className="py-2 px-3 text-sm text-muted-foreground">
-                    Nessun tag trovato.
+                    {tr("Nessun tag trovato.")}
                   </CommandEmpty>
                   <CommandGroup>
                     {visibleTags.map((tag) => (
@@ -197,7 +199,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
                         ) : (
                           <Plus className="mr-2 h-4 w-4" />
                         )}
-                        {createMutation.isPending ? "Creazione..." : `Crea "${searchNormalized}"`}
+                        {createMutation.isPending ? tr("Creazione...") : tr("Crea \"{nome}\"", { nome: searchNormalized })}
                       </CommandItem>
                     </CommandGroup>
                   )}

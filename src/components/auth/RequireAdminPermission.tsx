@@ -1,6 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { useSuperAdminPermissions, type SuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type AdminPermissionKey = Exclude<keyof SuperAdminPermissions, "allowed_company_ids">;
 
@@ -10,6 +11,7 @@ interface RequireAdminPermissionProps {
 }
 
 export function RequireAdminPermission({ permission, children }: RequireAdminPermissionProps) {
+  const t = useT();
   const { permissions, isLoading } = useSuperAdminPermissions();
 
   if (isLoading) {
@@ -17,7 +19,7 @@ export function RequireAdminPermission({ permission, children }: RequireAdminPer
       <div className="min-h-[320px] flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Verifica permessi...</p>
+          <p className="text-muted-foreground">{t("Verifica permessi...")}</p>
         </div>
       </div>
     );

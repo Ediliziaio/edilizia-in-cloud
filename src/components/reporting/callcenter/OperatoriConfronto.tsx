@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GitCompareArrows } from "lucide-react";
 import type { CallCenterKPI } from "@/hooks/useCallCenterReport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CompareField {
   key: keyof CallCenterKPI;
@@ -23,6 +24,7 @@ const FIELDS: CompareField[] = [
 ];
 
 const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareField; a: CallCenterKPI; b: CallCenterKPI }) {
+  const t = useT();
   const valA = Number(a[field.key]) || 0;
   const valB = Number(b[field.key]) || 0;
   const max = Math.max(valA, valB, 1);
@@ -50,7 +52,7 @@ const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareFie
       </div>
 
       <span className="text-xs font-medium text-muted-foreground text-center min-w-[110px]">
-        {field.label}
+        {t(field.label)}
       </span>
 
       <div className="flex items-center gap-2">
@@ -71,6 +73,7 @@ const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareFie
 });
 
 export const OperatoriConfronto = memo(function OperatoriConfronto({ kpiList }: { kpiList: CallCenterKPI[] }) {
+  const t = useT();
   const [opA, setOpA] = useState<string>("");
   const [opB, setOpB] = useState<string>("");
 
@@ -82,7 +85,7 @@ export const OperatoriConfronto = memo(function OperatoriConfronto({ kpiList }: 
       <Card>
         <CardContent className="py-12 text-center">
           <p className="text-muted-foreground">
-            Servono almeno 2 operatori con dati per il confronto.
+            {t("Servono almeno 2 operatori con dati per il confronto.")}
           </p>
         </CardContent>
       </Card>
@@ -94,14 +97,14 @@ export const OperatoriConfronto = memo(function OperatoriConfronto({ kpiList }: 
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <GitCompareArrows className="h-5 w-5" />
-          Confronto Operatori
+          {t("Confronto Operatori")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <Select value={opA} onValueChange={setOpA}>
             <SelectTrigger>
-              <SelectValue placeholder="Seleziona Operatore A" />
+              <SelectValue placeholder={t("Seleziona Operatore A")} />
             </SelectTrigger>
             <SelectContent>
               {kpiList
@@ -118,7 +121,7 @@ export const OperatoriConfronto = memo(function OperatoriConfronto({ kpiList }: 
 
           <Select value={opB} onValueChange={setOpB}>
             <SelectTrigger>
-              <SelectValue placeholder="Seleziona Operatore B" />
+              <SelectValue placeholder={t("Seleziona Operatore B")} />
             </SelectTrigger>
             <SelectContent>
               {kpiList
@@ -145,7 +148,7 @@ export const OperatoriConfronto = memo(function OperatoriConfronto({ kpiList }: 
           </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Seleziona due operatori per confrontare i KPI.
+            {t("Seleziona due operatori per confrontare i KPI.")}
           </p>
         )}
       </CardContent>

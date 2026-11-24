@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Radar, Facebook, Globe, Webhook, UserPlus, FileInput, Chrome,
   MessageSquare, Megaphone, Layers, Image as ImageIcon, Link2, Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getActivityIcon, getActivityColor } from "./activityHelpers";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SubmissionField {
   name: string;
@@ -93,7 +93,7 @@ function humanizeField(name: string) {
 function fmtDateTime(v: string | null | undefined) {
   if (!v) return "";
   try {
-    return format(new Date(v), "d MMM yyyy 'alle' HH:mm", { locale: it });
+    return format(new Date(v), "d MMM yyyy 'alle' HH:mm", { locale: dateFnsCampo() });
   } catch {
     return "";
   }
@@ -127,6 +127,7 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 }
 
 export function ContactTrackingPanel({ contactId }: { contactId: string }) {
+  const t = useT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["contact-tracking", contactId],
     queryFn: async () => {
@@ -152,7 +153,7 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Radar className="h-8 w-8 mx-auto mb-2 opacity-40" />
-        <p className="text-xs">Nessun dato di tracciamento disponibile</p>
+        <p className="text-xs">{t("Nessun dato di tracciamento disponibile")}</p>
       </div>
     );
   }
@@ -181,9 +182,9 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
             <SrcIcon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold leading-tight">{src.label}</p>
+            <p className="text-xs font-semibold leading-tight">{t(src.label)}</p>
             <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" /> Creato il {fmtDateTime(c.created_at)}
+              <Clock className="h-3 w-3" /> {t("Creato il")} {fmtDateTime(c.created_at)}
             </p>
           </div>
         </div>
@@ -196,36 +197,36 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
       {hasMetaAttr && (
         <div className="rounded-lg border p-3 space-y-2">
           <p className="text-[11px] font-semibold flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
-            <Facebook className="h-3.5 w-3.5" /> Attribuzione Meta
+            <Facebook className="h-3.5 w-3.5" /> {t("Attribuzione Meta")}
           </p>
           <div className="space-y-1.5">
             <div className="flex items-start gap-2">
               <Megaphone className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Campagna</p>
+                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Campagna")}</p>
                 <p className="text-xs font-medium break-words">{metaCampaign || "—"}</p>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Layers className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Gruppo di inserzioni</p>
+                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Gruppo di inserzioni")}</p>
                 <p className="text-xs font-medium break-words">{metaAdset || "—"}</p>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <ImageIcon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Inserzione</p>
+                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Inserzione")}</p>
                 <p className="text-xs font-medium break-words">{metaAd || "—"}</p>
               </div>
             </div>
           </div>
           <div className="pt-1.5 border-t space-y-1">
-            <Row label="Campaign ID" value={c.meta_campaign_id} />
-            <Row label="Adset ID" value={c.meta_adset_id} />
-            <Row label="Ad ID" value={c.meta_ad_id} />
-            <Row label="Lead ID" value={c.meta_lead_id} />
+            <Row label={t("Campaign ID")} value={c.meta_campaign_id} />
+            <Row label={t("Adset ID")} value={c.meta_adset_id} />
+            <Row label={t("Ad ID")} value={c.meta_ad_id} />
+            <Row label={t("Lead ID")} value={c.meta_lead_id} />
           </div>
         </div>
       )}
@@ -234,12 +235,12 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
       {hasGoogleAttr && (
         <div className="rounded-lg border p-3 space-y-1">
           <p className="text-[11px] font-semibold flex items-center gap-1.5 text-red-700 dark:text-red-300">
-            <Chrome className="h-3.5 w-3.5" /> Attribuzione Google
+            <Chrome className="h-3.5 w-3.5" /> {t("Attribuzione Google")}
           </p>
-          <Row label="Campaign ID" value={c.google_campaign_id} />
-          <Row label="Ad Group ID" value={c.google_ad_group_id} />
-          <Row label="Ad ID" value={c.google_ad_id} />
-          <Row label="Customer ID" value={c.google_customer_id} />
+          <Row label={t("Campaign ID")} value={c.google_campaign_id} />
+          <Row label={t("Ad Group ID")} value={c.google_ad_group_id} />
+          <Row label={t("Ad ID")} value={c.google_ad_id} />
+          <Row label={t("Customer ID")} value={c.google_customer_id} />
         </div>
       )}
 
@@ -247,7 +248,7 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
       {hasClickIds && (
         <div className="rounded-lg border p-3 space-y-1">
           <p className="text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground">
-            <Link2 className="h-3.5 w-3.5" /> Identificatori tracciamento
+            <Link2 className="h-3.5 w-3.5" /> {t("Identificatori tracciamento")}
           </p>
           <Row label="gclid" value={c.gclid} />
           <Row label="wbraid" value={c.wbraid} />
@@ -261,15 +262,13 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
       {submissions.length > 0 && (
         <div className="space-y-2">
           <p className="text-[11px] font-semibold flex items-center gap-1.5">
-            <FileInput className="h-3.5 w-3.5" /> Richieste inviate
+            <FileInput className="h-3.5 w-3.5" /> {t("Richieste inviate")}
             <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{submissions.length}</Badge>
           </p>
           {submissions.map((s, i) => (
             <div key={s.event_id || i} className="rounded-lg border p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium">
-                  Richiesta #{submissions.length - i}
-                </span>
+                <span className="text-[11px] font-medium">{t("Richiesta #{n}", { n: submissions.length - i })}</span>
                 <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
                   {fmtDateTime(s.created_time || s.received_at)}
                 </span>
@@ -299,7 +298,7 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
       {/* Timeline eventi CRM */}
       {events.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold text-muted-foreground">Cronologia</p>
+          <p className="text-[11px] font-semibold text-muted-foreground">{t("Cronologia")}</p>
           <div className="space-y-2">
             {events.map((e, i) => (
               <div key={i} className="flex items-start gap-2">
@@ -307,7 +306,7 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
                   {getActivityIcon(e.activity_type)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-medium leading-tight break-words">{activityLabel(e)}</p>
+                  <p className="text-[11px] font-medium leading-tight break-words">{t(activityLabel(e))}</p>
                   <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{fmtDateTime(e.created_at)}</p>
                 </div>
               </div>

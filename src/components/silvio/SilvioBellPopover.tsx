@@ -17,8 +17,10 @@ import { Sparkles, ArrowRight, AlertTriangle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { SilvioAlertsPanel } from "./SilvioAlertsPanel";
 import { SilvioActionProposals } from "./SilvioActionProposals";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SilvioBellPopover() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [open, setOpen] = useState(false);
@@ -75,7 +77,7 @@ export function SilvioBellPopover() {
           variant="ghost"
           size="icon"
           className="relative"
-          title="Silvio — Cose da sapere"
+          title={t("Silvio — Cose da sapere")}
         >
           <Sparkles className={cn(
             "h-5 w-5",
@@ -111,11 +113,11 @@ export function SilvioBellPopover() {
                     <Sparkles className="h-4 w-4" />
                   </span>
                   <div>
-                    <p className="text-sm font-semibold leading-tight text-slate-950">Regia Silvio</p>
+                    <p className="text-sm font-semibold leading-tight text-slate-950">{t("Regia Silvio")}</p>
                     <p className="text-xs text-muted-foreground">
                       {hasItems
-                        ? `${total} ${total === 1 ? "priorità aperta" : "priorità aperte"} da verificare`
-                        : "Tutto monitorato in autonomia"}
+                        ? t(total === 1 ? "{n} priorità aperta da verificare" : "{n} priorità aperte da verificare", { n: total })
+                        : t("Tutto monitorato in autonomia")}
                     </p>
                   </div>
                 </div>
@@ -124,19 +126,19 @@ export function SilvioBellPopover() {
                 {isCritical && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700">
                     <AlertTriangle className="h-3 w-3" />
-                    Critico
+                    {t("Critico")}
                   </span>
                 )}
                 {!isCritical && hasItems && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
                     <AlertTriangle className="h-3 w-3" />
-                    Attenzione
+                    {t("Attenzione")}
                   </span>
                 )}
                 {!hasItems && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700">
                     <CheckCircle2 className="h-3 w-3" />
-                    Ok
+                    {t("Ok")}
                   </span>
                 )}
               </div>
@@ -148,9 +150,9 @@ export function SilvioBellPopover() {
             <SilvioActionProposals compact />
             {!hasItems && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 text-center text-sm">
-                <p className="font-medium text-emerald-700">Tutto sotto controllo</p>
+                <p className="font-medium text-emerald-700">{t("Tutto sotto controllo")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Silvio continua a monitorare incassi, scadenze, preventivi e lavoro operativo.
+                  {t("Silvio continua a monitorare incassi, scadenze, preventivi e lavoro operativo.")}
                 </p>
               </div>
             )}
@@ -166,7 +168,7 @@ export function SilvioBellPopover() {
               }}
               className="flex h-9 w-full items-center justify-center gap-2 rounded-md border bg-background text-xs font-semibold text-primary transition hover:bg-primary/5"
             >
-              Apri chat con Silvio <ArrowRight className="h-3.5 w-3.5" />
+              {t("Apri chat con Silvio")} <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>

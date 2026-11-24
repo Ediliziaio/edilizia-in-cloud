@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Globe, Smartphone } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const sourceConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline"; icon: any; className: string }> = {
   whatsapp: { label: "WhatsApp", variant: "default", icon: MessageSquare, className: "bg-emerald-500 hover:bg-emerald-600 text-white" },
@@ -13,6 +14,7 @@ interface SourceBadgeProps {
 }
 
 export function SourceBadge({ source, className = "" }: SourceBadgeProps) {
+  const t = useT();
   if (!source || source === "manual") return null;
 
   const config = sourceConfig[source];
@@ -23,7 +25,7 @@ export function SourceBadge({ source, className = "" }: SourceBadgeProps) {
   return (
     <Badge variant={config.variant} className={`text-[10px] gap-1 ${config.className} ${className}`}>
       <Icon className="h-3 w-3" />
-      {config.label}
+      {source === "campo" ? t("Campo") : config.label}
     </Badge>
   );
 }

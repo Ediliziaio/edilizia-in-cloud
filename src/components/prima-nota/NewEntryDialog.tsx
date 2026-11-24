@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { QuoteMovimento } from "./QuoteMovimento";
 import { useRegistraDivisa } from "@/hooks/useRegistraDivisa";
 import { problemaQuote, type Quota } from "@/lib/primaNota/quoteMovimento";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const CATEGORIES = [
   { value: "incasso", label: "Incasso cliente" },
@@ -46,7 +47,7 @@ interface FatturaAperta {
   order_id: string | null;
 }
 const residuo = (f: FatturaAperta) => Math.max(0, Math.round(((f.total ?? 0) - (f.paid_amount ?? 0)) * 100) / 100);
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(n);
 const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : "");
 
 const METODI = [
@@ -89,6 +90,7 @@ export interface MovimentoBancaDaDividere {
 }
 
 export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, mostraAllegato = false, entry = null, movimentoBanca = null }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const rataCollegata = !!entry?.installment_id && !entry.invoice_id && !entry.bank_transaction_id;
@@ -269,18 +271,18 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   // Un solo posto decide se si può salvare, e sa dire perché: il pulsante spento senza
   // motivo lasciava l'utente a indovinare quale campo mancasse.
   const blocco: { testo: string; errore: boolean } | null =
-    oltreResiduo ? { testo: "L’importo supera quanto resta da incassare su questa fattura.", errore: true }
-    : invoiceId && direction !== "entrata" ? { testo: "L’incasso di una fattura è un’entrata: cambia il verso o togli la fattura.", errore: true }
-    : !description.trim() && !diviso ? { testo: "Manca la descrizione.", errore: false }
-    : !(Number(amount) > 0) ? { testo: "Manca l’importo.", errore: false }
-    : !entryDate ? { testo: "Manca la data.", errore: false }
-    : metodoPersonalizzato && !method.trim() ? { testo: "Indica il nome della modalità di pagamento.", errore: false }
+    oltreResiduo ? { testo: t("L’importo supera quanto resta da incassare su questa fattura."), errore: true }
+    : invoiceId && direction !== "entrata" ? { testo: t("L’incasso di una fattura è un’entrata: cambia il verso o togli la fattura."), errore: true }
+    : !description.trim() && !diviso ? { testo: t("Manca la descrizione."), errore: false }
+    : !(Number(amount) > 0) ? { testo: t("Manca l’importo."), errore: false }
+    : !entryDate ? { testo: t("Manca la data."), errore: false }
+    : metodoPersonalizzato && !method.trim() ? { testo: t("Indica il nome della modalità di pagamento."), errore: false }
     : movimentoBanca ? (problemaDiviso ? { testo: problemaDiviso, errore: false } : null)
-    : accountLabel === "banca" && conti.isPending ? { testo: "Caricamento dei conti bancari…", errore: false }
-    : accountLabel === "banca" && conti.isError ? { testo: "Ricarica i conti bancari prima di registrare.", errore: true }
-    : !entry && accountLabel === "banca" && !!conti.data?.length ? { testo: "Scegli il conto bancario effettivo.", errore: false }
-    : /^(banca|conto):/.test(accountLabel) && !contoScelto && !entry ? { testo: "Il conto scelto non è più disponibile: selezionalo di nuovo.", errore: true }
-    : contoScelto?.bank_account_id && contiPiano.length > 0 && !contoPiano && !contoScelto.conto_liquidita_id ? { testo: "Associa la banca al conto di liquidità del piano contabile.", errore: false }
+    : accountLabel === "banca" && conti.isPending ? { testo: t("Caricamento dei conti bancari…"), errore: false }
+    : accountLabel === "banca" && conti.isError ? { testo: t("Ricarica i conti bancari prima di registrare."), errore: true }
+    : !entry && accountLabel === "banca" && !!conti.data?.length ? { testo: t("Scegli il conto bancario effettivo."), errore: false }
+    : /^(banca|conto):/.test(accountLabel) && !contoScelto && !entry ? { testo: t("Il conto scelto non è più disponibile: selezionalo di nuovo."), errore: true }
+    : contoScelto?.bank_account_id && contiPiano.length > 0 && !contoPiano && !contoScelto.conto_liquidita_id ? { testo: t("Associa la banca al conto di liquidità del piano contabile."), errore: false }
     : problemaDiviso ? { testo: problemaDiviso, errore: false }
     : null;
   const isValid = !blocco;
@@ -290,7 +292,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const handleConfirm = async () => {
     if (!isValid || inCorso) return;
     if (attachmentFile && !companyId) {
-      toast.error("Azienda non disponibile: riapri la registrazione prima di caricare l’allegato.");
+      toast.error(t("Azienda non disponibile: riapri la registrazione prima di caricare l’allegato."));
       return;
     }
     // Upload attachment if present
@@ -310,7 +312,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
         attachmentName = attachmentFile.name;
       } catch (error) {
         logger.warn("Upload allegato fallito", error);
-        toast.error("Allegato non caricato: la registrazione non è stata salvata. Riprova o rimuovi il file.");
+        toast.error(t("Allegato non caricato: la registrazione non è stata salvata. Riprova o rimuovi il file."));
         return;
       } finally {
         setIsUploading(false);
@@ -358,34 +360,38 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       {/* Un filo più largo di prima (lg): la descrizione e le voci delle tendine si leggono intere. */}
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{entry ? "Modifica registrazione" : movimentoBanca ? "Dividi il movimento di banca" : "Nuova Registrazione"}</DialogTitle>
+          <DialogTitle>{entry ? t("Modifica registrazione") : movimentoBanca ? t("Dividi il movimento di banca") : t("Nuova Registrazione")}</DialogTitle>
           <DialogDescription>
             {entry
               ? rataCollegata
-                ? "Incasso collegato a una rata. La data si aggiorna anche nella commessa. L’importo deve corrispondere all’intera rata."
-                : `Registrata il ${dataIt(entry.entry_date)}${entry.is_auto ? " dal programma" : " a mano"}. Le modifiche valgono subito in Prima nota.`
+                ? t("Incasso collegato a una rata. La data si aggiorna anche nella commessa. L’importo deve corrispondere all’intera rata.")
+                : (entry.is_auto
+                  ? t("Registrata il {data} dal programma. Le modifiche valgono subito in Prima nota.", { data: dataIt(entry.entry_date) })
+                  : t("Registrata il {data} a mano. Le modifiche valgono subito in Prima nota.", { data: dataIt(entry.entry_date) }))
               : movimentoBanca
-                ? `${movimentoBanca.direction === "entrata" ? "Accredito" : "Addebito"} del ${dataIt(movimentoBanca.data)}: le quote si collegano a questo movimento.`
-                : "Un movimento di cassa o banca scritto a mano."}
+                ? (movimentoBanca.direction === "entrata"
+                  ? t("Accredito del {data}: le quote si collegano a questo movimento.", { data: dataIt(movimentoBanca.data) })
+                  : t("Addebito del {data}: le quote si collegano a questo movimento.", { data: dataIt(movimentoBanca.data) }))
+                : t("Un movimento di cassa o banca scritto a mano.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 max-sm:space-y-3">
           {/* La categoria decide il verso e quali campi servono: viene prima. */}
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className={cn("space-y-2", diviso && "invisible")} aria-hidden={diviso}>
-              <Label htmlFor="pn-categoria">Categoria</Label>
+              <Label htmlFor="pn-categoria">{t("Categoria")}</Label>
               <Select value={category} onValueChange={scegliCategoria} disabled={rataCollegata}>
                 <SelectTrigger id="pn-categoria"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label asChild><span>Entra o esce</span></Label>
-              <div role="group" aria-label="Entra o esce" className="grid grid-cols-2 gap-1 rounded-md border bg-muted/40 p-1">
+              <Label asChild><span>{t("Entra o esce")}</span></Label>
+              <div role="group" aria-label={t("Entra o esce")} className="grid grid-cols-2 gap-1 rounded-md border bg-muted/40 p-1">
                 {(["entrata", "uscita"] as const).map((v) => (
                   <button
                     key={v}
@@ -398,7 +404,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                       direction === v ? VERSO[v].pieno : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {VERSO[v].etichetta}
+                    {t(VERSO[v].etichetta)}
                   </button>
                 ))}
               </div>
@@ -409,8 +415,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
               <Checkbox checked={diviso} onCheckedChange={v => { setDiviso(v === true); setQuote([]); }} className="mt-0.5" />
               <span>
-                <span className="font-medium">Divido su più fatture, commesse o voci</span>
-                <span className="block text-xs text-muted-foreground">Un bonifico che paga o incassa più fatture, una RiBa, una spesa su più commesse.</span>
+                <span className="font-medium">{t("Divido su più fatture, commesse o voci")}</span>
+                <span className="block text-xs text-muted-foreground">{t("Un bonifico che paga o incassa più fatture, una RiBa, una spesa su più commesse.")}</span>
               </span>
             </label>
           )}
@@ -418,19 +424,19 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           {/* Supplier combobox */}
           {showSupplier && (
             <div className="space-y-2">
-              <Label>Fornitore</Label>
+              <Label>{t("Fornitore")}</Label>
               <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                    {selectedSupplier?.name || "Seleziona fornitore..."}
+                    {selectedSupplier?.name || t("Seleziona fornitore...")}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
                   <Command>
-                    <CommandInput placeholder="Cerca fornitore..." />
+                    <CommandInput placeholder={t("Cerca fornitore...")} />
                     <CommandList>
-                      <CommandEmpty>Nessun fornitore trovato.</CommandEmpty>
+                      <CommandEmpty>{t("Nessun fornitore trovato.")}</CommandEmpty>
                       <CommandGroup>
                         {suppliers.map((s) => (
                           <CommandItem key={s.id} value={s.name} onSelect={() => { setSupplierId(s.id); setSupplierOpen(false); }}>
@@ -449,23 +455,23 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           {/* Fattura da incassare: porta cliente, commessa e importo */}
           {showOrder && !rataCollegata && (
             <div className="space-y-2">
-              <Label>Fattura incassata</Label>
+              <Label>{t("Fattura incassata")}</Label>
               <Popover open={fatturaOpen} onOpenChange={setFatturaOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
                     <span className="truncate">
                       {fatturaScelta
-                        ? `${fatturaScelta.invoice_number ?? "—"} · ${fatturaScelta.client_company_name ?? "cliente non indicato"}`
-                        : fatture.length > 0 ? "Scegli cliente e fattura..." : "Nessuna fattura da incassare"}
+                        ? `${fatturaScelta.invoice_number ?? "—"} · ${fatturaScelta.client_company_name ?? t("cliente non indicato")}`
+                        : fatture.length > 0 ? t("Scegli cliente e fattura...") : t("Nessuna fattura da incassare")}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[min(32rem,90vw)] p-0" align="start">
                   <Command>
-                    <CommandInput placeholder="Cerca cliente o numero..." />
+                    <CommandInput placeholder={t("Cerca cliente o numero...")} />
                     <CommandList>
-                      <CommandEmpty>Nessuna fattura trovata.</CommandEmpty>
+                      <CommandEmpty>{t("Nessuna fattura trovata.")}</CommandEmpty>
                       <CommandGroup>
                         {fatture.map((f) => (
                           <CommandItem key={f.id} value={`${f.invoice_number ?? ""} ${f.client_company_name ?? ""} ${f.id}`} onSelect={() => scegliFattura(f)}>
@@ -485,34 +491,34 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               </Popover>
               {fatturaScelta ? (
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Cliente: <span className="text-foreground">{fatturaScelta.client_company_name ?? "non indicato"}</span> · da incassare {euro(residuoPer(fatturaScelta))}</span>
-                  <button type="button" className="underline" onClick={() => setInvoiceId("")}>Togli</button>
+                  <span>{t("Cliente:")} <span className="text-foreground">{fatturaScelta.client_company_name ?? t("non indicato")}</span> · {t("da incassare {importo}", { importo: euro(residuoPer(fatturaScelta)) })}</span>
+                  <button type="button" className="underline" onClick={() => setInvoiceId("")}>{t("Togli")}</button>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">Senza fattura l'incasso resta solo in Prima nota: non chiude né la fattura né la scadenza.</p>
+                <p className="text-xs text-muted-foreground">{t("Senza fattura l'incasso resta solo in Prima nota: non chiude né la fattura né la scadenza.")}</p>
               )}
               {/* I due errori di questa fattura li dice una volta sola il messaggio sopra il pulsante. */}
             </div>
           )}
 
           {!diviso && <div className="space-y-2">
-            <Label>Commessa o macrocommessa</Label>
-            {rataCollegata ? <p className="text-sm font-medium">{entry.orders?.order_code || "Commessa della rata"}</p>
+            <Label>{t("Commessa o macrocommessa")}</Label>
+            {rataCollegata ? <p className="text-sm font-medium">{entry.orders?.order_code || t("Commessa della rata")}</p>
               : <CommessaCombobox value={orderId || null} onChange={id => setOrderId(id ?? "")}
-                ariaLabel="Commessa o macrocommessa" nessunaLabel="Nessuna commessa collegata" />}
+                ariaLabel={t("Commessa o macrocommessa")} nessunaLabel={t("Nessuna commessa collegata")} />}
           </div>}
 
           <div className="space-y-2">
-            <Label htmlFor="pn-descrizione">Descrizione{diviso && <span className="font-normal text-muted-foreground"> (facoltativa)</span>}</Label>
+            <Label htmlFor="pn-descrizione">{t("Descrizione")}{diviso && <span className="font-normal text-muted-foreground"> {t("(facoltativa)")}</span>}</Label>
             <Input id="pn-descrizione" value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder={diviso ? (direction === "entrata" ? "es. Bonifico cliente ABC" : "es. RiBa fornitore ABC") : "es. Pagamento fornitore ABC"} />
+              placeholder={diviso ? (direction === "entrata" ? t("es. Bonifico cliente ABC") : t("es. RiBa fornitore ABC")) : t("es. Pagamento fornitore ABC")} />
           </div>
 
           {/* L'importo è il dato che si legge per primo: grande, col segno del verso.
               Con la larghezza nuova data, metodo e conto gli stanno accanto su una riga sola. */}
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 max-sm:gap-2 sm:grid-cols-[minmax(11rem,1.1fr)_minmax(0,1fr)]">
             <div className="space-y-2">
-              <Label htmlFor="pn-importo">Importo</Label>
+              <Label htmlFor="pn-importo">{t("Importo")}</Label>
               <div className={cn("flex h-12 items-center gap-2 rounded-md border bg-background px-3 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2", verso.bordo)}>
                 <span aria-hidden className={cn("text-xl font-semibold tabular-nums", verso.testo)}>{verso.segno}</span>
                 <Input
@@ -532,7 +538,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pn-data">Data</Label>
+              <Label htmlFor="pn-data">{t("Data")}</Label>
               <Input id="pn-data" type="date" value={entryDate} readOnly={!!movimentoBanca} onChange={(e) => setEntryDate(e.target.value)} className="h-12" />
             </div>
           </div>
@@ -543,45 +549,45 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           {!movimentoBanca && <>
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className="space-y-2">
-              <Label htmlFor="pn-metodo">Metodo</Label>
+              <Label htmlFor="pn-metodo">{t("Metodo")}</Label>
               <Select value={metodoPersonalizzato ? "__personalizzato" : method} onValueChange={v => { setMetodoPersonalizzato(v === "__personalizzato"); setMethod(v === "__personalizzato" ? "" : v); }}>
-                <SelectTrigger id="pn-metodo"><SelectValue placeholder="Non indicato" /></SelectTrigger>
+                <SelectTrigger id="pn-metodo"><SelectValue placeholder={t("Non indicato")} /></SelectTrigger>
                 <SelectContent>
-                  {METODI.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  {METODI.map((m) => <SelectItem key={m.value} value={m.value}>{t(m.label)}</SelectItem>)}
                   {metodiAzienda.data?.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  <SelectItem value="__personalizzato">Nuova modalità…</SelectItem>
+                  <SelectItem value="__personalizzato">{t("Nuova modalità…")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pn-conto">Conto</Label>
+              <Label htmlFor="pn-conto">{t("Conto")}</Label>
               <Select value={accountLabel} onValueChange={v => { setAccountLabel(v); setContoPiano(""); }}>
                 <SelectTrigger id="pn-conto"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="banca">Banca · conto non specificato</SelectItem>
-                  <SelectItem value="cassa">Cassa</SelectItem>
+                  <SelectItem value="banca">{t("Banca · conto non specificato")}</SelectItem>
+                  <SelectItem value="cassa">{t("Cassa")}</SelectItem>
                   {conti.data?.map(c => <SelectItem key={c.valore} value={c.valore}>{c.etichetta}</SelectItem>)}
-                  {entry && !["banca", "cassa"].includes(accountLabel) && !contoScelto && <SelectItem value={accountLabel}>{entry.account_label} · registrato</SelectItem>}
+                  {entry && !["banca", "cassa"].includes(accountLabel) && !contoScelto && <SelectItem value={accountLabel}>{t("{account_label} · registrato", { account_label: entry.account_label ?? "" })}</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
           </div>
-          {metodoPersonalizzato && <div className="space-y-2"><Label htmlFor="pn-metodo-personalizzato">Modalità di pagamento personalizzata</Label><Input id="pn-metodo-personalizzato" value={method} maxLength={120} placeholder="Es. POS SumUp" onChange={e => setMethod(e.target.value)} /><p className="text-xs text-muted-foreground">Dopo il salvataggio sarà disponibile nelle registrazioni della stessa azienda.</p></div>}
+          {metodoPersonalizzato && <div className="space-y-2"><Label htmlFor="pn-metodo-personalizzato">{t("Modalità di pagamento personalizzata")}</Label><Input id="pn-metodo-personalizzato" value={method} maxLength={120} placeholder={t("Es. POS SumUp")} onChange={e => setMethod(e.target.value)} /><p className="text-xs text-muted-foreground">{t("Dopo il salvataggio sarà disponibile nelle registrazioni della stessa azienda.")}</p></div>}
           {contoScelto?.bank_account_id && contiPiano.length > 0 && <div className="space-y-2">
-            <Label htmlFor="pn-conto-piano">Conto di liquidità nel piano contabile</Label>
+            <Label htmlFor="pn-conto-piano">{t("Conto di liquidità nel piano contabile")}</Label>
             <Select value={contoPiano || contoScelto.conto_liquidita_id || ""} onValueChange={setContoPiano}>
-              <SelectTrigger id="pn-conto-piano"><SelectValue placeholder="Associa il conto della banca" /></SelectTrigger>
+              <SelectTrigger id="pn-conto-piano"><SelectValue placeholder={t("Associa il conto della banca")} /></SelectTrigger>
               <SelectContent>{contiPiano.map(c => <SelectItem key={c.valore} value={c.conto_liquidita_id!}>{c.etichetta}</SelectItem>)}</SelectContent>
             </Select>
           </div>}
-          {conti.isError && <p role="alert" className="text-sm text-destructive">Conti non caricati. <button type="button" className="underline" onClick={() => void conti.refetch()}>Riprova</button></p>}
+          {conti.isError && <p role="alert" className="text-sm text-destructive">{t("Conti non caricati.")} <button type="button" className="underline" onClick={() => void conti.refetch()}>{t("Riprova")}</button></p>}
           <p className="text-xs text-muted-foreground">
-            <a className="underline" href="/azienda/impostazioni/banca?tab=manuali">Gestisci i conti manuali</a>
-            {conti.data?.some((c) => c.bancaCollegata) && <> · <a className="underline" href="/azienda/tesoreria?tab=conti">Conti collegati in Tesoreria</a></>}
+            <a className="underline" href="/azienda/impostazioni/banca?tab=manuali">{t("Gestisci i conti manuali")}</a>
+            {conti.data?.some((c) => c.bancaCollegata) && <> · <a className="underline" href="/azienda/tesoreria?tab=conti">{t("Conti collegati in Tesoreria")}</a></>}
           </p>
           <div className="rounded-lg border p-3 text-sm">
-            <p>Per un pagamento con commissioni, arrotondamenti o sconti usa una scrittura con più righe Dare/Avere.</p>
-            <a className="mt-1 inline-block text-primary underline" href="/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura">Apri scrittura con più conti</a>
+            <p>{t("Per un pagamento con commissioni, arrotondamenti o sconti usa una scrittura con più righe Dare/Avere.")}</p>
+            <a className="mt-1 inline-block text-primary underline" href="/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura">{t("Apri scrittura con più conti")}</a>
           </div>
           </>}
 
@@ -591,25 +597,25 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             onToggle={(e) => setDettagliAperti(e.currentTarget.open)}
             className="rounded-lg border bg-muted/20 px-3 py-2"
           >
-            <summary className="cursor-pointer text-sm font-medium">Riferimento, allegato e note</summary>
+            <summary className="cursor-pointer text-sm font-medium">{t("Riferimento, allegato e note")}</summary>
             <div className="mt-3 space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="pn-riferimento">Riferimento</Label>
-                <Input id="pn-riferimento" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
+                <Label htmlFor="pn-riferimento">{t("Riferimento")}</Label>
+                <Input id="pn-riferimento" value={reference} onChange={(e) => setReference(e.target.value)} placeholder={t("es. Fatt. 2025/001")} />
               </div>
               <div className="space-y-2">
-                <Label asChild><span>Allegato</span></Label>
+                <Label asChild><span>{t("Allegato")}</span></Label>
                 {entry?.attachment_url && !attachmentFile && (
                   <div className="flex items-center justify-between gap-2 rounded-md border bg-background px-2 py-1">
                     <AllegatoPrimaNota url={entry.attachment_url} nome={entry.attachment_name} />
-                    <span className="shrink-0 text-xs text-muted-foreground">già allegato</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{t("già allegato")}</span>
                   </div>
                 )}
                 {attachmentFile ? (
                   <div className="flex items-center gap-2 rounded-md border bg-background p-2">
                     <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="flex-1 truncate text-sm">{attachmentFile.name}</span>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 shrink-0 p-0" aria-label="Togli il file scelto" onClick={() => setAttachmentFile(null)}>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 shrink-0 p-0" aria-label={t("Togli il file scelto")} onClick={() => setAttachmentFile(null)}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -617,7 +623,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                   <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted/40">
                     <Paperclip className="h-4 w-4 shrink-0" />
                     <span className="truncate">
-                      {entry?.attachment_url ? "Scegli un file per sostituirlo" : "Scegli un file — PDF, immagine, Word o Excel, max 10 MB"}
+                      {entry?.attachment_url ? t("Scegli un file per sostituirlo") : t("Scegli un file — PDF, immagine, Word o Excel, max 10 MB")}
                     </span>
                     <input
                       type="file"
@@ -627,7 +633,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                         const file = e.target.files?.[0];
                         if (!file) return;
                         if (file.size > 10 * 1024 * 1024) {
-                          toast.error("File troppo grande: il massimo è 10 MB.");
+                          toast.error(t("File troppo grande: il massimo è 10 MB."));
                           e.currentTarget.value = "";
                           return;
                         }
@@ -638,7 +644,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pn-note">Note</Label>
+                <Label htmlFor="pn-note">{t("Note")}</Label>
                 <Textarea id="pn-note" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
               </div>
             </div>
@@ -652,12 +658,12 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           </p>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">{t("Annulla")}</Button>
           <Button
             disabled={inCorso || !isValid}
             onClick={handleConfirm}
           >
-            {inCorso ? "Salvataggio..." : entry ? "Salva modifiche" : diviso && quote.length > 1 ? `Registra ${quote.length} quote` : "Registra"}
+            {inCorso ? t("Salvataggio...") : entry ? t("Salva modifiche") : diviso && quote.length > 1 ? t("Registra {n} quote", { n: quote.length }) : t("Registra")}
           </Button>
         </DialogFooter>
       </DialogContent>

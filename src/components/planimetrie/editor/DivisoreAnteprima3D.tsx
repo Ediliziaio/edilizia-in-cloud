@@ -1,5 +1,6 @@
 import { useRef, type PointerEvent } from "react";
 import { GripVertical } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const QUOTA_PIANTA_INIZIALE = 55;
 const MINIMO = 32;
@@ -12,6 +13,7 @@ export function DivisoreAnteprima3D({ idPianta, quota, onCambia, onNascondi }: {
   onCambia: (quota: number) => void;
   onNascondi: () => void;
 }) {
+  const t = useT();
   const trascina = useRef<{ id: number; x: number; larghezza: number } | null>(null);
 
   const quotaPuntatore = (e: PointerEvent<HTMLDivElement>) => {
@@ -29,9 +31,9 @@ export function DivisoreAnteprima3D({ idPianta, quota, onCambia, onNascondi }: {
 
   return <div className="pl-editor-divisore-3d" role="separator" tabIndex={0}
     aria-orientation="vertical" aria-controls={idPianta}
-    aria-label="Ridimensiona la pianta 2D" aria-valuemin={MINIMO} aria-valuemax={MASSIMO}
-    aria-valuenow={quota} aria-valuetext={`${quota}% alla pianta 2D`}
-    title="Trascina per ridimensionare · Doppio clic per ripristinare"
+    aria-label={t("Ridimensiona la pianta 2D")} aria-valuemin={MINIMO} aria-valuemax={MASSIMO}
+    aria-valuenow={quota} aria-valuetext={t("{quota}% alla pianta 2D", { quota })}
+    title={t("Trascina per ridimensionare · Doppio clic per ripristinare")}
     onPointerDown={e => {
       const maniglia = e.currentTarget;
       const larghezza = (maniglia.parentElement?.clientWidth ?? 0) - maniglia.offsetWidth;

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Loader2, UserCheck, AlertTriangle, Copy, Check } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ConvertToCustomerDialogProps {
   open: boolean;
@@ -53,6 +54,7 @@ export function ConvertToCustomerDialog({
   companyId,
   onSuccess,
 }: ConvertToCustomerDialogProps) {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // Portale clienti: se è spento il cliente nasce solo in anagrafica, senza
@@ -102,11 +104,11 @@ export function ConvertToCustomerDialog({
 
   const handleConvert = async () => {
     if (!email.trim()) {
-      toast.error("Email obbligatoria per creare l'account cliente");
+      toast.error(t("Email obbligatoria per creare l'account cliente"));
       return;
     }
     if (!firstName.trim() || !lastName.trim()) {
-      toast.error("Nome e cognome sono obbligatori");
+      toast.error(t("Nome e cognome sono obbligatori"));
       return;
     }
 
@@ -164,7 +166,7 @@ export function ConvertToCustomerDialog({
     if (generatedPassword) {
       await navigator.clipboard.writeText(generatedPassword);
       setCopied(true);
-      toast.success("Password copiata negli appunti");
+      toast.success(t("Password copiata negli appunti"));
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -182,12 +184,12 @@ export function ConvertToCustomerDialog({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserCheck className="h-5 w-5 text-emerald-600" />
-                {generatedPassword ? "Account cliente creato!" : "Cliente creato"}
+                {generatedPassword ? t("Account cliente creato!") : t("Cliente creato")}
               </DialogTitle>
               <DialogDescription>
                 {generatedPassword
-                  ? "Comunica al cliente la password per accedere al portale."
-                  : "Salvato in anagrafica. Il portale clienti non è attivo: il cliente non ha un accesso e non riceve email."}
+                  ? t("Comunica al cliente la password per accedere al portale.")
+                  : t("Salvato in anagrafica. Il portale clienti non è attivo: il cliente non ha un accesso e non riceve email.")}
               </DialogDescription>
             </DialogHeader>
 
@@ -198,7 +200,7 @@ export function ConvertToCustomerDialog({
                 <Input value={email} readOnly className="bg-muted" />
               </div>
               <div className="space-y-1">
-                <Label>Password generata</Label>
+                <Label>{t("Password generata")}</Label>
                 <div className="flex gap-2">
                   <Input value={generatedPassword} readOnly className="bg-muted font-mono" />
                   <Button variant="outline" size="icon" onClick={handleCopyPassword}>
@@ -208,7 +210,7 @@ export function ConvertToCustomerDialog({
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Conserva questa password — non sarà più visibile.
+                  {t("Conserva questa password — non sarà più visibile.")}
                 </p>
               </div>
             </div>
@@ -217,7 +219,7 @@ export function ConvertToCustomerDialog({
             <DialogFooter>
               <Button onClick={handleGoToCustomer}>
                 <UserCheck className="h-4 w-4 mr-2" />
-                Vai alla scheda cliente
+                {t("Vai alla scheda cliente")}
               </Button>
             </DialogFooter>
           </>
@@ -226,13 +228,13 @@ export function ConvertToCustomerDialog({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserCheck className="h-5 w-5 text-emerald-600" />
-                Converti in Cliente
+                {t("Converti in Cliente")}
               </DialogTitle>
               <DialogDescription>
-                Verifica i dati pre-compilati e clicca "Crea account cliente".
+                {t("Verifica i dati pre-compilati e clicca \"Crea account cliente\".")}
                 {portaleAttivo
-                  ? " Il cliente riceverà un'email per scegliere la password del portale."
-                  : " Il portale clienti non è attivo: il cliente viene salvato solo in anagrafica, senza accesso e senza email."}
+                  ? ` ${t("Il cliente riceverà un'email per scegliere la password del portale.")}`
+                  : ` ${t("Il portale clienti non è attivo: il cliente viene salvato solo in anagrafica, senza accesso e senza email.")}`}
               </DialogDescription>
             </DialogHeader>
 
@@ -241,7 +243,7 @@ export function ConvertToCustomerDialog({
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
                 <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                 <p className="text-sm text-amber-700">
-                  Il contatto non ha un'email. Inseriscila per creare l'account.
+                  {t("Il contatto non ha un'email. Inseriscila per creare l'account.")}
                 </p>
               </div>
             )}
@@ -249,7 +251,7 @@ export function ConvertToCustomerDialog({
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="cc-fn">Nome *</Label>
+                  <Label htmlFor="cc-fn">{t("Nome *")}</Label>
                   <Input
                     id="cc-fn"
                     value={firstName}
@@ -257,7 +259,7 @@ export function ConvertToCustomerDialog({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="cc-ln">Cognome *</Label>
+                  <Label htmlFor="cc-ln">{t("Cognome *")}</Label>
                   <Input
                     id="cc-ln"
                     value={lastName}
@@ -267,9 +269,9 @@ export function ConvertToCustomerDialog({
               </div>
               <div className="space-y-1">
                 <Label htmlFor="cc-email">
-                  Email *{" "}
+                  {t("Email *")}{" "}
                   {!contact.email && (
-                    <span className="text-amber-600">(obbligatoria)</span>
+                    <span className="text-amber-600">{t("(obbligatoria)")}</span>
                   )}
                 </Label>
                 <Input
@@ -280,7 +282,7 @@ export function ConvertToCustomerDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cc-phone">Telefono</Label>
+                <Label htmlFor="cc-phone">{t("Telefono")}</Label>
                 <Input
                   id="cc-phone"
                   type="tel"
@@ -289,7 +291,7 @@ export function ConvertToCustomerDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cc-addr">Indirizzo</Label>
+                <Label htmlFor="cc-addr">{t("Indirizzo")}</Label>
                 <CampoIndirizzo
                   id="cc-addr"
                   value={address}
@@ -299,7 +301,7 @@ export function ConvertToCustomerDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cc-cf">CF / P.IVA</Label>
+                <Label htmlFor="cc-cf">{t("CF / P.IVA")}</Label>
                 <Input
                   id="cc-cf"
                   value={fiscalCode}
@@ -308,7 +310,7 @@ export function ConvertToCustomerDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cc-notes">Note</Label>
+                <Label htmlFor="cc-notes">{t("Note")}</Label>
                 <Textarea
                   id="cc-notes"
                   value={notes}
@@ -320,7 +322,7 @@ export function ConvertToCustomerDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700"
@@ -330,7 +332,7 @@ export function ConvertToCustomerDialog({
                 {step === "loading" && (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 )}
-                Crea account cliente
+                {t("Crea account cliente")}
               </Button>
             </DialogFooter>
           </>

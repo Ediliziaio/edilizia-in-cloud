@@ -22,27 +22,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Upload, Download, Share2 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function DemoPreviewShowcase() {
+  const t = useT();
   return (
     <FeaturePreviewProvider
       featureKey="render_ai"
       featureLabel="Render AI"
-      description="Trasforma le foto del tuo cantiere in render fotorealistici professionali per i preventivi"
+      description={t("Trasforma le foto del tuo cantiere in render fotorealistici professionali per i preventivi")}
       benefits={[
-        "Render fotorealistici illimitati",
-        "Upload da smartphone direttamente in cantiere",
-        "Personalizzazione finestre, facciate, pavimenti, illuminazione",
-        "Esportazione HD per preventivi e social",
-        "Allegabile a preventivi e ordini con 1 click",
+        t("Render fotorealistici illimitati"),
+        t("Upload da smartphone direttamente in cantiere"),
+        t("Personalizzazione finestre, facciate, pavimenti, illuminazione"),
+        t("Esportazione HD per preventivi e social"),
+        t("Allegabile a preventivi e ordini con 1 click"),
       ]}
       forcePreview // Showcase: forza il preview mode indipendentemente dal DB
     >
       <div className="space-y-6 max-w-5xl">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Render AI</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("Render AI")}</h1>
           <p className="text-muted-foreground">
-            Trasforma le foto in render professionali per chiudere preventivi più velocemente
+            {t("Trasforma le foto in render professionali per chiudere preventivi più velocemente")}
           </p>
         </div>
 
@@ -54,26 +56,26 @@ export default function DemoPreviewShowcase() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Upload className="h-4 w-4" /> Carica foto cantiere
+                <Upload className="h-4 w-4" /> {t("Carica foto cantiere")}
               </CardTitle>
               <CardDescription>
-                Punta la fotocamera al muro/facciata e lascia che l'AI faccia il resto.
+                {t("Punta la fotocamera al muro/facciata e lascia che l'AI faccia il resto.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="title">Titolo progetto</Label>
-                <Input id="title" placeholder="Es: Villa Rossi - facciata sud" />
+                <Label htmlFor="title">{t("Titolo progetto")}</Label>
+                <Input id="title" placeholder={t("Es: Villa Rossi - facciata sud")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo intervento</Label>
-                <Input placeholder="Sostituzione serramenti, intonacatura…" />
+                <Label>{t("Tipo intervento")}</Label>
+                <Input placeholder={t("Sostituzione serramenti, intonacatura…")} />
               </div>
 
-              <FeatureActionGuard actionLabel="Carica foto">
+              <FeatureActionGuard actionLabel={t("Carica foto")}>
                 <Button className="w-full" size="lg">
                   <Upload className="h-4 w-4 mr-2" />
-                  Carica foto cantiere
+                  {t("Carica foto cantiere")}
                 </Button>
               </FeatureActionGuard>
             </CardContent>
@@ -83,10 +85,10 @@ export default function DemoPreviewShowcase() {
           <Card className="relative overflow-hidden">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4" /> Anteprima render
+                <Sparkles className="h-4 w-4" /> {t("Anteprima render")}
               </CardTitle>
               <CardDescription>
-                Esempio di output: in demo vedi un'anteprima statica.
+                {t("Esempio di output: in demo vedi un'anteprima statica.")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -95,16 +97,16 @@ export default function DemoPreviewShowcase() {
                 <DemoWatermark variant="diagonal" />
               </div>
               <div className="mt-3 flex gap-2">
-                <FeatureActionGuard actionLabel="Scarica render">
+                <FeatureActionGuard actionLabel={t("Scarica render")}>
                   <Button variant="outline" size="sm" className="flex-1">
                     <Download className="h-3.5 w-3.5 mr-1.5" />
-                    Scarica HD
+                    {t("Scarica HD")}
                   </Button>
                 </FeatureActionGuard>
-                <FeatureActionGuard actionLabel="Condividi con cliente">
+                <FeatureActionGuard actionLabel={t("Condividi con cliente")}>
                   <Button variant="outline" size="sm" className="flex-1">
                     <Share2 className="h-3.5 w-3.5 mr-1.5" />
-                    Condividi
+                    {t("Condividi")}
                   </Button>
                 </FeatureActionGuard>
               </div>
@@ -115,9 +117,9 @@ export default function DemoPreviewShowcase() {
         {/* Storico render mock */}
         <Card className="relative overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base">Render recenti</CardTitle>
+            <CardTitle className="text-base">{t("Render recenti")}</CardTitle>
             <CardDescription>
-              Cronologia render generati per i tuoi clienti
+              {t("Cronologia render generati per i tuoi clienti")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -136,12 +138,7 @@ export default function DemoPreviewShowcase() {
         <Card className="border-dashed">
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">
-              <strong>Per devs:</strong> questa pagina mostra il pattern Feature Preview.
-              Se la feature <code className="bg-muted px-1 py-0.5 rounded">render_ai</code> è
-              in <code className="bg-muted px-1 py-0.5 rounded">access_level=&apos;preview&apos;</code>:
-              banner ambra in cima, dot pulsante sui bottoni, popup unlock al click,
-              watermark sui mockup. Se è <code className="bg-muted px-1 py-0.5 rounded">enabled</code>:
-              tutto pulito, niente preview.
+              <strong>{t("Per devs:")}</strong> {t("questa pagina mostra il pattern Feature Preview. Se la feature")} <code className="bg-muted px-1 py-0.5 rounded">render_ai</code> {t("è in")} <code className="bg-muted px-1 py-0.5 rounded">access_level=&apos;preview&apos;</code>{t(": banner ambra in cima, dot pulsante sui bottoni, popup unlock al click, watermark sui mockup. Se è")} <code className="bg-muted px-1 py-0.5 rounded">enabled</code>{t(": tutto pulito, niente preview.")}
             </p>
           </CardContent>
         </Card>

@@ -7,11 +7,13 @@ import { Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { EffettoComputo } from "@/lib/planimetrie/effettoPrezzo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", signDisplay: "exceptZero" }).format(n);
-const num = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
+const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", signDisplay: "exceptZero" }).format(n);
+const num = (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 }).format(n);
 
 export function EffettoPrezzo({ effetti, collegati }: { effetti: EffettoComputo[]; collegati: number }) {
+  const tr = useT();
   if (!collegati) return null;
   const totale = effetti.reduce((t, e) => t + e.totale, 0);
   const cambia = effetti.length > 0;
@@ -20,16 +22,16 @@ export function EffettoPrezzo({ effetti, collegati }: { effetti: EffettoComputo[
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className={cambia ? (totale >= 0 ? "border-amber-400 text-amber-800" : "border-emerald-400 text-emerald-800") : ""}>
           <Calculator className="mr-1.5 h-4 w-4" />
-          {cambia ? `Prezzo ${euro(totale)}` : "Computo invariato"}
+          {cambia ? tr("Prezzo {voce}", { voce: euro(totale) }) : tr("Computo invariato")}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 max-h-[70vh] overflow-y-auto space-y-3">
         <div>
-          <p className="text-sm font-semibold">Effetto sul prezzo</p>
+          <p className="text-sm font-semibold">{tr("Effetto sul prezzo")}</p>
           <p className="text-xs text-muted-foreground">
             {cambia
-              ? "Con le modifiche di adesso i computi collegati cambierebbero così. Dopo il salvataggio, nel computo trovi «La pianta è cambiata» per aggiornarli (se è contrattuale, va in perizia di variante)."
-              : `Le misure prese da questa pianta da ${collegati === 1 ? "una riga" : `${collegati} righe`} di computo non cambiano.`}
+              ? tr("Con le modifiche di adesso i computi collegati cambierebbero così. Dopo il salvataggio, nel computo trovi «La pianta è cambiata» per aggiornarli (se è contrattuale, va in perizia di variante).")
+              : collegati === 1 ? tr("Le misure prese da questa pianta da una riga di computo non cambiano.") : tr("Le misure prese da questa pianta da {n} righe di computo non cambiano.", { n: collegati })}
           </p>
         </div>
         {effetti.map((e) => (
@@ -38,24 +40,24 @@ export function EffettoPrezzo({ effetti, collegati }: { effetti: EffettoComputo[
               <span className="truncate font-medium">{e.computo.titolo}</span>
               <span className="shrink-0 font-semibold tabular-nums">{euro(e.totale)}</span>
             </div>
-            {e.computo.stato === "contrattuale" && <p className="text-[11px] text-amber-700">Contrattuale: la differenza andrà in una perizia di variante.</p>}
+            {e.computo.stato === "contrattuale" && <p className="text-[11px] text-amber-700">{tr("Contrattuale: la differenza andrà in una perizia di variante.")}</p>}
             <ul className="space-y-0.5 text-xs">
               {e.righe.slice(0, 12).map((r) => (
                 <li key={r.riga.id} className="flex justify-between gap-2">
-                  <span className="truncate text-muted-foreground">{r.riga.voce.descrizione || r.riga.descrizione || "Voce"}</span>
+                  <span className="truncate text-muted-foreground">{r.riga.voce.descrizione || r.riga.descrizione || tr("Voce")}</span>
                   <span className="shrink-0 tabular-nums">
                     {num(r.vecchia)} → {num(r.nuova)} {r.riga.voce.unita ?? ""}
                     {r.importo != null && <> · {euro(r.importo)}</>}
-                    {r.mancanti.length > 0 && <span className="text-destructive"> · stanza tolta</span>}
+                    {r.mancanti.length > 0 && <span className="text-destructive"> · {tr("stanza tolta")}</span>}
                   </span>
                 </li>
               ))}
-              {e.righe.length > 12 && <li className="text-muted-foreground">…e altre {e.righe.length - 12}</li>}
+              {e.righe.length > 12 && <li className="text-muted-foreground">{tr("…e altre {n}", { n: e.righe.length - 12 })}</li>}
             </ul>
-            {e.senzaPrezzo > 0 && <p className="text-[11px] text-muted-foreground">{e.senzaPrezzo} {e.senzaPrezzo === 1 ? "voce senza prezzo non conta" : "voci senza prezzo non contano"} nel totale.</p>}
+            {e.senzaPrezzo > 0 && <p className="text-[11px] text-muted-foreground">{tr(e.senzaPrezzo === 1 ? "{n} voce senza prezzo non conta nel totale." : "{n} voci senza prezzo non contano nel totale.", { n: e.senzaPrezzo })}</p>}
             {e.computo.orderId && (
               <Button asChild size="sm" variant="link" className="h-auto p-0 text-xs">
-                <Link to={`/azienda/ordini/${e.computo.orderId}`}>Apri la commessa</Link>
+                <Link to={`/azienda/ordini/${e.computo.orderId}`}>{tr("Apri la commessa")}</Link>
               </Button>
             )}
           </div>

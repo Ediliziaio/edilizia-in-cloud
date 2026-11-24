@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import { 
   Calendar, 
   Clock, 
@@ -37,6 +36,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
 import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WorkLog {
   id: string;
@@ -82,6 +82,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
 };
 
 export function WorkLogsAdminTab() {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   
   const queryClient = useQueryClient();
@@ -99,7 +100,7 @@ export function WorkLogsAdminTab() {
       const date = subMonths(now, i);
       options.push({
         value: format(date, "yyyy-MM"),
-        label: format(date, "MMMM yyyy", { locale: it }),
+        label: format(date, "MMMM yyyy", { locale: dateFnsCampo() }),
       });
     }
     return options;
@@ -182,10 +183,10 @@ export function WorkLogsAdminTab() {
     },
     onSuccess: (_, { approve }) => {
       queryClient.invalidateQueries({ queryKey: ["admin-work-logs"] });
-      toast.success(approve ? "Rapportino approvato" : "Approvazione rimossa");
+      toast.success(approve ? t("Rapportino approvato") : t("Approvazione rimossa"));
     },
     onError: () => {
-      toast.error("Errore", { description: "Impossibile aggiornare lo stato." });
+      toast.error(t("Errore"), { description: t("Impossibile aggiornare lo stato.") });
     },
   });
 
@@ -205,10 +206,10 @@ export function WorkLogsAdminTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-work-logs"] });
-      toast.success("Rapportini approvati", { description: "Tutti i rapportini selezionati sono stati approvati." });
+      toast.success(t("Rapportini approvati"), { description: t("Tutti i rapportini selezionati sono stati approvati.") });
     },
     onError: () => {
-      toast.error("Errore", { description: "Impossibile approvare i rapportini." });
+      toast.error(t("Errore"), { description: t("Impossibile approvare i rapportini.") });
     },
   });
 
@@ -255,7 +256,7 @@ export function WorkLogsAdminTab() {
             </div>
             <div>
               <p className="text-2xl font-bold">{stats.totalHours}h</p>
-              <p className="text-sm text-muted-foreground">Ore totali</p>
+              <p className="text-sm text-muted-foreground">{t("Ore totali")}</p>
             </div>
           </CardContent>
         </Card>
@@ -267,7 +268,7 @@ export function WorkLogsAdminTab() {
             </div>
             <div>
               <p className="text-2xl font-bold text-orange-500">{stats.pending}</p>
-              <p className="text-sm text-muted-foreground">Da approvare</p>
+              <p className="text-sm text-muted-foreground">{t("Da approvare")}</p>
             </div>
           </CardContent>
         </Card>
@@ -279,7 +280,7 @@ export function WorkLogsAdminTab() {
             </div>
             <div>
               <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
-              <p className="text-sm text-muted-foreground">Approvati</p>
+              <p className="text-sm text-muted-foreground">{t("Approvati")}</p>
             </div>
           </CardContent>
         </Card>
@@ -291,7 +292,7 @@ export function WorkLogsAdminTab() {
             </div>
             <div>
               <p className="text-2xl font-bold text-blue-600">{formatCurrency(stats.totalCost)}</p>
-              <p className="text-sm text-muted-foreground">Costo stimato</p>
+              <p className="text-sm text-muted-foreground">{t("Costo stimato")}</p>
             </div>
           </CardContent>
         </Card>
@@ -301,7 +302,7 @@ export function WorkLogsAdminTab() {
       <Card>
         <CardHeader>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <CardTitle>Rapportini Dipendenti</CardTitle>
+            <CardTitle>{t("Rapportini Dipendenti")}</CardTitle>
             <div className="flex flex-wrap gap-2">
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                 <SelectTrigger className="w-[160px]">
@@ -318,10 +319,10 @@ export function WorkLogsAdminTab() {
 
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Tutti i dipendenti" />
+                  <SelectValue placeholder={t("Tutti i dipendenti")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i dipendenti</SelectItem>
+                  <SelectItem value="all">{t("Tutti i dipendenti")}</SelectItem>
                   {employees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.first_name} {emp.last_name}
@@ -336,9 +337,9 @@ export function WorkLogsAdminTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="pending">Da approvare</SelectItem>
-                  <SelectItem value="approved">Approvati</SelectItem>
+                  <SelectItem value="all">{t("Tutti")}</SelectItem>
+                  <SelectItem value="pending">{t("Da approvare")}</SelectItem>
+                  <SelectItem value="approved">{t("Approvati")}</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -349,7 +350,7 @@ export function WorkLogsAdminTab() {
                   className="gap-2"
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  Approva tutti ({pendingLogIds.length})
+                  {t("Approva tutti ({n})", { n: pendingLogIds.length })}
                 </Button>
               )}
             </div>
@@ -358,27 +359,27 @@ export function WorkLogsAdminTab() {
         <CardContent>
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Caricamento...
+              {t("Caricamento...")}
             </div>
           ) : filteredLogs.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nessun rapportino per il periodo selezionato</p>
+              <p>{t("Nessun rapportino per il periodo selezionato")}</p>
             </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Dipendente</TableHead>
-                    <TableHead>Ore</TableHead>
-                    <TableHead>Costo</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="hidden md:table-cell">Ordine</TableHead>
-                    <TableHead className="hidden lg:table-cell">Note</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead>{t("Data")}</TableHead>
+                    <TableHead>{t("Dipendente")}</TableHead>
+                    <TableHead>{t("Ore")}</TableHead>
+                    <TableHead>{t("Costo")}</TableHead>
+                    <TableHead>{t("Tipo")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("Ordine")}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t("Note")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead className="text-right">{t("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -389,7 +390,7 @@ export function WorkLogsAdminTab() {
                     return (
                       <TableRow key={log.id}>
                         <TableCell className="font-medium whitespace-nowrap">
-                          {format(new Date(log.work_date), "EEE d MMM", { locale: it })}
+                          {format(new Date(log.work_date), "EEE d MMM", { locale: dateFnsCampo() })}
                         </TableCell>
                         <TableCell>
                           {log.employee.first_name} {log.employee.last_name}
@@ -402,7 +403,7 @@ export function WorkLogsAdminTab() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {ACTIVITY_LABELS[log.activity_type] || log.activity_type}
+                            {ACTIVITY_LABELS[log.activity_type] ? t(ACTIVITY_LABELS[log.activity_type]) : log.activity_type}
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
@@ -428,7 +429,7 @@ export function WorkLogsAdminTab() {
                                 : "border-orange-500 text-orange-700 bg-orange-50 dark:bg-orange-900/20"
                             )}
                           >
-                            {log.is_approved ? "Approvato" : "In attesa"}
+                            {log.is_approved ? t("Approvato") : t("In attesa")}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -440,7 +441,7 @@ export function WorkLogsAdminTab() {
                                 className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
                                 onClick={() => approveMutation.mutate({ logId: log.id, approve: true })}
                                 disabled={approveMutation.isPending}
-                                title="Approva"
+                                title={t("Approva")}
                               >
                                 <Check className="h-4 w-4" />
                               </Button>
@@ -451,7 +452,7 @@ export function WorkLogsAdminTab() {
                                 className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                                 onClick={() => approveMutation.mutate({ logId: log.id, approve: false })}
                                 disabled={approveMutation.isPending}
-                                title="Rimuovi approvazione"
+                                title={t("Rimuovi approvazione")}
                               >
                                 <X className="h-4 w-4" />
                               </Button>

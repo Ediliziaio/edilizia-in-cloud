@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AnnullaCostoDialog } from "@/components/costi/AnnullaCostoDialog";
 import { motivoBolletta } from "@/lib/costi/annulloCosto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -53,6 +54,7 @@ export function destinazioneAttuale(dest: Destinazione[], utenzaId: string, data
 }
 
 export default function UtenzeTab() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const permessi = usePermissions();
   const qc = useQueryClient();
@@ -110,8 +112,8 @@ export default function UtenzeTab() {
       if (error) throw error;
       return r as { bollette_riviste: number };
     },
-    onSuccess: (r) => { toast.success(r?.bollette_riviste ? `Collegata: riviste ${r.bollette_riviste} bollette` : "Collegata"); aggiorna(); },
-    onError: (e: Error) => toast.error("Non collegata", { description: e.message }),
+    onSuccess: (r) => { toast.success(r?.bollette_riviste ? t("Collegata: riviste {bollette_riviste} bollette", { bollette_riviste: String(r.bollette_riviste ?? "") }) : t("Collegata")); aggiorna(); },
+    onError: (e: Error) => toast.error(t("Non collegata"), { description: e.message }),
   });
   const decidi = useMutation({
     mutationFn: async (v: { bolletta: string; decisione: "non_doppione" | "scarta" }) => {
@@ -119,31 +121,31 @@ export default function UtenzeTab() {
       if (error) throw error;
     },
     onSuccess: aggiorna,
-    onError: (e: Error) => toast.error("Decisione non salvata", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Decisione non salvata"), { description: e.message }),
   });
 
   const daDecidere = (data?.bollette ?? []).filter((b) => b.stato === "doppione_sospetto");
   const [daAnnullare, setDaAnnullare] = useState<CostoDaAnnullare | null>(null);
 
-  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento utenze…</p>;
-  if (isError || !data) return <div role="alert" className="rounded-lg border p-4 text-sm">Utenze non disponibili. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div>;
+  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">{t("Caricamento utenze…")}</p>;
+  if (isError || !data) return <div role="alert" className="rounded-lg border p-4 text-sm">{t("Utenze non disponibili.")} <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova")}</Button></div>;
   if (!data.utenze.length) {
-    return <p className="rounded-xl border bg-muted/30 p-6 text-sm text-muted-foreground">Nessuna utenza ancora. Le utenze nascono da sole dalle bollette che arrivano: luce e gas dal POD o dal PDR, acqua e telefono dal codice del gestore nella fattura elettronica.</p>;
+    return <p className="rounded-xl border bg-muted/30 p-6 text-sm text-muted-foreground">{t("Nessuna utenza ancora. Le utenze nascono da sole dalle bollette che arrivano: luce e gas dal POD o dal PDR, acqua e telefono dal codice del gestore nella fattura elettronica.")}</p>;
   }
 
   return (
     <div className="space-y-5">
       {daDecidere.length > 0 && (
-        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" aria-label="Bollette da decidere">
-          <h3 className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-600" />Bollette da decidere ({daDecidere.length})</h3>
+        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" aria-label={t("Bollette da decidere")}>
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-600" />{t("Bollette da decidere ({n})", { n: daDecidere.length })}</h3>
           <ul className="mt-2 space-y-2 text-sm">
             {daDecidere.map((b) => (
               <li key={b.id} className="flex flex-wrap items-center justify-between gap-2">
-                <span>Bolletta {b.numero ?? "senza numero"}{b.data ? ` del ${formatDateShort(b.data)}` : ""}: {b.avvisi[0]?.testo ?? "possibile doppione"}</span>
+                <span>{t("Bolletta {numero}", { numero: b.numero ?? t("senza numero") })}{b.data ? t(" del {data}", { data: formatDateShort(b.data) }) : ""}: {b.avvisi[0]?.testo ?? t("possibile doppione")}</span>
                 {puoDecidere && (
                   <span className="flex gap-2">
-                    <Button size="sm" variant="outline" disabled={decidi.isPending} onClick={() => decidi.mutate({ bolletta: b.id, decisione: "non_doppione" })}>Non è un doppione</Button>
-                    <Button size="sm" variant="outline" disabled={decidi.isPending} onClick={() => decidi.mutate({ bolletta: b.id, decisione: "scarta" })}>Scarta</Button>
+                    <Button size="sm" variant="outline" disabled={decidi.isPending} onClick={() => decidi.mutate({ bolletta: b.id, decisione: "non_doppione" })}>{t("Non è un doppione")}</Button>
+                    <Button size="sm" variant="outline" disabled={decidi.isPending} onClick={() => decidi.mutate({ bolletta: b.id, decisione: "scarta" })}>{t("Scarta")}</Button>
                   </span>
                 )}
               </li>
@@ -153,14 +155,14 @@ export default function UtenzeTab() {
       )}
 
       {data.costiDaAnnullare.length > 0 && (
-        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" aria-label="Costi da annullare">
-          <h3 className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-600" />Costi ancora nei conti ({data.costiDaAnnullare.length})</h3>
-          <p className="mt-1 text-xs text-muted-foreground">La bolletta è scartata o doppia, ma il suo costo era già registrato: annullalo, così esce da conti, commesse e cassa.</p>
+        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" aria-label={t("Costi da annullare")}>
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-600" />{t("Costi ancora nei conti ({n})", { n: data.costiDaAnnullare.length })}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{t("La bolletta è scartata o doppia, ma il suo costo era già registrato: annullalo, così esce da conti, commesse e cassa.")}</p>
           <ul className="mt-2 space-y-2 text-sm">
             {data.costiDaAnnullare.map((x) => (
               <li key={`${x.bolletta.id}-${x.costo.id}`} className="flex flex-wrap items-center justify-between gap-2">
-                <span>Bolletta {x.bolletta.numero ?? "senza numero"}{x.bolletta.data ? ` del ${formatDateShort(x.bolletta.data)}` : ""} ({x.bolletta.stato === "scartata" ? "scartata" : "possibile doppione"}): costo «{x.costo.name}», {formatCurrency(x.costo.amount)}</span>
-                {puoDecidere && <Button size="sm" variant="outline" onClick={() => setDaAnnullare(x)}>Annulla costo</Button>}
+                <span>{t("Bolletta {numero}", { numero: x.bolletta.numero ?? t("senza numero") })}{x.bolletta.data ? t(" del {data}", { data: formatDateShort(x.bolletta.data) }) : ""} ({x.bolletta.stato === "scartata" ? t("scartata") : t("possibile doppione")}): {t("costo «{nome}», {importo}", { nome: x.costo.name, importo: formatCurrency(x.costo.amount) })}</span>
+                {puoDecidere && <Button size="sm" variant="outline" onClick={() => setDaAnnullare(x)}>{t("Annulla costo")}</Button>}
               </li>
             ))}
           </ul>
@@ -178,7 +180,7 @@ export default function UtenzeTab() {
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr><th className="p-2">Utenza</th><th className="p-2">Fornitore</th><th className="p-2">Bollette</th><th className="p-2">Ultimo periodo</th><th className="p-2 text-right">Ultimi 12 mesi</th><th className="p-2">Il costo va a</th></tr>
+            <tr><th className="p-2">{t("Utenza")}</th><th className="p-2">{t("Fornitore")}</th><th className="p-2">{t("Bollette")}</th><th className="p-2">{t("Ultimo periodo")}</th><th className="p-2 text-right">{t("Ultimi 12 mesi")}</th><th className="p-2">{t("Il costo va a")}</th></tr>
           </thead>
           <tbody>
             {data.utenze.map((u) => (
@@ -189,8 +191,7 @@ export default function UtenzeTab() {
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Il codice (POD o PDR) identifica il contatore anche se cambia il fornitore; l'indirizzo di fornitura è solo un aiuto. Collegando un'utenza, le sue bollette
-        col costo non ancora assegnato vanno sulla commessa del periodo; quelle già assegnate a mano non si toccano.
+        {t("Il codice (POD o PDR) identifica il contatore anche se cambia il fornitore; l'indirizzo di fornitura è solo un aiuto. Collegando un'utenza, le sue bollette col costo non ancora assegnato vanno sulla commessa del periodo; quelle già assegnate a mano non si toccano.")}
       </p>
     </div>
   );
@@ -201,6 +202,7 @@ function RigaUtenza({ utenza: u, dati, puoDecidere, occupato, onCollega, annoFa 
   dati: { destinazioni: Destinazione[]; righe: RigaBolletta[]; bollette: Bolletta[]; sedi: Scelta[]; commesse: Scelta[]; unita: Scelta[] };
   onCollega: (tipo: string | null, dest: string | null, dal: string | null) => void;
 }) {
+  const tr = useT();
   const [tipo, setTipo] = useState<"" | "sede" | "immobile" | "commessa">("");
   const [dal, setDal] = useState("");
   const righe = dati.righe.filter((r) => r.utenza_id === u.id);
@@ -220,7 +222,7 @@ function RigaUtenza({ utenza: u, dati, puoDecidere, occupato, onCollega, annoFa 
   const opzioni = tipo === "sede" ? dati.sedi : tipo === "immobile" ? dati.unita : tipo === "commessa" ? dati.commesse : [];
   const conteggio: Record<string, number> = {};
   for (const b of bollette) if (b.costo_esito) conteggio[b.costo_esito] = (conteggio[b.costo_esito] ?? 0) + 1;
-  const esiti = Object.entries(conteggio).map(([k, n]) => `${n} ${COSTO[k] ?? k}`).join(" · ");
+  const esiti = Object.entries(conteggio).map(([k, n]) => `${n} ${COSTO[k] ? tr(COSTO[k]) : k}`).join(" · ");
 
   return (
     <tr className="border-t align-top">
@@ -228,31 +230,31 @@ function RigaUtenza({ utenza: u, dati, puoDecidere, occupato, onCollega, annoFa 
         <span className="flex items-center gap-1.5 font-medium"><Icona tipo={u.tipo} />{u.codice}</span>
         {u.indirizzo_fornitura && <span className="block text-xs text-muted-foreground">{u.indirizzo_fornitura}</span>}
       </td>
-      <td className="p-2">{u.fornitore_nome ?? "—"}{u.numero_contratto && <span className="block text-xs text-muted-foreground">Contratto {u.numero_contratto}</span>}</td>
+      <td className="p-2">{u.fornitore_nome ?? "—"}{u.numero_contratto && <span className="block text-xs text-muted-foreground">{tr("Contratto {numero_contratto}", { numero_contratto: String(u.numero_contratto ?? "") })}</span>}</td>
       <td className="p-2">{bollette.length}{esiti && <span className="block text-xs text-muted-foreground">{esiti}</span>}</td>
       <td className="p-2">{ultimo?.periodo_dal ? `${formatDateShort(ultimo.periodo_dal)} – ${formatDateShort(ultimo.periodo_al ?? ultimo.periodo_dal)}` : "—"}</td>
       <td className="p-2 text-right tabular-nums">{formatCurrency(anno)}</td>
       <td className="p-2">
-        <span className={attuale ? "font-medium" : "text-amber-700 dark:text-amber-400"}>{attuale ? nomeDi(attuale) : "Da collegare"}</span>
-        {attuale && attuale.valido_dal > "1900-01-01" && <span className="block text-xs text-muted-foreground">dal {formatDateShort(attuale.valido_dal)}</span>}
+        <span className={attuale ? "font-medium" : "text-amber-700 dark:text-amber-400"}>{attuale ? nomeDi(attuale) : tr("Da collegare")}</span>
+        {attuale && attuale.valido_dal > "1900-01-01" && <span className="block text-xs text-muted-foreground">{tr("dal {valido_dal}", { valido_dal: formatDateShort(attuale.valido_dal) })}</span>}
         {puoDecidere && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
-              <SelectTrigger className="h-7 w-28 text-xs" aria-label={`Destinazione di ${u.codice}`}><SelectValue placeholder={attuale ? "Cambia…" : "Collega a…"} /></SelectTrigger>
+              <SelectTrigger className="h-7 w-28 text-xs" aria-label={tr("Destinazione di {codice}", { codice: String(u.codice ?? "") })}><SelectValue placeholder={attuale ? tr("Cambia…") : tr("Collega a…")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="commessa">Commessa</SelectItem>
-                <SelectItem value="immobile">Immobile</SelectItem>
-                <SelectItem value="sede">Sede</SelectItem>
+                <SelectItem value="commessa">{tr("Commessa")}</SelectItem>
+                <SelectItem value="immobile">{tr("Immobile")}</SelectItem>
+                <SelectItem value="sede">{tr("Sede")}</SelectItem>
               </SelectContent>
             </Select>
             {tipo && (
               <>
                 <Select value="" onValueChange={(dest) => { onCollega(tipo, dest, attuale ? (dal || oggi()) : (dal || null)); setTipo(""); setDal(""); }} disabled={occupato}>
-                  <SelectTrigger className="h-7 w-48 text-xs" aria-label={`Scegli ${tipo} per ${u.codice}`}><SelectValue placeholder={`Scegli ${tipo}…`} /></SelectTrigger>
+                  <SelectTrigger className="h-7 w-48 text-xs" aria-label={tr("Scegli {tipo} per {codice}", { tipo: String(tipo ?? ""), codice: String(u.codice ?? "") })}><SelectValue placeholder={tr("Scegli {tipo}…", { tipo: String(tipo ?? "") })} /></SelectTrigger>
                   <SelectContent>{opzioni.map((o) => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}</SelectContent>
                 </Select>
                 <Input type="date" className="h-7 w-36 text-xs" value={dal} max={oggi()} onChange={(e) => setDal(e.target.value)}
-                  aria-label={`Vale dal (${u.codice})`} title={attuale ? "Da quando vale la nuova destinazione (vuoto: da oggi)" : "Vuoto: vale per tutte le bollette"} />
+                  aria-label={tr("Vale dal ({codice})", { codice: String(u.codice ?? "") })} title={attuale ? tr("Da quando vale la nuova destinazione (vuoto: da oggi)") : tr("Vuoto: vale per tutte le bollette")} />
               </>
             )}
           </div>

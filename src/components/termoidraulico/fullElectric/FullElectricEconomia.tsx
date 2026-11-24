@@ -16,6 +16,7 @@ import { calcolaFullElectric, co2Testo, kwh } from "@/lib/fullElectric/calcoli";
 import { economiaFullElectric, type DatiFullElectric, type PezzoFullElectric } from "@/lib/fullElectric/dati";
 import { COMPONENTI_FULL_ELECTRIC, type ComponenteFullElectric } from "@/lib/fullElectric/regole";
 import { CampoNumero, CampoTesto, Scelta, SchedaTecnica } from "@/components/termoidraulico/campiEconomia";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   dati: DatiFullElectric;
@@ -37,6 +38,7 @@ function Sezione({ titolo, children }: { titolo: string; children: React.ReactNo
 }
 
 export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct }: Props) {
+  const tr = useT();
   const cambia = (patch: Partial<DatiFullElectric>) => onChange({ ...dati, ...patch });
   const r = useMemo(() => calcolaFullElectric(economiaFullElectric(dati, prezzoIvaInclusa, ivaPct)), [dati, prezzoIvaInclusa, ivaPct]);
   const presenti = new Set(dati.componenti.map((c) => c.tipo));
@@ -56,27 +58,25 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
     <Card className="border-orange-200">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-1.5 text-sm">
-          <Zap className="h-4 w-4 text-orange-600" /> Casa Full Electric
+          <Zap className="h-4 w-4 text-orange-600" /> {tr("Casa Full Electric")}
         </CardTitle>
         {/* Telefono: niente spiegazione, i campi e il riquadro verde bastano. */}
-        <p className="text-[11px] text-muted-foreground max-sm:hidden">
-          Energia e bollette non le calcola il preventivo: scrivile dal tuo software o dalla simulazione. Il prezzo è quello del preventivo, IVA inclusa: {euro(prezzoIvaInclusa)}.
-        </p>
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">{tr("Energia e bollette non le calcola il preventivo: scrivile dal tuo software o dalla simulazione. Il prezzo è quello del preventivo, IVA inclusa: {prezzoIvaInclusa}.", { prezzoIvaInclusa: euro(prezzoIvaInclusa) })}</p>
       </CardHeader>
       <CardContent className="space-y-5 max-sm:space-y-4">
         {/* In cima: è quello che si guarda mentre si scrivono prezzo e stime. */}
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-          <p className="text-xs font-semibold text-emerald-900">Cosa ottiene il cliente</p>
+          <p className="text-xs font-semibold text-emerald-900">{tr("Cosa ottiene il cliente")}</p>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs sm:grid-cols-4">
             {[
-              ["Risparmio all'anno", euro(Math.max(0, r.risparmioAnnuo))],
-              ["Bolletta di domani", euro(r.bollette.domani.totale)],
-              ["Dal suo tetto", `${r.energia.coperturaPct}% dei consumi`],
-              ["Incentivi stimati", euro(r.incentivi.totale)],
-              ["Dopo gli incentivi", euro(r.costoNetto)],
-              ["Spesa ripagata", r.anniDiRientro != null ? `in ${anniTesto(r.anniDiRientro)}` : "oltre il periodo"],
-              [`In ${dati.anni} anni`, euro(r.beneficioFinale)],
-              ["CO2 evitata", `${co2Testo(r.ambiente.co2EvitataKg)} l'anno`],
+              [tr("Risparmio all'anno"), euro(Math.max(0, r.risparmioAnnuo))],
+              [tr("Bolletta di domani"), euro(r.bollette.domani.totale)],
+              [tr("Dal suo tetto"), tr("{n}% dei consumi", { n: r.energia.coperturaPct })],
+              [tr("Incentivi stimati"), euro(r.incentivi.totale)],
+              [tr("Dopo gli incentivi"), euro(r.costoNetto)],
+              [tr("Spesa ripagata"), r.anniDiRientro != null ? tr("in {anni}", { anni: anniTesto(r.anniDiRientro) }) : tr("oltre il periodo")],
+              [tr("In {n} anni", { n: dati.anni }), euro(r.beneficioFinale)],
+              [tr("CO2 evitata"), tr("{quanto} l'anno", { quanto: co2Testo(r.ambiente.co2EvitataKg) })],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-[10px] uppercase tracking-wide text-emerald-800/80">{k}</dt>
@@ -86,7 +86,7 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
           </dl>
         </div>
 
-        <Sezione titolo="Il sistema">
+        <Sezione titolo={tr("Il sistema")}>
           <div className="flex flex-wrap gap-1.5">
             {TIPI.map((t) => (
               <button
@@ -111,70 +111,70 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
                   onBlur={(e) => e.target.value.trim() !== p.titolo && aggiornaPezzo(p.tipo, { titolo: e.target.value.trim() || COMPONENTI_FULL_ELECTRIC[p.tipo] })} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`fe-${p.tipo}-dettaglio`} className="text-[11px] text-muted-foreground max-sm:sr-only">Dettaglio (modello, potenza…)</Label>
-                <Input id={`fe-${p.tipo}-dettaglio`} defaultValue={p.dettaglio} placeholder="Es. 14 moduli da 430 W" className="h-8 text-xs"
+                <Label htmlFor={`fe-${p.tipo}-dettaglio`} className="text-[11px] text-muted-foreground max-sm:sr-only">{tr("Dettaglio (modello, potenza…)")}</Label>
+                <Input id={`fe-${p.tipo}-dettaglio`} defaultValue={p.dettaglio} placeholder={tr("Es. 14 moduli da 430 W")} className="h-8 text-xs"
                   onBlur={(e) => e.target.value.trim() !== p.dettaglio && aggiornaPezzo(p.tipo, { dettaglio: e.target.value.trim() })} />
               </div>
             </div>
           ))}
-          <CampoTesto id="fe-attuale" etichetta="Cosa si lascia" valore={dati.impianto_attuale} segnaposto="Caldaia a gas e piano cottura a gas" onCommit={(impianto_attuale) => cambia({ impianto_attuale })} />
+          <CampoTesto id="fe-attuale" etichetta={tr("Cosa si lascia")} valore={dati.impianto_attuale} segnaposto={tr("Caldaia a gas e piano cottura a gas")} onCommit={(impianto_attuale) => cambia({ impianto_attuale })} />
         </Sezione>
 
-        <Sezione titolo="Oggi, in un anno">
+        <Sezione titolo={tr("Oggi, in un anno")}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <CampoNumero id="fe-spesa-gas" etichetta="Spesa per il gas" valore={dati.spesa_gas || null} suffisso="€" onCommit={(v) => cambia({ spesa_gas: Math.max(0, v ?? 0) })} />
-            <CampoNumero id="fe-spesa-luce" etichetta="Spesa per la luce" valore={dati.spesa_luce || null} suffisso="€" onCommit={(v) => cambia({ spesa_luce: Math.max(0, v ?? 0) })} />
-            <CampoNumero id="fe-gas-smc" etichetta="Gas consumato" valore={dati.gas_smc || null} suffisso="Smc" onCommit={(v) => cambia({ gas_smc: Math.max(0, v ?? 0) })} aiuto="Per la CO2 evitata." />
-            <CampoNumero id="fe-luce-kwh" etichetta="Luce consumata" valore={dati.luce_kwh || null} suffisso="kWh" onCommit={(v) => cambia({ luce_kwh: Math.max(0, v ?? 0) })} />
+            <CampoNumero id="fe-spesa-gas" etichetta={tr("Spesa per il gas")} valore={dati.spesa_gas || null} suffisso="€" onCommit={(v) => cambia({ spesa_gas: Math.max(0, v ?? 0) })} />
+            <CampoNumero id="fe-spesa-luce" etichetta={tr("Spesa per la luce")} valore={dati.spesa_luce || null} suffisso="€" onCommit={(v) => cambia({ spesa_luce: Math.max(0, v ?? 0) })} />
+            <CampoNumero id="fe-gas-smc" etichetta={tr("Gas consumato")} valore={dati.gas_smc || null} suffisso="Smc" onCommit={(v) => cambia({ gas_smc: Math.max(0, v ?? 0) })} aiuto={tr("Per la CO2 evitata.")} />
+            <CampoNumero id="fe-luce-kwh" etichetta={tr("Luce consumata")} valore={dati.luce_kwh || null} suffisso="kWh" onCommit={(v) => cambia({ luce_kwh: Math.max(0, v ?? 0) })} />
           </div>
         </Sezione>
 
-        <Sezione titolo="Domani, in un anno (stime)">
+        <Sezione titolo={tr("Domani, in un anno (stime)")}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <CampoNumero id="fe-produzione" etichetta="Produzione del fotovoltaico" valore={dati.produzione_kwh || null} suffisso="kWh" onCommit={(v) => cambia({ produzione_kwh: Math.max(0, v ?? 0) })} />
-            <CampoNumero id="fe-consumo" etichetta="Consumi della casa elettrica" valore={dati.consumo_kwh || null} suffisso="kWh" onCommit={(v) => cambia({ consumo_kwh: Math.max(0, v ?? 0) })} aiuto="Luce di oggi più pompa di calore e induzione." />
-            <CampoNumero id="fe-autoconsumo" etichetta="Produzione usata in casa" valore={dati.autoconsumo_pct} suffisso="%" onCommit={(v) => cambia({ autoconsumo_pct: Math.min(100, Math.max(0, v ?? 0)) })} aiuto="Con la batteria di solito 60-70%." />
-            <CampoNumero id="fe-prezzo-luce" etichetta="Prezzo della luce" valore={dati.prezzo_luce} suffisso="€/kWh" onCommit={(v) => cambia({ prezzo_luce: Math.max(0, v ?? 0) })} />
-            <CampoNumero id="fe-prezzo-immissione" etichetta="Energia venduta alla rete" valore={dati.prezzo_immissione} suffisso="€/kWh" onCommit={(v) => cambia({ prezzo_immissione: Math.max(0, v ?? 0) })} />
-            <CampoNumero id="fe-quota-fissa" etichetta="Quote fisse della luce" valore={dati.quota_fissa || null} suffisso="€/anno" onCommit={(v) => cambia({ quota_fissa: Math.max(0, v ?? 0) })} />
+            <CampoNumero id="fe-produzione" etichetta={tr("Produzione del fotovoltaico")} valore={dati.produzione_kwh || null} suffisso="kWh" onCommit={(v) => cambia({ produzione_kwh: Math.max(0, v ?? 0) })} />
+            <CampoNumero id="fe-consumo" etichetta={tr("Consumi della casa elettrica")} valore={dati.consumo_kwh || null} suffisso="kWh" onCommit={(v) => cambia({ consumo_kwh: Math.max(0, v ?? 0) })} aiuto={tr("Luce di oggi più pompa di calore e induzione.")} />
+            <CampoNumero id="fe-autoconsumo" etichetta={tr("Produzione usata in casa")} valore={dati.autoconsumo_pct} suffisso="%" onCommit={(v) => cambia({ autoconsumo_pct: Math.min(100, Math.max(0, v ?? 0)) })} aiuto={tr("Con la batteria di solito 60-70%.")} />
+            <CampoNumero id="fe-prezzo-luce" etichetta={tr("Prezzo della luce")} valore={dati.prezzo_luce} suffisso="€/kWh" onCommit={(v) => cambia({ prezzo_luce: Math.max(0, v ?? 0) })} />
+            <CampoNumero id="fe-prezzo-immissione" etichetta={tr("Energia venduta alla rete")} valore={dati.prezzo_immissione} suffisso="€/kWh" onCommit={(v) => cambia({ prezzo_immissione: Math.max(0, v ?? 0) })} />
+            <CampoNumero id="fe-quota-fissa" etichetta={tr("Quote fisse della luce")} valore={dati.quota_fissa || null} suffisso={tr("€/anno")} onCommit={(v) => cambia({ quota_fissa: Math.max(0, v ?? 0) })} />
           </div>
           {/* Telefono no: bollette e copertura sono già nel riquadro verde in cima. */}
           <p className="text-[11px] text-muted-foreground max-sm:hidden">
-            {`Con questi numeri: ${kwh(r.energia.autoconsumo)} dal tetto, ${kwh(r.energia.dallaRete)} dalla rete, ${kwh(r.energia.immessa)} venduti. Bolletta di domani ${euro(r.bollette.domani.totale)} contro ${euro(r.bollette.oggi.totale)} di oggi.`}
+            {tr("Con questi numeri: {autoconsumo} dal tetto, {dallaRete} dalla rete, {immessa} venduti. Bolletta di domani {domani} contro {oggi} di oggi.", { autoconsumo: kwh(r.energia.autoconsumo), dallaRete: kwh(r.energia.dallaRete), immessa: kwh(r.energia.immessa), domani: euro(r.bollette.domani.totale), oggi: euro(r.bollette.oggi.totale) })}
           </p>
           {senzaProduzione || oltreIConsumi ? (
             <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {senzaProduzione
-                ? "C'è il fotovoltaico ma la produzione è a zero: il PDF mostrerebbe un tetto che non produce."
-                : "Il tetto copre quasi tutti i consumi: d'inverno la casa prende comunque energia dalla rete. Ricontrolla la quota usata in casa."}
+                ? tr("C'è il fotovoltaico ma la produzione è a zero: il PDF mostrerebbe un tetto che non produce.")
+                : tr("Il tetto copre quasi tutti i consumi: d'inverno la casa prende comunque energia dalla rete. Ricontrolla la quota usata in casa.")}
             </p>
           ) : null}
         </Sezione>
 
-        <Sezione titolo="Incentivi (stime)">
+        <Sezione titolo={tr("Incentivi (stime)")}>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Detrazione per la casa</Label>
+              <Label className="text-xs">{tr("Detrazione per la casa")}</Label>
               <Scelta<number | null>
                 valore={dati.detrazione_pct}
-                opzioni={[{ valore: 50, etichetta: "50%" }, { valore: 36, etichetta: "36%" }, { valore: null, etichetta: "Nessuna" }]}
+                opzioni={[{ valore: 50, etichetta: "50%" }, { valore: 36, etichetta: "36%" }, { valore: null, etichetta: tr("Nessuna") }]}
                 onChange={(detrazione_pct) => cambia({ detrazione_pct })}
               />
               {dati.detrazione_pct ? (
-                <CampoNumero id="fe-detraibile" etichetta="Spesa detraibile, IVA inclusa" valore={dati.importo_detraibile} suffisso="€"
+                <CampoNumero id="fe-detraibile" etichetta={tr("Spesa detraibile, IVA inclusa")} valore={dati.importo_detraibile} suffisso="€"
                   onCommit={(v) => cambia({ importo_detraibile: v && v > 0 ? v : null })}
-                  aiuto="Fotovoltaico, batteria e lavori collegati. Vuoto = tutto il prezzo." />
+                  aiuto={tr("Fotovoltaico, batteria e lavori collegati. Vuoto = tutto il prezzo.")} />
               ) : null}
             </div>
             <div className="space-y-1.5">
-              <CampoNumero id="fe-ct" etichetta="Conto Termico sulla pompa di calore" valore={dati.contributo_ct || null} suffisso="€"
+              <CampoNumero id="fe-ct" etichetta={tr("Conto Termico sulla pompa di calore")} valore={dati.contributo_ct || null} suffisso="€"
                 onCommit={(v) => cambia({ contributo_ct: Math.max(0, v ?? 0) })}
-                aiuto="Dal simulatore del GSE. Non vale sulla spesa già in detrazione." />
+                aiuto={tr("Dal simulatore del GSE. Non vale sulla spesa già in detrazione.")} />
               {dati.contributo_ct > 0 ? (
                 <Scelta
                   valore={dati.modalita_ct}
-                  opzioni={[{ valore: "sconto_in_fattura", etichetta: "Sconto in fattura" }, { valore: "rimborso", etichetta: "Glielo versa il GSE" }]}
+                  opzioni={[{ valore: "sconto_in_fattura", etichetta: tr("Sconto in fattura") }, { valore: "rimborso", etichetta: tr("Glielo versa il GSE") }]}
                   onChange={(modalita_ct) => cambia({ modalita_ct })}
                 />
               ) : null}
@@ -182,18 +182,18 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
           </div>
         </Sezione>
 
-        <Sezione titolo="Il conto negli anni">
+        <Sezione titolo={tr("Il conto negli anni")}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <CampoNumero id="fe-aumento" etichetta="Aumento energia all'anno" valore={dati.aumento_energia_pct} suffisso="%" onCommit={(v) => cambia({ aumento_energia_pct: Math.min(10, Math.max(0, v ?? 0)) })} />
-            <CampoNumero id="fe-anni" etichetta="Anni del conto" valore={dati.anni} suffisso="anni" onCommit={(v) => cambia({ anni: Math.min(30, Math.max(5, Math.round(v ?? 20))) })} />
+            <CampoNumero id="fe-aumento" etichetta={tr("Aumento energia all'anno")} valore={dati.aumento_energia_pct} suffisso="%" onCommit={(v) => cambia({ aumento_energia_pct: Math.min(10, Math.max(0, v ?? 0)) })} />
+            <CampoNumero id="fe-anni" etichetta={tr("Anni del conto")} valore={dati.anni} suffisso={tr("anni")} onCommit={(v) => cambia({ anni: Math.min(30, Math.max(5, Math.round(v ?? 20))) })} />
           </div>
         </Sezione>
 
         <SchedaTecnica
-          etichetta="Scheda del sistema (nel PDF)"
+          etichetta={tr("Scheda del sistema (nel PDF)")}
           righe={dati.caratteristiche}
           onChange={(caratteristiche) => cambia({ caratteristiche })}
-          segnaposto={["Potenza del fotovoltaico", "6 kWp"]}
+          segnaposto={[tr("Potenza del fotovoltaico"), "6 kWp"]}
         />
       </CardContent>
     </Card>

@@ -24,6 +24,7 @@ import { Search, X, HelpCircle } from "lucide-react";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SearchQuery {
   raw: string;
@@ -76,6 +77,7 @@ interface EmailSearchBarProps {
 }
 
 export function EmailSearchBar({ initialValue = "", onSearch }: EmailSearchBarProps) {
+  const t = useT();
   const [value, setValue] = useState(initialValue);
   const debRef = useRef<number | null>(null);
 
@@ -105,8 +107,8 @@ export function EmailSearchBar({ initialValue = "", onSearch }: EmailSearchBarPr
         <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Cerca email…"
-          aria-label="Cerca nello storico email"
+          placeholder={t("Cerca email…")}
+          aria-label={t("Cerca nello storico email")}
           className="h-9 rounded-xl border-blue-100 bg-blue-50/40 pl-8 pr-8 sm:pr-16 text-sm focus-visible:ring-blue-200"
         />
         {value && (
@@ -121,24 +123,24 @@ export function EmailSearchBar({ initialValue = "", onSearch }: EmailSearchBarPr
         <Popover>
           <PopoverTrigger asChild>
             {/* Mobile: niente guida agli operatori (from:, has:…), roba da tastiera. */}
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl text-blue-600 hover:bg-blue-50 max-sm:hidden" title="Operatori ricerca">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl text-blue-600 hover:bg-blue-50 max-sm:hidden" title={t("Operatori ricerca")}>
               <HelpCircle className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 text-xs space-y-2 p-3">
-            <p className="font-semibold">Operatori ricerca</p>
+            <p className="font-semibold">{t("Operatori ricerca")}</p>
             <ul className="space-y-1">
-              <li><Badge variant="outline" className="text-[10px]">from:</Badge> mittente</li>
-              <li><Badge variant="outline" className="text-[10px]">to:</Badge> destinatario</li>
-              <li><Badge variant="outline" className="text-[10px]">subject:</Badge> oggetto contiene</li>
-              <li><Badge variant="outline" className="text-[10px]">has:attachment</Badge> con allegati</li>
-              <li><Badge variant="outline" className="text-[10px]">has:star</Badge> starred</li>
-              <li><Badge variant="outline" className="text-[10px]">is:unread</Badge> non letti</li>
+              <li><Badge variant="outline" className="text-[10px]">from:</Badge> {t("mittente")}</li>
+              <li><Badge variant="outline" className="text-[10px]">to:</Badge> {t("destinatario")}</li>
+              <li><Badge variant="outline" className="text-[10px]">subject:</Badge> {t("oggetto contiene")}</li>
+              <li><Badge variant="outline" className="text-[10px]">has:attachment</Badge> {t("con allegati")}</li>
+              <li><Badge variant="outline" className="text-[10px]">has:star</Badge> {t("starred")}</li>
+              <li><Badge variant="outline" className="text-[10px]">is:unread</Badge> {t("non letti")}</li>
               <li><Badge variant="outline" className="text-[10px]">before:2026-05-01</Badge></li>
               <li><Badge variant="outline" className="text-[10px]">after:2026-05-01</Badge></li>
             </ul>
             <p className="text-muted-foreground text-[10px]">
-              Combina più operatori: <code>from:bob has:attachment is:unread</code>. Lo storico viene caricato a pagine, quindi la UI resta fluida anche con molte email.
+              {t("Combina più operatori:")} <code>from:bob has:attachment is:unread</code>{t(". Lo storico viene caricato a pagine, quindi la UI resta fluida anche con molte email.")}
             </p>
           </PopoverContent>
         </Popover>

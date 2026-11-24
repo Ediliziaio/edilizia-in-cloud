@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Receipt, Save, Info, Loader2 } from "lucide-react";
 import { useBillingDetails, useSaveBillingDetails, type BillingDetailsInput } from "@/hooks/useBillingDetails";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const EMPTY: BillingDetailsInput = {
   legal_name: "",
@@ -37,6 +38,7 @@ const EMPTY: BillingDetailsInput = {
 };
 
 export function BillingDetailsCard() {
+  const t = useT();
   const { data, isLoading } = useBillingDetails();
   const save = useSaveBillingDetails();
   const [form, setForm] = useState<BillingDetailsInput>(EMPTY);
@@ -77,10 +79,10 @@ export function BillingDetailsCard() {
       <CardHeader>
         <div className="flex items-center gap-2">
           <Receipt className="h-5 w-5 text-muted-foreground" />
-          <CardTitle>Dati di fatturazione</CardTitle>
+          <CardTitle>{t("Dati di fatturazione")}</CardTitle>
         </div>
         <CardDescription>
-          Anagrafica fiscale per le fatture EdiliziaInCloud — può differire dall'anagrafica aziendale del profilo.
+          {t("Anagrafica fiscale per le fatture EdiliziaInCloud — può differire dall'anagrafica aziendale del profilo.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -95,25 +97,24 @@ export function BillingDetailsCard() {
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Questi dati vengono usati per emettere le fatture del tuo abbonamento.
-                I metodi di pagamento (carta) si gestiscono dal portale Stripe sotto.
+                {t("Questi dati vengono usati per emettere le fatture del tuo abbonamento. I metodi di pagamento (carta) si gestiscono dal portale Stripe sotto.")}
               </AlertDescription>
             </Alert>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="bd-legal-name">Ragione sociale / Nome*</Label>
+                <Label htmlFor="bd-legal-name">{t("Ragione sociale / Nome*")}</Label>
                 <Input
                   id="bd-legal-name"
                   value={form.legal_name ?? ""}
                   onChange={(e) => update("legal_name", e.target.value)}
-                  placeholder="es. Rossi Costruzioni S.r.l."
+                  placeholder={t("es. Rossi Costruzioni S.r.l.")}
                   maxLength={200}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bd-vat">Partita IVA</Label>
+                <Label htmlFor="bd-vat">{t("Partita IVA")}</Label>
                 <Input
                   id="bd-vat"
                   value={form.vat_number ?? ""}
@@ -121,11 +122,11 @@ export function BillingDetailsCard() {
                   placeholder="IT12345678901"
                   maxLength={20}
                 />
-                <p className="text-[10px] text-muted-foreground">Per ditte individuali: solo Codice Fiscale</p>
+                <p className="text-[10px] text-muted-foreground">{t("Per ditte individuali: solo Codice Fiscale")}</p>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bd-cf">Codice Fiscale</Label>
+                <Label htmlFor="bd-cf">{t("Codice Fiscale")}</Label>
                 <Input
                   id="bd-cf"
                   value={form.tax_code ?? ""}
@@ -136,7 +137,7 @@ export function BillingDetailsCard() {
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="bd-addr1">Indirizzo*</Label>
+                <Label htmlFor="bd-addr1">{t("Indirizzo*")}</Label>
                 <CampoIndirizzo
                   id="bd-addr1"
                   value={form.address_line1 ?? ""}
@@ -148,17 +149,17 @@ export function BillingDetailsCard() {
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="bd-addr2">Indirizzo (riga 2)</Label>
+                <Label htmlFor="bd-addr2">{t("Indirizzo (riga 2)")}</Label>
                 <Input
                   id="bd-addr2"
                   value={form.address_line2 ?? ""}
                   onChange={(e) => update("address_line2", e.target.value)}
-                  placeholder="Scala B, Interno 5 (opzionale)"
+                  placeholder={t("Scala B, Interno 5 (opzionale)")}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bd-cap">CAP*</Label>
+                <Label htmlFor="bd-cap">{t("CAP*")}</Label>
                 <Input
                   id="bd-cap"
                   value={form.postal_code ?? ""}
@@ -169,7 +170,7 @@ export function BillingDetailsCard() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bd-city">Città*</Label>
+                <Label htmlFor="bd-city">{t("Città*")}</Label>
                 <Input
                   id="bd-city"
                   value={form.city ?? ""}
@@ -179,7 +180,7 @@ export function BillingDetailsCard() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bd-prov">Provincia (sigla)*</Label>
+                <Label htmlFor="bd-prov">{t("Provincia (sigla)*")}</Label>
                 <Input
                   id="bd-prov"
                   value={form.province ?? ""}
@@ -190,7 +191,7 @@ export function BillingDetailsCard() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bd-country">Paese</Label>
+                <Label htmlFor="bd-country">{t("Paese")}</Label>
                 <Select
                   value={form.country ?? "IT"}
                   onValueChange={(v) => update("country", v)}
@@ -199,19 +200,19 @@ export function BillingDetailsCard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="IT">Italia</SelectItem>
-                    <SelectItem value="SM">San Marino</SelectItem>
-                    <SelectItem value="CH">Svizzera</SelectItem>
-                    <SelectItem value="FR">Francia</SelectItem>
-                    <SelectItem value="DE">Germania</SelectItem>
-                    <SelectItem value="ES">Spagna</SelectItem>
+                    <SelectItem value="IT">{t("Italia")}</SelectItem>
+                    <SelectItem value="SM">{t("San Marino")}</SelectItem>
+                    <SelectItem value="CH">{t("Svizzera")}</SelectItem>
+                    <SelectItem value="FR">{t("Francia")}</SelectItem>
+                    <SelectItem value="DE">{t("Germania")}</SelectItem>
+                    <SelectItem value="ES">{t("Spagna")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="pt-3 border-t space-y-3">
-              <h4 className="text-sm font-semibold">Contatti fiscali (per Italia)</h4>
+              <h4 className="text-sm font-semibold">{t("Contatti fiscali (per Italia)")}</h4>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="bd-pec">PEC</Label>
@@ -225,21 +226,21 @@ export function BillingDetailsCard() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="bd-sdi">Codice destinatario SDI</Label>
+                  <Label htmlFor="bd-sdi">{t("Codice destinatario SDI")}</Label>
                   <Input
                     id="bd-sdi"
                     value={form.sdi_code ?? ""}
                     onChange={(e) => update("sdi_code", e.target.value.toUpperCase())}
-                    placeholder="0000000 oppure 7 caratteri"
+                    placeholder={t("0000000 oppure 7 caratteri")}
                     maxLength={7}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    Lascia "0000000" se ricevi via PEC
+                    {t("Lascia \"0000000\" se ricevi via PEC")}
                   </p>
                 </div>
 
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="bd-inv-email">Email per copia PDF fattura (opzionale)</Label>
+                  <Label htmlFor="bd-inv-email">{t("Email per copia PDF fattura (opzionale)")}</Label>
                   <Input
                     id="bd-inv-email"
                     type="email"
@@ -254,7 +255,7 @@ export function BillingDetailsCard() {
             <div className="flex items-center justify-end gap-2 pt-3 border-t">
               {dirty && (
                 <span className="text-xs text-amber-600 mr-auto">
-                  • Modifiche non salvate
+                  {t("• Modifiche non salvate")}
                 </span>
               )}
               <Button
@@ -266,7 +267,7 @@ export function BillingDetailsCard() {
                 ) : (
                   <Save className="h-4 w-4 mr-1.5" />
                 )}
-                Salva dati fatturazione
+                {t("Salva dati fatturazione")}
               </Button>
             </div>
           </>

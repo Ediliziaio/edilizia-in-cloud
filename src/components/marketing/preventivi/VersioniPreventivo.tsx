@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, History, Eye, Save } from "lucide-react";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ interface QuoteVersion {
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 const fmtDate = (d: string) =>
-  format(new Date(d), "dd MMM yyyy HH:mm", { locale: it });
+  format(new Date(d), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() });
 
 // ─── Snapshot detail dialog ───────────────────────────────────────────────────
 
@@ -54,6 +54,7 @@ interface SnapshotDialogProps {
 }
 
 function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
+  const t = useT();
   if (!version) return null;
 
   const { quote, items, saved_at } = version.snapshot;
@@ -63,35 +64,33 @@ function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Versione {version.version_num}
+            {t("Versione {n}", { n: version.version_num })}
             {version.note && (
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 — {version.note}
               </span>
             )}
           </DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            Salvata il {fmtDate(saved_at)}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("Salvata il {data}", { data: fmtDate(saved_at) })}</p>
         </DialogHeader>
 
         {/* Quote info */}
         <div className="grid grid-cols-2 gap-3 text-sm mb-4">
           {quote.quote_number && (
             <div>
-              <span className="text-muted-foreground">Numero: </span>
+              <span className="text-muted-foreground">{t("Numero:")} </span>
               <span className="font-medium">{quote.quote_number}</span>
             </div>
           )}
           {quote.title && (
             <div>
-              <span className="text-muted-foreground">Titolo: </span>
+              <span className="text-muted-foreground">{t("Titolo:")} </span>
               <span className="font-medium">{quote.title}</span>
             </div>
           )}
           {quote.status && (
             <div>
-              <span className="text-muted-foreground">Stato: </span>
+              <span className="text-muted-foreground">{t("Stato:")} </span>
               <Badge variant="outline">{quote.status}</Badge>
             </div>
           )}
@@ -99,17 +98,17 @@ function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
 
         {/* Items table */}
         {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessuna voce in questa versione.</p>
+          <p className="text-sm text-muted-foreground">{t("Nessuna voce in questa versione.")}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Prodotto / Servizio</TableHead>
-                <TableHead className="text-right">Qtà</TableHead>
-                <TableHead className="text-right">Prezzo</TableHead>
-                <TableHead className="text-right">Sconto</TableHead>
+                <TableHead>{t("Prodotto / Servizio")}</TableHead>
+                <TableHead className="text-right">{t("Qtà")}</TableHead>
+                <TableHead className="text-right">{t("Prezzo")}</TableHead>
+                <TableHead className="text-right">{t("Sconto")}</TableHead>
                 <TableHead className="text-right">IVA</TableHead>
-                <TableHead className="text-right">Totale riga</TableHead>
+                <TableHead className="text-right">{t("Totale riga")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -129,7 +128,7 @@ function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
                   <TableCell className="text-right">
                     {formatCurrency(item.unit_price)}
                   </TableCell>
-                  <TableCell className="text-right">{(item.discount_percent ?? 0).toLocaleString("it-IT")}%</TableCell>
+                  <TableCell className="text-right">{(item.discount_percent ?? 0).toLocaleString(intlCampo())}%</TableCell>
                   <TableCell className="text-right">{item.vat_rate}%</TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(item.line_total ?? 0)}
@@ -145,13 +144,13 @@ function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
           <div className="w-full max-w-xs space-y-1 text-sm">
             {quote.subtotal !== undefined && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotale</span>
+                <span className="text-muted-foreground">{t("Subtotale")}</span>
                 <span>{formatCurrency(quote.subtotal)}</span>
               </div>
             )}
             {(quote.discount_percent ?? 0) > 0 && (
               <div className="flex justify-between text-destructive">
-                <span>Sconto {quote.discount_percent}%</span>
+                <span>{t("Sconto {discount_percent}%", { discount_percent: String(quote.discount_percent ?? "") })}</span>
                 <span>-{formatCurrency(quote.discount_amount ?? 0)}</span>
               </div>
             )}
@@ -165,7 +164,7 @@ function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
               <>
                 <hr />
                 <div className="flex justify-between font-bold text-base">
-                  <span>Totale</span>
+                  <span>{t("Totale")}</span>
                   <span>{formatCurrency(quote.total)}</span>
                 </div>
               </>
@@ -184,6 +183,7 @@ interface VersioniPreventivoProps {
 }
 
 export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [selectedVersion, setSelectedVersion] = useState<QuoteVersion | null>(null);
   const [saving, setSaving] = useState(false);
@@ -214,11 +214,11 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
         { body: { quote_id: quoteId } }
       );
       if (fnErr) throw fnErr;
-      toast.success(`Versione ${data?.version_num} salvata con successo`);
+      toast.success(t("Versione {version_num} salvata con successo", { version_num: String(data?.version_num ?? "") }));
       queryClient.invalidateQueries({ queryKey: ["quote_versions", quoteId] });
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Errore durante il salvataggio";
-      toast.error("Errore: " + message);
+      const message = e instanceof Error ? e.message : t("Errore durante il salvataggio");
+      toast.error(t("Errore: {errore}", { errore: message }));
     } finally {
       setSaving(false);
     }
@@ -231,7 +231,7 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <History className="h-5 w-5" />
-              Storico Versioni
+              {t("Storico Versioni")}
             </CardTitle>
             <Button
               variant="outline"
@@ -244,7 +244,7 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
-              {saving ? "Salvataggio..." : "Salva versione ora"}
+              {saving ? t("Salvataggio...") : t("Salva versione ora")}
             </Button>
           </div>
         </CardHeader>
@@ -257,14 +257,13 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
 
           {!isLoading && error && (
             <p className="text-sm text-destructive">
-              Errore caricamento versioni.
+              {t("Errore caricamento versioni.")}
             </p>
           )}
 
           {!isLoading && !error && versions.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Nessuna versione salvata. Le versioni vengono create automaticamente
-              all'invio.
+              {t("Nessuna versione salvata. Le versioni vengono create automaticamente all'invio.")}
             </p>
           )}
 
@@ -272,11 +271,11 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-20">Versione</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Nota</TableHead>
-                  <TableHead className="text-right">Voci</TableHead>
-                  <TableHead className="text-right">Totale</TableHead>
+                  <TableHead className="w-20">{t("Versione")}</TableHead>
+                  <TableHead>{t("Data")}</TableHead>
+                  <TableHead>{t("Nota")}</TableHead>
+                  <TableHead className="text-right">{t("Voci")}</TableHead>
+                  <TableHead className="text-right">{t("Totale")}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -309,7 +308,7 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
                           onClick={() => setSelectedVersion(v)}
                         >
                           <Eye className="h-4 w-4 mr-1" />
-                          Visualizza
+                          {t("Visualizza")}
                         </Button>
                       </TableCell>
                     </TableRow>

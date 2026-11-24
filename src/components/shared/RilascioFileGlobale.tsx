@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import type { Traduttore } from "@/lib/campo/lingua/traduttore";
 import { Upload } from "lucide-react";
 import {
   calcolaZone,
@@ -66,7 +68,7 @@ function ritaglia(el: HTMLElement, chiave: number): Riquadro | null {
   return width > 0 && height > 0 ? { chiave, top, left, width, height } : null;
 }
 
-function costruisciVista(zone: ZonaRilascio[], attiva: ZonaRilascio | null): Vista {
+function costruisciVista(zone: ZonaRilascio[], attiva: ZonaRilascio | null, t: Traduttore): Vista {
   const riquadri = zone.flatMap((z, i): Riquadro[] => {
     const r = ritaglia(z.elemento, i);
     return r ? [r] : [];
@@ -77,8 +79,8 @@ function costruisciVista(zone: ZonaRilascio[], attiva: ZonaRilascio | null): Vis
   return {
     riquadri,
     attiva: attiva ? zone.indexOf(attiva) : -1,
-    etichetta: disabilitata ? "Non disponibile in questo momento" : "Rilascia qui per caricare",
-    dettaglio: disabilitata ? "" : [formati, input?.multiple ? "anche più file" : ""].filter(Boolean).join(" · "),
+    etichetta: disabilitata ? t("Non disponibile in questo momento") : t("Rilascia qui per caricare"),
+    dettaglio: disabilitata ? "" : [formati, input?.multiple ? t("anche più file") : ""].filter(Boolean).join(" · "),
     disabilitata,
   };
 }
@@ -87,11 +89,11 @@ function cartelleTra(dt: DataTransfer): number {
   return Array.from(dt.items ?? []).filter((voce) => voce.webkitGetAsEntry?.()?.isDirectory).length;
 }
 
-function rilascia(e: DragEvent, dt: DataTransfer) {
+function rilascia(e: DragEvent, dt: DataTransfer, t: Traduttore) {
   const cartelle = cartelleTra(dt);
   const files = Array.from(dt.files);
   if (cartelle > 0) {
-    toast.error("Le cartelle non si possono caricare", { description: "Trascina i file che contiene." });
+    toast.error(t("Le cartelle non si possono caricare"), { description: t("Trascina i file che contiene.") });
     return;
   }
   if (files.length === 0) return;
@@ -99,15 +101,15 @@ function rilascia(e: DragEvent, dt: DataTransfer) {
   const zone = calcolaZone(document);
   const zona = zonaSotto(e.target, zone);
   if (!zona) {
-    toast.info("Qui non si possono caricare file", {
-      description: zone.length > 0 ? "Rilascialo sopra uno dei riquadri evidenziati." : undefined,
+    toast.info(t("Qui non si possono caricare file"), {
+      description: zone.length > 0 ? t("Rilascialo sopra uno dei riquadri evidenziati.") : undefined,
     });
     return;
   }
   const { input } = zona;
   if (input.matches(":disabled")) {
-    toast.info("Caricamento non disponibile in questo momento", {
-      description: "Aspetta che finisca l'operazione in corso e riprova.",
+    toast.info(t("Caricamento non disponibile in questo momento"), {
+      description: t("Aspetta che finisca l'operazione in corso e riprova."),
     });
     return;
   }
@@ -119,6 +121,10 @@ function rilascia(e: DragEvent, dt: DataTransfer) {
 
 export function RilascioFileGlobale() {
   const [vista, setVista] = useState<Vista | null>(null);
+  // I gestori vivono in un effetto montato una volta sola: leggono la lingua di adesso da qui.
+  const t = useT();
+  const tAttuale = useRef(t);
+  useEffect(() => { tAttuale.current = t; }, [t]);
 
   useEffect(() => {
     let zone: ZonaRilascio[] = [];
@@ -151,13 +157,13 @@ export function RilascioFileGlobale() {
         calcolateAlle = Date.now();
       }
       if (e.defaultPrevented && !dentroEditor(e.target)) {
-        mostra(costruisciVista(zone, null));
+        mostra(costruisciVista(zone, null, tAttuale.current));
         return;
       }
       // Senza questo, il file rilasciato fuori da un'area si aprirebbe al posto dell'app.
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
-      mostra(costruisciVista(zone, zonaSotto(e.target, zone)));
+      mostra(costruisciVista(zone, zonaSotto(e.target, zone), tAttuale.current));
     };
 
     const onRilascio = (e: DragEvent) => {
@@ -165,7 +171,7 @@ export function RilascioFileGlobale() {
       spegni();
       if (e.defaultPrevented || paginaGestisceDaSola()) return;
       e.preventDefault();
-      rilascia(e, e.dataTransfer);
+      rilascia(e, e.dataTransfer, tAttuale.current);
     };
 
     window.addEventListener("dragenter", onSopra);

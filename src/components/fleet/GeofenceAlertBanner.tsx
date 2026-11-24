@@ -1,7 +1,7 @@
 import { X, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
 import type { GeofenceBreachNotification } from '@/hooks/useGeofenceAlert';
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   violazione: GeofenceBreachNotification;
@@ -9,6 +9,7 @@ interface Props {
 }
 
 export function GeofenceAlertBanner({ violazione, onDismiss }: Props) {
+  const t = useT();
   return (
     <div
       role="alert"
@@ -22,12 +23,12 @@ export function GeofenceAlertBanner({ violazione, onDismiss }: Props) {
           <p className="text-xs opacity-90 mt-0.5 truncate">{violazione.body}</p>
         )}
         <p className="text-xs opacity-75 mt-0.5">
-          {format(new Date(violazione.created_at), "HH:mm:ss 'del' dd/MM/yyyy", { locale: it })}
+          {format(new Date(violazione.created_at), "HH:mm:ss 'del' dd/MM/yyyy", { locale: dateFnsCampo() })}
         </p>
       </div>
       <button
         onClick={onDismiss}
-        aria-label="Chiudi allerta"
+        aria-label={t("Chiudi allerta")}
         className="rounded p-1 hover:bg-red-700 transition-colors flex-shrink-0"
       >
         <X className="h-4 w-4" />

@@ -9,10 +9,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import type { RestoredAutomationGraph } from "@/types/automationBuilder";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   flowId: string;
@@ -21,6 +21,8 @@ interface Props {
 }
 
 export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
+  const t = useT();
+  const [ripristinoPrima, ripristinoDopo = ""] = t("Stai per ripristinare la versione {versione}. Le modifiche non salvate andranno perse. Vuoi continuare?").split("{versione}");
   const qc = useQueryClient();
   const [restoreTarget, setRestoreTarget] = useState<any | null>(null);
 
@@ -66,11 +68,11 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
       qc.invalidateQueries({ queryKey: queryKeys.automations.flow(flowId) });
       qc.invalidateQueries({ queryKey: ["flow-versions", flowId] });
       qc.invalidateQueries({ queryKey: ["automation-flows"] });
-      toast.success("Versione ripristinata con successo");
+      toast.success(t("Versione ripristinata con successo"));
       setRestoreTarget(null);
     },
     onError: (error: any) => {
-      toast.error("Versione non ripristinata", { description: error.message });
+      toast.error(t("Versione non ripristinata"), { description: error.message });
       setRestoreTarget(null);
     },
   });
@@ -83,14 +85,14 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           <p className="text-[11px] text-muted-foreground">
-            La cronologia è disponibile per le ultime 10 versioni.
+            {t("La cronologia è disponibile per le ultime 10 versioni.")}
           </p>
 
           {/* Current version */}
           {corrente && (
             <div>
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Versione attuale
+                {t("Versione attuale")}
               </p>
               <div className="border border-border rounded-xl p-3 bg-muted/30">
                 <div className="flex items-center gap-2 mb-1">
@@ -101,7 +103,7 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
                     variant={corrente.status === "published" ? "default" : "outline"}
                     className="text-[10px]"
                   >
-                    {corrente.status === "published" ? "Pubblicato" : "Bozza"}
+                    {corrente.status === "published" ? t("Pubblicato") : t("Bozza")}
                   </Badge>
                 </div>
                 {corrente.created_by_name && (
@@ -110,7 +112,7 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
                 <p className="text-[11px] text-muted-foreground">
                   {formatDistanceToNow(new Date(corrente.created_at), {
                     addSuffix: true,
-                    locale: it,
+                    locale: dateFnsCampo(),
                   })}
                 </p>
               </div>
@@ -121,7 +123,7 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
           {precedenti.length > 0 && (
             <div>
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Versioni precedenti
+                {t("Versioni precedenti")}
               </p>
               <div className="space-y-2">
                 {precedenti.map((v: any) => (
@@ -140,7 +142,7 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
                         <p className="text-[11px] text-muted-foreground">
                           {formatDistanceToNow(new Date(v.created_at), {
                             addSuffix: true,
-                            locale: it,
+                            locale: dateFnsCampo(),
                           })}
                         </p>
                       </div>
@@ -149,7 +151,7 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
                         disabled={restoreMutation.isPending || isSaving}
                         className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1 disabled:opacity-50"
                       >
-                        <RotateCcw className="h-3 w-3" aria-hidden="true" /> Ripristina
+                        <RotateCcw className="h-3 w-3" aria-hidden="true" /> {t("Ripristina")}
                       </button>
                     </div>
                   </div>
@@ -161,7 +163,7 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
           {versioni.length === 0 && (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
               <Clock className="h-8 w-8 opacity-30 mb-2" aria-hidden="true" />
-              <p className="text-xs">Nessuna versione salvata</p>
+              <p className="text-xs">{t("Nessuna versione salvata")}</p>
             </div>
           )}
         </div>
@@ -171,19 +173,18 @@ export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
       <AlertDialog open={!!restoreTarget} onOpenChange={(open) => !open && setRestoreTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Ripristina versione</AlertDialogTitle>
+            <AlertDialogTitle>{t("Ripristina versione")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per ripristinare la versione <strong>v{restoreTarget?.version}</strong>.
-              Le modifiche non salvate andranno perse. Vuoi continuare?
+              {ripristinoPrima}<strong>v{restoreTarget?.version}</strong>{ripristinoDopo}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={restoreMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={restoreMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => restoreTarget && restoreMutation.mutate(restoreTarget)}
               disabled={restoreMutation.isPending}
             >
-              {restoreMutation.isPending ? "Ripristino..." : "Ripristina"}
+              {restoreMutation.isPending ? t("Ripristino...") : t("Ripristina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

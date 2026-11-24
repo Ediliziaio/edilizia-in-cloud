@@ -5,6 +5,7 @@ import {
   type EdgeProps,
 } from "@xyflow/react";
 import { Plus } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function AddStepEdge({
   id,
@@ -19,6 +20,7 @@ export function AddStepEdge({
   data,
   label,
 }: EdgeProps) {
+  const t = useT();
   // Tratti ortogonali: prima si scende, poi si raggiunge il ramo e si
   // riprende verso il basso. Solo gli angoli sono leggermente arrotondati.
   const [edgePath, labelX, labelY] = getSmoothStepPath({
@@ -71,8 +73,8 @@ export function AddStepEdge({
         >
           <button
             type="button"
-            aria-label={label ? `Aggiungi un passo nel ramo ${String(label)}` : "Aggiungi un passo"}
-            title={label ? `Ramo ${String(label)} · Aggiungi un passo` : "Aggiungi un passo"}
+            aria-label={label ? t("Aggiungi un passo nel ramo {valore}", { valore: String(label) }) : t("Aggiungi un passo")}
+            title={label ? t("Ramo {valore} · Aggiungi un passo", { valore: String(label) }) : t("Aggiungi un passo")}
             onClick={() => edgeData?.onAddStep?.(id)}
             className="flex h-7 min-w-7 items-center justify-center gap-1 rounded-md border border-border bg-background px-1.5 text-muted-foreground shadow-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >

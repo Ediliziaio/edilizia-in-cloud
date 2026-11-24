@@ -25,6 +25,7 @@ import { OperatoriRanking } from "./OperatoriRanking";
 import { ReportExportMenu } from "../shared/ReportExportMenu";
 import { AdsCallCenterReportPanel } from "@/components/reporting/ads-callcenter/AdsCallCenterReportPanel";
 import { CallCenterOperationalDiagnosis } from "./CallCenterOperationalDiagnosis";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "mese", label: "Mese corrente" },
@@ -118,6 +119,7 @@ function aggregaKpi(kpiList: CallCenterKPI[] | undefined, operatoreId: string): 
 const MESI_CONFRONTO: Record<PeriodoVendor, number> = { mese: 1, mese_prec: 1, trimestre: 3, semestre: 6, anno: 12 };
 
 export default function CallCenterReport() {
+  const t = useT();
   const [periodo, setPeriodo] = useState<PeriodoVendor>("mese");
   const [operatoreId, setOperatoreId] = useState<string>("tutti");
   const [subTab, setSubTab] = useState("panoramica");
@@ -161,7 +163,7 @@ export default function CallCenterReport() {
       {/* Header with filters — telefono: solo periodo e operatore, niente titolo (lo dice la scheda) né export */}
       <div className="flex flex-wrap items-center gap-3">
         <Phone className="h-5 w-5 text-primary max-sm:hidden" />
-        <h2 className="text-lg font-semibold max-sm:hidden">Report Call Center</h2>
+        <h2 className="text-lg font-semibold max-sm:hidden">{t("Report Call Center")}</h2>
 
         <div className="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0 max-sm:w-full max-sm:flex-nowrap">
           <ReportExportMenu
@@ -176,17 +178,17 @@ export default function CallCenterReport() {
             </SelectTrigger>
             <SelectContent>
               {PERIODI.map(p => (
-                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                <SelectItem key={p.value} value={p.value}>{t(p.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select value={operatoreId} onValueChange={setOperatoreId}>
             <SelectTrigger className="w-[200px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
-              <SelectValue placeholder="Operatore" />
+              <SelectValue placeholder={t("Operatore")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutto il Team</SelectItem>
+              <SelectItem value="tutti">{t("Tutto il Team")}</SelectItem>
               {(kpiList ?? []).map(k => (
                 <SelectItem key={k.operatore_id} value={k.operatore_id}>
                   {k.nome_operatore}
@@ -200,16 +202,16 @@ export default function CallCenterReport() {
       {/* Sub-tabs */}
       <Tabs value={schedaAttiva} onValueChange={setSubTab}>
         <TabsList className="max-sm:w-full">
-          <TabsTrigger value="panoramica" className="max-sm:flex-1">Panoramica</TabsTrigger>
+          <TabsTrigger value="panoramica" className="max-sm:flex-1">{t("Panoramica")}</TabsTrigger>
           <TabsTrigger value="ranking" className="max-sm:flex-1">
-            <span className="max-sm:hidden">Ranking Operatori</span>
-            <span className="sm:hidden">Operatori</span>
+            <span className="max-sm:hidden">{t("Ranking Operatori")}</span>
+            <span className="sm:hidden">{t("Operatori")}</span>
           </TabsTrigger>
-          <TabsTrigger value="speed" className="max-sm:hidden">Speed to Lead</TabsTrigger>
-          <TabsTrigger value="trend" className="max-sm:hidden">Trend Giornaliero</TabsTrigger>
-          <TabsTrigger value="fonti" className="max-sm:hidden">Fonti Lead</TabsTrigger>
+          <TabsTrigger value="speed" className="max-sm:hidden">{t("Speed to Lead")}</TabsTrigger>
+          <TabsTrigger value="trend" className="max-sm:hidden">{t("Trend Giornaliero")}</TabsTrigger>
+          <TabsTrigger value="fonti" className="max-sm:hidden">{t("Fonti Lead")}</TabsTrigger>
           <TabsTrigger value="confronto" className="gap-1.5 max-sm:hidden">
-            <GitCompareArrows className="h-4 w-4" /> Confronto
+            <GitCompareArrows className="h-4 w-4" /> {t("Confronto")}
           </TabsTrigger>
         </TabsList>
 
@@ -218,7 +220,7 @@ export default function CallCenterReport() {
           <CallCenterOperationalDiagnosis kpi={currentKpi} isLoading={kpiLoading} />
           <LavorazioneLeadPanel data={leadHandling} isLoading={lhLoading} />
           {/* Telefono: il report delle campagne e gli insight testuali restano al computer. */}
-          <section aria-label="Lead ads e chiamate" className="max-sm:hidden">
+          <section aria-label={t("Lead ads e chiamate")} className="max-sm:hidden">
             <AdsCallCenterReportPanel provider="all" daysBack={daysBack} />
           </section>
           <CallCenterInsights kpi={currentKpi} />

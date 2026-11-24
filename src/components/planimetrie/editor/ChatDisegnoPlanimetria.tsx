@@ -32,6 +32,7 @@ import { leggiMisura, scriviMetri } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
 import { InterventiChatDisegno } from "./InterventiChatDisegno";
 import { anteprimaInterventi, preparaInterventi, propostaChatApplicabile, type RevisioneInterventi } from "./interventiChat";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import "./chat-disegno.css";
 
 const RitaglioDocumentoPianta = lazy(() => import("../RitaglioDocumentoPianta"));
@@ -39,7 +40,7 @@ const RaddrizzaSchizzo = lazy(() => import("./RaddrizzaSchizzo"));
 const MAX_TESTO = 2200;
 const MAX_QUADRI = 5;
 const TEMPO_QUADRO_MS = 170;
-const FORMATO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
+const FORMATO = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 });
 const ESEMPIO = [
   "Cucina 3,20 × 4,10 m",
   "Ingresso 2 × 2,50 m a destra della cucina",
@@ -163,6 +164,7 @@ export function ChatDisegnoPlanimetria({
   onCambiaFonte, onEvidenzia, onInquadraPunto, onMostra, onInCorso, onApplica, onRivediNelComputo, puoRivedereNelComputo, inSilvio, onCreaAlternativa, onSalvaDaChat, consentiComputo,
   onVerifica, onApriConfronto, onRiferimento, onVista, onApriStudioBilocali, onChiudi,
 }: Props) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const { canViewRenderAi: puoChiedereASilvio } = usePermissions();
   const [testo, setTesto] = useState("");
@@ -369,7 +371,7 @@ export function ChatDisegnoPlanimetria({
       const corrente = passi[completati - 1];
       onMostra(corrente, quadroFinale?.pianta);
       setFase({
-        testo: corrente.pianta === piantaPrecedente ? "Misure sulla tavola" : "Aggiorno la tavola",
+        testo: corrente.pianta === piantaPrecedente ? tr("Misure sulla tavola") : tr("Aggiorno la tavola"),
         ultimo: corrente.testo, completati, totale: passi.length,
       });
       piantaPrecedente = corrente.pianta;
@@ -415,7 +417,7 @@ export function ChatDisegnoPlanimetria({
       if (!studio.soloVerifica) onApriStudioBilocali?.(studio);
       return;
     }
-    const controller = inizia("Leggo le indicazioni");
+    const controller = inizia(tr("Leggo le indicazioni"));
     if (!controller) return;
     setVerificheAperte(false);
     onVerifica(null);
@@ -452,7 +454,7 @@ export function ChatDisegnoPlanimetria({
     }
     const passi = passo?.riferimento ? sulDisegno.map(p => ({ ...p, riferimento: passo.riferimento })) : sulDisegno;
     if (!passi.length && !viste.length && !revisione && !interpretato && companyId && puoChiedereASilvio && !comando.includes("\n")) {
-      setFase({ testo: "Chiedo a Silvio di interpretare la richiesta", completati: 0, totale: 0 });
+      setFase({ testo: tr("Chiedo a Silvio di interpretare la richiesta"), completati: 0, totale: 0 });
       interpretaComando(companyId, comando, localiVisibili.map(l => l.nome), vista).then(r => {
         if (controller.signal.aborted || lavoro.current !== controller) return;
         if (r.comandi.length) {
@@ -481,7 +483,7 @@ export function ChatDisegnoPlanimetria({
     setAvviso("");
     const r = creaRiconoscitore();
     if (!r) {
-      setAvviso("La dettatura non è disponibile in questo browser. Puoi scrivere nel campo qui sotto.");
+      setAvviso(tr("La dettatura non è disponibile in questo browser. Puoi scrivere nel campo qui sotto."));
       return;
     }
     riconoscitore.current = r;
@@ -496,30 +498,30 @@ export function ChatDisegnoPlanimetria({
     r.onend = () => { riconoscitore.current = null; setDetta(false); textarea.current?.focus({ preventScroll: true }); };
     r.onerror = e => {
       setDetta(false);
-      setAvviso(e.error === "not-allowed" ? "Consenti l’uso del microfono nel browser per dettare." : "Dettatura interrotta. Puoi riprovare o continuare a scrivere.");
+      setAvviso(e.error === "not-allowed" ? tr("Consenti l’uso del microfono nel browser per dettare.") : tr("Dettatura interrotta. Puoi riprovare o continuare a scrivere."));
     };
     try {
       r.start();
       setDetta(true);
     } catch {
       interrompiDettatura();
-      setAvviso("Impossibile avviare il microfono.");
+      setAvviso(tr("Impossibile avviare il microfono."));
     }
   }
 
   async function allega(file: File) {
-    const controller = inizia("Apro il file");
+    const controller = inizia(tr("Apro il file"));
     if (!controller) return;
     try {
       if (/\.txt$/i.test(file.name) || file.type === "text/plain") {
-        if (file.size > MAX_TESTO * 4) throw new Error("Il file di testo è troppo lungo. Carica fino a 2.200 caratteri.");
+        if (file.size > MAX_TESTO * 4) throw new Error(tr("Il file di testo è troppo lungo. Carica fino a 2.200 caratteri."));
         const note = (await file.text()).trim();
         controller.signal.throwIfAborted();
-        if (!note) throw new Error("Il file di testo è vuoto.");
+        if (!note) throw new Error(tr("Il file di testo è vuoto."));
         const completo = [testoCorrente.current.trim(), note].filter(Boolean).join("\n");
-        if (completo.length > MAX_TESTO) throw new Error("Il testo e l’allegato insieme superano 2.200 caratteri.");
+        if (completo.length > MAX_TESTO) throw new Error(tr("Il testo e l’allegato insieme superano 2.200 caratteri."));
         setTesto(completo);
-        setAvviso(file.name + " aggiunto al messaggio.");
+        setAvviso(tr("{nome} aggiunto al messaggio.", { nome: file.name }));
         return;
       }
       if (eDwg(file)) {
@@ -542,7 +544,7 @@ export function ChatDisegnoPlanimetria({
       setSchizzo({ file: immagine, nome: file.name, pagine: foglio.pagine });
       aggiungi({ ruolo: "assistente", testo: "Schizzo allegato. Puoi leggerlo per ricostruire la pianta o usarlo come sfondo." });
     } catch (e) {
-      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : "Caricamento non riuscito.");
+      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : tr("Caricamento non riuscito."));
     } finally {
       finisci(controller);
     }
@@ -555,13 +557,13 @@ export function ChatDisegnoPlanimetria({
 
   async function immagineSchizzo(file: File) {
     const pronta = await preparaImmagine(file, 0, undefined, ritaglio, { squadra: false });
-    if (!pronta) throw new Error("Schizzo illeggibile. Scegli un’immagine nitida o ritaglia la zona del disegno.");
+    if (!pronta) throw new Error(tr("Schizzo illeggibile. Scegli un’immagine nitida o ritaglia la zona del disegno."));
     return new File([pronta.file], file.name, { type: pronta.mime });
   }
 
   async function analizzaSchizzo() {
     if (!schizzo || !puoLeggereSchizzo) return;
-    const controller = inizia("Leggo i tratti e le scritte dello schizzo");
+    const controller = inizia(tr("Leggo i tratti e le scritte dello schizzo"));
     if (!controller) return;
     try {
       const { leggiSchizzo } = await import("@/lib/planimetrie/schizzoSopralluogo");
@@ -577,7 +579,7 @@ export function ChatDisegnoPlanimetria({
         + (restano ? ` Restano da tracciare ${restano} ${restano === 1 ? "contorno con un nome leggibile" : "contorni con un nome leggibile"}.` : "")
         + (scala.scritto ? " Verifica la quota proposta per impostare la scala." : " Indica una distanza reale per impostare la scala.") });
     } catch (e) {
-      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : "Impossibile leggere lo schizzo.");
+      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : tr("Impossibile leggere lo schizzo."));
     } finally {
       finisci(controller);
     }
@@ -586,7 +588,7 @@ export function ChatDisegnoPlanimetria({
   async function costruisciSchizzo() {
     const cm = leggiMisura(misuraSchizzo);
     if (!schizzo?.lettura || !schizzo.ritaglioFile || !riferimentoSchizzo || !puoLeggereSchizzo || !cm) return;
-    const controller = inizia("Imposto la scala del disegno");
+    const controller = inizia(tr("Imposto la scala del disegno"));
     if (!controller) return;
     try {
       const { generaDaSchizzo } = await import("@/lib/planimetrie/schizzoSopralluogo");
@@ -613,14 +615,14 @@ export function ChatDisegnoPlanimetria({
         lettura.avvisiIniziali[0],
       ]);
     } catch (e) {
-      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : "Impossibile costruire la pianta.");
+      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : tr("Impossibile costruire la pianta."));
       finisci(controller);
     }
   }
 
   async function usaSchizzoComeSfondo() {
     if (!schizzo) return;
-    const controller = inizia("Preparo lo schizzo da ricalcare");
+    const controller = inizia(tr("Preparo lo schizzo da ricalcare"));
     if (!controller) return;
     try {
       const file = schizzo.ritaglioFile ?? await immagineSchizzo(schizzo.raddrizzato?.file ?? schizzo.file);
@@ -630,7 +632,7 @@ export function ChatDisegnoPlanimetria({
       setSchizzo(null);
       aggiungi({ ruolo: "assistente", testo: "Schizzo aggiunto come sfondo. Imposta la scala per ricalcarlo." });
     } catch (e) {
-      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : "Impossibile aprire lo schizzo.");
+      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : tr("Impossibile aprire lo schizzo."));
     } finally {
       finisci(controller);
     }
@@ -644,7 +646,7 @@ export function ChatDisegnoPlanimetria({
       aggiungi({ ruolo: "assistente", testo: "Modifiche applicate al disegno." });
       return;
     }
-    const controller = inizia(p.riferimento.dwg ? "Collego il DWG alla pianta" : "Collego lo schizzo alla bozza");
+    const controller = inizia(p.riferimento.dwg ? tr("Collego il DWG alla pianta") : tr("Collego lo schizzo alla bozza"));
     if (!controller) return;
     setVerificheAperte(false);
     try {
@@ -656,7 +658,7 @@ export function ChatDisegnoPlanimetria({
         ? "Pianta modificabile inserita. Trovi l’originale bloccato in Layer DWG. Verifica la scala su una misura della tavola."
         : "Pianta modificabile inserita. Apri le verifiche dell’originale per confermare o correggere quote e aperture." });
     } catch (e) {
-      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : "Impossibile applicare la bozza.");
+      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : tr("Impossibile applicare la bozza."));
     } finally {
       finisci(controller);
     }
@@ -666,7 +668,7 @@ export function ChatDisegnoPlanimetria({
     const riferimento = cad?.lettura.riferimento;
     const misura = Number(unita);
     if (!cad || !riferimento || !puoRicostruire || !unitaDwgValida(misura)) return;
-    const controller = inizia("Leggo muri e aperture dal DWG");
+    const controller = inizia(tr("Leggo muri e aperture dal DWG"));
     if (!controller) return;
     aggiungi({ ruolo: "utente", testo: "Ricostruisci " + cad.originale.name });
     try {
@@ -675,9 +677,9 @@ export function ChatDisegnoPlanimetria({
       const { documento, piani } = await ricostruisciModelloDwg(cad.originale, richiesta, controller.signal, { companyId });
       const immagine = ritaglio ? await preparaImmagine(cad.lettura.file, 0, undefined, ritaglio, { squadra: false }) : null;
       controller.signal.throwIfAborted();
-      if (ritaglio && !immagine) throw new Error("Il ritaglio della tavola non si è preparato. Riprova.");
+      if (ritaglio && !immagine) throw new Error(tr("Il ritaglio della tavola non si è preparato. Riprova."));
       const p = daPlanimetria(documento);
-      if (!p.muri.length) throw new Error("Non ho trovato pareti nel ritaglio. Seleziona una porzione diversa della tavola.");
+      if (!p.muri.length) throw new Error(tr("Non ho trovato pareti nel ritaglio. Seleziona una porzione diversa della tavola."));
       const completo = { ...base, muri: p.muri, locali: p.locali, aperture: p.aperture,
         elementi: p.elementi, quote: p.quote, testi: p.testi, aree: p.aree };
       const frame = piani[0];
@@ -694,14 +696,14 @@ export function ChatDisegnoPlanimetria({
       setCad(null);
       mostraPassi(controller, passi, ["Verifica geometria e aperture sulla fonte. Altezza iniziale delle pareti 2,70 m da controllare."]);
     } catch (e) {
-      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : "Ricostruzione DWG non riuscita.");
+      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : tr("Ricostruzione DWG non riuscita."));
       finisci(controller);
     }
   }
 
   async function usaCadComeRiferimento() {
     if (!cad) return;
-    const controller = inizia("Preparo la tavola da ricalcare");
+    const controller = inizia(tr("Preparo la tavola da ricalcare"));
     if (!controller) return;
     try {
       const foglio = ritaglio ? (await anteprimaFoglio(cad.lettura.file, 1, 0, ritaglio)).file : cad.lettura.file;
@@ -711,7 +713,7 @@ export function ChatDisegnoPlanimetria({
       setCad(null);
       aggiungi({ ruolo: "assistente", testo: "Tavola DWG aggiunta come riferimento. Imposta la scala per ricalcarla." });
     } catch (e) {
-      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : "Impossibile aprire la tavola.");
+      if (!controller.signal.aborted) setAvviso(e instanceof Error ? e.message : tr("Impossibile aprire la tavola."));
     } finally {
       finisci(controller);
     }
@@ -730,15 +732,15 @@ export function ChatDisegnoPlanimetria({
         if (campiVisibili) onVista("render-sport");
         else { setTesto(ESEMPIO_CAMPI); textarea.current?.focus(); }
       }}>
-      <ImageIcon className="h-4 w-4 text-primary" /> {campiVisibili ? "Render dei campi" : "Prova un centro sportivo"}
+      <ImageIcon className="h-4 w-4 text-primary" /> {campiVisibili ? tr("Render dei campi") : tr("Prova un centro sportivo")}
     </Button>}
     {onVista && !pianoVuoto && !campiVisibili && contesto.documento.livelli.length > 1 && <Button variant="outline" size="sm" className="w-full justify-start bg-background"
       disabled={!!fase || detta || !!proposta} onClick={() => onVista("render-edificio")}>
-      <Box className="h-4 w-4 text-primary" /> Render dell’edificio
+      <Box className="h-4 w-4 text-primary" /> {tr("Render dell’edificio")}
     </Button>}
     {vista === "progetto" && localiVisibili[0] && <Button variant="outline" size="sm" className="w-full justify-start bg-background"
       disabled={!!fase || detta} onClick={() => { setTesto(`Tramezzo in ${localiVisibili[0].nome} a 1,50 m dal lato sinistro alto 2,80 m`); textarea.current?.focus(); }}>
-      <Ruler className="h-4 w-4 text-primary" /> Proponi un tramezzo <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
+      <Ruler className="h-4 w-4 text-primary" /> {tr("Proponi un tramezzo")} <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
     </Button>}
     {vista === "progetto" && localiVisibili.some(eAmbienteInterno) && <div className="flex flex-wrap gap-1.5">
       {[
@@ -748,34 +750,34 @@ export function ChatDisegnoPlanimetria({
         { nome: "Lavori", richiesta: "Riepiloga i lavori", Icona: ClipboardList },
       ].map(({nome, richiesta, Icona}) => <Button key={nome} type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs"
         disabled={!!fase || detta} onClick={() => { setTesto(richiesta); textarea.current?.focus(); }}>
-        <Icona className="size-3.5 text-primary" />{nome}
+        <Icona className="size-3.5 text-primary" />{tr(nome)}
       </Button>)}
     </div>}
     {vista === "progetto" && base.tracciatiImpianti?.some(t=>t.linea==="scarico") && <Button variant="outline" size="sm" className="w-full justify-start bg-background"
       disabled={!!fase || detta} onClick={() => { setTesto("Proponi un percorso dello scarico che eviti gli incroci"); textarea.current?.focus(); }}>
-      <Droplet className="h-4 w-4 text-primary" />Evita gli incroci dello scarico
+      <Droplet className="h-4 w-4 text-primary" />{tr("Evita gli incroci dello scarico")}
     </Button>}
     {localiVisibili.some(eAmbienteInterno) && <Button variant="outline" size="sm" className="w-full justify-start bg-background"
       disabled={!!fase || detta} onClick={() => { setTesto("Arreda tutte le stanze"); textarea.current?.focus(); }}>
-      <Armchair className="h-4 w-4 text-primary" /> Proponi gli arredi <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
+      <Armchair className="h-4 w-4 text-primary" /> {tr("Proponi gli arredi")} <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
     </Button>}
     {!!onApriStudioBilocali && !!localiVisibili.length && <Button variant="outline" size="sm" className="w-full justify-start bg-background"
       disabled={!!fase || detta} onClick={() => { setTesto("Posso ricavare tre bilocali?"); textarea.current?.focus(); }}>
-      <Rows3 className="h-4 w-4 text-primary" /> Verifica un frazionamento <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
+      <Rows3 className="h-4 w-4 text-primary" /> {tr("Verifica un frazionamento")} <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
     </Button>}
     {!!localiVisibili.length && <Button variant="outline" size="sm" className="w-full justify-start bg-background"
       disabled={!!fase || detta} onClick={() => { setTesto("Controlla gli ingressi"); textarea.current?.focus(); }}>
-      <DoorOpen className="h-4 w-4 text-primary" /> Controlla gli ingressi <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
+      <DoorOpen className="h-4 w-4 text-primary" /> {tr("Controlla gli ingressi")} <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
     </Button>}
   </>;
 
   const azioneAnalisi = !pianoVuoto && <Button type="button" variant={analisi ? "secondary" : "outline"} size="sm"
     aria-expanded={analisi} className={inSilvio ? "h-8 shrink-0 gap-1.5 px-2 text-xs" : "w-full justify-start gap-2"}
     onClick={() => { setVerificheAperte(false); setAnalisi(v => !v); }}>
-    <ScanSearch className={inSilvio ? "size-3.5" : "size-4"} />Analizza progetto
+    <ScanSearch className={inSilvio ? "size-3.5" : "size-4"} />{tr("Analizza progetto")}
   </Button>;
 
-  return <aside id={id} aria-label="Chat del disegno" className={aperta
+  return <aside id={id} aria-label={tr("Chat del disegno")} className={aperta
     ? "pl-chat-panel z-10 flex h-[390px] min-h-0 shrink-0 flex-col border-t border-slate-200 bg-slate-50/90 lg:h-auto lg:w-[352px] lg:border-l lg:border-t-0 xl:w-[400px]"
     : "hidden"}>
     <div className={inSilvio ? "flex items-center gap-2 border-b bg-background px-3 py-2" : "flex items-center gap-3 border-b bg-background px-4 py-3.5"}>
@@ -785,16 +787,16 @@ export function ChatDisegnoPlanimetria({
         <MessageSquare aria-hidden="true" className="size-[18px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <h2 className="text-sm font-semibold">{inSilvio ? "Silvio · Progetto" : "Chat del disegno"}</h2>
-        {!inSilvio && <p className="truncate text-xs text-muted-foreground">{piano} · {vista === "fatto" ? "Com’è oggi" : "Progetto"}</p>}
+        <h2 className="text-sm font-semibold">{inSilvio ? tr("Silvio · Progetto") : tr("Chat del disegno")}</h2>
+        {!inSilvio && <p className="truncate text-xs text-muted-foreground">{piano} · {vista === "fatto" ? tr("Com’è oggi") : tr("Progetto")}</p>}
       </div>
       {inSilvio && azioneAnalisi}
-      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="Chiudi chat del disegno"
-        disabled={inSilvio && (!!proposta || !!fase)} title={proposta ? "Scarta l’anteprima per chiudere la chat" : "Chiudi la chat"} onClick={onChiudi}><X className="h-4 w-4" /></Button>
+      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label={tr("Chiudi chat del disegno")}
+        disabled={inSilvio && (!!proposta || !!fase)} title={proposta ? tr("Scarta l’anteprima per chiudere la chat") : tr("Chiudi la chat")} onClick={onChiudi}><X className="h-4 w-4" /></Button>
     </div>
     {!inSilvio && azioneAnalisi && <div className="border-b px-3.5 py-2">{azioneAnalisi}</div>}
 
-    <div ref={fondo} role="log" aria-label="Conversazione sulla planimetria" onScroll={e => {
+    <div ref={fondo} role="log" aria-label={tr("Conversazione sulla planimetria")} onScroll={e => {
       const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
       seguiConversazione.current = scrollHeight - clientHeight - scrollTop < 48;
     }} className={esitoSchizzo && verificheAperte
@@ -807,36 +809,36 @@ export function ChatDisegnoPlanimetria({
         disabled={!!fase || detta} onClick={() => {
           setTesto(`Demolisci il tramezzo ${tramezzoSelezionato.id}`);
           textarea.current?.focus();
-        }}><Eraser className="size-3.5 text-primary" />Proponi demolizione del tratto</Button>}
+        }}><Eraser className="size-3.5 text-primary" />{tr("Proponi demolizione del tratto")}</Button>}
       {!messaggi.length && <div className="space-y-2.5">
         <div className={inSilvio ? "rounded-lg border border-primary/15 bg-background px-3 py-2.5" : "rounded-xl border border-primary/15 bg-gradient-to-br from-background to-primary/[.035] px-3.5 py-4"}>
-          <h3 className="text-base font-semibold tracking-tight">{inSilvio ? "Cosa vuoi cambiare?" : "Cosa vuoi disegnare?"}</h3>
+          <h3 className="text-base font-semibold tracking-tight">{inSilvio ? tr("Cosa vuoi cambiare?") : tr("Cosa vuoi disegnare?")}</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{inSilvio
-            ? "Indica il lavoro e il locale per vedere cosa cambia nella pianta e nel computo."
-            : "Descrivi il lavoro o detta le misure. Puoi vedere e rivedere ogni modifica direttamente sulla tavola."}</p>
+            ? tr("Indica il lavoro e il locale per vedere cosa cambia nella pianta e nel computo.")
+            : tr("Descrivi il lavoro o detta le misure. Puoi vedere e rivedere ogni modifica direttamente sulla tavola.")}</p>
         </div>
         {(pianoVuoto || !!localiVisibili.length) && <Button variant="outline" size="sm" className="w-full justify-start bg-background text-muted-foreground hover:text-foreground" disabled={!!fase || detta}
           onClick={() => { setTesto(localiVisibili[0] ? "Misura " + localiVisibili[0].nome : ESEMPIO); textarea.current?.focus(); }}>
-          <ScanLine className="h-4 w-4 text-primary" /> {localiVisibili[0] ? "Misura un locale" : "Prova cucina e ingresso"} <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
+          <ScanLine className="h-4 w-4 text-primary" /> {localiVisibili[0] ? tr("Misura un locale") : tr("Prova cucina e ingresso")} <ArrowUpRight className="ml-auto h-3.5 w-3.5" />
         </Button>}
         {inSilvio && vista === "progetto" && base.muri.some(m => m.tipo === "tramezzo" && m.stato === "nuovo" && !funzionePareteDaVerificare(m)) && <Button
           type="button" variant="outline" size="sm" className="w-full justify-start bg-background"
           disabled={!!fase || detta} onClick={() => { setTesto("Sposta il tramezzo di 20 cm verso "); textarea.current?.focus(); }}>
-          <Ruler aria-hidden="true" className="h-4 w-4 text-primary" /> Sposta un tramezzo <ArrowUpRight aria-hidden="true" className="ml-auto h-3.5 w-3.5" />
+          <Ruler aria-hidden="true" className="h-4 w-4 text-primary" /> {tr("Sposta un tramezzo")} <ArrowUpRight aria-hidden="true" className="ml-auto h-3.5 w-3.5" />
         </Button>}
         {inSilvio ? <details className="rounded-lg border bg-background px-3 py-2">
-          <summary className="cursor-pointer text-xs font-medium text-slate-700">Altri comandi</summary>
+          <summary className="cursor-pointer text-xs font-medium text-slate-700">{tr("Altri comandi")}</summary>
           <div className="mt-2 space-y-2">{altriComandi}</div>
         </details> : altriComandi}
       </div>}
       {messaggi.map((m, i) => <div key={m.id ?? i} className={`pl-chat-message rounded-xl px-3 py-2.5 text-[13px] leading-relaxed ${m.ruolo === "utente"
         ? "ml-auto max-w-[94%] rounded-br-sm bg-primary/10"
         : "mr-auto w-full rounded-bl-sm border bg-background shadow-sm"}`}>
-        {m.dalPreventivo && <p className="mb-0.5 text-xs font-medium text-muted-foreground">Chat preventivo</p>}
+        {m.dalPreventivo && <p className="mb-0.5 text-xs font-medium text-muted-foreground">{tr("Chat preventivo")}</p>}
         <p className={m.fatti?.length ? "flex items-center gap-2 font-semibold" : "whitespace-pre-wrap break-words"}>
           {!!m.fatti?.length && <Check className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />}{m.testo}
         </p>
-        {!!m.fatti?.length && <ul className="mt-2 divide-y divide-border/60 border-t border-border/70" aria-label="Risultati sulla tavola">
+        {!!m.fatti?.length && <ul className="mt-2 divide-y divide-border/60 border-t border-border/70" aria-label={tr("Risultati sulla tavola")}>
           {m.fatti.map((fatto, j) => {
             const e = fatto.evidenza;
             const attiva = !!e && selezione?.id === e.id && selezione.tipo === e.tipo;
@@ -847,11 +849,11 @@ export function ChatDisegnoPlanimetria({
         {!!m.viste?.length && <div className="mt-2 flex flex-wrap gap-2">
           {m.viste.map(v => <Button key={v} variant="outline" size="sm" disabled={!!fase || !!proposta || detta} onClick={() => onVista?.(v)}>
             {v === "3d" ? <Box className="size-4" /> : <ImageIcon className="size-4" />}
-            {etichettaVista(v)}
+            {tr(etichettaVista(v))}
           </Button>)}
         </div>}
         {m.studio && <Button variant="outline" size="sm" className="mt-2" disabled={!!fase || !!proposta || detta}
-          onClick={() => onApriStudioBilocali?.(m.studio!)}>Apri studio bilocali</Button>}
+          onClick={() => onApriStudioBilocali?.(m.studio!)}>{tr("Apri studio bilocali")}</Button>}
         {!!m.avvisi?.length && <div className="mt-2 flex gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-2.5 py-2 text-xs leading-relaxed text-amber-900">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden="true" />
           <ul className="min-w-0 space-y-1 break-words">{m.avvisi.map((nota, j) => <li key={j}>{nota}</li>)}</ul>
@@ -868,27 +870,27 @@ export function ChatDisegnoPlanimetria({
         onRitaglia={() => setRitagliando(true)} onRaddrizza={() => setRaddrizzando(true)}
         onSfondo={() => void usaSchizzoComeSfondo()} onRimuovi={() => setSchizzo(null)} />}
       {!proposta && !fase && base.letturaDocumento && <Button type="button" variant="outline" size="sm" className="w-full justify-start bg-background"
-        onClick={onApriConfronto}><Focus className="h-4 w-4" /> Apri verifiche dell’originale</Button>}
+        onClick={onApriConfronto}><Focus className="h-4 w-4" /> {tr("Apri verifiche dell’originale")}</Button>}
       {cad && <div className="space-y-2.5 rounded-xl border bg-background p-3">
         <div className="flex items-center gap-2 text-xs font-medium">
           <FileText className="h-4 w-4 shrink-0 text-primary" />
           <span className="min-w-0 flex-1 truncate" title={cad.originale.name}>{cad.originale.name}</span>
-          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={!!fase} aria-label="Rimuovi allegato DWG" onClick={() => setCad(null)}><X className="h-3.5 w-3.5" /></Button>
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={!!fase} aria-label={tr("Rimuovi allegato DWG")} onClick={() => setCad(null)}><X className="h-3.5 w-3.5" /></Button>
         </div>
-        <img ref={anteprimaCad} alt="Anteprima della tavola DWG" className="max-h-32 w-full rounded border bg-muted/30 object-contain" />
+        <img ref={anteprimaCad} alt={tr("Anteprima della tavola DWG")} className="max-h-32 w-full rounded border bg-muted/30 object-contain" />
         <div className="flex flex-wrap gap-1.5">
-          <Button size="sm" variant="outline" disabled={!!fase} onClick={() => setRitagliando(true)}>{ritaglio ? "Modifica ritaglio" : "Ritaglia il piano"}</Button>
-          <Button size="sm" variant="ghost" disabled={!!fase || !!proposta || originaleProtetto} onClick={() => void usaCadComeRiferimento()}>Usa come sfondo</Button>
+          <Button size="sm" variant="outline" disabled={!!fase} onClick={() => setRitagliando(true)}>{ritaglio ? tr("Modifica ritaglio") : tr("Ritaglia il piano")}</Button>
+          <Button size="sm" variant="ghost" disabled={!!fase || !!proposta || originaleProtetto} onClick={() => void usaCadComeRiferimento()}>{tr("Usa come sfondo")}</Button>
         </div>
         {puoRicostruire ? <>
-          <label className="flex items-center justify-between gap-2 text-xs">Unità del DWG
+          <label className="flex items-center justify-between gap-2 text-xs">{tr("Unità del DWG")}
             <select className="h-8 min-w-28 rounded-md border bg-background px-2" disabled={!!fase} value={unita} onChange={e => setUnita(e.target.value)}>
-              <option value="">Scegli</option>
+              <option value="">{tr("Scegli")}</option>
               {Object.entries(UNITA_DWG).map(([chiave, nome]) => <option key={chiave} value={chiave}>{nome}</option>)}
             </select>
           </label>
-          <Button size="sm" className="w-full" disabled={!!fase || !unitaDwgValida(Number(unita))} onClick={() => void ricostruisciCad()}>Ricostruisci il piano</Button>
-        </> : <p className="text-xs text-muted-foreground">{originaleProtetto ? "Questo piano ha già un DWG di riferimento. Apri un piano vuoto per importare la nuova tavola." : "La ricostruzione richiede un piano vuoto in «Com’è oggi» e una tavola DWG con coordinate leggibili."}</p>}
+          <Button size="sm" className="w-full" disabled={!!fase || !unitaDwgValida(Number(unita))} onClick={() => void ricostruisciCad()}>{tr("Ricostruisci il piano")}</Button>
+        </> : <p className="text-xs text-muted-foreground">{originaleProtetto ? tr("Questo piano ha già un DWG di riferimento. Apri un piano vuoto per importare la nuova tavola.") : tr("La ricostruzione richiede un piano vuoto in «Com’è oggi» e una tavola DWG con coordinate leggibili.")}</p>}
       </div>}
     </div>
     {esitoSchizzo && proposta && verificheAperte && <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
@@ -906,18 +908,18 @@ export function ChatDisegnoPlanimetria({
         {fase.totale > 0 && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fase.completati}/{fase.totale}</span>}
       </div>
       {fase.totale > 0 && <div className="h-1 overflow-hidden rounded-full bg-primary/10" role="progressbar"
-        aria-label="Passaggi del disegno" aria-valuemin={0} aria-valuemax={fase.totale} aria-valuenow={fase.completati}>
+        aria-label={tr("Passaggi del disegno")} aria-valuemin={0} aria-valuemax={fase.totale} aria-valuenow={fase.completati}>
         <div className="pl-chat-progress-value h-full rounded-full bg-primary" style={{ transform: `scaleX(${fase.completati / fase.totale})` }} />
       </div>}
       {fase.totale > 1 && <button type="button" className="rounded text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-primary"
-        onClick={() => { spostaFocusEsito.current = true; saltaAnimazione.current?.(); }}>Vai al risultato</button>}
+        onClick={() => { spostaFocusEsito.current = true; saltaAnimazione.current?.(); }}>{tr("Vai al risultato")}</button>}
     </div>}
     {proposta && !fase && <div className={`pl-chat-proposta flex flex-col gap-2 overflow-hidden border-t border-primary/20 bg-primary/[.055] px-3.5 py-3 ${inSilvio ? "min-h-0 shrink" : "shrink-0"} ${proposta.revisioneInterventi ? "max-h-[74%]" : "max-h-[65%]"}`}>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs">
-        <h3 ref={titoloEsito} tabIndex={-1} className="rounded font-semibold text-primary focus-visible:outline-primary">Anteprima modifiche</h3>
-        <span className="tabular-nums text-muted-foreground">{superfici.locali} {superfici.locali === 1 ? "locale" : "locali"} · {FORMATO.format(superfici.metriQuadri)} m² netti{superfici.stimata || proposta.riferimento?.schizzo ? " stimati" : ""}</span>
+        <h3 ref={titoloEsito} tabIndex={-1} className="rounded font-semibold text-primary focus-visible:outline-primary">{tr("Anteprima modifiche")}</h3>
+        <span className="tabular-nums text-muted-foreground">{tr(superfici.locali === 1 ? "{n} locale" : "{n} locali", { n: superfici.locali })} · {superfici.stimata || proposta.riferimento?.schizzo ? tr("{mq} m² netti stimati", { mq: FORMATO.format(superfici.metriQuadri) }) : tr("{mq} m² netti", { mq: FORMATO.format(superfici.metriQuadri) })}</span>
       </div>
-      {deltaMetratura !== 0 && <div aria-label="Superficie netta prima e dopo" className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums text-muted-foreground">
+      {deltaMetratura !== 0 && <div aria-label={tr("Superficie netta prima e dopo")} className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums text-muted-foreground">
         <span>{FORMATO.format(superfici.prima!)} → {FORMATO.format(superfici.metriQuadri)} m²</span>
         <span className="rounded-md bg-background px-1.5 py-0.5 font-semibold text-foreground">{deltaMetratura > 0 ? "+" : "−"}{FORMATO.format(Math.abs(deltaMetratura))} m²</span>
       </div>}
@@ -928,30 +930,30 @@ export function ChatDisegnoPlanimetria({
       <div className="flex shrink-0 flex-wrap gap-1.5 lg:flex-nowrap">
         <Button size="sm" className={`pl-chat-controllo flex-1 px-2 text-xs ${inSilvio && onRivediNelComputo ? "xl:hidden" : ""}`} disabled={!propostaChatApplicabile(proposta) || (!!onRivediNelComputo && !puoRivedereNelComputo)}
           onClick={onRivediNelComputo ?? (() => void applicaProposta(proposta))}><Check className="hidden size-3.5 xl:block" />
-          {onRivediNelComputo ? inSilvio ? "Rivedi modifiche" : "Rivedi nel computo" : "Applica alla pianta"}</Button>
+          {onRivediNelComputo ? inSilvio ? tr("Rivedi modifiche") : tr("Rivedi nel computo") : tr("Applica alla pianta")}</Button>
         {vista === "progetto" && onCreaAlternativa && proposta.revisioneInterventi && <Button type="button" variant="outline" size="sm" className="gap-1 px-2 text-xs"
-          disabled={!propostaChatApplicabile(proposta)} onClick={() => setNomeAlternativa("")}><Rows3 className="hidden size-3.5 xl:block" /> Crea alternativa</Button>}
+          disabled={!propostaChatApplicabile(proposta)} onClick={() => setNomeAlternativa("")}><Rows3 className="hidden size-3.5 xl:block" /> {tr("Crea alternativa")}</Button>}
         <Button size="sm" variant="outline" className="pl-chat-controllo px-2 text-xs" onClick={() => {
           onMostra(null);
           setVerificheAperte(false);
           aggiungi({ ruolo: "assistente", testo: "Anteprima scartata." });
           textarea.current?.focus({ preventScroll: true });
-        }}>Scarta</Button>
+        }}>{tr("Scarta")}</Button>
       </div>
       {(esitoSchizzo || proposta.riferimento) && <div className="flex shrink-0 flex-wrap gap-1">
         {esitoSchizzo && <Button type="button" variant={verificheAperte ? "secondary" : "ghost"} size="sm" className="h-7 gap-1.5 px-1.5 text-xs"
           aria-expanded={verificheAperte} disabled={!!fase} onClick={() => { setVerificheAperte(v => !v); onVerifica(null); }}>
-          <Focus className="h-3.5 w-3.5" /> {verificheAperte ? "Torna alla chat" : "Verifiche sullo schizzo (" + (proposta.pianta.letturaDocumento?.verifiche?.length ?? 0) + ")"}
+          <Focus className="h-3.5 w-3.5" /> {verificheAperte ? tr("Torna alla chat") : tr("Verifiche sullo schizzo ({n})", { n: proposta.pianta.letturaDocumento?.verifiche?.length ?? 0 })}
         </Button>}
         {proposta.riferimento && <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 px-1.5 text-xs"
         aria-pressed={mostraFonte} disabled={!!fase} onClick={onCambiaFonte}>
-          <ScanLine className="h-3.5 w-3.5" /> {proposta.riferimento.schizzo ? "Sovrapponi lo schizzo" : "Sovrapponi la tavola DWG"}
+          <ScanLine className="h-3.5 w-3.5" /> {proposta.riferimento.schizzo ? tr("Sovrapponi lo schizzo") : tr("Sovrapponi la tavola DWG")}
         </Button>}
       </div>}
     </div>}
     <Dialog open={nomeAlternativa !== null && !!proposta} onOpenChange={open => { if (!open) setNomeAlternativa(null); }}>
       <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>Crea alternativa</DialogTitle><DialogDescription>Inserisci il nome della nuova variante per ritrovarla nel confronto.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{tr("Crea alternativa")}</DialogTitle><DialogDescription>{tr("Inserisci il nome della nuova variante per ritrovarla nel confronto.")}</DialogDescription></DialogHeader>
         <form className="space-y-3" onSubmit={event => {
           event.preventDefault();
           const nome = nomeAlternativa?.trim();
@@ -959,50 +961,50 @@ export function ChatDisegnoPlanimetria({
           setNomeAlternativa(null);
           aggiungi({ ruolo: "assistente", testo: `Alternativa «${nome}» pronta da salvare.` });
         }}>
-          <label className="block text-sm font-medium">Nome alternativa<Input className="mt-1" value={nomeAlternativa ?? ""} onChange={e => setNomeAlternativa(e.target.value)} maxLength={80} /></label>
-          <DialogFooter><Button type="submit" disabled={!nomeAlternativa?.trim()}>Aggiungi alternativa</Button></DialogFooter>
+          <label className="block text-sm font-medium">{tr("Nome alternativa")}<Input className="mt-1" value={nomeAlternativa ?? ""} onChange={e => setNomeAlternativa(e.target.value)} maxLength={80} /></label>
+          <DialogFooter><Button type="submit" disabled={!nomeAlternativa?.trim()}>{tr("Aggiungi alternativa")}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-    {applicata && !proposta && !fase && <section aria-label="Dopo l’applicazione" className="pl-chat-proposta shrink-0 border-t border-emerald-600/20 bg-emerald-500/[.07] px-3.5 py-2.5">
+    {applicata && !proposta && !fase && <section aria-label={tr("Dopo l’applicazione")} className="pl-chat-proposta shrink-0 border-t border-emerald-600/20 bg-emerald-500/[.07] px-3.5 py-2.5">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <span className="grid size-6 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
           <Check className="size-3.5" aria-hidden="true" />
         </span>
-        <h3 ref={titoloEsito} tabIndex={-1} className="rounded focus-visible:outline-primary">Modifiche applicate · da salvare</h3>
+        <h3 ref={titoloEsito} tabIndex={-1} className="rounded focus-visible:outline-primary">{tr("Modifiche applicate · da salvare")}</h3>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {onVista && !!pianta.muri.length && <Button type="button" variant="outline" size="sm" className="pl-chat-controllo h-7 px-2 text-xs" onClick={() => onVista("3d")}><Box className="size-3.5" /> Apri 3D</Button>}
+        {onVista && !!pianta.muri.length && <Button type="button" variant="outline" size="sm" className="pl-chat-controllo h-7 px-2 text-xs" onClick={() => onVista("3d")}><Box className="size-3.5" /> {tr("Apri 3D")}</Button>}
         {vista === "progetto" && <Button type="button" variant="outline" size="sm" className="pl-chat-controllo h-7 px-2 text-xs" disabled={detta}
-          onClick={() => invia("Riepiloga i lavori")}><ClipboardList className="size-3.5" /> Riepiloga lavori</Button>}
+          onClick={() => invia("Riepiloga i lavori")}><ClipboardList className="size-3.5" /> {tr("Riepiloga lavori")}</Button>}
         {vista === "progetto" && onSalvaDaChat && <>
-          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => onSalvaDaChat("studio")}>Salva e confronta</Button>
-          {consentiComputo && <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => onSalvaDaChat("computo")}>Salva e apri computo</Button>}
+          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => onSalvaDaChat("studio")}>{tr("Salva e confronta")}</Button>
+          {consentiComputo && <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => onSalvaDaChat("computo")}>{tr("Salva e apri computo")}</Button>}
         </>}
         {onAnnullaApplicazione && <Button type="button" variant="ghost" size="sm" className="pl-chat-controllo h-7 px-2 text-xs" onClick={() => {
           onAnnullaApplicazione();
           aggiungi({ ruolo: "assistente", testo: "Ultima modifica annullata." });
           textarea.current?.focus({ preventScroll: true });
-        }}><Undo2 className="size-3.5" /> Annulla applicazione</Button>}
+        }}><Undo2 className="size-3.5" /> {tr("Annulla applicazione")}</Button>}
       </div>
     </section>}
     <div className={esitoSchizzo && verificheAperte ? "hidden" : "shrink-0 space-y-2 border-t bg-background p-3"}>
-      {(avviso || detta) && <p role="status" className="text-xs text-muted-foreground">{detta ? "In ascolto. Tocca il microfono per terminare." : avviso}</p>}
+      {(avviso || detta) && <p role="status" className="text-xs text-muted-foreground">{detta ? tr("In ascolto. Tocca il microfono per terminare.") : avviso}</p>}
       <ThinkingPromptInput compact inline value={testo} onValueChange={setTesto} onSubmit={() => invia()} onStop={ferma}
-        label="Scrivi alla chat del disegno" placeholder={inSilvio ? "Es. Sposta il tramezzo di 20 cm verso il garage" : "Es. Bagno 2,40 × 2,50 m"} busy={!!fase}
+        label={tr("Scrivi alla chat del disegno")} placeholder={inSilvio ? "Es. Sposta il tramezzo di 20 cm verso il garage" : "Es. Bagno 2,40 × 2,50 m"} busy={!!fase}
         disabled={detta} maxLength={MAX_TESTO} textareaRef={el => { textarea.current = el; }}
         tools={<>
-          <input ref={fileInput} type="file" className="hidden" aria-label="File per la planimetria"
+          <input ref={fileInput} type="file" className="hidden" aria-label={tr("File per la planimetria")}
             accept={`.txt,text/plain,${ACCETTA_DOCUMENTO_PIANTA}${dwgDisponibile() ? ",.dwg" : ""}`}
             onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void allega(file); }} />
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Allega alla chat" title={proposta ? "Applica o scarta prima di allegare un file" : "Allega schizzo, PDF, DWG o appunti"}
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Allega alla chat")} title={proposta ? tr("Applica o scarta prima di allegare un file") : tr("Allega schizzo, PDF, DWG o appunti")}
             disabled={!!fase || !!proposta || detta} onClick={() => fileInput.current?.click()}><Paperclip className="h-4 w-4" /></Button>
           <Button type="button" variant={detta ? "secondary" : "ghost"} size="icon" className="h-8 w-8" aria-pressed={detta}
-            aria-label={detta ? "Termina dettatura" : "Detta un comando"} title={dettaturaDisponibile() ? "Detta un comando" : "Dettatura non disponibile in questo browser"}
+            aria-label={detta ? tr("Termina dettatura") : tr("Detta un comando")} title={dettaturaDisponibile() ? tr("Detta un comando") : tr("Dettatura non disponibile in questo browser")}
             disabled={!!fase} onClick={cambiaDettatura}>{detta ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}</Button>
         </>} />
     </div>
-    {aperta && ritagliando && (cad || schizzo) && <Suspense fallback={<p role="status" className="sr-only">Apro il ritaglio…</p>}>
+    {aperta && ritagliando && (cad || schizzo) && <Suspense fallback={<p role="status" className="sr-only">{tr("Apro il ritaglio…")}</p>}>
       <RitaglioDocumentoPianta file={(cad?.lettura.file ?? schizzo?.raddrizzato?.file ?? schizzo?.file)!} iniziale={ritaglio} onChiudi={() => setRitagliando(false)}
         onConferma={r => {
           setRitaglio(r);
@@ -1010,7 +1012,7 @@ export function ChatDisegnoPlanimetria({
           setRitagliando(false);
         }} />
     </Suspense>}
-    {aperta && raddrizzando && schizzo && <Suspense fallback={<p role="status" className="sr-only">Apro la correzione della prospettiva…</p>}>
+    {aperta && raddrizzando && schizzo && <Suspense fallback={<p role="status" className="sr-only">{tr("Apro la correzione della prospettiva…")}</p>}>
       <RaddrizzaSchizzo file={schizzo.file} iniziali={schizzo.raddrizzato?.angoli} onChiudi={() => setRaddrizzando(false)}
         onConferma={(file, angoli) => {
           setSchizzo(s => s && { ...s, raddrizzato: { file, angoli }, lettura: undefined, ritaglioFile: undefined });
@@ -1030,20 +1032,21 @@ export function ChatDisegnoPlanimetria({
 }
 
 function EsitoSpostamentoTramezzo({ confronto }: { confronto: ConfrontoTramezzoChat }) {
-  const formato = (n: number | null) => n === null ? "Da verificare" : FORMATO.format(n);
-  return <div className="min-h-0 flex-auto space-y-2 overflow-y-auto overscroll-contain rounded-lg border bg-background p-2 text-xs" aria-label="Spostamento del tramezzo">
+  const tr = useT();
+  const formato = (n: number | null) => n === null ? tr("Da verificare") : FORMATO.format(n);
+  return <div className="min-h-0 flex-auto space-y-2 overflow-y-auto overscroll-contain rounded-lg border bg-background p-2 text-xs" aria-label={tr("Spostamento del tramezzo")}>
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-      <span className="flex items-center gap-1"><span className="w-3 border-t-2 border-dashed border-amber-700" />Prima</span>
-      <span className="flex items-center gap-1"><span className="w-3 border-t-2 border-teal-700" />Proposta · {FORMATO.format(confronto.distanzaCm)} cm</span>
+      <span className="flex items-center gap-1"><span className="w-3 border-t-2 border-dashed border-amber-700" />{tr("Prima")}</span>
+      <span className="flex items-center gap-1"><span className="w-3 border-t-2 border-teal-700" />{tr("Proposta · {distanza} cm", { distanza: FORMATO.format(confronto.distanzaCm) })}</span>
     </div>
     {!!confronto.interferenze.length && <div className="flex gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-950" role="status">
       <TriangleAlert className="size-4 shrink-0" /><div>
-        <p className="font-semibold">Rivedi lo spostamento</p>
+        <p className="font-semibold">{tr("Rivedi lo spostamento")}</p>
         {[...new Set(confronto.interferenze.map(i => i.testo))].map(t => <p key={t}>{t}</p>)}
       </div>
     </div>}
-    {!!confronto.righe.length && <table className="w-full" aria-label="Quantità del computo prima e dopo">
-      <thead><tr className="text-left text-muted-foreground"><th className="py-1 font-medium">Voce del computo</th><th className="font-medium">Prima</th><th className="font-medium">Dopo</th></tr></thead>
+    {!!confronto.righe.length && <table className="w-full" aria-label={tr("Quantità del computo prima e dopo")}>
+      <thead><tr className="text-left text-muted-foreground"><th className="py-1 font-medium">{tr("Voce del computo")}</th><th className="font-medium">{tr("Prima")}</th><th className="font-medium">{tr("Dopo")}</th></tr></thead>
       <tbody className="divide-y">
         {confronto.righe.map(r => <tr key={r.id}>
           <th scope="row" className="py-1 pr-2 text-left font-normal">{r.descrizione} · {r.unita}</th>
@@ -1056,6 +1059,7 @@ function EsitoSpostamentoTramezzo({ confronto }: { confronto: ConfrontoTramezzoC
 }
 
 function RisultatoRiga({ risultato, attiva, onEvidenzia }: { risultato: Risultato; attiva: boolean; onEvidenzia?: () => void }) {
+  const t = useT();
   const [intestazione, ...righe] = risultato.testo.split("\n");
   const [titolo, ...dettagli] = intestazione.split(" · ");
   const Icona = titolo === "Porta" ? DoorOpen : titolo === "Finestra" ? AppWindow : risultato.evidenza?.tipo === "locale" ? SquareDashed
@@ -1069,7 +1073,7 @@ function RisultatoRiga({ risultato, attiva, onEvidenzia }: { risultato: Risultat
     </span>
   </>;
   if (!onEvidenzia) return <div className={`flex gap-2 py-2 ${righe.length ? "items-start" : "items-center"}`}>{corpo}</div>;
-  return <button type="button" onClick={onEvidenzia} title="Evidenzia sulla tavola" aria-label={`Evidenzia ${titolo} sulla tavola`} aria-pressed={attiva}
+  return <button type="button" onClick={onEvidenzia} title={t("Evidenzia sulla tavola")} aria-label={t("Evidenzia {titolo} sulla tavola", { titolo: String(titolo ?? "") })} aria-pressed={attiva}
     className="flex w-full items-center gap-2 rounded-lg py-2 pr-1 text-left transition-colors hover:bg-primary/[.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 aria-pressed:bg-primary/[.07]">
     {corpo}<Focus className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
   </button>;

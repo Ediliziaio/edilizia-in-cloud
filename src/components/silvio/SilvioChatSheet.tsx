@@ -136,6 +136,7 @@ const MAX_ATTACHMENTS = 5;
 // Skill shortcuts riusabili (pattern slash command)
 // Definizioni in src/lib/silvio-skills.ts (shared con InternalChat)
 import { SILVIO_SKILLS as SILVIO_SKILLS_SHARED } from "@/lib/silvio-skills";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Local alias per back-compat (codice sotto usa SILVIO_SKILLS)
 const SILVIO_SKILLS = SILVIO_SKILLS_SHARED;
@@ -245,14 +246,14 @@ function detectKind(file: File): AttachmentKind {
 }
 
 /** Etichetta human-readable per ogni kind (mostra in tooltip/UI) */
-function kindLabel(kind: AttachmentKind): string {
+function kindLabel(kind: AttachmentKind, t: ReturnType<typeof useT>): string {
   switch (kind) {
-    case "image": return "Immagine";
+    case "image": return t("Immagine");
     case "pdf": return "PDF";
-    case "audio": return "Audio";
-    case "text-doc": return "Documento testo";
-    case "office-doc": return "Documento Office";
-    default: return "File";
+    case "audio": return t("Audio");
+    case "text-doc": return t("Documento testo");
+    case "office-doc": return t("Documento Office");
+    default: return t("File");
   }
 }
 
@@ -265,6 +266,7 @@ function fmtBytes(n: number): string {
 // ─── Component ────────────────────────────────────────────────────────────
 
 export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azienda" }: Props) {
+  const tr = useT();
   const modeCfg = MODE_CONFIG[mode];
   const silvioSenderId = modeCfg.senderId;
   const navigate = useNavigate();
@@ -367,7 +369,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         modeCfg.rpcEnsureChannel as never,
       );
       if (error) {
-        toast.error("Non riesco ad aprire la chat Silvio", {
+        toast.error(tr("Non riesco ad aprire la chat Silvio"), {
           description: error.message,
         });
         return null;
@@ -482,7 +484,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         });
       }
     } catch (err) {
-      toast.error("Errore nel caricare messaggi più vecchi");
+      toast.error(tr("Errore nel caricare messaggi più vecchi"));
       console.error("[silvio] loadOlder error", err);
     } finally {
       setLoadingOlder(false);
@@ -575,12 +577,12 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     e.target.value = ""; // reset per permettere stesso file
     if (files.length === 0) return;
     if (attachments.length + files.length > MAX_ATTACHMENTS) {
-      toast.error(`Massimo ${MAX_ATTACHMENTS} allegati per messaggio`);
+      toast.error(tr("Massimo {n} allegati per messaggio", { n: MAX_ATTACHMENTS }));
       return;
     }
     for (const file of files) {
       if (file.size > MAX_FILE_MB * 1024 * 1024) {
-        toast.error(`"${file.name}" supera ${MAX_FILE_MB}MB. Salta.`);
+        toast.error(tr("\"{nome}\" supera {mb}MB. Salta.", { nome: file.name, mb: MAX_FILE_MB }));
         continue;
       }
       const kind = detectKind(file);
@@ -652,11 +654,11 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   const startRecording = async () => {
     if (recording || transcribing) return;
     if (typeof MediaRecorder === "undefined") {
-      toast.error("Il tuo browser non supporta la registrazione audio. Aggiorna il browser o usa Chrome/Safari recente.");
+      toast.error(tr("Il tuo browser non supporta la registrazione audio. Aggiorna il browser o usa Chrome/Safari recente."));
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      toast.error("Microfono non disponibile (richiede HTTPS o browser moderno).");
+      toast.error(tr("Microfono non disponibile (richiede HTTPS o browser moderno)."));
       return;
     }
     try {
@@ -677,7 +679,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
 	        stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-        toast.error("Errore registrazione audio. Riprova o usa l'upload file.");
+        toast.error(tr("Errore registrazione audio. Riprova o usa l'upload file."));
       };
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
@@ -688,7 +690,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         const blobMime = recorder.mimeType || mimeType || "audio/webm";
         const audioBlob = new Blob(audioChunksRef.current, { type: blobMime });
         if (audioBlob.size === 0) {
-          toast.warning("Nessun audio registrato — controlla il microfono e riprova.");
+          toast.warning(tr("Nessun audio registrato — controlla il microfono e riprova."));
           return;
         }
         const url = URL.createObjectURL(audioBlob);
@@ -712,8 +714,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             // che pulisce il timer e setRecording(false).
             const r = mediaRecorderRef.current;
             if (r && r.state !== "inactive") r.stop();
-            toast.info("Registrazione fermata automaticamente (max 5 minuti).", {
-              description: "Per audio più lunghi caricali come file.",
+            toast.info(tr("Registrazione fermata automaticamente (max 5 minuti)."), {
+              description: tr("Per audio più lunghi caricali come file."),
             });
           }
           return next;
@@ -723,13 +725,13 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
       const msg = err instanceof Error ? err.message : String(err);
       // Errori noti: NotAllowedError (permesso negato), NotFoundError (no mic), NotReadableError (mic occupato)
       if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
-        toast.error("Permesso microfono negato. Abilita l'accesso nelle impostazioni del browser.");
+        toast.error(tr("Permesso microfono negato. Abilita l'accesso nelle impostazioni del browser."));
       } else if (msg.includes("NotFoundError") || msg.includes("DevicesNotFound")) {
-        toast.error("Nessun microfono rilevato. Collega un microfono e riprova.");
+        toast.error(tr("Nessun microfono rilevato. Collega un microfono e riprova."));
       } else if (msg.includes("NotReadableError")) {
-        toast.error("Microfono occupato da un'altra app. Chiudila e riprova.");
+        toast.error(tr("Microfono occupato da un'altra app. Chiudila e riprova."));
       } else {
-        toast.error(`Microfono non disponibile: ${msg}`);
+        toast.error(tr("Microfono non disponibile: {errore}", { errore: String(msg ?? "") }));
       }
     }
   };
@@ -756,15 +758,15 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
       if (error) throw new Error(error.message);
       const text = (data as { text?: string } | null)?.text ?? "";
       if (!text.trim()) {
-        toast.warning("Trascrizione vuota — riprova parlando più chiaramente");
+        toast.warning(tr("Trascrizione vuota — riprova parlando più chiaramente"));
         return;
       }
       // Append al draft esistente (se utente stava già scrivendo)
       setDraft((prev) => (prev ? `${prev} ${text}` : text));
-      toast.success("Audio trascritto. Controlla e invia.");
+      toast.success(tr("Audio trascritto. Controlla e invia."));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Trascrizione fallita: ${msg}`);
+      toast.error(tr("Trascrizione fallita: {errore}", { errore: String(msg ?? "") }));
     } finally {
       setTranscribing(false);
     }
@@ -833,7 +835,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     if (!pendingAudio) return;
     URL.revokeObjectURL(pendingAudio.url);
     setPendingAudio(null);
-    toast.info("Registrazione scartata");
+    toast.info(tr("Registrazione scartata"));
   };
 
   const reRecord = () => {
@@ -968,7 +970,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             ? ` — ${failedAttempt.error.slice(0, 100)}`
             : '';
           toast.warning(
-            `⚠️ Fallback: ${richiestoLabel} non disponibile, risposta da ${usatoLabel}${reason}`,
+            tr("⚠️ Fallback: {richiesto} non disponibile, risposta da {usato}{motivo}", { richiesto: richiestoLabel, usato: usatoLabel, motivo: reason }),
             { duration: 9000 },
           );
         }
@@ -984,7 +986,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
       // Il toast.info("Invio annullato") è già stato emesso dal click handler.
       const isAbort = e.name === "AbortError" || /aborted|abort/i.test(e.message);
       if (!isAbort) {
-        toast.error(humanizeSilvioError(e.message));
+        toast.error(humanizeSilvioError(e.message, tr));
       }
       // Ripristina solo se la domanda non è stata salvata, evitando di
       // invitare a reinviare un messaggio che Silvio potrebbe già elaborare.
@@ -1041,7 +1043,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             </div>
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-semibold text-slate-800 truncate flex items-center gap-1.5">
-                Chat con {modeCfg.headerTitle}
+                {tr("Chat con {nome}", { nome: modeCfg.headerTitle })}
                 {mode === "admin" && (
                   <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700">
                     {modeCfg.headerBadge}
@@ -1050,10 +1052,10 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               </p>
               <p className="text-[11px] text-slate-500 font-normal truncate">
                 {messages.length > 0
-                    ? "La tua conversazione di lavoro"
+                    ? tr("La tua conversazione di lavoro")
                     : mode === "admin"
-                      ? "Gestione piattaforma + agenti cross-tenant"
-                      : "Analizza testi, foto, PDF, DDT e vocali"}
+                      ? tr("Gestione piattaforma + agenti cross-tenant")
+                      : tr("Analizza testi, foto, PDF, DDT e vocali")}
               </p>
             </div>
             {/* 🆕 Bottoni azione header.
@@ -1064,7 +1066,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               variant="ghost"
               size="icon"
               className="hidden sm:inline-flex h-8 w-8 shrink-0"
-              title="Espandi in pagina dedicata"
+              title={tr("Espandi in pagina dedicata")}
               onClick={() => {
                 onOpenChange(false);
                 navigate(mode === "admin" ? "/admin/chat" : "/azienda/chat");
@@ -1078,7 +1080,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   variant="ghost"
                   size="icon"
                   className="hidden sm:inline-flex h-8 w-8 shrink-0"
-                  title="Altre opzioni"
+                  title={tr("Altre opzioni")}
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
@@ -1086,25 +1088,25 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => navigate("/azienda/azioni-proposte")}>
                   <Sparkles className="h-3.5 w-3.5 mr-2 text-orange-600" />
-                  Azioni proposte AI
+                  {tr("Azioni proposte AI")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/azienda/ai-memoria")}>
                   <Brain className="h-3.5 w-3.5 mr-2 text-orange-600" />
-                  Memoria AI
+                  {tr("Memoria AI")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/azienda/email-triage")}>
                   <FileText className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                  Email triage
+                  {tr("Email triage")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/azienda/assistente-ai")}>
                   <UserIcon className="h-3.5 w-3.5 mr-2 text-emerald-600" />
-                  Le 18 personas AI
+                  {tr("Le 18 personas AI")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => {
-                    if (confirm("Pulire la cronologia visibile? I messaggi rimangono in DB.")) {
+                    if (confirm(tr("Pulire la cronologia visibile? I messaggi rimangono in DB."))) {
                       // shape canonica condivisa con InternalChat (mai array nudo)
                       qc.setQueryData(channelMessagesQueryKey(channelId), { items: [], hasOlder: false });
                     }
@@ -1112,7 +1114,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   className="text-rose-600"
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  Pulisci visualizzazione
+                  {tr("Pulisci visualizzazione")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1125,12 +1127,12 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         {/* 🆕 Quick actions toolbar — sempre visibile (non solo nell'empty state)
             v8.6.72 — Padding ridotto su mobile per recuperare verticale. */}
         <details className="border-b bg-white/60 shrink-0">
-        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-slate-600">Strumenti rapidi</summary>
+        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-slate-600">{tr("Strumenti rapidi")}</summary>
         <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-1.5">
           {/* Briefing preparato nel compositore: l'utente può modificarlo prima dell'invio. */}
           <SilvioQuickAction
             icon={Sparkles}
-            label="Brief giornata"
+            label={tr("Brief giornata")}
             color="text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100"
             onClick={() => {
               setDraft("Cosa conta ora?");
@@ -1139,7 +1141,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           />
           <SilvioQuickAction
             icon={FileSpreadsheet}
-            label="Computo → Preventivo"
+            label={tr("Computo → Preventivo")}
             color="text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
             onClick={() => {
               onOpenChange(false);
@@ -1148,25 +1150,25 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           />
           <SilvioQuickAction
             icon={Wallet}
-            label="Cassa 30gg"
+            label={tr("Cassa 30gg")}
             color="text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
             onClick={() => setDraft("Come sta la mia cassa nei prossimi 30 giorni?")}
           />
           <SilvioQuickAction
             icon={HardHat}
-            label="Margini cantieri"
+            label={tr("Margini cantieri")}
             color="text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
             onClick={() => setDraft("Quali commesse stanno erodendo margine? Spiega cause e suggerisci azioni.")}
           />
           <SilvioQuickAction
             icon={TrendingUp}
-            label="Pipeline"
+            label={tr("Pipeline")}
             color="text-sky-700 bg-sky-50 border-sky-200 hover:bg-sky-100"
             onClick={() => setDraft("Forecast pipeline trimestre + opportunità a rischio.")}
           />
           <SilvioQuickAction
             icon={Search}
-            label="Cerca"
+            label={tr("Cerca")}
             color="text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100"
             onClick={() => {
               onOpenChange(false);
@@ -1183,15 +1185,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           {loadingChannel ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              <span className="text-xs">Connetto a Silvio…</span>
+              <span className="text-xs">{tr("Connetto a Silvio…")}</span>
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
               <SilvioAvatar size={48} className="mb-3 rounded-full shadow-lg" />
-              <p className="text-sm font-semibold text-slate-800 mb-1">Ciao! Sono Silvio.</p>
+              <p className="text-sm font-semibold text-slate-800 mb-1">{tr("Ciao! Sono Silvio.")}</p>
               <p className="text-xs text-muted-foreground mb-4">
-                Posso aiutarti su finanza, cantieri, vendite, personale, strategia.
-                Chiedi qualsiasi cosa con i tuoi dati reali, mandami foto, PDF o vocale.
+                {tr("Posso aiutarti su finanza, cantieri, vendite, personale, strategia. Chiedi qualsiasi cosa con i tuoi dati reali, mandami foto, PDF o vocale.")}
               </p>
               <div className="grid grid-cols-1 gap-1.5 w-full max-w-sm">
                 {silvioContextSuggestions(activePageContext).map((q) => (
@@ -1224,10 +1225,10 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                     {loadingOlder ? (
                       <>
                         <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                        Caricamento…
+                        {tr("Caricamento…")}
                       </>
                     ) : (
-                      <>↑ Carica messaggi più vecchi</>
+                      <>{tr("↑ Carica messaggi più vecchi")}</>
                     )}
                   </Button>
                 </div>
@@ -1253,7 +1254,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               sendAbortRef.current = null;
               sendMutation.reset();
               setSending(false);
-              toast.info("Attesa interrotta. La risposta potrebbe comunque arrivare in questa chat.");
+              toast.info(tr("Attesa interrotta. La risposta potrebbe comunque arrivare in questa chat."));
             }} />
           )}
           </div>
@@ -1262,7 +1263,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           <button type="button" onClick={scrollToBottom}
             className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-orange-700 hover:bg-orange-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
             <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" />
-            {hasNewReply ? "Nuovi messaggi · vai in fondo" : "Torna agli ultimi messaggi"}
+            {hasNewReply ? tr("Nuovi messaggi · vai in fondo") : tr("Torna agli ultimi messaggi")}
           </button>
         </div>}
 
@@ -1276,7 +1277,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               >
                 <div
                   className="h-16 w-16 rounded-lg border border-slate-200 bg-white flex items-center justify-center overflow-hidden"
-                  title={`${kindLabel(a.kind)} · ${a.file.name}`}
+                  title={`${kindLabel(a.kind, tr)} · ${a.file.name}`}
                 >
                   {a.previewUrl ? (
                     <img loading="lazy" src={a.previewUrl} alt={a.file.name} className="h-full w-full object-cover" />
@@ -1303,14 +1304,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 )}
                 {a.uploadError && (
                   <div className="absolute inset-0 rounded-lg bg-red-500/80 flex items-center justify-center text-white text-[9px] text-center px-1">
-                    Errore
+                    {tr("Errore")}
                   </div>
                 )}
                 <button
                   type="button"
                   onClick={() => removeAttachment(a.id)}
                   className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-md hover:bg-slate-700"
-                  aria-label={`Rimuovi ${a.file.name}`}
+                  aria-label={tr("Rimuovi {nome}", { nome: String(a.file.name ?? "") })}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -1327,9 +1328,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           <div className="border-t bg-red-50 px-3 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-xs font-semibold text-red-700">
-                Registrazione · {recordingLabel}
-              </span>
+              <span className="text-xs font-semibold text-red-700">{tr("Registrazione · {durata}", { durata: recordingLabel })}</span>
             </div>
             <Button
               size="sm"
@@ -1337,7 +1336,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               onClick={stopRecording}
               className="h-7 px-3"
             >
-              <Square className="h-3 w-3 mr-1" /> Stop
+              <Square className="h-3 w-3 mr-1" /> {tr("Stop")}
             </Button>
           </div>
         )}
@@ -1345,7 +1344,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         {transcribing && (
           <div className="border-t bg-blue-50 px-3 py-2 flex items-center gap-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
-            <span className="text-xs text-blue-700">Trascrivo l'audio…</span>
+            <span className="text-xs text-blue-700">{tr("Trascrivo l'audio…")}</span>
           </div>
         )}
 
@@ -1355,14 +1354,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
                 <AudioLines className="h-3.5 w-3.5" />
-                Registrato {pendingAudio.durationSec}s · riascolta prima di inviare
+                {tr("Registrato {n}s · riascolta prima di inviare", { n: pendingAudio.durationSec })}
               </span>
               <button
                 type="button"
                 onClick={discardPendingAudio}
                 className="text-[11px] text-slate-500 hover:text-red-600 underline"
               >
-                Scarta
+                {tr("Scarta")}
               </button>
             </div>
             <audio
@@ -1378,14 +1377,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 onClick={reRecord}
                 className="h-7 px-3 text-xs"
               >
-                <Mic className="h-3 w-3 mr-1" /> Rifai
+                <Mic className="h-3 w-3 mr-1" /> {tr("Rifai")}
               </Button>
               <Button
                 size="sm"
                 onClick={confirmTranscribe}
                 className="h-7 px-3 text-xs bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 ml-auto"
               >
-                <Sparkles className="h-3 w-3 mr-1" /> Trascrivi
+                <Sparkles className="h-3 w-3 mr-1" /> {tr("Trascrivi")}
               </Button>
             </div>
           </div>
@@ -1400,11 +1399,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               <Mic className="h-4 w-4 text-white" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-red-900 leading-tight">
-                Registrazione · {Math.floor(recordingMs / 1000)}s
-              </p>
+              <p className="font-semibold text-red-900 leading-tight">{tr("Registrazione · {n}s", { n: Math.floor(recordingMs / 1000) })}</p>
               <p className="text-[11px] text-red-700 leading-tight">
-                Rilascia per inviare l'audio
+                {tr("Rilascia per inviare l'audio")}
               </p>
             </div>
             <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping" />
@@ -1418,7 +1415,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               deve avere il massimo spazio. Resta da tablet (sm+) in su. */}
           {aiSelector.showSelector && aiSelector.availableModels.length > 0 && (
             <div className="mb-2 hidden sm:flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">AI Test Lab:</span>
+              <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{tr("AI Test Lab:")}</span>
               <AIModelSelector
                 models={aiSelector.availableModels}
                 selectedModel={aiSelector.selectedModel}
@@ -1458,7 +1455,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   type="button"
                   disabled={sending || loadingChannel}
                   className="h-11 w-11 sm:h-10 sm:w-10 rounded-2xl sm:rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0"
-                  title="Skill di Silvio (azioni rapide)"
+                  title={tr("Skill di Silvio (azioni rapide)")}
                 >
                   <Plus className="h-5 w-5" strokeWidth={2.5} />
                 </Button>
@@ -1473,9 +1470,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 <div className="bg-gradient-to-br from-orange-500 to-eic-amber px-3 py-2 text-white shrink-0">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4" fill="currentColor" />
-                    <p className="text-xs font-semibold">Azioni rapide</p>
+                    <p className="text-xs font-semibold">{tr("Azioni rapide")}</p>
                   </div>
-                  <p className="text-[10px] opacity-90 leading-tight">Allega file, foto o usa una skill di Silvio</p>
+                  <p className="text-[10px] opacity-90 leading-tight">{tr("Allega file, foto o usa una skill di Silvio")}</p>
                 </div>
                 <div className="overflow-y-auto p-2 space-y-3 flex-1 min-h-0">
                   {/* Quick actions: allega file (mobile-friendly entry, replica
@@ -1492,8 +1489,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                     >
                       <Paperclip className="h-4 w-4 shrink-0 text-orange-600" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-slate-800 leading-tight">Allega file</p>
-                        <p className="text-[11px] text-slate-500 leading-tight">Foto, PDF, DDT, audio, Excel</p>
+                        <p className="text-[13px] font-semibold text-slate-800 leading-tight">{tr("Allega file")}</p>
+                        <p className="text-[11px] text-slate-500 leading-tight">{tr("Foto, PDF, DDT, audio, Excel")}</p>
                       </div>
                     </button>
                     <div className="h-px bg-slate-200 my-2" />
@@ -1510,7 +1507,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                     return (
                       <div key={cat}>
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1.5 mb-1">
-                          {catLabel[cat]}
+                          {tr(catLabel[cat])}
                         </p>
                         <div className="space-y-0.5">
                           {items.map((skill) => (
@@ -1554,7 +1551,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               onClick={() => fileInputRef.current?.click()}
               disabled={sending || loadingChannel || attachments.length >= MAX_ATTACHMENTS}
               className="hidden sm:inline-flex h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0"
-              title="Allega file (immagine o PDF)"
+              title={tr("Allega file (immagine o PDF)")}
             >
               <Paperclip className="h-4 w-4" />
             </Button>
@@ -1568,8 +1565,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   variant="ghost"
                   type="button"
                   className="hidden sm:inline-flex h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0"
-                  title="Inserisci emoji"
-                  aria-label="Inserisci emoji"
+                  title={tr("Inserisci emoji")}
+                  aria-label={tr("Inserisci emoji")}
                 >
                   <Smile className="h-4 w-4" />
                 </Button>
@@ -1587,8 +1584,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   handleSend();
                 }
               }}
-              placeholder={attachments.length > 0 ? "Descrivi cosa vuoi che analizzi…" : "Scrivi a Silvio…"}
-              aria-label="Scrivi a Silvio"
+              placeholder={attachments.length > 0 ? tr("Descrivi cosa vuoi che analizzi…") : tr("Scrivi a Silvio…")}
+              aria-label={tr("Scrivi a Silvio")}
               rows={1}
               className="flex-1 resize-none rounded-full bg-slate-100 border border-transparent focus:border-orange-300 focus:bg-white px-4 py-2.5 text-[15px] sm:text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-orange-200 min-h-[44px] placeholder:text-slate-500"
               disabled={sending || loadingChannel}
@@ -1620,7 +1617,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                       attachments.some((a) => a.uploading)
                     }
                     className="h-11 w-11 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 shadow-md shadow-orange-300/30 shrink-0"
-                    aria-label="Invia messaggio"
+                    aria-label={tr("Invia messaggio")}
                   >
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
@@ -1642,8 +1639,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                     onClick={() => cameraInputRef.current?.click()}
                     disabled={sending || loadingChannel || attachments.length >= MAX_ATTACHMENTS}
                     className="h-11 w-11 sm:h-10 sm:w-10 rounded-full text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0 active:scale-95 transition-transform"
-                    aria-label="Scatta foto"
-                    title="Scatta foto"
+                    aria-label={tr("Scatta foto")}
+                    title={tr("Scatta foto")}
                   >
                     <Camera className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
@@ -1663,8 +1660,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                         ? "bg-red-500 text-white scale-110 ring-4 ring-red-200 animate-pulse"
                         : "text-slate-600 hover:text-orange-600 hover:bg-orange-50 active:scale-95"
                     }`}
-                    aria-label={recording ? "Ferma registrazione" : "Tap registra · Tieni premuto per audio veloce"}
-                    title={recording ? "Ferma registrazione" : "Tap = registra · Tieni premuto = audio veloce (rilascia per inviare)"}
+                    aria-label={recording ? tr("Ferma registrazione") : tr("Tap registra · Tieni premuto per audio veloce")}
+                    title={recording ? tr("Ferma registrazione") : tr("Tap = registra · Tieni premuto = audio veloce (rilascia per inviare)")}
                   >
                     <Mic className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
@@ -1676,9 +1673,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               evidenti dai bottoni rotondi e dalla tastiera native. */}
           <div className="hidden sm:flex items-center justify-between mt-2 px-1">
             <p className="text-[10px] text-muted-foreground">
-              📎 file · 🎙 vocale · ⏎ invio
-              {recordingSeconds >= 60 && recordingSeconds < 240 && " · audio max 5 min"}
-              {recordingSeconds >= 240 && recordingSeconds < 300 && ` · stop auto tra ${300 - recordingSeconds}s`}
+              {tr("📎 file · 🎙 vocale · ⏎ invio")}
+              {recordingSeconds >= 60 && recordingSeconds < 240 && ` · ${tr("audio max 5 min")}`}
+              {recordingSeconds >= 240 && recordingSeconds < 300 && ` · ${tr("stop auto tra {n}s", { n: 300 - recordingSeconds })}`}
             </p>
             <button
               type="button"
@@ -1688,14 +1685,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               }}
               className="text-[10px] text-orange-600 hover:underline flex items-center gap-0.5"
             >
-              Apri chat completa <ExternalLink className="h-2.5 w-2.5" />
+              {tr("Apri chat completa")} <ExternalLink className="h-2.5 w-2.5" />
             </button>
           </div>
           {/* Su mobile mostriamo solo eventuali warning attivi (recording timer) */}
           {(recordingSeconds >= 60) && (
             <p className="sm:hidden text-[10px] text-muted-foreground mt-1.5 px-1">
-              {recordingSeconds < 240 && "🎙 audio max 5 min"}
-              {recordingSeconds >= 240 && recordingSeconds < 300 && `🎙 stop auto tra ${300 - recordingSeconds}s`}
+              {recordingSeconds < 240 && tr("🎙 audio max 5 min")}
+              {recordingSeconds >= 240 && recordingSeconds < 300 && tr("🎙 stop auto tra {n}s", { n: 300 - recordingSeconds })}
             </p>
           )}
         </div>
@@ -1734,58 +1731,58 @@ function SilvioQuickAction({
  * Prima il toast mostrava "Silvio: ERR_NAME_NOT_RESOLVED" o
  * "Silvio: 503 Service Unavailable" — utente non capisce e si blocca.
  */
-function humanizeSilvioError(rawMsg: string): string {
+function humanizeSilvioError(rawMsg: string, t: ReturnType<typeof useT>): string {
   const msg = (rawMsg ?? "").toLowerCase();
   // Rete / DNS
   if (msg.includes("err_name_not_resolved") || msg.includes("err_internet")) {
-    return "Connessione assente. Verifica la tua rete e riprova.";
+    return t("Connessione assente. Verifica la tua rete e riprova.");
   }
   if (msg.includes("err_network") || msg.includes("network error") || msg.includes("fetch failed")) {
-    return "Problema di rete. Riprova tra qualche istante.";
+    return t("Problema di rete. Riprova tra qualche istante.");
   }
   // Auth
   if (msg.includes("unauthorized") || msg.includes("401") || msg.includes("invalid jwt")) {
-    return "Sessione scaduta. Aggiorna la pagina e accedi di nuovo.";
+    return t("Sessione scaduta. Aggiorna la pagina e accedi di nuovo.");
   }
   if (msg.includes("forbidden") || msg.includes("403")) {
-    return "Non hai il permesso per usare Silvio in questo contesto.";
+    return t("Non hai il permesso per usare Silvio in questo contesto.");
   }
   // Server
   if (msg.includes("503") || msg.includes("service unavailable")) {
-    return "Silvio non è raggiungibile in questo momento. Riprova fra 1 minuto.";
+    return t("Silvio non è raggiungibile in questo momento. Riprova fra 1 minuto.");
   }
   if (msg.includes("502") || msg.includes("bad gateway")) {
-    return "Silvio sta avendo problemi col motore AI. Riprova tra poco.";
+    return t("Silvio sta avendo problemi col motore AI. Riprova tra poco.");
   }
   if (msg.includes("504") || msg.includes("gateway timeout") || msg.includes("timeout")) {
-    return "Silvio ha impiegato troppo tempo a rispondere. Prova a riformulare in modo più semplice.";
+    return t("Silvio ha impiegato troppo tempo a rispondere. Prova a riformulare in modo più semplice.");
   }
   if (msg.includes("openrouter timeout")) {
-    return "Il modello AI non ha risposto in tempo. Riprova — potrebbe essere un problema temporaneo del provider.";
+    return t("Il modello AI non ha risposto in tempo. Riprova — potrebbe essere un problema temporaneo del provider.");
   }
   // Cost / Credits
   if (msg.includes("credit") || msg.includes("budget") || msg.includes("insufficient")) {
-    return "Crediti AI esauriti. Contatta l'amministratore per ricaricare il wallet AI.";
+    return t("Crediti AI esauriti. Contatta l'amministratore per ricaricare il wallet AI.");
   }
   // RBAC
   if (msg.includes("rbac") || msg.includes("non posso accedere")) {
-    return "Non posso accedere a queste informazioni con il tuo ruolo. Chiedi a un amministratore.";
+    return t("Non posso accedere a queste informazioni con il tuo ruolo. Chiedi a un amministratore.");
   }
   // Setup
   if (msg.includes("silvio non configurato") || msg.includes("disabilitato")) {
-    return "Silvio non è ancora configurato per la tua azienda. Contatta il supporto.";
+    return t("Silvio non è ancora configurato per la tua azienda. Contatta il supporto.");
   }
   // Allegati
   if (msg.includes("upload") || msg.includes("storage")) {
-    return "Errore caricamento allegato. Verifica dimensione (<10MB) e formato e riprova.";
+    return t("Errore caricamento allegato. Verifica dimensione (<10MB) e formato e riprova.");
   }
   // Setup non pronto
   if (msg.includes("setup non pronto")) {
-    return "Sto ancora preparando la chat. Attendi qualche secondo.";
+    return t("Sto ancora preparando la chat. Attendi qualche secondo.");
   }
   // Default: messaggio originale ma ripulito + suggerimento
   const cleaned = rawMsg.replace(/^Silvio:\s*/, "").substring(0, 150);
-  return `Errore: ${cleaned}. Se persiste, riprova o contatta il supporto.`;
+  return t("Errore: {dettaglio}. Se persiste, riprova o contatta il supporto.", { dettaglio: cleaned });
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1810,6 +1807,7 @@ function MessageBubble({
    */
   showRunMeta?: boolean;
 }) {
+  const t = useT();
   const isSilvio = message.sender_id === silvioSenderId;
   const isImage = message.message_type === "image" && message.attachment_url;
   const isAudio = message.message_type === "audio" && message.attachment_url;
@@ -1843,7 +1841,7 @@ function MessageBubble({
           <a href={message.attachment_url!} target="_blank" rel="noopener noreferrer">
             <img
               src={message.attachment_url!}
-              alt={message.attachment_name ?? "immagine"}
+              alt={message.attachment_name ?? t("immagine")}
               className="max-h-48 rounded-lg mb-1.5 object-cover"
               loading="lazy"
             />
@@ -1851,7 +1849,7 @@ function MessageBubble({
         )}
         {isAudio && (
           <audio controls src={message.attachment_url!} className="max-w-full mb-1.5">
-            audio
+            {t("audio")}
           </audio>
         )}
         {isFile && (

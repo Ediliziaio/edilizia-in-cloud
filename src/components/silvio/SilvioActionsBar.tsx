@@ -4,9 +4,11 @@ import { ChevronDown, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { SilvioActionProposals } from "./SilvioActionProposals";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Remains reachable after the last pending action completes. */
 export function SilvioActionsBar() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -28,7 +30,7 @@ export function SilvioActionsBar() {
     <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}
       className="flex min-h-9 w-full items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 hover:bg-orange-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
       <Sparkles aria-hidden="true" className="h-4 w-4 shrink-0" />
-      <span className="font-medium">Azioni e risultati{!query.isError && query.data ? ` · ${query.data} da verificare` : ""}</span>
+      <span className="font-medium">{t("Azioni e risultati")}{!query.isError && query.data ? ` · ${t("{n} da verificare", { n: query.data })}` : ""}</span>
       <ChevronDown aria-hidden="true" className={`ml-auto h-4 w-4 shrink-0 ${open ? "rotate-180" : ""}`} />
     </button>
     {open && <div className="mt-2 max-h-[50vh] space-y-2 overflow-y-auto"><SilvioActionProposals compact /></div>}

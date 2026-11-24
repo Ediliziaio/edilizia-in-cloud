@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Briefcase, History, Mail, Receipt, Truck, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRecipientSuggestions, type RecipientSource } from "../hooks/useRecipientSuggestions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * RecipientField — input destinatari con autocomplete da:
@@ -68,11 +69,12 @@ function sourceTone(source: RecipientSource): string {
 export function RecipientField({
   value,
   onChange,
-  placeholder = "Aggiungi destinatari…",
+  placeholder,
   companyId,
   ariaLabel,
   autoFocus,
 }: RecipientFieldProps) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [inputText, setInputText] = useState("");
@@ -194,7 +196,7 @@ export function RecipientField({
               type="button"
               onClick={(e) => { e.stopPropagation(); removeEmail(email); }}
               className="shrink-0 rounded-full p-0.5 text-blue-500 hover:bg-blue-100 hover:text-blue-700"
-              aria-label={`Rimuovi ${email}`}
+              aria-label={t("Rimuovi {nome}", { nome: String(email ?? "") })}
             >
               <X className="h-3 w-3" />
             </button>
@@ -210,7 +212,7 @@ export function RecipientField({
           }}
           onFocus={() => { if (inputText.length >= 2) setOpen(true); }}
           onKeyDown={handleKey}
-          placeholder={emails.length === 0 ? placeholder : ""}
+          placeholder={emails.length === 0 ? placeholder ?? t("Aggiungi destinatari…") : ""}
           aria-label={ariaLabel}
           aria-autocomplete="list"
           aria-expanded={open}
@@ -221,11 +223,11 @@ export function RecipientField({
       {open && inputText.trim().length >= 2 && (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
           {isLoading && (
-            <div className="px-3 py-2 text-xs text-slate-500">Cerco contatti…</div>
+            <div className="px-3 py-2 text-xs text-slate-500">{t("Cerco contatti…")}</div>
           )}
           {!isLoading && suggestions.length === 0 && (
             <div className="px-3 py-2 text-xs text-slate-500">
-              Nessun contatto trovato. Premi Invio per usare <span className="font-medium text-slate-700">{inputText.trim()}</span>.
+              {t("Nessun contatto trovato. Premi Invio per usare")} <span className="font-medium text-slate-700">{inputText.trim()}</span>.
             </div>
           )}
           {suggestions.map((s, idx) => {

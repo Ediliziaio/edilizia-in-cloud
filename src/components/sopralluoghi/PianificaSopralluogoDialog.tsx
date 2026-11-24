@@ -16,6 +16,7 @@ import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { pianificaSopralluogo } from "@/lib/api/surveysBoard";
 import type { SopralluogoBacheca } from "@/lib/sopralluoghi/bacheca";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SENZA_TECNICO = "__nessuno__";
 const DURATE = [30, 45, 60, 90, 120, 180];
@@ -30,6 +31,7 @@ const oraLocale = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${Strin
 export function PianificaSopralluogoDialog({
   sopralluogo, onClose,
 }: { sopralluogo: SopralluogoBacheca | null; onClose: () => void }) {
+  const t = useT();
   const { user } = useAuth();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
@@ -59,7 +61,7 @@ export function PianificaSopralluogoDialog({
 
   const salva = useMutation({
     mutationFn: async () => {
-      if (!sopralluogo || !companyId || !user) throw new Error("Dati mancanti");
+      if (!sopralluogo || !companyId || !user) throw new Error(t("Dati mancanti"));
       const esito = await pianificaSopralluogo({
         surveyId: sopralluogo.id, companyId, data, ora, durataMin: Number(durata),
         tecnicoId: tecnico === SENZA_TECNICO ? null : tecnico, userId: user.id,
@@ -78,8 +80,8 @@ export function PianificaSopralluogoDialog({
       return esito;
     },
     onSuccess: (esito) => {
-      toast.success(esito.spostato ? "Sopralluogo spostato in calendario" : "Sopralluogo pianificato: è nel calendario", {
-        description: esito.appOperai ? "Il tecnico lo apre e lo compila dall'app." : undefined,
+      toast.success(esito.spostato ? t("Sopralluogo spostato in calendario") : t("Sopralluogo pianificato: è nel calendario"), {
+        description: esito.appOperai ? t("Il tecnico lo apre e lo compila dall'app.") : undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["survey-assignees", sopralluogo?.id] });
       queryClient.invalidateQueries({ queryKey: ["order-surveys"] });
@@ -87,7 +89,7 @@ export function PianificaSopralluogoDialog({
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       onClose();
     },
-    onError: (e: Error) => toast.error("Non pianificato", { description: e.message }),
+    onError: (e: Error) => toast.error(t("Non pianificato"), { description: e.message }),
   });
 
   const valido = /^\d{4}-\d{2}-\d{2}$/.test(data) && /^\d{2}:\d{2}$/.test(ora);
@@ -98,7 +100,7 @@ export function PianificaSopralluogoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-orange-600" />
-            {sopralluogo?.appointment_id ? "Sposta il sopralluogo" : "Pianifica il sopralluogo"}
+            {sopralluogo?.appointment_id ? t("Sposta il sopralluogo") : t("Pianifica il sopralluogo")}
           </DialogTitle>
           <DialogDescription>
             {sopralluogo?.code}{sopralluogo?.cliente_nome ? ` · ${sopralluogo.cliente_nome}` : ""}
@@ -108,35 +110,35 @@ export function PianificaSopralluogoDialog({
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label htmlFor="sop-data">Giorno</Label>
+              <Label htmlFor="sop-data">{t("Giorno")}</Label>
               <Input id="sop-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="sop-ora">Ora</Label>
+              <Label htmlFor="sop-ora">{t("Ora")}</Label>
               <Input id="sop-ora" type="time" value={ora} onChange={(e) => setOra(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Durata</Label>
+              <Label>{t("Durata")}</Label>
               <Select value={durata} onValueChange={setDurata}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {DURATE.map((m) => <SelectItem key={m} value={String(m)}>{m < 60 ? `${m} minuti` : m === 60 ? "1 ora" : `${m / 60} ore`}</SelectItem>)}
+                  {DURATE.map((m) => <SelectItem key={m} value={String(m)}>{m < 60 ? t("{n} minuti", { n: m }) : m === 60 ? t("1 ora") : t("{n} ore", { n: m / 60 })}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Tecnico</Label>
+              <Label>{t("Tecnico")}</Label>
               <Select value={tecnico} onValueChange={setTecnico}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={SENZA_TECNICO}>Nessuno</SelectItem>
+                  <SelectItem value={SENZA_TECNICO}>{t("Nessuno")}</SelectItem>
                   {gruppiTecnici(staff, tecnici).map((g) => (
                     <SelectGroup key={g.gruppo}>
-                      <SelectLabel>{ETICHETTA_GRUPPO[g.gruppo]}</SelectLabel>
+                      <SelectLabel>{t(ETICHETTA_GRUPPO[g.gruppo])}</SelectLabel>
                       {g.persone.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "Utente"}</SelectItem>
+                        <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || t("Utente")}</SelectItem>
                       ))}
                     </SelectGroup>
                   ))}
@@ -147,18 +149,18 @@ export function PianificaSopralluogoDialog({
           {eOperaio && (
             <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 accent-orange-600" checked={appOperai} onChange={(e) => setAppOperai(e.target.checked)} />
-              Può aprirlo e compilarlo dall'app operai
+              {t("Può aprirlo e compilarlo dall'app operai")}
             </label>
           )}
           <p className="text-xs text-muted-foreground">
-            L'appuntamento va nel calendario del tecnico e, se ha Google o Apple collegati, anche lì, con nome, telefono e indirizzo del cliente.
+            {t("L'appuntamento va nel calendario del tecnico e, se ha Google o Apple collegati, anche lì, con nome, telefono e indirizzo del cliente.")}
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={salva.isPending}>Annulla</Button>
+          <Button variant="outline" onClick={onClose} disabled={salva.isPending}>{t("Annulla")}</Button>
           <Button onClick={() => salva.mutate()} disabled={!valido || salva.isPending} className="bg-orange-600 hover:bg-orange-700">
             {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            {sopralluogo?.appointment_id ? "Sposta" : "Pianifica"}
+            {sopralluogo?.appointment_id ? t("Sposta") : t("Pianifica")}
           </Button>
         </DialogFooter>
       </DialogContent>

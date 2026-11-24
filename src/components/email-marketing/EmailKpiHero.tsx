@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Send, MailCheck, MailOpen, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Stats {
   sent: number;
@@ -39,6 +40,7 @@ function tierFor(metric: "delivery" | "open" | "click", pct: number, base: numbe
 }
 
 export function EmailKpiHero({ stats }: Props) {
+  const t = useT();
   const { sent, delivered, opened, clicked } = stats;
   const pct = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0);
 
@@ -49,33 +51,33 @@ export function EmailKpiHero({ stats }: Props) {
   const cards = [
     {
       icon: <Send className="h-4 w-4" />,
-      label: "Email inviate",
-      big: sent.toLocaleString("it-IT"),
-      sub: "totale nel periodo",
+      label: t("Email inviate"),
+      big: sent.toLocaleString(intlCampo()),
+      sub: t("totale nel periodo"),
       tier: "none" as Tier,
       accent: "text-slate-700",
     },
     {
       icon: <MailCheck className="h-4 w-4" />,
-      label: "Tasso di consegna",
+      label: t("Tasso di consegna"),
       big: `${deliveryPct.toFixed(1)}%`,
-      sub: `${delivered.toLocaleString("it-IT")} consegnate`,
+      sub: t("{delivered} consegnate", { delivered: delivered.toLocaleString(intlCampo()) }),
       tier: tierFor("delivery", deliveryPct, sent),
       accent: "text-sky-600",
     },
     {
       icon: <MailOpen className="h-4 w-4" />,
-      label: "Tasso di apertura",
+      label: t("Tasso di apertura"),
       big: `${openPct.toFixed(1)}%`,
-      sub: `${opened.toLocaleString("it-IT")} aperture`,
+      sub: t("{opened} aperture", { opened: opened.toLocaleString(intlCampo()) }),
       tier: tierFor("open", openPct, delivered),
       accent: "text-emerald-600",
     },
     {
       icon: <MousePointerClick className="h-4 w-4" />,
-      label: "Tasso di clic",
+      label: t("Tasso di clic"),
       big: `${clickPct.toFixed(1)}%`,
-      sub: `${clicked.toLocaleString("it-IT")} click`,
+      sub: t("{clicked} click", { clicked: clicked.toLocaleString(intlCampo()) }),
       tier: tierFor("click", clickPct, delivered),
       accent: "text-violet-600",
     },
@@ -94,7 +96,7 @@ export function EmailKpiHero({ stats }: Props) {
               </span>
               {c.tier !== "none" && (
                 <Badge variant="outline" className={cn("text-[10px] max-md:hidden", TIER_BADGE[c.tier].className)}>
-                  {TIER_BADGE[c.tier].label}
+                  {t(TIER_BADGE[c.tier].label)}
                 </Badge>
               )}
             </div>

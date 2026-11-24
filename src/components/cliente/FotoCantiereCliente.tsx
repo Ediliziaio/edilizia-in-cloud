@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Camera, ImageOff } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FotoRiga {
   id: string;
@@ -40,6 +40,7 @@ interface GiornataConFoto {
 }
 
 export function FotoCantiereCliente({ orderId }: { orderId: string }) {
+  const t = useT();
   const [ingrandita, setIngrandita] = useState<FotoRiga | null>(null);
 
   const { data: giornate = [], isLoading } = useQuery<GiornataConFoto[]>({
@@ -76,7 +77,7 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Camera className="h-5 w-5" /> Foto del cantiere
+            <Camera className="h-5 w-5" /> {t("Foto del cantiere")}
           </CardTitle>
         </CardHeader>
         <CardContent><Skeleton className="h-28 w-full" /></CardContent>
@@ -89,12 +90,12 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Camera className="h-5 w-5" /> Foto del cantiere
+            <Camera className="h-5 w-5" /> {t("Foto del cantiere")}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
           <ImageOff className="h-4 w-4 shrink-0" />
-          Non ci sono ancora foto condivise per questo cantiere.
+          {t("Non ci sono ancora foto condivise per questo cantiere.")}
         </CardContent>
       </Card>
     );
@@ -107,10 +108,11 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Camera className="h-5 w-5" /> Foto del cantiere
+            <Camera className="h-5 w-5" /> {t("Foto del cantiere")}
             <span className="text-sm font-normal text-muted-foreground">
-              · {totaleFoto} {totaleFoto === 1 ? "foto" : "foto"} in {giornate.length}{" "}
-              {giornate.length === 1 ? "giornata" : "giornate"}
+              · {giornate.length === 1
+                ? t("{foto} foto in {giornate} giornata", { foto: totaleFoto, giornate: giornate.length })
+                : t("{foto} foto in {giornate} giornate", { foto: totaleFoto, giornate: giornate.length })}
             </span>
           </CardTitle>
         </CardHeader>
@@ -120,13 +122,11 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <p className="text-sm font-medium">
                   {g.data_lavori
-                    ? format(parseISO(g.data_lavori), "d MMMM yyyy", { locale: it })
-                    : "Data non indicata"}
+                    ? format(parseISO(g.data_lavori), "d MMMM yyyy", { locale: dateFnsCampo() })
+                    : t("Data non indicata")}
                 </p>
                 {g.avanzamento_percentuale != null && g.avanzamento_percentuale > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    avanzamento {g.avanzamento_percentuale}%
-                  </span>
+                  <span className="text-xs text-muted-foreground">{t("avanzamento {avanzamento_percentuale}%", { avanzamento_percentuale: String(g.avanzamento_percentuale ?? "") })}</span>
                 )}
               </div>
               {g.lavorazioni_eseguite && (
@@ -142,7 +142,7 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
                   >
                     <img
                       src={f.url}
-                      alt={f.caption || "Foto del cantiere"}
+                      alt={f.caption || t("Foto del cantiere")}
                       loading="lazy"
                       className="aspect-square w-full object-cover"
                     />
@@ -160,7 +160,7 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
             <figure className="space-y-2">
               <img
                 src={ingrandita.url}
-                alt={ingrandita.caption || "Foto del cantiere"}
+                alt={ingrandita.caption || t("Foto del cantiere")}
                 className="max-h-[75dvh] w-full rounded-lg object-contain"
               />
               {ingrandita.caption && (

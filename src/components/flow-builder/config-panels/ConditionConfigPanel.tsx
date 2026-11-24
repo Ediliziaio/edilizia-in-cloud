@@ -10,6 +10,7 @@ import { CUSTOM_TRIGGER_OBJECTS,customFieldId,customFilterType } from "../../../
 import { ConditionValueInput } from "@/components/marketing/automations/ConditionValueInput";
 import { conditionOperatorAliases } from "../../../../supabase/functions/_shared/automationValidation";
 import { OPERATORI_DATA } from "../../../../supabase/functions/_shared/condizioniData";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CAMPI = [
   { value: "contatto.first_name", label: "Nome contatto" },
@@ -68,6 +69,7 @@ interface ConditionConfigPanelProps {
 }
 
 export function ConditionConfigPanel({ config, onChange, companyId, triggerCategory }: ConditionConfigPanelProps) {
+  const t = useT();
   const scope=String(config.custom_object_type??CUSTOM_TRIGGER_OBJECTS[triggerCategory??""]??"contact");
   const {data:customFields=[],isError}=useAutomationFieldDefinitions(companyId,scope);
   const condizioni: ConditionRow[] = config.condizioni || [{ campo: "", operatore: "uguale", valore: "" }];
@@ -94,12 +96,12 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
 
   return (
     <div className="space-y-4">
-      <Label htmlFor="condition-custom-object">Campi personalizzati di</Label><UniformSelect id="condition-custom-object" className="w-full rounded border bg-background p-2 text-sm" value={scope} onChange={e=>onChange("custom_object_type",e.target.value)}>{Object.entries({contact:"Contatto",opportunity:"Opportunità",appointment:"Appuntamento",order:"Commessa",quote:"Preventivo",task:"Task",employee:"Dipendente",warehouse:"Magazzino",ordini_variazione:"Variante",giornale_lavori:"Giornale lavori",duvri_document:"DUVRI"}).map(([id,label])=><option key={id} value={id}>{label}</option>)}</UniformSelect>
-      <p className="text-xs text-muted-foreground">Si legge il record del flusso o quello realmente collegato, non un record arbitrario.</p>
-      {isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.</p>}
+      <Label htmlFor="condition-custom-object">{t("Campi personalizzati di")}</Label><UniformSelect id="condition-custom-object" className="w-full rounded border bg-background p-2 text-sm" value={scope} onChange={e=>onChange("custom_object_type",e.target.value)}>{Object.entries({contact:"Contatto",opportunity:"Opportunità",appointment:"Appuntamento",order:"Commessa",quote:"Preventivo",task:"Task",employee:"Dipendente",warehouse:"Magazzino",ordini_variazione:"Variante",giornale_lavori:"Giornale lavori",duvri_document:"DUVRI"}).map(([id,label])=><option key={id} value={id}>{t(label)}</option>)}</UniformSelect>
+      <p className="text-xs text-muted-foreground">{t("Si legge il record del flusso o quello realmente collegato, non un record arbitrario.")}</p>
+      {isError&&<p role="alert" className="text-xs text-destructive">{t("Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.")}</p>}
       {/* Logic toggle */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Logica</Label>
+        <Label className="text-xs">{t("Logica")}</Label>
         <div className="flex rounded-lg border overflow-hidden w-fit">
           {(["AND", "OR"] as const).map(l => (
             <button
@@ -117,7 +119,7 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
           ))}
         </div>
         <p className="text-[10px] text-muted-foreground">
-          {logica === "AND" ? "Tutte le condizioni devono essere vere" : "Almeno una condizione vera"}
+          {logica === "AND" ? t("Tutte le condizioni devono essere vere") : t("Almeno una condizione vera")}
         </p>
       </div>
 
@@ -137,12 +139,12 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
             </div>
             <Select value={cond.campo || ""} onValueChange={v => updateRow(i, { campo: v })}>
               <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="Seleziona campo..." />
+                <SelectValue placeholder={t("Seleziona campo...")} />
               </SelectTrigger>
               <SelectContent>
-                {cond.campo&&!CAMPI.some(c=>c.value===cond.campo)&&!customFields.some(f=>f.id===customFieldId(cond.campo))&&<SelectItem value={cond.campo} disabled>Campo non disponibile</SelectItem>}
-                {CAMPI.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                {customFields.filter(f=>f.field_type!=="file").map(f=><SelectItem key={f.id} value={`custom_field.${f.id}`}>{f.name} · personalizzato</SelectItem>)}
+                {cond.campo&&!CAMPI.some(c=>c.value===cond.campo)&&!customFields.some(f=>f.id===customFieldId(cond.campo))&&<SelectItem value={cond.campo} disabled>{t("Campo non disponibile")}</SelectItem>}
+                {CAMPI.map(c => <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>)}
+                {customFields.filter(f=>f.field_type!=="file").map(f=><SelectItem key={f.id} value={`custom_field.${f.id}`}>{t("{name} · personalizzato", { name: String(f.name ?? "") })}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={cond.operatore} onValueChange={v => updateRow(i, { operatore: v })}>
@@ -150,7 +152,7 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {OPERATORI.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                {OPERATORI.map(o => <SelectItem key={o.value} value={o.value}>{t(o.label)}</SelectItem>)}
               </SelectContent>
             </Select>
             {!noValueOps.includes(cond.operatore) && customFieldId(cond.campo) && customFields.some(f=>f.id===customFieldId(cond.campo)) ? (()=>{
@@ -160,7 +162,7 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
               <Input
                 value={cond.valore}
                 onChange={e => updateRow(i, { valore: e.target.value })}
-                placeholder="Valore..."
+                placeholder={t("Valore...")}
                 className="h-7 text-xs"
               />
             )}
@@ -170,7 +172,7 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
 
       {/* Add */}
       <Button variant="outline" size="sm" className="w-full text-xs" onClick={addRow}>
-        <Plus className="h-3 w-3 mr-1" /> Aggiungi condizione
+        <Plus className="h-3 w-3 mr-1" /> {t("Aggiungi condizione")}
       </Button>
     </div>
   );

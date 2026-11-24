@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, CheckCircle2, AlertCircle, Server, Save, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PresetConfig {
   label: string;
@@ -157,6 +158,7 @@ function umanizzaErroreImap(raw: string): { titolo: string; dettaglio: string } 
 }
 
 export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: ImapCustomDialogProps) {
+  const t = useT();
   const qc = useQueryClient();
   // L'azienda la porta il contesto, non il profilo: nel pannello di piattaforma
   // il super admin ha `profiles.company_id` a NULL e il salvataggio si fermava
@@ -259,7 +261,7 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = data as any;
-      if (r?.ok === false) throw new Error(r.error ?? "Test fallito");
+      if (r?.ok === false) throw new Error(r.error ?? t("Test fallito"));
       return r;
     },
     onSuccess: (data) => {
@@ -268,7 +270,7 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
       const msg = data && typeof data === "object" && "message" in data
         ? String((data as { message?: string }).message ?? "")
         : "";
-      toast.success(msg || "Connessione verificata (ricezione + invio)");
+      toast.success(msg || t("Connessione verificata (ricezione + invio)"));
     },
     onError: (e) => {
       setTestStatus("error");
@@ -297,13 +299,13 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
       return data as string;
     },
     onSuccess: () => {
-      toast.success(daRicollegare ? "Casella ricollegata" : "Account email salvato");
+      toast.success(daRicollegare ? t("Casella ricollegata") : t("Account email salvato"));
       qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
       qc.invalidateQueries({ queryKey: ["email-client-connections"] });
       qc.invalidateQueries({ queryKey: ["my-email-connections"] });
       onOpenChange(false);
     },
-    onError: (e) => toast.error("Salvataggio fallito", { description: String(e) }),
+    onError: (e) => toast.error(t("Salvataggio fallito"), { description: String(e) }),
   });
 
   const canTest = !!(emailAddress && password && imapHost && imapPort);
@@ -316,35 +318,35 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Server className="h-4 w-4 text-violet-600" />
-            {daRicollegare ? "Ricollega la casella" : "Aggiungi account IMAP/SMTP"}
+            {daRicollegare ? t("Ricollega la casella") : t("Aggiungi account IMAP/SMTP")}
           </DialogTitle>
           <DialogDescription>
             {daRicollegare
-              ? "Il server ha rifiutato le credenziali: di solito è la password, cambiata o scaduta. I dati del server sono già qui, reinserisci solo la password."
-              : "Per provider non-OAuth (Aruba, Libero, iCloud, Yahoo, Register, custom). La password viene cifrata e usata solo per polling email + invio SMTP."}
+              ? t("Il server ha rifiutato le credenziali: di solito è la password, cambiata o scaduta. I dati del server sono già qui, reinserisci solo la password.")
+              : t("Per provider non-OAuth (Aruba, Libero, iCloud, Yahoo, Register, custom). La password viene cifrata e usata solo per polling email + invio SMTP.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Provider</Label>
+            <Label className="text-xs">{t("Provider")}</Label>
             <Select value={preset} onValueChange={setPreset}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(PRESETS).map(([key, p]) => (
-                  <SelectItem key={key} value={key}>{p.label}</SelectItem>
+                  <SelectItem key={key} value={key}>{t(p.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {presetHint && (
-              <p className="text-[11px] text-muted-foreground mt-1">{presetHint}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">{t(presetHint)}</p>
             )}
           </div>
 
           <div>
-            <Label htmlFor="casella-email" className="text-xs">Indirizzo email</Label>
+            <Label htmlFor="casella-email" className="text-xs">{t("Indirizzo email")}</Label>
             <Input
               id="casella-email"
               name="casella-email"
@@ -360,44 +362,44 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
           </div>
 
           <div>
-            <Label htmlFor="casella-username" className="text-xs">Username IMAP/SMTP</Label>
+            <Label htmlFor="casella-username" className="text-xs">{t("Username IMAP/SMTP")}</Label>
             <Input
               id="casella-username"
               name="casella-username"
               autoComplete="off"
               value={imapUsername}
               onChange={(e) => setImapUsername(e.target.value)}
-              placeholder="Lascia vuoto per usare l'email"
+              placeholder={t("Lascia vuoto per usare l'email")}
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Di solito è uguale all'email. Alcuni provider usano un username diverso.
+              {t("Di solito è uguale all'email. Alcuni provider usano un username diverso.")}
             </p>
           </div>
 
           <div>
-            <Label htmlFor="casella-password" className="text-xs">Password della casella</Label>
+            <Label htmlFor="casella-password" className="text-xs">{t("Password della casella")}</Label>
             <Input
               id="casella-password"
               name="casella-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password account o app-password"
+              placeholder={t("Password account o app-password")}
               autoComplete="new-password"
             />
           </div>
 
           <div className="rounded-lg border p-3 space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Server in arrivo (IMAP)
+              {t("Server in arrivo (IMAP)")}
             </p>
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
-                <Label className="text-[10px]">Host</Label>
+                <Label className="text-[10px]">{t("Host")}</Label>
                 <Input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="imap.dominio.it" className="h-8 text-xs" />
               </div>
               <div>
-                <Label className="text-[10px]">Porta</Label>
+                <Label className="text-[10px]">{t("Porta")}</Label>
                 <Input
                   type="number"
                   value={imapPort}
@@ -407,22 +409,22 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
               </div>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <Label htmlFor="imap-secure">SSL/TLS diretto (SSL)</Label>
+              <Label htmlFor="imap-secure">{t("SSL/TLS diretto (SSL)")}</Label>
               <Switch id="imap-secure" checked={imapSecure} onCheckedChange={setImapSecure} />
             </div>
           </div>
 
           <div className="rounded-lg border p-3 space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Server in uscita (SMTP)
+              {t("Server in uscita (SMTP)")}
             </p>
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
-                <Label className="text-[10px]">Host</Label>
+                <Label className="text-[10px]">{t("Host")}</Label>
                 <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.dominio.it" className="h-8 text-xs" />
               </div>
               <div>
-                <Label className="text-[10px]">Porta</Label>
+                <Label className="text-[10px]">{t("Porta")}</Label>
                 <Input
                   type="number"
                   value={smtpPort}
@@ -432,7 +434,7 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
               </div>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <Label htmlFor="smtp-secure">SSL/TLS diretto (SSL su 465 → ON; STARTTLS su 587 → OFF)</Label>
+              <Label htmlFor="smtp-secure">{t("SSL/TLS diretto (SSL su 465 → ON; STARTTLS su 587 → OFF)")}</Label>
               <Switch id="smtp-secure" checked={smtpSecure} onCheckedChange={setSmtpSecure} />
             </div>
           </div>
@@ -440,7 +442,7 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
           {testStatus === "ok" && (
             <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              Ricezione (IMAP) e invio (SMTP) verificati. Puoi salvare.
+              {t("Ricezione (IMAP) e invio (SMTP) verificati. Puoi salvare.")}
             </div>
           )}
           {testStatus === "error" && testError && (() => {
@@ -449,8 +451,8 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
               <div className="flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium">{err.titolo}</p>
-                  <p className="text-[11px] mt-0.5 break-words">{err.dettaglio}</p>
+                  <p className="font-medium">{t(err.titolo)}</p>
+                  <p className="text-[11px] mt-0.5 break-words">{err.dettaglio === testError ? err.dettaglio : t(err.dettaglio)}</p>
                   {err.dettaglio !== testError && (
                     <p className="text-[9px] mt-1 text-rose-400 break-words font-mono">{testError}</p>
                   )}
@@ -468,7 +470,7 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
             className="gap-2"
           >
             {testMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />}
-            Test connessione
+            {t("Test connessione")}
           </Button>
           <Button
             onClick={() => saveMutation.mutate()}
@@ -476,7 +478,7 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
             className={cn("gap-2", testStatus === "ok" && "bg-violet-600 hover:bg-violet-700")}
           >
             {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva account
+            {t("Salva account")}
           </Button>
         </DialogFooter>
       </DialogContent>

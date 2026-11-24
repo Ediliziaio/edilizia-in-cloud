@@ -13,6 +13,7 @@ import {
   erroriSceltaMezzo,
   type SceltaMezzoPos,
 } from "../../../../supabase/functions/_shared/posMezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function MezzoSchedaTecnicaPos({
   companyId,
@@ -33,6 +34,7 @@ export function MezzoSchedaTecnicaPos({
   dal: string;
   al: string;
 }) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(false);
   const [scelta, setScelta] = useState("");
@@ -59,10 +61,10 @@ export function MezzoSchedaTecnicaPos({
   return (
     <section
       className="space-y-3 rounded-md border bg-slate-50 p-3"
-      aria-label="Identità e impiego dell’attrezzatura"
+      aria-label={t("Identità e impiego dell’attrezzatura")}
     >
       <Label htmlFor={`${id}-modo`}>
-        Anagrafica dell’attrezzatura effettiva
+        {t("Anagrafica dell’attrezzatura effettiva")}
       </Label>
       <UniformSelect
         id={`${id}-modo`}
@@ -73,10 +75,10 @@ export function MezzoSchedaTecnicaPos({
           modifica({ modalita: e.target.value as SceltaMezzoPos["modalita"] })
         }
       >
-        <option value="da_verificare">Da identificare e verificare</option>
-        <option value="inventario">Attrezzatura assegnata alla commessa</option>
+        <option value="da_verificare">{t("Da identificare e verificare")}</option>
+        <option value="inventario">{t("Attrezzatura assegnata alla commessa")}</option>
         <option value="non_censita">
-          Attrezzatura non censita, con motivazione
+          {t("Attrezzatura non censita, con motivazione")}
         </option>
       </UniformSelect>
       {v.fonte && (
@@ -84,15 +86,11 @@ export function MezzoSchedaTecnicaPos({
           <p className="break-words font-medium">
             {etichettaFonteMezzo(v.fonte)}
           </p>
-          <p>
-            Stato inventario: {v.fonte.stato}. Identificativo:{" "}
-            {v.fonte.mezzo_id}.
-          </p>
+          <p>{t("Stato inventario: {stato}. Identificativo: {mezzo_id}.", { stato: String(v.fonte.stato ?? ""), mezzo_id: String(v.fonte.mezzo_id ?? "") })}</p>
           {(v.fonte.fonte_tipo === "corrente" ||
             v.fonte.fonte_tipo === "su_mezzo_corrente") && (
             <p className="text-amber-900">
-              È nota la collocazione corrente. Il periodo d’uso resta dichiarato
-              dal compilatore e non è provato da uno storico di assegnazione.
+              {t("È nota la collocazione corrente. Il periodo d’uso resta dichiarato dal compilatore e non è provato da uno storico di assegnazione.")}
             </p>
           )}
           {!sola && (
@@ -102,7 +100,7 @@ export function MezzoSchedaTecnicaPos({
               variant="outline"
               onClick={() => modifica({ fonte: null })}
             >
-              Rimuovi collegamento inventario
+              {t("Rimuovi collegamento inventario")}
             </Button>
           )}
         </div>
@@ -116,25 +114,23 @@ export function MezzoSchedaTecnicaPos({
             onClick={() => setAperto((x) => !x)}
           >
             {aperto
-              ? "Chiudi inventario"
-              : "Scegli dall’inventario della commessa"}
+              ? t("Chiudi inventario")
+              : t("Scegli dall’inventario della commessa")}
           </Button>
           {aperto && (
             <div className="space-y-2">
-              {q.isLoading && <p role="status">Caricamento assegnazioni…</p>}
+              {q.isLoading && <p role="status">{t("Caricamento assegnazioni…")}</p>}
               {q.isError && (
                 <p role="alert">
-                  Impossibile leggere l’inventario. Il collegamento già scelto
-                  resta conservato.
+                  {t("Impossibile leggere l’inventario. Il collegamento già scelto resta conservato.")}
                 </p>
               )}
               {!q.isLoading && !q.isError && q.data && fonti.length === 0 && (
                 <p>
-                  Nessuna assegnazione disponibile. Verifica l’inventario oppure
-                  motiva l’attrezzatura non censita.
+                  {t("Nessuna assegnazione disponibile. Verifica l’inventario oppure motiva l’attrezzatura non censita.")}
                 </p>
               )}
-              <Label htmlFor={`${id}-fonte`}>Attrezzatura e assegnazione</Label>
+              <Label htmlFor={`${id}-fonte`}>{t("Attrezzatura e assegnazione")}</Label>
               <UniformSelect
                 id={`${id}-fonte`}
                 className="h-10 w-full rounded border bg-background px-2 text-sm"
@@ -142,7 +138,7 @@ export function MezzoSchedaTecnicaPos({
                 disabled={sola || q.isFetching || q.isError}
                 onChange={(e) => setScelta(e.target.value)}
               >
-                <option value="">Seleziona identità e assegnazione</option>
+                <option value="">{t("Seleziona identità e assegnazione")}</option>
                 {fonti.map((f) => (
                   <option
                     key={chiaveFonteMezzo(f)}
@@ -168,7 +164,7 @@ export function MezzoSchedaTecnicaPos({
                       if (selezionata) modifica({ fonte: { ...selezionata } });
                     }}
                   >
-                    Collega assegnazione selezionata
+                    {t("Collega assegnazione selezionata")}
                   </Button>
                 )}
                 <Button
@@ -178,14 +174,12 @@ export function MezzoSchedaTecnicaPos({
                   disabled={q.isFetching}
                   onClick={() => void q.refetch()}
                 >
-                  Rileggi inventario
+                  {t("Rileggi inventario")}
                 </Button>
               </div>
               {cambiata && (
                 <p role="alert" className="text-amber-900">
-                  Attrezzatura o assegnazione cambiata o non più disponibile.
-                  Seleziona e conferma nuovamente la fonte; i dati precedenti
-                  non sono sostituiti automaticamente.
+                  {t("Attrezzatura o assegnazione cambiata o non più disponibile. Seleziona e conferma nuovamente la fonte; i dati precedenti non sono sostituiti automaticamente.")}
                 </p>
               )}
             </div>
@@ -195,7 +189,7 @@ export function MezzoSchedaTecnicaPos({
       {v.modalita === "non_censita" && (
         <>
           <Label htmlFor={`${id}-motivo`}>
-            Motivo della mancata anagrafica e titolare da verificare
+            {t("Motivo della mancata anagrafica e titolare da verificare")}
           </Label>
           <Textarea
             id={`${id}-motivo`}
@@ -204,8 +198,7 @@ export function MezzoSchedaTecnicaPos({
             onChange={(e) => modifica({ motivazione: e.target.value })}
           />
           <p className="text-xs text-amber-900">
-            Indica identità e titolare anche nella scheda. Questa dichiarazione
-            non prova disponibilità, manutenzione o idoneità dell’attrezzatura.
+            {t("Indica identità e titolare anche nella scheda. Questa dichiarazione non prova disponibilità, manutenzione o idoneità dell’attrezzatura.")}
           </p>
         </>
       )}
@@ -213,7 +206,7 @@ export function MezzoSchedaTecnicaPos({
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <Label htmlFor={`${id}-dal`}>Inizio uso attrezzatura</Label>
+              <Label htmlFor={`${id}-dal`}>{t("Inizio uso attrezzatura")}</Label>
               <Input
                 id={`${id}-dal`}
                 type="date"
@@ -225,7 +218,7 @@ export function MezzoSchedaTecnicaPos({
               />
             </div>
             <div>
-              <Label htmlFor={`${id}-al`}>Fine uso attrezzatura</Label>
+              <Label htmlFor={`${id}-al`}>{t("Fine uso attrezzatura")}</Label>
               <Input
                 id={`${id}-al`}
                 type="date"
@@ -237,7 +230,7 @@ export function MezzoSchedaTecnicaPos({
               />
             </div>
             <div>
-              <Label htmlFor={`${id}-qty`}>Quantità impiegata</Label>
+              <Label htmlFor={`${id}-qty`}>{t("Quantità impiegata")}</Label>
               <Input
                 id={`${id}-qty`}
                 type="number"
@@ -261,13 +254,12 @@ export function MezzoSchedaTecnicaPos({
               disabled={sola || !!cambiata}
               onChange={(e) => modifica({ confermata: e.target.checked })}
             />
-            Ho verificato identità, assegnazione e periodo d’uso dichiarati
+            {t("Ho verificato identità, assegnazione e periodo d’uso dichiarati")}
           </label>
         </>
       )}
       <p className="text-xs text-muted-foreground">
-        Il collegamento d’inventario identifica l’attrezzatura. Documentazione,
-        controlli tecnici e formazione richiedono verifiche separate.
+        {t("Il collegamento d’inventario identifica l’attrezzatura. Documentazione, controlli tecnici e formazione richiedono verifiche separate.")}
       </p>
       {errori.length > 0 && (
         <ul className="list-disc space-y-1 pl-4 text-xs text-amber-900">

@@ -24,6 +24,7 @@ import {
   type ListinoRegionale,
 } from "@/lib/prezzario/adozioneLavorazioni";
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ImportaLavorazioniProps {
   open: boolean;
@@ -38,6 +39,7 @@ export function ImportaLavorazioniDialog({
   readOnly = false,
   listino,
 }: ImportaLavorazioniProps & { listino: ListinoRegionale }) {
+  const t = useT();
   const [fonteId, setFonteId] = useState<string | null>(null);
   const [selezione, setSelezione] = useState<SelezionePrezzario>({});
   const [ricarico, setRicarico] = useState("15");
@@ -75,8 +77,8 @@ export function ImportaLavorazioniDialog({
         capitoloId: capitoloId ?? undefined,
         capitoli: capitoli.data ?? [],
       });
-      toast.success("Importazione completata", {
-        description: `${esito.inserite} voci aggiunte.${esito.giaPresenti ? ` ${esito.giaPresenti} già presenti, lasciate invariate.` : ""}`,
+      toast.success(t("Importazione completata"), {
+        description: esito.giaPresenti ? t("{n} voci aggiunte. {presenti} già presenti, lasciate invariate.", { n: esito.inserite, presenti: esito.giaPresenti }) : t("{n} voci aggiunte.", { n: esito.inserite }),
       });
       chiudi(false);
     } catch (e) {
@@ -88,10 +90,10 @@ export function ImportaLavorazioniDialog({
         );
       toast.error(
         e instanceof ImportazioneParziale && e.completate.length
-          ? "Importazione parziale"
-          : "Importazione non riuscita",
+          ? t("Importazione parziale")
+          : t("Importazione non riuscita"),
         {
-          description: `${e instanceof ImportazioneParziale && e.completate.length ? `${e.inserite} voci salvate. Riprendi dalle voci rimaste nella selezione. ` : ""}${testoErrore(e)}`,
+          description: `${e instanceof ImportazioneParziale && e.completate.length ? `${t("{n} voci salvate. Riprendi dalle voci rimaste nella selezione.", { n: e.inserite })} ` : ""}${testoErrore(e)}`,
         },
       );
     }
@@ -102,14 +104,14 @@ export function ImportaLavorazioniDialog({
         <DialogHeader className="border-b px-5 py-4">
           <DialogTitle className="flex items-center gap-2">
             <Library className="h-5 w-5 text-primary" />
-            Prezziari regionali
+            {t("Prezziari regionali")}
           </DialogTitle>
           <DialogDescription>
-            Scegli le lavorazioni da aggiungere al listino.{" "}
+            {t("Scegli le lavorazioni da aggiungere al listino.")}{" "}
             {capitoloId
-              ? "Saranno inserite nel capitolo aziendale scelto."
-              : "Saranno organizzate secondo le categorie del prezziario."}{" "}
-            Codice, unità e fonte vengono conservati.
+              ? t("Saranno inserite nel capitolo aziendale scelto.")
+              : t("Saranno organizzate secondo le categorie del prezziario.")}{" "}
+            {t("Codice, unità e fonte vengono conservati.")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -131,7 +133,7 @@ export function ImportaLavorazioniDialog({
         </div>
         <DialogFooter className="border-t bg-muted/20 px-5 py-4 sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <Label htmlFor="ricarico-lavorazioni">Ricarico %</Label>
+            <Label htmlFor="ricarico-lavorazioni">{t("Ricarico %")}</Label>
             <Input
               id="ricarico-lavorazioni"
               inputMode="decimal"
@@ -143,21 +145,20 @@ export function ImportaLavorazioniDialog({
             />
             {!ricaricoValido && (
               <p role="alert" className="text-xs text-destructive">
-                Indica un ricarico valido, da 0 in su.
+                {t("Indica un ricarico valido, da 0 in su.")}
               </p>
             )}
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">
-              {selezionate.length}{" "}
-              {selezionate.length === 1 ? "selezionata" : "selezionate"}
+              {t(selezionate.length === 1 ? "{n} selezionata" : "{n} selezionate", { n: selezionate.length })}
             </span>
             <Button
               variant="outline"
               disabled={adotta.isPending}
               onClick={() => chiudi(false)}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={() => void importa()}
@@ -177,8 +178,7 @@ export function ImportaLavorazioniDialog({
               ) : (
                 <PackagePlus className="mr-2 h-4 w-4" />
               )}
-              Importa {selezionate.length || ""}{" "}
-              {selezionate.length === 1 ? "voce" : "voci"}
+              {selezionate.length === 0 ? t("Importa voci") : t(selezionate.length === 1 ? "Importa {n} voce" : "Importa {n} voci", { n: selezionate.length })}
             </Button>
           </div>
         </DialogFooter>

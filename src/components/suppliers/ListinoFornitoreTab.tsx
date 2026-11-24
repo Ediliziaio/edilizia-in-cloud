@@ -49,6 +49,7 @@ import {
 
 import { ConfigurazioneVoceSerramento } from "./ConfigurazioneVoceSerramento";
 import { leggiConfigurazioneFornitore, unitaTariffaSerramento, type ConfigurazioneListinoFornitore } from "@/lib/serramenti/fornitureConfigurazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RigaVoce {
   id: string;
@@ -84,6 +85,7 @@ function etichetta(l: TestataListino): string {
 }
 
 export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [sceltoId, setSceltoId] = useState<string | null>(null);
   const [ricaricaEditor, setRicaricaEditor] = useState(0);
@@ -138,7 +140,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
       if (error) throw error;
       const snapshot = data as { revisione: number; voci: Array<Record<string, unknown>> } | null;
       if (!snapshot || !Number.isSafeInteger(snapshot.revisione) || !Array.isArray(snapshot.voci)) {
-        throw new Error("Versione del listino non disponibile. Ricarica la scheda.");
+        throw new Error(t("Versione del listino non disponibile. Ricarica la scheda."));
       }
       return {
         revisione: snapshot.revisione,
@@ -160,7 +162,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
   if (testate.isLoading) {
     return (
       <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carico il listino…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico il listino…")}
       </div>
     );
   }
@@ -170,8 +172,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
       <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
         <span>
-          Le tabelle del listino fornitore non sono ancora attive su questo
-          ambiente (migration da applicare).
+          {t("Le tabelle del listino fornitore non sono ancora attive su questo ambiente (migration da applicare).")}
         </span>
       </div>
     );
@@ -195,12 +196,10 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
     <div className="space-y-3">
       {lista.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground shrink-0">
-            {lista.length} listini per questo fornitore:
-          </span>
+          <span className="text-xs text-muted-foreground shrink-0">{t("{n} listini per questo fornitore:", { n: lista.length })}</span>
           <Select value={corrente?.id ?? ""} onValueChange={cambiaListino}>
             <SelectTrigger className="h-8 w-full max-w-md text-sm">
-              <SelectValue placeholder="Scegli il listino" />
+              <SelectValue placeholder={t("Scegli il listino")} />
             </SelectTrigger>
             <SelectContent>
               {lista.map((l) => (
@@ -222,23 +221,19 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
 
       {fuoriVigore && (
         <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Questo listino non è in vigore ({etichettaValidita(corrente!)}): sugli ordini d’acquisto
-          i suoi prezzi vengono proposti lo stesso, segnalati come non aggiornati.{" "}
+          {t("Questo listino non è in vigore ({stato}): sugli ordini d’acquisto i suoi prezzi vengono proposti lo stesso, segnalati come non aggiornati.", { stato: etichettaValidita(corrente!) ?? "" })}{" "}
           {puoModificare
-            ? "Correggi le date qui sopra, o carica il listino nuovo."
-            : "Per correggere le date serve il permesso sui fornitori o sul listino."}
+            ? t("Correggi le date qui sopra, o carica il listino nuovo.")
+            : t("Per correggere le date serve il permesso sui fornitori o sul listino.")}
         </p>
       )}
       {!fuoriVigore && inScadenza && (
-        <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Scade il {giornoItaliano(corrente?.valido_al ?? null)}: dopo quella data i prezzi vengono
-          proposti come non aggiornati. Chiedi al fornitore il listino nuovo, o sposta la scadenza qui sopra.
-        </p>
+        <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">{t("Scade il {data}: dopo quella data i prezzi vengono proposti come non aggiornati. Chiedi al fornitore il listino nuovo, o sposta la scadenza qui sopra.", { data: giornoItaliano(corrente?.valido_al ?? null) })}</p>
       )}
 
       {voci.isLoading ? (
         <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carico le voci…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico le voci…")}
         </div>
       ) : (
         <ListinoEditor
@@ -252,10 +247,10 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
           onSalvato={() => setSporco(false)}
           onRicarica={async () => {
             const teste = await testate.refetch();
-            if (teste.isError) throw new Error("Impossibile ricaricare le testate del listino.");
+            if (teste.isError) throw new Error(t("Impossibile ricaricare le testate del listino."));
             if (corrente && teste.data?.some((l) => l.id === corrente.id)) {
               const righe = await voci.refetch();
-              if (righe.isError) throw new Error("Impossibile ricaricare le voci del listino.");
+              if (righe.isError) throw new Error(t("Impossibile ricaricare le voci del listino."));
             }
             setSporco(false);
             setRicaricaEditor((n) => n + 1);
@@ -271,14 +266,14 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
       <Dialog open={!!daConfermare} onOpenChange={(a) => !a && setDaConfermare(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Modifiche non salvate</DialogTitle>
+            <DialogTitle>{t("Modifiche non salvate")}</DialogTitle>
             <DialogDescription>
-              Hai cambiato delle voci senza salvare. Cambiando listino le perdi.
+              {t("Hai cambiato delle voci senza salvare. Cambiando listino le perdi.")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setDaConfermare(null)}>Resta qui</Button>
-            <Button variant="destructive" size="sm" onClick={confermaCambio}>Cambia e perdi le modifiche</Button>
+            <Button variant="outline" size="sm" onClick={() => setDaConfermare(null)}>{t("Resta qui")}</Button>
+            <Button variant="destructive" size="sm" onClick={confermaCambio}>{t("Cambia e perdi le modifiche")}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -309,6 +304,7 @@ function ValiditaListino({
   puoModificare: boolean;
   onSalvato: () => void;
 }) {
+  const t = useT();
   // Lo stato parte dal listino aperto; il `key` sul componente lo rifa' da capo
   // quando si cambia listino dalla tendina.
   const qc = useQueryClient();
@@ -346,15 +342,15 @@ function ValiditaListino({
       const senzaScadenza = "valido_al" in patch && patch.valido_al === null;
       const anche = Object.keys(patch).length > 1;
       toast.success(senzaScadenza
-        ? (anche ? "Date aggiornate: il listino ora è senza scadenza" : "Il listino ora è senza scadenza")
-        : "Date del listino aggiornate");
+        ? (anche ? t("Date aggiornate: il listino ora è senza scadenza") : t("Il listino ora è senza scadenza"))
+        : t("Date del listino aggiornate"));
     },
     onError: (e: Error) => {
       // Il database ha rifiutato: i campi devono tornare a dire la verita'.
       altroDaSalvare.current = false;
       setDal(confermati.current.dal);
       setAl(confermati.current.al);
-      toast.error("Date non salvate", { description: e.message });
+      toast.error(t("Date non salvate"), { description: e.message });
     },
     onSettled: () => {
       inVolo.current = false;
@@ -384,8 +380,8 @@ function ValiditaListino({
     if (nuovoDal && nuovoAl && nuovoDal > nuovoAl) {
       setDal(confermati.current.dal);
       setAl(confermati.current.al);
-      toast.error("La fine della validità viene prima dell'inizio", {
-        description: "Il listino risulterebbe scaduto appena salvato. Le date sono tornate com'erano.",
+      toast.error(t("La fine della validità viene prima dell'inizio"), {
+        description: t("Il listino risulterebbe scaduto appena salvato. Le date sono tornate com'erano."),
       });
       return;
     }
@@ -433,12 +429,12 @@ function ValiditaListino({
       // il fuoco esce dal gruppo.
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) chiudi(); }}
     >
-      {campo("valido_dal", "In vigore dal", dal, setDal)}
-      {campo("valido_al", "fino al", al, setAl)}
+      {campo("valido_dal", t("In vigore dal"), dal, setDal)}
+      {campo("valido_al", t("fino al"), al, setAl)}
       {salva.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       {rovesciato
-        ? <span id={idSpiegazione} className="text-xs text-destructive">La fine viene prima dell’inizio: correggi l’altra data.</span>
-        : !al && <span className="text-xs text-muted-foreground">senza scadenza</span>}
+        ? <span id={idSpiegazione} className="text-xs text-destructive">{t("La fine viene prima dell’inizio: correggi l’altra data.")}</span>
+        : !al && <span className="text-xs text-muted-foreground">{t("senza scadenza")}</span>}
     </div>
   );
 }
@@ -460,6 +456,7 @@ function ListinoEditor({
   onSalvato: () => void;
   onRicarica: () => Promise<void>;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const permessi = usePermissions();
@@ -516,27 +513,27 @@ function ListinoEditor({
     setIncollaAperto(false);
     setTestoIncolla("");
     if (scartate.length > 0) {
-      toast.warning(`${nuove.length === 1 ? "1 voce letta" : `${nuove.length} voci lette`}, ${scartate.length === 1 ? "1 scartata" : `${scartate.length} scartate`}`, {
+      toast.warning(`${t(nuove.length === 1 ? "{n} voce letta" : "{n} voci lette", { n: nuove.length })}, ${t(scartate.length === 1 ? "{n} scartata" : "{n} scartate", { n: scartate.length })}`, {
         description: scartate
           .slice(0, 3)
           .map((s) => `«${s.riga.slice(0, 40)}»: ${s.motivo}`)
           .join(" · "),
       });
     } else if (nuove.length > 0) {
-      toast.success(`${nuove.length === 1 ? "1 voce letta" : `${nuove.length} voci lette`}. Ricorda di salvare.`);
+      toast.success(t(nuove.length === 1 ? "{n} voce letta. Ricorda di salvare." : "{n} voci lette. Ricorda di salvare.", { n: nuove.length }));
     } else {
-      toast.error("Nessuna voce leggibile nel testo incollato.");
+      toast.error(t("Nessuna voce leggibile nel testo incollato."));
     }
   };
 
   const salvaMutation = useMutation({
     mutationFn: async ({ righe, versioneBozza }: { righe: RigaVoce[]; versioneBozza: number }) => {
-      if (!companyId) throw new Error("Contesto azienda mancante");
+      if (!companyId) throw new Error(t("Contesto azienda mancante"));
       const valide = righe.filter((v) => v.descrizione.trim().length > 0);
       for (const voce of righe) {
         if (voce.configurazione_serramento && (!voce.descrizione.trim() || !voce.codice.trim()
           || !unitaTariffaSerramento(voce.unita) || prezzoNetto(voce.prezzo, voce.sconto_pct) <= 0)) {
-          throw new Error(`«${voce.descrizione || "Voce collegata"}» richiede descrizione, codice, costo netto positivo e unità pz o m².`);
+          throw new Error(t("«{voce}» richiede descrizione, codice, costo netto positivo e unità pz o m².", { voce: voce.descrizione || t("Voce collegata") }));
         }
       }
       const { data, error } = await supabase.rpc("salva_voci_listino_fornitore", {
@@ -551,7 +548,7 @@ function ListinoEditor({
       if (error) throw error;
       const risposta = data as { id: string; revisione: number; totale: number } | null;
       if (!risposta?.id || !Number.isSafeInteger(risposta.revisione)) {
-        throw new Error("Salvataggio non confermato. Ricarica la scheda prima di riprovare.");
+        throw new Error(t("Salvataggio non confermato. Ricarica la scheda prima di riprovare."));
       }
       return { risposta, versioneBozza };
     },
@@ -560,10 +557,10 @@ function ListinoEditor({
       const bozzaInvariata = versioneBozza === modifiche.current;
       if (bozzaInvariata) onSalvato();
       const n = risposta.totale;
-      toast.success(`Listino salvato: ${n} ${n === 1 ? "voce" : "voci"}`, {
-        description: !bozzaInvariata ? "Le modifiche successive sono ancora da salvare."
-          : inVigore ? "Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore."
-          : "Il listino è fuori validità. Controlla le date prima di usare i prezzi.",
+      toast.success(t(n === 1 ? "Listino salvato: {n} voce" : "Listino salvato: {n} voci", { n }), {
+        description: !bozzaInvariata ? t("Le modifiche successive sono ancora da salvare.")
+          : inVigore ? t("Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore.")
+          : t("Il listino è fuori validità. Controlla le date prima di usare i prezzi."),
       });
       await Promise.all([
         ...["testate", "editor", "voci"].map((chiave) =>
@@ -573,20 +570,20 @@ function ListinoEditor({
     },
     onError: (e) => {
       if ("code" in e && e.code === "PT409") setConflitto(true);
-      else toast.error("Salvataggio non riuscito", { description: e.message });
+      else toast.error(t("Salvataggio non riuscito"), { description: e.message });
     },
   });
   const primaCreazioneInCorso = !esistente.listino && salvaMutation.isPending;
   const ricarica = useMutation({
     mutationFn: onRicarica,
-    onError: (e) => toast.error("Ricaricamento non riuscito", { description: e.message }),
+    onError: (e) => toast.error(t("Ricaricamento non riuscito"), { description: e.message }),
   });
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Cerca per codice o descrizione…"
+          placeholder={t("Cerca per codice o descrizione…")}
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
           className="h-9 max-w-xs"
@@ -595,7 +592,7 @@ function ListinoEditor({
         {puoModificare && (
           <>
             <Button variant="outline" size="sm" disabled={primaCreazioneInCorso} onClick={() => setIncollaAperto(true)}>
-              <ClipboardPaste className="h-4 w-4 mr-1" />Incolla da Excel
+              <ClipboardPaste className="h-4 w-4 mr-1" />{t("Incolla da Excel")}
             </Button>
             <Button
               size="sm"
@@ -609,11 +606,11 @@ function ListinoEditor({
                 ]);
               }}
             >
-              <Plus className="h-4 w-4 mr-1" />Voce
+              <Plus className="h-4 w-4 mr-1" />{t("Voce")}
             </Button>
             <Button size="sm" disabled={salvaMutation.isPending || conflitto} onClick={() => salvaMutation.mutate({ righe: voci, versioneBozza: modifiche.current })}>
               {salvaMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Salva listino
+              {t("Salva listino")}
             </Button>
           </>
         )}
@@ -621,9 +618,9 @@ function ListinoEditor({
 
       {conflitto && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <p>Il listino è stato aggiornato da un’altra sessione. Le tue modifiche sono ancora nella griglia.</p>
+          <p>{t("Il listino è stato aggiornato da un’altra sessione. Le tue modifiche sono ancora nella griglia.")}</p>
           <Button variant="outline" size="sm" disabled={ricarica.isPending} onClick={() => ricarica.mutate()}>
-            Scarta la bozza e ricarica
+            {t("Scarta la bozza e ricarica")}
           </Button>
         </div>
       )}
@@ -631,20 +628,20 @@ function ListinoEditor({
       {voci.length === 0 ? (
         <p className="text-sm text-muted-foreground py-6 text-center">
           {puoModificare
-            ? "Nessuna voce. Incolla il listino dal foglio Excel del fornitore, o aggiungi le voci una per una. Codice e descrizione contano: sono la chiave con cui il prezzo viene suggerito sugli ordini."
-            : "Nessuna voce in questo listino."}
+            ? t("Nessuna voce. Incolla il listino dal foglio Excel del fornitore, o aggiungi le voci una per una. Codice e descrizione contano: sono la chiave con cui il prezzo viene suggerito sugli ordini.")
+            : t("Nessuna voce in questo listino.")}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
-                <th className="text-left p-2 font-medium w-28">Codice</th>
-                <th className="text-left p-2 font-medium">Descrizione</th>
-                <th className="text-left p-2 font-medium w-16">U.m.</th>
-                <th className="text-right p-2 font-medium w-24">Prezzo</th>
-                <th className="text-right p-2 font-medium w-20">Sconto %</th>
-                <th className="text-right p-2 font-medium w-24">Netto</th>
+                <th className="text-left p-2 font-medium w-28">{t("Codice")}</th>
+                <th className="text-left p-2 font-medium">{t("Descrizione")}</th>
+                <th className="text-left p-2 font-medium w-16">{t("U.m.")}</th>
+                <th className="text-right p-2 font-medium w-24">{t("Prezzo")}</th>
+                <th className="text-right p-2 font-medium w-20">{t("Sconto %")}</th>
+                <th className="text-right p-2 font-medium w-24">{t("Netto")}</th>
                 <th className="w-10 p-2"></th>
               </tr>
             </thead>
@@ -652,7 +649,7 @@ function ListinoEditor({
               {visibili.map((v) => (
                 <tr key={v.id} className="border-b last:border-0">
                   <td className="p-1">
-                    <Input aria-label={`Codice voce ${v.codice || v.descrizione || v.id}`} value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
+                    <Input aria-label={t("Codice voce {voce}", { voce: v.codice || v.descrizione || v.id })} value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <div className="flex items-center gap-2">
@@ -664,22 +661,22 @@ function ListinoEditor({
                           className="h-9 w-9 shrink-0 rounded border bg-white object-contain"
                         />
                       )}
-                      <Input aria-label={`Descrizione voce ${v.codice || v.descrizione || v.id}`} value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
+                      <Input aria-label={t("Descrizione voce {voce}", { voce: v.codice || v.descrizione || v.id })} value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
                     </div>
                     {puoModificare ? (
                       <Button variant="link" className="h-7 px-0 text-xs" onClick={() => setCollegaId(v.id)}>
-                        {v.configurazione_serramento ? `Disegno collegato · ${v.configurazione_serramento.serie}` : "Collega al disegno"}
+                        {v.configurazione_serramento ? t("Disegno collegato · {serie}", { serie: v.configurazione_serramento.serie }) : t("Collega al disegno")}
                       </Button>
                     ) : v.configurazione_serramento ? (
                       <p className="px-1 pt-1 text-xs text-muted-foreground">{v.configurazione_serramento.serie}</p>
                     ) : null}
                   </td>
                   <td className="p-1">
-                    <Input aria-label={`Unità di misura voce ${v.codice || v.descrizione || v.id}`} value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
+                    <Input aria-label={t("Unità di misura voce {voce}", { voce: v.codice || v.descrizione || v.id })} value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <Input
-                      aria-label={`Prezzo voce ${v.codice || v.descrizione || v.id}`}
+                      aria-label={t("Prezzo voce {voce}", { voce: v.codice || v.descrizione || v.id })}
                       type="number" min={0} step="0.01"
                       value={Number.isFinite(v.prezzo) ? v.prezzo : 0}
                       readOnly={!puoModificare || primaCreazioneInCorso}
@@ -689,7 +686,7 @@ function ListinoEditor({
                   </td>
                   <td className="p-1">
                     <Input
-                      aria-label={`Sconto percentuale voce ${v.codice || v.descrizione || v.id}`}
+                      aria-label={t("Sconto percentuale voce {voce}", { voce: v.codice || v.descrizione || v.id })}
                       type="number" min={0} max={100} step="0.5"
                       value={Number.isFinite(v.sconto_pct) ? v.sconto_pct : 0}
                       readOnly={!puoModificare || primaCreazioneInCorso}
@@ -705,7 +702,7 @@ function ListinoEditor({
                       <Button
                         variant="ghost" size="icon" className="h-8 w-8"
                         onClick={() => { modificaBozza(); setVoci((r) => r.filter((x) => x.id !== v.id)); }}
-                        aria-label="Rimuovi voce" disabled={primaCreazioneInCorso}
+                        aria-label={t("Rimuovi voce")} disabled={primaCreazioneInCorso}
                       >
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                       </Button>
@@ -719,9 +716,7 @@ function ListinoEditor({
       )}
 
       {filtro && visibili.length !== voci.length && (
-        <p className="text-xs text-muted-foreground">
-          {visibili.length} di {voci.length} voci mostrate. Il salvataggio riguarda sempre tutte.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("{n} di {n2} voci mostrate. Il salvataggio riguarda sempre tutte.", { n: visibili.length, n2: voci.length })}</p>
       )}
 
       {voceDaCollegare && (
@@ -738,15 +733,13 @@ function ListinoEditor({
       <Dialog open={incollaAperto} onOpenChange={setIncollaAperto}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Incolla da Excel</DialogTitle>
+            <DialogTitle>{t("Incolla da Excel")}</DialogTitle>
             <DialogDescription>
-              Copia le righe dal foglio del fornitore e incollale qui. Colonne
-              accettate, in ordine: codice · descrizione · unità · prezzo ·
-              sconto% (bastano descrizione e prezzo). La virgola è il decimale.
+              {t("Copia le righe dal foglio del fornitore e incollale qui. Colonne accettate, in ordine: codice · descrizione · unità · prezzo · sconto% (bastano descrizione e prezzo). La virgola è il decimale.")}
             </DialogDescription>
           </DialogHeader>
           <Textarea
-            aria-label="Righe del listino da Excel"
+            aria-label={t("Righe del listino da Excel")}
             value={testoIncolla}
             onChange={(e) => setTestoIncolla(e.target.value)}
             rows={10}
@@ -754,9 +747,9 @@ function ListinoEditor({
             className="font-mono text-xs"
           />
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIncollaAperto(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setIncollaAperto(false)}>{t("Annulla")}</Button>
             <Button onClick={importaIncollato} disabled={!testoIncolla.trim() || primaCreazioneInCorso}>
-              Leggi le righe
+              {t("Leggi le righe")}
             </Button>
           </div>
         </DialogContent>

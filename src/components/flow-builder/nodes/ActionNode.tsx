@@ -4,8 +4,10 @@ import { getCatalogItem } from "@/lib/flow-node-catalog";
 import { getActionIcon } from "./nodeIcons";
 import { getNodeColors } from "./nodeStyles";
 import { AlertTriangle } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function ActionNodeComponent({ data, selected }: NodeProps) {
+  const t = useT();
   const catalog = getCatalogItem(data.itemId as string);
   const Icon = getActionIcon(data.itemId as string);
   const colors = getNodeColors(catalog?.category);
@@ -22,7 +24,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
           <Icon className="h-4 w-4" />
         </div>
         <span className={`text-[10px] font-semibold uppercase tracking-wide ${colors.text}`}>
-          {catalog?.categoryLabel || "Azione"}
+          {catalog?.categoryLabel ? t(catalog.categoryLabel) : t("Azione")}
         </span>
         {data.hasError && (
           <AlertTriangle className="ml-auto h-4 w-4 shrink-0 text-destructive" />
@@ -32,7 +34,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
       {/* Corpo */}
       <div className="px-4 py-3">
         <p className="truncate text-sm font-medium text-foreground">
-          {(data.label as string) || catalog?.label || "Azione"}
+          {(data.label as string) || (catalog?.label ? t(catalog.label) : t("Azione"))}
         </p>
         {(data.configPreview as string) && (
           <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">

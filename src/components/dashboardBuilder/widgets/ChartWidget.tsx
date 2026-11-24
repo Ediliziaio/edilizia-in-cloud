@@ -34,6 +34,7 @@ import type {
 } from "@/lib/dashboardBuilder/types";
 import { formatShort, formatValue } from "../formatValue";
 import { widgetLabel } from "@/lib/dashboardBuilder/widgetLabels";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   widget: DashboardWidget;
@@ -74,12 +75,13 @@ function ErrorState({ message }: { message: string }) {
 
 /** Stato vuoto: icona + messaggio, centrato verticalmente. */
 function EmptyState() {
+  const t = useT();
   return (
     <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-center">
       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
         <Inbox className="h-4 w-4 text-muted-foreground" />
       </div>
-      <p className="text-[11px] text-muted-foreground">Nessun dato nel periodo</p>
+      <p className="text-[11px] text-muted-foreground">{t("Nessun dato nel periodo")}</p>
     </div>
   );
 }

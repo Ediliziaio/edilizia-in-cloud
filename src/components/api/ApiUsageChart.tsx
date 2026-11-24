@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useState } from "react";
 import { Activity, CheckCircle, XCircle } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ApiKey {
   id: string;
@@ -13,6 +14,7 @@ interface ApiKey {
 }
 
 export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
+  const t = useT();
   const [selectedKey, setSelectedKey] = useState<string>("all");
   const [days, setDays] = useState(30);
 
@@ -39,10 +41,10 @@ export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
       <div className="flex items-center gap-4">
         <Select value={selectedKey} onValueChange={setSelectedKey}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Tutte le chiavi" />
+            <SelectValue placeholder={t("Tutte le chiavi")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutte le chiavi</SelectItem>
+            <SelectItem value="all">{t("Tutte le chiavi")}</SelectItem>
             {keys.filter(k => k.is_active).map(k => (
               <SelectItem key={k.id} value={k.id}>{k.name}</SelectItem>
             ))}
@@ -53,9 +55,9 @@ export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Ultimi 7 giorni</SelectItem>
-            <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-            <SelectItem value="90">Ultimi 90 giorni</SelectItem>
+            <SelectItem value="7">{t("Ultimi 7 giorni")}</SelectItem>
+            <SelectItem value="30">{t("Ultimi 30 giorni")}</SelectItem>
+            <SelectItem value="90">{t("Ultimi 90 giorni")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -67,7 +69,7 @@ export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
               <div className="p-2 rounded-lg bg-primary/10"><Activity className="h-5 w-5 text-primary" /></div>
               <div>
                 <p className="text-2xl font-bold">{totals.total.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Richieste totali</p>
+                <p className="text-xs text-muted-foreground">{t("Richieste totali")}</p>
               </div>
             </div>
           </CardContent>
@@ -78,7 +80,7 @@ export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
               <div className="p-2 rounded-lg bg-green-500/10"><CheckCircle className="h-5 w-5 text-green-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{totals.success.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Riuscite</p>
+                <p className="text-xs text-muted-foreground">{t("Riuscite")}</p>
               </div>
             </div>
           </CardContent>
@@ -89,7 +91,7 @@ export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
               <div className="p-2 rounded-lg bg-destructive/10"><XCircle className="h-5 w-5 text-destructive" /></div>
               <div>
                 <p className="text-2xl font-bold">{errorRate}%</p>
-                <p className="text-xs text-muted-foreground">Tasso errore</p>
+                <p className="text-xs text-muted-foreground">{t("Tasso errore")}</p>
               </div>
             </div>
           </CardContent>
@@ -98,22 +100,22 @@ export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Richieste giornaliere</CardTitle>
+          <CardTitle className="text-base">{t("Richieste giornaliere")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">Caricamento...</div>
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">{t("Caricamento...")}</div>
           ) : !data?.daily?.length ? (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">Nessun dato disponibile</div>
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">{t("Nessun dato disponibile")}</div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.daily}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })} className="text-xs" />
+                <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" })} className="text-xs" />
                 <YAxis className="text-xs" />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
-                  labelFormatter={(d: string | number) => new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}
+                  labelFormatter={(d: string | number) => new Date(d).toLocaleDateString(intlCampo(), { day: "2-digit", month: "long", year: "numeric" })}
                 />
                 <Bar dataKey="successful_requests" name="Riuscite" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="failed_requests" name="Fallite" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />

@@ -52,6 +52,7 @@ import {
 import { formatDateIt } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { CALENDARI_SQUADRE, percorsoSquadra } from "@/lib/manodopera/collegamentiSquadre";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Vista = "oggi" | "squadre" | "elenco";
 const VISTE: { v: Vista; etichetta: string }[] = [
@@ -61,6 +62,7 @@ const VISTE: { v: Vista; etichetta: string }[] = [
 ];
 
 export default function OperaiTab() {
+  const t = useT();
   const perms = usePermissions();
   const puoModificare = (perms.canEditOperai || perms.isAdmin) && !perms.solaLettura;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,7 +90,7 @@ export default function OperaiTab() {
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between gap-2">
-        <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div role="group" aria-label={t("Vista")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {VISTE.map(({ v, etichetta }) => (
             <button
               key={v}
@@ -103,7 +105,7 @@ export default function OperaiTab() {
                 vista === v ? "max-sm:border-orange-200" : "max-sm:border-border max-sm:bg-background",
               )}
             >
-              {etichetta}
+              {t(etichetta)}
             </button>
           ))}
         </div>
@@ -112,18 +114,18 @@ export default function OperaiTab() {
             <div className="hidden items-center gap-2 sm:flex">
               {senzaApp.length > 0 && perms.isAdmin && (
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setLinkAperto(true)}>
-                  <Smartphone className="h-4 w-4" aria-hidden="true" />Dai l'app ({senzaApp.length})
+                  <Smartphone className="h-4 w-4" aria-hidden="true" />{t("Dai l'app (")}{senzaApp.length})
                 </Button>
               )}
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setNuovaSquadra(true)}>
-                <UsersRound className="h-4 w-4" aria-hidden="true" />Nuova squadra
+                <UsersRound className="h-4 w-4" aria-hidden="true" />{t("Nuova squadra")}
               </Button>
               <Button
                 size="sm"
                 onClick={() => setNuovoAperto(true)}
                 className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
               >
-                <Plus className="h-4 w-4" aria-hidden="true" />Nuovo operaio
+                <Plus className="h-4 w-4" aria-hidden="true" />{t("Nuovo operaio")}
               </Button>
             </div>
             {/* Telefono: un bottone solo, le due scelte nel menu. */}
@@ -131,17 +133,17 @@ export default function OperaiTab() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="icon"
-                  aria-label="Aggiungi"
+                  aria-label={t("Aggiungi")}
                   className="h-9 w-9 rounded-full bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm sm:hidden"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setNuovoAperto(true)}>Nuovo operaio</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setNuovaSquadra(true)}>Nuova squadra</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setNuovoAperto(true)}>{t("Nuovo operaio")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setNuovaSquadra(true)}>{t("Nuova squadra")}</DropdownMenuItem>
                 {senzaApp.length > 0 && perms.isAdmin && (
-                  <DropdownMenuItem onSelect={() => setLinkAperto(true)}>Dai l'app ({senzaApp.length})</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setLinkAperto(true)}>{t("Dai l'app ({n})", { n: senzaApp.length })}</DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -171,6 +173,7 @@ export default function OperaiTab() {
 // ── Vista «Giornata» ─────────────────────────────────────────────────────────
 
 function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
+  const t = useT();
   const oggi = oggiRoma();
   const [giorno, setGiorno] = useState(oggi);
   const [filtro, setFiltro] = useState<FiltroGiornata>("tutti");
@@ -196,7 +199,7 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-sm">
-          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Giorno prima" onClick={() => setGiorno((g) => spostaGiorno(g, -1))}>
+          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t("Giorno prima")} onClick={() => setGiorno((g) => spostaGiorno(g, -1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Popover open={calendarioAperto} onOpenChange={setCalendarioAperto}>
@@ -204,7 +207,7 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
               <button
                 type="button"
                 className="tap-compact min-w-[10.5rem] rounded px-1 py-1.5 text-center text-sm font-semibold text-slate-900 hover:bg-slate-50"
-                aria-label={`Scegli il giorno (ora: ${giornoInParole(giorno, oggi)})`}
+                aria-label={t("Scegli il giorno (ora: {giorno})", { giorno: String(giornoInParole(giorno, oggi) ?? "") })}
               >
                 {giornoInParole(giorno, oggi)}
               </button>
@@ -225,19 +228,19 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
               />
             </PopoverContent>
           </Popover>
-          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Giorno dopo" disabled={eOggi} onClick={() => setGiorno((g) => spostaGiorno(g, 1))}>
+          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t("Giorno dopo")} disabled={eOggi} onClick={() => setGiorno((g) => spostaGiorno(g, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        {!eOggi && <Button variant="outline" size="sm" onClick={() => setGiorno(oggi)}>Torna a oggi</Button>}
+        {!eOggi && <Button variant="outline" size="sm" onClick={() => setGiorno(oggi)}>{t("Torna a oggi")}</Button>}
         <div className="relative min-w-0 flex-1 sm:ml-auto sm:max-w-xs sm:flex-none">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             id="cerca-giornata"
             value={cerca}
             onChange={(e) => setCerca(e.target.value)}
-            placeholder="Cerca persona, cantiere, mezzo…"
-            aria-label="Cerca nella giornata"
+            placeholder={t("Cerca persona, cantiere, mezzo…")}
+            aria-label={t("Cerca nella giornata")}
             className="h-9 pl-9"
           />
         </div>
@@ -247,9 +250,9 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
         <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <Moon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
           <p>
-            {eOggi ? "Oggi è" : `${giornoInParole(giorno, oggi)} era`} giorno di riposo per tutti: nessuno doveva timbrare.{" "}
+            {eOggi ? t("Oggi è") : t("{giorno} era", { giorno: String(giornoInParole(giorno, oggi) ?? "") })} {t("giorno di riposo per tutti: nessuno doveva timbrare.")}{" "}
             <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setGiorno(spostaGiorno(giorno, -1))}>
-              Guarda il giorno prima
+              {t("Guarda il giorno prima")}
             </button>
           </p>
         </div>
@@ -260,48 +263,48 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
           <KpiMobili
             className="sm:hidden"
             voci={[
-              { label: "Al lavoro", valore: String(conta.alLavoro), tono: conta.alLavoro > 0 ? "text-emerald-700" : undefined, onClick: () => alterna("al_lavoro"), attivo: filtro === "al_lavoro" },
-              { label: eOggi ? "Non hanno timbrato" : "Da controllare", valore: String(conta.daControllare), tono: conta.daControllare > 0 ? "text-amber-700" : undefined, onClick: () => alterna("da_controllare"), attivo: filtro === "da_controllare" },
-              { label: "Usciti", valore: String(conta.usciti), onClick: () => alterna("usciti"), attivo: filtro === "usciti" },
-              { label: "Assenti", valore: String(conta.assenti), onClick: () => alterna("assenti"), attivo: filtro === "assenti" },
+              { label: t("Al lavoro"), valore: String(conta.alLavoro), tono: conta.alLavoro > 0 ? "text-emerald-700" : undefined, onClick: () => alterna("al_lavoro"), attivo: filtro === "al_lavoro" },
+              { label: eOggi ? t("Non hanno timbrato") : t("Da controllare"), valore: String(conta.daControllare), tono: conta.daControllare > 0 ? "text-amber-700" : undefined, onClick: () => alterna("da_controllare"), attivo: filtro === "da_controllare" },
+              { label: t("Usciti"), valore: String(conta.usciti), onClick: () => alterna("usciti"), attivo: filtro === "usciti" },
+              { label: t("Assenti"), valore: String(conta.assenti), onClick: () => alterna("assenti"), attivo: filtro === "assenti" },
             ]}
           />
           <div className="hidden grid-cols-4 gap-2 sm:grid">
-            <OperationalKpiCard compact icon={HardHat} label="Al lavoro" value={conta.alLavoro} hint="anche chi è in pausa" tone="green" isLoading={isLoading} active={filtro === "al_lavoro"} onClick={() => alterna("al_lavoro")} />
-            <OperationalKpiCard compact icon={AlertTriangle} label={eOggi ? "Non hanno timbrato" : "Da controllare"} value={conta.daControllare} hint={eOggi ? "nessuna entrata oggi" : "senza entrata o uscita"} tone={conta.daControllare > 0 ? "amber" : "slate"} isLoading={isLoading} active={filtro === "da_controllare"} onClick={() => alterna("da_controllare")} />
-            <OperationalKpiCard compact icon={LogOut} label="Usciti" value={conta.usciti} hint="giornata finita" tone="slate" isLoading={isLoading} active={filtro === "usciti"} onClick={() => alterna("usciti")} />
-            <OperationalKpiCard compact icon={CalendarOff} label="Assenti" value={conta.assenti} hint={conta.riposo > 0 ? `e ${conta.riposo} a riposo` : "ferie, permessi, malattia"} tone="blue" isLoading={isLoading} active={filtro === "assenti"} onClick={() => alterna("assenti")} />
+            <OperationalKpiCard compact icon={HardHat} label={t("Al lavoro")} value={conta.alLavoro} hint={t("anche chi è in pausa")} tone="green" isLoading={isLoading} active={filtro === "al_lavoro"} onClick={() => alterna("al_lavoro")} />
+            <OperationalKpiCard compact icon={AlertTriangle} label={eOggi ? t("Non hanno timbrato") : t("Da controllare")} value={conta.daControllare} hint={eOggi ? t("nessuna entrata oggi") : t("senza entrata o uscita")} tone={conta.daControllare > 0 ? "amber" : "slate"} isLoading={isLoading} active={filtro === "da_controllare"} onClick={() => alterna("da_controllare")} />
+            <OperationalKpiCard compact icon={LogOut} label={t("Usciti")} value={conta.usciti} hint={t("giornata finita")} tone="slate" isLoading={isLoading} active={filtro === "usciti"} onClick={() => alterna("usciti")} />
+            <OperationalKpiCard compact icon={CalendarOff} label={t("Assenti")} value={conta.assenti} hint={conta.riposo > 0 ? t("e {riposo} a riposo", { riposo: String(conta.riposo ?? "") }) : t("ferie, permessi, malattia")} tone="blue" isLoading={isLoading} active={filtro === "assenti"} onClick={() => alterna("assenti")} />
           </div>
           {data.length > 0 && <BarraGiornata righe={data} />}
         </>
       )}
 
       {error ? (
-        <ErroreCaricamento testo="Non riesco a caricare la giornata degli operai." onRiprova={() => refetch()} inCorso={isFetching} />
+        <ErroreCaricamento testo={t("Non riesco a caricare la giornata degli operai.")} onRiprova={() => refetch()} inCorso={isFetching} />
       ) : isLoading ? (
         <ScheletroLista />
       ) : data.length === 0 ? (
         <NessunOperaio onNuovo={onNuovo} />
       ) : gruppi.length === 0 && filtro !== "tutti" ? (
         <p className="rounded-xl border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-          Nessun operaio in questo gruppo.{" "}
-          <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setFiltro("tutti")}>Mostra tutti</button>
+          {t("Nessun operaio in questo gruppo.")}{" "}
+          <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setFiltro("tutti")}>{t("Mostra tutti")}</button>
         </p>
       ) : (
         <div className="grid items-start gap-4 grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 space-y-4">
           {gruppi.length === 0 && (
             <p className="rounded-xl border border-dashed bg-white px-4 py-6 text-center text-sm text-muted-foreground">
-              Nessuno corrisponde alla ricerca.
+              {t("Nessuno corrisponde alla ricerca.")}
             </p>
           )}
           {gruppi.map((g) => {
             const stati = g.righe.map((r) => statoNoto(r.stato));
             const riepilogo = stati.every((x) => x === "riposo")
-              ? "a riposo"
+              ? t("a riposo")
               : eOggi
-                ? `${stati.filter((x) => x === "al_lavoro" || x === "in_pausa").length} su ${g.righe.length} al lavoro`
-                : `${stati.filter((x) => x === "al_lavoro" || x === "in_pausa" || x === "uscito" || x === "uscita_mancante").length} su ${g.righe.length} presenti`;
+                ? t("{n} su {totale} al lavoro", { n: stati.filter((x) => x === "al_lavoro" || x === "in_pausa").length, totale: g.righe.length })
+                : t("{n} su {totale} presenti", { n: stati.filter((x) => x === "al_lavoro" || x === "in_pausa" || x === "uscito" || x === "uscita_mancante").length, totale: g.righe.length });
             const dove = cantiereDelGruppo(g.righe);
             return (
               <section key={g.id ?? "senza"} aria-label={g.nome} className="min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm">
@@ -344,13 +347,14 @@ const PLURALE: Record<string, string> = {
 
 /** La giornata in una riga: quanti in ogni stato, a colpo d'occhio. */
 function BarraGiornata({ righe }: { righe: readonly OperaioOggi[] }) {
+  const t = useT();
   const ordine = ["al_lavoro", "in_pausa", "uscito", "assente", "uscita_mancante", "non_timbrato", "riposo"] as const;
   const conteggi = ordine
     .map((s) => ({ s, n: righe.filter((r) => statoNoto(r.stato) === s).length }))
     .filter((x) => x.n > 0);
   return (
     <div className="hidden space-y-1.5 sm:block">
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100" role="img" aria-label={conteggi.map((c) => `${c.n} ${PLURALE[c.s]}`).join(", ")}>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100" role="img" aria-label={conteggi.map((c) => `${c.n} ${t(PLURALE[c.s])}`).join(", ")}>
         {conteggi.map((c) => (
           <span key={c.s} className={cn("h-full", PALLINO_STATO[c.s])} style={{ width: `${(c.n / righe.length) * 100}%` }} />
         ))}
@@ -359,7 +363,7 @@ function BarraGiornata({ righe }: { righe: readonly OperaioOggi[] }) {
         {conteggi.map((c) => (
           <span key={c.s} className="inline-flex items-center gap-1">
             <span className={cn("h-2 w-2 rounded-full", PALLINO_STATO[c.s])} aria-hidden="true" />
-            <span className="tabular-nums">{c.n}</span> {PLURALE[c.s]}
+            <span className="tabular-nums">{c.n}</span> {t(PLURALE[c.s])}
           </span>
         ))}
       </p>
@@ -368,15 +372,16 @@ function BarraGiornata({ righe }: { righe: readonly OperaioOggi[] }) {
 }
 
 function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: boolean }) {
+  const t = useT();
   const stato = statoNoto(r.stato);
   const idCantiere = r.cantiere_id ?? r.previsto_id;
   const testoCantiere = r.cantiere ?? r.previsto;
   const orari = r.prima_entrata
-    ? `${formatOra(r.prima_entrata)} → ${r.ultima_uscita ? formatOra(r.ultima_uscita) : stato === "in_pausa" ? "in pausa" : "…"}`
+    ? `${formatOra(r.prima_entrata)} → ${r.ultima_uscita ? formatOra(r.ultima_uscita) : stato === "in_pausa" ? t("in pausa") : "…"}`
     : null;
   return (
     <li className="flex min-w-0 gap-2 bg-white px-3 py-2">
-      <Link to={`/azienda/manodopera/operai/${r.profilo_id}`} className="tap-compact shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Apri ${r.nome} ${r.cognome}`}>
+      <Link to={`/azienda/manodopera/operai/${r.profilo_id}`} className="tap-compact shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={t("Apri {cosa} {n}", { cosa: String(r.nome ?? ""), n: String(r.cognome ?? "") })}>
         <AvatarOperaio nome={r.nome} cognome={r.cognome} colore={r.colore_avatar} pallino={PALLINO_STATO[stato]} />
       </Link>
       <div className="min-w-0 flex-1">
@@ -389,13 +394,13 @@ function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: b
           </span>
         </div>
         <p className="truncate text-xs text-muted-foreground">
-          {r.mansione ?? "Operaio"}
+          {r.mansione ?? t("Operaio")}
           {orari && <> · <span className="tabular-nums">{orari}</span></>}
           {(r.ore_lavorate ?? 0) > 0 && <> · <span className="tabular-nums">{formatOre(r.ore_lavorate)}</span></>}
         </p>
         {testoCantiere && (
           <p className="mt-0.5 truncate text-xs text-slate-600">
-            {!r.cantiere && <span className="text-muted-foreground">Previsto: </span>}
+            {!r.cantiere && <span className="text-muted-foreground">{t("Previsto:")} </span>}
             {linkCommesse && idCantiere
               ? <Link to={`/azienda/ordini/${idCantiere}`} className="tap-compact hover:text-orange-700 hover:underline">{testoCantiere}</Link>
               : testoCantiere}
@@ -407,7 +412,7 @@ function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: b
           </p>
         )}
         {r.rapportino && <p className="mt-0.5 line-clamp-2 text-xs italic text-slate-500">«{r.rapportino}»</p>}
-        {r.fuori_zona && <p className="mt-0.5 text-[11px] text-amber-700">Ha timbrato lontano dal cantiere</p>}
+        {r.fuori_zona && <p className="mt-0.5 text-[11px] text-amber-700">{t("Ha timbrato lontano dal cantiere")}</p>}
       </div>
     </li>
   );
@@ -416,6 +421,7 @@ function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: b
 // ── Vista «Squadre» ──────────────────────────────────────────────────────────
 
 function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onNuova: () => void }) {
+  const t = useT();
   const perms = usePermissions();
   const [params, setParams] = useSearchParams();
   const richiesta = params.get("squadra");
@@ -436,26 +442,26 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
   const selezionata = squadre.find(s => s.id === richiesta);
   const visibili = selezionata ? [selezionata] : squadre;
 
-  if (error) return <ErroreCaricamento testo="Non riesco a caricare le squadre." onRiprova={() => refetch()} inCorso={isFetching} />;
+  if (error) return <ErroreCaricamento testo={t("Non riesco a caricare le squadre.")} onRiprova={() => refetch()} inCorso={isFetching} />;
   if (isLoading) return <ScheletroLista />;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Componi le squadre e assegnale ai lavori delle commesse.</p>
-        {linkCalendari && <Button asChild variant="outline" size="sm"><Link to={CALENDARI_SQUADRE}><CalendarDays className="mr-2 h-4 w-4" />Calendari delle squadre</Link></Button>}
+        <p className="text-sm text-muted-foreground">{t("Componi le squadre e assegnale ai lavori delle commesse.")}</p>
+        {linkCalendari && <Button asChild variant="outline" size="sm"><Link to={CALENDARI_SQUADRE}><CalendarDays className="mr-2 h-4 w-4" />{t("Calendari delle squadre")}</Link></Button>}
       </div>
-      {richiesta && <p className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">{selezionata ? `Squadra selezionata: ${selezionata.nome}.` : "La squadra richiesta non è attiva o non è disponibile."} <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setParams(prev => { const next = new URLSearchParams(prev); next.delete("squadra"); return next; }, { replace: true })}>Mostra tutte le squadre</Button></p>}
+      {richiesta && <p className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">{selezionata ? t("Squadra selezionata: {nome}.", { nome: String(selezionata.nome ?? "") }) : t("La squadra richiesta non è attiva o non è disponibile.")} <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setParams(prev => { const next = new URLSearchParams(prev); next.delete("squadra"); return next; }, { replace: true })}>{t("Mostra tutte le squadre")}</Button></p>}
       {squadre.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white px-6 py-10 text-center">
           <UsersRound className="mx-auto h-8 w-8 text-orange-500" aria-hidden="true" />
-          <p className="mt-3 font-semibold text-slate-900">Non ci sono ancora squadre</p>
+          <p className="mt-3 font-semibold text-slate-900">{t("Non ci sono ancora squadre")}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Dai un nome alla squadra, scegli chi ci lavora e chi la guida. Poi la metti sulle commesse: i suoi operai si trovano il cantiere nell'app.
+            {t("Dai un nome alla squadra, scegli chi ci lavora e chi la guida. Poi la metti sulle commesse: i suoi operai si trovano il cantiere nell'app.")}
           </p>
           {puoModificare && (
             <Button onClick={onNuova} className="mt-4 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
-              <Plus className="h-4 w-4" aria-hidden="true" />Crea la prima squadra
+              <Plus className="h-4 w-4" aria-hidden="true" />{t("Crea la prima squadra")}
             </Button>
           )}
         </div>
@@ -468,37 +474,37 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
                 <div className="min-w-0">
                   <h3 className="truncate text-base font-semibold text-slate-950">{s.nome}</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {s.componenti.length === 1 ? "1 operaio" : `${s.componenti.length} operai`}
+                    {s.componenti.length === 1 ? t("1 operaio") : t("{n} operai", { n: s.componenti.length })}
                     {s.responsabile ? (
                       <> · <Crown className="inline h-3 w-3 text-orange-600" aria-hidden="true" /> {s.responsabile.nome} {s.responsabile.cognome}
-                        {!s.responsabile.e_componente && <span> ({s.responsabile.mansione ?? "fuori squadra"})</span>}
+                        {!s.responsabile.e_componente && <span> ({s.responsabile.mansione ?? t("fuori squadra")})</span>}
                       </>
-                    ) : " · nessun responsabile"}
+                    ) : ` ${t("· nessun responsabile")}`}
                   </p>
                 </div>
                 {puoModificare && (
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button size="sm" variant="outline" className="h-8 gap-1.5 max-sm:w-8 max-sm:px-0" aria-label={`Modifica ${s.nome}`} onClick={() => setModifica(s)}>
-                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" /><span className="max-sm:hidden">Modifica</span>
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5 max-sm:w-8 max-sm:px-0" aria-label={t("Modifica {nome}", { nome: String(s.nome ?? "") })} onClick={() => setModifica(s)}>
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" /><span className="max-sm:hidden">{t("Modifica")}</span>
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Altre azioni per ${s.nome}`}>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Altre azioni per {nome}", { nome: String(s.nome ?? "") })}>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {linkCommesse && <DropdownMenuItem onSelect={() => setSuCommessa(s)}>Mettila su una commessa</DropdownMenuItem>}
-                        <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => setDaSciogliere(s)}>Sciogli la squadra</DropdownMenuItem>
+                        {linkCommesse && <DropdownMenuItem onSelect={() => setSuCommessa(s)}>{t("Mettila su una commessa")}</DropdownMenuItem>}
+                        <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => setDaSciogliere(s)}>{t("Sciogli la squadra")}</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 )}
               </div>
 
-              {linkCalendari && <Link to={percorsoSquadra(CALENDARI_SQUADRE, s.id)} className="mx-4 mb-3 inline-flex items-center gap-1.5 self-start text-xs font-medium text-primary hover:underline"><CalendarDays className="h-3.5 w-3.5" />Calendario Google della squadra</Link>}
+              {linkCalendari && <Link to={percorsoSquadra(CALENDARI_SQUADRE, s.id)} className="mx-4 mb-3 inline-flex items-center gap-1.5 self-start text-xs font-medium text-primary hover:underline"><CalendarDays className="h-3.5 w-3.5" />{t("Calendario Google della squadra")}</Link>}
               {s.componenti.length === 0 ? (
-                <p className="px-4 pb-3 text-sm text-muted-foreground">Nessun operaio: premi «Modifica» e scegli chi ci lavora.</p>
+                <p className="px-4 pb-3 text-sm text-muted-foreground">{t("Nessun operaio: premi «Modifica» e scegli chi ci lavora.")}</p>
               ) : (
                 <ul className="divide-y border-y">
                   {s.componenti.map((p) => {
@@ -508,7 +514,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
                         <AvatarOperaio nome={p.nome} cognome={p.cognome} colore={p.colore_avatar} pallino={st ? PALLINO_STATO[st] : undefined} />
                         <Link to={`/azienda/manodopera/operai/${p.id}`} className="tap-compact min-w-0 flex-1 truncate text-sm text-slate-800 hover:text-orange-700">
                           {p.nome} {p.cognome}
-                          {s.responsabile?.id === p.id && <Crown className="ml-1 inline h-3 w-3 text-orange-600" aria-label="responsabile" />}
+                          {s.responsabile?.id === p.id && <Crown className="ml-1 inline h-3 w-3 text-orange-600" aria-label={t("responsabile")} />}
                           {p.mansione && <span className="text-muted-foreground"> · {p.mansione}</span>}
                         </Link>
                         {st && <span className="shrink-0 text-[11px] text-muted-foreground">{etichettaGiornata(st)}</span>}
@@ -520,19 +526,19 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
               )}
 
               <div className="mt-auto space-y-1.5 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Commesse</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Commesse")}</p>
                 {s.commesse.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Non è su nessuna commessa.
+                    {t("Non è su nessuna commessa.")}
                     {puoModificare && linkCommesse && (
-                      <> <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setSuCommessa(s)}>Mettila al lavoro</button></>
+                      <> <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setSuCommessa(s)}>{t("Mettila al lavoro")}</button></>
                     )}
                   </p>
                 ) : (
                   <ul className="flex flex-wrap gap-1.5">
                     {s.commesse.map((c) => {
-                      const testo = [c.codice, c.cliente].filter(Boolean).join(" · ") || "Commessa";
-                      const quando = c.dal && !c.oggi ? ` · dal ${formatDateIt(c.dal)}` : c.al ? ` · fino al ${formatDateIt(c.al)}` : "";
+                      const testo = [c.codice, c.cliente].filter(Boolean).join(" · ") || t("Commessa");
+                      const quando = c.dal && !c.oggi ? ` · ${t("dal {data}", { data: formatDateIt(c.dal) })}` : c.al ? ` · ${t("fino al {data}", { data: formatDateIt(c.al) })}` : "";
                       const cls = cn(
                         "inline-flex max-w-full items-center gap-1 truncate rounded-full border px-2.5 py-1 text-xs",
                         c.oggi ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600",
@@ -554,14 +560,14 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
       )}
 
       {senzaSquadra.length > 0 && squadre.length > 0 && (
-        <section className="rounded-2xl border border-dashed bg-white px-4 py-3" aria-label="Operai senza squadra">
+        <section className="rounded-2xl border border-dashed bg-white px-4 py-3" aria-label={t("Operai senza squadra")}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold text-slate-900">
-              Senza squadra <span className="font-normal text-muted-foreground">· {senzaSquadra.length}</span>
+              {t("Senza squadra")} <span className="font-normal text-muted-foreground">· {senzaSquadra.length}</span>
             </p>
             {puoModificare && (
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-orange-700" onClick={() => setPerNuova(senzaSquadra.map((o) => o.id))}>
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />Fanne una squadra
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />{t("Fanne una squadra")}
               </Button>
             )}
           </div>
@@ -585,26 +591,26 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
       <AlertDialog open={!!daSciogliere} onOpenChange={(o) => { if (!o) setDaSciogliere(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sciogli «{daSciogliere?.nome}»?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Sciogli «{nome}»?", { nome: String(daSciogliere?.nome ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Gli operai restano, senza squadra. Dalle commesse spariscono gli accessi dati dalla squadra; le ore già timbrate restano.
+              {t("Gli operai restano, senza squadra. Dalle commesse spariscono gli accessi dati dalla squadra; le ore già timbrate restano.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
                 if (!daSciogliere) return;
                 const nome = daSciogliere.nome;
                 sciogli.mutate(daSciogliere.id, {
-                  onSuccess: () => toast.success(`«${nome}» sciolta`),
-                  onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a sciogliere la squadra. Riprova tra qualche secondo.")),
+                  onSuccess: () => toast.success(t("«{nome}» sciolta", { nome })),
+                  onError: (err) => toast.error(messaggioErroreOperai(err, t("Non sono riuscito a sciogliere la squadra. Riprova tra qualche secondo."))),
                 });
                 setDaSciogliere(null);
               }}
             >
-              Sciogli
+              {t("Sciogli")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -618,6 +624,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
 type FiltroElenco = "tutti" | "app" | "documenti" | "senza_squadra";
 
 function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
+  const t = useT();
   const { data = [], isLoading, error, refetch, isFetching } = useOperai();
   const [cerca, setCerca] = useState("");
   const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
@@ -656,39 +663,39 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
       <KpiMobili
         className="sm:hidden"
         voci={[
-          { label: "Operai", valore: String(numeri.attivi) },
-          { label: "Documenti da rifare", valore: String(numeri.documenti), tono: numeri.documenti > 0 ? "text-red-600" : undefined, onClick: () => alterna("documenti"), attivo: filtro === "documenti" },
+          { label: t("Operai"), valore: String(numeri.attivi) },
+          { label: t("Documenti da rifare"), valore: String(numeri.documenti), tono: numeri.documenti > 0 ? "text-red-600" : undefined, onClick: () => alterna("documenti"), attivo: filtro === "documenti" },
         ]}
       />
       <div className="hidden grid-cols-4 gap-2 sm:grid">
-        <OperationalKpiCard compact icon={Users} label="Operai" value={numeri.attivi} hint="che lavorano in cantiere" tone="blue" isLoading={isLoading} active={filtro === "tutti" && soloAttivi} onClick={() => { setFiltro("tutti"); setSoloAttivi(true); }} />
-        <OperationalKpiCard compact icon={Smartphone} label="Con l'app di cantiere" value={numeri.conApp} hint="timbrano dal telefono" tone="green" isLoading={isLoading} active={filtro === "app"} onClick={() => alterna("app")} />
-        <OperationalKpiCard compact icon={FileWarning} label="Documenti da rifare" value={numeri.documenti} hint="scaduti o in scadenza" tone={numeri.documenti > 0 ? "red" : "green"} isLoading={isLoading} active={filtro === "documenti"} onClick={() => alterna("documenti")} />
-        <OperationalKpiCard compact icon={UsersRound} label="Senza squadra" value={numeri.senzaSquadra} hint="da mettere in una squadra" tone={numeri.senzaSquadra > 0 ? "amber" : "green"} isLoading={isLoading} active={filtro === "senza_squadra"} onClick={() => alterna("senza_squadra")} />
+        <OperationalKpiCard compact icon={Users} label={t("Operai")} value={numeri.attivi} hint={t("che lavorano in cantiere")} tone="blue" isLoading={isLoading} active={filtro === "tutti" && soloAttivi} onClick={() => { setFiltro("tutti"); setSoloAttivi(true); }} />
+        <OperationalKpiCard compact icon={Smartphone} label={t("Con l'app di cantiere")} value={numeri.conApp} hint={t("timbrano dal telefono")} tone="green" isLoading={isLoading} active={filtro === "app"} onClick={() => alterna("app")} />
+        <OperationalKpiCard compact icon={FileWarning} label={t("Documenti da rifare")} value={numeri.documenti} hint={t("scaduti o in scadenza")} tone={numeri.documenti > 0 ? "red" : "green"} isLoading={isLoading} active={filtro === "documenti"} onClick={() => alterna("documenti")} />
+        <OperationalKpiCard compact icon={UsersRound} label={t("Senza squadra")} value={numeri.senzaSquadra} hint={t("da mettere in una squadra")} tone={numeri.senzaSquadra > 0 ? "amber" : "green"} isLoading={isLoading} active={filtro === "senza_squadra"} onClick={() => alterna("senza_squadra")} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input id="cerca-operai" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca per nome, squadra, mezzo…" aria-label="Cerca operai" className="pl-9" />
+          <Input id="cerca-operai" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Cerca per nome, squadra, mezzo…")} aria-label={t("Cerca operai")} className="pl-9" />
         </div>
         {nonAttivi > 0 && (
           <Button variant="outline" size="sm" onClick={() => { setSoloAttivi((x) => !x); setFiltro("tutti"); }} aria-pressed={!soloAttivi}>
-            {soloAttivi ? `Non più attivi (${nonAttivi})` : "Torna agli attivi"}
+            {soloAttivi ? t("Non più attivi ({nonAttivi})", { nonAttivi: String(nonAttivi ?? "") }) : t("Torna agli attivi")}
           </Button>
         )}
       </div>
 
       {error ? (
-        <ErroreCaricamento testo="Non riesco a caricare gli operai." onRiprova={() => refetch()} inCorso={isFetching} />
+        <ErroreCaricamento testo={t("Non riesco a caricare gli operai.")} onRiprova={() => refetch()} inCorso={isFetching} />
       ) : isLoading ? (
         <ScheletroLista />
       ) : data.length === 0 ? (
         <NessunOperaio onNuovo={onNuovo} />
       ) : righe.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-          Nessun operaio con questi filtri.{" "}
-          <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => { setCerca(""); setFiltro("tutti"); setSoloAttivi(true); }}>Togli i filtri</button>
+          {t("Nessun operaio con questi filtri.")}{" "}
+          <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => { setCerca(""); setFiltro("tutti"); setSoloAttivi(true); }}>{t("Togli i filtri")}</button>
         </p>
       ) : (
         <>
@@ -711,14 +718,14 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
             <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
                 <tr>
-                  <th scope="col" className="px-3 py-1.5">Operaio</th>
-                  <th scope="col" className="px-3 py-1.5">Mansione</th>
-                  <th scope="col" className="px-3 py-1.5">Squadra</th>
-                  <th scope="col" className="px-3 py-1.5">Telefono</th>
-                  <th scope="col" className="px-3 py-1.5">Documenti</th>
-                  <th scope="col" className="px-3 py-1.5">Mezzo in carico</th>
-                  <th scope="col" className="px-3 py-1.5 text-center">Cantieri</th>
-                  <th scope="col" className="px-3 py-1.5">App</th>
+                  <th scope="col" className="px-3 py-1.5">{t("Operaio")}</th>
+                  <th scope="col" className="px-3 py-1.5">{t("Mansione")}</th>
+                  <th scope="col" className="px-3 py-1.5">{t("Squadra")}</th>
+                  <th scope="col" className="px-3 py-1.5">{t("Telefono")}</th>
+                  <th scope="col" className="px-3 py-1.5">{t("Documenti")}</th>
+                  <th scope="col" className="px-3 py-1.5">{t("Mezzo in carico")}</th>
+                  <th scope="col" className="px-3 py-1.5 text-center">{t("Cantieri")}</th>
+                  <th scope="col" className="px-3 py-1.5">{t("App")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -774,29 +781,31 @@ function RigaElenco({ o, accesso }: { o: OperaioElenco; accesso?: AccessoOperaio
 }
 
 function DocumentiTesto({ o }: { o: OperaioElenco }) {
+  const t = useT();
   if (o.documenti_scaduti > 0) {
-    return <span className="font-medium text-red-600">{o.documenti_scaduti === 1 ? "1 scaduto" : `${o.documenti_scaduti} scaduti`}</span>;
+    return <span className="font-medium text-red-600">{o.documenti_scaduti === 1 ? t("1 scaduto") : t("{importo} scaduti", { importo: String(o.documenti_scaduti ?? "") })}</span>;
   }
   if (o.documenti_in_scadenza > 0 && o.prossima_scadenza) {
-    return <span className="text-amber-700">Scade il {formatDateIt(o.prossima_scadenza)}</span>;
+    return <span className="text-amber-700">{t("Scade il {data}", { data: formatDateIt(o.prossima_scadenza) })}</span>;
   }
-  if (o.prossima_scadenza) return <span className="text-emerald-700">In regola</span>;
-  return <span className="text-muted-foreground">Nessuno</span>;
+  if (o.prossima_scadenza) return <span className="text-emerald-700">{t("In regola")}</span>;
+  return <span className="text-muted-foreground">{t("Nessuno")}</span>;
 }
 
 // ── Stati comuni ─────────────────────────────────────────────────────────────
 
 function NessunOperaio({ onNuovo }: { onNuovo?: () => void }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border border-dashed bg-white px-6 py-10 text-center">
       <HardHat className="mx-auto h-8 w-8 text-orange-500" aria-hidden="true" />
-      <p className="mt-3 font-semibold text-slate-900">Non ci sono ancora operai</p>
+      <p className="mt-3 font-semibold text-slate-900">{t("Non ci sono ancora operai")}</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Aggiungi chi lavora nei tuoi cantieri. Se è già nel Personale, apri la sua scheda e accendi «Lavora in cantiere».
+        {t("Aggiungi chi lavora nei tuoi cantieri. Se è già nel Personale, apri la sua scheda e accendi «Lavora in cantiere».")}
       </p>
       {onNuovo && (
         <Button onClick={onNuovo} className="mt-4 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
-          <Plus className="h-4 w-4" aria-hidden="true" />Aggiungi il primo operaio
+          <Plus className="h-4 w-4" aria-hidden="true" />{t("Aggiungi il primo operaio")}
         </Button>
       )}
     </div>
@@ -804,20 +813,22 @@ function NessunOperaio({ onNuovo }: { onNuovo?: () => void }) {
 }
 
 function ErroreCaricamento({ testo, onRiprova, inCorso }: { testo: string; onRiprova: () => void; inCorso: boolean }) {
+  const t = useT();
   return (
     <div role="alert" className="flex flex-col items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 px-6 py-8 text-center">
       <Clock className="h-6 w-6 text-amber-600" aria-hidden="true" />
       <p className="text-sm font-medium text-slate-900">{testo}</p>
       <Button variant="outline" size="sm" onClick={onRiprova} disabled={inCorso} className="gap-1.5">
-        <RefreshCw className={cn("h-4 w-4", inCorso && "animate-spin")} aria-hidden="true" />Riprova
+        <RefreshCw className={cn("h-4 w-4", inCorso && "animate-spin")} aria-hidden="true" />{t("Riprova")}
       </Button>
     </div>
   );
 }
 
 function ScheletroLista() {
+  const t = useT();
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Caricamento">
+    <div className="space-y-2" aria-busy="true" aria-label={t("Caricamento")}>
       {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
     </div>
   );

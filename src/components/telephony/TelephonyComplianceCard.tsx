@@ -12,6 +12,7 @@ import { campiDaTrovato, separaCivico } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, Upload, Loader2, FileCheck2, Send, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Compliance {
   id?: string;
@@ -55,6 +56,7 @@ const STATO_META: Record<string, { label: string; cls: string; icon: typeof Chec
  * è sua, non della piattaforma. All'invio si crea il requirement group su Telnyx.
  */
 export function TelephonyComplianceCard() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { role } = useAuth();
   const isAdmin = role === "super_admin";
@@ -83,7 +85,7 @@ export function TelephonyComplianceCard() {
 
   const save = useMutation({
     mutationFn: async (patch?: Partial<Compliance>) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       const row = { company_id: companyId, ...form, ...patch, updated_at: new Date().toISOString() };
       delete (row as Record<string, unknown>).id;
       const { error } = await supabase.from("company_telephony_compliance" as never)
@@ -91,7 +93,7 @@ export function TelephonyComplianceCard() {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["telephony-compliance"] }); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Errore salvataggio")),
   });
 
   const uploadDoc = async (field: "doc_identita_path" | "doc_indirizzo_path" | "doc_visura_path", file: File) => {
@@ -104,9 +106,9 @@ export function TelephonyComplianceCard() {
       if (error) throw error;
       setForm((f) => ({ ...f, [field]: path }));
       await save.mutateAsync({ [field]: path } as Partial<Compliance>);
-      toast.success("Documento caricato");
+      toast.success(t("Documento caricato"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore caricamento documento");
+      toast.error(e instanceof Error ? e.message : t("Errore caricamento documento"));
     } finally {
       setUploading(null);
     }
@@ -116,12 +118,12 @@ export function TelephonyComplianceCard() {
     mutationFn: async () => {
       // Validazione minima lato client.
       const missing: string[] = [];
-      if (!form.ragione_sociale) missing.push("Ragione sociale");
-      if (!form.partita_iva) missing.push("Partita IVA");
-      if (!form.indirizzo || !form.citta || !form.cap) missing.push("Indirizzo completo");
-      if (!form.doc_identita_path) missing.push("Documento d'identità");
-      if (!form.doc_indirizzo_path) missing.push("Prova di indirizzo");
-      if (missing.length) throw new Error("Mancano: " + missing.join(", "));
+      if (!form.ragione_sociale) missing.push(t("Ragione sociale"));
+      if (!form.partita_iva) missing.push(t("Partita IVA"));
+      if (!form.indirizzo || !form.citta || !form.cap) missing.push(t("Indirizzo completo"));
+      if (!form.doc_identita_path) missing.push(t("Documento d'identità"));
+      if (!form.doc_indirizzo_path) missing.push(t("Prova di indirizzo"));
+      if (missing.length) throw new Error(t("Mancano: {elenco}", { elenco: missing.join(", ") }));
       await save.mutateAsync({ stato: "in_revisione", inviato_il: new Date().toISOString() } as Partial<Compliance>);
       // Crea il requirement group su Telnyx (intestato a QUESTA azienda).
       const { data, error } = await supabase.functions.invoke("telnyx-requirement-group", {
@@ -133,11 +135,11 @@ export function TelephonyComplianceCard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["telephony-compliance"] });
-      toast.success("Dati inviati a Telnyx per la validazione");
+      toast.success(t("Dati inviati a Telnyx per la validazione"));
     },
     onError: (e: unknown) => {
       queryClient.invalidateQueries({ queryKey: ["telephony-compliance"] });
-      toast.error(e instanceof Error ? e.message : "Errore invio");
+      toast.error(e instanceof Error ? e.message : t("Errore invio"));
     },
   });
 
@@ -149,8 +151,8 @@ export function TelephonyComplianceCard() {
         .eq("company_id", companyId!);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["telephony-compliance"] }); toast.success("Stato aggiornato"); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore revisione"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["telephony-compliance"] }); toast.success(t("Stato aggiornato")); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Errore revisione")),
   });
 
   const viewDoc = async (path: string | null) => {
@@ -167,26 +169,25 @@ export function TelephonyComplianceCard() {
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" /> Dati normativi azienda
+            <ShieldCheck className="h-5 w-5 text-primary" /> {t("Dati normativi azienda")}
           </CardTitle>
           <CardDescription>
-            Per acquistare numeri italiani la tua azienda deve fornire i propri dati e documenti.
-            La titolarità del numero è della tua azienda.
+            {t("Per acquistare numeri italiani la tua azienda deve fornire i propri dati e documenti. La titolarità del numero è della tua azienda.")}
           </CardDescription>
         </div>
         <Badge variant="outline" className={`shrink-0 gap-1 ${meta.cls}`}>
-          <StatoIcon className="h-3.5 w-3.5" /> {meta.label}
+          <StatoIcon className="h-3.5 w-3.5" /> {t(meta.label)}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
         {form.stato === "rifiutato" && form.note_revisione && (
           <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            <strong>Rifiutato:</strong> {form.note_revisione} — correggi e reinvia.
+            <strong>{t("Rifiutato:")}</strong> {form.note_revisione} {t("— correggi e reinvia.")}
           </div>
         )}
         {form.stato === "approvato" && (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-            ✓ Dati approvati: puoi acquistare numeri italiani per la tua azienda.
+            {t("✓ Dati approvati: puoi acquistare numeri italiani per la tua azienda.")}
           </div>
         )}
 
@@ -195,14 +196,14 @@ export function TelephonyComplianceCard() {
         ) : (
           <fieldset disabled={locked} className="space-y-4 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Ragione sociale *"><Input value={form.ragione_sociale ?? ""} onChange={(e) => set("ragione_sociale", e.target.value)} /></Field>
-              <Field label="Partita IVA *"><Input value={form.partita_iva ?? ""} onChange={(e) => set("partita_iva", e.target.value)} placeholder="IT01234567890" /></Field>
-              <Field label="Codice fiscale"><Input value={form.codice_fiscale ?? ""} onChange={(e) => set("codice_fiscale", e.target.value)} /></Field>
-              <Field label="Email di contatto"><Input value={form.email_contatto ?? ""} onChange={(e) => set("email_contatto", e.target.value)} type="email" /></Field>
+              <Field label={t("Ragione sociale *")}><Input value={form.ragione_sociale ?? ""} onChange={(e) => set("ragione_sociale", e.target.value)} /></Field>
+              <Field label={t("Partita IVA *")}><Input value={form.partita_iva ?? ""} onChange={(e) => set("partita_iva", e.target.value)} placeholder="IT01234567890" /></Field>
+              <Field label={t("Codice fiscale")}><Input value={form.codice_fiscale ?? ""} onChange={(e) => set("codice_fiscale", e.target.value)} /></Field>
+              <Field label={t("Email di contatto")}><Input value={form.email_contatto ?? ""} onChange={(e) => set("email_contatto", e.target.value)} type="email" /></Field>
             </div>
             <div className="grid gap-3 sm:grid-cols-6">
-              <div className="sm:col-span-4"><Field label="Indirizzo *"><CampoIndirizzo
-                aria-label="Indirizzo"
+              <div className="sm:col-span-4"><Field label={t("Indirizzo *")}><CampoIndirizzo
+                aria-label={t("Indirizzo")}
                 value={form.indirizzo ?? ""}
                 onChange={(v) => set("indirizzo", v)}
                 onScegli={(a) => {
@@ -210,17 +211,17 @@ export function TelephonyComplianceCard() {
                   setForm((f) => ({ ...f, ...campiDaTrovato(a, { via: "indirizzo", citta: "citta", cap: "cap", provincia: "provincia" }), indirizzo: strada, civico }));
                 }}
               /></Field></div>
-              <div className="sm:col-span-2"><Field label="Civico"><Input value={form.civico ?? ""} onChange={(e) => set("civico", e.target.value)} /></Field></div>
-              <div className="sm:col-span-2"><Field label="Città *"><Input value={form.citta ?? ""} onChange={(e) => set("citta", e.target.value)} /></Field></div>
-              <div className="sm:col-span-1"><Field label="CAP *"><Input value={form.cap ?? ""} onChange={(e) => set("cap", e.target.value)} /></Field></div>
-              <div className="sm:col-span-1"><Field label="Prov."><Input value={form.provincia ?? ""} onChange={(e) => set("provincia", e.target.value)} maxLength={2} /></Field></div>
-              <div className="sm:col-span-2"><Field label="Paese"><Input value={form.paese ?? "IT"} onChange={(e) => set("paese", e.target.value)} maxLength={2} /></Field></div>
+              <div className="sm:col-span-2"><Field label={t("Civico")}><Input value={form.civico ?? ""} onChange={(e) => set("civico", e.target.value)} /></Field></div>
+              <div className="sm:col-span-2"><Field label={t("Città *")}><Input value={form.citta ?? ""} onChange={(e) => set("citta", e.target.value)} /></Field></div>
+              <div className="sm:col-span-1"><Field label={t("CAP *")}><Input value={form.cap ?? ""} onChange={(e) => set("cap", e.target.value)} /></Field></div>
+              <div className="sm:col-span-1"><Field label={t("Prov.")}><Input value={form.provincia ?? ""} onChange={(e) => set("provincia", e.target.value)} maxLength={2} /></Field></div>
+              <div className="sm:col-span-2"><Field label={t("Paese")}><Input value={form.paese ?? "IT"} onChange={(e) => set("paese", e.target.value)} maxLength={2} /></Field></div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <DocUpload label="Documento titolare *" path={form.doc_identita_path} busy={uploading === "doc_identita_path"} onPick={(f) => uploadDoc("doc_identita_path", f)} />
-              <DocUpload label="Prova indirizzo *" path={form.doc_indirizzo_path} busy={uploading === "doc_indirizzo_path"} onPick={(f) => uploadDoc("doc_indirizzo_path", f)} />
-              <DocUpload label="Visura/CCIAA" path={form.doc_visura_path} busy={uploading === "doc_visura_path"} onPick={(f) => uploadDoc("doc_visura_path", f)} />
+              <DocUpload label={t("Documento titolare *")} path={form.doc_identita_path} busy={uploading === "doc_identita_path"} onPick={(f) => uploadDoc("doc_identita_path", f)} />
+              <DocUpload label={t("Prova indirizzo *")} path={form.doc_indirizzo_path} busy={uploading === "doc_indirizzo_path"} onPick={(f) => uploadDoc("doc_indirizzo_path", f)} />
+              <DocUpload label={t("Visura/CCIAA")} path={form.doc_visura_path} busy={uploading === "doc_visura_path"} onPick={(f) => uploadDoc("doc_visura_path", f)} />
             </div>
           </fieldset>
         )}
@@ -228,29 +229,29 @@ export function TelephonyComplianceCard() {
         {/* Revisione piattaforma (solo super_admin) */}
         {isAdmin && data && (
           <div className="rounded-lg border border-dashed bg-muted/30 p-3 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">Revisione piattaforma (super_admin)</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t("Revisione piattaforma (super_admin)")}</p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => viewDoc(form.doc_identita_path)} disabled={!form.doc_identita_path}>Documento identità</Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => viewDoc(form.doc_indirizzo_path)} disabled={!form.doc_indirizzo_path}>Prova indirizzo</Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => viewDoc(form.doc_visura_path)} disabled={!form.doc_visura_path}>Visura</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => viewDoc(form.doc_identita_path)} disabled={!form.doc_identita_path}>{t("Documento identità")}</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => viewDoc(form.doc_indirizzo_path)} disabled={!form.doc_indirizzo_path}>{t("Prova indirizzo")}</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => viewDoc(form.doc_visura_path)} disabled={!form.doc_visura_path}>{t("Visura")}</Button>
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => review.mutate({ stato: "approvato" })} disabled={review.isPending}>Approva</Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/40 text-destructive" onClick={() => { const n = window.prompt("Motivo del rifiuto:") || "Documenti non validi"; review.mutate({ stato: "rifiutato", nota: n }); }} disabled={review.isPending}>Rifiuta</Button>
+              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => review.mutate({ stato: "approvato" })} disabled={review.isPending}>{t("Approva")}</Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/40 text-destructive" onClick={() => { const n = window.prompt(t("Motivo del rifiuto:")) || "Documenti non validi"; review.mutate({ stato: "rifiutato", nota: n }); }} disabled={review.isPending}>{t("Rifiuta")}</Button>
             </div>
           </div>
         )}
 
         <div className="flex items-center justify-end gap-2 pt-1">
           {!locked && (
-            <Button variant="outline" size="sm" onClick={() => save.mutate(undefined, { onSuccess: () => toast.success("Salvato") })} disabled={save.isPending}>
-              {save.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null} Salva bozza
+            <Button variant="outline" size="sm" onClick={() => save.mutate(undefined, { onSuccess: () => toast.success(t("Salvato")) })} disabled={save.isPending}>
+              {save.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null} {t("Salva bozza")}
             </Button>
           )}
           {form.stato !== "approvato" && (
             <Button size="sm" onClick={() => submit.mutate()} disabled={submit.isPending || locked}>
               {submit.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Send className="h-4 w-4 mr-1.5" />}
-              {form.stato === "in_revisione" ? "In revisione…" : "Invia per validazione"}
+              {form.stato === "in_revisione" ? t("In revisione…") : t("Invia per validazione")}
             </Button>
           )}
         </div>
@@ -269,6 +270,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function DocUpload({ label, path, busy, onPick }: { label: string; path: string | null; busy: boolean; onPick: (f: File) => void }) {
+  const t = useT();
   const ref = useRef<HTMLInputElement>(null);
   return (
     <div className="space-y-1">
@@ -277,7 +279,7 @@ function DocUpload({ label, path, busy, onPick }: { label: string; path: string 
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = ""; }} />
       <Button type="button" variant="outline" size="sm" className="w-full justify-start font-normal" onClick={() => ref.current?.click()} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : path ? <FileCheck2 className="h-4 w-4 mr-2 text-emerald-600" /> : <Upload className="h-4 w-4 mr-2" />}
-        {path ? "Caricato — sostituisci" : "Carica file"}
+        {path ? t("Caricato — sostituisci") : t("Carica file")}
       </Button>
     </div>
   );

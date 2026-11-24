@@ -14,20 +14,22 @@ import { cn } from "@/lib/utils";
 import type { PropsScheda } from "../tipiScheda";
 import { dataBreve, euro, euroSegno, nomeMese, tonoScostamento } from "./formato";
 import { gruppiPerCategoria, nomeCategoria } from "./TabellaVoci";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const statiVersione = { bozza: "Bozza", approvata: "Approvata", superata: "Superata" };
 const PER_PAGINA = 10;
 
 export function PianoEconomicoMobile({ riepilogo }: PropsScheda) {
+  const t = useT();
   const [parametri, setParametri] = useSearchParams();
   const sezioneCosti = useRef<HTMLElement>(null);
   const n = useGeneralePianoNumeri(riepilogo, { versioneId: parametri.get("versione-piano"), preferenza: "bozza" });
-  if (!riepilogo.permessi.margini) return <p className="generale-panel p-4 text-sm">Piano economico riservato a chi può vedere i margini.</p>;
+  if (!riepilogo.permessi.margini) return <p className="generale-panel p-4 text-sm">{t("Piano economico riservato a chi può vedere i margini.")}</p>;
   if (n.isError) return <div role="alert" className="generale-panel flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-    Piano economico non disponibile.
-    <Button size="sm" variant="outline" onClick={n.refetch}>Riprova</Button>
+    {t("Piano economico non disponibile.")}
+    <Button size="sm" variant="outline" onClick={n.refetch}>{t("Riprova")}</Button>
   </div>;
-  if (n.vuoto) return <p className="generale-panel p-4 text-sm text-muted-foreground">Nessuna versione del piano economico.</p>;
+  if (n.vuoto) return <p className="generale-panel p-4 text-sm text-muted-foreground">{t("Nessuna versione del piano economico.")}</p>;
   if (n.isLoading || !n.piano || !n.inVista) return <Skeleton className="h-56 w-full rounded-xl" />;
 
   const { piano, inVista } = n;
@@ -50,61 +52,59 @@ export function PianoEconomicoMobile({ riepilogo }: PropsScheda) {
   return <div className="space-y-3">
     <header className="generale-panel space-y-2 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-        <h2 className="text-base font-semibold">Piano economico</h2>
-        <span className="text-xs text-muted-foreground">Importi al netto dell’IVA</span>
+        <h2 className="text-base font-semibold">{t("Piano economico")}</h2>
+        <span className="text-xs text-muted-foreground">{t("Importi al netto dell’IVA")}</span>
       </div>
-      {n.versioni.length > 1 ? <UniformSelect aria-label="Versione del piano" className="h-10 w-full min-w-0 text-sm"
+      {n.versioni.length > 1 ? <UniformSelect aria-label={t("Versione del piano")} className="h-10 w-full min-w-0 text-sm"
         value={inVista.id} onChange={e => scriviParametro("versione-piano", e.target.value)}>
-        {n.versioni.map(v => <option key={v.id} value={v.id}>Versione {v.numero} · {statiVersione[v.stato]}</option>)}
-      </UniformSelect> : <p className="text-xs text-muted-foreground">Versione {inVista.numero} · {statiVersione[inVista.stato]}</p>}
+        {n.versioni.map(v => <option key={v.id} value={v.id}>{t("Versione {numero} · {stato}", { numero: v.numero, stato: t(statiVersione[v.stato]) })}</option>)}
+      </UniformSelect> : <p className="text-xs text-muted-foreground">{t("Versione {numero} · {stato}", { numero: inVista.numero, stato: t(statiVersione[inVista.stato]) })}</p>}
       {parziale && <p role="status" className="rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-        Budget incompleto · le stime di costi e margine sono parziali.
+        {t("Budget incompleto · le stime di costi e margine sono parziali.")}
       </p>}
-      {piano.chiusa && <p className="text-xs text-muted-foreground">Operazione chiusa · valori finali dal registrato.</p>}
+      {piano.chiusa && <p className="text-xs text-muted-foreground">{t("Operazione chiusa · valori finali dal registrato.")}</p>}
     </header>
 
-    <section aria-label="Costi e margine del piano" className="grid gap-2.5 min-[680px]:grid-cols-2">
+    <section aria-label={t("Costi e margine del piano")} className="grid gap-2.5 min-[680px]:grid-cols-2">
       {vedeCosti && <div className="generale-panel min-w-0 p-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Costi</h3>
+          <h3 className="text-sm font-semibold">{t("Costi")}</h3>
           <Button type="button" size="sm" variant="ghost" className="h-10 px-2 text-xs text-primary" onClick={() => {
             sezioneCosti.current?.focus({ preventScroll: true });
             sezioneCosti.current?.scrollIntoView({ block: "start" });
           }}>
-            Voci di costo <ArrowDown className="size-3.5" aria-hidden="true" />
+            {t("Voci di costo")} <ArrowDown className="size-3.5" aria-hidden="true" />
           </Button>
         </div>
         <ValoriPiano valori={confronto.totali.costi} />
-        {!piano.chiusa && <dl className="mt-2 border-t pt-1"><Valore titolo="Da sostenere" cifra={confronto.totali.costi.aFinire} /></dl>}
+        {!piano.chiusa && <dl className="mt-2 border-t pt-1"><Valore titolo={t("Da sostenere")} cifra={confronto.totali.costi.aFinire} /></dl>}
       </div>}
       <div className="generale-panel min-w-0 border-blue-200 p-3 dark:border-blue-900">
-        <h3 className="mb-1 text-sm font-semibold">Margine</h3>
+        <h3 className="mb-1 text-sm font-semibold">{t("Margine")}</h3>
         <ValoriPiano valori={confronto.totali.margine} margine realeDisponibile={realeCompleto} />
         {!parziale && realeCompleto && !piano.chiusa && <dl className="mt-2 border-t pt-1">
-          <Valore titolo="Scostamento dal previsto" cifra={confronto.totali.margine.scostamento} delta />
+          <Valore titolo={t("Scostamento dal previsto")} cifra={confronto.totali.margine.scostamento} delta />
         </dl>}
       </div>
     </section>
 
-    {vista === "cassa" && vedeCosti && riepilogo.permessi.importi && realeCompleto && <section aria-label="Indicatori di cassa" className="generale-panel p-3">
-      <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold"><Wallet className="size-4 text-primary" aria-hidden="true" /> Cassa</h3>
+    {vista === "cassa" && vedeCosti && riepilogo.permessi.importi && realeCompleto && <section aria-label={t("Indicatori di cassa")} className="generale-panel p-3">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold"><Wallet className="size-4 text-primary" aria-hidden="true" /> {t("Cassa")}</h3>
       <dl className="divide-y">
-        <Valore titolo="Capitale investito a oggi" cifra={piano.capitale.investitoOggi} />
-        <Valore titolo="Picco stimato" cifra={piano.calendarioCompleto === false ? null : piano.capitale.massimoStima} />
+        <Valore titolo={t("Capitale investito a oggi")} cifra={piano.capitale.investitoOggi} />
+        <Valore titolo={t("Picco stimato")} cifra={piano.calendarioCompleto === false ? null : piano.capitale.massimoStima} />
       </dl>
-      {piano.calendarioCompleto !== false && piano.capitale.meseMassimoStima && <p className="text-xs text-muted-foreground">
-        Picco a {nomeMese(piano.capitale.meseMassimoStima)}
-      </p>}
+      {piano.calendarioCompleto !== false && piano.capitale.meseMassimoStima && <p className="text-xs text-muted-foreground">{t("Picco a {mese}", { mese: nomeMese(piano.capitale.meseMassimoStima) })}</p>}
     </section>}
 
-    {vista === "comuni" && vedeCosti && <section aria-label="Costi comuni" className="generale-panel overflow-hidden">
+    {vista === "comuni" && vedeCosti && <section aria-label={t("Costi comuni")} className="generale-panel overflow-hidden">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b p-3">
-        <h3 className="text-sm font-semibold">Costi comuni registrati</h3>
+        <h3 className="text-sm font-semibold">{t("Costi comuni registrati")}</h3>
         <strong className="text-sm tabular-nums">{euro(piano.costiComuni.totale)}</strong>
       </header>
       {piano.costiComuni.ripartizione.quote.length > 0 && <details className="group">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-medium">
-          Riparto per unità o lavoro <ChevronDown className="size-4 shrink-0 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
+          {t("Riparto per unità o lavoro")} <ChevronDown className="size-4 shrink-0 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
         </summary>
         <dl className="divide-y border-t px-3">
           {piano.costiComuni.ripartizione.quote.map(q => <Valore key={q.figliaId} titolo={q.nome} cifra={q.importo} />)}
@@ -116,14 +116,14 @@ export function PianoEconomicoMobile({ riepilogo }: PropsScheda) {
       className="generale-panel scroll-mt-[calc(var(--generale-nav-height,49px)+0.5rem)] overflow-hidden focus-visible:outline-primary">
       <div className="space-y-2 border-b px-3 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 id="piano-mobile-voci" className="text-sm font-semibold">Voci di costo</h3>
+          <h3 id="piano-mobile-voci" className="text-sm font-semibold">{t("Voci di costo")}</h3>
           {categorie.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => scriviParametro("categorie-costo")}>
-            Azzera filtro categorie
+            {t("Azzera filtro categorie")}
           </Button>}
         </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-3 size-4 text-muted-foreground" aria-hidden="true" />
-          <Input type="search" aria-label="Cerca nelle voci di costo" placeholder="Cerca voce o movimento…"
+          <Input type="search" aria-label={t("Cerca nelle voci di costo")} placeholder={t("Cerca voce o movimento…")}
             className="h-10 pl-8 text-base" maxLength={100} value={cerca}
             onChange={e => scriviParametro("piano-cerca-costi", e.target.value)} />
         </div>
@@ -134,6 +134,7 @@ export function PianoEconomicoMobile({ riepilogo }: PropsScheda) {
 }
 
 function VociCostoMobile({ righe, ricerca }: { righe: RigaConfronto[]; ricerca: string }) {
+  const t = useT();
   const gruppi = gruppiPerCategoria(righe).map(({ categoria, righe }) => {
     const nome = nomeCategoria(categoria);
     const voci = righe.flatMap(riga => {
@@ -146,8 +147,8 @@ function VociCostoMobile({ righe, ricerca }: { righe: RigaConfronto[]; ricerca: 
   const numero = gruppi.reduce((totale, gruppo) => totale + gruppo.voci.length, 0);
   return <div className="divide-y">
     {ricerca ? <p role="status" className="px-3 py-1.5 text-xs text-muted-foreground">
-      {numero === 0 ? "Nessuna voce trovata." : numero === 1 ? "1 voce trovata" : `${numero} voci trovate`}
-    </p> : !numero && <p className="p-3 text-sm text-muted-foreground">Nessun costo per questa selezione.</p>}
+      {numero === 0 ? t("Nessuna voce trovata.") : t(numero === 1 ? "{n} voce trovata" : "{n} voci trovate", { n: numero })}
+    </p> : !numero && <p className="p-3 text-sm text-muted-foreground">{t("Nessun costo per questa selezione.")}</p>}
     {gruppi.map(({ categoria, ...gruppo }) => <CategoriaCostoMobile key={`${categoria}:${ricerca}`} {...gruppo} ricercaAttiva={!!ricerca} />)}
   </div>;
 }
@@ -159,17 +160,18 @@ function CategoriaCostoMobile({ nome, voci, totale, riepilogaCategoria, ricercaA
   riepilogaCategoria: boolean;
   ricercaAttiva: boolean;
 }) {
+  const t = useT();
   const [aperta, setAperta] = useState(ricercaAttiva);
   const [limite, setLimite] = useState(PER_PAGINA);
   return <details className="group" open={aperta} onToggle={e => setAperta(e.currentTarget.open)}>
     <summary className="grid min-h-12 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto_1rem] items-center gap-2 px-3 py-2.5">
-      <span className="min-w-0 break-words text-sm font-medium">{nome}</span>
-      <span className="text-right text-sm tabular-nums">{euro(totale.stima)}<span className="block text-[11px] text-muted-foreground">stima categoria</span></span>
+      <span className="min-w-0 break-words text-sm font-medium">{t(nome)}</span>
+      <span className="text-right text-sm tabular-nums">{euro(totale.stima)}<span className="block text-[11px] text-muted-foreground">{t("stima categoria")}</span></span>
       <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
     </summary>
     {aperta && <div className="border-t bg-muted/20 p-3">
       {riepilogaCategoria && <ValoriPiano valori={totale} />}
-      <ul aria-label={`Voci di ${nome}`} className={cn("space-y-2", riepilogaCategoria && "mt-2")}>
+      <ul aria-label={t("Voci di {nome}", { nome: t(nome) })} className={cn("space-y-2", riepilogaCategoria && "mt-2")}>
         {voci.slice(0, limite).map(({ riga, movimenti }) => <li key={riga.chiave} className="space-y-1 rounded-md border bg-card px-2.5 py-1.5">
           <p className="break-words text-sm font-medium">{riga.etichetta}</p>
           <ValoriPiano valori={riga} />
@@ -177,17 +179,18 @@ function CategoriaCostoMobile({ nome, voci, totale, riepilogaCategoria, ricercaA
         </li>)}
       </ul>
       {voci.length > limite && <Button type="button" size="sm" variant="outline" className="mt-2 h-10"
-        onClick={() => setLimite(n => n + PER_PAGINA)}>Altre voci ({voci.length - limite})</Button>}
+        onClick={() => setLimite(n => n + PER_PAGINA)}>{t("Altre voci ({n})", { n: voci.length - limite })}</Button>}
     </div>}
   </details>;
 }
 
 function MovimentiCostoMobile({ movimenti, filtrati }: { movimenti: RigaReale[]; filtrati: boolean }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [limite, setLimite] = useState(PER_PAGINA);
   return <details className="group/movimenti border-t" open={aperto} onToggle={e => setAperto(e.currentTarget.open)}>
     <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 text-xs font-medium text-primary">
-      {filtrati ? "Movimenti trovati" : "Movimenti registrati"} ({movimenti.length})
+      {t(filtrati ? "Movimenti trovati ({n})" : "Movimenti registrati ({n})", { n: movimenti.length })}
       <ChevronDown className="size-3.5 shrink-0 group-open/movimenti:rotate-180" aria-hidden="true" />
     </summary>
     {aperto && <>
@@ -199,7 +202,7 @@ function MovimentiCostoMobile({ movimenti, filtrati }: { movimenti: RigaReale[];
         </li>)}
       </ul>
       {movimenti.length > limite && <Button type="button" size="sm" variant="outline" className="my-1 h-10"
-        onClick={() => setLimite(n => n + PER_PAGINA)}>Altri movimenti ({movimenti.length - limite})</Button>}
+        onClick={() => setLimite(n => n + PER_PAGINA)}>{t("Altri movimenti ({n})", { n: movimenti.length - limite })}</Button>}
     </>}
   </details>;
 }
@@ -209,10 +212,11 @@ function ValoriPiano({ valori, margine = false, realeDisponibile = true }: {
   margine?: boolean;
   realeDisponibile?: boolean;
 }) {
+  const t = useT();
   return <dl className="divide-y">
-    <Valore titolo="Previsto" cifra={valori.previsto} />
-    <Valore titolo={margine ? "A oggi" : "Registrato"} cifra={realeDisponibile ? valori.reale : null} />
-    <Valore titolo="Stima finale" cifra={realeDisponibile ? valori.stima : null} principale />
+    <Valore titolo={t("Previsto")} cifra={valori.previsto} />
+    <Valore titolo={margine ? t("A oggi") : t("Registrato")} cifra={realeDisponibile ? valori.reale : null} />
+    <Valore titolo={t("Stima finale")} cifra={realeDisponibile ? valori.stima : null} principale />
   </dl>;
 }
 

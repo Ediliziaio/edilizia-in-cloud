@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Widget metadata ──────────────────────────────────────────────
 const WIDGET_META: Record<
@@ -151,6 +152,7 @@ export function ConfigPanel({
   onDuplicate,
   onBack,
 }: Props) {
+  const t = useT();
   const cfg = widget.config ?? {};
   const metric = catalog.find((m) => m.id === cfg.metric);
   const isMetricWidget = !["text_markdown", "divider"].includes(widget.type);
@@ -255,7 +257,7 @@ export function ConfigPanel({
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="h-3 w-3" />
-              Widget
+              {t("Widget")}
             </button>
           ) : (
             <span />
@@ -266,20 +268,20 @@ export function ConfigPanel({
                 type="button"
                 onClick={onDuplicate}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                title="Duplica widget (⌘D)"
+                title={t("Duplica widget (⌘D)")}
               >
                 <Copy className="h-3 w-3" />
-                Duplica
+                {t("Duplica")}
               </button>
             )}
             <button
               type="button"
               onClick={onDelete}
               className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive transition-colors"
-              title="Elimina widget (Canc)"
+              title={t("Elimina widget (Canc)")}
             >
               <Trash2 className="h-3 w-3" />
-              Elimina
+              {t("Elimina")}
             </button>
           </div>
         </div>
@@ -292,8 +294,8 @@ export function ConfigPanel({
             <WidgetIcon className={`h-[18px] w-[18px] ${meta.iconColor}`} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-tight truncate">{meta.label}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Configura il widget</p>
+            <p className="text-sm font-semibold leading-tight truncate">{WIDGET_META[widget.type] ? t(meta.label) : meta.label}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{t("Configura il widget")}</p>
           </div>
         </div>
       </div>
@@ -303,10 +305,10 @@ export function ConfigPanel({
         <div className="px-4 pt-2 pb-0 shrink-0">
           <TabsList className="w-full h-8 rounded-lg">
             <TabsTrigger value="config" className="flex-1 text-xs h-6 rounded-md">
-              Configura
+              {t("Configura")}
             </TabsTrigger>
             <TabsTrigger value="advanced" className="flex-1 text-xs h-6 rounded-md">
-              Avanzate
+              {t("Avanzate")}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -318,34 +320,34 @@ export function ConfigPanel({
         >
           {/* Sezione: Generale */}
           <section>
-            <SectionLabel>Generale</SectionLabel>
+            <SectionLabel>{t("Generale")}</SectionLabel>
             <div className="space-y-2">
               <div className="space-y-1">
-                <Label className="text-xs">Titolo</Label>
+                <Label className="text-xs">{t("Titolo")}</Label>
                 <Input
                   value={cfg.title ?? ""}
                   onChange={(e) => setCfg({ title: e.target.value })}
-                  placeholder="Titolo del widget"
+                  placeholder={t("Titolo del widget")}
                   className="h-8 text-sm"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Sottotitolo</Label>
+                <Label className="text-xs">{t("Sottotitolo")}</Label>
                 <Input
                   value={cfg.subtitle ?? ""}
                   onChange={(e) => setCfg({ subtitle: e.target.value })}
-                  placeholder="Opzionale"
+                  placeholder={t("Opzionale")}
                   className="h-8 text-sm"
                 />
               </div>
               {widget.type === "text_markdown" && (
                 <div className="space-y-1">
-                  <Label className="text-xs">Contenuto</Label>
+                  <Label className="text-xs">{t("Contenuto")}</Label>
                   <Textarea
                     value={cfg.text ?? ""}
                     onChange={(e) => setCfg({ text: e.target.value })}
                     rows={6}
-                    placeholder="Inserisci il testo…"
+                    placeholder={t("Inserisci il testo…")}
                     className="text-sm resize-none"
                   />
                 </div>
@@ -356,16 +358,16 @@ export function ConfigPanel({
           {/* Sezione: Dati */}
           {isMetricWidget && (
             <section>
-              <SectionLabel>Dati</SectionLabel>
+              <SectionLabel>{t("Dati")}</SectionLabel>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Metrica</Label>
+                  <Label className="text-xs">{t("Metrica")}</Label>
                   <Select
                     value={cfg.metric ?? ""}
                     onValueChange={handleMetricChange}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Seleziona metrica…" />
+                      <SelectValue placeholder={t("Seleziona metrica…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {catalog.map((m) => (
@@ -383,7 +385,7 @@ export function ConfigPanel({
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs">Aggregazione</Label>
+                  <Label className="text-xs">{t("Aggregazione")}</Label>
                   <Select
                     value={currentAgg}
                     onValueChange={(v) => setCfg({ aggregation: v as Aggregation })}
@@ -395,25 +397,21 @@ export function ConfigPanel({
                     <SelectContent>
                       {allowedAggs.map((a) => (
                         <SelectItem key={a} value={a}>
-                          {AGG_LABELS[a] ?? a}
+                          {AGG_LABELS[a] ? t(AGG_LABELS[a]) : a}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   {metric && allowedAggs.length === 1 && (
                     <p className="text-[11px] text-muted-foreground/80 mt-1">
-                      Questa metrica supporta solo{" "}
-                      <span className="font-medium">
-                        {AGG_LABELS[allowedAggs[0]] ?? allowedAggs[0]}
-                      </span>
-                      .
+                      {t("Questa metrica supporta solo {aggregazione}.", { aggregazione: AGG_LABELS[allowedAggs[0]] ? t(AGG_LABELS[allowedAggs[0]]) : allowedAggs[0] })}
                     </p>
                   )}
                 </div>
 
                 {supportsBreakdown && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Scomposizione</Label>
+                    <Label className="text-xs">{t("Scomposizione")}</Label>
                     <Select
                       value={currentBreakdown}
                       onValueChange={(v) => setCfg({ breakdown: v as BreakdownDim })}
@@ -425,7 +423,7 @@ export function ConfigPanel({
                       <SelectContent>
                         {allowedDims.map((d) => (
                           <SelectItem key={d} value={d}>
-                            {DIM_LABELS[d] ?? d}
+                            {DIM_LABELS[d] ? t(DIM_LABELS[d]) : d}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -439,10 +437,10 @@ export function ConfigPanel({
           {/* Sezione: Aspetto (stat_tile / alert_list / progress / gauge) */}
           {supportsAppearance && (
             <section>
-              <SectionLabel>Aspetto</SectionLabel>
+              <SectionLabel>{t("Aspetto")}</SectionLabel>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Tono cromatico</Label>
+                  <Label className="text-xs">{t("Tono cromatico")}</Label>
                   <Select
                     value={cfg.tone ?? "auto"}
                     onValueChange={(v) =>
@@ -458,40 +456,39 @@ export function ConfigPanel({
                     <SelectContent>
                       {Object.entries(TONE_LABELS).map(([k, v]) => (
                         <SelectItem key={k} value={k}>
-                          {v}
+                          {t(v)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <p className="text-[11px] text-muted-foreground leading-snug mt-1">
-                    Lasciato su "Automatico" il colore deriva dal rapporto
-                    valore / target.
+                    {t("Lasciato su \"Automatico\" il colore deriva dal rapporto valore / target.")}
                   </p>
                 </div>
                 {(widget.type === "stat_tile" ||
                   widget.type === "gauge" ||
                   widget.type === "progress") && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Etichetta stato</Label>
+                    <Label className="text-xs">{t("Etichetta stato")}</Label>
                     <Input
                       value={cfg.statusLabel ?? ""}
                       onChange={(e) =>
                         setCfg({ statusLabel: e.target.value || undefined })
                       }
-                      placeholder='es. "Eccellente", "In linea"'
+                      placeholder={t("es. \"Eccellente\", \"In linea\"")}
                       className="h-8 text-sm"
                     />
                   </div>
                 )}
                 <div className="space-y-1">
-                  <Label className="text-xs">Descrizione</Label>
+                  <Label className="text-xs">{t("Descrizione")}</Label>
                   <Textarea
                     value={cfg.description ?? ""}
                     onChange={(e) =>
                       setCfg({ description: e.target.value || undefined })
                     }
                     rows={2}
-                    placeholder="Breve nota mostrata sotto il valore"
+                    placeholder={t("Breve nota mostrata sotto il valore")}
                     className="text-sm resize-none"
                   />
                 </div>
@@ -502,7 +499,7 @@ export function ConfigPanel({
           {/* Sezione: Periodo */}
           {isMetricWidget && (
             <section>
-              <SectionLabel>Periodo</SectionLabel>
+              <SectionLabel>{t("Periodo")}</SectionLabel>
               <Select
                 value={cfg.filter?.period ?? "none"}
                 onValueChange={(v) =>
@@ -515,13 +512,13 @@ export function ConfigPanel({
                 }
               >
                 <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Eredita dalla dashboard" />
+                  <SelectValue placeholder={t("Eredita dalla dashboard")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Eredita dalla dashboard</SelectItem>
+                  <SelectItem value="none">{t("Eredita dalla dashboard")}</SelectItem>
                   {PERIODS.map((p) => (
                     <SelectItem key={p.value} value={p.value}>
-                      {p.label}
+                      {t(p.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -538,11 +535,11 @@ export function ConfigPanel({
           {/* Formato numerico */}
           {isMetricWidget && (
             <section>
-              <SectionLabel>Formato</SectionLabel>
+              <SectionLabel>{t("Formato")}</SectionLabel>
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Valuta</Label>
+                    <Label className="text-xs">{t("Valuta")}</Label>
                     <Select
                       value={cfg.format?.currency ?? "none"}
                       onValueChange={(v) =>
@@ -558,14 +555,14 @@ export function ConfigPanel({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Nessuna</SelectItem>
-                        <SelectItem value="EUR">EUR (€)</SelectItem>
-                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="none">{t("Nessuna")}</SelectItem>
+                        <SelectItem value="EUR">{t("EUR (€)")}</SelectItem>
+                        <SelectItem value="USD">{t("USD ($)")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Decimali</Label>
+                    <Label className="text-xs">{t("Decimali")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -580,14 +577,14 @@ export function ConfigPanel({
                           },
                         })
                       }
-                      placeholder="auto"
+                      placeholder={t("auto")}
                       className="h-8 text-sm"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Prefisso</Label>
+                    <Label className="text-xs">{t("Prefisso")}</Label>
                     <Input
                       value={cfg.format?.prefix ?? ""}
                       onChange={(e) =>
@@ -598,12 +595,12 @@ export function ConfigPanel({
                           },
                         })
                       }
-                      placeholder="es. €"
+                      placeholder={t("es. €")}
                       className="h-8 text-sm"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Suffisso</Label>
+                    <Label className="text-xs">{t("Suffisso")}</Label>
                     <Input
                       value={cfg.format?.suffix ?? ""}
                       onChange={(e) =>
@@ -614,7 +611,7 @@ export function ConfigPanel({
                           },
                         })
                       }
-                      placeholder="es. %"
+                      placeholder={t("es. %")}
                       className="h-8 text-sm"
                     />
                   </div>
@@ -626,11 +623,11 @@ export function ConfigPanel({
           {/* Obiettivi (progress / gauge) */}
           {(widget.type === "progress" || widget.type === "gauge") && (
             <section>
-              <SectionLabel>Obiettivi</SectionLabel>
+              <SectionLabel>{t("Obiettivi")}</SectionLabel>
               <div className="space-y-2">
                 {widget.type === "gauge" && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Valore minimo</Label>
+                    <Label className="text-xs">{t("Valore minimo")}</Label>
                     <Input
                       type="number"
                       value={cfg.min ?? ""}
@@ -645,7 +642,7 @@ export function ConfigPanel({
                 )}
                 <div className="space-y-1">
                   <Label className="text-xs">
-                    {widget.type === "gauge" ? "Valore massimo" : "Target"}
+                    {widget.type === "gauge" ? t("Valore massimo") : t("Target")}
                   </Label>
                   <Input
                     type="number"
@@ -664,9 +661,9 @@ export function ConfigPanel({
           {/* Confronto (solo widget KPI) */}
           {widget.type === "kpi_card" && (
             <section>
-              <SectionLabel>Confronto</SectionLabel>
+              <SectionLabel>{t("Confronto")}</SectionLabel>
               <div className="space-y-1">
-                <Label className="text-xs">Mostra variazione rispetto a</Label>
+                <Label className="text-xs">{t("Mostra variazione rispetto a")}</Label>
                 <Select
                   value={cfg.compareTo ?? "none"}
                   onValueChange={(v) =>
@@ -685,8 +682,7 @@ export function ConfigPanel({
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground leading-snug mt-1">
-                  Quando disponibile, la scheda KPI mostrerà un badge con la
-                  variazione percentuale.
+                  {t("Quando disponibile, la scheda KPI mostrerà un badge con la variazione percentuale.")}
                 </p>
               </div>
             </section>
@@ -695,11 +691,11 @@ export function ConfigPanel({
           {/* Colonne personalizzate (solo tabella) */}
           {widget.type === "table" && (
             <section>
-              <SectionLabel>Colonne tabella</SectionLabel>
+              <SectionLabel>{t("Colonne tabella")}</SectionLabel>
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Intestazione categoria</Label>
+                    <Label className="text-xs">{t("Intestazione categoria")}</Label>
                     <Input
                       value={cfg.columns?.[0]?.label ?? ""}
                       onChange={(e) =>
@@ -710,12 +706,12 @@ export function ConfigPanel({
                           ],
                         })
                       }
-                      placeholder="Categoria"
+                      placeholder={t("Categoria")}
                       className="h-8 text-sm"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Intestazione valore</Label>
+                    <Label className="text-xs">{t("Intestazione valore")}</Label>
                     <Input
                       value={cfg.columns?.[1]?.label ?? ""}
                       onChange={(e) =>
@@ -726,13 +722,13 @@ export function ConfigPanel({
                           ],
                         })
                       }
-                      placeholder="Valore"
+                      placeholder={t("Valore")}
                       className="h-8 text-sm"
                     />
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-snug">
-                  Personalizza le intestazioni delle due colonne della tabella.
+                  {t("Personalizza le intestazioni delle due colonne della tabella.")}
                 </p>
               </div>
             </section>
@@ -741,16 +737,16 @@ export function ConfigPanel({
           {/* Azione (alert_list) ─────────────────────────────── */}
           {widget.type === "alert_list" && (
             <section>
-              <SectionLabel>Link azione</SectionLabel>
+              <SectionLabel>{t("Link azione")}</SectionLabel>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Etichetta link</Label>
+                  <Label className="text-xs">{t("Etichetta link")}</Label>
                   <Input
                     value={cfg.actionLabel ?? ""}
                     onChange={(e) =>
                       setCfg({ actionLabel: e.target.value || undefined })
                     }
-                    placeholder='es. "Vedi tutti gli alert"'
+                    placeholder={t("es. \"Vedi tutti gli alert\"")}
                     className="h-8 text-sm"
                   />
                 </div>
@@ -766,7 +762,7 @@ export function ConfigPanel({
                   />
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-snug">
-                  Mostrato in fondo al widget. Lascia vuoto per nasconderlo.
+                  {t("Mostrato in fondo al widget. Lascia vuoto per nasconderlo.")}
                 </p>
               </div>
             </section>
@@ -775,8 +771,7 @@ export function ConfigPanel({
           {/* Placeholder per widget senza impostazioni avanzate */}
           {widget.type === "divider" && (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              Configura titolo e sottotitolo nella tab "Configura". Esempi
-              utili: "SALES CONTROL", "PIPELINE & FORECAST".
+              {t("Configura titolo e sottotitolo nella tab \"Configura\". Esempi utili: \"SALES CONTROL\", \"PIPELINE & FORECAST\".")}
             </div>
           )}
         </TabsContent>

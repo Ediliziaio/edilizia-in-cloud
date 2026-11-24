@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CampoProps {
   id: string;
@@ -88,6 +89,7 @@ export interface AperturaSezioniPos { aperta: (id: string) => boolean; alterna: 
 export const AperturaSezioniContext = createContext<AperturaSezioniPos | null>(null);
 
 export function Sezione({ id, numero, titolo, riferimento, mancanti, descrizione, azioni, children }: SezioneProps) {
+  const t = useT();
   const apertura = useContext(AperturaSezioniContext);
   const aperta = apertura ? apertura.aperta(id) : true;
   const intestazione = (
@@ -111,20 +113,20 @@ export function Sezione({ id, numero, titolo, riferimento, mancanti, descrizione
                   className="flex min-h-8 items-center gap-2 rounded-md text-left font-semibold">{intestazione}</button>
               : <span className="flex items-center gap-2">{intestazione}</span>}
           </h2>
-          <p className="mt-0.5 pl-8 text-[11px] text-muted-foreground max-sm:hidden">Allegato XV, {riferimento}</p>
+          <p className="mt-0.5 pl-8 text-[11px] text-muted-foreground max-sm:hidden">{t("Allegato XV, {riferimento}", { riferimento: String(riferimento ?? "") })}</p>
           {descrizione && <div className="mt-1 pl-8 text-xs text-muted-foreground max-sm:hidden">{descrizione}</div>}
         </div>
         <div className={cn("flex items-center gap-2 max-sm:shrink-0", azioni && "max-sm:contents")}>
           {mancanti > 0 ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200">
               <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-              <span className="max-sm:hidden">{mancanti === 1 ? "1 voce da completare" : `${mancanti} voci da completare`}</span>
+              <span className="max-sm:hidden">{mancanti === 1 ? t("1 voce da completare") : t("{mancanti} voci da completare", { mancanti: String(mancanti ?? "") })}</span>
               <span className="sm:hidden">{mancanti}</span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200" aria-label="Completa">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200" aria-label={t("Completa")}>
               <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-              <span className="max-sm:hidden">Completa</span>
+              <span className="max-sm:hidden">{t("Completa")}</span>
             </span>
           )}
           {azioni && <div className="min-w-0 max-sm:col-span-2">{azioni}</div>}
@@ -137,6 +139,7 @@ export function Sezione({ id, numero, titolo, riferimento, mancanti, descrizione
 
 /** Una riga di un elenco (dirigente, addetto, lavoratore…) con il pulsante per toglierla. */
 export function Riga({ children, onRemove, readOnly, etichettaRimuovi }: { children: ReactNode; onRemove: () => void; readOnly?: boolean; etichettaRimuovi: string }) {
+  const t = useT();
   return (
     <div className="relative rounded-lg border bg-slate-50/60 p-3">
       {!readOnly && (
@@ -146,7 +149,7 @@ export function Riga({ children, onRemove, readOnly, etichettaRimuovi }: { child
           className="absolute right-2 top-2 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-red-50 hover:text-red-700"
           aria-label={etichettaRimuovi}
         >
-          Togli
+          {t("Togli")}
         </button>
       )}
       {children}

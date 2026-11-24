@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   titolo: string;
@@ -30,6 +31,7 @@ interface Props {
 export function ExtraRichiudibile({
   titolo, titoloBreve, icona, stato, statoDettaglio, statoTono = "verde", aperto, onApertoChange, children, className,
 }: Props) {
+  const t = useT();
   return (
     <Collapsible
       open={aperto}
@@ -65,7 +67,7 @@ export function ExtraRichiudibile({
               {statoDettaglio ? <span className={stato ? "max-sm:hidden" : undefined}>{stato ? " · " : ""}{statoDettaglio}</span> : null}
             </span>
           ) : (
-            <span className="shrink-0 text-[11px] text-muted-foreground max-sm:hidden">Facoltativo</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground max-sm:hidden">{t("Facoltativo")}</span>
           )}
           <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-180")} />
         </button>

@@ -12,10 +12,12 @@ import { NOMI_VERIFICA, riepilogoVerifiche, verificaPianta, type Verifica } from
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento.ts";
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NOMI = NOMI_VERIFICA;
 
 export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica }: { documento: Planimetria; titolo: string; ambito: string; nomeStato: string; modifica?: string }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const [aperto, setAperto] = useState(false);
   const [pdf, setPdf] = useState(false);
@@ -23,15 +25,15 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica
   const { primaDi, dialogo } = useControlloPrimaDellUso(documento, modifica);
   const verifiche = useMemo(() => controllo.ok ? verificaPianta(documento, ambito) : [], [documento, ambito, controllo.ok]);
   const r = riepilogoVerifiche(verifiche);
-  const notaAmbito = documento.ambitoDocumento === "ambiente" ? "Singolo ambiente: le verifiche dell’intero alloggio sono escluse." : documento.ambitoDocumento === "alloggio" ? "Alloggio completo: sono incluse superficie e dotazioni dell’alloggio." : "Ambito non specificato: indica nell’editor se la pianta rappresenta un singolo ambiente o l’alloggio completo.";
-  if (!controllo.ok) return <section aria-label="Verifiche della pianta" className="space-y-3">
+  const notaAmbito = documento.ambitoDocumento === "ambiente" ? t("Singolo ambiente: le verifiche dell’intero alloggio sono escluse.") : documento.ambitoDocumento === "alloggio" ? t("Alloggio completo: sono incluse superficie e dotazioni dell’alloggio.") : t("Ambito non specificato: indica nell’editor se la pianta rappresenta un singolo ambiente o l’alloggio completo.");
+  if (!controllo.ok) return <section aria-label={t("Verifiche della pianta")} className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Verifiche della pianta</h2>
-      <Button size="sm" variant="outline" onClick={() => primaDi("pdf", () => undefined)}><Download className="mr-1.5 h-4 w-4" />Relazione PDF</Button>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{t("Verifiche della pianta")}</h2>
+      <Button size="sm" variant="outline" onClick={() => primaDi("pdf", () => undefined)}><Download className="mr-1.5 h-4 w-4" />{t("Relazione PDF")}</Button>
     </div>
     <Card><CardContent className="space-y-2 p-4 text-sm">
-      <p className="flex items-center gap-2 font-medium text-amber-800"><TriangleAlert className="h-4 w-4" />Verifiche in attesa del controllo del disegno</p>
-      <p className="text-muted-foreground">Misure e aperture sono ancora da verificare. Gli esiti di conformità e la relazione PDF saranno disponibili dopo il controllo, per evitare valutazioni basate su dati incerti.</p>
+      <p className="flex items-center gap-2 font-medium text-amber-800"><TriangleAlert className="h-4 w-4" />{t("Verifiche in attesa del controllo del disegno")}</p>
+      <p className="text-muted-foreground">{t("Misure e aperture sono ancora da verificare. Gli esiti di conformità e la relazione PDF saranno disponibili dopo il controllo, per evitare valutazioni basate su dati incerti.")}</p>
       <p className="text-xs text-muted-foreground">{notaAmbito}</p>
     </CardContent></Card>
     {dialogo}
@@ -52,7 +54,7 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e) {
-      toast.error("Relazione non creata", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Relazione non creata"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setPdf(false);
     }
@@ -61,19 +63,19 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Verifiche della pianta</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{t("Verifiche della pianta")}</h2>
         <Button size="sm" variant="outline" onClick={scarica} disabled={pdf}>
           {pdf ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-          Relazione PDF
+          {t("Relazione PDF")}
         </Button>
       </div>
       <Card>
         <CardContent className="space-y-3 p-4">
           <p className="text-xs text-muted-foreground">{notaAmbito}</p>
           <div className="flex flex-wrap gap-4 text-sm">
-            <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle2 className="h-4 w-4" />{r.ok} conformi</span>
-            <span className="flex items-center gap-1.5 text-amber-700"><TriangleAlert className="h-4 w-4" />{r.attenzione} da verificare</span>
-            <span className="flex items-center gap-1.5 text-red-700"><ShieldAlert className="h-4 w-4" />{r.nonConformi} non conformi</span>
+            <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle2 className="h-4 w-4" />{t("{n} conformi", { n: r.ok })}</span>
+            <span className="flex items-center gap-1.5 text-amber-700"><TriangleAlert className="h-4 w-4" />{t("{n} da verificare", { n: r.attenzione })}</span>
+            <span className="flex items-center gap-1.5 text-red-700"><ShieldAlert className="h-4 w-4" />{t("{n} non conformi", { n: r.nonConformi })}</span>
           </div>
           {mostrate.length > 0 && (
             <ul className="divide-y text-sm">
@@ -84,7 +86,7 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica
                     <span className="font-medium">{v.oggetto}</span> <span className="text-xs text-muted-foreground">· {NOMI[v.codice]} · {v.livello}</span>
                     <span className="block text-xs text-muted-foreground">{v.messaggio}</span>
                   </span>
-                  {v.valore && <span className="text-xs tabular-nums">{v.valore}{v.richiesto && <span className="text-muted-foreground"> / min {v.richiesto}</span>}</span>}
+                  {v.valore && <span className="text-xs tabular-nums">{v.valore}{v.richiesto && <span className="text-muted-foreground">{" "}{t("/ min {richiesto}", { richiesto: String(v.richiesto ?? "") })}</span>}</span>}
                 </li>
               ))}
             </ul>
@@ -92,10 +94,10 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica
           {(problemi.length > 6 || r.ok > 0) && (
             <Button size="sm" variant="ghost" className="px-0" onClick={() => setAperto((x) => !x)}>
               <ChevronDown className={`mr-1 h-4 w-4 transition-transform ${aperto ? "rotate-180" : ""}`} />
-              {aperto ? "Solo i problemi" : `Tutte le verifiche (${verifiche.length})`}
+              {aperto ? t("Solo i problemi") : t("Tutte le verifiche ({n})", { n: verifiche.length })}
             </Button>
           )}
-          <p className="text-[11px] text-muted-foreground">DM 5 luglio 1975: finestre almeno 1/8 del pavimento, altezze 2,70 m (servizi 2,40), camere 9/14 m², soggiorno 14 m², alloggio 28/38 m². I regolamenti comunali possono chiedere di più: la verifica vera la firma il tecnico.</p>
+          <p className="text-[11px] text-muted-foreground">{t("DM 5 luglio 1975: finestre almeno 1/8 del pavimento, altezze 2,70 m (servizi 2,40), camere 9/14 m², soggiorno 14 m², alloggio 28/38 m². I regolamenti comunali possono chiedere di più: la verifica vera la firma il tecnico.")}</p>
         </CardContent>
       </Card>
     </section>

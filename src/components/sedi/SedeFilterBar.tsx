@@ -11,11 +11,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useSedeFilter } from '@/store/sedeFilterStore'
 import { useSediList } from '@/hooks/useSediAnalytics'
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // v8.6.42 — Rimosso 'cantiere': i cantieri sono `orders`, non sedi.
 const TIPI_SEDE = ['showroom', 'magazzino', 'ufficio'] as const
 
 export function SedeFilterBar() {
+  const t = useT();
   const {
     sediSelezionate,
     tipoSede,
@@ -37,10 +39,10 @@ export function SedeFilterBar() {
 
   const label =
     sediSelezionate.length === 0
-      ? 'Tutte le sedi'
+      ? t("Tutte le sedi")
       : sediSelezionate.length === 1
-        ? (attive.find((s) => s.id === sediSelezionate[0])?.nome ?? '1 sede')
-        : `${sediSelezionate.length} sedi`
+        ? (attive.find((s) => s.id === sediSelezionate[0])?.nome ?? t("1 sede"))
+        : t("{n} sedi", { n: sediSelezionate.length })
 
   const hasFilter = sediSelezionate.length > 0 || tipoSede !== null
 
@@ -59,7 +61,7 @@ export function SedeFilterBar() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
-          <DropdownMenuLabel>Filtra per Sede</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("Filtra per Sede")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {attive.map((sede) => (
             <DropdownMenuCheckboxItem
@@ -84,19 +86,19 @@ export function SedeFilterBar() {
                 checked={sediSelezionate.length === 0}
                 onCheckedChange={() => setSediSelezionate([])}
               >
-                Tutte le sedi
+                {t("Tutte le sedi")}
               </DropdownMenuCheckboxItem>
             </>
           )}
           {attive.length === 0 && (
             <div className="px-3 py-2 space-y-2">
-              <p className="text-sm text-muted-foreground">Nessuna sede attiva</p>
+              <p className="text-sm text-muted-foreground">{t("Nessuna sede attiva")}</p>
               <Link
                 to="/azienda/impostazioni/sedi"
                 className="flex items-center gap-1.5 text-xs text-eic-navy hover:underline"
               >
                 <Settings className="h-3 w-3" />
-                Configura sedi
+                {t("Configura sedi")}
               </Link>
             </div>
           )}
@@ -119,7 +121,7 @@ export function SedeFilterBar() {
           }
           onClick={() => setTipoSede(tipoSede === tipo ? null : tipo)}
         >
-          {tipo}
+          {t(tipo)}
         </Button>
       ))}
 
@@ -132,7 +134,7 @@ export function SedeFilterBar() {
           className="gap-1 text-muted-foreground hover:text-foreground"
         >
           <X className="h-3 w-3" />
-          Reset
+          {t("Reset")}
         </Button>
       )}
     </div>

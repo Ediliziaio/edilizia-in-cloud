@@ -28,6 +28,7 @@ import type { PrezzarioCapitolo, PrezzarioVoce } from "@/lib/prezzario/tipi";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { fraseDiMisura } from "../../../supabase/functions/_shared/prezzarioUnita";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type SelezionePrezzario = Record<string, PrezzarioVoce>;
 interface Props {
@@ -62,6 +63,7 @@ export function SelettorePrezzario({
   valida = erroreVoce,
   anteprima,
 }: Props) {
+  const t = useT();
   const fonti = usePrezzarioFonti();
   const [capitolo, setCapitolo] = useState<string | null>(null);
   const [cercaCapitolo, setCercaCapitolo] = useState("");
@@ -137,12 +139,12 @@ export function SelettorePrezzario({
     <div className="space-y-3">
       <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-1.5">
-          <Label htmlFor="catalogo-fonte">Regione e anno</Label>
+          <Label htmlFor="catalogo-fonte">{t("Regione e anno")}</Label>
           {fonti.isError ? (
             <div role="alert" className="text-sm text-destructive">
-              I prezziari non si sono caricati.{" "}
+              {t("I prezziari non si sono caricati.")}{" "}
               <Button variant="link" onClick={() => void fonti.refetch()}>
-                Riprova
+                {t("Riprova")}
               </Button>
             </div>
           ) : (
@@ -163,8 +165,8 @@ export function SelettorePrezzario({
             >
               <option value="" disabled>
                 {fonti.isLoading
-                  ? "Caricamento prezziari…"
-                  : "Scegli un prezziario"}
+                  ? t("Caricamento prezziari…")
+                  : t("Scegli un prezziario")}
               </option>
               {(fonti.data ?? []).map((f) => (
                 <option key={f.id} value={f.id}>
@@ -178,7 +180,7 @@ export function SelettorePrezzario({
           )}
           {!fonti.isLoading && !fonti.isError && fonti.data?.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Nessun prezziario pubblicato disponibile.
+              {t("Nessun prezziario pubblicato disponibile.")}
             </p>
           )}
         </div>
@@ -186,17 +188,17 @@ export function SelettorePrezzario({
           <Button
             variant="outline"
             className="h-auto bg-primary/5 px-4 py-2 text-left"
-            aria-label="Mostra voci selezionate"
+            aria-label={t("Mostra voci selezionate")}
             disabled={disabled || selezionate.length === 0}
             onClick={rivediSelezione}
           >
             <span>
               <strong className="tabular-nums">{selezionate.length}</strong>{" "}
               {selezionate.length === 1
-                ? "voce selezionata"
-                : "voci selezionate"}
+                ? t("voce selezionata")
+                : t("voci selezionate")}
               <span className="block text-xs font-normal text-muted-foreground">
-                Rivedi e completa prima di importare
+                {t("Rivedi e completa prima di importare")}
               </span>
             </span>
           </Button>
@@ -205,8 +207,7 @@ export function SelettorePrezzario({
       {!fonteId ? (
         <div className="rounded-xl border border-dashed px-6 py-14 text-center text-muted-foreground">
           <Library className="mx-auto mb-3 h-8 w-8" aria-hidden="true" />
-          Scegli regione e anno, poi consulta le categorie e seleziona le voci
-          da importare.
+          {t("Scegli regione e anno, poi consulta le categorie e seleziona le voci da importare.")}
         </div>
       ) : (
         <div
@@ -219,11 +220,11 @@ export function SelettorePrezzario({
             <aside className="space-y-3 border-b bg-muted/20 p-3 lg:border-b-0 lg:border-r">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <FolderTree className="h-4 w-4" aria-hidden="true" />
-                Categorie del prezziario
+                {t("Categorie del prezziario")}
               </div>
               <Input
-                aria-label="Cerca categoria"
-                placeholder="Cerca categoria…"
+                aria-label={t("Cerca categoria")}
+                placeholder={t("Cerca categoria…")}
                 value={cercaCapitolo}
                 disabled={disabled}
                 onChange={(e) => setCercaCapitolo(e.target.value)}
@@ -231,18 +232,18 @@ export function SelettorePrezzario({
               />
               {caricamentoCapitoli ? (
                 <p role="status" className="text-sm text-muted-foreground">
-                  Caricamento categorie…
+                  {t("Caricamento categorie…")}
                 </p>
               ) : erroreCapitoli ? (
                 <div role="alert" className="text-sm text-destructive">
-                  Categorie non caricate.{" "}
+                  {t("Categorie non caricate.")}{" "}
                   <Button variant="link" onClick={onRiprovaCapitoli}>
-                    Riprova
+                    {t("Riprova")}
                   </Button>
                 </div>
               ) : (
                 <nav
-                  aria-label="Categorie del prezziario"
+                  aria-label={t("Categorie del prezziario")}
                   className="max-h-[48vh] space-y-1 overflow-y-auto"
                 >
                   <button
@@ -255,7 +256,7 @@ export function SelettorePrezzario({
                       !capitolo && "bg-primary/10 font-semibold text-primary",
                     )}
                   >
-                    Tutte le categorie
+                    {t("Tutte le categorie")}
                   </button>
                   {capitoliVisibili.map((c) => (
                     <button
@@ -281,7 +282,7 @@ export function SelettorePrezzario({
                   ))}
                   {capitoliVisibili.length === 0 && (
                     <p className="px-2 text-xs text-muted-foreground">
-                      Nessuna categoria trovata.
+                      {t("Nessuna categoria trovata.")}
                     </p>
                   )}
                 </nav>
@@ -294,11 +295,10 @@ export function SelettorePrezzario({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">
-                      Rivedi le voci selezionate
+                      {t("Rivedi le voci selezionate")}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Tutte le categorie e le pagine. Puoi completare le unità
-                      mancanti o togliere una voce.
+                      {t("Tutte le categorie e le pagine. Puoi completare le unità mancanti o togliere una voce.")}
                     </p>
                   </div>
                   <Button
@@ -307,7 +307,7 @@ export function SelettorePrezzario({
                     disabled={disabled}
                     onClick={() => setMostraSelezione(false)}
                   >
-                    Torna al catalogo
+                    {t("Torna al catalogo")}
                   </Button>
                 </div>
               ) : (
@@ -318,8 +318,8 @@ export function SelettorePrezzario({
                       aria-hidden="true"
                     />
                     <Input
-                      aria-label="Cerca codice o descrizione"
-                      placeholder="Cerca codice o descrizione…"
+                      aria-label={t("Cerca codice o descrizione")}
+                      placeholder={t("Cerca codice o descrizione…")}
                       value={cerca}
                       disabled={disabled}
                       onChange={(e) => {
@@ -332,8 +332,8 @@ export function SelettorePrezzario({
                   <p className="text-xs text-muted-foreground">
                     {capitolo
                       ? percorsoCapitolo(capitoli, capitolo)
-                      : "Tutte le categorie"}
-                    {capitolo ? " · include i sottocapitoli" : ""}
+                      : t("Tutte le categorie")}
+                    {capitolo ? ` · ${t("include i sottocapitoli")}` : ""}
                   </p>
                 </>
               )}
@@ -341,8 +341,8 @@ export function SelettorePrezzario({
             <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
               <span role="status" className="text-xs text-muted-foreground">
                 {!mostraSelezione && query.isFetching
-                  ? "Caricamento…"
-                  : `${totale.toLocaleString("it-IT")} ${mostraSelezione ? (totale === 1 ? "voce selezionata" : "voci selezionate") : totale === 1 ? "voce trovata" : "voci trovate"}`}
+                  ? t("Caricamento…")
+                  : t(mostraSelezione ? (totale === 1 ? "{n} voce selezionata" : "{n} voci selezionate") : totale === 1 ? "{n} voce trovata" : "{n} voci trovate", { n: totale.toLocaleString(intlCampo()) })}
               </span>
               <div className="flex gap-2">
                 <Button
@@ -359,8 +359,8 @@ export function SelettorePrezzario({
                   }}
                 >
                   {tutte
-                    ? "Deseleziona questa pagina"
-                    : "Seleziona questa pagina"}
+                    ? t("Deseleziona questa pagina")
+                    : t("Seleziona questa pagina")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -368,39 +368,37 @@ export function SelettorePrezzario({
                   disabled={disabled || selezionate.length === 0}
                   onClick={() => onSelezione({})}
                 >
-                  Azzera selezione
+                  {t("Azzera selezione")}
                 </Button>
               </div>
             </div>
             {senzaUnita > 0 && (
               <p className="border-b bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                {senzaUnita}{" "}
-                {senzaUnita === 1
-                  ? "voce di questa pagina non ha"
-                  : "voci di questa pagina non hanno"}{" "}
-                l’unità di misura.{" "}
+                {t(senzaUnita === 1
+                  ? "{n} voce di questa pagina non ha l’unità di misura."
+                  : "{n} voci di questa pagina non hanno l’unità di misura.", { n: senzaUnita })}{" "}
                 {mostraSelezione
-                  ? "Indica l’unità corretta prima di importare."
-                  : "Seleziona le voci e indica l’unità corretta."}
+                  ? t("Indica l’unità corretta prima di importare.")
+                  : t("Seleziona le voci e indica l’unità corretta.")}
               </p>
             )}
             {!mostraSelezione && query.isError ? (
               <div role="alert" className="p-6 text-center text-sm">
-                Le voci non si sono caricate.{" "}
+                {t("Le voci non si sono caricate.")}{" "}
                 <Button variant="link" onClick={() => void query.refetch()}>
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </div>
             ) : !mostraSelezione && query.isLoading ? (
               <div className="flex justify-center gap-2 p-12 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Caricamento voci…
+                {t("Caricamento voci…")}
               </div>
             ) : (
               <ul
                 ref={elenco}
                 aria-label={
-                  mostraSelezione ? "Voci selezionate" : "Voci del prezziario"
+                  mostraSelezione ? t("Voci selezionate") : t("Voci del prezziario")
                 }
                 className="max-h-[43vh] divide-y overflow-y-auto"
               >
@@ -421,7 +419,7 @@ export function SelettorePrezzario({
                     >
                       <div className="flex items-start gap-3">
                         <Checkbox
-                          aria-label={`Seleziona ${v.codice ?? v.id}`}
+                          aria-label={t("Seleziona {codice}", { codice: v.codice ?? v.id })}
                           checked={!!scelta}
                           disabled={disabled || (!scelta && !!bloccata(v))}
                           onCheckedChange={(checked) =>
@@ -432,14 +430,14 @@ export function SelettorePrezzario({
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap gap-2 text-[11px]">
                             <span className="font-mono font-semibold">
-                              {v.codice ?? "Senza codice"}
+                              {v.codice ?? t("Senza codice")}
                             </span>
                             <span className="text-muted-foreground">
                               {percorsoCapitolo(capitoli, v.capitolo_id)}
                             </span>
                             {giaPresente && (
                               <span className="text-emerald-700">
-                                Già nel listino
+                                {t("Già nel listino")}
                               </span>
                             )}
                           </div>
@@ -450,18 +448,16 @@ export function SelettorePrezzario({
                             {v.descrizione}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Unità del prezziario:{" "}
-                            {unitaOriginale || "non indicata"}
+                            {t("Unità del prezziario:")}{" "}
+                            {unitaOriginale || t("non indicata")}
                             {v.incidenza_manodopera_pct != null
-                              ? ` · Manodopera ${(v.incidenza_manodopera_pct * 100).toLocaleString("it-IT")}%`
+                              ? ` · ${t("Manodopera {valore}%", { valore: (v.incidenza_manodopera_pct * 100).toLocaleString(intlCampo()) })}`
                               : ""}
                           </p>
                           {/* Senza unità, la regola di misura sta nel testo (es. «al m² per ogni cm di
                               spessore»): mostrarla prima della scelta evita l'errore ×20. */}
                           {!unitaOriginale?.trim() && fraseDiMisura(v.descrizione) && (
-                            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                              Come si misura: «{fraseDiMisura(v.descrizione)}»
-                            </p>
+                            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("Come si misura: «{descrizione}»", { descrizione: fraseDiMisura(v.descrizione) ?? "" })}</p>
                           )}
                           {errore && (
                             <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
@@ -470,9 +466,9 @@ export function SelettorePrezzario({
                           )}
                           {scelta && !unitaOriginale?.trim() && (
                             <label className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                              Unità da usare per {v.codice ?? "questa voce"}
+                              {v.codice ? t("Unità da usare per {codice}", { codice: v.codice }) : t("Unità da usare per questa voce")}
                               <UniformSelect
-                                aria-label={`Unità per ${v.codice ?? v.id}`}
+                                aria-label={t("Unità per {codice}", { codice: v.codice ?? v.id })}
                                 value={scelta.unita_misura ?? ""}
                                 disabled={disabled}
                                 onChange={(e) =>
@@ -488,7 +484,7 @@ export function SelettorePrezzario({
                                 className="h-8 rounded-md border bg-background px-2"
                               >
                                 <option value="" disabled>
-                                  Scegli unità
+                                  {t("Scegli unità")}
                                 </option>
                                 {[
                                   "cad",
@@ -502,7 +498,7 @@ export function SelettorePrezzario({
                                   "a_corpo",
                                 ].map((um) => (
                                   <option key={um} value={um}>
-                                    {um === "a_corpo" ? "a corpo" : um}
+                                    {um === "a_corpo" ? t("a corpo") : um}
                                   </option>
                                 ))}
                               </UniformSelect>
@@ -524,8 +520,8 @@ export function SelettorePrezzario({
                 {righe.length === 0 && (
                   <li className="p-10 text-center text-sm text-muted-foreground">
                     {mostraSelezione
-                      ? "La selezione è vuota. Torna al catalogo per scegliere altre voci."
-                      : "Nessuna voce corrisponde a categoria e ricerca."}
+                      ? t("La selezione è vuota. Torna al catalogo per scegliere altre voci.")
+                      : t("Nessuna voce corrisponde a categoria e ricerca.")}
                   </li>
                 )}
               </ul>
@@ -533,14 +529,14 @@ export function SelettorePrezzario({
             <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
               <span className="text-xs text-muted-foreground">
                 {totale > 0
-                  ? `${paginaCorrente * PREZZARIO_PAGE_SIZE + 1}–${Math.min((paginaCorrente + 1) * PREZZARIO_PAGE_SIZE, totale)} di ${totale.toLocaleString("it-IT")}`
-                  : "0 voci"}
+                  ? t("{da}–{a} di {totale}", { da: paginaCorrente * PREZZARIO_PAGE_SIZE + 1, a: Math.min((paginaCorrente + 1) * PREZZARIO_PAGE_SIZE, totale), totale: totale.toLocaleString(intlCampo()) })
+                  : t("0 voci")}
               </span>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label="Pagina precedente"
+                  aria-label={t("Pagina precedente")}
                   disabled={occupato || paginaCorrente === 0}
                   onClick={() => cambiaPagina(paginaCorrente - 1)}
                 >
@@ -549,7 +545,7 @@ export function SelettorePrezzario({
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label="Pagina successiva"
+                  aria-label={t("Pagina successiva")}
                   disabled={
                     occupato ||
                     (paginaCorrente + 1) * PREZZARIO_PAGE_SIZE >= totale
@@ -569,11 +565,9 @@ export function SelettorePrezzario({
           className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
         >
           <p>
-            {inErrore.length}{" "}
-            {inErrore.length === 1
-              ? "voce selezionata da completare"
-              : "voci selezionate da completare"}{" "}
-            prima dell’importazione.
+            {t(inErrore.length === 1
+              ? "{n} voce selezionata da completare prima dell’importazione."
+              : "{n} voci selezionate da completare prima dell’importazione.", { n: inErrore.length })}
           </p>
           {!mostraSelezione && (
             <Button
@@ -583,7 +577,7 @@ export function SelettorePrezzario({
               disabled={disabled}
               onClick={rivediSelezione}
             >
-              Completa le selezionate
+              {t("Completa le selezionate")}
             </Button>
           )}
           <div className="mt-2 flex flex-wrap gap-2">
@@ -594,7 +588,7 @@ export function SelettorePrezzario({
                 disabled={disabled}
                 className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs"
                 onClick={() => toggle(v, false)}
-                aria-label={`Rimuovi dalla selezione ${v.codice ?? v.id}`}
+                aria-label={t("Rimuovi dalla selezione {codice}", { codice: v.codice ?? v.id })}
               >
                 {v.codice ?? v.descrizione.slice(0, 35)} · {valida(v)}{" "}
                 <X className="h-3 w-3" />

@@ -14,6 +14,7 @@ import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import {
   COLORI_GRAFICO, PillolaVariazione, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg,
 } from "./comune";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PuntoAndamento {
   /** Etichetta corta sull'asse («Fine nov»). */
@@ -39,6 +40,7 @@ interface Props {
 export function GraficoAndamento({
   dati, nomeSerie, colore = COLORI_GRAFICO.blu, altezza = 240, lineaZero = false, notaVariazione, senzaStatistiche,
 }: Props) {
+  const t = useT();
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
 
@@ -66,15 +68,15 @@ export function GraficoAndamento({
     <div className="space-y-3">
       {!senzaStatistiche && (
         <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-          <StatGrafico etichetta="Più alto" valore={formatEuroRiquadro(dati[stat.iMax].valore)} nota={nome(stat.iMax)} />
+          <StatGrafico etichetta={t("Più alto")} valore={formatEuroRiquadro(dati[stat.iMax].valore)} nota={nome(stat.iMax)} />
           <StatGrafico
-            etichetta="Più basso"
+            etichetta={t("Più basso")}
             valore={formatEuroRiquadro(dati[stat.iMin].valore)}
             nota={nome(stat.iMin)}
             tono={sottoZero ? "cattivo" : "neutro"}
           />
           <StatGrafico
-            etichetta="Variazione"
+            etichetta={t("Variazione")}
             valore={
               <span className="inline-flex flex-wrap items-center gap-1.5">
                 {`${stat.diff > 0 ? "+" : ""}${formatEuroRiquadro(stat.diff)}`}
@@ -115,7 +117,7 @@ export function GraficoAndamento({
                     const d = dati[i].valore - dati[i - 1].valore;
                     return (
                       <p className="mt-1.5 border-t pt-1.5 text-[11px] text-muted-foreground">
-                        Rispetto al punto prima:{" "}
+                        {t("Rispetto al punto prima:")}{" "}
                         <span className={d >= 0 ? "font-semibold text-emerald-600 dark:text-emerald-400" : "font-semibold text-rose-600 dark:text-rose-400"}>
                           {d > 0 ? "+" : ""}{formatCurrency(d)}
                         </span>

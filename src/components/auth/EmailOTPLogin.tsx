@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, ArrowLeft, CheckCircle2, ShieldCheck } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Email dell'utente appena loggato (per mostrare conferma + invio OTP). */
@@ -41,6 +42,7 @@ interface OtpInputProps {
 }
 
 function OtpInput({ value, onChange, disabled, onComplete }: OtpInputProps) {
+  const t = useT();
   const refs = useRef<Array<HTMLInputElement | null>>([]);
   const chars = value.padEnd(6, " ").slice(0, 6).split("");
 
@@ -92,7 +94,7 @@ function OtpInput({ value, onChange, disabled, onComplete }: OtpInputProps) {
           disabled={disabled}
           className="h-12 w-10 text-center text-lg font-bold tabular-nums"
           autoComplete="one-time-code"
-          aria-label={`Cifra ${idx + 1} di 6`}
+          aria-label={t("Cifra {idx} di 6", { idx: idx + 1 })}
         />
       ))}
     </div>
@@ -100,6 +102,7 @@ function OtpInput({ value, onChange, disabled, onComplete }: OtpInputProps) {
 }
 
 export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
+  const t = useT();
   const { toast } = useToast();
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -130,7 +133,7 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         body: { email: email.trim().toLowerCase() },
       });
       if (error) {
-        toast({ title: "Errore invio codice", description: error.message, variant: "destructive" });
+        toast({ title: t("Errore invio codice"), description: error.message, variant: "destructive" });
         return;
       }
       const result = data as { status?: string; cooldown?: number; demo?: boolean; demo_code?: string } | null;
@@ -139,8 +142,8 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         const cooldown = result?.cooldown ?? RESEND_COOLDOWN_SEC;
         setSecondsLeft(cooldown);
         toast({
-          title: "Codice già inviato",
-          description: `Aspetta ${cooldown}s prima di richiederne uno nuovo.`,
+          title: t("Codice già inviato"),
+          description: t("Aspetta {cooldown}s prima di richiederne uno nuovo.", { cooldown: String(cooldown ?? "") }),
         });
         return;
       }
@@ -153,22 +156,22 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         setOtp(result.demo_code);
         if (showToast) {
           toast({
-            title: "Account demo — codice automatico",
-            description: `Codice ${result.demo_code} inserito. Premi "Conferma e accedi".`,
+            title: t("Account demo — codice automatico"),
+            description: t("Codice {demo_code} inserito. Premi \"Conferma e accedi\".", { demo_code: String(result.demo_code ?? "") }),
           });
         }
         return;
       }
       if (showToast) {
         toast({
-          title: "Codice inviato",
-          description: `Controlla la casella di posta (anche spam). Valido ${OTP_TTL_MIN} minuti.`,
+          title: t("Codice inviato"),
+          description: t("Controlla la casella di posta (anche spam). Valido {OTP_TTL_MIN} minuti.", { OTP_TTL_MIN: String(OTP_TTL_MIN ?? "") }),
         });
       }
     } finally {
       setIsLoading(false);
     }
-  }, [email, toast]);
+  }, [email, toast, t]);
 
   useEffect(() => {
     if (sentOnceRef.current) return;
@@ -185,7 +188,7 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         body: { email: email.trim().toLowerCase(), code: cleanOtp },
       });
       if (error) {
-        toast({ title: "Errore verifica", description: error.message, variant: "destructive" });
+        toast({ title: t("Errore verifica"), description: error.message, variant: "destructive" });
         setOtp("");
         return;
       }
@@ -193,17 +196,19 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
       if (!result || result.status !== "ok") {
         const msg =
           result?.status === "expired"
-            ? "Il codice è scaduto. Richiedine uno nuovo."
+            ? t("Il codice è scaduto. Richiedine uno nuovo.")
             : result?.status === "too_many_attempts"
-              ? "Troppi tentativi falliti. Richiedi un nuovo codice."
+              ? t("Troppi tentativi falliti. Richiedi un nuovo codice.")
               : result?.status === "no_active_code"
-                ? "Nessun codice attivo. Richiedine uno nuovo."
-                : `Codice non valido${result?.attempts_left !== undefined ? ` (${result.attempts_left} tentativi rimasti)` : ""}.`;
-        toast({ title: "Codice non valido", description: msg, variant: "destructive" });
+                ? t("Nessun codice attivo. Richiedine uno nuovo.")
+                : result?.attempts_left !== undefined
+                  ? t("Codice non valido ({n} tentativi rimasti).", { n: result.attempts_left })
+                  : t("Codice non valido.");
+        toast({ title: t("Codice non valido"), description: msg, variant: "destructive" });
         setOtp("");
         return;
       }
-      toast({ title: "Accesso confermato", description: "Stai entrando…" });
+      toast({ title: t("Accesso confermato"), description: t("Stai entrando…") });
       onVerified();
     } finally {
       setIsLoading(false);
@@ -225,16 +230,16 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         <div className="mx-auto h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
           <ShieldCheck className="h-6 w-6 text-amber-600 dark:text-amber-400" />
         </div>
-        <h2 className="text-xl font-bold text-foreground">Verifica di sicurezza</h2>
+        <h2 className="text-xl font-bold text-foreground">{t("Verifica di sicurezza")}</h2>
         <p className="text-sm text-muted-foreground">
           {demoCode ? (
             <>
-              Account demo — nessuna email inviata a{" "}
+              {t("Account demo — nessuna email inviata a")}{" "}
               <strong className="text-foreground">{maskedEmail}</strong>
             </>
           ) : (
             <>
-              Abbiamo inviato un codice a <strong className="text-foreground">{maskedEmail}</strong>
+              {t("Abbiamo inviato un codice a")} <strong className="text-foreground">{maskedEmail}</strong>
             </>
           )}
         </p>
@@ -243,19 +248,19 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
       {demoCode && (
         <div className="rounded-lg border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-center">
           <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300 font-semibold mb-1">
-            Codice demo
+            {t("Codice demo")}
           </p>
           <p className="text-2xl font-mono font-bold tracking-[0.4em] text-amber-900 dark:text-amber-100">
             {demoCode}
           </p>
           <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1.5">
-            Già inserito sotto · premi &quot;Conferma e accedi&quot;
+            {t("Già inserito sotto · premi \"Conferma e accedi\"")}
           </p>
         </div>
       )}
 
       <div className="space-y-3">
-        <Label className="text-center block">Inserisci il codice a 6 cifre</Label>
+        <Label className="text-center block">{t("Inserisci il codice a 6 cifre")}</Label>
         <OtpInput
           value={otp}
           onChange={setOtp}
@@ -272,21 +277,21 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         {isLoading ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Verifica…
+            {t("Verifica…")}
           </>
         ) : (
           <>
             <CheckCircle2 className="h-4 w-4 mr-2" />
-            Conferma e accedi
+            {t("Conferma e accedi")}
           </>
         )}
       </Button>
 
       <div className="text-center text-xs text-muted-foreground space-y-2">
         <div>
-          Non hai ricevuto l&apos;email?{" "}
+          {t("Non hai ricevuto l'email?")}{" "}
           {secondsLeft > 0 ? (
-            <span>Reinvia tra {secondsLeft}s</span>
+            <span>{t("Reinvia tra {secondsLeft}s", { secondsLeft: String(secondsLeft ?? "") })}</span>
           ) : (
             <button
               type="button"
@@ -294,13 +299,13 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
               disabled={isLoading}
               className="text-primary hover:underline font-medium"
             >
-              Reinvia codice
+              {t("Reinvia codice")}
             </button>
           )}
         </div>
         <p className="text-[11px]">
           <Mail className="inline h-3 w-3 mr-1" />
-          Controlla anche spam. Valido {OTP_TTL_MIN} minuti.
+          {t("Controlla anche spam. Valido {OTP_TTL_MIN} minuti.", { OTP_TTL_MIN: String(OTP_TTL_MIN ?? "") })}
         </p>
       </div>
 
@@ -313,7 +318,7 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         disabled={isLoading}
       >
         <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-        Annulla e torna al login
+        {t("Annulla e torna al login")}
       </Button>
     </div>
   );

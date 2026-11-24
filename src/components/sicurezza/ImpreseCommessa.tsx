@@ -23,6 +23,7 @@ import { PosEsternoImpresa } from "./PosEsternoImpresa";
 import { RUOLI_DITTA, useSalvaRuoloSicurezza, type AvvioSicurezza, type ConsegnaPosEsterno, type RuoloDittaSicurezza } from "@/hooks/useAvvioSicurezza";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ImpreseCommessa({
   companyId,
@@ -41,6 +42,7 @@ export function ImpreseCommessa({
     affidataria?: { id: string; revisione: number };
     consegne: ConsegnaPosEsterno[]; disponibile: boolean; riprova: () => void };
 }) {
+  const t = useT();
   const p = usePermissions();
   const q = useImpreseCommessa(companyId, orderId);
   const comuni = useEvidenzeFascicolo({ companyId, orderId });
@@ -51,12 +53,12 @@ export function ImpreseCommessa({
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-base">Imprese e addetti esterni</CardTitle>
+          <CardTitle className="text-base">{t("Imprese e addetti esterni")}</CardTitle>
           {dataRiferimento ? (
-            <Badge variant="outline">Data di riferimento: {giorno}</Badge>
+            <Badge variant="outline">{t("Data di riferimento: {giorno}", { giorno: String(giorno ?? "") })}</Badge>
           ) : (
             <label className="flex items-center gap-2 text-sm">
-              Giorno di lavoro
+              {t("Giorno di lavoro")}
               <Input
                 className="w-40"
                 type="date"
@@ -67,25 +69,22 @@ export function ImpreseCommessa({
           )}
         </div>
         <p className="text-sm text-muted-foreground">
-          Documenti recuperati dal fascicolo dell’impresa. Gli operai compaiono
-          solo nel periodo assegnato; un POS di un altro cantiere resta escluso.
-          I contratti non assegnano automaticamente l’intero organico.
+          {t("Documenti recuperati dal fascicolo dell’impresa. Gli operai compaiono solo nel periodo assegnato; un POS di un altro cantiere resta escluso. I contratti non assegnano automaticamente l’intero organico.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         {q.isError || comuni.isError ? (
           <p role="alert">
-            Imprese o fascicoli non disponibili.{" "}
+            {t("Imprese o fascicoli non disponibili.")}{" "}
             <Button variant="link" onClick={() => { void q.refetch(); void comuni.refetch(); }}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </p>
         ) : q.isLoading || comuni.isLoading ? (
-          <p>Caricamento imprese…</p>
+          <p>{t("Caricamento imprese…")}</p>
         ) : !q.data?.imprese.length ? (
           <p className="text-sm text-muted-foreground">
-            Nessuna impresa collegata tramite contratto, anagrafica di cantiere
-            o assegnazione operai.
+            {t("Nessuna impresa collegata tramite contratto, anagrafica di cantiere o assegnazione operai.")}
           </p>
         ) : (
           q.data.imprese.map((sub) => {
@@ -125,18 +124,15 @@ export function ImpreseCommessa({
                   {gestionePos.ruoli[sub.id] === "esecutrice" && <PosEsternoImpresa companyId={companyId} orderId={orderId} subId={sub.id}
                     avvio={gestionePos.avvio} affidataria={gestionePos.affidataria} righe={gestionePos.consegne.filter((r) => r.subappaltatore_id === sub.id)}
                     documenti={documenti} solaLettura={p.solaLettura} />}
-                </> : <p className="text-sm text-muted-foreground">Ruolo e consegne non disponibili.
-                  <Button variant="link" size="sm" onClick={gestionePos.riprova}>Riprova</Button>
+                </> : <p className="text-sm text-muted-foreground">{t("Ruolo e consegne non disponibili.")}
+                  <Button variant="link" size="sm" onClick={gestionePos.riprova}>{t("Riprova")}</Button>
                 </p>)}
                 <div className="mt-3 grid gap-4 lg:grid-cols-2">
                   <div>
-                    <h4 className="text-sm font-medium">
-                      Addetti assegnati · {ids.length}
-                    </h4>
+                    <h4 className="text-sm font-medium">{t("Addetti assegnati · {n}", { n: ids.length })}</h4>
                     {!assegnati.length && (
                       <p className="mt-2 text-sm text-amber-700">
-                        Nessun addetto assegnato per questa data. Completa
-                        l’organico dalla scheda impresa.
+                        {t("Nessun addetto assegnato per questa data. Completa l’organico dalla scheda impresa.")}
                       </p>
                     )}
                     {assegnati.map((a) => {
@@ -148,10 +144,10 @@ export function ImpreseCommessa({
                           <p>
                             {o
                               ? `${o.nome} ${o.cognome}`
-                              : "Operaio non disponibile"}{" "}
+                              : t("Operaio non disponibile")}{" "}
                             {o && !o.attivo && (
                               <Badge variant="outline">
-                                Cessato nell’organico
+                                {t("Cessato nell’organico")}
                               </Badge>
                             )}
                           </p>
@@ -160,20 +156,17 @@ export function ImpreseCommessa({
                             {a.area ? ` · ${a.area}` : ""}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {a.dal} → {a.al ?? "fine da definire"}
+                            {a.dal} → {a.al ?? t("fine da definire")}
                           </p>
                         </div>
                       );
                     })}
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium">
-                      Evidenze pertinenti · {documenti.length}
-                    </h4>
+                    <h4 className="text-sm font-medium">{t("Evidenze pertinenti · {n}", { n: documenti.length })}</h4>
                     {!gestionePos && !documenti.some((d) => d.tipo === "pos") && (
                       <p className="mt-2 text-sm text-amber-700">
-                        POS di questa impresa per questo cantiere non presente
-                        nel nuovo fascicolo.
+                        {t("POS di questa impresa per questo cantiere non presente nel nuovo fascicolo.")}
                       </p>
                     )}
                     {documenti.map((d) => (
@@ -184,11 +177,11 @@ export function ImpreseCommessa({
                         <div>
                           <p>{d.titolo}</p>
                           <p className="text-xs text-muted-foreground">
-                            {esitoEvidenza(d, giorno)}
+                            {t(esitoEvidenza(d, giorno))}
                             {d.data_scadenza
-                              ? ` · scadenza ${d.data_scadenza}`
+                              ? t(" · scadenza {data_scadenza}", { data_scadenza: String(d.data_scadenza ?? "") })
                               : ""}
-                            {d.operaio_id ? " · personale" : " · impresa"}
+                            {d.operaio_id ? ` ${t("· personale")}` : ` ${t("· impresa")}`}
                           </p>
                         </div>
                         {d.file_path && (
@@ -197,11 +190,11 @@ export function ImpreseCommessa({
                             variant="outline"
                             onClick={() =>
                               void apriFileFascicolo(d.file_path!).catch(() =>
-                                toast.error("Documento non disponibile"),
+                                toast.error(t("Documento non disponibile")),
                               )
                             }
                           >
-                            Apri
+                            {t("Apri")}
                           </Button>
                         )}
                       </div>
@@ -220,8 +213,7 @@ export function ImpreseCommessa({
                 />
                 {contestoNonDisponibile ? (
                   <p role="alert" className="mt-3 text-sm text-destructive">
-                    Attendi il contesto delle fasi prima di registrare una
-                    verifica.
+                    {t("Attendi il contesto delle fasi prima di registrare una verifica.")}
                   </p>
                 ) : (
                   <VerificaItpImpresa
@@ -256,9 +248,10 @@ export function ImpreseCommessa({
 function RuoloImpresaInCantiere({ companyId, orderId, subId, ruolo, solaLettura }: {
   companyId: string; orderId: string; subId: string; ruolo: RuoloDittaSicurezza; solaLettura: boolean;
 }) {
+  const t = useT();
   const salva = useSalvaRuoloSicurezza(companyId, orderId);
   return <div className="mt-2 flex flex-wrap items-center gap-2">
-    <Label htmlFor={`ruolo-sicurezza-${subId}`} className="text-xs">Ruolo nel cantiere</Label>
+    <Label htmlFor={`ruolo-sicurezza-${subId}`} className="text-xs">{t("Ruolo nel cantiere")}</Label>
     <UniformSelect id={`ruolo-sicurezza-${subId}`} className="rounded-md border bg-background px-2 py-1.5 text-sm"
       value={ruolo} disabled={solaLettura || salva.isPending}
       onChange={(e) => salva.mutate({ subId, ruolo: e.target.value as RuoloDittaSicurezza })}>

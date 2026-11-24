@@ -3,8 +3,10 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
 import { getTriggerIcon } from "./nodeIcons";
 import { AlertTriangle, Plus } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function TriggerNodeComponent({ data, selected }: NodeProps) {
+  const t = useT();
   const catalog = getCatalogItem(data.itemId as string);
   const isEmpty = !data.itemId;
 
@@ -14,7 +16,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
       <div
         role="button"
         tabIndex={0}
-        aria-label="Aggiungi il primo trigger"
+        aria-label={t("Aggiungi il primo trigger")}
         onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); (data as any).onOpenCatalog?.(); } }}
         onClick={() => (data as any).onOpenCatalog?.()}
         className={`w-[300px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-5 py-5 cursor-pointer transition-colors hover:border-primary/70 hover:bg-primary/10 ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
@@ -23,9 +25,9 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           <div className="rounded-full bg-primary/10 p-2 text-primary/70">
             <Plus className="h-5 w-5" />
           </div>
-          <p className="text-sm font-semibold text-primary/80">Aggiungi il primo trigger</p>
+          <p className="text-sm font-semibold text-primary/80">{t("Aggiungi il primo trigger")}</p>
           <p className="max-w-[200px] text-[11px] leading-tight text-muted-foreground">
-            Scegli l'evento che avvia l'automazione (es. nuovo contatto, preventivo accettato…)
+            {t("Scegli l'evento che avvia l'automazione (es. nuovo contatto, preventivo accettato…)")}
           </p>
         </div>
         <Handle type="source" position={Position.Bottom} className="!bg-primary !w-3 !h-3 !border-2 !border-background" />
@@ -47,13 +49,13 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
             {icon}
           </div>
           <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-            Trigger
+            {t("Trigger")}
           </span>
         </div>
         {/* Body */}
         <div className="px-4 py-3">
           <p className="truncate text-sm font-medium text-foreground">
-            {(data.label as string) || catalog?.label || "Trigger"}
+            {(data.label as string) || (catalog?.label ? t(catalog.label) : t("Trigger"))}
           </p>
           {catalog?.description && (
             <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">
@@ -63,7 +65,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           {(data.hasError || data.hasWarning) && (
             <p className={`mt-1.5 flex items-center gap-1 text-[10px] font-medium ${data.hasError ? "text-destructive" : "text-amber-600"}`}>
               <AlertTriangle className="h-3 w-3" />
-              Da verificare
+              {t("Da verificare")}
             </p>
           )}
         </div>
@@ -78,8 +80,8 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           (data as any).onAddTrigger?.();
         }}
         className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-100 transition-opacity flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-md border-2 border-background"
-        aria-label="Aggiungi trigger parallelo"
-        title="Aggiungi trigger parallelo"
+        aria-label={t("Aggiungi trigger parallelo")}
+        title={t("Aggiungi trigger parallelo")}
       >
         <Plus className="h-3.5 w-3.5" />
       </button>

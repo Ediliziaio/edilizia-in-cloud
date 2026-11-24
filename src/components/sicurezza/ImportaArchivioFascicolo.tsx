@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function ImportaArchivioFascicolo(
   { fonte, companyId, subId }: {
     fonte: DocumentoSubappaltatore;
@@ -27,6 +28,7 @@ export function ImportaArchivioFascicolo(
     subId: string;
   },
 ) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(false);
   const [titolo, setTitolo] = useState(
@@ -49,7 +51,7 @@ export function ImportaArchivioFascicolo(
       <Button
         size="sm"
         variant="outline"
-        aria-label={`Porta nel fascicolo ${fonte.nome_file || fonte.tipo}`}
+        aria-label={t("Porta nel fascicolo {nome}", { nome: fonte.nome_file || fonte.tipo })}
         disabled={presente || evidenze.isLoading || evidenze.isError}
         onClick={() => {
           importa.reset();
@@ -62,10 +64,10 @@ export function ImportaArchivioFascicolo(
         }}
       >
         {presente
-          ? "Nel fascicolo"
+          ? t("Nel fascicolo")
           : esistente
-          ? "Riprendi importazione"
-          : "Porta nel fascicolo"}
+          ? t("Riprendi importazione")
+          : t("Porta nel fascicolo")}
       </Button>
       <Dialog
         open={aperto}
@@ -75,44 +77,38 @@ export function ImportaArchivioFascicolo(
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Importa dall’archivio precedente</DialogTitle>
+            <DialogTitle>{t("Importa dall’archivio precedente")}</DialogTitle>
             <DialogDescription>
-              Conserva una copia del file nel nuovo fascicolo. Il documento
-              resta da verificare; il caricamento non conferma validità o
-              idoneità.
+              {t("Conserva una copia del file nel nuovo fascicolo. Il documento resta da verificare; il caricamento non conferma validità o idoneità.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
               <strong>{fonte.nome_file || fonte.tipo}</strong>
-              <p className="text-xs text-muted-foreground">
-                Classificazione proposta:{" "}
-                {nomeTipo}. Date riprese dall’archivio e da controllare.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Classificazione proposta: {nomeTipo}. Date riprese dall’archivio e da controllare.", { nomeTipo: String(nomeTipo ?? "") })}</p>
               {fonte.tipo === "pos" && (
                 <p className="mt-2 text-xs">
-                  Il POS appartiene a uno specifico cantiere: scegli la commessa
-                  corretta.
+                  {t("Il POS appartiene a uno specifico cantiere: scegli la commessa corretta.")}
                 </p>
               )}
             </div>
             <Label className="block">
-              Titolo della copia<Input
+              {t("Titolo della copia")}<Input
                 value={titolo}
                 onChange={(e) => setTitolo(e.target.value)}
                 disabled={importa.isPending || !!esistente}
               />
             </Label>
             <Label className="block">
-              Ambito della copia<UniformSelect
-                aria-label="Ambito della copia"
+              {t("Ambito della copia")}<UniformSelect
+                aria-label={t("Ambito della copia")}
                 className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm"
                 value={ordine}
                 disabled={importa.isPending || !!esistente ||
                   commesse.isLoading || commesse.isError}
                 onChange={(e) => setOrdine(e.target.value)}
               >
-                <option value="">Impresa / organico</option>
+                <option value="">{t("Impresa / organico")}</option>
                 {commesse.data?.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.order_code} · {c.description}
@@ -122,13 +118,13 @@ export function ImportaArchivioFascicolo(
             </Label>
             {commesse.isError && (
               <p role="alert" className="text-sm text-destructive">
-                Commesse non disponibili.{" "}
+                {t("Commesse non disponibili.")}{" "}
                 <button
                   className="underline"
                   onClick={() =>
                     void commesse.refetch()}
                 >
-                  Riprova
+                  {t("Riprova")}
                 </button>
               </p>
             )}
@@ -139,15 +135,14 @@ export function ImportaArchivioFascicolo(
                 checked={conferma}
                 disabled={importa.isPending}
                 onChange={(e) => setConferma(e.target.checked)}
-              />Ho controllato il documento e l’ambito della copia. La verifica
-              tecnica resta da eseguire.
+              />{t("Ho controllato il documento e l’ambito della copia. La verifica tecnica resta da eseguire.")}
             </label>
             {importa.isError && (
               <p role="alert" className="text-sm text-destructive">
                 {importa.error instanceof Error
                   ? importa.error.message
                   : (importa.error as { message?: string }).message ||
-                    "Importazione non riuscita. La copia incompleta, se creata, rimane recuperabile dal fascicolo."}
+                    t("Importazione non riuscita. La copia incompleta, se creata, rimane recuperabile dal fascicolo.")}
               </p>
             )}
           </div>
@@ -157,7 +152,7 @@ export function ImportaArchivioFascicolo(
               disabled={importa.isPending}
               onClick={() => setAperto(false)}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               disabled={!conferma || !titolo.trim() ||
@@ -176,8 +171,8 @@ export function ImportaArchivioFascicolo(
                   });
                   toast.success(
                     r.giaPresente
-                      ? "Documento già presente: nessuna copia aggiunta."
-                      : "Copia conservata nel fascicolo, da verificare.",
+                      ? t("Documento già presente: nessuna copia aggiunta.")
+                      : t("Copia conservata nel fascicolo, da verificare."),
                   );
                   setAperto(false);
                 } catch {
@@ -185,7 +180,7 @@ export function ImportaArchivioFascicolo(
                 }
               }}
             >
-              {importa.isPending ? "Importazione…" : "Importa copia"}
+              {importa.isPending ? t("Importazione…") : t("Importa copia")}
             </Button>
           </DialogFooter>
         </DialogContent>

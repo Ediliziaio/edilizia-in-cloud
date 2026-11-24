@@ -29,6 +29,7 @@ import { useRilievoAppuntamento } from "@/hooks/useRilievoAppuntamento";
 import { useTecniciAzienda } from "@/hooks/useTecniciAzienda";
 import { ordinaPerTecnico } from "@/lib/sopralluoghi/sceltaTecnico";
 import { appuntamentoConRilievo } from "@/lib/surveys/rilievoAppuntamento";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AppointmentData {
   id?: string;
@@ -439,6 +440,7 @@ export function AppointmentDialog({
   readOnly = false,
   dialogHeading,
 }: AppointmentDialogProps) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -453,7 +455,7 @@ export function AppointmentDialog({
   // lavora gli appuntamenti.
   // In sola lettura l'appuntamento si consulta: la policy RESTRICTIVE su
   // appointments rifiuterebbe comunque il salvataggio.
-  const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
+  const bloccoTitle = solaLettura ? tr("Sei in sola lettura") : undefined;
   // 2026-05-27: hasAnyCompanyGoogleConnection invece di isGoogleConnected
   // così l'admin (anche se lui non ha Google) può creare un appointment
   // per un posatore connesso. La edge function risolve il push verso il
@@ -798,49 +800,49 @@ export function AppointmentDialog({
 
   const mioId = user?.id;
   const assigneeOptions = useMemo<SearchableOption[]>(() => [
-    { value: "none", label: "Nessun assegnatario" },
+    { value: "none", label: tr("Nessun assegnatario") },
     // Chi crea l'appuntamento c'è sempre, anche se non è tra operai e tecnici: dal proprio
     // calendario l'appuntamento nasce suo, e il campo diceva «Nessun assegnatario».
-    ...(mioId && !assignableUsers.some((u) => u.id === mioId) ? [{ value: mioId, label: "Io" }] : []),
+    ...(mioId && !assignableUsers.some((u) => u.id === mioId) ? [{ value: mioId, label: tr("Io") }] : []),
     ...assignableUsers.map((persona) => ({
       value: persona.id,
       label: getUserName(persona),
-      description: persona.roles?.map((ruolo) => RUOLI_LEGGIBILI[ruolo] ?? etichettaCodice(ruolo)).join(", ") || undefined,
-      badge: eSopralluogo && tecnici.has(persona.id) ? "Tecnico" : persona.roles?.includes("subcontractor") ? "Subapp." : persona.roles?.includes("employee") ? "Operaio" : undefined,
+      description: persona.roles?.map((ruolo) => (RUOLI_LEGGIBILI[ruolo] ? tr(RUOLI_LEGGIBILI[ruolo]) : etichettaCodice(ruolo))).join(", ") || undefined,
+      badge: eSopralluogo && tecnici.has(persona.id) ? tr("Tecnico") : persona.roles?.includes("subcontractor") ? tr("Subapp.") : persona.roles?.includes("employee") ? tr("Operaio") : undefined,
     })),
-  ], [assignableUsers, mioId, eSopralluogo, tecnici]);
+  ], [assignableUsers, mioId, eSopralluogo, tecnici, tr]);
 
   const orderOptions = useMemo<SearchableOption[]>(() => [
-    { value: "none", label: "Nessuna commessa" },
+    { value: "none", label: tr("Nessuna commessa") },
     ...orders.map((order) => ({
       value: order.id,
-      label: `${order.order_code ? `${order.order_code} - ` : ""}${order.description?.slice(0, 80) || "Senza descrizione"}`,
+      label: `${order.order_code ? `${order.order_code} - ` : ""}${order.description?.slice(0, 80) || tr("Senza descrizione")}`,
       description: [
         order.order_employees?.length ? `${order.order_employees.length} operai` : null,
-        order.order_external_teams?.length ? `${order.order_external_teams.length} squadre esterne` : null,
+        order.order_external_teams?.length ? tr("{n} squadre esterne", { n: order.order_external_teams.length }) : null,
       ].filter(Boolean).join(" · ") || undefined,
     })),
-  ], [orders]);
+  ], [orders, tr]);
 
   const ticketOptions = useMemo<SearchableOption[]>(() => [
-    { value: "none", label: "Nessuna assistenza" },
+    { value: "none", label: tr("Nessuna assistenza") },
     ...tickets.map((ticket) => ({
       value: ticket.id,
       label: ticket.subject,
       description: [ticket.tipo, ticket.priority].filter(Boolean).join(" · ") || undefined,
       badge: ticket.status || undefined,
     })),
-  ], [tickets]);
+  ], [tickets, tr]);
 
   const maintenanceOptions = useMemo<SearchableOption[]>(() => [
-    { value: "none", label: "Nessuna manutenzione" },
+    { value: "none", label: tr("Nessuna manutenzione") },
     ...maintenancePlans.map((plan) => ({
       value: plan.id,
       label: plan.titolo,
-      description: plan.prossima_scadenza ? `Scadenza ${format(new Date(plan.prossima_scadenza), "dd/MM/yyyy")}` : undefined,
+      description: plan.prossima_scadenza ? tr("Scadenza {valore}", { valore: format(new Date(plan.prossima_scadenza), "dd/MM/yyyy") }) : undefined,
       badge: plan.frequenza_tipo || undefined,
     })),
-  ], [maintenancePlans]);
+  ], [maintenancePlans, tr]);
 
   const handleTicketChange = (value: string) => {
     const ticket = tickets.find((option) => option.id === value);
@@ -904,22 +906,22 @@ export function AppointmentDialog({
   const handleSave = async () => {
     if (savingRef.current || solaLettura) return;
     if (!title.trim()) {
-      toast({ title: "Inserisci un titolo", variant: "destructive" });
+      toast({ title: tr("Inserisci un titolo"), variant: "destructive" });
       return;
     }
     if (!appointmentDate) {
-      toast({ title: "Inserisci una data", variant: "destructive" });
+      toast({ title: tr("Inserisci una data"), variant: "destructive" });
       return;
     }
     if (requireTime && !appointmentTime) {
-      toast({ title: "Inserisci un orario", variant: "destructive" });
+      toast({ title: tr("Inserisci un orario"), variant: "destructive" });
       return;
     }
     if (appointmentTime && appointmentEndTime) {
       const startMin = timeToMinutes(appointmentTime);
       const endMin = timeToMinutes(appointmentEndTime);
       if (startMin != null && endMin != null && endMin <= startMin) {
-        toast({ title: "L'orario di fine deve essere successivo all'inizio", variant: "destructive" });
+        toast({ title: tr("L'orario di fine deve essere successivo all'inizio"), variant: "destructive" });
         return;
       }
     }
@@ -970,7 +972,7 @@ export function AppointmentDialog({
         const { error } = await supabase.from("appointments").update(payload).eq("id", currentAppointment.id);
         if (error) throw error;
         idSalvato = currentAppointment.id;
-        toast({ title: "Appuntamento aggiornato" });
+        toast({ title: tr("Appuntamento aggiornato") });
         // Fire-and-forget Google sync
         if (hasAnyCompanyGoogleConnection) {
           gcalUpdate(currentAppointment.id).catch(() => {});
@@ -979,7 +981,7 @@ export function AppointmentDialog({
         const { data: inserted, error } = await supabase.from("appointments").insert({ ...payload, created_by: user.id }).select("id").single();
         if (error) throw error;
         idSalvato = inserted?.id ?? null;
-        toast({ title: "Appuntamento creato" });
+        toast({ title: tr("Appuntamento creato") });
         // Diary log (fire-and-forget, solo se collegato a un ordine)
         if (payload.order_id) {
           void supabase.from("order_events" as never).insert({
@@ -1022,13 +1024,13 @@ export function AppointmentDialog({
         try {
           const rilievoId = await rilievo.prepara(idSalvato);
           if (rilievoId) {
-            toast({ title: rilievo.tipo === "commerciale" ? "Rilievo commerciale pronto" : "Rilievo pronto per il tecnico" });
+            toast({ title: rilievo.tipo === "commerciale" ? tr("Rilievo commerciale pronto") : tr("Rilievo pronto per il tecnico") });
             for (const key of [["order-surveys"], ["sopralluoghi-bacheca"], ["rilievo-appuntamento"], ["field-surveys"]]) {
               void queryClient.invalidateQueries({ queryKey: key });
             }
           }
         } catch (e: unknown) {
-          toast({ title: "Appuntamento salvato, rilievo non preparato", description: getErrorMessage(e), variant: "destructive" });
+          toast({ title: tr("Appuntamento salvato, rilievo non preparato"), description: getErrorMessage(e), variant: "destructive" });
         }
       }
 
@@ -1040,7 +1042,7 @@ export function AppointmentDialog({
       queryClient.invalidateQueries({ queryKey: ["appointment-maintenance-references"] });
       onOpenChange(false);
     } catch (e: unknown) {
-      toast({ title: "Errore", description: getErrorMessage(e), variant: "destructive" });
+      toast({ title: tr("Errore"), description: getErrorMessage(e), variant: "destructive" });
     } finally {
       setSaving(false);
       savingRef.current = false;
@@ -1064,12 +1066,12 @@ export function AppointmentDialog({
         .update({ status: "annullato", cancelled_at: new Date().toISOString(), cancelled_by: user?.id ?? null })
         .eq("id", currentAppointment.id);
       if (error) throw error;
-      toast({ title: "Appuntamento annullato", description: "Resta nello storico, segnato come annullato." });
+      toast({ title: tr("Appuntamento annullato"), description: tr("Resta nello storico, segnato come annullato.") });
       if (onDeleted) onDeleted();
       else onSaved();
       onOpenChange(false);
     } catch (e: unknown) {
-      toast({ title: "Errore", description: getErrorMessage(e), variant: "destructive" });
+      toast({ title: tr("Errore"), description: getErrorMessage(e), variant: "destructive" });
     } finally {
       setSaving(false);
       savingRef.current = false;
@@ -1091,11 +1093,11 @@ export function AppointmentDialog({
   ].filter(Boolean).join(" · ");
   const selettoreCalendario = (
     <div className="space-y-1">
-      <Label htmlFor="apt-calendar" className="text-xs">Calendario</Label>
+      <Label htmlFor="apt-calendar" className="text-xs">{tr("Calendario")}</Label>
       <Select value={calendarId} onValueChange={setCalendarId}>
-        <SelectTrigger id="apt-calendar" className="h-9"><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
+        <SelectTrigger id="apt-calendar" className="h-9"><SelectValue placeholder={tr("Nessun calendario")} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Nessuno</SelectItem>
+          <SelectItem value="none">{tr("Nessuno")}</SelectItem>
           {marketingCalendars.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
         </SelectContent>
       </Select>
@@ -1106,22 +1108,22 @@ export function AppointmentDialog({
     <Dialog open={open} onOpenChange={(next) => { if (!savingRef.current) onOpenChange(next); }}>
       <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="border-b py-2.5 pl-4 pr-11 text-left">
-          <DialogTitle className="text-sm font-semibold">{dialogHeading || (isEditing ? "Modifica appuntamento" : "Nuovo appuntamento")}</DialogTitle>
+          <DialogTitle className="text-sm font-semibold">{dialogHeading || (isEditing ? tr("Modifica appuntamento") : tr("Nuovo appuntamento"))}</DialogTitle>
           {/* Ripeteva il titolo: resta solo per i lettori di schermo. */}
           <DialogDescription className="sr-only">
-            {isEditing ? "Modifica i dettagli dell'appuntamento" : "Compila i campi per creare un nuovo appuntamento"}
+            {isEditing ? tr("Modifica i dettagli dell'appuntamento") : tr("Compila i campi per creare un nuovo appuntamento")}
           </DialogDescription>
         </DialogHeader>
 
         <fieldset disabled={saving || solaLettura} className="min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
           <div className="space-y-1">
-            <Label htmlFor="apt-title" className="text-xs">Titolo *</Label>
-            <Input id="apt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Sopralluogo tecnico" className="h-9" />
+            <Label htmlFor="apt-title" className="text-xs">{tr("Titolo *")}</Label>
+            <Input id="apt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("Es. Sopralluogo tecnico")} className="h-9" />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="apt-type" className="text-xs">Tipo</Label>
+              <Label htmlFor="apt-type" className="text-xs">{tr("Tipo")}</Label>
               <Select
                 value={appointmentType}
                 onValueChange={(nuovo) => {
@@ -1138,9 +1140,9 @@ export function AppointmentDialog({
                     const groupTypes = APPOINTMENT_TYPES.filter(t => t.group === group);
                     return (
                       <SelectGroup key={group}>
-                        <SelectLabel className="text-xs text-muted-foreground">{group.toUpperCase()}</SelectLabel>
+                        <SelectLabel className="text-xs text-muted-foreground">{tr(group).toUpperCase()}</SelectLabel>
                         {groupTypes.map(t => (
-                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                          <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                         ))}
                       </SelectGroup>
                     );
@@ -1152,12 +1154,12 @@ export function AppointmentDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="apt-assignee" className="text-xs">Assegna a</Label>
+              <Label htmlFor="apt-assignee" className="text-xs">{tr("Assegna a")}</Label>
               <SearchableSelect
                 id="apt-assignee"
                 value={assignedTo || "none"}
                 options={assigneeOptions}
-                placeholder="Nessun assegnatario"
+                placeholder={tr("Nessun assegnatario")}
                 searchPlaceholder="Cerca operaio, tecnico o subappaltatore..."
                 emptyLabel="Nessun assegnatario trovato"
                 disabled={onlyAssigned && membriSquadra.length === 0}
@@ -1166,7 +1168,7 @@ export function AppointmentDialog({
               {REQUIRES_TECHNICIAN.has(appointmentType) && !assignedTo && (
                 <p className="flex items-center gap-1 text-xs text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  Questo tipo richiede un tecnico
+                  {tr("Questo tipo richiede un tecnico")}
                 </p>
               )}
             </div>
@@ -1174,12 +1176,12 @@ export function AppointmentDialog({
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
             <div className="space-y-1 max-sm:col-span-2">
-              <Label htmlFor="apt-date" className="text-xs">Data *</Label>
+              <Label htmlFor="apt-date" className="text-xs">{tr("Data *")}</Label>
               <Popover open={dataAperta} onOpenChange={setDataAperta}>
                 <PopoverTrigger asChild>
                   <Button id="apt-date" variant="outline" className={cn("h-9 w-full justify-start px-2.5 text-left font-normal", !appointmentDate && "text-muted-foreground")}>
                     <CalendarDays className="mr-1.5 h-4 w-4 shrink-0" />
-                    <span className="truncate">{appointmentDate ? format(appointmentDate, "EEE d MMM yyyy", { locale: it }) : "Seleziona data"}</span>
+                    <span className="truncate">{appointmentDate ? format(appointmentDate, "EEE d MMM yyyy", { locale: dateFnsCampo() }) : tr("Seleziona data")}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -1188,7 +1190,7 @@ export function AppointmentDialog({
               </Popover>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="apt-time" className="text-xs">{requireTime ? "Inizio *" : "Inizio"}</Label>
+              <Label htmlFor="apt-time" className="text-xs">{requireTime ? tr("Inizio *") : tr("Inizio")}</Label>
               <Input
                 id="apt-time"
                 type="time"
@@ -1203,7 +1205,7 @@ export function AppointmentDialog({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="apt-end-time" className="text-xs">Fine</Label>
+              <Label htmlFor="apt-end-time" className="text-xs">{tr("Fine")}</Label>
               <Input
                 id="apt-end-time"
                 type="time"
@@ -1218,7 +1220,7 @@ export function AppointmentDialog({
               />
             </div>
             <div className="space-y-1 max-sm:col-span-2">
-              <Label htmlFor="apt-duration" className="text-xs">Durata</Label>
+              <Label htmlFor="apt-duration" className="text-xs">{tr("Durata")}</Label>
               <Select
                 value={durationMinutes}
                 onValueChange={(value) => {
@@ -1237,22 +1239,22 @@ export function AppointmentDialog({
           {conflitti.length > 0 && (
             <p className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>{persona} ha già: {conflitti.map((c) => `${toTimeValue(c.appointment_time)} ${c.title}`).join(", ")}.</span>
+              <span>{tr("{persona} ha già: {elenco}.", { persona: String(persona ?? ""), elenco: conflitti.map((c) => `${toTimeValue(c.appointment_time)} ${c.title}`).join(", ") })}</span>
             </p>
           )}
 
           {selectedDateStr && persona && (
             <div className="rounded-md bg-slate-50 px-2.5 py-2">
               <p className="pb-1.5 text-xs text-muted-foreground">
-                Orari liberi di <span className="font-medium text-foreground">{persona}</span> per {etichettaDurata(durata)}
-                {dayAppointments.length > 0 && ` · ${dayAppointments.length} già in agenda`}
+                {tr("Orari liberi di")} <span className="font-medium text-foreground">{persona}</span> {tr("per")} {etichettaDurata(durata)}
+                {dayAppointments.length > 0 && tr(" · {n} già in agenda", { n: dayAppointments.length })}
               </p>
               <div className="flex flex-wrap gap-1">
                 {availabilitySlots.filter((slot) => slot.available && Number(slot.start.slice(3)) % 30 === 0).map((slot) => (
                   <button
                     key={slot.start}
                     type="button"
-                    title={`Libero ${slot.start}-${slot.end}`}
+                    title={tr("Libero {start}-{end}", { start: String(slot.start ?? ""), end: String(slot.end ?? "") })}
                     aria-pressed={appointmentTime === slot.start}
                     onClick={() => { setAppointmentTime(slot.start); setAppointmentEndTime(slot.end); }}
                     className={cn("rounded border px-1.5 py-0.5 text-xs tabular-nums transition-colors", appointmentTime === slot.start ? "border-primary bg-primary text-primary-foreground" : "bg-white hover:border-slate-400")}
@@ -1260,7 +1262,7 @@ export function AppointmentDialog({
                     {slot.start}
                   </button>
                 ))}
-                {!availabilitySlots.some((slot) => slot.available) && <span className="text-xs text-muted-foreground">Nessun orario libero tra le 8 e le 18.</span>}
+                {!availabilitySlots.some((slot) => slot.available) && <span className="text-xs text-muted-foreground">{tr("Nessun orario libero tra le 8 e le 18.")}</span>}
               </div>
             </div>
           )}
@@ -1269,14 +1271,14 @@ export function AppointmentDialog({
             // Senza riquadro e senza la frase di spiegazione, come sul telefono.
             <div>
               <div className="mb-2 flex items-start justify-between gap-3">
-                <Label>Riferimento operativo</Label>
+                <Label>{tr("Riferimento operativo")}</Label>
                 {referenceType === "ticket" && <LifeBuoy className="mt-0.5 h-4 w-4 text-purple-600" />}
                 {referenceType === "maintenance" && <Settings className="mt-0.5 h-4 w-4 text-orange-600" />}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
                 <div className="space-y-2">
-                  <Label htmlFor="apt-reference-type">Tipo riferimento</Label>
+                  <Label htmlFor="apt-reference-type">{tr("Tipo riferimento")}</Label>
                   <Select
                     value={referenceType}
                     onValueChange={(value) => {
@@ -1291,22 +1293,22 @@ export function AppointmentDialog({
                   >
                     <SelectTrigger id="apt-reference-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nessun riferimento</SelectItem>
-                      <SelectItem value="order">Commessa</SelectItem>
-                      <SelectItem value="ticket">Assistenza</SelectItem>
-                      <SelectItem value="maintenance">Manutenzione</SelectItem>
+                      <SelectItem value="none">{tr("Nessun riferimento")}</SelectItem>
+                      <SelectItem value="order">{tr("Commessa")}</SelectItem>
+                      <SelectItem value="ticket">{tr("Assistenza")}</SelectItem>
+                      <SelectItem value="maintenance">{tr("Manutenzione")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 {referenceType === "order" && (
                   <div className="space-y-2">
-                    <Label htmlFor="apt-order">Commessa collegata</Label>
+                    <Label htmlFor="apt-order">{tr("Commessa collegata")}</Label>
                     <SearchableSelect
                       id="apt-order"
                       value={orderId || "none"}
                       options={orderOptions}
-                      placeholder="Nessuna commessa"
+                      placeholder={tr("Nessuna commessa")}
                       searchPlaceholder="Cerca codice, cliente o descrizione..."
                       emptyLabel="Nessuna commessa trovata"
                       onChange={(value) => setOrderId(value === "none" ? "" : value)}
@@ -1316,33 +1318,33 @@ export function AppointmentDialog({
 
                 {referenceType === "ticket" && (
                   <div className="space-y-2">
-                    <Label htmlFor="apt-ticket">Assistenza collegata</Label>
+                    <Label htmlFor="apt-ticket">{tr("Assistenza collegata")}</Label>
                     <SearchableSelect
                       id="apt-ticket"
                       value={ticketId || "none"}
                       options={ticketOptions}
-                      placeholder={savedTicketLabel ?? (ticketId ? "Ticket collegato" : "Nessuna assistenza")}
+                      placeholder={savedTicketLabel ?? (ticketId ? tr("Ticket collegato") : tr("Nessuna assistenza"))}
                       searchPlaceholder="Cerca assistenza, stato o priorità..."
                       emptyLabel="Nessuna assistenza trovata"
                       onChange={handleTicketChange}
                     />
                     {savedTicketLabel && !ticketId && (
-                      <p className="text-xs text-muted-foreground">Seleziona il ticket per ripristinare il collegamento.</p>
+                      <p className="text-xs text-muted-foreground">{tr("Seleziona il ticket per ripristinare il collegamento.")}</p>
                     )}
                     {selectedTicket?.order_id && (
-                      <p className="text-xs text-muted-foreground">La commessa del ticket viene collegata automaticamente.</p>
+                      <p className="text-xs text-muted-foreground">{tr("La commessa del ticket viene collegata automaticamente.")}</p>
                     )}
                   </div>
                 )}
 
                 {referenceType === "maintenance" && (
                   <div className="space-y-2">
-                    <Label htmlFor="apt-maintenance">Manutenzione collegata</Label>
+                    <Label htmlFor="apt-maintenance">{tr("Manutenzione collegata")}</Label>
                     <SearchableSelect
                       id="apt-maintenance"
                       value={maintenancePlanId || "none"}
                       options={maintenanceOptions}
-                      placeholder="Nessuna manutenzione"
+                      placeholder={tr("Nessuna manutenzione")}
                       searchPlaceholder="Cerca manutenzione o scadenza..."
                       emptyLabel="Nessuna manutenzione trovata"
                       onChange={(value) => setMaintenancePlanId(value === "none" ? "" : value)}
@@ -1356,11 +1358,8 @@ export function AppointmentDialog({
                   <div className="flex gap-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <div>
-                      <p className="font-medium">Assegnatario diverso dalla squadra commessa</p>
-                      <p className="text-xs">
-                        Hai selezionato {assigneeTeamWarning.assignee}, ma nella commessa risultano {assigneeTeamWarning.team}.
-                        Verifica se vuoi aggiornare la squadra della commessa o cambiare assegnatario.
-                      </p>
+                      <p className="font-medium">{tr("Assegnatario diverso dalla squadra commessa")}</p>
+                      <p className="text-xs">{tr("Hai selezionato {assignee}, ma nella commessa risultano {team}. Verifica se vuoi aggiornare la squadra della commessa o cambiare assegnatario.", { assignee: String(assigneeTeamWarning.assignee ?? ""), team: String(assigneeTeamWarning.team ?? "") })}</p>
                     </div>
                   </div>
                 </div>
@@ -1371,9 +1370,9 @@ export function AppointmentDialog({
           {mostraLuogo && (
             luogoTesto && !luogoAperto ? (
               <div className="flex items-center gap-2 text-sm">
-                <span className="shrink-0 text-xs font-medium">Luogo</span>
+                <span className="shrink-0 text-xs font-medium">{tr("Luogo")}</span>
                 <span className="min-w-0 flex-1 truncate text-muted-foreground" title={luogoTesto}>{luogoTesto}</span>
-                <button type="button" className="shrink-0 text-xs font-medium text-primary hover:underline" onClick={() => setLuogoAperto(true)}>Cambia</button>
+                <button type="button" className="shrink-0 text-xs font-medium text-primary hover:underline" onClick={() => setLuogoAperto(true)}>{tr("Cambia")}</button>
               </div>
             ) : (
               <AddressAutocomplete value={addressData} onChange={setAddressData} />
@@ -1385,12 +1384,12 @@ export function AppointmentDialog({
           {calendarioInVista && selettoreCalendario}
 
           <div className="space-y-1">
-            <Label htmlFor="apt-desc" className="text-xs">Note</Label>
-            <Textarea id="apt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={2} />
+            <Label htmlFor="apt-desc" className="text-xs">{tr("Note")}</Label>
+            <Textarea id="apt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={tr("Dettagli aggiuntivi...")} rows={2} />
           </div>
           {currentAppointment?.cancelled_reason && (
             <div className="space-y-1 text-sm">
-              <p className="text-xs font-medium text-muted-foreground">Motivo della disdetta</p>
+              <p className="text-xs font-medium text-muted-foreground">{tr("Motivo della disdetta")}</p>
               <p className="whitespace-pre-wrap break-words">{currentAppointment.cancelled_reason}</p>
             </div>
           )}
@@ -1398,40 +1397,40 @@ export function AppointmentDialog({
           <details className="group/altri" open={isEditing || undefined}>
             <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
               <ChevronDown className="h-3.5 w-3.5 -rotate-90 transition-transform group-open/altri:rotate-0" aria-hidden="true" />
-              Altri dettagli
+              {tr("Altri dettagli")}
               <span className="font-normal">· {riassuntoDettagli}</span>
             </summary>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label htmlFor="apt-status" className="text-xs">Stato</Label>
+                <Label htmlFor="apt-status" className="text-xs">{tr("Stato")}</Label>
                 <Select value={status} onValueChange={setStatus}>
                   <SelectTrigger id="apt-status" className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {STATI_APPUNTAMENTO.map((x) => <SelectItem key={x.value} value={x.value}>{x.label}</SelectItem>)}
+                    {STATI_APPUNTAMENTO.map((x) => <SelectItem key={x.value} value={x.value}>{tr(x.label)}</SelectItem>)}
                     {!STATI_APPUNTAMENTO.some((x) => x.value === status) && <SelectItem value={status}>{etichettaCodice(status)}</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="apt-reminder" className="text-xs">Promemoria</Label>
+                <Label htmlFor="apt-reminder" className="text-xs">{tr("Promemoria")}</Label>
                 <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
-                  <SelectTrigger id="apt-reminder" className="h-9"><SelectValue placeholder="Nessun promemoria" /></SelectTrigger>
+                  <SelectTrigger id="apt-reminder" className="h-9"><SelectValue placeholder={tr("Nessun promemoria")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Nessuno</SelectItem>
-                    <SelectItem value="60">1 ora prima</SelectItem>
-                    <SelectItem value="120">2 ore prima</SelectItem>
-                    <SelectItem value="1440">24 ore prima</SelectItem>
+                    <SelectItem value="none">{tr("Nessuno")}</SelectItem>
+                    <SelectItem value="60">{tr("1 ora prima")}</SelectItem>
+                    <SelectItem value="120">{tr("2 ore prima")}</SelectItem>
+                    <SelectItem value="1440">{tr("24 ore prima")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {!hideMarketingFields && !calendarioInVista && selettoreCalendario}
               {!hideMarketingFields && (
                 <div className="space-y-1">
-                  <Label htmlFor="apt-contact" className="text-xs">Contatto CRM</Label>
+                  <Label htmlFor="apt-contact" className="text-xs">{tr("Contatto CRM")}</Label>
                   <Select value={contactId} onValueChange={setContactId}>
-                    <SelectTrigger id="apt-contact" className="h-9"><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
+                    <SelectTrigger id="apt-contact" className="h-9"><SelectValue placeholder={tr("Nessun contatto")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nessuno</SelectItem>
+                      <SelectItem value="none">{tr("Nessuno")}</SelectItem>
                       {contacts.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.first_name} {c.last_name || ""}
@@ -1448,7 +1447,7 @@ export function AppointmentDialog({
           {isEditing && appointment?.id && (
             <div className="pt-3 border-t">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Campi personalizzati
+                {tr("Campi personalizzati")}
               </p>
               <EntityCustomFieldsSection entityType="appointment" entityId={appointment.id} disabled={solaLettura} />
             </div>
@@ -1459,15 +1458,15 @@ export function AppointmentDialog({
           {isEditing && (
             <Button variant="destructive" size="sm" onClick={handleDelete} disabled={saving || solaLettura} title={bloccoTitle} className="sm:mr-auto">
               <Trash2 className="h-4 w-4 mr-2" />
-              Annulla appuntamento
+              {tr("Annulla appuntamento")}
             </Button>
           )}
           {/* Mobile: chiude la X in alto. */}
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={saving} className="max-sm:hidden">
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving || solaLettura} title={bloccoTitle}>
-            {saving ? "Salvataggio..." : isEditing ? "Salva modifiche" : "Crea appuntamento"}
+            {saving ? tr("Salvataggio...") : isEditing ? tr("Salva modifiche") : tr("Crea appuntamento")}
           </Button>
         </DialogFooter>
       </DialogContent>

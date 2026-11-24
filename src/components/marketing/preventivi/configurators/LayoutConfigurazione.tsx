@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Cosa fare dopo aver aggiunto il prodotto. */
 export type DopoAggiunta = "altro" | "duplica" | "chiudi";
@@ -19,11 +20,12 @@ export function LayoutConfigurazione({
   riepilogo?: ReactNode;
   azioni: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="grid gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)]">
       <div className="min-w-0 space-y-4 lg:overflow-y-auto lg:px-2 lg:pb-1">{scelte}</div>
       <aside
-        aria-label="Riepilogo del prodotto"
+        aria-label={t("Riepilogo del prodotto")}
         className="space-y-3 lg:flex lg:max-h-full lg:flex-col lg:self-start lg:overflow-y-auto lg:rounded-xl lg:border lg:bg-muted/20 lg:p-3"
       >
         {riepilogo && (
@@ -54,6 +56,7 @@ export function AzioniProdotto({
   puoDuplicare?: boolean;
   onConferma: (dopo?: DopoAggiunta) => void;
 }) {
+  const t = useT();
   if (!inserimentoContinuo) {
     return (
       <Button variant="brand" className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-left leading-snug" disabled={disabled} onClick={() => onConferma()}>
@@ -66,17 +69,17 @@ export function AzioniProdotto({
     <div className="space-y-2">
       <Button variant="brand" className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-left leading-snug" disabled={disabled} onClick={() => onConferma("altro")}>
         <Check className="mr-1 h-4 w-4" />
-        Aggiungi e scegli un altro
+        {t("Aggiungi e scegli un altro")}
       </Button>
       {puoDuplicare && (
         <Button variant="outline" className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-left leading-snug" disabled={disabled} onClick={() => onConferma("duplica")}>
           <Copy className="mr-1 h-4 w-4" />
-          Aggiungi e duplica con altre misure
+          {t("Aggiungi e duplica con altre misure")}
         </Button>
       )}
       {/* Telefono no: dopo l'aggiunta c'è già «Fatto, torna al preventivo». */}
       <Button variant="ghost" className="w-full max-sm:hidden" disabled={disabled} onClick={() => onConferma("chiudi")}>
-        Aggiungi e torna al preventivo
+        {t("Aggiungi e torna al preventivo")}
       </Button>
     </div>
   );

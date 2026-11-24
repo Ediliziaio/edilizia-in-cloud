@@ -24,6 +24,7 @@ import { LATI_COLORE, fasceDeiLati, testiColori, type ColoriDentroFuori, type La
 import { SceltaVariante } from "./SceltaVariante";
 import { PaletteColore } from "./PaletteColore";
 import { valoriPerLato, verificaColori, type CatalogoColori } from "@/lib/serramenti/catalogoColori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   asse: { obbligatorio: boolean; values: AxisValue[] };
@@ -55,6 +56,7 @@ const ETICHETTA_ALTRO = "Altro colore (scrivi)…";
 const conSuffisso = (v: AxisValue) => `${v.label}${suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}`;
 
 export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onElenco, guidaId, piuCaraId, formato, mostraStandard, catalogo }: Props) {
+  const t = useT();
   const stile = FORMATO[formato];
   // Un lato è «in scrittura» se lo si è aperto adesso o se il colore della riga non è nel listino.
   const [aperti, setAperti] = useState<Record<LatoColore, boolean>>({ interno: false, esterno: false });
@@ -93,11 +95,11 @@ export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onEl
   const nota = !fasciaPrezzo
     ? null
     : scrivendo
-      ? `Colore scritto: il prezzo resta quello di ${conSuffisso(fasciaPrezzo)}.`
+      ? t("Colore scritto: il prezzo resta quello di {colore}.", { colore: conSuffisso(fasciaPrezzo) })
       : catalogo?.modalita === "combinazioni"
-        ? `Prezzo della combinazione: ${conSuffisso(fasciaPrezzo)}.`
+        ? t("Prezzo della combinazione: {colore}.", { colore: conSuffisso(fasciaPrezzo) })
         : costaDiverso && guidaId === piuCaraId
-        ? `Il prezzo segue il colore più caro: ${conSuffisso(fasciaPrezzo)}.`
+        ? t("Il prezzo segue il colore più caro: {colore}.", { colore: conSuffisso(fasciaPrezzo) })
         : null;
 
   return (
@@ -105,7 +107,7 @@ export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onEl
       {LATI_COLORE.map((lato) => {
         const scelta = colori[lato];
         const mancante = asse.obbligatorio && !scelta.valueId && !scelta.scritto;
-        const nome = `Colore ${lato}`;
+        const nome = lato === "esterno" ? t("Colore esterno") : t("Colore interno");
         return (
           <div key={lato} className="space-y-1">
             <Label className={cn("flex items-center gap-1", stile.etichetta, mancante ? "font-semibold text-rose-700" : "text-slate-700")}>
@@ -127,8 +129,8 @@ export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onEl
                 valueId={scelta.valueId}
                 scelta={scelta.voce}
                 onChange={(valueId, voce) => onChange(lato, valueId, voce)}
-                altro={{ etichetta: ETICHETTA_ALTRO, onScegli: () => apri(lato) }}
-                placeholder={mancante ? "Da scegliere…" : "Seleziona…"}
+                altro={{ etichetta: t(ETICHETTA_ALTRO), onScegli: () => apri(lato) }}
+                placeholder={mancante ? t("Da scegliere…") : t("Seleziona…")}
                 mostraStandard={mostraStandard}
                 aria-label={nome}
                 className={cn(stile.tendina, mancante && "border-rose-300")}
@@ -158,6 +160,7 @@ function CasellaColore({
   onConferma: (testo: string) => void;
   onElenco: () => void;
 }) {
+  const t = useT();
   const campo = useRef<HTMLInputElement>(null);
   const [bozza, setBozza] = useState(testo);
   // Se il colore cambia da fuori (un'altra scelta, un ricalcolo) la casella lo segue: senza rimontarla, che farebbe
@@ -187,8 +190,8 @@ function CasellaColore({
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
-        aria-label={`${nome} scritto a mano`}
-        placeholder="Scrivi il colore, es. RAL 7016"
+        aria-label={t("{nome} scritto a mano", { nome })}
+        placeholder={t("Scrivi il colore, es. RAL 7016")}
         className={cn("min-w-0 flex-1", classe)}
       />
       <button
@@ -196,8 +199,8 @@ function CasellaColore({
         // Il clic non toglie il cursore alla casella: il testo non si scrive per poi essere tolto.
         onMouseDown={(e) => e.preventDefault()}
         onClick={onElenco}
-        aria-label={`${nome}: scegli dall'elenco`}
-        title="Scegli dall'elenco del listino"
+        aria-label={t("{nome}: scegli dall'elenco", { nome })}
+        title={t("Scegli dall'elenco del listino")}
         className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-input bg-white text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronDown className="h-4 w-4" />

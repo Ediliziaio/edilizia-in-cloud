@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { IdCard, Loader2 } from "lucide-react";
 import { corpoErroreEdge } from "@/lib/fea/erroreEdge";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI = [
   { value: "carta_identita", label: "Carta d'identità" },
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export function IdentificazioneFirmatario({ token, sessioneFirma, nomeFirmatario, aziendaNome, dichiarazione, soloDichiarazione = false, onFatto, onSessioneScaduta }: Props) {
+  const tr = useT();
   const [primo, ...resto] = nomeFirmatario.trim().split(/\s+/);
   const [nome, setNome] = useState(primo ?? "");
   const [cognome, setCognome] = useState(resto.join(" "));
@@ -58,7 +60,7 @@ export function IdentificazioneFirmatario({ token, sessioneFirma, nomeFirmatario
 
   const scegliFile = (f: File | null, set: (f: File | null) => void) => {
     setErrore("");
-    if (f && f.size > MAX_FILE) { setErrore("La foto supera 10 MB: scattane una più leggera."); return; }
+    if (f && f.size > MAX_FILE) { setErrore(tr("La foto supera 10 MB: scattane una più leggera.")); return; }
     set(f);
   };
 
@@ -87,12 +89,12 @@ export function IdentificazioneFirmatario({ token, sessioneFirma, nomeFirmatario
       if (error) {
         const corpo = await corpoErroreEdge(error);
         if (corpo.code === "sessione_scaduta") { onSessioneScaduta(); return; }
-        throw new Error(corpo.error ?? "Identificazione non riuscita. Riprova.");
+        throw new Error(corpo.error ?? tr("Identificazione non riuscita. Riprova."));
       }
-      if (data?.success !== true) throw new Error(data?.error ?? "Identificazione non confermata. Riprova.");
+      if (data?.success !== true) throw new Error(data?.error ?? tr("Identificazione non confermata. Riprova."));
       onFatto();
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Identificazione non riuscita. Riprova.");
+      setErrore(e instanceof Error ? e.message : tr("Identificazione non riuscita. Riprova."));
     } finally {
       setInvio(false);
     }
@@ -100,7 +102,7 @@ export function IdentificazioneFirmatario({ token, sessioneFirma, nomeFirmatario
 
   const campoFile = (etichetta: string, file: File | null, set: (f: File | null) => void) => (
     <div className="space-y-1">
-      <Label>{etichetta}</Label>
+      <Label>{tr(etichetta)}</Label>
       <Input type="file" accept="image/*,application/pdf" capture="environment"
         onChange={(e) => scegliFile(e.target.files?.[0] ?? null, set)} />
       {file && <p className="text-xs text-slate-500 truncate">{file.name}</p>}
@@ -112,37 +114,37 @@ export function IdentificazioneFirmatario({ token, sessioneFirma, nomeFirmatario
       <div className="flex items-start gap-3">
         <IdCard className="h-6 w-6 text-orange-500 shrink-0 mt-0.5" />
         <div>
-          <h2 className="text-xl font-bold text-slate-800">{soloDichiarazione ? "Condizioni della firma" : "Chi sei"}</h2>
+          <h2 className="text-xl font-bold text-slate-800">{soloDichiarazione ? tr("Condizioni della firma") : tr("Chi sei")}</h2>
           <p className="text-slate-500 text-sm mt-1">
             {soloDichiarazione
-              ? `${aziendaNome} ha già registrato il tuo documento d'identità. È il primo documento che firmi: leggi e accetta le condizioni. Lo fai una volta sola.`
-              : `È il primo documento che firmi con ${aziendaNome}: serve un documento d'identità valido. Lo fai una volta sola.`}
+              ? tr("{aziendaNome} ha già registrato il tuo documento d'identità. È il primo documento che firmi: leggi e accetta le condizioni. Lo fai una volta sola.", { aziendaNome: String(aziendaNome ?? "") })
+              : tr("È il primo documento che firmi con {aziendaNome}: serve un documento d'identità valido. Lo fai una volta sola.", { aziendaNome: String(aziendaNome ?? "") })}
           </p>
         </div>
       </div>
 
       {!soloDichiarazione && <>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1"><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="given-name" /></div>
-        <div className="space-y-1"><Label>Cognome</Label><Input value={cognome} onChange={(e) => setCognome(e.target.value)} autoComplete="family-name" /></div>
+        <div className="space-y-1"><Label>{tr("Nome")}</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="given-name" /></div>
+        <div className="space-y-1"><Label>{tr("Cognome")}</Label><Input value={cognome} onChange={(e) => setCognome(e.target.value)} autoComplete="family-name" /></div>
       </div>
       <div className="space-y-1">
-        <Label>Codice fiscale <span className="text-slate-400 font-normal">(facoltativo)</span></Label>
+        <Label>{tr("Codice fiscale")} <span className="text-slate-400 font-normal">{tr("(facoltativo)")}</span></Label>
         <Input value={codiceFiscale} onChange={(e) => setCodiceFiscale(e.target.value.toUpperCase())} maxLength={16} />
       </div>
       <div className="space-y-1">
-        <Label>Documento</Label>
+        <Label>{tr("Documento")}</Label>
         <UniformSelect className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value)}>
-          {TIPI.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {TIPI.map((t) => <option key={t.value} value={t.value}>{tr(t.label)}</option>)}
         </UniformSelect>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1"><Label>Numero del documento</Label><Input value={numero} onChange={(e) => setNumero(e.target.value.toUpperCase())} maxLength={30} /></div>
-        <div className="space-y-1"><Label>Scade il</Label><Input type="date" value={scadenza} onChange={(e) => setScadenza(e.target.value)} /></div>
+        <div className="space-y-1"><Label>{tr("Numero del documento")}</Label><Input value={numero} onChange={(e) => setNumero(e.target.value.toUpperCase())} maxLength={30} /></div>
+        <div className="space-y-1"><Label>{tr("Scade il")}</Label><Input type="date" value={scadenza} onChange={(e) => setScadenza(e.target.value)} /></div>
       </div>
       <div className="space-y-1">
-        <Label>Rilasciato da <span className="text-slate-400 font-normal">(facoltativo)</span></Label>
-        <Input value={rilasciatoDa} onChange={(e) => setRilasciatoDa(e.target.value)} placeholder="Es. Comune di Milano" />
+        <Label>{tr("Rilasciato da")} <span className="text-slate-400 font-normal">{tr("(facoltativo)")}</span></Label>
+        <Input value={rilasciatoDa} onChange={(e) => setRilasciatoDa(e.target.value)} placeholder={tr("Es. Comune di Milano")} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {campoFile(serveRetro ? "Foto del fronte" : "Foto della pagina con i dati", fronte, setFronte)}
@@ -151,19 +153,19 @@ export function IdentificazioneFirmatario({ token, sessioneFirma, nomeFirmatario
       </>}
 
       <div className="space-y-2">
-        <Label>Condizioni del servizio di firma</Label>
+        <Label>{tr("Condizioni del servizio di firma")}</Label>
         <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">
           {dichiarazione.testo}
         </div>
         <label className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
           <Checkbox checked={accetto} onCheckedChange={(v) => setAccetto(v === true)} className="mt-0.5" />
-          <span>Ho letto e accetto le condizioni. Ne ricevo una copia per email.</span>
+          <span>{tr("Ho letto e accetto le condizioni. Ne ricevo una copia per email.")}</span>
         </label>
       </div>
 
       {errore && <p className="text-sm text-red-600">{errore}</p>}
       <Button className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold" disabled={!pronto || invio} onClick={() => void invia()}>
-        {invio ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio in corso...</> : "Conferma e continua"}
+        {invio ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />{tr("Invio in corso...")}</> : tr("Conferma e continua")}
       </Button>
     </div>
   );

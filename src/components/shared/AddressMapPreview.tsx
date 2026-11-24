@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Navigation } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   lat: number;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function AddressMapPreview({ lat, lng, formattedAddress }: Props) {
+  const t = useT();
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   const embedUrl = `https://www.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
 
@@ -21,7 +23,7 @@ export default function AddressMapPreview({ lat, lng, formattedAddress }: Props)
   const copyAddress = async () => {
     const text = formattedAddress || `${lat}, ${lng}`;
     await navigator.clipboard.writeText(text);
-    toast.success("Indirizzo copiato");
+    toast.success(t("Indirizzo copiato"));
   };
 
   return (
@@ -34,24 +36,24 @@ export default function AddressMapPreview({ lat, lng, formattedAddress }: Props)
           style={{ border: 0 }}
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
-          title="Mappa appuntamento"
+          title={t("Mappa appuntamento")}
         />
       </div>
       <div className="flex gap-1.5 flex-wrap">
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" asChild>
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-3 w-3" />
-            Apri in Maps
+            {t("Apri in Maps")}
           </a>
         </Button>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={copyAddress}>
           <Copy className="h-3 w-3" />
-          Copia
+          {t("Copia")}
         </Button>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" asChild>
           <a href={navUrl} target="_blank" rel="noopener noreferrer">
             <Navigation className="h-3 w-3" />
-            Naviga
+            {t("Naviga")}
           </a>
         </Button>
       </div>

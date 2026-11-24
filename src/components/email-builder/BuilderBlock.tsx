@@ -4,6 +4,7 @@ import DOMPurify from "dompurify";
 import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType } from "./builderTypes";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CHILD_BLOCK_OPTIONS: { type: BlockType; label: string; icon: React.ReactNode }[] = [
   { type: "text", label: "Testo", icon: <Type className="h-3.5 w-3.5" /> },
@@ -33,6 +34,7 @@ interface BuilderBlockProps {
 }
 
 export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId, onInlineEdit }: BuilderBlockProps) {
+  const t = useT();
   const renderContent = () => {
     switch (block.type) {
       case "text": {
@@ -56,7 +58,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
           </div>
         ) : (
           <div className="flex items-center justify-center h-24 bg-muted/50 rounded border-2 border-dashed border-muted-foreground/20 text-sm text-muted-foreground">
-            Inserisci URL immagine →
+            {t("Inserisci URL immagine →")}
           </div>
         );
       }
@@ -99,7 +101,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
                 </span>
               ) : (
                 <span style={{ fontSize: "11px", color: "#EF4444", fontFamily: "sans-serif" }}>
-                  ⚠ URL non impostato — clicca il blocco per aggiungere il link
+                  {t("⚠ URL non impostato — clicca il blocco per aggiungere il link")}
                 </span>
               )}
             </div>
@@ -161,14 +163,14 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="w-full h-7 text-xs text-muted-foreground border border-dashed border-muted-foreground/20 hover:border-primary/50 mt-1">
-                      <Plus className="h-3 w-3 mr-1" /> Aggiungi
+                      <Plus className="h-3 w-3 mr-1" /> {t("Aggiungi")}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="bg-background z-50">
                     {CHILD_BLOCK_OPTIONS.map((opt) => (
                       <DropdownMenuItem key={opt.type} onClick={(e) => { e.stopPropagation(); onAddChildBlock?.(block.id, i, opt.type); }}>
                         {opt.icon}
-                        <span className="ml-2">{opt.label}</span>
+                        <span className="ml-2">{t(opt.label)}</span>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>

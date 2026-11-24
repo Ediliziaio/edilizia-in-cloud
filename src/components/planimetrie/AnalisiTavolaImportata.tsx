@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { LetturaTavolaTecnica } from "@/lib/planimetrie/analisiTavola";
 import { scalaRasterHvacDiscordante, type AreaTavola, type DatiHvac, type VistaTavolaTecnica } from "@/lib/planimetrie/tavolaTecnica";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const formato = new Intl.NumberFormat("it-IT", { useGrouping: "always" });
+const formato = () => new Intl.NumberFormat(intlCampo(), { useGrouping: "always" });
 const totalePortate = (dati: DatiHvac) => dati.portate.reduce((somma, p) => somma + p.cfm, 0);
 
 export function SelettoreLivelliTecnici({ vista, legendaLetta, onVista }: {
@@ -12,13 +13,14 @@ export function SelettoreLivelliTecnici({ vista, legendaLetta, onVista }: {
   legendaLetta: boolean;
   onVista: (vista: VistaTavolaTecnica | "originale") => void;
 }) {
+  const t = useT();
   const livelli = [
-    { id: "originale", nome: "Originale" },
-    { id: "pianta", nome: "Base architettonica" },
-    { id: "mandata", nome: legendaLetta ? "Mandata" : "Traccia blu" },
-    { id: "ripresa", nome: legendaLetta ? "Ripresa" : "Traccia rossa" },
+    { id: "originale", nome: t("Originale") },
+    { id: "pianta", nome: t("Base architettonica") },
+    { id: "mandata", nome: legendaLetta ? t("Mandata") : t("Traccia blu") },
+    { id: "ripresa", nome: legendaLetta ? t("Ripresa") : t("Traccia rossa") },
   ] as const;
-  return <div role="group" aria-label="Livelli della tavola" className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
+  return <div role="group" aria-label={t("Livelli della tavola")} className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
     {livelli.map(({ id, nome }) => <Button key={id} type="button" size="sm" variant={vista === id ? "secondary" : "ghost"}
       className="h-8 px-2.5 text-xs" aria-pressed={vista === id} onClick={() => onVista(id)}>{nome}</Button>)}
   </div>;
@@ -31,12 +33,13 @@ export function ImmagineTecnica({ src, larghezza, altezza, zona, ritaglio }: {
   zona: AreaTavola;
   ritaglio: boolean;
 }) {
+  const t = useT();
   const x = zona.x * larghezza;
   const y = zona.y * altezza;
   const w = zona.larghezza * larghezza;
   const h = zona.altezza * altezza;
   return <svg viewBox={`0 0 ${larghezza} ${altezza}`} className="h-full w-full min-h-0" role="img"
-    aria-label={ritaglio ? "Tavola con l’area consigliata per il ritaglio" : "Tavola con il dato selezionato in evidenza"}>
+    aria-label={ritaglio ? t("Tavola con l’area consigliata per il ritaglio") : t("Tavola con il dato selezionato in evidenza")}>
     <image href={src} width={larghezza} height={altezza} />
     {ritaglio && <path d={`M 0 0 H ${larghezza} V ${altezza} H 0 Z M ${x} ${y} H ${x + w} V ${y + h} H ${x} Z`}
       fill="rgba(15,23,42,.25)" fillRule="evenodd" />}
@@ -54,6 +57,7 @@ export function AnalisiTavolaImportata({ lettura, ritaglioApplicato, puoRitaglia
   onRitaglia: (area: AreaTavola) => void;
   onOriginale: () => void;
 }) {
+  const t = useT();
   const { tavola, righe, etichetteLette } = lettura;
   const pianoTerra = righe.some((s) => s.confidence >= 0.5 && /\bPRIZEM[IL]JE\b/i.test(s.text));
   return <section aria-labelledby="titolo-analisi-tavola" className="space-y-3 rounded-xl border bg-card p-4 motion-safe:animate-in motion-safe:fade-in-0">
@@ -61,13 +65,13 @@ export function AnalisiTavolaImportata({ lettura, ritaglioApplicato, puoRitaglia
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ScanLine className="h-4 w-4" aria-hidden="true" /></span>
       <div>
         <h2 id="titolo-analisi-tavola" className="text-sm font-semibold">{
-          tavola.tipo === "hvac" ? tavola.dati.portate.length || tavola.codiceMandata ? "Tavola HVAC" : "Schema con reti colorate"
-            : tavola.tipo === "composita" ? "Pianta con viste affiancate" : "Esito dell’analisi"
+          tavola.tipo === "hvac" ? tavola.dati.portate.length || tavola.codiceMandata ? t("Tavola HVAC") : t("Schema con reti colorate")
+            : tavola.tipo === "composita" ? t("Pianta con viste affiancate") : t("Esito dell’analisi")
         }</h2>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{
-          tavola.tipo === "hvac" ? "Controlla le reti nei livelli sopra la tavola." : tavola.tipo === "composita"
-            ? pianoTerra ? "Il titolo della tavola indica il piano terra." : "Il riquadro suggerisce l’area della pianta principale."
-            : "Puoi regolare il ritaglio e aprire la tavola nell’editor."
+          tavola.tipo === "hvac" ? t("Controlla le reti nei livelli sopra la tavola.") : tavola.tipo === "composita"
+            ? pianoTerra ? t("Il titolo della tavola indica il piano terra.") : t("Il riquadro suggerisce l’area della pianta principale.")
+            : t("Puoi regolare il ritaglio e aprire la tavola nell’editor.")
         }</p>
       </div>
     </div>
@@ -76,14 +80,14 @@ export function AnalisiTavolaImportata({ lettura, ritaglioApplicato, puoRitaglia
     {tavola.tipo === "composita" && <>
       <p className="flex items-start gap-2 rounded-lg border bg-muted/25 p-3 text-xs leading-relaxed text-muted-foreground">
         <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
-        Verifica le quote minute e le aperture sul PDF o sul DWG originale. Imposta la scala nell’editor a partire da una quota leggibile.
+        {t("Verifica le quote minute e le aperture sul PDF o sul DWG originale. Imposta la scala nell’editor a partire da una quota leggibile.")}
       </p>
       {puoRitagliare && <Button type="button" size="sm" className="gap-2" onClick={() => onRitaglia(tavola.area)}>
-        Usa la pianta principale <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        {t("Usa la pianta principale")} <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Button>}
       {ritaglioApplicato && <div className="flex flex-wrap items-center gap-2">
-        <span role="status" className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Ritaglio applicato</span>
-        <Button type="button" size="sm" variant="outline" onClick={onOriginale}>Rivedi il foglio intero</Button>
+        <span role="status" className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{t("Ritaglio applicato")}</span>
+        <Button type="button" size="sm" variant="outline" onClick={onOriginale}>{t("Rivedi il foglio intero")}</Button>
       </div>}
     </>}
   </section>;
@@ -92,57 +96,58 @@ export function AnalisiTavolaImportata({ lettura, ritaglioApplicato, puoRitaglia
 function RiscontriHvac({ dati, etichetteLette, scalaDiscordante, evidenza, onEvidenza }: {
   dati: DatiHvac; etichetteLette: boolean; scalaDiscordante: boolean; evidenza: AreaTavola | null; onEvidenza: (zona: AreaTavola | null) => void;
 }) {
+  const t = useT();
   const ripetute = new Map<string, number>();
   for (const { nome } of dati.portate) if (nome) ripetute.set(nome, (ripetute.get(nome) ?? 0) + 1);
   return <div className="space-y-3">
     <div className="grid gap-2 sm:grid-cols-2">
       {!!dati.portate.length && <div className="rounded-lg border bg-muted/25 p-3">
-        <p className="text-xs text-muted-foreground">Somma delle {dati.portate.length} portate in tavola</p>
-        <p className="mt-0.5 text-lg font-semibold tabular-nums">{formato.format(totalePortate(dati))} CFM</p>
+        <p className="text-xs text-muted-foreground">{t("Somma delle {n} portate in tavola", { n: dati.portate.length })}</p>
+        <p className="mt-0.5 text-lg font-semibold tabular-nums">{formato().format(totalePortate(dati))} CFM</p>
       </div>}
       {dati.orizzontale && <div className="rounded-lg border bg-muted/25 p-3">
-        <p className="text-xs text-muted-foreground">Quote d’asse scritte</p>
-        <p className="mt-0.5 text-lg font-semibold tabular-nums">{formato.format(dati.orizzontale.totaleMm / 1000)}{
-          dati.verticale ? ` × ${formato.format(dati.verticale.totaleMm / 1000)} m` : " m in orizzontale"
+        <p className="text-xs text-muted-foreground">{t("Quote d’asse scritte")}</p>
+        <p className="mt-0.5 text-lg font-semibold tabular-nums">{formato().format(dati.orizzontale.totaleMm / 1000)}{
+          dati.verticale ? ` × ${formato().format(dati.verticale.totaleMm / 1000)} m` : ` ${t("m in orizzontale")}`
         }</p>
       </div>}
     </div>
-    {!etichetteLette && <p className="text-xs text-muted-foreground">Riconoscimento testo della foto non disponibile. Puoi comunque esplorare le tracce colorate.</p>}
+    {!etichetteLette && <p className="text-xs text-muted-foreground">{t("Riconoscimento testo della foto non disponibile. Puoi comunque esplorare le tracce colorate.")}</p>}
     {!!dati.sezioni.length && <div className="space-y-1.5">
-      <h3 className="flex items-center gap-2 text-xs font-semibold"><Layers2 className="h-4 w-4 text-primary" aria-hidden="true" />Sezioni lette</h3>
+      <h3 className="flex items-center gap-2 text-xs font-semibold"><Layers2 className="h-4 w-4 text-primary" aria-hidden="true" />{t("Sezioni lette")}</h3>
       <ul className="flex flex-wrap gap-1.5">
         {dati.sezioni.map((s) => <li key={`${s.rete}-${s.larghezzaMm}-${s.altezzaMm}`}
           className={cn("rounded-md border px-2 py-1 text-xs tabular-nums",
             s.rete === "mandata" ? "border-sky-600/20 bg-sky-500/10" : "border-rose-600/20 bg-rose-500/10")}>
-          {s.rete === "mandata" ? "Mandata" : "Ripresa"} {s.larghezzaMm} × {s.altezzaMm} mm
+          {s.rete === "mandata" ? t("Mandata") : t("Ripresa")} {s.larghezzaMm} × {s.altezzaMm} mm
         </li>)}
       </ul>
     </div>}
     {(dati.unitaTrattamentoAria || dati.simboli.length > 0) && <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
       {dati.unitaTrattamentoAria && <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs"
         aria-pressed={evidenza === dati.unitaTrattamentoAria} onClick={() => onEvidenza(evidenza === dati.unitaTrattamentoAria ? null : dati.unitaTrattamentoAria)}>
-        Individua UTA
+        {t("Individua UTA")}
       </Button>}
-      {dati.simboli.length > 0 && <span>In legenda · {dati.simboli.join(" · ")}</span>}
+      {dati.simboli.length > 0 && <span>{t("In legenda · {simboli}", { simboli: dati.simboli.join(" · ") })}</span>}
     </p>}
     {!!dati.portate.length && <details className="rounded-lg border">
-      <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">Portate per ambiente</summary>
+      <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">{t("Portate per ambiente")}</summary>
       <ul className="divide-y border-t">
         {dati.portate.map(({ nome, cfm, zona }) => <li key={`${zona.x}-${zona.y}`}>
           <button type="button" aria-pressed={evidenza === zona} onClick={() => onEvidenza(evidenza === zona ? null : zona)}
             className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               evidenza === zona && "bg-primary/10")}>
-            <span className="min-w-0 break-words">{nome || "Ambiente da identificare"}{(ripetute.get(nome) ?? 0) > 1 && <span className="text-amber-700 dark:text-amber-400"> · Etichetta ripetuta</span>}</span>
-            <span className="shrink-0 font-medium tabular-nums">{formato.format(cfm)} CFM</span>
+            <span className="min-w-0 break-words">{nome || t("Ambiente da identificare")}{(ripetute.get(nome) ?? 0) > 1 && <span className="text-amber-700 dark:text-amber-400"> · {t("Etichetta ripetuta")}</span>}</span>
+            <span className="shrink-0 font-medium tabular-nums">{formato().format(cfm)} CFM</span>
           </button>
         </li>)}
       </ul>
     </details>}
     <p className="flex items-start gap-2 rounded-lg border bg-muted/25 p-3 text-xs leading-relaxed text-muted-foreground">
       <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
-      <span>{dati.sigleDaVerificare > 0 && `${dati.sigleDaVerificare} sigle di sezione da ricontrollare. `}{
-        dati.scalaScritta && `Scala stampata ${dati.scalaScritta}. `
-      }{scalaDiscordante ? "La foto mostra una possibile differenza di scala tra i due assi. " : ""}Verifica scala, collegamenti e quote di posa sulla tavola tecnica prima di ricavare le quantità.</span>
+      <span>{dati.sigleDaVerificare > 0 && `${t("{n} sigle di sezione da ricontrollare.", { n: dati.sigleDaVerificare })} `}{
+        dati.scalaScritta && `${t("Scala stampata {scalaScritta}.", { scalaScritta: String(dati.scalaScritta ?? "") })} `
+      }{scalaDiscordante ? `${t("La foto mostra una possibile differenza di scala tra i due assi.")} ` : ""}{t("Verifica scala, collegamenti e quote di posa sulla tavola tecnica prima di ricavare le quantità.")}</span>
     </p>
   </div>;
 }

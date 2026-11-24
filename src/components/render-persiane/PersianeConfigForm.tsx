@@ -56,6 +56,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DettagliTelefono } from "@/components/render/DettagliTelefono";
 import { etichettaAnalisiPersiane } from "@/components/render-persiane/etichetteAnalisiPersiane";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const OPERAZIONI: { value: TipoOperazione; label: string; desc: string; icon: typeof Replace }[] = [
   { value: "sostituisci", label: "Sostituisci", desc: "Cambia il sistema oscurante mantenendo la stessa facciata", icon: Replace },
@@ -179,6 +180,7 @@ function openingShortLabel(type: string) {
 }
 
 export function PersianeConfigForm({ value, onChange, disabled, analysis }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const set = <K extends keyof ConfigurazionePersiane>(key: K, val: ConfigurazionePersiane[K]) =>
     onChange({ ...value, [key]: val });
@@ -217,12 +219,12 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
         <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Analisi facciata
+              {t("Analisi facciata")}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="secondary">{analysis.facadeType}</Badge>
               <Badge variant="secondary">{analysis.buildingStyle}</Badge>
-              <Badge variant="secondary">{analysis.openingsVisible} aperture visibili</Badge>
+              <Badge variant="secondary">{t("{openingsVisible} aperture visibili", { openingsVisible: String(analysis.openingsVisible ?? "") })}</Badge>
               <Badge variant="secondary">{etichettaAnalisiPersiane("orientamento", analysis.imageOrientation)}</Badge>
             </div>
           </div>
@@ -233,12 +235,9 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       )}
 
       <div className="space-y-3">
-        <Label className="text-sm font-semibold max-md:text-[13px]">Aperture target</Label>
+        <Label className="text-sm font-semibold max-md:text-[13px]">{t("Aperture target")}</Label>
         {analysis && analysis.openingsVisible !== analysis.openings.length && (
-          <p role="alert" className="text-sm text-amber-700">
-            L’analisi stima {analysis.openingsVisible} aperture visibili, ma ne ha identificate {analysis.openings.length} da selezionare.
-            «Tutte le aperture» comprende solo quelle elencate. Se ne manca una, ripeti l’analisi con una foto più chiara prima di generare.
-          </p>
+          <p role="alert" className="text-sm text-amber-700">{t("L’analisi stima {openingsVisible} aperture visibili, ma ne ha identificate {n} da selezionare. «Tutte le aperture» comprende solo quelle elencate. Se ne manca una, ripeti l’analisi con una foto più chiara prima di generare.", { openingsVisible: String(analysis.openingsVisible ?? ""), n: analysis.openings.length })}</p>
         )}
         <div className="grid gap-2 sm:grid-cols-3 max-sm:gap-1.5">
           <button
@@ -251,8 +250,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             }`}
           >
-            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Tutte le aperture</p>
-            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Applica la stessa trasformazione a tutte le finestre visibili.</p>
+            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t("Tutte le aperture")}</p>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{t("Applica la stessa trasformazione a tutte le finestre visibili.")}</p>
           </button>
           <button
             type="button"
@@ -264,8 +263,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             }`}
           >
-            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Solo apertura principale</p>
-            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Mantiene tutte le altre aperture intatte.</p>
+            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t("Solo apertura principale")}</p>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{t("Mantiene tutte le altre aperture intatte.")}</p>
           </button>
           <button
             type="button"
@@ -277,8 +276,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             } ${!canSelectSpecificOpenings ? "opacity-50 cursor-not-allowed" : ""}`}
           >
-            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Aperture selezionate</p>
-            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Scegli esattamente quali finestre cambiare.</p>
+            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t("Aperture selezionate")}</p>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{t("Scegli esattamente quali finestre cambiare.")}</p>
           </button>
         </div>
 
@@ -297,7 +296,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Apertura {opening.label}</p>
+                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t("Apertura {label}", { label: opening.label })}</p>
                     <Badge variant={active ? "default" : "outline"} className="max-md:px-1.5 max-md:py-0 max-md:text-[11px] max-md:font-normal">{etichettaAnalisiPersiane("posizione", opening.position)}</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 max-md:mt-0.5 max-md:text-[11px]">
@@ -311,7 +310,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       </div>
 
       <div className="space-y-2">
-        <Label className="text-sm font-semibold max-md:text-[13px]">Operazione</Label>
+        <Label className="text-sm font-semibold max-md:text-[13px]">{t("Operazione")}</Label>
         <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {OPERAZIONI.map(({ value: opValue, label, desc, icon: Icon }) => (
             <button
@@ -330,8 +329,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   <Icon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{label}</p>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-md:hidden">{desc}</p>
+                  <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t(label)}</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-md:hidden">{t(desc)}</p>
                 </div>
               </div>
             </button>
@@ -341,7 +340,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
       {showFullConfig && !showColorOnly && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Tipologia oscurante</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{t("Tipologia oscurante")}</Label>
           <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
             {TIPI_PERSIANA.map(({ value: shutterType, label, icon: Icon, desc }) => (
               <button
@@ -378,7 +377,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     // La foto del tipo (la stessa che il motore allega, qui a colori); se non si carica resta l'icona sotto.
                     <div className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-md max-md:h-10 max-md:w-10 ${value.tipo === shutterType ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                       <Icon className="absolute inset-0 m-auto h-4 w-4" />
-                      <ReferenceThumb photo={SHUTTER_TYPE_PHOTOS[shutterType]} alt={label} className="relative" />
+                      <ReferenceThumb photo={SHUTTER_TYPE_PHOTOS[shutterType]} alt={t(label)} className="relative" />
                     </div>
                   ) : (
                     <div className={`rounded-md p-2 max-md:p-1.5 ${value.tipo === shutterType ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
@@ -386,8 +385,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     </div>
                   )}
                   <div>
-                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{label}</p>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-md:hidden">{desc}</p>
+                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t(label)}</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-md:hidden">{t(desc)}</p>
                   </div>
                 </div>
               </button>
@@ -401,22 +400,22 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
         <div className="space-y-3">
           {anteDelTipo && (
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold max-md:text-[13px]">{value.tipo === "a_libro" ? "Pannelli per finestra" : "Ante per finestra"}</Label>
+              <Label className="text-sm font-semibold max-md:text-[13px]">{value.tipo === "a_libro" ? t("Pannelli per finestra") : t("Ante per finestra")}</Label>
               <div className="flex flex-wrap gap-2">
-                <Pillola attiva={!value.numero_ante} disabled={disabled} onClick={() => set("numero_ante", undefined)}>Come in foto</Pillola>
+                <Pillola attiva={!value.numero_ante} disabled={disabled} onClick={() => set("numero_ante", undefined)}>{t("Come in foto")}</Pillola>
                 {anteDelTipo.map((n) => (
-                  <Pillola key={n} attiva={value.numero_ante === n} disabled={disabled} onClick={() => set("numero_ante", n)}>{ETICHETTA_ANTE[n]}</Pillola>
+                  <Pillola key={n} attiva={value.numero_ante === n} disabled={disabled} onClick={() => set("numero_ante", n)}>{t(ETICHETTA_ANTE[n])}</Pillola>
                 ))}
               </div>
             </div>
           )}
           {haCassonetto && (
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold max-md:text-[13px]">Cassonetto</Label>
+              <Label className="text-sm font-semibold max-md:text-[13px]">{t("Cassonetto")}</Label>
               <div className="flex flex-wrap gap-2">
-                <Pillola attiva={!value.cassonetto} disabled={disabled} onClick={() => set("cassonetto", undefined)}>Come in foto</Pillola>
+                <Pillola attiva={!value.cassonetto} disabled={disabled} onClick={() => set("cassonetto", undefined)}>{t("Come in foto")}</Pillola>
                 {CASSONETTI.map((c) => (
-                  <Pillola key={c.value} attiva={value.cassonetto === c.value} disabled={disabled} onClick={() => set("cassonetto", c.value)}>{c.label}</Pillola>
+                  <Pillola key={c.value} attiva={value.cassonetto === c.value} disabled={disabled} onClick={() => set("cassonetto", c.value)}>{t(c.label)}</Pillola>
                 ))}
               </div>
             </div>
@@ -426,7 +425,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
       {showFullConfig && !showColorOnly && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Materiale</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{t("Materiale")}</Label>
           <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
             {MATERIALI.map((material) => (
               <button
@@ -443,12 +442,12 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 <div className="flex items-center gap-3 max-md:gap-2">
                   {SHUTTER_MATERIAL_PHOTOS[material.value] && (
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border border-black/10 bg-muted">
-                      <ReferenceThumb photo={SHUTTER_MATERIAL_PHOTOS[material.value]} alt={material.label} />
+                      <ReferenceThumb photo={SHUTTER_MATERIAL_PHOTOS[material.value]} alt={t(material.label)} />
                     </div>
                   )}
                   <div>
-                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{material.label}</p>
-                    <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{material.desc}</p>
+                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t(material.label)}</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{t(material.desc)}</p>
                   </div>
                 </div>
               </button>
@@ -460,9 +459,9 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       {showFullConfig && (
         <div className="space-y-3">
           <div>
-            <Label className="text-sm font-semibold max-md:text-[13px]">Finitura</Label>
+            <Label className="text-sm font-semibold max-md:text-[13px]">{t("Finitura")}</Label>
             <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
-              La finitura entra direttamente nel prompt finale del render, quindi qui conviene essere molto precisi.
+              {t("La finitura entra direttamente nel prompt finale del render, quindi qui conviene essere molto precisi.")}
             </p>
           </div>
           <div className="flex gap-2">
@@ -476,7 +475,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   : "border-slate-300 bg-white text-muted-foreground hover:border-primary/60 hover:text-foreground"
               }`}
             >
-              Colore RAL
+              {t("Colore RAL")}
             </button>
             <button
               type="button"
@@ -488,7 +487,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   : "border-slate-300 bg-white text-muted-foreground hover:border-primary/60 hover:text-foreground"
               }`}
             >
-              Effetto legno
+              {t("Effetto legno")}
             </button>
           </div>
 
@@ -543,12 +542,12 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                       {/* La foto dell'essenza (la stessa che il motore allega); il campione resta sotto e per il rovere chiaro, che non ha foto. */}
                       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-black/10" style={{ background: effect.swatch }}>
                         {SHUTTER_WOOD_FINISH_PHOTOS[effect.value] && (
-                          <ReferenceThumb photo={SHUTTER_WOOD_FINISH_PHOTOS[effect.value]} alt={effect.label} className="relative" />
+                          <ReferenceThumb photo={SHUTTER_WOOD_FINISH_PHOTOS[effect.value]} alt={t(effect.label)} className="relative" />
                         )}
                       </div>
-                      <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{effect.label}</p>
+                      <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t(effect.label)}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Usa questo effetto come riferimento materico del render.</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{t("Usa questo effetto come riferimento materico del render.")}</p>
                   </button>
                 );
               })}
@@ -563,7 +562,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               disabled={disabled}
             />
             <Label htmlFor="colore_profilo_diverso" className="text-sm cursor-pointer max-md:text-[13px]">
-              Profilo esterno con colore diverso
+              {t("Profilo esterno con colore diverso")}
             </Label>
           </div>
 
@@ -585,7 +584,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                       <div className="h-6 w-6 rounded-full border border-black/10" style={{ backgroundColor: color.hex }} />
                       <div>
                         <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{color.nome}</p>
-                        <p className="text-xs text-muted-foreground max-md:hidden">Profilo / telaio</p>
+                        <p className="text-xs text-muted-foreground max-md:hidden">{t("Profilo / telaio")}</p>
                       </div>
                     </div>
                   </button>
@@ -598,7 +597,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
       {showFullConfig && !(showFixedSystem) && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold max-md:text-[13px]">{showGuidedStates ? "Posizione del telo" : "Stato apertura"}</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{showGuidedStates ? t("Posizione del telo") : t("Stato apertura")}</Label>
           <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-1.5">
             {(showGuidedStates ? STATI_TELO : STATI_APERTURA).map((state) => (
               <button
@@ -612,8 +611,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
-                <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{state.label}</p>
-                <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{state.desc}</p>
+                <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{t(state.label)}</p>
+                <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{t(state.desc)}</p>
               </button>
             ))}
           </div>
@@ -623,14 +622,14 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       {showFullConfig && !showColorOnly && showLamelle && (
         <div className="space-y-3 rounded-xl border bg-muted/20 p-4 max-md:p-3">
           <div>
-            <Label className="text-sm font-semibold max-md:text-[13px]">Lamelle</Label>
+            <Label className="text-sm font-semibold max-md:text-[13px]">{t("Lamelle")}</Label>
             <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
-              Vale per veneziane, gelosie e schermature a lame.
+              {t("Vale per veneziane, gelosie e schermature a lame.")}
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground max-md:text-[11px]">Larghezza lamelle</Label>
+              <Label className="text-xs text-muted-foreground max-md:text-[11px]">{t("Larghezza lamelle")}</Label>
               <Select
                 value={String(value.lamelle?.larghezza_mm ?? 50)}
                 onValueChange={(nextValue) =>
@@ -649,15 +648,13 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 </SelectTrigger>
                 <SelectContent>
                   {[40, 50, 60, 80].map((width) => (
-                    <SelectItem key={width} value={String(width)}>
-                      {width} mm
-                    </SelectItem>
+                    <SelectItem key={width} value={String(width)}>{width} mm</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground max-md:text-[11px]">Apertura lamelle</Label>
+              <Label className="text-xs text-muted-foreground max-md:text-[11px]">{t("Apertura lamelle")}</Label>
               <Select
                 value={value.lamelle?.apertura ?? "chiuse"}
                 onValueChange={(nextValue) =>
@@ -677,7 +674,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 <SelectContent>
                   {APERTURE_LAMELLE.map((item) => (
                     <SelectItem key={item.value} value={item.value}>
-                      {item.label}
+                      {t(item.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -686,7 +683,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
           </div>
           {haMovimentoLamelle && (
             <div className="flex flex-wrap items-center gap-2">
-              <Label className="text-xs text-muted-foreground max-md:text-[11px]">Lamelle</Label>
+              <Label className="text-xs text-muted-foreground max-md:text-[11px]">{t("Lamelle")}</Label>
               {([undefined, "fisse", "orientabili"] as Array<MovimentoLamelle | undefined>).map((movimento) => (
                 <Pillola
                   key={movimento ?? "non_specificato"}
@@ -699,7 +696,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     })
                   }
                 >
-                  {movimento === "fisse" ? "Fisse" : movimento === "orientabili" ? "Orientabili (con asta)" : "Non specificato"}
+                  {movimento === "fisse" ? t("Fisse") : movimento === "orientabili" ? t("Orientabili (con asta)") : t("Non specificato")}
                 </Pillola>
               ))}
             </div>
@@ -708,12 +705,12 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       )}
 
       {/* Telefono: ferramenta, installazione e accessori hanno già valori sensati: riga chiusa. */}
-      <DettagliTelefono titolo="Ferramenta e dettagli">
+      <DettagliTelefono titolo={t("Ferramenta e dettagli")}>
       <div className="space-y-3">
-        <Label className="text-sm font-semibold max-md:hidden">Ferramenta e dettagli</Label>
+        <Label className="text-sm font-semibold max-md:hidden">{t("Ferramenta e dettagli")}</Label>
         <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground max-md:text-[11px]">Finitura ferramenta</Label>
+            <Label className="text-xs text-muted-foreground max-md:text-[11px]">{t("Finitura ferramenta")}</Label>
             <Select
               value={value.ferramenta_finitura ?? "verniciata_tinta"}
               onValueChange={(nextValue) => set("ferramenta_finitura", nextValue as PersianaFerramentaFinitura)}
@@ -725,7 +722,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               <SelectContent>
                 {FERRAMENTA_FINISH.map((finish) => (
                   <SelectItem key={finish.value} value={finish.value}>
-                    {finish.label}
+                    {t(finish.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -733,7 +730,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground max-md:text-[11px]">Logica di installazione</Label>
+            <Label className="text-xs text-muted-foreground max-md:text-[11px]">{t("Logica di installazione")}</Label>
             <Select
               value={value.installazione ?? (value.tipo === "avvolgibile_esterno" || value.tipo === "veneziana_esterna" ? "guide_laterali" : value.tipo === "brise_soleil" ? "brackets_architettonici" : "cardini_tradizionali")}
               onValueChange={(nextValue) => set("installazione", nextValue as PersianaInstallazione)}
@@ -745,7 +742,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               <SelectContent>
                 {INSTALLAZIONI.filter((item) => installazioniAmmesse.includes(item.value)).map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {t(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -762,7 +759,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               disabled={disabled}
             />
             <Label htmlFor="fermapersiana_visibile" className="text-sm cursor-pointer max-md:text-[13px]">
-              Mostra fermapersiane / accessori di ritenuta se coerenti
+              {t("Mostra fermapersiane / accessori di ritenuta se coerenti")}
             </Label>
           </div>
 
@@ -774,7 +771,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               disabled={disabled}
             />
             <Label htmlFor="mantieni_accessori_non_target" className="text-sm cursor-pointer max-md:text-[13px]">
-              Preserva accessori delle aperture non target
+              {t("Preserva accessori delle aperture non target")}
             </Label>
           </div>
         </div>
@@ -782,11 +779,11 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       </DettagliTelefono>
 
       <div className="space-y-1.5">
-        <Label className="max-md:text-[13px] max-md:font-semibold">Note aggiuntive</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">{t("Note aggiuntive")}</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={(event) => set("note_libere", event.target.value)}
-          placeholder="Es. mantieni contorni in pietra, non toccare ringhiera balcone, applica solo alla finestra centrale..."
+          placeholder={t("Es. mantieni contorni in pietra, non toccare ringhiera balcone, applica solo alla finestra centrale...")}
           rows={3}
           disabled={disabled}
           className="max-md:placeholder:text-[13px]"

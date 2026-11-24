@@ -1,7 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { partiOraRoma, oraRomaHM } from "@/lib/oraLocaleCalendario";
-import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon, Video } from "lucide-react";
@@ -11,6 +10,7 @@ import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin, computeOverlapLayout } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   weekStart: Date;
@@ -53,6 +53,7 @@ export default function MarketingCalendarWeekView({
   onClickBusySlot,
   colorMap: colorMapProp,
 }: Props) {
+  const tr = useT();
   const justDragged = useRef(false);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
   const slotInfo = getSlotHeight(slotDurationMinutes);
@@ -217,7 +218,7 @@ export default function MarketingCalendarWeekView({
                   "text-[10px] uppercase tracking-wide font-medium",
                   isSameDay(day, today) ? "text-primary" : "text-muted-foreground"
                 )}>
-                  {format(day, "EEE", { locale: it })}
+                  {format(day, "EEE", { locale: dateFnsCampo() })}
                 </div>
                 <div
                   className={cn(
@@ -310,7 +311,7 @@ export default function MarketingCalendarWeekView({
                           const sMin = timeToMin(startHM);
                           const cellMin = timeToMin(slotTime);
                           const isStartCell = sMin >= cellMin && sMin < cellMin + slotDurationMinutes;
-                          const label = busy.summary || (isApple ? "Occupato (Apple)" : isOutlook ? "Occupato (Outlook)" : "Occupato (Google)");
+                          const label = busy.summary || (isApple ? tr("Occupato (Apple)") : isOutlook ? tr("Occupato (Outlook)") : tr("Occupato (Google)"));
                           const busyPlacement = overlapLayout.get(`busy-${busy.id}`);
                           const busyCols = busyPlacement?.columnsCount ?? 1;
                           const busyCol = busyPlacement?.column ?? 0;
@@ -322,7 +323,7 @@ export default function MarketingCalendarWeekView({
                               type="button"
                               key={`busy-${busy.id}-${bi}`}
                               onClick={(e) => { e.stopPropagation(); onClickBusySlot?.(busy); }}
-                              title={`${busy.summary || "Occupato"} · ${startHM}–${endHM} (${isApple ? "Apple" : isOutlook ? "Outlook" : "Google"} Calendar)`}
+                              title={`${busy.summary || tr("Occupato")} · ${startHM}–${endHM} (${isApple ? "Apple" : isOutlook ? "Outlook" : "Google"} Calendar)`}
                               style={busyStyle}
                               className={cn(
                                 "absolute top-0 bottom-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-0.5 py-0.5 text-left transition-colors",
@@ -359,19 +360,19 @@ export default function MarketingCalendarWeekView({
                           const tooltipLines: string[] = [apt.title];
                           if (apt.appointment_time) tooltipLines.unshift(apt.appointment_time.slice(0, 5));
                           if (apt.appointment_end_time) tooltipLines[0] += ` – ${apt.appointment_end_time.slice(0, 5)}`;
-                          if ((apt as any).contact_name) tooltipLines.push(`👤 Cliente: ${(apt as any).contact_name}`);
-                          if ((apt as any).assigned_name) tooltipLines.push(`🧑‍💼 Venditore: ${(apt as any).assigned_name}`);
+                          if ((apt as any).contact_name) tooltipLines.push(`👤 ${tr("Cliente: {nome}", { nome: (apt as any).contact_name })}`);
+                          if ((apt as any).assigned_name) tooltipLines.push(`🧑‍💼 ${tr("Venditore: {nome}", { nome: (apt as any).assigned_name })}`);
                           if (apt.formatted_address) tooltipLines.push(`📍 ${apt.formatted_address}`);
                           if (leg) {
                             tooltipLines.push(`🚗 ${leg.duration_text} • ${leg.distance_text}`);
-                            if (leg.isLate) tooltipLines.push(`⚠️ Ritardo stimato: +${leg.delayMinutes} min`);
+                            if (leg.isLate) tooltipLines.push(`⚠️ ${tr("Ritardo stimato: +{n} min", { n: leg.delayMinutes })}`);
                           }
                           if (isVideocall) {
-                            tooltipLines.push("💻 Videochiamata (Google Meet)");
+                            tooltipLines.push(`💻 ${tr("Videochiamata (Google Meet)")}`);
                           } else if (hasNoCoords && !apt.is_blocked_slot && !leg) {
-                            tooltipLines.push("📍 Indirizzo mancante");
+                            tooltipLines.push(`📍 ${tr("Indirizzo mancante")}`);
                           }
-                          if (apt.status === "annullato") tooltipLines.push("❌ Annullato");
+                          if (apt.status === "annullato") tooltipLines.push(`❌ ${tr("Annullato")}`);
                           const clientName = (apt as any).contact_name as string | null;
                           const sellerName = (apt as any).assigned_name as string | null;
                           // Mostra dettagli solo se l'altezza della card è sufficiente

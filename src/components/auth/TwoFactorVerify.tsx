@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Shield, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TwoFactorVerifyProps {
   onVerified: () => void;
@@ -12,6 +13,7 @@ interface TwoFactorVerifyProps {
 }
 
 export function TwoFactorVerify({ onVerified, onCancel }: TwoFactorVerifyProps) {
+  const t = useT();
   const [code, setCode] = useState("");
   const [mode, setMode] = useState<"totp" | "backup">("totp");
   const [isLoading, setIsLoading] = useState(false);
@@ -28,8 +30,8 @@ export function TwoFactorVerify({ onVerified, onCancel }: TwoFactorVerifyProps) 
       if (error || data?.error) {
         toast({
           variant: "destructive",
-          title: "Codice non valido",
-          description: data?.error || error?.message || "Riprova",
+          title: t("Codice non valido"),
+          description: data?.error || error?.message || t("Riprova"),
         });
         return;
       }
@@ -38,7 +40,7 @@ export function TwoFactorVerify({ onVerified, onCancel }: TwoFactorVerifyProps) 
         onVerified();
       }
     } catch {
-      toast({ variant: "destructive", title: "Errore", description: "Si è verificato un errore." });
+      toast({ variant: "destructive", title: t("Errore"), description: t("Si è verificato un errore.") });
     } finally {
       setIsLoading(false);
     }
@@ -48,17 +50,17 @@ export function TwoFactorVerify({ onVerified, onCancel }: TwoFactorVerifyProps) 
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <Shield className="h-10 w-10 text-primary mx-auto" />
-        <h2 className="text-2xl font-bold text-foreground">Verifica 2FA</h2>
+        <h2 className="text-2xl font-bold text-foreground">{t("Verifica 2FA")}</h2>
         <p className="text-muted-foreground text-sm">
           {mode === "totp"
-            ? "Inserisci il codice a 6 cifre dalla tua app di autenticazione"
-            : "Inserisci un codice di backup"}
+            ? t("Inserisci il codice a 6 cifre dalla tua app di autenticazione")
+            : t("Inserisci un codice di backup")}
         </p>
       </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label>{mode === "totp" ? "Codice TOTP" : "Codice di backup"}</Label>
+          <Label>{mode === "totp" ? t("Codice TOTP") : t("Codice di backup")}</Label>
           <Input
             placeholder={mode === "totp" ? "000000" : "abcd-1234"}
             value={code}
@@ -86,10 +88,10 @@ export function TwoFactorVerify({ onVerified, onCancel }: TwoFactorVerifyProps) 
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Verifica in corso...
+              {t("Verifica in corso...")}
             </>
           ) : (
-            "Verifica"
+            t("Verifica")
           )}
         </Button>
 
@@ -103,14 +105,14 @@ export function TwoFactorVerify({ onVerified, onCancel }: TwoFactorVerifyProps) 
             className="text-xs text-primary hover:underline flex items-center gap-1"
           >
             <KeyRound className="h-3 w-3" />
-            {mode === "totp" ? "Usa codice di backup" : "Usa codice TOTP"}
+            {mode === "totp" ? t("Usa codice di backup") : t("Usa codice TOTP")}
           </button>
           <button
             type="button"
             onClick={onCancel}
             className="text-xs text-muted-foreground hover:underline"
           >
-            Annulla
+            {t("Annulla")}
           </button>
         </div>
       </div>

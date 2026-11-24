@@ -2,9 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { FinanceData, CashFlowForecastData } from "@/hooks/useCruscottoData";
 import { useNavigate } from "react-router-dom";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function fmtEur(n: number) {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
+  return new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 }
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
  * «lordo», dall'altra «ponderato»): gli stessi numeri due volte a 20cm.
  */
 export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
+  const t = useT();
   const navigate = useNavigate();
 
   if (isLoading) return (
@@ -39,24 +41,24 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
   return (
     <Card>
       <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="flex items-baseline gap-2 text-sm font-semibold">Incassi attesi <span className="text-[11px] font-medium text-muted-foreground/80">prossimi 90 giorni · IVA inclusa</span></CardTitle>
+        <CardTitle className="flex items-baseline gap-2 text-sm font-semibold">{t("Incassi attesi")} <span className="text-[11px] font-medium text-muted-foreground/80">{t("prossimi 90 giorni · IVA inclusa")}</span></CardTitle>
         <button
           onClick={() => navigate("/azienda/scadenzario")}
           className="text-xs text-primary hover:text-primary/80 transition-colors"
         >
-          Dettaglio →
+          {t("Dettaglio →")}
         </button>
       </CardHeader>
       <CardContent className="p-3 pt-0 space-y-3">
         {/* Forecast bars */}
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Cumulati</p>
+          <p className="text-xs text-muted-foreground">{t("Cumulati")}</p>
           {forecast.incoming90 > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
-                { label: "Entro 30gg", value: forecast.incoming30 },
-                { label: "Entro 60gg", value: forecast.incoming60 },
-                { label: "Entro 90gg", value: forecast.incoming90 },
+                { label: t("Entro 30gg"), value: forecast.incoming30 },
+                { label: t("Entro 60gg"), value: forecast.incoming60 },
+                { label: t("Entro 90gg"), value: forecast.incoming90 },
               ].map(({ label, value }) => (
                 <div key={label} className="space-y-1">
                   <div className="flex justify-between text-xs">
@@ -74,7 +76,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground italic">
-              Nessuna rata di pagamento pianificata nei prossimi 90 giorni.
+              {t("Nessuna rata di pagamento pianificata nei prossimi 90 giorni.")}
             </p>
           )}
         </div>
@@ -85,7 +87,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
             className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed px-3 py-2 text-left text-xs hover:bg-muted/50"
           >
             <span className="text-muted-foreground">
-              Da pianificare: {forecast.daPianificareRate} {forecast.daPianificareRate === 1 ? "rata" : "rate"} senza data
+              {forecast.daPianificareRate === 1 ? t("Da pianificare: {n} rata senza data", { n: forecast.daPianificareRate }) : t("Da pianificare: {n} rate senza data", { n: forecast.daPianificareRate })}
             </span>
             <span className="font-semibold tabular-nums text-foreground">{fmtEur(forecast.daPianificare)}</span>
           </button>

@@ -7,7 +7,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { ArchiveRestore, Loader2, Search, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -23,12 +22,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { filtraCestinoAutomazioni, statoPrimaLeggibile, type AutomazioneNelCestino } from "@/lib/automazioniCestino";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const LIMITE = 300;
 
 function quando(iso: string): string {
   try {
-    return format(parseISO(iso), "d MMM yyyy 'alle' HH:mm", { locale: it });
+    return format(parseISO(iso), "d MMM yyyy 'alle' HH:mm", { locale: dateFnsCampo() });
   } catch {
     return "";
   }
@@ -43,6 +43,7 @@ export function AutomazioniCestinoDialog({
   onOpenChange: (open: boolean) => void;
   companyId: string | undefined;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [cerca, setCerca] = useState("");
   const [inCorso, setInCorso] = useState<string | null>(null);
@@ -101,9 +102,9 @@ export function AutomazioniCestinoDialog({
     },
     onSuccess: (riga) => {
       aggiorna();
-      toast({ title: "Automazione ripristinata", description: `«${riga.nome}» è di nuovo ${statoPrimaLeggibile(riga.statoPrima)}.` });
+      toast({ title: t("Automazione ripristinata"), description: t("«{nome}» è di nuovo {statoPrima}.", { nome: String(riga.nome ?? ""), statoPrima: String(statoPrimaLeggibile(riga.statoPrima) ?? "") }) });
     },
-    onError: (err: Error) => toast({ title: "Ripristino non riuscito", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("Ripristino non riuscito"), description: err.message, variant: "destructive" }),
     onSettled: () => setInCorso(null),
   });
 
@@ -116,9 +117,9 @@ export function AutomazioniCestinoDialog({
     },
     onSuccess: (riga) => {
       aggiorna();
-      toast({ title: "Eliminata definitivamente", description: `«${riga.nome}» non si può più recuperare.` });
+      toast({ title: t("Eliminata definitivamente"), description: t("«{nome}» non si può più recuperare.", { nome: String(riga.nome ?? "") }) });
     },
-    onError: (err: Error) => toast({ title: "Eliminazione non riuscita", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("Eliminazione non riuscita"), description: err.message, variant: "destructive" }),
     onSettled: () => { setInCorso(null); setDaEliminare(null); },
   });
 
@@ -132,11 +133,10 @@ export function AutomazioniCestinoDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trash2 className="h-5 w-5 text-muted-foreground" />
-              Cestino automazioni
+              {t("Cestino automazioni")}
             </DialogTitle>
             <DialogDescription>
-              Le automazioni eliminate restano qui, ferme, finché qualcuno non le ripristina.
-              Ripristinate ripartono com'erano, con i contatti che stavano seguendo.
+              {t("Le automazioni eliminate restano qui, ferme, finché qualcuno non le ripristina. Ripristinate ripartono com'erano, con i contatti che stavano seguendo.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -146,9 +146,9 @@ export function AutomazioniCestinoDialog({
               <Input
                 value={cerca}
                 onChange={(e) => setCerca(e.target.value)}
-                placeholder="Cerca per nome o per chi l'ha eliminata"
+                placeholder={t("Cerca per nome o per chi l'ha eliminata")}
                 className="h-9 pl-8 text-sm"
-                aria-label="Cerca nel cestino"
+                aria-label={t("Cerca nel cestino")}
               />
             </div>
           )}
@@ -160,12 +160,12 @@ export function AutomazioniCestinoDialog({
               </div>
             ) : isError ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
-                Il cestino non si è caricato.
-                <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+                {t("Il cestino non si è caricato.")}
+                <Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>
               </div>
             ) : visibili.length === 0 ? (
               <div className="py-10 text-center text-sm text-muted-foreground">
-                {righe.length === 0 ? "Il cestino è vuoto." : "Nessuna automazione del cestino corrisponde alla ricerca."}
+                {righe.length === 0 ? t("Il cestino è vuoto.") : t("Nessuna automazione del cestino corrisponde alla ricerca.")}
               </div>
             ) : (
               <ul className="space-y-1.5 py-1">
@@ -174,9 +174,9 @@ export function AutomazioniCestinoDialog({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{r.nome}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        Eliminata il {quando(r.eliminataIl)}
-                        {r.eliminataDa && <> da <span className="font-medium text-foreground">{r.eliminataDa}</span></>}
-                        {r.statoPrima && <> · era {statoPrimaLeggibile(r.statoPrima)}</>}
+                        {t("Eliminata il")} {quando(r.eliminataIl)}
+                        {r.eliminataDa && <> {t("da {nome}", { nome: r.eliminataDa })}</>}
+                        {r.statoPrima && <>{" "}{`· ${t("era {stato}", { stato: statoPrimaLeggibile(r.statoPrima) })}`}</>}
                       </p>
                     </div>
                     <Button
@@ -189,7 +189,7 @@ export function AutomazioniCestinoDialog({
                       {ripristina.isPending && inCorso === r.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <><ArchiveRestore className="mr-1 h-3.5 w-3.5" /> Ripristina</>
+                        <><ArchiveRestore className="mr-1 h-3.5 w-3.5" /> {t("Ripristina")}</>
                       )}
                     </Button>
                     <Button
@@ -198,8 +198,8 @@ export function AutomazioniCestinoDialog({
                       className="h-8 shrink-0 text-destructive hover:text-destructive"
                       disabled={occupato}
                       onClick={() => setDaEliminare(r)}
-                      aria-label={`Elimina definitivamente ${r.nome}`}
-                      title="Elimina definitivamente"
+                      aria-label={t("Elimina definitivamente {nome}", { nome: String(r.nome ?? "") })}
+                      title={t("Elimina definitivamente")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -210,7 +210,7 @@ export function AutomazioniCestinoDialog({
           </div>
 
           {righe.length >= LIMITE && (
-            <p className="text-[11px] text-muted-foreground">Qui ci sono le ultime {LIMITE} eliminate.</p>
+            <p className="text-[11px] text-muted-foreground">{t("Qui ci sono le ultime {n} eliminate.", { n: String(LIMITE ?? "") })}</p>
           )}
         </DialogContent>
       </Dialog>
@@ -218,14 +218,13 @@ export function AutomazioniCestinoDialog({
       <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && !eliminaDefinitivamente.isPending && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare per sempre «{daEliminare?.nome}»?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare per sempre «{nome}»?", { nome: String(daEliminare?.nome ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Spariscono anche i passaggi, i collegamenti e lo storico dei contatti che la stavano seguendo.
-              Questa volta non si torna indietro. I contatti restano.
+              {t("Spariscono anche i passaggi, i collegamenti e lo storico dei contatti che la stavano seguendo. Questa volta non si torna indietro. I contatti restano.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={eliminaDefinitivamente.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={eliminaDefinitivamente.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={eliminaDefinitivamente.isPending}
@@ -234,7 +233,7 @@ export function AutomazioniCestinoDialog({
                 if (daEliminare) { setInCorso(daEliminare.id); eliminaDefinitivamente.mutate(daEliminare); }
               }}
             >
-              {eliminaDefinitivamente.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Elimina per sempre"}
+              {eliminaDefinitivamente.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Elimina per sempre")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

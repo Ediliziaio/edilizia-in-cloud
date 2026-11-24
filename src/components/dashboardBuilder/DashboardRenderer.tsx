@@ -12,6 +12,7 @@ import { DividerWidget, TextWidget } from "./widgets/TextWidget";
 import { StatTileWidget } from "./widgets/StatTileWidget";
 import { AlertListWidget } from "./widgets/AlertListWidget";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   layout: DashboardLayout;
@@ -19,6 +20,12 @@ interface Props {
   className?: string;
   rowHeight?: number;
   columns?: number;
+}
+
+/** Il testo del widget non riconosciuto, nella lingua di chi guarda. */
+function WidgetSconosciuto({ tipo }: { tipo: string }) {
+  const t = useT();
+  return <>{t("Widget sconosciuto: {tipo}", { tipo })}</>;
 }
 
 function renderWidget(widget: DashboardWidget, resolved: ResolvedWidget | undefined) {
@@ -47,7 +54,7 @@ function renderWidget(widget: DashboardWidget, resolved: ResolvedWidget | undefi
     default:
       return (
         <div className="h-full flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
-          Widget sconosciuto: {(widget as DashboardWidget).type}
+          <WidgetSconosciuto tipo={(widget as DashboardWidget).type} />
         </div>
       );
   }
@@ -60,6 +67,7 @@ export function DashboardRenderer({
   rowHeight = 80,
   columns = 12,
 }: Props) {
+  const t = useT();
   const widgets = layout?.widgets ?? [];
   const isMobile = useIsMobile();
   const orderedWidgets = isMobile
@@ -71,7 +79,7 @@ export function DashboardRenderer({
   if (widgets.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-sm text-muted-foreground border border-dashed rounded-lg">
-        Nessun widget in questa dashboard
+        {t("Nessun widget in questa dashboard")}
       </div>
     );
   }

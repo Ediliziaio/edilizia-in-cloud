@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   FileText,
@@ -10,6 +9,7 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface QuoteSignatureStatusCardProps {
   status: string;
@@ -24,7 +24,7 @@ interface QuoteSignatureStatusCardProps {
   expiresAt?: string | null;
 }
 
-const fmt = (d: string) => format(new Date(d), "dd MMM yyyy HH:mm", { locale: it });
+const fmt = (d: string) => format(new Date(d), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() });
 
 export function QuoteSignatureStatusCard({
   status,
@@ -38,6 +38,7 @@ export function QuoteSignatureStatusCard({
   refusedReason,
   expiresAt,
 }: QuoteSignatureStatusCardProps) {
+  const t = useT();
   interface TimelineStep {
     id: string;
     label: string;
@@ -49,21 +50,21 @@ export function QuoteSignatureStatusCard({
   const steps: TimelineStep[] = [
     {
       id: "created",
-      label: "Preventivo creato",
+      label: t("Preventivo creato"),
       date: createdAt,
       icon: FileText,
       done: true,
     },
     {
       id: "sent",
-      label: "Inviato al cliente",
+      label: t("Inviato al cliente"),
       date: sentAt,
       icon: Send,
       done: !!sentAt,
     },
     {
       id: "viewed",
-      label: "Visualizzato dal cliente",
+      label: t("Visualizzato dal cliente"),
       date: viewedAt,
       icon: Eye,
       done: !!viewedAt,
@@ -72,7 +73,7 @@ export function QuoteSignatureStatusCard({
       ? [
           {
             id: "refused",
-            label: "Rifiutato",
+            label: t("Rifiutato"),
             date: refusedAt,
             icon: XCircle,
             done: !!refusedAt,
@@ -82,7 +83,7 @@ export function QuoteSignatureStatusCard({
       : [
           {
             id: "signed",
-            label: signedByName ? `Firmato da ${signedByName}` : "Firmato dal cliente",
+            label: signedByName ? t("Firmato da {nome}", { nome: String(signedByName ?? "") }) : t("Firmato dal cliente"),
             date: signedAt,
             icon: CheckCircle,
             done: !!signedAt,
@@ -95,7 +96,7 @@ export function QuoteSignatureStatusCard({
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
-          Stato Firma Digitale
+          {t("Stato Firma Digitale")}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -140,7 +141,7 @@ export function QuoteSignatureStatusCard({
                     <p className="text-xs text-muted-foreground">{fmt(step.date)}</p>
                   )}
                   {!step.done && (
-                    <p className="text-xs text-muted-foreground italic">In attesa</p>
+                    <p className="text-xs text-muted-foreground italic">{t("In attesa")}</p>
                   )}
                 </div>
               </div>
@@ -151,23 +152,19 @@ export function QuoteSignatureStatusCard({
         {/* Refused reason */}
         {refusedReason && (
           <div className="mt-2 p-3 bg-destructive/10 rounded-lg text-sm">
-            <p className="font-medium text-destructive">Motivo rifiuto:</p>
+            <p className="font-medium text-destructive">{t("Motivo rifiuto:")}</p>
             <p className="text-muted-foreground">{refusedReason}</p>
           </div>
         )}
 
         {/* Expiry info */}
         {expiresAt && status === "inviata" && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Offerta valida fino al {format(new Date(expiresAt), "dd/MM/yyyy")}
-          </p>
+          <p className="mt-3 text-xs text-muted-foreground">{t("Offerta valida fino al {valore}", { valore: format(new Date(expiresAt), "dd/MM/yyyy") })}</p>
         )}
 
         {/* Signed IP info */}
         {signedByIp && signedAt && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            IP firma: {signedByIp}
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("IP firma: {signedByIp}", { signedByIp: String(signedByIp ?? "") })}</p>
         )}
       </CardContent>
     </Card>

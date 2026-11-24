@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { NumberConnectionGuide } from "@/components/telephony/NumberConnectionGuide";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FishNumberConnectionRequest({
   companyId,
@@ -41,6 +42,7 @@ export function FishNumberConnectionRequest({
   onSubmitted?: () => void;
   localPreview?: boolean;
 }) {
+  const t = useT();
   const cache = useQueryClient();
   const { isAdmin } = usePermissions();
   const auth = useAuth();
@@ -105,38 +107,37 @@ export function FishNumberConnectionRequest({
   if (!canManage)
     return (
       <p className="text-sm text-muted-foreground">
-        Un amministratore dell’azienda può richiedere e seguire il collegamento
-        del numero.
+        {t("Un amministratore dell’azienda può richiedere e seguire il collegamento del numero.")}
       </p>
     );
   if (state.isPending)
     return (
       <div className="flex items-center gap-2 p-4 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Leggo lo stato del numero…
+        {t("Leggo lo stato del numero…")}
       </div>
     );
   if (state.isError)
     return (
       <div role="alert" className="space-y-3 rounded-xl border p-4 text-sm">
-        <p>Non riesco a leggere lo stato della richiesta.</p>
+        <p>{t("Non riesco a leggere lo stato della richiesta.")}</p>
         <Button variant="outline" onClick={() => state.refetch()}>
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     );
   return (
     <section
       className="space-y-3"
-      aria-label="Collegamento del numero aziendale"
+      aria-label={t("Collegamento del numero aziendale")}
     >
       <div className="flex items-center gap-2">
         <div className="shrink-0 rounded-md bg-sky-50 p-1.5 text-sky-700 dark:bg-sky-950 dark:text-sky-200">
           <Phone aria-hidden="true" className="size-4" />
         </div>
-        <h2 className="text-base font-semibold">Collega il numero aziendale</h2>
+        <h2 className="text-base font-semibold">{t("Collega il numero aziendale")}</h2>
       </div>
-      {localPreview && <p className="text-sm text-muted-foreground">Prova la richiesta con il numero dimostrativo <strong>+39 000 000 0002</strong>.</p>}
+      {localPreview && <p className="text-sm text-muted-foreground">{t("Prova la richiesta con il numero dimostrativo")} <strong>+39 000 000 0002</strong>.</p>}
       {request && request.status !== "cancelled" ? (
         <div className="space-y-2.5 rounded-lg border bg-background p-3">
           <div
@@ -155,41 +156,39 @@ export function FishNumberConnectionRequest({
               />
             )}
             {localPreview
-              ? "Richiesta di prova registrata"
-              : needsLineCheck ? "Collegamento da verificare" : connectionStatusLabel[request.status] || request.status}
+              ? t("Richiesta di prova registrata")
+              : needsLineCheck ? t("Collegamento da verificare") : connectionStatusLabel[request.status] ? t(connectionStatusLabel[request.status]) : request.status}
           </div>
           <p className="text-sm">
             {request.number_mode === "existing"
-              ? `Numero da mantenere: ${request.existing_number}`
-              : "Hai richiesto una nuova linea aziendale."}
+              ? t("Numero da mantenere: {existing_number}", { existing_number: String(request.existing_number ?? "") })
+              : t("Hai richiesto una nuova linea aziendale.")}
           </p>
           <p className="text-xs leading-5 text-muted-foreground">
             {localPreview
-              ? "Richiesta dimostrativa salvata nel gestionale locale."
+              ? t("Richiesta dimostrativa salvata nel gestionale locale.")
               : needsLineCheck
-              ? "Serve una verifica aggiornata del numero richiesto per questo assistente."
+              ? t("Serve una verifica aggiornata del numero richiesto per questo assistente.")
               : request.status === "awaiting_company"
-                ? "La piattaforma ha bisogno delle informazioni indicate qui sotto per proseguire."
+                ? t("La piattaforma ha bisogno delle informazioni indicate qui sotto per proseguire.")
                 : request.status === "ready"
-                  ? "La piattaforma ha completato la verifica."
-                  : "La piattaforma verifica operatore, compatibilità e configurazione della linea."}
+                  ? t("La piattaforma ha completato la verifica.")
+                  : t("La piattaforma verifica operatore, compatibilità e configurazione della linea.")}
           </p>
           {line && (
             <dl className="grid gap-2 rounded-lg border bg-muted/20 p-2.5 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-muted-foreground">Entrata</dt>
-                <dd className="mt-1 font-medium">
-                  {line.number} · configurata
-                </dd>
+                <dt className="text-xs text-muted-foreground">{t("Entrata")}</dt>
+                <dd className="mt-1 font-medium">{t("{number} · configurata", { number: String(line.number ?? "") })}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">
-                  Uscita con lo stesso numero
+                  {t("Uscita con lo stesso numero")}
                 </dt>
                 <dd className="mt-1 font-medium">
                   {line.outbound
-                    ? "Configurata"
-                    : "Da abilitare con l’operatore"}
+                    ? t("Configurata")
+                    : t("Da abilitare con l’operatore")}
                 </dd>
               </div>
             </dl>
@@ -200,14 +199,12 @@ export function FishNumberConnectionRequest({
             </p>
           )}
           {request.company_reply && (
-            <p className="rounded-xl border p-3 text-sm leading-6">
-              Informazioni inviate: {request.company_reply}
-            </p>
+            <p className="rounded-xl border p-3 text-sm leading-6">{t("Informazioni inviate: {company_reply}", { company_reply: String(request.company_reply ?? "") })}</p>
           )}
           {request.status === "awaiting_company" && (
             <div className="space-y-3">
               <Label htmlFor={`request-reply-${agentId}`}>
-                Le informazioni richieste
+                {t("Le informazioni richieste")}
               </Label>
               <Textarea
                 id={`request-reply-${agentId}`}
@@ -220,22 +217,19 @@ export function FishNumberConnectionRequest({
                 disabled={operation.isPending || !reply.trim()}
                 onClick={() => operation.mutate("company_reply")}
               >
-                Invia informazioni
+                {t("Invia informazioni")}
               </Button>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
-              Riferimento {request.id.slice(0, 8).toUpperCase()} ·{" "}
-              {new Date(request.created_at).toLocaleDateString("it-IT")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("Riferimento {valore} · {valore2}", { valore: request.id.slice(0, 8).toUpperCase(), valore2: new Date(request.created_at).toLocaleDateString(intlCampo()) })}</p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => state.refetch()}
               disabled={state.isFetching}
             >
-              Aggiorna stato
+              {t("Aggiorna stato")}
             </Button>
           </div>
         </div>
@@ -251,7 +245,7 @@ export function FishNumberConnectionRequest({
             className="grid gap-1.5 min-[360px]:grid-cols-2"
             disabled={operation.isPending}
           >
-            <legend className="sr-only">Quale numero vuoi usare?</legend>
+            <legend className="sr-only">{t("Quale numero vuoi usare?")}</legend>
             {(
               [
                 ["existing", "Mantieni il tuo numero"],
@@ -270,13 +264,13 @@ export function FishNumberConnectionRequest({
                   onChange={() => setMode(value)}
                   className="shrink-0 accent-sky-700"
                 />
-                {title}
+                {t(title)}
               </label>
             ))}
           </fieldset>
           {usesExistingNumber && (
             <div>
-              <Label htmlFor={`line-number-${agentId}`}>Numero aziendale</Label>
+              <Label htmlFor={`line-number-${agentId}`}>{t("Numero aziendale")}</Label>
               <Input
                 id={`line-number-${agentId}`}
                 value={number}
@@ -292,34 +286,33 @@ export function FishNumberConnectionRequest({
                 id={`line-number-help-${agentId}`}
                 className="mt-1 text-xs text-muted-foreground"
               >
-                Usa il prefisso internazionale. Mantieni lo zero dei fissi
-                italiani.
+                {t("Usa il prefisso internazionale. Mantieni lo zero dei fissi italiani.")}
               </p>
             </div>
           )}
           <details className="rounded-lg border px-2.5 py-2">
             <summary className="cursor-pointer text-sm font-medium">
-              Dati facoltativi
+              {t("Dati facoltativi")}
             </summary>
             <div className="mt-2 grid min-w-0 gap-2.5 sm:grid-cols-2">
               {usesExistingNumber && (
                 <>
                   <div>
                     <Label htmlFor={`line-carrier-${agentId}`}>
-                      Operatore telefonico
+                      {t("Operatore telefonico")}
                     </Label>
                     <Input
                       id={`line-carrier-${agentId}`}
                       value={carrier}
                       onChange={(e) => setCarrier(e.target.value)}
-                      placeholder="Se lo conosci"
+                      placeholder={t("Se lo conosci")}
                       maxLength={120}
                       disabled={operation.isPending}
                     />
                   </div>
                   <div>
                     <Label htmlFor={`line-sip-${agentId}`}>
-                      Avete un centralino VoIP o SIP?
+                      {t("Avete un centralino VoIP o SIP?")}
                     </Label>
                     <Select
                       value={sip}
@@ -328,14 +321,14 @@ export function FishNumberConnectionRequest({
                     >
                       <SelectTrigger
                         id={`line-sip-${agentId}`}
-                        aria-label="Disponibilità centralino VoIP"
+                        aria-label={t("Disponibilità centralino VoIP")}
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="unknown">Non lo so</SelectItem>
-                        <SelectItem value="yes">Sì</SelectItem>
-                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="unknown">{t("Non lo so")}</SelectItem>
+                        <SelectItem value="yes">{t("Sì")}</SelectItem>
+                        <SelectItem value="no">{t("No")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -343,7 +336,7 @@ export function FishNumberConnectionRequest({
               )}
               <div className="sm:col-span-2">
                 <Label htmlFor={`line-notes-${agentId}`}>
-                  Note, facoltative
+                  {t("Note, facoltative")}
                 </Label>
                 <Textarea
                   id={`line-notes-${agentId}`}
@@ -351,7 +344,7 @@ export function FishNumberConnectionRequest({
                   onChange={(e) => setNotes(e.target.value)}
                   maxLength={1000}
                   rows={2}
-                  placeholder="Per esempio: AI fuori orario e richiami con lo stesso numero."
+                  placeholder={t("Per esempio: AI fuori orario e richiami con lo stesso numero.")}
                   disabled={operation.isPending}
                 />
               </div>
@@ -373,15 +366,15 @@ export function FishNumberConnectionRequest({
                     aria-hidden="true"
                     className="mr-2 size-4 animate-spin"
                   />
-                  Invio richiesta…
+                  {t("Invio richiesta…")}
                 </>
               ) : (
-                localPreview ? "Salva richiesta di prova" : "Richiedi il collegamento"
+                localPreview ? t("Salva richiesta di prova") : t("Richiedi il collegamento")
               )}
             </Button>
             <p className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground">
               <ShieldCheck aria-hidden="true" className="size-3.5 shrink-0" />
-              {localPreview ? "Richiesta di prova" : usesExistingNumber ? "Verifichiamo la linea con il tuo operatore." : "La richiesta avvia la verifica di una nuova linea."}
+              {localPreview ? t("Richiesta di prova") : usesExistingNumber ? t("Verifichiamo la linea con il tuo operatore.") : t("La richiesta avvia la verifica di una nuova linea.")}
             </p>
           </div>
         </form>
@@ -398,11 +391,11 @@ export function FishNumberConnectionRequest({
       {isSuperAdmin && request && (
         <details className="rounded-xl border p-4">
           <summary className="cursor-pointer text-sm font-medium">
-            Gestione della piattaforma
+            {t("Gestione della piattaforma")}
           </summary>
           <div className="mt-4 space-y-3">
             <Label htmlFor={`review-notes-${agentId}`}>
-              Indicazioni per l’azienda
+              {t("Indicazioni per l’azienda")}
             </Label>
             <Textarea
               id={`review-notes-${agentId}`}
@@ -423,7 +416,7 @@ export function FishNumberConnectionRequest({
                   disabled={operation.isPending}
                   onClick={() => operation.mutate(status)}
                 >
-                  {label}
+                  {t(label)}
                 </Button>
               ))}
             </div>

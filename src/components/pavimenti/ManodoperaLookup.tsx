@@ -21,6 +21,7 @@ import {
   QUALIFICA_LABEL,
 } from "@/lib/prezzario/manodopera";
 import type { ManodoperaTariffa, QualificaManodopera } from "@/lib/prezzario/tipi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ManodoperaLookupProps {
   regione?: string;
@@ -41,6 +42,7 @@ export function ManodoperaLookup({
   anno,
   className,
 }: ManodoperaLookupProps) {
+  const t = useT();
   const { data, isLoading, error } = useManodoperaLookup(regione, provincia, anno);
 
   // Per ogni qualifica scegli la riga "migliore": anno più recente (null in
@@ -67,7 +69,7 @@ export function ManodoperaLookup({
   if (!regione) {
     return (
       <p className={`text-sm text-muted-foreground ${className ?? ""}`}>
-        Seleziona una regione per vedere il costo orario della manodopera.
+        {t("Seleziona una regione per vedere il costo orario della manodopera.")}
       </p>
     );
   }
@@ -77,7 +79,7 @@ export function ManodoperaLookup({
       <div
         className={`flex items-center gap-2 text-sm text-muted-foreground ${className ?? ""}`}
       >
-        <Loader2 className="h-4 w-4 animate-spin" /> Caricamento tariffe…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento tariffe…")}
       </div>
     );
   }
@@ -85,7 +87,7 @@ export function ManodoperaLookup({
   if (error) {
     return (
       <p className={`text-sm text-destructive ${className ?? ""}`}>
-        {error instanceof Error ? error.message : "Errore nel caricamento delle tariffe."}
+        {error instanceof Error ? error.message : t("Errore nel caricamento delle tariffe.")}
       </p>
     );
   }
@@ -98,7 +100,7 @@ export function ManodoperaLookup({
     <div className={`space-y-2 ${className ?? ""}`}>
       <div className="flex items-center gap-2 text-sm font-medium">
         <HardHat className="h-4 w-4 text-muted-foreground" />
-        <span>Costo orario manodopera</span>
+        <span>{t("Costo orario manodopera")}</span>
         {scopeLabel && (
           <span className="text-xs font-normal text-muted-foreground">{scopeLabel}</span>
         )}
@@ -122,8 +124,8 @@ export function ManodoperaLookup({
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {entry && entry.count > 1 && (
-                  <Badge variant="outline" title="Più righe per questa qualifica: mostrata la più recente">
-                    più fonti
+                  <Badge variant="outline" title={t("Più righe per questa qualifica: mostrata la più recente")}>
+                    {t("più fonti")}
                   </Badge>
                 )}
                 <span className="tabular-nums text-sm font-medium">
@@ -137,7 +139,7 @@ export function ManodoperaLookup({
 
       {byQualifica.size === 0 && (
         <p className="text-sm text-muted-foreground">
-          Nessuna tariffa disponibile per questo ambito.
+          {t("Nessuna tariffa disponibile per questo ambito.")}
         </p>
       )}
     </div>

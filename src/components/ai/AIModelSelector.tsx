@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatCost, type AIModelMeta } from '@/lib/ai/openrouter-models';
 import { ProviderIcon } from '@/components/ai/ProviderIcon';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   models: AIModelMeta[];
@@ -42,6 +43,7 @@ export function AIModelSelector({
   compact = false,
   showCost = false,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const selected = models.find((m) => m.id === selectedModel) ?? null;
 
@@ -56,8 +58,8 @@ export function AIModelSelector({
             'focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400',
             open && 'border-orange-400 ring-2 ring-orange-100',
           )}
-          aria-label="Seleziona modello AI"
-          title={selected ? `Modello: ${selected.label}` : 'Seleziona modello'}
+          aria-label={t("Seleziona modello AI")}
+          title={selected ? t("Modello: {label}", { label: String(selected.label ?? "") }) : t("Seleziona modello")}
         >
           {loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
@@ -67,7 +69,7 @@ export function AIModelSelector({
             <Sparkles className="h-3.5 w-3.5 text-orange-500" />
           )}
           <span className={cn('truncate', compact ? 'max-w-[110px]' : 'max-w-[140px]')}>
-            {selected ? selected.label : 'Modello'}
+            {selected ? selected.label : t("Modello")}
           </span>
           {showCost && selected?.estimatedCostPerCall !== undefined && (
             <span className="text-[10px] text-slate-400 font-mono">
@@ -86,9 +88,9 @@ export function AIModelSelector({
       >
         <div className="px-3 py-2 border-b bg-gradient-to-br from-orange-50 to-amber-50 shrink-0 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-800">Modelli AI · Test Lab</p>
+            <p className="text-xs font-semibold text-slate-800">{t("Modelli AI · Test Lab")}</p>
             <p className="text-[10px] text-slate-500">
-              Costo stimato per chiamata (1.5k in / 800 out token)
+              {t("Costo stimato per chiamata (1.5k in / 800 out token)")}
             </p>
           </div>
           {onRefresh && (
@@ -97,7 +99,7 @@ export function AIModelSelector({
               onClick={onRefresh}
               disabled={loading}
               className="p-1.5 rounded-md hover:bg-white text-slate-500 hover:text-orange-600 transition-colors"
-              title="Ricarica lista modelli"
+              title={t("Ricarica lista modelli")}
             >
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             </button>
@@ -106,7 +108,7 @@ export function AIModelSelector({
         <div className="overflow-y-auto p-1.5 flex-1 min-h-0">
           {models.length === 0 && !loading ? (
             <p className="text-xs text-slate-400 text-center py-4">
-              Nessun modello disponibile. Verifica OPENROUTER_API_KEY.
+              {t("Nessun modello disponibile. Verifica OPENROUTER_API_KEY.")}
             </p>
           ) : (
             models.map((m) => {
@@ -140,9 +142,7 @@ export function AIModelSelector({
                         ~{formatCost(m.estimatedCostPerCall)}
                       </span>
                       {m.contextLength > 0 && (
-                        <span className="text-[10px] text-slate-400">
-                          {(m.contextLength / 1000).toFixed(0)}k ctx
-                        </span>
+                        <span className="text-[10px] text-slate-400">{t("{valore}k ctx", { valore: (m.contextLength / 1000).toFixed(0) })}</span>
                       )}
                     </div>
                   </div>

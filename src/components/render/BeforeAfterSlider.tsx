@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MoveHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Nome prop preferito. */
@@ -30,13 +31,16 @@ export function BeforeAfterSlider({
   afterUrl,
   beforeSrc,
   afterSrc,
-  beforeLabel = "Originale",
-  afterLabel = "Render AI",
+  beforeLabel: etichettaPrima,
+  afterLabel: etichettaDopo,
   className = "",
   compact = false,
   beforeOnLeft = true,
   preserveWholeImage = false,
 }: Props) {
+  const t = useT();
+  const beforeLabel = etichettaPrima ?? t("Originale");
+  const afterLabel = etichettaDopo ?? t("Render AI");
   const before = beforeUrl ?? beforeSrc ?? "";
   const after = afterUrl ?? afterSrc ?? "";
   const baseAlt = beforeOnLeft ? afterLabel : beforeLabel;
@@ -236,10 +240,10 @@ export function BeforeAfterSlider({
       {/* Telefono: un selettore solo (originale · confronto · render) al posto
           di due bottoni grandi; la maniglia resta trascinabile. */}
       {!compact && (
-      <div className="grid grid-cols-3 gap-0.5 rounded-lg bg-muted p-0.5 sm:hidden" role="group" aria-label="Cosa mostrare">
+      <div className="grid grid-cols-3 gap-0.5 rounded-lg bg-muted p-0.5 sm:hidden" role="group" aria-label={t("Cosa mostrare")}>
         {([
           ["originale", beforeLabel, posizioneOriginale],
-          ["confronto", "Confronta", 50],
+          ["confronto", t("Confronta"), 50],
           ["render", afterLabel, posizioneRender],
         ] as const).map(([chiave, etichetta, valore]) => {
           const attiva =
@@ -273,7 +277,7 @@ export function BeforeAfterSlider({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(position)}
-        aria-label={`Confronta ${beforeLabel} e ${afterLabel}`}
+        aria-label={t("Confronta {beforeLabel} e {afterLabel}", { beforeLabel, afterLabel })}
         onMouseDown={onMouseDown}
         onTouchMove={onTouchMove}
         onTouchStart={onTouchStart}
@@ -318,14 +322,14 @@ export function BeforeAfterSlider({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-2 text-slate-600">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
-              <span className="text-xs font-medium">Caricamento render…</span>
+              <span className="text-xs font-medium">{t("Caricamento render…")}</span>
             </div>
           </div>
         )}
 
         {after && afterError && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-red-50/90">
-            <span className="text-xs font-medium text-red-700">Render non disponibile · ricarica la pagina</span>
+            <span className="text-xs font-medium text-red-700">{t("Render non disponibile · ricarica la pagina")}</span>
           </div>
         )}
 

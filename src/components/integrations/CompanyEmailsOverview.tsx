@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 import { PallinoStato, type Tono } from "./StatoCollegamento";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ProfileLite = {
   id: string;
@@ -79,7 +80,7 @@ function formatRelativeTime(iso: string | null): string {
   if (h < 24) return `${h} h fa`;
   const days = Math.floor(h / 24);
   if (days < 30) return `${days} g fa`;
-  return d.toLocaleDateString("it-IT");
+  return d.toLocaleDateString(intlCampo());
 }
 
 function providerLabel(provider: string, providerLabel: string | null): string {
@@ -107,15 +108,15 @@ export function casellaDaRicollegare(status: string): boolean {
   return !viva(status) && status !== "disconnected";
 }
 
-function statoRiga(status: string, consecutiveErrors: number | null): { tono: Tono; label: string } {
+function statoRiga(status: string, consecutiveErrors: number | null, t: ReturnType<typeof useT>): { tono: Tono; label: string } {
   const errori = consecutiveErrors ?? 0;
   if (viva(status)) {
     return errori > 0
-      ? { tono: "attenzione", label: errori === 1 ? "1 lettura non riuscita" : `${errori} letture non riuscite` }
-      : { tono: "ok", label: "Attiva" };
+      ? { tono: "attenzione", label: errori === 1 ? t("1 lettura non riuscita") : t("{errori} letture non riuscite", { errori }) }
+      : { tono: "ok", label: t("Attiva") };
   }
-  if (status === "disconnected") return { tono: "spento", label: "Scollegata" };
-  return { tono: "errore", label: "Da ricollegare" };
+  if (status === "disconnected") return { tono: "spento", label: t("Scollegata") };
+  return { tono: "errore", label: t("Da ricollegare") };
 }
 
 // Sempre lo stesso array vuoto: chi lo usa in un useMemo non ricalcola a ogni render.
@@ -168,14 +169,14 @@ export function useCaselleDelTeam() {
 
 /** L'elenco delle caselle del team, per provider, senza cornice. */
 export function CaselleDelTeam() {
+  const t = useT();
   const { user } = useAuth();
   const { isAdmin, isLoading, righe } = useCaselleDelTeam();
 
   if (!isAdmin) {
     return (
       <p className="text-sm text-muted-foreground">
-        L'elenco delle caselle di tutta l'azienda lo vedono gli amministratori. Le tue caselle
-        (Gmail, Outlook, IMAP) le colleghi dal tuo profilo.
+        {t("L'elenco delle caselle di tutta l'azienda lo vedono gli amministratori. Le tue caselle (Gmail, Outlook, IMAP) le colleghi dal tuo profilo.")}
       </p>
     );
   }
@@ -192,8 +193,7 @@ export function CaselleDelTeam() {
   if (righe.length === 0) {
     return (
       <div className="py-6 text-center text-sm text-muted-foreground">
-        Nessuno ha ancora collegato una casella. Ognuno collega la propria Gmail, Outlook o IMAP
-        dal suo profilo.
+        {t("Nessuno ha ancora collegato una casella. Ognuno collega la propria Gmail, Outlook o IMAP dal suo profilo.")}
       </div>
     );
   }
@@ -215,7 +215,7 @@ export function CaselleDelTeam() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">{label}</h3>
               <span className="text-xs text-muted-foreground tabular-nums">
-                {providerRows.length} {providerRows.length === 1 ? "casella" : "caselle"}
+                {t(providerRows.length === 1 ? "{n} casella" : "{n} caselle", { n: providerRows.length })}
               </span>
             </div>
             <div className="divide-y rounded-lg border">
@@ -231,9 +231,10 @@ export function CaselleDelTeam() {
 }
 
 function EmailRow({ riga, mio }: { riga: CasellaDelTeam; mio: boolean }) {
+  const t = useT();
   const navigate = useNavigate();
   const nome = nomeTitolareCasella(riga);
-  const stato = statoRiga(riga.status, riga.consecutive_errors);
+  const stato = statoRiga(riga.status, riga.consecutive_errors, t);
   const guasto = casellaDaRicollegare(riga.status);
   const spiegazione = spiegaErroreCasella(riga.last_sync_error, riga.provider);
   return (
@@ -242,13 +243,13 @@ function EmailRow({ riga, mio }: { riga: CasellaDelTeam; mio: boolean }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium truncate">
             {nome}
-            {mio && <span className="font-normal text-muted-foreground"> (tu)</span>}
+            {mio && <span className="font-normal text-muted-foreground"> {t("(tu)")}</span>}
           </span>
           <PallinoStato tono={stato.tono} title={stato.tono === "attenzione" ? spiegazione || undefined : undefined}>
             {stato.label}
           </PallinoStato>
           {riga.poll_enabled === false && (
-            <span className="text-[11px] text-muted-foreground">· controllo spento</span>
+            <span className="text-[11px] text-muted-foreground">{t("· controllo spento")}</span>
           )}
         </div>
         <div className="text-xs text-muted-foreground truncate">
@@ -257,19 +258,15 @@ function EmailRow({ riga, mio }: { riga: CasellaDelTeam; mio: boolean }) {
         {guasto && (
           <div className="mt-0.5 text-xs text-rose-700 dark:text-rose-400" title={riga.last_sync_error ?? undefined}>
             {mio
-              ? spiegazione || "Il collegamento si è interrotto: ricollegala dal tuo profilo, ci vuole un minuto."
-              : `Il collegamento si è interrotto: deve ricollegarla ${nome} dal suo profilo.`}
+              ? spiegazione || t("Il collegamento si è interrotto: ricollegala dal tuo profilo, ci vuole un minuto.")
+              : t("Il collegamento si è interrotto: deve ricollegarla {nome} dal suo profilo.", { nome: String(nome ?? "") })}
           </div>
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
-        <div className="text-xs text-muted-foreground whitespace-nowrap">
-          Controllata: {formatRelativeTime(riga.last_synced_at)}
-        </div>
+        <div className="text-xs text-muted-foreground whitespace-nowrap">{t("Controllata: {last_synced_at}", { last_synced_at: formatRelativeTime(riga.last_synced_at) })}</div>
         {typeof riga.emails_fetched_total === "number" && riga.emails_fetched_total > 0 && (
-          <div className="text-[10px] text-muted-foreground tabular-nums">
-            {riga.emails_fetched_total.toLocaleString("it-IT")} email
-          </div>
+          <div className="text-[10px] text-muted-foreground tabular-nums">{t("{emails_fetched_total} email", { emails_fetched_total: riga.emails_fetched_total.toLocaleString(intlCampo()) })}</div>
         )}
         {guasto && mio && (
           <Button
@@ -278,7 +275,7 @@ function EmailRow({ riga, mio }: { riga: CasellaDelTeam; mio: boolean }) {
             className="h-7"
             onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=email")}
           >
-            Riconnetti
+            {t("Riconnetti")}
           </Button>
         )}
       </div>

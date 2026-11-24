@@ -48,8 +48,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FlowBuilderPage() {
+  const tr = useT();
   const { id: routeId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const isMobileDevice = useIsMobile();
@@ -336,11 +338,11 @@ export function FlowBuilderPage() {
 
       if (sourceNode?.type === "note" || targetNode?.type === "note") return;
       if (targetNode?.type === "trigger") {
-        uiToast({ title: "Connessione non valida", description: "Il trigger non può avere connessioni in ingresso.", variant: "destructive" });
+        uiToast({ title: tr("Connessione non valida"), description: tr("Il trigger non può avere connessioni in ingresso."), variant: "destructive" });
         return;
       }
       if (connectionCreatesCycle(rfEdges, params.source, params.target)) {
-        uiToast({ title: "Connessione circolare", description: "Questo collegamento tornerebbe a un passo precedente e ripeterebbe le azioni.", variant: "destructive" });
+        uiToast({ title: tr("Connessione circolare"), description: tr("Questo collegamento tornerebbe a un passo precedente e ripeterebbe le azioni."), variant: "destructive" });
         return;
       }
 
@@ -381,7 +383,7 @@ export function FlowBuilderPage() {
       // Protect end nodes from deletion
       const safeDeletions = deletedNodes.filter((n) => n.type !== "end");
       if (safeDeletions.length < deletedNodes.length) {
-        toast.info("Il nodo Fine non può essere eliminato.");
+        toast.info(tr("Il nodo Fine non può essere eliminato."));
       }
       for (const node of safeDeletions) removeNode(node.id);
       setSelectedNodeId((prev) => safeDeletions.some((n) => n.id === prev) ? null : prev);
@@ -403,7 +405,7 @@ export function FlowBuilderPage() {
   const addNodeFromItem = useCallback(
     (item: CatalogItem, position?: { x: number; y: number }) => {
       if (!flowId || !effectiveCompany || !user) {
-        toast.error("Impossibile aggiungere il nodo: il flusso non è ancora pronto.");
+        toast.error(tr("Impossibile aggiungere il nodo: il flusso non è ancora pronto."));
         return;
       }
 
@@ -797,7 +799,7 @@ export function FlowBuilderPage() {
   const handleAutoLayout = useCallback(() => {
     const { positions, movedCount } = computeAutoLayout(rfNodes, rfEdges);
     if (Object.keys(positions).length === 0) {
-      toast.info("Nessun nodo da riordinare");
+      toast.info(tr("Nessun nodo da riordinare"));
       return;
     }
     // Niente da muovere → niente updateNodePositions: marcava il flusso come
@@ -805,7 +807,7 @@ export function FlowBuilderPage() {
     // alcuna modifica reale.
     if (movedCount === 0) {
       try { reactFlowInstance?.fitView?.({ padding: 0.22, maxZoom: 1, duration: 240 }); } catch { /* noop */ }
-      toast.success("Il flusso è già ordinato");
+      toast.success(tr("Il flusso è già ordinato"));
       return;
     }
     setRfNodes((nds) => nds.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
@@ -814,7 +816,7 @@ export function FlowBuilderPage() {
     window.setTimeout(() => {
       try { reactFlowInstance?.fitView?.({ padding: 0.22, maxZoom: 1, duration: 240 }); } catch { /* noop */ }
     }, 60);
-    toast.success("Flusso riordinato");
+    toast.success(tr("Flusso riordinato"));
   }, [rfNodes, rfEdges, setRfNodes, updateNodePositions, reactFlowInstance]);
 
 
@@ -866,7 +868,7 @@ export function FlowBuilderPage() {
 
       // Build reconnection edges: for each (source → deleted → target), create source → target
       const newEdges: Edge[] = [];
-      if (incomingEdges.length && outgoingEdges.length > 1) toast.info("Passo con più rami rimosso: ricollega esplicitamente il percorso desiderato.");
+      if (incomingEdges.length && outgoingEdges.length > 1) toast.info(tr("Passo con più rami rimosso: ricollega esplicitamente il percorso desiderato."));
       for (const inEdge of incomingEdges) {
         for (const outEdge of outgoingEdges.length <= 1 ? outgoingEdges : []) {
           const newEdgeId = crypto.randomUUID();
@@ -922,7 +924,7 @@ export function FlowBuilderPage() {
 
   const handleArchive = useCallback(() => {
     updateFlowMutation.mutate({ status: "archived" as any });
-    toast.success("Workflow archiviato");
+    toast.success(tr("Workflow archiviato"));
   }, [updateFlowMutation]);
 
   const handleBack = useCallback(async () => {
@@ -956,12 +958,12 @@ export function FlowBuilderPage() {
 
     // No trigger at all
     if (nonNoteNodes.length > 1 && !nonNoteNodes.some(n => n.type === "trigger")) {
-      errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "avviso", messaggio: "Flusso ricevente: parte solo quando un'altra automazione iscrive un contatto." });
+      errs.push({ nodeId: "", nodeLabel: tr("Flusso"), tipo: "avviso", messaggio: tr("Flusso ricevente: parte solo quando un'altra automazione iscrive un contatto.") });
     }
-    if (graphHasCycle(rfEdges)) errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "errore", messaggio: "Il flusso contiene connessioni circolari." });
+    if (graphHasCycle(rfEdges)) errs.push({ nodeId: "", nodeLabel: tr("Flusso"), tipo: "errore", messaggio: tr("Il flusso contiene connessioni circolari.") });
 
     if (configuredTriggers.length > 1) {
-      errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "avviso", messaggio: "Sono presenti più trigger: verifica che non attivino lo stesso contatto due volte." });
+      errs.push({ nodeId: "", nodeLabel: tr("Flusso"), tipo: "avviso", messaggio: tr("Sono presenti più trigger: verifica che non attivino lo stesso contatto due volte.") });
     }
 
     const hasContactUpdateLoop = triggerIds.some(id => ["contatto_aggiornato", "contact_updated", "tag_aggiunto", "tag_rimosso"].includes(id))
@@ -971,19 +973,19 @@ export function FlowBuilderPage() {
     if (hasContactUpdateLoop || hasOpportunityUpdateLoop) {
       errs.push({
         nodeId: "",
-        nodeLabel: "Anti-loop",
+        nodeLabel: tr("Anti-loop"),
         tipo: "avviso",
-        messaggio: "Il trigger e un'azione aggiornano la stessa area dati: verifica le condizioni per evitare riattivazioni continue.",
+        messaggio: tr("Il trigger e un'azione aggiornano la stessa area dati: verifica le condizioni per evitare riattivazioni continue."),
       });
     }
 
     for (const n of nonNoteNodes) {
       if (n.type === "end") continue;
       if (n.type === "trigger") for (const message of automationTriggerConfigErrors(n.data ?? {})) {
-        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Trigger", tipo: "errore", messaggio: message });
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Trigger"), tipo: "errore", messaggio: message });
       }
       for (const message of filterErrors(n.data?.trigger_filters ?? n.data?.filters)) {
-        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Trigger", tipo: "errore", messaggio: message });
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Trigger"), tipo: "errore", messaggio: message });
       }
 
       // Trigger: empty placeholder not configured. Con almeno uno step
@@ -993,18 +995,18 @@ export function FlowBuilderPage() {
         const haStep = nonNoteNodes.some((x) => ["action", "condition", "delay", "goal", "split"].includes(String(x.type)));
         errs.push({
           nodeId: n.id,
-          nodeLabel: "Trigger",
+          nodeLabel: tr("Trigger"),
           tipo: haStep ? "avviso" : "errore",
           messaggio: haStep
-            ? "Nessun trigger: l'automazione partirà solo se un'altra automazione ci manda dentro contatti (azione \"Passa a un'altra automazione\")."
-            : "Trigger non configurato — seleziona un evento di attivazione.",
+            ? tr("Nessun trigger: l'automazione partirà solo se un'altra automazione ci manda dentro contatti (azione \"Passa a un'altra automazione\").")
+            : tr("Trigger non configurato — seleziona un evento di attivazione."),
         });
         continue;
       }
 
       // Action without type configured
       if (n.type === "action" && !n.data?.itemId && !n.data?.action_type) {
-        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Azione", tipo: "errore", messaggio: "Azione non configurata — apri il nodo e scegli il tipo di azione." });
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Azione"), tipo: "errore", messaggio: tr("Azione non configurata — apri il nodo e scegli il tipo di azione.") });
       }
 
       // Campi obbligatori del catalogo non compilati.
@@ -1019,19 +1021,19 @@ export function FlowBuilderPage() {
         if (mancanti.length > 0) {
           errs.push({
             nodeId: n.id,
-            nodeLabel: n.data?.label || "Nodo",
+            nodeLabel: n.data?.label || tr("Nodo"),
             tipo: "errore",
-            messaggio: `Campi obbligatori non compilati: ${mancanti.map((f) => f.label).join(", ")}.`,
+            messaggio: tr("Campi obbligatori non compilati: {campi}.", { campi: mancanti.map((f) => f.label).join(", ") }),
           });
         }
       }
 
       // Condition without field
       if (n.type === "action") {
-        for (const message of actionConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Azione", tipo: "errore", messaggio: message });
+        for (const message of actionConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Azione"), tipo: "errore", messaggio: message });
       }
       if (n.type === "condition" || n.type === "goal") {
-        for (const message of conditionConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Condizione", tipo: "errore", messaggio: message });
+        for (const message of conditionConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Condizione"), tipo: "errore", messaggio: message });
       }
 
       // Attesa senza durata. Le tre forme si misurano su campi diversi:
@@ -1039,14 +1041,14 @@ export function FlowBuilderPage() {
       // "prima dell'appuntamento" su delay_ore — prima le ultime due erano
       // sempre segnalate come non impostate, pur essendo complete.
       if (n.type === "delay") {
-        for (const message of delayConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Attesa", tipo: "errore", messaggio: message });
+        for (const message of delayConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Attesa"), tipo: "errore", messaggio: message });
       }
 
       // Disconnected node (no incoming edge, except trigger)
       if (n.type !== "trigger") {
         const hasIncoming = rfEdges.some(e => e.target === n.id);
         if (!hasIncoming) {
-          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Nodo", tipo: "avviso", messaggio: "Nodo isolato — nessuna connessione in ingresso." });
+          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Nodo"), tipo: "avviso", messaggio: tr("Nodo isolato — nessuna connessione in ingresso.") });
         }
       }
 
@@ -1054,13 +1056,13 @@ export function FlowBuilderPage() {
       if (n.type !== "end" && n.type !== "goal") {
         const hasOutgoing = rfEdges.some(e => e.source === n.id);
         if (!hasOutgoing) {
-          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Nodo", tipo: "avviso", messaggio: "Nodo terminale senza connessione uscente — aggiungi un'azione successiva." });
+          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || tr("Nodo"), tipo: "avviso", messaggio: tr("Nodo terminale senza connessione uscente — aggiungi un'azione successiva.") });
         }
       }
     }
 
     return errs;
-  }, [rfNodes, rfEdges]);
+  }, [rfNodes, rfEdges, tr]);
 
   const readinessChecks = useMemo(() => {
     const nonNoteNodes = rfNodes.filter(n => n.type !== "note");
@@ -1075,18 +1077,18 @@ export function FlowBuilderPage() {
       // un'altra automazione ci manda dentro l'entità (azione "Passa a
       // un'altra automazione"). Si pubblica, con l'avviso che lo dice chiaro.
       hasTrigger
-        ? { label: "Trigger configurato", ok: true }
-        : { label: "Senza trigger: parte solo se richiamata da un'altra automazione", ok: hasAction, warning: true },
-      { label: "Almeno uno step operativo", ok: hasAction },
-      { label: "Nessun errore bloccante", ok: blockingErrors === 0 },
-      { label: "Filtri completi e validi", ok: validFilters },
+        ? { label: tr("Trigger configurato"), ok: true }
+        : { label: tr("Senza trigger: parte solo se richiamata da un'altra automazione"), ok: hasAction, warning: true },
+      { label: tr("Almeno uno step operativo"), ok: hasAction },
+      { label: tr("Nessun errore bloccante"), ok: blockingErrors === 0 },
+      { label: tr("Filtri completi e validi"), ok: validFilters },
       // Gli AVVISI non bloccano il publish: i nodi Fine non vengono persistiti
       // by-design, quindi alla riapertura l'ultimo nodo risulta "senza uscita"
       // e con `ok: warnings === 0` NESSUN flusso lineare era ripubblicabile.
       // Il motore chiude comunque l'iscrizione sui nodi foglia.
-      { label: warnings === 0 ? "Controlli anti-loop verificati" : `${warnings} avvisi (non bloccanti)`, ok: true, warning: warnings > 0 },
+      { label: warnings === 0 ? tr("Controlli anti-loop verificati") : tr("{warnings} avvisi (non bloccanti)", { warnings: String(warnings ?? "") }), ok: true, warning: warnings > 0 },
     ];
-  }, [rfNodes, validationErrors]);
+  }, [rfNodes, validationErrors, tr]);
 
   const publishSummary = useMemo(() => {
     const nonNoteNodes = rfNodes.filter(n => n.type !== "note" && n.type !== "end");
@@ -1241,9 +1243,9 @@ export function FlowBuilderPage() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-center max-w-sm">
           <AlertCircle className="h-10 w-10 text-warning" />
-          <p className="text-sm font-medium text-foreground">Seleziona un'azienda</p>
-          <p className="text-xs text-muted-foreground">Per utilizzare il builder delle automazioni devi prima selezionare un'azienda dal selettore in alto.</p>
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna indietro</Button>
+          <p className="text-sm font-medium text-foreground">{tr("Seleziona un'azienda")}</p>
+          <p className="text-xs text-muted-foreground">{tr("Per utilizzare il builder delle automazioni devi prima selezionare un'azienda dal selettore in alto.")}</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>{tr("Torna indietro")}</Button>
         </div>
       </div>
     );
@@ -1262,8 +1264,8 @@ export function FlowBuilderPage() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-center">
           <AlertCircle className="h-10 w-10 text-destructive" />
-          <p className="text-sm text-muted-foreground">Errore nel caricamento del flow.</p>
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna indietro</Button>
+          <p className="text-sm text-muted-foreground">{tr("Errore nel caricamento del flow.")}</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>{tr("Torna indietro")}</Button>
         </div>
       </div>
     );
@@ -1276,9 +1278,9 @@ export function FlowBuilderPage() {
       <div className="flex h-screen items-center justify-center bg-background p-6">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <Monitor className="h-10 w-10 text-muted-foreground" />
-          <p className="text-sm font-medium text-foreground">Il builder delle automazioni richiede un computer</p>
-          <p className="text-xs text-muted-foreground">L'editor a nodi (trascina e collega) non è utilizzabile da telefono. Aprilo da desktop per creare o modificare un flusso.</p>
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna ai flussi</Button>
+          <p className="text-sm font-medium text-foreground">{tr("Il builder delle automazioni richiede un computer")}</p>
+          <p className="text-xs text-muted-foreground">{tr("L'editor a nodi (trascina e collega) non è utilizzabile da telefono. Aprilo da desktop per creare o modificare un flusso.")}</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>{tr("Torna ai flussi")}</Button>
         </div>
       </div>
     );
@@ -1305,7 +1307,7 @@ export function FlowBuilderPage() {
           }
           if (!canPublish) {
             setLeftPanel("errors");
-            toast.error("Automazione non pronta", { description: validationErrors.find(e => e.tipo === "errore")?.messaggio || "Controlla la checklist prima di pubblicare." });
+            toast.error(tr("Automazione non pronta"), { description: validationErrors.find(e => e.tipo === "errore")?.messaggio || tr("Controlla la checklist prima di pubblicare.") });
             return;
           }
           setPublishDialogOpen(true);
@@ -1320,38 +1322,38 @@ export function FlowBuilderPage() {
       <AlertDialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Pubblicare questa automazione?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Pubblicare questa automazione?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Dopo la pubblicazione il flusso potrà reagire agli eventi reali configurati. Verifica trigger, azioni e condizioni prima di procedere.
+              {tr("Dopo la pubblicazione il flusso potrà reagire agli eventi reali configurati. Verifica trigger, azioni e condizioni prima di procedere.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 rounded-lg border bg-muted/30 p-3 text-sm">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><span className="font-semibold">{publishSummary.triggers}</span> trigger</div>
-              <div><span className="font-semibold">{publishSummary.actions}</span> azioni</div>
-              <div><span className="font-semibold">{publishSummary.conditions}</span> condizioni</div>
-              <div><span className="font-semibold">{publishSummary.delays}</span> attese</div>
+              <div><span className="font-semibold">{publishSummary.triggers}</span> {tr("trigger")}</div>
+              <div><span className="font-semibold">{publishSummary.actions}</span> {tr("azioni")}</div>
+              <div><span className="font-semibold">{publishSummary.conditions}</span> {tr("condizioni")}</div>
+              <div><span className="font-semibold">{publishSummary.delays}</span> {tr("attese")}</div>
             </div>
             <div className="space-y-1.5">
               {readinessChecks.map((check) => (
                 <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
                   <span>{check.label}</span>
                   <span className={check.ok ? "font-medium text-emerald-600" : "font-medium text-destructive"}>
-                    {check.ok ? "OK" : "Da verificare"}
+                    {check.ok ? "OK" : tr("Da verificare")}
                   </span>
                 </div>
               ))}
             </div>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setPublishDialogOpen(false);
                 void togglePublish();
               }}
             >
-              Pubblica
+              {tr("Pubblica")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1415,10 +1417,10 @@ export function FlowBuilderPage() {
                     variant="outline"
                     className="h-7 gap-1.5 text-xs shadow-sm"
                     onClick={handleAutoLayout}
-                    title="Riordina i nodi in un layout verticale pulito a partire dal trigger"
+                    title={tr("Riordina i nodi in un layout verticale pulito a partire dal trigger")}
                   >
                     <Wand2 className="h-3.5 w-3.5" />
-                    Riordina dall’alto
+                    {tr("Riordina dall’alto")}
                   </Button>
                 </Panel>
                 <MiniMap
@@ -1436,10 +1438,10 @@ export function FlowBuilderPage() {
               {!rightPanelOpen && (
                 <div className="absolute top-3 right-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-1.5">
                   <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs shadow-sm" onClick={() => openCatalog("trigger")}>
-                    + Trigger
+                    {tr("+ Trigger")}
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs shadow-sm" onClick={() => openCatalog("action")}>
-                    + Azione
+                    {tr("+ Azione")}
                   </Button>
                 </div>
               )}
@@ -1452,7 +1454,7 @@ export function FlowBuilderPage() {
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
                     </span>
-                    Dati in transito (test)
+                    {tr("Dati in transito (test)")}
                   </div>
                   <div className="divide-y">
                     {rfNodes
@@ -1480,7 +1482,7 @@ export function FlowBuilderPage() {
                                 ))}
                               </div>
                             ) : (
-                              <div className="mt-1 text-[10px] text-muted-foreground">nessun dato in output</div>
+                              <div className="mt-1 text-[10px] text-muted-foreground">{tr("nessun dato in output")}</div>
                             )}
                           </div>
                         );

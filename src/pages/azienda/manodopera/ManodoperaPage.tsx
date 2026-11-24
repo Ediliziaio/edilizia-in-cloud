@@ -19,6 +19,7 @@ import { SCHEDE_MANODOPERA, schedaDaAprire, type SchedaManodopera } from "@/lib/
 import { cn } from "@/lib/utils";
 import { PILLOLA_TAB } from "@/lib/ui/pillole";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const OperaiTab = lazy(() => import("./OperaiTab"));
 const SubappaltatoriPage = lazy(() => import("@/pages/azienda/SubappaltatoriPage"));
@@ -31,8 +32,9 @@ const ICONE: Record<SchedaManodopera, typeof Users> = {
 };
 
 function Attesa() {
+  const t = useT();
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Caricamento">
+    <div className="space-y-3" aria-busy="true" aria-label={t("Caricamento")}>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
       </div>
@@ -42,6 +44,7 @@ function Attesa() {
 }
 
 export default function ManodoperaPage() {
+  const t = useT();
   const { schede, inCaricamento } = useSchedeManodopera();
   const { isScopriPlan } = useStatoPiano();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -71,7 +74,7 @@ export default function ManodoperaPage() {
   return (
     <div className="space-y-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">Manodopera e Mezzi</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">{t("Manodopera e Mezzi")}</h1>
 
       </div>
 
@@ -94,7 +97,7 @@ export default function ManodoperaPage() {
                 >
                   <Icona className="h-4 w-4 max-sm:hidden" aria-hidden="true" />
                   {s.chiave === "mezzi"
-                    ? <><span className="sm:hidden">Mezzi</span><span className="hidden sm:inline">{s.etichetta}</span></>
+                    ? <><span className="sm:hidden">{t("Mezzi")}</span><span className="hidden sm:inline">{s.etichetta}</span></>
                     : s.etichetta}
                 </TabsTrigger>
               );
@@ -104,21 +107,21 @@ export default function ManodoperaPage() {
 
         {schede.includes("operai") && (
           <TabsContent value="operai" className="mt-3">
-            <ErrorBoundary title="Errore nella scheda Operai">
+            <ErrorBoundary title={t("Errore nella scheda Operai")}>
               <Suspense fallback={<Attesa />}><OperaiTab /></Suspense>
             </ErrorBoundary>
           </TabsContent>
         )}
         {schede.includes("subappaltatori") && (
           <TabsContent value="subappaltatori" className="mt-3">
-            <ErrorBoundary title="Errore nella scheda Subappaltatori">
+            <ErrorBoundary title={t("Errore nella scheda Subappaltatori")}>
               <Suspense fallback={<Attesa />}><SubappaltatoriPage incorporata /></Suspense>
             </ErrorBoundary>
           </TabsContent>
         )}
         {schede.includes("mezzi") && (
           <TabsContent value="mezzi" className="mt-3">
-            <ErrorBoundary title="Errore nella scheda Mezzi">
+            <ErrorBoundary title={t("Errore nella scheda Mezzi")}>
               <Suspense fallback={<Attesa />}><MezziList incorporata /></Suspense>
             </ErrorBoundary>
           </TabsContent>

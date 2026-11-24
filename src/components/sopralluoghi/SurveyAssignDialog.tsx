@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, UserPlus, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SurveyAssignDialogProps {
   surveyId: string;
@@ -44,6 +45,7 @@ const ROLE_LABEL: Record<string, { label: string; color: string }> = {
 };
 
 export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssignDialogProps) {
+  const t = useT();
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -66,7 +68,7 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
 
   const assignMut = useMutation({
     mutationFn: async () => {
-      if (!selectedUserId) throw new Error("Seleziona un utente");
+      if (!selectedUserId) throw new Error(t("Seleziona un utente"));
       await assignUser(surveyId, selectedUserId, selectedRole, fieldAuthorized);
 
       const member = members.find((m) => m.id === selectedUserId);
@@ -97,29 +99,29 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
       return { memberName, notificato: vuoleNotifica };
     },
     onSuccess: ({ memberName, notificato }) => {
-      toast.success(`${memberName} assegnato come ${ROLE_LABEL[selectedRole].label}`, {
-        description: notificato ? undefined : "Non è stata inviata la notifica: ha spento gli avvisi di assegnazione.",
+      toast.success(t("{nome} assegnato come {ruolo}", { nome: memberName, ruolo: t(ROLE_LABEL[selectedRole].label) }), {
+        description: notificato ? undefined : t("Non è stata inviata la notifica: ha spento gli avvisi di assegnazione."),
       });
       setSelectedUserId("");
       setFieldAuthorized(false);
       qc.invalidateQueries({ queryKey: ["survey-assignees", surveyId] });
     },
-    onError: (e) => toast.error("Assegnazione fallita", { description: String(e) }),
+    onError: (e) => toast.error(t("Assegnazione fallita"), { description: String(e) }),
   });
 
   const unassignMut = useMutation({
     mutationFn: (userId: string) => unassignUser(surveyId, userId),
     onSuccess: () => {
-      toast.success("Assegnazione rimossa");
+      toast.success(t("Assegnazione rimossa"));
       qc.invalidateQueries({ queryKey: ["survey-assignees", surveyId] });
     },
   });
   const authorizationMut = useMutation({
     mutationFn:async({userId,authorized}:{userId:string;authorized:boolean})=>{
       const {error}=await supabase.from("survey_assignees" as never).update({field_authorized:authorized} as never).eq("survey_id",surveyId).eq("user_id",userId).select("user_id").single();
-      if(error) throw new Error("Autorizzazione non aggiornata. Riprova.");
+      if(error) throw new Error(t("Autorizzazione non aggiornata. Riprova."));
     },
-    onSuccess:()=>{void qc.invalidateQueries({queryKey:["survey-assignees",surveyId]});toast.success("Autorizzazione app operai aggiornata");},
+    onSuccess:()=>{void qc.invalidateQueries({queryKey:["survey-assignees",surveyId]});toast.success(t("Autorizzazione app operai aggiornata"));},
     onError:(e)=>toast.error(e.message),
   });
 
@@ -129,18 +131,18 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-orange-600" />
-            Assegna sopralluogo
+            {t("Assegna sopralluogo")}
           </DialogTitle>
           <DialogDescription>
-            Assegna una persona. Per l’app operai serve anche l’autorizzazione esplicita qui sotto; assegnare non abilita automaticamente l’accesso.
+            {t("Assegna una persona. Per l’app operai serve anche l’autorizzazione esplicita qui sotto; assegnare non abilita automaticamente l’accesso.")}
           </DialogDescription>
         </DialogHeader>
 
-        {assigneesError&&<p role="alert" className="text-sm text-red-700">Assegnazioni non disponibili: non assegnare nuovamente la stessa persona. Riprova.</p>}
+        {assigneesError&&<p role="alert" className="text-sm text-red-700">{t("Assegnazioni non disponibili: non assegnare nuovamente la stessa persona. Riprova.")}</p>}
         {/* Lista assegnati */}
         {assignees.length > 0 && (
           <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-muted-foreground">Già assegnati ({assignees.length})</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t("Già assegnati ({n})", { n: assignees.length })}</p>
             <div className="space-y-1">
               {(assignees as Array<{ user_id: string; role: string;field_authorized:boolean }>).map((a) => {
                 const m = members.find((mb) => mb.id === a.user_id);
@@ -152,9 +154,9 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
                         {m ? [m.first_name, m.last_name].filter(Boolean).join(" ") || m.email : a.user_id.slice(0, 8)}
                       </p>
                       <Badge variant="outline" className={`text-[10px] ${cfg.color}`}>
-                        {cfg.label}
+                        {t(cfg.label)}
                       </Badge>
-                      <label className="mt-2 flex items-center gap-2 text-xs"><Checkbox checked={a.field_authorized===true} disabled={authorizationMut.isPending} onCheckedChange={checked=>authorizationMut.mutate({userId:a.user_id,authorized:checked===true})}/>Accesso autorizzato dall’app operai</label>
+                      <label className="mt-2 flex items-center gap-2 text-xs"><Checkbox checked={a.field_authorized===true} disabled={authorizationMut.isPending} onCheckedChange={checked=>authorizationMut.mutate({userId:a.user_id,authorized:checked===true})}/>{t("Accesso autorizzato dall’app operai")}</label>
                     </div>
                     <Button
                       variant="ghost" size="icon"
@@ -172,14 +174,14 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
         )}
 
         {/* Form aggiungi */}
-        <label className="flex min-h-12 items-start gap-3 rounded-xl border p-3 text-sm"><Checkbox checked={fieldAuthorized} onCheckedChange={checked=>setFieldAuthorized(checked===true)}/><span>Autorizza questo sopralluogo nell’app operai<span className="mt-1 block text-xs text-muted-foreground">Solo utenti dell’azienda con ruolo operaio/subappaltatore. Osservatore: sola lettura. Non abilita l’area amministrativa né la gestione dei preventivi.</span></span></label>
+        <label className="flex min-h-12 items-start gap-3 rounded-xl border p-3 text-sm"><Checkbox checked={fieldAuthorized} onCheckedChange={checked=>setFieldAuthorized(checked===true)}/><span>{t("Autorizza questo sopralluogo nell’app operai")}<span className="mt-1 block text-xs text-muted-foreground">{t("Solo utenti dell’azienda con ruolo operaio/subappaltatore. Osservatore: sola lettura. Non abilita l’area amministrativa né la gestione dei preventivi.")}</span></span></label>
         <div className="space-y-3 pt-2 border-t">
-          <p className="text-xs font-semibold text-muted-foreground">Aggiungi nuovo</p>
+          <p className="text-xs font-semibold text-muted-foreground">{t("Aggiungi nuovo")}</p>
           <div>
-            <Label className="text-xs">Utente</Label>
+            <Label className="text-xs">{t("Utente")}</Label>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
               <SelectTrigger>
-                <SelectValue placeholder="Scegli utente…" />
+                <SelectValue placeholder={t("Scegli utente…")} />
               </SelectTrigger>
               <SelectContent>
                 {gruppiTecnici(members.filter((m) => !assignedIds.has(m.id)), tecnici).map((g) => (
@@ -196,14 +198,14 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Ruolo</Label>
+            <Label className="text-xs">{t("Ruolo")}</Label>
             <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as typeof selectedRole)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(ROLE_LABEL).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                  <SelectItem key={k} value={k}>{t(v.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -211,14 +213,14 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Chiudi</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
           <Button
             onClick={() => assignMut.mutate()}
             disabled={!selectedUserId || assignMut.isPending || assigneesError}
             className="gap-2 bg-orange-600 hover:bg-orange-700"
           >
             {assignMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Assegna
+            {t("Assegna")}
           </Button>
         </DialogFooter>
       </DialogContent>

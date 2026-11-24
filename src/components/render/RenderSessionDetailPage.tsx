@@ -47,10 +47,12 @@ import { RenderProjectContext } from "./RenderProjectContext";
 import { RenderCrmSummaryCard } from "./RenderCrmSummaryCard";
 import { RenderPdfDownloadButton } from "./RenderPdfDownloadButton";
 import type { RenderComparisonTarget } from "./RenderComparisonDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const Comparison = lazy(() => import("./RenderComparisonDialog"));
 
 export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const { effectiveCompany } = useAuth();
   const company = effectiveCompany?.id;
@@ -127,27 +129,27 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
         className="space-y-3 rounded-xl border p-10 text-center"
       >
         <AlertTriangle className="mx-auto h-8 w-8 text-destructive" />
-        <h1 className="font-semibold">Impossibile caricare il render</h1>
+        <h1 className="font-semibold">{t("Impossibile caricare il render")}</h1>
         <p className="text-sm text-muted-foreground">
-          Controlla la connessione e riprova.
+          {t("Controlla la connessione e riprova.")}
         </p>
         <div className="flex justify-center gap-2">
           <Button variant="outline" asChild>
-            <Link to={back}>Torna alla galleria</Link>
+            <Link to={back}>{t("Torna alla galleria")}</Link>
           </Button>
-          <Button onClick={() => void detail.refetch()}>Riprova</Button>
+          <Button onClick={() => void detail.refetch()}>{t("Riprova")}</Button>
         </div>
       </div>
     );
   if (!session)
     return (
       <div className="space-y-4 py-12 text-center">
-        <h1 className="text-lg font-semibold">Render non disponibile</h1>
+        <h1 className="text-lg font-semibold">{t("Render non disponibile")}</h1>
         <p className="text-sm text-muted-foreground">
-          Il risultato non è presente o non è accessibile in questa azienda.
+          {t("Il risultato non è presente o non è accessibile in questa azienda.")}
         </p>
         <Button variant="outline" asChild>
-          <Link to={back}>Torna alla galleria</Link>
+          <Link to={back}>{t("Torna alla galleria")}</Link>
         </Button>
       </div>
     );
@@ -157,6 +159,11 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
     origin?.roomName ||
     session.title ||
     `Render ${spec.moduleName.toLowerCase()}`;
+  // I testi in italiano (title, sourceLabel) vanno nel PDF; a schermo si usano quelli tradotti.
+  const titleUi =
+    origin?.roomName ||
+    session.title ||
+    t("Render {moduleName}", { moduleName: spec.moduleName.toLowerCase() });
   const requestedImage = Number(params.get("immagine") || 0);
   const imageIndex =
     Number.isInteger(requestedImage) &&
@@ -172,6 +179,12 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
       : plan.partenza === "foto"
         ? "Foto di partenza"
         : "Immagine di partenza";
+  const sourceLabelUi =
+    plan.partenza === "vista_3d"
+      ? t("Modello 3D di partenza")
+      : plan.partenza === "foto"
+        ? t("Foto di partenza")
+        : t("Immagine di partenza");
   const choices = savedRenderChoices(session.config);
   const active =
     session.status === "pending" || session.status === "processing";
@@ -188,7 +201,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
         id: session.id,
         module: moduleId,
         url: result,
-        title,
+        title: titleUi,
         createdAt: session.created_at,
       }
     : null;
@@ -202,7 +215,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
         `render-${moduleId}-${id}-${imageIndex + 1}.png`,
       );
     } catch {
-      toast.error("Impossibile scaricare l’immagine. Riprova.");
+      toast.error(t("Impossibile scaricare l’immagine. Riprova."));
     } finally {
       setDownloading(false);
     }
@@ -213,11 +226,11 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
       if (navigator.share) await navigator.share({ title, url: result });
       else {
         await navigator.clipboard.writeText(result);
-        toast.success("Link del render copiato");
+        toast.success(t("Link del render copiato"));
       }
     } catch (error) {
       if (!(error instanceof Error && error.name === "AbortError"))
-        toast.error("Condivisione non disponibile. Puoi scaricare l’immagine.");
+        toast.error(t("Condivisione non disponibile. Puoi scaricare l’immagine."));
     }
   };
 
@@ -226,17 +239,17 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <Button asChild variant="outline" size="icon" className="shrink-0">
-            <Link to={back} aria-label={`Torna alla galleria ${spec.moduleName.toLowerCase()} con i filtri`}>
+            <Link to={back} aria-label={t("Torna alla galleria {moduleName} con i filtri", { moduleName: spec.moduleName.toLowerCase() })}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">{spec.moduleName}</p>
-            <h1 className="mt-1 text-xl font-bold sm:text-2xl">{title}</h1>
+            <h1 className="mt-1 text-xl font-bold sm:text-2xl">{titleUi}</h1>
             <p className="mt-1 text-xs text-muted-foreground">
               {formatRenderDate(session.created_at)}
               {session.results.length > 1
-                ? ` · immagine ${imageIndex + 1} di ${session.results.length}`
+                ? ` · ${t("immagine {imageIndex} di {n}", { imageIndex: imageIndex + 1, n: session.results.length })}`
                 : ""}
             </p>
           </div>
@@ -259,11 +272,11 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
           <div>
             <p className="text-sm font-medium">
               {session.status === "pending"
-                ? "Render in coda"
-                : "Elaborazione in corso"}
+                ? t("Render in coda")
+                : t("Elaborazione in corso")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Lo stato si aggiorna automaticamente.
+              {t("Lo stato si aggiorna automaticamente.")}
             </p>
           </div>
         </div>
@@ -274,18 +287,17 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
           className="rounded-xl border border-destructive/30 bg-destructive/5 p-4"
         >
           <h2 className="text-sm font-semibold text-destructive">
-            Generazione non riuscita
+            {t("Generazione non riuscita")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {session.error ||
-              "Apri il modulo per rivedere la configurazione prima di riprovare."}
+              t("Apri il modulo per rivedere la configurazione prima di riprovare.")}
           </p>
         </div>
       )}
       {session.status === "draft" && (
         <div className="rounded-xl border bg-muted/30 p-4 text-sm">
-          La configurazione è da completare. Questa foto non è una generazione
-          in coda.
+          {t("La configurazione è da completare. Questa foto non è una generazione in coda.")}
         </div>
       )}
 
@@ -297,8 +309,8 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                 key={session.id}
                 beforeUrl={original.data}
                 afterUrl={result}
-                beforeLabel={sourceLabel}
-                title={title}
+                beforeLabel={sourceLabelUi}
+                title={titleUi}
               />
               <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-3">
                 <Button
@@ -311,7 +323,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                   ) : (
                     <Download className="mr-1.5 h-4 w-4" />
                   )}
-                  Scarica immagine
+                  {t("Scarica immagine")}
                 </Button>
                 <RenderPdfDownloadButton
                   beforeUrl={original.data}
@@ -320,7 +332,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                   title={title}
                   subtitle={`${spec.moduleName} · ${formatRenderDate(session.created_at)}`}
                   filename={`render-${moduleId}-${id}-${imageIndex + 1}.pdf`}
-                  label="PDF del render"
+                  label={t("PDF del render")}
                   allowMobile
                   completeMetadata
                   metadata={[
@@ -349,36 +361,36 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                   onClick={() => void share()}
                 >
                   <Share2 className="mr-1.5 h-4 w-4" />
-                  Condividi
+                  {t("Condividi")}
                 </Button>
               </div>
             </>
           ) : original.data ? (
             <section className="overflow-hidden rounded-xl border">
               <h2 className="border-b p-3 text-sm font-medium">
-                {sourceLabel}
+                {sourceLabelUi}
               </h2>
-              <RenderImage url={original.data} label={sourceLabel} />
+              <RenderImage url={original.data} label={sourceLabelUi} />
             </section>
           ) : (
             <div className="rounded-xl border border-dashed p-12 text-center text-sm text-muted-foreground">
               {original.isLoading
-                ? "Caricamento dell’immagine di partenza…"
-                : "Nessuna immagine disponibile per questa sessione."}
+                ? t("Caricamento dell’immagine di partenza…")
+                : t("Nessuna immagine disponibile per questa sessione.")}
             </div>
           )}
 
           {session.results.length > 1 && (
             <section className="space-y-3 rounded-xl border bg-card p-4">
               <h2 className="text-sm font-semibold">
-                Immagini di questa sessione
+                {t("Immagini di questa sessione")}
               </h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {session.results.map((url, index) => (
                   <div key={`${url}:${index}`} className="space-y-2">
                     <button
                       type="button"
-                      aria-label={`Mostra immagine ${index + 1}`}
+                      aria-label={t("Mostra immagine {index}", { index: index + 1 })}
                       aria-pressed={imageIndex === index}
                       onClick={() => {
                         const next = new URLSearchParams(params);
@@ -389,13 +401,11 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                     >
                       <img
                         src={url}
-                        alt={`Risultato ${index + 1}`}
+                        alt={t("Risultato {index}", { index: index + 1 })}
                         className="aspect-video w-full bg-muted object-contain"
                         loading="lazy"
                       />
-                      <span className="block py-1 text-xs">
-                        Immagine {index + 1}
-                      </span>
+                      <span className="block py-1 text-xs">{t("Immagine {index}", { index: index + 1 })}</span>
                     </button>
                     {currentTarget && index !== imageIndex && (
                       <Button
@@ -408,12 +418,12 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                             {
                               ...currentTarget,
                               url,
-                              title: `${title} · immagine ${index + 1}`,
+                              title: t("{titolo} · immagine {n}", { titolo: titleUi, n: index + 1 }),
                             },
                           ])
                         }
                       >
-                        Confronta con questa
+                        {t("Confronta con questa")}
                       </Button>
                     )}
                   </div>
@@ -425,18 +435,18 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
           {!!family && (
             <section
               className="space-y-3 rounded-xl border bg-card p-4"
-              aria-label="Altri render della stessa sorgente"
+              aria-label={t("Altri render della stessa sorgente")}
             >
               <div>
                 <h2 className="text-base font-semibold">
                   {origin
-                    ? "Altre varianti di questa stanza"
-                    : "Altri render della stessa immagine"}
+                    ? t("Altre varianti di questa stanza")
+                    : t("Altri render della stessa immagine")}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {origin
-                    ? `Stessa planimetria, stanza e versione ${origin.version}.`
-                    : "Risultati dello stesso modulo che conservano il medesimo riferimento alla sorgente."}
+                    ? t("Stessa planimetria, stanza e versione {version}.", { version: String(origin.version ?? "") })
+                    : t("Risultati dello stesso modulo che conservano il medesimo riferimento alla sorgente.")}
                 </p>
               </div>
               {variants.isLoading ? (
@@ -444,19 +454,19 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
               ) : variants.isError ? (
                 <div role="alert">
                   <p className="text-sm text-muted-foreground">
-                    Le varianti non sono disponibili.
+                    {t("Le varianti non sono disponibili.")}
                   </p>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => void variants.refetch()}
                   >
-                    Riprova varianti
+                    {t("Riprova varianti")}
                   </Button>
                 </div>
               ) : !related.length ? (
                 <p className="text-sm text-muted-foreground">
-                  Non ci sono altre varianti completate in questo gruppo.
+                  {t("Non ci sono altre varianti completate in questo gruppo.")}
                 </p>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -471,7 +481,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                       >
                         <img
                           src={variant.results[0]}
-                          alt={`Variante del ${formatRenderDate(variant.created_at)}`}
+                          alt={t("Variante del {created_at}", { created_at: formatRenderDate(variant.created_at) })}
                           className="aspect-video w-full bg-muted object-contain"
                           loading="lazy"
                         />
@@ -491,14 +501,14 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                                 id: variant.id,
                                 module: moduleId,
                                 url: variant.results[0],
-                                title: `${title} · variante`,
+                                title: t("{titolo} · variante", { titolo: titleUi }),
                                 createdAt: variant.created_at,
                               },
                             ])
                           }
                         >
                           <GitCompareArrows className="mr-1 h-3.5 w-3.5" />
-                          Confronta
+                          {t("Confronta")}
                         </Button>
                       )}
                     </article>
@@ -513,8 +523,8 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
                   onClick={() => void variants.fetchNextPage()}
                 >
                   {variants.isFetchingNextPage
-                    ? "Caricamento…"
-                    : "Carica altre varianti"}
+                    ? t("Caricamento…")
+                    : t("Carica altre varianti")}
                 </Button>
               )}
             </section>
@@ -540,7 +550,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
           <RenderSavedChoices config={session.config} />
           {session.notes && (
             <section className="rounded-xl border bg-card p-4">
-              <h2 className="text-sm font-semibold">Note del render</h2>
+              <h2 className="text-sm font-semibold">{t("Note del render")}</h2>
               <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
                 {session.notes}
               </p>
@@ -557,8 +567,8 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
               >
                 <Plus className="mr-1.5 h-4 w-4" />
                 {moduleId === "bagno"
-                  ? "Riutilizza le scelte del bagno"
-                  : `Nuovo render ${spec.moduleName.toLowerCase()}`}
+                  ? t("Riutilizza le scelte del bagno")
+                  : t("Nuovo render {moduleName}", { moduleName: spec.moduleName.toLowerCase() })}
               </Link>
             </Button>
           )}
@@ -568,7 +578,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
         <Suspense
           fallback={
             <p className="text-sm text-muted-foreground">
-              Caricamento confronto…
+              {t("Caricamento confronto…")}
             </p>
           }
         >

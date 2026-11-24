@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import L from "leaflet";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "leaflet/dist/leaflet.css";
 
 export default function MappaImmobile({ lat, lng, mostraPunto = true, onSposta }: { lat: number; lng: number; mostraPunto?: boolean; onSposta?: (lat: number, lng: number) => void }) {
+  const t = useT();
   const elemento = useRef<HTMLDivElement>(null);
   const mappa = useRef<L.Map | undefined>(undefined);
   const marker = useRef<L.CircleMarker | undefined>(undefined);
@@ -31,7 +33,7 @@ export default function MappaImmobile({ lat, lng, mostraPunto = true, onSposta }
   },[lat,lng,mostraPunto]);
 
   return <div className="space-y-1">
-    <div ref={elemento} role="region" aria-label="Mappa per posizionare l’immobile" className="isolate h-52 rounded-lg border bg-muted"/>
-    {errore && <p className="text-xs text-muted-foreground">La mappa di sfondo non risponde. Puoi inserire le coordinate manualmente.</p>}
+    <div ref={elemento} role="region" aria-label={t("Mappa per posizionare l’immobile")} className="isolate h-52 rounded-lg border bg-muted"/>
+    {errore && <p className="text-xs text-muted-foreground">{t("La mappa di sfondo non risponde. Puoi inserire le coordinate manualmente.")}</p>}
   </div>;
 }

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { PERSONA_ICON_MAP, PERSONA_COLOR_RING } from "@/lib/personaVisuals";
 import { useShowAIRunMeta } from "@/lib/ai/use-ai-model-selector";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Alias locali per minimizzare diff con il resto del file.
 const ICON_MAP = PERSONA_ICON_MAP;
@@ -102,7 +103,7 @@ interface OrchestratorResponse {
 }
 
 const fmtEur = (n: number | null | undefined, decimals = 4) =>
-  n == null ? "—" : `€ ${Number(n).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  n == null ? "—" : `€ ${Number(n).toLocaleString(intlCampo(), { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -112,6 +113,7 @@ interface AssistenteAIPageProps {
 }
 
 export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageProps = {}) {
+  const t = useT();
   const companyIdSessioni = useEffectiveCompanyId();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -265,7 +267,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
     if (!personaParam) return;
     const personaExists = personas.some((p) => p.persona_key === personaParam);
     if (!personaExists) {
-      toast.error(`Persona "${personaParam}" non disponibile per il tuo ruolo`);
+      toast.error(t("Persona \"{nome}\" non disponibile per il tuo ruolo", { nome: personaParam }));
       return;
     }
     setActivePersonaKey(personaParam);
@@ -331,7 +333,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
     const trimmed = draftMessage.trim();
     if (!trimmed) return;
     if (!activePersonaKey) {
-      toast.error("Seleziona prima una persona");
+      toast.error(t("Seleziona prima una persona"));
       return;
     }
     sendMut.mutate({
@@ -362,16 +364,16 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Bot className="h-6 w-6 text-violet-600" />
-                Assistente AI
+                {t("Assistente AI")}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Chatta con le persone AI specializzate per ogni area aziendale ·{" "}
+                {t("Chatta con le persone AI specializzate per ogni area aziendale ·")}{" "}
                 <kbd className="px-1.5 py-0.5 text-[10px] rounded border bg-muted font-mono">⌘K</kbd>{" "}
-                per ricerca rapida
+                {t("per ricerca rapida")}
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
-              <Plus className="h-4 w-4" /> Nuova chat
+              <Plus className="h-4 w-4" /> {t("Nuova chat")}
             </Button>
           </div>
 
@@ -382,9 +384,9 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
 
       {embedded && (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight">Chat con gli assistenti</h2>
+          <h2 className="text-lg font-semibold tracking-tight">{t("Chat con gli assistenti")}</h2>
           <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
-            <Plus className="h-4 w-4" /> Nuova chat
+            <Plus className="h-4 w-4" /> {t("Nuova chat")}
           </Button>
         </div>
       )}
@@ -397,11 +399,11 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
           {!activeSessionId && !activePersonaKey ? (
             <Card className="flex-1 min-h-0 flex flex-col">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Scegli un assistente</CardTitle>
+                <CardTitle className="text-sm">{t("Scegli un assistente")}</CardTitle>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Cerca un assistente"
+                    placeholder={t("Cerca un assistente")}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9 h-9"
@@ -418,14 +420,14 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                     <Alert>
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
-                        {search.trim() ? "Nessun assistente trovato." : "Nessun assistente disponibile per il tuo ruolo."}
+                        {search.trim() ? t("Nessun assistente trovato.") : t("Nessun assistente disponibile per il tuo ruolo.")}
                       </AlertDescription>
                     </Alert>
                   ) : (
                     grouped.map(({ cat, items }) => (
                       <div key={cat}>
                         <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                          {CATEGORY_LABEL[cat] ?? cat}
+                          {CATEGORY_LABEL[cat] ? t(CATEGORY_LABEL[cat]) : cat}
                         </div>
                         <div className="space-y-1">
                           {items.map(p => (
@@ -441,8 +443,8 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
           ) : (
             <Card className="flex-1 min-h-0 flex flex-col">
               <CardHeader className="pb-3 flex-row items-start justify-between">
-                <CardTitle className="text-sm">Conversazioni recenti</CardTitle>
-                <Button size="sm" variant="ghost" onClick={handleNewChat} title="Cambia assistente" aria-label="Cambia assistente">
+                <CardTitle className="text-sm">{t("Conversazioni recenti")}</CardTitle>
+                <Button size="sm" variant="ghost" onClick={handleNewChat} title={t("Cambia assistente")} aria-label={t("Cambia assistente")}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </CardHeader>
@@ -450,7 +452,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                 <CardContent className="space-y-1">
                   {(sessions ?? []).length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-6">
-                      Nessuna conversazione precedente
+                      {t("Nessuna conversazione precedente")}
                     </p>
                   ) : (
                     (sessions ?? []).map(s => (
@@ -464,7 +466,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                       >
                         <div className="font-medium truncate">{s.title}</div>
                         <div className="text-muted-foreground flex items-center justify-between">
-                          <span>{s.message_count} msg</span>
+                          <span>{t("{n} msg", { n: s.message_count ?? 0 })}</span>
                           {showRunMeta && <span>{fmtEur(s.total_cost_billed_eur, 2)}</span>}
                         </div>
                       </button>
@@ -506,7 +508,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                     {(activePersona.example_questions ?? []).length > 0 ? (
                       <div className="mt-8 space-y-2">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                          Prova a chiedere
+                          {t("Prova a chiedere")}
                         </p>
                         <div className="flex flex-wrap gap-2 justify-center">
                           {activePersona.example_questions!.slice(0, 5).map((q, i) => (
@@ -535,14 +537,14 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground mt-6">
-                        Scrivi un messaggio per iniziare la conversazione
+                        {t("Scrivi un messaggio per iniziare la conversazione")}
                       </p>
                     )}
                   </div>
                 ) : !activePersona ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <MessageSquare className="h-12 w-12 mx-auto opacity-30 mb-3" />
-                    <p className="text-sm">Scegli un assistente per iniziare.</p>
+                    <p className="text-sm">{t("Scegli un assistente per iniziare.")}</p>
                   </div>
                 ) : messagesLoading && (messages ?? []).length === 0 ? (
                   <div className="space-y-3">
@@ -570,8 +572,8 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                     }
                   }}
                   placeholder={activePersona
-                    ? `Chiedi a ${activePersona.display_name}…`
-                    : "Scegli un assistente"}
+                    ? t("Chiedi a {nome}…", { nome: activePersona.display_name })
+                    : t("Scegli un assistente")}
                   rows={1}
                   className="resize-none min-h-[40px] max-h-32"
                   disabled={!activePersonaKey || sendMut.isPending}
@@ -580,14 +582,14 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                   onClick={handleSend}
                   disabled={!activePersonaKey || !draftMessage.trim() || sendMut.isPending}
                   size="icon"
-                  aria-label="Invia messaggio"
+                  aria-label={t("Invia messaggio")}
                   className="h-10 w-10 shrink-0"
                 >
                   {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-                Invio per inviare • Shift+Invio per nuova riga
+                {t("Invio per inviare • Shift+Invio per nuova riga")}
               </p>
             </div>
           </Card>
@@ -595,20 +597,20 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
 
         {/* ─── SIDEBAR DX: meta sessione ───────────────────────────────── */}
         {activePersona && (
-          <aside aria-label="Dettagli della conversazione" className="col-span-12 flex min-h-0 flex-col gap-3 xl:col-span-2">
+          <aside aria-label={t("Dettagli della conversazione")} className="col-span-12 flex min-h-0 flex-col gap-3 xl:col-span-2">
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs flex items-center gap-1.5">
-                  <Coins className="h-3.5 w-3.5" /> Sessione corrente
+                  <Coins className="h-3.5 w-3.5" /> {t("Sessione corrente")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Messaggi</span>
+                  <span className="text-muted-foreground">{t("Messaggi")}</span>
                   <span className="font-mono">{messages?.length ?? 0}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Token in / out</span>
+                  <span className="text-muted-foreground">{t("Token in / out")}</span>
                   <span className="font-mono">
                     {(messages ?? []).reduce((s, m) => s + (m.tokens_in ?? 0), 0)}
                     {" / "}
@@ -619,7 +621,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                   <>
                     <Separator />
                     <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Costo sessione</span>
+                      <span className="text-muted-foreground">{t("Costo sessione")}</span>
                       <span className="font-mono font-semibold">{fmtEur(totalSessionCost, 4)}</span>
                     </div>
                   </>
@@ -630,7 +632,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
             {activePersona && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-xs">Assistente attivo</CardDescription>
+                  <CardDescription className="text-xs">{t("Assistente attivo")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -643,7 +645,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                   <p className="text-xs text-muted-foreground">{activePersona.mission}</p>
                   <div className="flex flex-wrap gap-1">
                     <Badge variant="outline" className="text-[10px]">{activePersona.recommended_tier_key}</Badge>
-                    <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABEL[activePersona.category]}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{t(CATEGORY_LABEL[activePersona.category] ?? "")}</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -651,8 +653,8 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
 
             <Alert className="text-xs">
               <AlertDescription>
-                Ogni messaggio scala dal saldo AI dell'azienda. Vedi consumi in
-                {" "}<a href="/azienda/impostazioni/abbonamento?tab=portafoglio" className="underline">Impostazioni → Crediti</a>.
+                {t("Ogni messaggio scala dal saldo AI dell'azienda. Vedi consumi in")}
+                {" "}<a href="/azienda/impostazioni/abbonamento?tab=portafoglio" className="underline">{t("Impostazioni → Crediti")}</a>.
               </AlertDescription>
             </Alert>
           </aside>
@@ -677,6 +679,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
 const BANNER_KEY = "ai_intro_banner_dismissed_v1";
 
 function DiscoveryBanner({ personaCount }: { personaCount: number }) {
+  const t = useT();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem(BANNER_KEY) === "1";
@@ -696,19 +699,17 @@ function DiscoveryBanner({ personaCount }: { personaCount: number }) {
       </div>
       <div className="flex-1 min-w-0 space-y-1.5">
         <p className="text-sm font-semibold">
-          Hai {personaCount > 0 ? personaCount : "diverse"} AI specializzate che lavorano per la tua azienda 24/7
+          {t("Hai {n} AI specializzate che lavorano per la tua azienda 24/7", { n: personaCount > 0 ? personaCount : t("diverse") })}
         </p>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          CFO per la cassa, Compliance per il DURC, PM Cantiere per la pianificazione, Sales per i lead… Ognuno con i suoi tool e la sua expertise.
-          Premi <kbd className="px-1 py-0.5 text-[10px] rounded border bg-background font-mono">⌘K</kbd> ovunque per cercare per esempio
-          (es. "Genera LIPE" oppure "Suggerisci squadra"), oppure clicca uno dei chip qui sotto quando entri in una chat.
+          {t("CFO per la cassa, Compliance per il DURC, PM Cantiere per la pianificazione, Sales per i lead… Ognuno con i suoi tool e la sua expertise. Premi")} <kbd className="px-1 py-0.5 text-[10px] rounded border bg-background font-mono">⌘K</kbd> {t("ovunque per cercare per esempio (es. \"Genera LIPE\" oppure \"Suggerisci squadra\"), oppure clicca uno dei chip qui sotto quando entri in una chat.")}
         </p>
       </div>
       <button
         type="button"
         onClick={handleDismiss}
         className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
-        aria-label="Chiudi"
+        aria-label={t("Chiudi")}
       >
         ✕
       </button>
@@ -748,6 +749,7 @@ function PersonaIcon({ icon, color, size = "sm" }: { icon: string; color: string
 }
 
 function MessageBubble({ message, persona }: { message: ChatMessage; persona: Persona | null }) {
+  const t = useT();
   const isUser = message.role === "user";
   const isError = message.metadata?.error === true;
   // Costo/token/modello sotto il messaggio: meta dev/debug, MAI per utenti normali.
@@ -765,7 +767,7 @@ function MessageBubble({ message, persona }: { message: ChatMessage; persona: Pe
         {message.content}
         {showRunMeta && !isUser && message.cost_billed_eur != null && (
           <div className="text-[10px] opacity-60 mt-1.5 flex items-center gap-2">
-            <span>{message.tokens_in} → {message.tokens_out} tok</span>
+            <span>{t("{tokens_in} → {tokens_out} tok", { tokens_in: String(message.tokens_in ?? ""), tokens_out: String(message.tokens_out ?? "") })}</span>
             <span>·</span>
             <span>{fmtEur(message.cost_billed_eur, 5)}</span>
             {message.model_used && <><span>·</span><span className="font-mono">{message.model_used}</span></>}

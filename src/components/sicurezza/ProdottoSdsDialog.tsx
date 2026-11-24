@@ -29,6 +29,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const cls = "w-full rounded-md border bg-background p-2 text-sm";
 export function ModuloProdotto({
   ambito,
@@ -45,6 +46,7 @@ export function ModuloProdotto({
   fasi: FaseFascicolo[];
   onClose: () => void;
 }) {
+  const t = useT();
   const [base] = useState(() => structuredClone({ ambito, prodotto, fasi }));
   const [fonti, setFonti] = useState(() => structuredClone(quadro));
   const [id] = useState(() => prodotto?.id || crypto.randomUUID());
@@ -140,7 +142,7 @@ export function ModuloProdotto({
       setErrore(
         e instanceof Error
           ? e.message
-          : "Salvataggio non confermato. I dati sono conservati.",
+          : t("Salvataggio non confermato. I dati sono conservati."),
       );
     }
   };
@@ -154,7 +156,7 @@ export function ModuloProdotto({
       setErroreFonti(
         e instanceof Error
           ? e.message
-          : "Fonti non disponibili. I dati inseriti sono conservati.",
+          : t("Fonti non disponibili. I dati inseriti sono conservati."),
       );
     } finally {
       setLegge(false);
@@ -187,19 +189,16 @@ export function ModuloProdotto({
         <DialogHeader>
           <DialogTitle>
             {prodotto
-              ? "Rettifica impiego del prodotto"
-              : "Registra prodotto e impiego"}
+              ? t("Rettifica impiego del prodotto")
+              : t("Registra prodotto e impiego")}
           </DialogTitle>
-          <DialogDescription>
-            Collega il prodotto reale alla sua SDS. Una scheda generica non
-            copre gli altri prodotti. Contesto di lettura: {base.ambito.data}.
-          </DialogDescription>
+          <DialogDescription>{t("Collega il prodotto reale alla sua SDS. Una scheda generica non copre gli altri prodotti. Contesto di lettura: {data}.", { data: String(base.ambito.data ?? "") })}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 overflow-y-auto pr-1">
           <fieldset disabled={bloccato} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="sds-materiale">Materiale di origine</Label>
+                <Label htmlFor="sds-materiale">{t("Materiale di origine")}</Label>
                 <UniformSelect
                   id="sds-materiale"
                   className={cls}
@@ -207,10 +206,10 @@ export function ModuloProdotto({
                   disabled={!!prodotto}
                   onChange={(e) => selezionaMateriale(e.target.value)}
                 >
-                  <option value="">Prodotto non presente nella distinta</option>
+                  <option value="">{t("Prodotto non presente nella distinta")}</option>
                   {dati.materiale_id && !origine && (
                     <option value={dati.materiale_id}>
-                      Origine non più disponibile
+                      {t("Origine non più disponibile")}
                     </option>
                   )}
                   {fonti.materiali.map((m) => (
@@ -223,7 +222,7 @@ export function ModuloProdotto({
               </div>
               <div>
                 <Label htmlFor="sds-impresa">
-                  Impresa che impiega il prodotto
+                  {t("Impresa che impiega il prodotto")}
                 </Label>
                 <UniformSelect
                   id="sds-impresa"
@@ -235,7 +234,7 @@ export function ModuloProdotto({
                     selezionaDocumento("");
                   }}
                 >
-                  <option value="">La propria impresa</option>
+                  <option value="">{t("La propria impresa")}</option>
                   {fonti.imprese.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.ragione_sociale}
@@ -248,8 +247,7 @@ export function ModuloProdotto({
               origine?.impronta !== dati.materiale_impronta && (
                 <div className="rounded border border-amber-300 p-2">
                   <p role="alert" className="text-sm">
-                    Il materiale di origine è cambiato o è stato rimosso. La
-                    descrizione inserita non viene sovrascritta.
+                    {t("Il materiale di origine è cambiato o è stato rimosso. La descrizione inserita non viene sovrascritta.")}
                   </p>
                   {origine && (
                     <Button
@@ -260,19 +258,19 @@ export function ModuloProdotto({
                         cambia("corrispondenza_confermata", false);
                       }}
                     >
-                      Conferma la fonte materiale riletta
+                      {t("Conferma la fonte materiale riletta")}
                     </Button>
                   )}
                 </div>
               )}
             <div className="grid gap-3 sm:grid-cols-2">
-              {testo("nome", "Nome commerciale del prodotto")}
-              {testo("produttore", "Produttore / fabbricante")}
-              {testo("codice", "Codice prodotto / identificazione")}
-              {testo("area", "Area di impiego")}
+              {testo("nome", t("Nome commerciale del prodotto"))}
+              {testo("produttore", t("Produttore / fabbricante"))}
+              {testo("codice", t("Codice prodotto / identificazione"))}
+              {testo("area", t("Area di impiego"))}
             </div>
             <div>
-              <Label htmlFor="sds-impiego">Impiego nella lavorazione</Label>
+              <Label htmlFor="sds-impiego">{t("Impiego nella lavorazione")}</Label>
               <textarea
                 id="sds-impiego"
                 className={cls}
@@ -284,7 +282,7 @@ export function ModuloProdotto({
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
-                <Label htmlFor="sds-fase">Fase di impiego</Label>
+                <Label htmlFor="sds-fase">{t("Fase di impiego")}</Label>
                 <UniformSelect
                   id="sds-fase"
                   className={cls}
@@ -294,7 +292,7 @@ export function ModuloProdotto({
                     selezionaDocumento("");
                   }}
                 >
-                  <option value="">Comune a più fasi</option>
+                  <option value="">{t("Comune a più fasi")}</option>
                   {base.fasi.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
@@ -302,12 +300,12 @@ export function ModuloProdotto({
                   ))}
                 </UniformSelect>
               </div>
-              {testo("dal", "Impiego dal", "date")}
-              {testo("al", "Impiego fino al", "date")}
+              {testo("dal", t("Impiego dal"), "date")}
+              {testo("al", t("Impiego fino al"), "date")}
             </div>
             <div>
               <Label htmlFor="sds-necessaria">
-                SDS necessaria per questo prodotto?
+                {t("SDS necessaria per questo prodotto?")}
               </Label>
               <UniformSelect
                 id="sds-necessaria"
@@ -320,15 +318,15 @@ export function ModuloProdotto({
                   )
                 }
               >
-                <option value="da_valutare">Da valutare</option>
-                <option value="si">Sì, raccogliere e riesaminare la SDS</option>
-                <option value="no">No, con motivazione</option>
+                <option value="da_valutare">{t("Da valutare")}</option>
+                <option value="si">{t("Sì, raccogliere e riesaminare la SDS")}</option>
+                <option value="no">{t("No, con motivazione")}</option>
               </UniformSelect>
             </div>
             {dati.sds_necessaria === "no" && (
               <div>
                 <Label htmlFor="sds-non-necessaria">
-                  Motivo per cui la SDS non è necessaria
+                  {t("Motivo per cui la SDS non è necessaria")}
                 </Label>
                 <textarea
                   id="sds-non-necessaria"
@@ -342,48 +340,46 @@ export function ModuloProdotto({
               </div>
             )}
             <div className="space-y-2 rounded-lg border p-3">
-              <Label htmlFor="sds-documento">SDS dal fascicolo</Label>
+              <Label htmlFor="sds-documento">{t("SDS dal fascicolo")}</Label>
               <UniformSelect
                 id="sds-documento"
                 className={cls}
                 value={dati.evidenza_id || ""}
                 onChange={(e) => selezionaDocumento(e.target.value)}
               >
-                <option value="">Nessuna SDS collegata</option>
+                <option value="">{t("Nessuna SDS collegata")}</option>
                 {dati.evidenza_id && !documento && (
                   <option value={dati.evidenza_id} disabled>
-                    Riferimento precedente da riesaminare
+                    {t("Riferimento precedente da riesaminare")}
                   </option>
                 )}
                 {documenti.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.titolo} · rev. {e.revisione || "non indicata"} ·{" "}
+                    {e.titolo} {t("· rev.")} {e.revisione || t("non indicata")} ·{" "}
                     {e.file_name}
                   </option>
                 ))}
               </UniformSelect>
               {documento && (
                 <p className="text-xs text-muted-foreground">
-                  Revisione {documento.revisione || "non indicata"} · rilascio{" "}
-                  {documento.data_rilascio || "non indicato"} · stato{" "}
+                  {t("Revisione {revisione} · rilascio {rilascio}", { revisione: documento.revisione || t("non indicata"), rilascio: documento.data_rilascio || t("non indicato") })} {t("· stato")}{" "}
                   {documento.stato}
                   {documento.data_scadenza
-                    ? ` · scadenza ${documento.data_scadenza}`
+                    ? t(" · scadenza {data_scadenza}", { data_scadenza: String(documento.data_scadenza ?? "") })
                     : ""}
                 </p>
               )}
               {documento && documento.impronta !== dati.evidenza_impronta && (
                 <div>
                   <p role="alert" className="text-sm text-amber-800">
-                    La SDS è cambiata. Riesamina la versione prima di confermare
-                    il collegamento.
+                    {t("La SDS è cambiata. Riesamina la versione prima di confermare il collegamento.")}
                   </p>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => selezionaDocumento(documento.id)}
                   >
-                    Usa la versione SDS riletta
+                    {t("Usa la versione SDS riletta")}
                   </Button>
                 </div>
               )}
@@ -398,18 +394,14 @@ export function ModuloProdotto({
                     cambia("corrispondenza_confermata", e.target.checked)
                   }
                 />
-                Ho controllato che questa versione della SDS corrisponda al
-                prodotto identificato.
+                {t("Ho controllato che questa versione della SDS corrisponda al prodotto identificato.")}
               </label>
               <p className="text-xs text-muted-foreground">
-                Carica prima il file nel fascicolo documenti come Scheda di
-                sicurezza prodotto, indicando revisione e data. Sono proposti
-                solo file della stessa impresa e del contesto pertinente.
-                Nessuna scadenza viene calcolata automaticamente.
+                {t("Carica prima il file nel fascicolo documenti come Scheda di sicurezza prodotto, indicando revisione e data. Sono proposti solo file della stessa impresa e del contesto pertinente. Nessuna scadenza viene calcolata automaticamente.")}
               </p>
             </div>
             <div>
-              <Label htmlFor="sds-note">Note tecniche</Label>
+              <Label htmlFor="sds-note">{t("Note tecniche")}</Label>
               <textarea
                 id="sds-note"
                 className={cls}
@@ -426,12 +418,12 @@ export function ModuloProdotto({
                   checked={dati.annullato}
                   onChange={(e) => cambia("annullato", e.target.checked)}
                 />
-                Annulla questa registrazione, conservando lo storico
+                {t("Annulla questa registrazione, conservando lo storico")}
               </label>
             )}
             <div>
               <Label htmlFor="sds-motivo">
-                Motivo della registrazione o rettifica
+                {t("Motivo della registrazione o rettifica")}
               </Label>
               <textarea
                 id="sds-motivo"
@@ -449,12 +441,10 @@ export function ModuloProdotto({
             disabled={bloccato}
             onClick={() => void rileggi()}
           >
-            {legge ? "Rilettura…" : "Rileggi materiali e SDS"}
+            {legge ? t("Rilettura…") : t("Rileggi materiali e SDS")}
           </Button>
           <p className="text-xs text-muted-foreground">
-            La rilettura conserva i dati inseriti e non aggiorna la versione
-            iniziale della registrazione. La corrispondenza va riesaminata: il
-            collegamento non è una valutazione del rischio chimico.
+            {t("La rilettura conserva i dati inseriti e non aggiorna la versione iniziale della registrazione. La corrispondenza va riesaminata: il collegamento non è una valutazione del rischio chimico.")}
           </p>
           {erroreFonti && (
             <p role="alert" className="text-sm text-destructive">
@@ -473,10 +463,10 @@ export function ModuloProdotto({
             disabled={salva.isPending}
             onClick={onClose}
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button disabled={bloccato} onClick={() => void registra()}>
-            {salva.isPending ? "Salvataggio…" : "Salva impiego"}
+            {salva.isPending ? t("Salvataggio…") : t("Salva impiego")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -492,6 +482,7 @@ export function StoricoProdotto({
   prodotto: ImpiegoProdottoSds;
   onClose: () => void;
 }) {
+  const t = useT();
   const q = useStoricoProdottoSds(ambito, prodotto.id);
   return (
     <Dialog
@@ -502,34 +493,26 @@ export function StoricoProdotto({
     >
       <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Storico del prodotto</DialogTitle>
-          <DialogDescription>
-            {prodotto.nome}. Versioni registrate, non ricalcolate con i dati
-            attuali.
-          </DialogDescription>
+          <DialogTitle>{t("Storico del prodotto")}</DialogTitle>
+          <DialogDescription>{t("{nome}. Versioni registrate, non ricalcolate con i dati attuali.", { nome: String(prodotto.nome ?? "") })}</DialogDescription>
         </DialogHeader>
         {q.isLoading ? (
-          <p>Caricamento…</p>
+          <p>{t("Caricamento…")}</p>
         ) : q.isError ? (
           <div role="alert">
-            Storico non disponibile.
+            {t("Storico non disponibile.")}
             <Button variant="link" onClick={() => void q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : !q.data?.length ? (
-          <p>Nessun evento disponibile.</p>
+          <p>{t("Nessun evento disponibile.")}</p>
         ) : (
           q.data.map((e) => (
             <article key={e.id} className="space-y-1 rounded-lg border p-3">
-              <p className="text-sm font-medium">
-                Versione {e.versione} ·{" "}
-                {new Date(e.registrato_il).toLocaleString("it-IT")}
-              </p>
+              <p className="text-sm font-medium">{t("Versione {versione} · {valore}", { versione: String(e.versione ?? ""), valore: new Date(e.registrato_il).toLocaleString(intlCampo()) })}</p>
               <p className="text-sm">{e.motivo}</p>
-              <p className="break-all text-xs text-muted-foreground">
-                Autore: {e.registrato_da}
-              </p>
+              <p className="break-all text-xs text-muted-foreground">{t("Autore: {registrato_da}", { registrato_da: String(e.registrato_da ?? "") })}</p>
               {(
                 [
                   ["Prima", e.prima],
@@ -537,27 +520,26 @@ export function StoricoProdotto({
                 ] as const
               ).map(([titolo, v]) => (
                 <div key={titolo} className="text-sm">
-                  <p className="font-medium">{titolo}</p>
+                  <p className="font-medium">{t(titolo)}</p>
                   {v ? (
                     <>
                       <p>
-                        {v.nome} · {v.produttore || "Produttore non indicato"} ·{" "}
-                        {v.codice || "Codice non indicato"}
+                        {v.nome} · {v.produttore || t("Produttore non indicato")} ·{" "}
+                        {v.codice || t("Codice non indicato")}
                       </p>
                       <p>
-                        {v.impiego} · {v.dal} — {v.al || "senza fine indicata"}
-                        {v.annullato ? " · annullato" : ""}
+                        {v.impiego} · {v.dal} — {v.al || t("senza fine indicata")}
+                        {v.annullato ? ` ${t("· annullato")}` : ""}
                       </p>
                       <p>
-                        SDS: {v.sds_necessaria} ·{" "}
-                        {v.evidenza_snapshot?.titolo || "nessun collegamento"} ·
-                        revisione{" "}
-                        {v.evidenza_snapshot?.revisione || "non indicata"}
+                        {t("SDS:")} {v.sds_necessaria} ·{" "}
+                        {v.evidenza_snapshot?.titolo || t("nessun collegamento")} {t("· revisione")}{" "}
+                        {v.evidenza_snapshot?.revisione || t("non indicata")}
                       </p>
                       <p>{v.motivo_non_necessaria || v.note}</p>
                     </>
                   ) : (
-                    <p>Nuova registrazione</p>
+                    <p>{t("Nuova registrazione")}</p>
                   )}
                 </div>
               ))}
@@ -565,7 +547,7 @@ export function StoricoProdotto({
           ))
         )}
         <Button variant="outline" onClick={onClose}>
-          Chiudi storico
+          {t("Chiudi storico")}
         </Button>
       </DialogContent>
     </Dialog>

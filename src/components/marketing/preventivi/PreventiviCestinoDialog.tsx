@@ -10,7 +10,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, differenceInCalendarDays, addDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { ArchiveRestore, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TIPO_LABEL, type PreventivoTipo } from "./UnifiedPreventiviList";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** tabella → (tipo, campo numero) per ricostruire le righe del cestino */
 const CESTINO_SOURCES: Array<{ table: string; tipo: PreventivoTipo; numeroField: string }> = [
@@ -55,6 +55,7 @@ export function PreventiviCestinoDialog({
   onOpenChange: (open: boolean) => void;
   companyId: string | null;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [restoring, setRestoring] = useState<string | null>(null);
 
@@ -105,7 +106,7 @@ export function PreventiviCestinoDialog({
         .eq("id", row.id)
         .eq("company_id", companyId);
       if (error) throw error;
-      toast.success(`${row.numero} ripristinato`);
+      toast.success(t("{numero} ripristinato", { numero: String(row.numero ?? "") }));
       invalidateLists();
       refetch();
     } catch (e) {
@@ -121,11 +122,10 @@ export function PreventiviCestinoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-slate-500" />
-            Cestino preventivi
+            {t("Cestino preventivi")}
           </DialogTitle>
           <DialogDescription>
-            Gli elementi eliminati restano qui <strong>30 giorni</strong> e possono essere
-            ripristinati. Allo scadere vengono <strong>eliminati definitivamente</strong> dal database.
+            {t("Gli elementi eliminati restano qui")} <strong>{t("30 giorni")}</strong> {t("e possono essere ripristinati. Allo scadere vengono")} <strong>{t("eliminati definitivamente")}</strong> {t("dal database.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -136,7 +136,7 @@ export function PreventiviCestinoDialog({
             </div>
           ) : rows.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              Il cestino è vuoto.
+              {t("Il cestino è vuoto.")}
             </div>
           ) : (
             <div className="space-y-1.5 py-1">
@@ -158,9 +158,9 @@ export function PreventiviCestinoDialog({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-slate-800">{row.numero}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        eliminato il {format(deletedDate, "d MMM yyyy", { locale: it })} ·{" "}
+                        {t("eliminato il")} {format(deletedDate, "d MMM yyyy", { locale: dateFnsCampo() })} ·{" "}
                         <span className={giorniRestanti <= 5 ? "font-semibold text-red-600" : ""}>
-                          {giorniRestanti === 0 ? "elimina stanotte" : `${giorniRestanti} giorni al definitivo`}
+                          {giorniRestanti === 0 ? t("elimina stanotte") : t("{giorniRestanti} giorni al definitivo", { giorniRestanti: String(giorniRestanti ?? "") })}
                         </span>
                       </p>
                     </div>
@@ -175,7 +175,7 @@ export function PreventiviCestinoDialog({
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <>
-                          <ArchiveRestore className="mr-1 h-3.5 w-3.5" /> Ripristina
+                          <ArchiveRestore className="mr-1 h-3.5 w-3.5" /> {t("Ripristina")}
                         </>
                       )}
                     </Button>

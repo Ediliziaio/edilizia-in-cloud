@@ -37,6 +37,7 @@ import {
   firmatariDelPreventivo,
   type ModuleQuoteInput, type ModuleQuoteRow,
 } from "@/lib/moduli/quoteBridge";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string;
@@ -70,6 +71,7 @@ interface Props {
 const SERVE_IL_PERMESSO = "Per mandarlo al cliente serve il permesso di modificare i preventivi.";
 
 export function InviaFirmaCard(props: Props) {
+  const t = useT();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const campi = useId();
@@ -117,13 +119,13 @@ export function InviaFirmaCard(props: Props) {
   const esito = esitoOffertaModulo(quote);
 
   const handleInvia = async () => {
-    if (!user?.id) { toast.error("Utente non autenticato"); return; }
+    if (!user?.id) { toast.error(t("Utente non autenticato")); return; }
     if (esito) { toast.error(FRASI_OFFERTA_MODULO[esito]); return; }
-    if (!email.trim() || !email.includes("@")) { toast.error("Inserisci l'email del cliente"); return; }
-    if (co && (!coEmail.trim() || !coEmail.includes("@"))) { toast.error(`Inserisci l'email di ${co.nome}: firma anche il cointestatario`); return; }
-    if (co && coEmail.trim().toLowerCase() === email.trim().toLowerCase()) { toast.error("Il cointestatario deve avere un'email diversa da quella del cliente"); return; }
-    if (props.total <= 0) { toast.error("Il preventivo non ha un totale: completa il computo"); return; }
-    if (chiFirma === "azienda" && !partitaIvaValida(partitaIva)) { toast.error("La partita IVA ha 11 cifre: correggila o lasciala vuota"); return; }
+    if (!email.trim() || !email.includes("@")) { toast.error(t("Inserisci l'email del cliente")); return; }
+    if (co && (!coEmail.trim() || !coEmail.includes("@"))) { toast.error(t("Inserisci l'email di {nome}: firma anche il cointestatario", { nome: String(co.nome ?? "") })); return; }
+    if (co && coEmail.trim().toLowerCase() === email.trim().toLowerCase()) { toast.error(t("Il cointestatario deve avere un'email diversa da quella del cliente")); return; }
+    if (props.total <= 0) { toast.error(t("Il preventivo non ha un totale: completa il computo")); return; }
+    if (chiFirma === "azienda" && !partitaIvaValida(partitaIva)) { toast.error(t("La partita IVA ha 11 cifre: correggila o lasciala vuota")); return; }
     setWorking(true);
     try {
       // Le clausole da approvare a parte si leggono dal PDF stesso: il cliente approva quelle del suo contratto.
@@ -151,20 +153,20 @@ export function InviaFirmaCard(props: Props) {
         co ? { nome: co.nome.trim(), email: coEmail.trim(), telefono: coTelefono.trim() || null } : null, clausole);
       if (co && esitoInvio.invitoCointestatarioInviato === false) {
         // La richiesta del cointestatario c'è, la sua email no: serve dirlo, non fingere che siano partite due email.
-        toast.warning("Inviato al cliente, ma non al cointestatario", {
-          description: `L'email a ${coEmail.trim()} non è partita. Copia il link di ${co.nome} da qui sotto e mandaglielo tu.`,
+        toast.warning(t("Inviato al cliente, ma non al cointestatario"), {
+          description: t("L'email a {coEmail} non è partita. Copia il link di {nome} da qui sotto e mandaglielo tu.", { coEmail: coEmail.trim(), nome: String(co.nome ?? "") }),
         });
       } else {
-        toast.success("Preventivo inviato per firma", {
+        toast.success(t("Preventivo inviato per firma"), {
           description: co
-            ? `Email a ${email.trim()} e a ${coEmail.trim()}: è accettato quando firmano tutti e due.`
-            : `Email a ${email.trim()} · il reminder di scadenza è automatico.`,
+            ? t("Email a {email} e a {coEmail}: è accettato quando firmano tutti e due.", { email: email.trim(), coEmail: coEmail.trim() })
+            : t("Email a {email} · il reminder di scadenza è automatico.", { email: email.trim() }),
         });
       }
       setDialogOpen(false);
       await refresh();
     } catch (e) {
-      toast.error("Invio non riuscito", { description: e instanceof Error ? e.message : "Riprova." });
+      toast.error(t("Invio non riuscito"), { description: e instanceof Error ? e.message : t("Riprova.") });
       // Il server può aver detto di no perché il cliente ha deciso mentre la pagina era aperta:
       // si rilegge lo stato e, se l'offerta è chiusa, la finestra d'invio non ha più senso.
       const { data: aggiornata } = await refetch();
@@ -176,11 +178,11 @@ export function InviaFirmaCard(props: Props) {
 
   const apriInvio = () => {
     if (senzaPermesso) {
-      toast.error(SERVE_IL_PERMESSO);
+      toast.error(t(SERVE_IL_PERMESSO));
       return;
     }
     if (props.disabled) {
-      toast.error(props.disabledReason || "Completa il preventivo per poterlo inviare.");
+      toast.error(props.disabledReason || t("Completa il preventivo per poterlo inviare."));
       return;
     }
     // Riallinea l'email al valore corrente del cliente ad ogni apertura:
@@ -196,7 +198,7 @@ export function InviaFirmaCard(props: Props) {
     if (!quote) return null;
     const link = (await resolveModuleSignatureLink(quote.id))
       ?? (quote.signature_token ? signatureLink(quote.signature_token) : null);
-    if (!link) toast.error("Nessun link di firma: invia prima il preventivo");
+    if (!link) toast.error(t("Nessun link di firma: invia prima il preventivo"));
     return link;
   };
 
@@ -204,7 +206,7 @@ export function InviaFirmaCard(props: Props) {
     const link = await linkFirma();
     if (!link) return;
     await navigator.clipboard.writeText(link);
-    toast.success("Link di firma copiato");
+    toast.success(t("Link di firma copiato"));
   };
 
   // Dal telefono il link si manda col foglio di condivisione: WhatsApp in un tocco.
@@ -214,10 +216,10 @@ export function InviaFirmaCard(props: Props) {
     const esito = await condividiLink(link, props.titolo);
     if (esito === "non-supportato") {
       await navigator.clipboard.writeText(link);
-      toast.success("Link di firma copiato");
+      toast.success(t("Link di firma copiato"));
     } else if (esito === "serve-un-tocco") {
-      toast.success("Link di firma pronto", {
-        action: { label: "Manda", onClick: () => { void condividiLink(link, props.titolo); } },
+      toast.success(t("Link di firma pronto"), {
+        action: { label: t("Manda"), onClick: () => { void condividiLink(link, props.titolo); } },
         duration: 10000,
       });
     }
@@ -226,33 +228,33 @@ export function InviaFirmaCard(props: Props) {
   const firmatiDelGruppo = firmatari.filter((f) => f.stato === "firmato").length;
   const parziale = !esito && firmatari.length > 1 && firmatiDelGruppo > 0;
   const stato = parziale
-    ? { label: `Firmato ${firmatiDelGruppo} di ${firmatari.length}`, icon: PenLine, cls: "bg-amber-100 text-amber-800" }
+    ? { label: t("Firmato {firmatiDelGruppo} di {n}", { firmatiDelGruppo: String(firmatiDelGruppo ?? ""), n: firmatari.length }), icon: PenLine, cls: "bg-amber-100 text-amber-800" }
     : esito === "accettata"
-    ? { label: "Firmato dal cliente", icon: PenLine, cls: "bg-emerald-100 text-emerald-800" }
+    ? { label: t("Firmato dal cliente"), icon: PenLine, cls: "bg-emerald-100 text-emerald-800" }
     : esito === "rifiutata"
-    ? { label: "Rifiutato dal cliente", icon: XCircle, cls: "bg-red-100 text-red-800" }
+    ? { label: t("Rifiutato dal cliente"), icon: XCircle, cls: "bg-red-100 text-red-800" }
     : esito === "convertita"
-    ? { label: "Diventato commessa", icon: CheckCircle2, cls: "bg-emerald-100 text-emerald-800" }
+    ? { label: t("Diventato commessa"), icon: CheckCircle2, cls: "bg-emerald-100 text-emerald-800" }
     : esito === "annullata"
-    ? { label: "Annullato", icon: XCircle, cls: "bg-slate-100 text-slate-700" }
+    ? { label: t("Annullato"), icon: XCircle, cls: "bg-slate-100 text-slate-700" }
     : quote?.viewed_at
-      ? { label: "Visto dal cliente", icon: Eye, cls: "bg-sky-100 text-sky-800" }
+      ? { label: t("Visto dal cliente"), icon: Eye, cls: "bg-sky-100 text-sky-800" }
       : quote?.sent_at
-        ? { label: "Inviato — in attesa", icon: Clock, cls: "bg-amber-100 text-amber-800" }
+        ? { label: t("Inviato — in attesa"), icon: Clock, cls: "bg-amber-100 text-amber-800" }
         : null;
 
   const dialogInvio = (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogContent struttura="scorrevole" className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invia per firma</DialogTitle>
+          <DialogTitle>{t("Invia per firma")}</DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            Genera il PDF aggiornato e lo invia a {props.clientName || "il cliente"} con il link di firma.
+            {t("Genera il PDF aggiornato e lo invia a {nome} con il link di firma.", { nome: props.clientName || t("il cliente") })}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label htmlFor={`${campi}-email`}>Email del cliente</Label>
+            <Label htmlFor={`${campi}-email`}>{t("Email del cliente")}</Label>
             <Input
               id={`${campi}-email`}
               type="email"
@@ -264,63 +266,63 @@ export function InviaFirmaCard(props: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs">Chi firma</Label>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Chi firma">
+            <Label className="text-xs">{t("Chi firma")}</Label>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("Chi firma")}>
               {(["privato", "azienda"] as const).map((v) => (
                 <Button key={v} type="button" role="radio" aria-checked={chiFirma === v} size="sm" className="min-h-11"
                   variant={chiFirma === v ? "default" : "outline"} onClick={() => setChiFirma(v)}>
-                  {v === "privato" ? "Privato" : "Azienda (con P.IVA)"}
+                  {v === "privato" ? t("Privato") : t("Azienda (con P.IVA)")}
                 </Button>
               ))}
             </div>
             {chiFirma === "privato" && emailSembraAziendale(email) && (
-              <p className="text-[11px] text-amber-800">L'email sembra di un'azienda: se firma per un'impresa scegli «Azienda», così non gli chiediamo il recesso di 14 giorni dei consumatori.</p>
+              <p className="text-[11px] text-amber-800">{t("L'email sembra di un'azienda: se firma per un'impresa scegli «Azienda», così non gli chiediamo il recesso di 14 giorni dei consumatori.")}</p>
             )}
             {chiFirma === "privato" && !emailSembraAziendale(email) && (
-              <p className="text-[11px] text-muted-foreground">Al privato la pagina di firma mostra anche il diritto di recesso di 14 giorni.</p>
+              <p className="text-[11px] text-muted-foreground">{t("Al privato la pagina di firma mostra anche il diritto di recesso di 14 giorni.")}</p>
             )}
             {chiFirma === "azienda" && (
               <div className="grid gap-2 sm:grid-cols-2">
-                <Input className="h-9" value={ragioneSociale} onChange={(e) => setRagioneSociale(e.target.value)} placeholder="Ragione sociale" aria-label="Ragione sociale" />
-                <Input className="h-9" value={partitaIva} onChange={(e) => setPartitaIva(e.target.value)} placeholder="Partita IVA (facoltativa)" aria-label="Partita IVA" inputMode="numeric" />
+                <Input className="h-9" value={ragioneSociale} onChange={(e) => setRagioneSociale(e.target.value)} placeholder={t("Ragione sociale")} aria-label={t("Ragione sociale")} />
+                <Input className="h-9" value={partitaIva} onChange={(e) => setPartitaIva(e.target.value)} placeholder={t("Partita IVA (facoltativa)")} aria-label={t("Partita IVA")} inputMode="numeric" />
               </div>
             )}
           </div>
           {co && (
             <div className="space-y-2 rounded-lg border p-3">
-              <p className="text-xs font-medium">Firma anche {co.nome} (cointestatario)</p>
+              <p className="text-xs font-medium">{t("Firma anche {nome} (cointestatario)", { nome: String(co.nome ?? "") })}</p>
               <div>
-                <Label htmlFor={`${campi}-co-email`}>Email del cointestatario</Label>
+                <Label htmlFor={`${campi}-co-email`}>{t("Email del cointestatario")}</Label>
                 <Input id={`${campi}-co-email`} type="email" className="mt-1 min-h-11" value={coEmail} onChange={(e) => setCoEmail(e.target.value)} placeholder="cointestatario@esempio.it" />
               </div>
               <div>
-                <Label htmlFor={`${campi}-co-telefono`}>Cellulare del cointestatario (opzionale)</Label>
+                <Label htmlFor={`${campi}-co-telefono`}>{t("Cellulare del cointestatario (opzionale)")}</Label>
                 <Input id={`${campi}-co-telefono`} type="tel" inputMode="tel" className="mt-1 min-h-11" value={coTelefono} onChange={(e) => setCoTelefono(e.target.value)} placeholder="333 123 4567" />
               </div>
-              <p className="text-[11px] text-muted-foreground">Ognuno riceve il suo link: il preventivo è accettato quando firmano tutti e due.</p>
+              <p className="text-[11px] text-muted-foreground">{t("Ognuno riceve il suo link: il preventivo è accettato quando firmano tutti e due.")}</p>
             </div>
           )}
           <details className="rounded-lg border px-3">
-            <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Opzioni di invio{telefono.trim() ? " · SMS" : ""}</summary>
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">{t("Opzioni di invio")}{telefono.trim() ? ` ${t("· SMS")}` : ""}</summary>
             <div className="space-y-3 pb-3">
               <div>
-                <Label htmlFor={`${campi}-telefono`}>Cellulare (opzionale)</Label>
+                <Label htmlFor={`${campi}-telefono`}>{t("Cellulare (opzionale)")}</Label>
                 <Input id={`${campi}-telefono`} type="tel" inputMode="tel" autoComplete="tel" className="mt-1 min-h-11"
                   value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="333 123 4567" />
-                <p className="mt-1 text-xs text-muted-foreground">Il codice può arrivare anche via SMS se l'azienda ha credito.</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("Il codice può arrivare anche via SMS se l'azienda ha credito.")}</p>
               </div>
               <div>
-                <Label htmlFor={`${campi}-messaggio`}>Messaggio (opzionale)</Label>
+                <Label htmlFor={`${campi}-messaggio`}>{t("Messaggio (opzionale)")}</Label>
                 <Input id={`${campi}-messaggio`} className="mt-1 min-h-11" value={messaggio} onChange={(e) => setMessaggio(e.target.value)} />
               </div>
             </div>
           </details>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={working} className="max-sm:hidden">Annulla</Button>
+          <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={working} className="max-sm:hidden">{t("Annulla")}</Button>
           <Button onClick={() => void handleInvia()} disabled={working} className="min-h-11 bg-emerald-600 hover:bg-emerald-700">
             {working ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Send className="h-4 w-4 mr-1.5" />}
-            Invia ora
+            {t("Invia ora")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -336,7 +338,7 @@ export function InviaFirmaCard(props: Props) {
             <stato.icon className="h-4 w-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
               {stato.label}
-              {quote?.signed_at && ` il ${new Date(quote.signed_at).toLocaleDateString("it-IT")}`}
+              {quote?.signed_at && t(" il {valore}", { valore: new Date(quote.signed_at).toLocaleDateString(intlCampo()) })}
             </span>
             {!esito && (quote?.sent_at || quote?.signature_token) && !senzaPermesso && (
               <Button
@@ -345,7 +347,7 @@ export function InviaFirmaCard(props: Props) {
                 className="tap-compact -my-1 h-8 gap-1.5 px-2 text-xs"
                 onClick={() => { void mandaLink(); }}
               >
-                <Link2 className="h-3.5 w-3.5" /> Link firma
+                <Link2 className="h-3.5 w-3.5" /> {t("Link firma")}
               </Button>
             )}
           </div>
@@ -355,16 +357,16 @@ export function InviaFirmaCard(props: Props) {
           onIndietro={props.onIndietro}
           titolo={props.titolo}
           generaPdf={() => props.generaPdfBlob("copia")}
-          pdfBloccato={pdfDisponibile ? null : props.disabledReason || "Completa il preventivo per generare il PDF."}
+          pdfBloccato={pdfDisponibile ? null : props.disabledReason || t("Completa il preventivo per generare il PDF.")}
         >
           {esito === "accettata" ? (
             <Button disabled className="h-11 flex-1 gap-1.5 bg-emerald-600">
-              <CheckCircle2 className="h-4 w-4" /> Firmato
+              <CheckCircle2 className="h-4 w-4" /> {t("Firmato")}
             </Button>
           ) : esito ? (
             <Button disabled variant="secondary" className="h-11 flex-1 gap-1.5">
               <XCircle className="h-4 w-4" />
-              {esito === "rifiutata" ? "Rifiutato" : esito === "convertita" ? "Diventato commessa" : "Annullato"}
+              {esito === "rifiutata" ? t("Rifiutato") : esito === "convertita" ? t("Diventato commessa") : t("Annullato")}
             </Button>
           ) : (
             <Button
@@ -373,7 +375,7 @@ export function InviaFirmaCard(props: Props) {
               onClick={apriInvio}
             >
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {quote?.sent_at ? "Reinvia" : "Invia per firma"}
+              {quote?.sent_at ? t("Reinvia") : t("Invia per firma")}
             </Button>
           )}
         </BarraInvioMobile>
@@ -388,7 +390,7 @@ export function InviaFirmaCard(props: Props) {
         <CardTitle className="text-sm flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5">
             <Send className="h-4 w-4 text-emerald-600" />
-            Invia e fai firmare online
+            {t("Invia e fai firmare online")}
           </span>
           {stato && (
             <Badge className={`text-[10px] ${stato.cls}`} variant="secondary">
@@ -400,18 +402,18 @@ export function InviaFirmaCard(props: Props) {
       </CardHeader>
       <CardContent className="space-y-2">
         <p className="text-xs text-muted-foreground lg:block max-lg:hidden">
-          Il cliente riceve il PDF e un link per firmare online.
+          {t("Il cliente riceve il PDF e un link per firmare online.")}
         </p>
         {props.disabled && (
           <p className="text-[11px] text-amber-700 flex items-center gap-1">
             <Clock className="h-3 w-3 shrink-0" />
-            {props.disabledReason || "Completa il preventivo per poterlo inviare."}
+            {props.disabledReason || t("Completa il preventivo per poterlo inviare.")}
           </p>
         )}
         {senzaPermesso && (
           <p className="text-[11px] text-amber-700 flex items-center gap-1">
             <Lock className="h-3 w-3 shrink-0" />
-            {SERVE_IL_PERMESSO}
+            {t(SERVE_IL_PERMESSO)}
           </p>
         )}
         {esito && (
@@ -427,12 +429,12 @@ export function InviaFirmaCard(props: Props) {
                 <span className="truncate">{f.nome}</span>
                 <span className="flex shrink-0 items-center gap-2">
                   <span className={f.stato === "firmato" ? "text-emerald-700" : f.stato === "rifiutato" ? "text-red-700" : "text-muted-foreground"}>
-                    {f.stato === "firmato" ? "Firmato" : f.stato === "rifiutato" ? "Rifiutato" : f.stato === "in_attesa" ? "In attesa" : "Chiuso"}
+                    {f.stato === "firmato" ? t("Firmato") : f.stato === "rifiutato" ? t("Rifiutato") : f.stato === "in_attesa" ? t("In attesa") : t("Chiuso")}
                   </span>
                   {f.stato === "in_attesa" && !senzaPermesso && (
                     <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[11px]"
-                      onClick={() => { void navigator.clipboard.writeText(f.link).then(() => toast.success(`Link di ${f.nome} copiato`)); }}>
-                      <Copy className="h-3 w-3 mr-1" /> Link
+                      onClick={() => { void navigator.clipboard.writeText(f.link).then(() => toast.success(t("Link di {nome} copiato", { nome: String(f.nome ?? "") }))); }}>
+                      <Copy className="h-3 w-3 mr-1" /> {t("Link")}
                     </Button>
                   )}
                 </span>
@@ -448,17 +450,17 @@ export function InviaFirmaCard(props: Props) {
             onClick={apriInvio}
           >
             {working ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
-            {quote?.sent_at ? "Reinvia aggiornato" : "Invia per firma"}
+            {quote?.sent_at ? t("Reinvia aggiornato") : t("Invia per firma")}
           </Button>
           {(quote?.sent_at || quote?.signature_token) && !senzaPermesso && (
             <Button size="sm" variant="outline" className="h-8" onClick={() => { void copiaLink(); }}>
-              <Copy className="h-3.5 w-3.5 mr-1.5" /> Copia link firma
+              <Copy className="h-3.5 w-3.5 mr-1.5" /> {t("Copia link firma")}
             </Button>
           )}
           {quote?.signed_at && (
             <span className="flex items-center gap-1 text-xs text-emerald-700 font-medium">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              {new Date(quote.signed_at).toLocaleDateString("it-IT")}
+              {new Date(quote.signed_at).toLocaleDateString(intlCampo())}
             </span>
           )}
         </div>

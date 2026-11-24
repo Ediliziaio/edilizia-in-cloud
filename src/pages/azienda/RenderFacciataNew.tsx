@@ -55,6 +55,7 @@ import {
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
 import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -102,6 +103,7 @@ function uniqueStrings(items: string[]): string[] {
 }
 
 export default function RenderFacciataNew() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -165,7 +167,7 @@ export default function RenderFacciataNew() {
       const file = e.target.files?.[0];
       if (!file) return;
       if (file.size > 20 * 1024 * 1024) {
-        toast.error("File troppo grande (max 20 MB)");
+        toast.error(t("File troppo grande (max 20 MB)"));
         return;
       }
 
@@ -182,7 +184,7 @@ export default function RenderFacciataNew() {
       setResultUrls([]);
       setStep(1);
     },
-    [photoPreview],
+    [photoPreview, t],
   );
 
   // Arrivati dalla pianta («Render esterni»): la vista 3D è già la foto di partenza.
@@ -223,24 +225,24 @@ export default function RenderFacciataNew() {
             await resolveEdgeFunctionErrorMessage({
               error: fnErr,
               data: fnData,
-              fallback: "Analisi AI facciata fallita",
+              fallback: t("Analisi AI facciata fallita"),
             }),
           );
         }
 
         const normalized = normalizeFacciataSceneAnalysis(fnData?.analisi_facciata, meta);
         setAnalysis(normalized);
-        toast.success("Analisi facciata completata");
+        toast.success(t("Analisi facciata completata"));
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Analisi AI facciata fallita";
+        const message = err instanceof Error ? err.message : t("Analisi AI facciata fallita");
         setAnalysis(normalizeFacciataSceneAnalysis(null, meta));
         setAnalysisError(message);
-        toast.error(`${message}. Continuo con una lettura assistita di fallback.`);
+        toast.error(t("{message}. Continuo con una lettura assistita di fallback.", { message: String(message ?? "") }));
       } finally {
         setAnalyzing(false);
       }
     },
-    [],
+    [t],
   );
 
   const goToAnalysis = useCallback(async () => {
@@ -274,17 +276,17 @@ export default function RenderFacciataNew() {
         .select("id")
         .single();
 
-      if (sessErr || !sess) throw new Error("Creazione sessione fallita");
+      if (sessErr || !sess) throw new Error(t("Creazione sessione fallita"));
 
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
       await runAnalysis(sid, storagePath, meta ?? null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore durante il caricamento");
+      toast.error(err instanceof Error ? err.message : t("Errore durante il caricamento"));
     } finally {
       setUploading(false);
     }
-  }, [companyId, config, contactId, opportunityId, photo, photoMeta, photoPreview, runAnalysis, user]);
+  }, [companyId, config, contactId, opportunityId, photo, photoMeta, photoPreview, runAnalysis, user, t]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -316,7 +318,7 @@ export default function RenderFacciataNew() {
         if (elapsedRef.current >= MAX_POLL_SEC) {
           stopPolling();
           setGenerating(false);
-          toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
+          toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova."));
           setStep(3);
           return;
         }
@@ -348,7 +350,7 @@ export default function RenderFacciataNew() {
         if (statusRow?.status === "failed") {
           stopPolling();
           setGenerating(false);
-          toast.error(statusRow.error_message || "Render fallito. Ricontrolliamo intervento e vincoli e riproviamo.");
+          toast.error(statusRow.error_message || t("Render fallito. Ricontrolliamo intervento e vincoli e riproviamo."));
           setStep(3);
           return;
         }
@@ -365,7 +367,7 @@ export default function RenderFacciataNew() {
 
       poll();
     },
-    [companyId, queryClient, stopPolling],
+    [companyId, queryClient, stopPolling, t],
   );
 
   const startRender = useCallback(async () => {
@@ -405,11 +407,11 @@ export default function RenderFacciataNew() {
       const msg = await resolveEdgeFunctionErrorMessage({
         error: fnErr,
         data: fnData,
-        fallback: "Generazione fallita",
+        fallback: t("Generazione fallita"),
       });
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
-        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
+        toast.error(t("Crediti render insufficienti. Acquista nuovi crediti."));
       } else {
         toast.error(msg);
       }
@@ -430,7 +432,7 @@ export default function RenderFacciataNew() {
     }
 
     startPolling(sessionId);
-  }, [companyId, generating, photoMeta, queryClient, renderPlan, sessionId, startPolling]);
+  }, [companyId, generating, photoMeta, queryClient, renderPlan, sessionId, startPolling, t]);
 
   const downloadResult = useCallback(async () => {
     const url = resultUrls[0];
@@ -438,9 +440,9 @@ export default function RenderFacciataNew() {
     try {
       await downloadRenderImage(url, `render_facciata_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
-  }, [resultUrls]);
+  }, [resultUrls, t]);
 
   const shareWhatsApp = useCallback(() => {
     const url = resultUrls[0];
@@ -489,12 +491,12 @@ export default function RenderFacciataNew() {
             navigate("/azienda/render/facciata");
           }
         }}
-        eyebrow="Riqualificazione facciata fotorealistica"
-        title="Stessa casa, nuova facciata"
-        mobileTitle="Render Facciata"
-        description="L'AI applica intonaco, colori e finiture mantenendo prospettiva, contorno e arredo urbano della foto originale."
-        badgeLabel="Render AI — Facciate"
-        stepLabels={["Foto", "Analisi", "Configura", "Elaborazione", "Risultato"]}
+        eyebrow={t("Riqualificazione facciata fotorealistica")}
+        title={t("Stessa casa, nuova facciata")}
+        mobileTitle={t("Render Facciata")}
+        description={t("L'AI applica intonaco, colori e finiture mantenendo prospettiva, contorno e arredo urbano della foto originale.")}
+        badgeLabel={t("Render AI — Facciate")}
+        stepLabels={[t("Foto"), t("Analisi"), t("Configura"), t("Elaborazione"), t("Risultato")]}
         currentStep={step}
         accent="amber"
       />
@@ -518,13 +520,13 @@ export default function RenderFacciataNew() {
           {!photoPreview && isMobile ? (
             <ZonaFotoMobile
               onScegli={() => fileRef.current?.click()}
-              suggerimento="Frontale, con tutta la facciata e un po' di contesto"
+              suggerimento={t("Frontale, con tutta la facciata e un po' di contesto")}
               accento="orange"
             />
           ) : !photoPreview ? (
             <button
               type="button"
-              aria-label="Carica una foto della facciata"
+              aria-label={t("Carica una foto della facciata")}
               className="block w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => fileRef.current?.click()}
             >
@@ -534,8 +536,8 @@ export default function RenderFacciataNew() {
                     <Upload className="h-8 w-8 text-orange-500" />
                   </div>
                   <div>
-                    <p className="font-medium">Carica una foto della facciata</p>
-                    <p className="mt-1 text-sm text-muted-foreground">JPG, PNG o WEBP — max 20 MB</p>
+                    <p className="font-medium">{t("Carica una foto della facciata")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("JPG, PNG o WEBP — max 20 MB")}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -546,7 +548,7 @@ export default function RenderFacciataNew() {
                 <div className="overflow-hidden rounded-lg bg-muted">
                   <img loading="lazy"
                     src={photoPreview}
-                    alt="Anteprima facciata"
+                    alt={t("Anteprima facciata")}
                     className="max-h-[560px] w-full object-contain"
                   />
                 </div>
@@ -561,7 +563,7 @@ export default function RenderFacciataNew() {
                   <Button
                     variant="outline"
                     className="max-md:w-11 max-md:shrink-0 max-md:px-0"
-                    aria-label="Cambia foto"
+                    aria-label={t("Cambia foto")}
                     onClick={() => {
                       setPhoto(null);
                       setPhotoPreview(null);
@@ -569,18 +571,18 @@ export default function RenderFacciataNew() {
                     }}
                   >
                     <Camera className="hidden h-4 w-4 max-md:block" />
-                    <span className="max-md:hidden">Cambia foto</span>
+                    <span className="max-md:hidden">{t("Cambia foto")}</span>
                   </Button>
                   <Button className="ml-auto bg-orange-600 hover:bg-orange-700 max-md:ml-0 max-md:min-w-0 max-md:flex-1" onClick={goToAnalysis} disabled={uploading}>
                     {uploading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Upload...
+                        {t("Upload...")}
                       </>
                     ) : (
                       <>
                         <ScanSearch className="mr-2 h-4 w-4" />
-                        Avvia analisi facciata
+                        {t("Avvia analisi facciata")}
                       </>
                     )}
                   </Button>
@@ -604,18 +606,18 @@ export default function RenderFacciataNew() {
                   )}
                   <div>
                     <p className="font-medium max-md:text-[13px]">
-                      {analyzing ? "Sto leggendo edificio, aperture e dettagli" : "Analisi edificio pronta"}
+                      {analyzing ? t("Sto leggendo edificio, aperture e dettagli") : t("Analisi edificio pronta")}
                     </p>
                     <p className="text-sm text-muted-foreground max-md:hidden">
                       {analyzing
-                        ? "Mi sto portando dietro geometria, contesto, rilievi e zone sensibili prima di configurare il render."
-                        : "Abbiamo una base strutturata da usare nel wizard e nel prompt finale."}
+                        ? t("Mi sto portando dietro geometria, contesto, rilievi e zone sensibili prima di configurare il render.")
+                        : t("Abbiamo una base strutturata da usare nel wizard e nel prompt finale.")}
                     </p>
                   </div>
                 </div>
                 {!analyzing && (
                   <Button variant="outline" className="max-md:hidden" onClick={() => setStep(3)}>
-                    Continua alla configurazione
+                    {t("Continua alla configurazione")}
                   </Button>
                 )}
               </div>
@@ -626,11 +628,11 @@ export default function RenderFacciataNew() {
             <Card className="border-amber-200 bg-amber-50/70">
               <CardContent className="py-4 flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-medium text-amber-900">Analisi AI parziale</p>
+                  <p className="font-medium text-amber-900">{t("Analisi AI parziale")}</p>
                   <p className="mt-1 text-sm text-amber-800">{analysisError}</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={rerunAnalysis}>
-                  Riprova analisi
+                  {t("Riprova analisi")}
                 </Button>
               </CardContent>
             </Card>
@@ -640,25 +642,25 @@ export default function RenderFacciataNew() {
             <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
               <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
                 <Building2 className="h-4 w-4 text-orange-600" />
-                Scenario letto dalla facciata
+                {t("Scenario letto dalla facciata")}
               </CardTitle>
             </CardHeader>
             {/* Telefono: due per riga, etichette a 11px e valori a 13px. */}
             <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-2 max-md:gap-2 max-md:p-3 max-md:pt-0">
               <div className="rounded-lg border p-3 max-md:p-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Edificio</p>
-                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.buildingType ?? "in lettura..."}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{t("Edificio")}</p>
+                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.buildingType ?? t("in lettura...")}</p>
               </div>
               <div className="rounded-lg border p-3 max-md:p-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Stile</p>
-                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.buildingStyle ?? "in lettura..."}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{t("Stile")}</p>
+                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.buildingStyle ?? t("in lettura...")}</p>
               </div>
               <div className="rounded-lg border p-3 max-md:p-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Piani</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{t("Piani")}</p>
                 <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.floorsCount ?? "-"}</p>
               </div>
               <div className="rounded-lg border p-3 max-md:p-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Aperture visibili</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{t("Aperture visibili")}</p>
                 <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.openingsVisible ?? "-"}</p>
               </div>
             </CardContent>
@@ -667,7 +669,7 @@ export default function RenderFacciataNew() {
           {/* Telefono: prima la lettura dell'edificio, poi il pulsante pieno per andare avanti. */}
           {!analyzing && isMobile && (
             <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => setStep(3)}>
-              Continua alla configurazione
+              {t("Continua alla configurazione")}
             </Button>
           )}
         </div>
@@ -684,12 +686,12 @@ export default function RenderFacciataNew() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <PaintbrushVertical className="h-4 w-4 text-orange-600" />
-                  Riepilogo tecnico intervento
+                  {t("Riepilogo tecnico intervento")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Sistemi attivi</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{t("Sistemi attivi")}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {renderPlan.replacement_manifest.activeSystems.map((item) => (
                       <Badge key={item} variant="secondary">{item.replace(/_/g, " ")}</Badge>
@@ -697,7 +699,7 @@ export default function RenderFacciataNew() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Zone coinvolte</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{t("Zone coinvolte")}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {renderPlan.replacement_manifest.targetedZones.map((item) => (
                       <Badge key={item} variant="outline">{item}</Badge>
@@ -717,7 +719,7 @@ export default function RenderFacciataNew() {
                   ))}
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Elementi da preservare</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{t("Elementi da preservare")}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {uniqueStrings(renderPlan.replacement_manifest.keepExactly).slice(0, 10).map((item) => (
                       <Badge key={item} variant="outline">{item}</Badge>
@@ -731,23 +733,23 @@ export default function RenderFacciataNew() {
               <CardContent className="py-4 text-sm text-emerald-950">
                 <div className="flex items-center gap-2 font-medium">
                   <ShieldCheck className="h-4 w-4" />
-                  Regole che stiamo imponendo al render
+                  {t("Regole che stiamo imponendo al render")}
                 </div>
                 <p className="mt-2">
-                  Stesso edificio, stessa prospettiva, stesso contesto, giunti puliti, transizioni nette e nessun intervento fuori scope.
+                  {t("Stesso edificio, stessa prospettiva, stesso contesto, giunti puliti, transizioni nette e nessun intervento fuori scope.")}
                 </p>
               </CardContent>
             </Card>
 
             {/* Telefono: indietro a icona, «Genera render» che prende il resto. */}
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 max-md:w-11 max-md:flex-none max-md:shrink-0 max-md:px-0" onClick={() => setStep(2)} aria-label="Indietro">
+              <Button variant="outline" className="flex-1 max-md:w-11 max-md:flex-none max-md:shrink-0 max-md:px-0" onClick={() => setStep(2)} aria-label={t("Indietro")}>
                 <ArrowLeft className="hidden h-4 w-4 max-md:block" />
-                <span className="max-md:hidden">Indietro</span>
+                <span className="max-md:hidden">{t("Indietro")}</span>
               </Button>
               <Button className="flex-1 bg-orange-600 hover:bg-orange-700 max-md:min-w-0" onClick={startRender}>
                 <Zap className="mr-2 h-4 w-4" />
-                Genera render
+                {t("Genera render")}
               </Button>
             </div>
           </div>
@@ -760,7 +762,7 @@ export default function RenderFacciataNew() {
           elapsedSec={pollState.elapsedSec}
           dots={pollState.dots}
           accent="amber"
-          subjectLabel="L'AI sta elaborando il render della facciata"
+          subjectLabel={t("L'AI sta elaborando il render della facciata")}
         />
       )}
 
@@ -771,8 +773,8 @@ export default function RenderFacciataNew() {
             <CardContent className="py-4 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <div>
-                <p className="font-medium text-green-800">Render completato</p>
-                <p className="text-sm text-green-700/80">Confronta prima e dopo, scarica o condividi il risultato.</p>
+                <p className="font-medium text-green-800">{t("Render completato")}</p>
+                <p className="text-sm text-green-700/80">{t("Confronta prima e dopo, scarica o condividi il risultato.")}</p>
               </div>
             </CardContent>
           </Card>
@@ -780,7 +782,7 @@ export default function RenderFacciataNew() {
           {photoPreview && (
             <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardHeader className="pb-2 max-md:hidden">
-                <CardTitle className="text-sm">Prima / Dopo</CardTitle>
+                <CardTitle className="text-sm">{t("Prima / Dopo")}</CardTitle>
               </CardHeader>
               <CardContent className="max-md:p-0">
                 <BeforeAfterSlider
@@ -797,7 +799,7 @@ export default function RenderFacciataNew() {
             <CardContent className="p-4">
               <img loading="lazy"
                 src={resultUrls[0]}
-                alt="Render facciata"
+                alt={t("Render facciata")}
                 className="max-h-[720px] w-full rounded-lg object-contain"
               />
             </CardContent>
@@ -806,7 +808,7 @@ export default function RenderFacciataNew() {
           {renderPlan && (
             <Card className="max-md:hidden">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Intervento applicato</CardTitle>
+                <CardTitle className="text-sm">{t("Intervento applicato")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
@@ -822,7 +824,7 @@ export default function RenderFacciataNew() {
           {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
           {isMobile && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-facciata" className="min-w-0 flex-1" />
@@ -836,7 +838,7 @@ export default function RenderFacciataNew() {
             </Button>
             <Button variant="outline" className="flex-1" onClick={downloadResult}>
               <Download className="mr-2 h-4 w-4" />
-              Scarica
+              {t("Scarica")}
             </Button>
           </div>
 
@@ -847,7 +849,7 @@ export default function RenderFacciataNew() {
             onEditChoices={() => setStep(3)}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel="Genera nuova variante facciata"
+            regenerateLabel={t("Genera nuova variante facciata")}
           />
 
           <Button
@@ -856,7 +858,7 @@ export default function RenderFacciataNew() {
             onClick={nuovoRender}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            Nuovo render facciata
+            {t("Nuovo render facciata")}
           </Button>
         </div>
       )}

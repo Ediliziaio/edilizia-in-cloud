@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { etichettaFasePdf, FASE_ANNULLABILE, type FasePdf } from "@/lib/sicurezza/posPdfErrori";
 
 /**
@@ -14,9 +15,10 @@ export function AnnunciaFasePdf({ fase }: { fase: FasePdf | null | undefined }) 
 }
 
 export function AnnullaPdf({ fase, onAnnulla, className }: { fase: FasePdf | null | undefined; onAnnulla?: () => void; className?: string }) {
+  const t = useT();
   if (!fase || !FASE_ANNULLABILE.has(fase) || !onAnnulla) return null;
   return (
-    <Button type="button" variant="outline" size="icon" aria-label="Annulla" title="Annulla" className={className ?? "tap-compact max-sm:shrink-0"} onClick={onAnnulla}>
+    <Button type="button" variant="outline" size="icon" aria-label={t("Annulla")} title={t("Annulla")} className={className ?? "tap-compact max-sm:shrink-0"} onClick={onAnnulla}>
       <X className="h-4 w-4" aria-hidden="true" />
     </Button>
   );

@@ -22,6 +22,7 @@ import { useChangelog, type ChangelogEntry } from "@/hooks/useChangelog";
 import { track } from "@/lib/analytics/posthog";
 import { renderMarkdownLite } from "@/lib/utils/markdownLite";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const CATEGORY_META: Record<
   ChangelogEntry["category"],
@@ -35,7 +36,7 @@ const CATEGORY_META: Record<
 };
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("it-IT", {
+  return new Date(iso).toLocaleDateString(intlCampo(), {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -43,6 +44,7 @@ function formatDate(iso: string): string {
 }
 
 export function ChangelogDrawer() {
+  const t = useT();
   const { entries, unreadCount, markAsSeen } = useChangelog();
   const [open, setOpen] = useState(false);
 
@@ -63,7 +65,7 @@ export function ChangelogDrawer() {
           variant="ghost"
           size="icon"
           className="relative h-9 w-9 shrink-0"
-          aria-label={unreadCount > 0 ? `${unreadCount} aggiornamenti non letti` : "Cosa c'è di nuovo"}
+          aria-label={unreadCount > 0 ? t("{unreadCount} aggiornamenti non letti", { unreadCount: String(unreadCount ?? "") }) : t("Cosa c'è di nuovo")}
         >
           <Megaphone className={cn("h-4 w-4", unreadCount > 0 && "text-amber-500")} />
           {unreadCount > 0 && (
@@ -79,10 +81,10 @@ export function ChangelogDrawer() {
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-eic-amber to-orange-500 flex items-center justify-center shrink-0">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
-            Cosa c&apos;è di nuovo
+            {t("Cosa c'è di nuovo")}
           </SheetTitle>
           <SheetDescription className="text-xs">
-            Le ultime novità della piattaforma · {entries.length} aggiornament{entries.length === 1 ? "o" : "i"}
+            {t(entries.length === 1 ? "Le ultime novità della piattaforma · {n} aggiornamento" : "Le ultime novità della piattaforma · {n} aggiornamenti", { n: entries.length })}
           </SheetDescription>
         </SheetHeader>
 
@@ -106,13 +108,13 @@ export function ChangelogDrawer() {
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <h3 className="font-semibold text-sm">{entry.title}</h3>
                       {entry.is_pinned && (
-                        <Pin className="h-3 w-3 text-amber-600" aria-label="In evidenza" />
+                        <Pin className="h-3 w-3 text-amber-600" aria-label={t("In evidenza")} />
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                       <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", meta.color)}>
                         <Icon className="h-2.5 w-2.5 mr-1" />
-                        {meta.label}
+                        {t(meta.label)}
                       </Badge>
                       <span className="text-[11px] text-muted-foreground">
                         {formatDate(entry.published_at)}
@@ -129,12 +131,12 @@ export function ChangelogDrawer() {
                         <Button asChild size="sm" variant="outline" className="mt-3 h-7 text-xs">
                           {isExternal ? (
                             <a href={entry.cta_url} target="_blank" rel="noopener noreferrer">
-                              {entry.cta_label ?? "Scopri"}
+                              {entry.cta_label ?? t("Scopri")}
                               <ArrowRight className="ml-1 h-3 w-3" />
                             </a>
                           ) : (
                             <Link to={entry.cta_url} onClick={() => setOpen(false)}>
-                              {entry.cta_label ?? "Scopri"}
+                              {entry.cta_label ?? t("Scopri")}
                               <ArrowRight className="ml-1 h-3 w-3" />
                             </Link>
                           )}

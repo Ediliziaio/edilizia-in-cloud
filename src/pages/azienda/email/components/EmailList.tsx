@@ -14,7 +14,6 @@ import { emailReadErrorMessage } from "@/lib/email/clientStatus";
 import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { format, isToday, isYesterday } from "date-fns";
-import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +24,7 @@ import { Star, Paperclip, Inbox, Send, FileEdit, ShieldAlert, Trash2, AlertTrian
 import { cn } from "@/lib/utils";
 import type { EmailFilter, EmailSmartCategory } from "../EmailLayout";
 import { categoryMatchesPrediction, predictEmailReconciliation } from "../lib/predictiveReconciliation";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ThreadRow {
   id: string;
@@ -61,13 +61,13 @@ interface ThreadPage {
 const THREAD_PAGE_SIZE = 50;
 const FALLBACK_RAW_PAGE_SIZE = 300;
 
-function formatRelTime(d: string): string {
+function formatRelTime(d: string, t: (testo: string) => string): string {
   const date = new Date(d);
   if (isToday(date)) return format(date, "HH:mm");
-  if (isYesterday(date)) return "Ieri";
+  if (isYesterday(date)) return t("Ieri");
   const diff = Date.now() - date.getTime();
-  if (diff < 7 * 24 * 3600 * 1000) return format(date, "EEE", { locale: it });
-  return format(date, "d MMM", { locale: it });
+  if (diff < 7 * 24 * 3600 * 1000) return format(date, "EEE", { locale: dateFnsCampo() });
+  return format(date, "d MMM", { locale: dateFnsCampo() });
 }
 
 function avatarInitial(name: string | null, email: string | null): string {
@@ -402,6 +402,7 @@ async function fetchThreadPage(filter: EmailFilter, offset: number, scopedAccoun
 }
 
 export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelectThread }: EmailListProps) {
+  const tr = useT();
   const { user } = useAuth();
   const userId = user?.id;
   const scopeKey = scopedAccountIds?.join("|") ?? "all";
@@ -471,7 +472,7 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <p className="font-semibold">Errore caricamento email</p>
+              <p className="font-semibold">{tr("Errore caricamento email")}</p>
               <p className="mt-0.5 text-rose-600">
                 {emailReadErrorMessage(error)}
               </p>
@@ -486,7 +487,7 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
             disabled={isFetching}
           >
             {isFetching && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-            Riprova
+            {tr("Riprova")}
           </Button>
         </div>
       ) : isEmpty ? (
@@ -498,20 +499,20 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
           <div className="flex items-center justify-between px-1 pb-1 text-[11px] text-slate-500 max-sm:hidden">
             <span>
               {totalCount !== null
-                ? `Mostro ${threads.length} di ${totalCount} thread`
-                : `Mostro ${threads.length} thread`}
+                ? tr("Mostro {n} di {totalCount} thread", { n: threads.length, totalCount: String(totalCount ?? "") })
+                : tr("Mostro {n} thread", { n: threads.length })}
             </span>
             {isFetching && !isFetchingNextPage && (
               <span className="inline-flex items-center gap-1 text-blue-600">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Aggiorno
+                {tr("Aggiorno")}
               </span>
             )}
           </div>
 
           {filter.category && (
             <div className="mx-2 mb-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-800 max-sm:hidden">
-              Categoria predittiva attiva: se l'AI non ha ancora classificato, uso regole su mittente, oggetto, testo e allegati.
+              {tr("Categoria predittiva attiva: se l'AI non ha ancora classificato, uso regole su mittente, oggetto, testo e allegati.")}
             </div>
           )}
 
@@ -538,7 +539,7 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
                 ) : (
                   <ChevronDown className="mr-2 h-4 w-4" />
                 )}
-                Carica email precedenti
+                {tr("Carica email precedenti")}
               </Button>
             </div>
           )}
@@ -557,9 +558,10 @@ function ThreadRowItem({
   selected: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   const unread = thread.unread_count > 0;
-  const senderLabel = thread.last_from_name || thread.last_from_email || "(sconosciuto)";
-  const subject = thread.last_subject || thread.subject_normalized || "(senza oggetto)";
+  const senderLabel = thread.last_from_name || thread.last_from_email || t("(sconosciuto)");
+  const subject = thread.last_subject || thread.subject_normalized || t("(senza oggetto)");
   const preview = thread.preview || "";
   const prediction = predictThread(thread);
   const predictiveCategory = thread.ai_category ? null : prediction.category;
@@ -602,20 +604,20 @@ function ThreadRowItem({
               <Badge
                 variant="outline"
                 title={thread.ai_category
-                  ? "Categoria salvata sulla email"
-                  : `Categoria predittiva senza AI (${Math.round(prediction.confidence * 100)}%): ${prediction.reasons.join(", ") || "pattern contenuto"}`}
+                  ? t("Categoria salvata sulla email")
+                  : t("Categoria predittiva senza AI ({n}%): {motivi}", { n: Math.round(prediction.confidence * 100), motivi: prediction.reasons.join(", ") || t("pattern contenuto") })}
                 className={cn(
                   "h-5 rounded-full border-blue-100 bg-blue-50 px-2 text-[10px] font-semibold text-blue-700",
                   highPriority && "border-orange-100 bg-orange-50 text-orange-700",
                 )}
               >
-                {thread.ai_category ? category : <><span className="max-sm:hidden">Regole · </span>{category}</>}
+                {thread.ai_category ? t(category) : <><span className="max-sm:hidden">{t("Regole ·")} </span>{t(category)}</>}
               </Badge>
             )}
             {highPriority && !category && (
               <Badge className="h-5 gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 text-[10px] font-semibold text-orange-700 hover:bg-orange-50">
                 <AlertTriangle className="h-2.5 w-2.5" />
-                Priorità
+                {t("Priorità")}
               </Badge>
             )}
             {thread.message_count > 1 && (
@@ -627,12 +629,12 @@ function ThreadRowItem({
             {unread && (
               <span
                 className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
-                title="Da leggere"
-                aria-label="Da leggere"
+                title={t("Da leggere")}
+                aria-label={t("Da leggere")}
               />
             )}
             <span className="ml-auto shrink-0 text-[10px] font-medium text-slate-400">
-              {formatRelTime(thread.last_received_at)}
+              {formatRelTime(thread.last_received_at, t)}
             </span>
           </div>
           <p className={cn("mt-1 truncate text-xs leading-snug max-md:text-[13px]", unread ? "font-semibold text-slate-800" : "text-slate-600")}>
@@ -651,7 +653,7 @@ function ThreadRowItem({
                 title={prediction.targets.map((target) => `${target.label} ${Math.round(target.confidence * 100)}%`).join(" · ")}
                 className="h-4 rounded-full border-emerald-100 bg-emerald-50 px-1.5 text-[9px] font-semibold text-emerald-700"
               >
-                Riconcilia
+                {t("Riconcilia")}
               </Badge>
             )}
           </div>
@@ -662,6 +664,7 @@ function ThreadRowItem({
 }
 
 function ListEmptyState({ filter }: { filter: EmailFilter }) {
+  const t = useT();
   const isInbox = filter.folder.type === "system" && filter.folder.key === "inbox";
   const isStarred = filter.folder.type === "system" && filter.folder.key === "starred";
   const isSent = filter.folder.type === "system" && filter.folder.key === "sent";
@@ -716,8 +719,8 @@ function ListEmptyState({ filter }: { filter: EmailFilter }) {
       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
         <Icon className="h-6 w-6 text-blue-600" />
       </div>
-      <p className="text-sm font-semibold text-slate-900">{title}</p>
-      {desc && <p className="mx-auto mt-1 max-w-[280px] text-xs text-slate-500">{desc}</p>}
+      <p className="text-sm font-semibold text-slate-900">{t(title)}</p>
+      {desc && <p className="mx-auto mt-1 max-w-[280px] text-xs text-slate-500">{t(desc)}</p>}
     </div>
   );
 }

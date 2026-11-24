@@ -59,6 +59,7 @@ import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
 import { VisoreFonte, type DocumentoDelVisore } from "./VisoreFonte";
 import { comeSiApre, paginaCitata, tipoDelDocumento } from "./documentoCitato";
 import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Scheda = "fonti" | "chat" | "commessa";
 
@@ -114,6 +115,7 @@ const campoDiTesto = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
 export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
+  const tr = useT();
   const { open, onOpenChange, companyId, userId, servizi = serviziVeri, orderId = null } = props;
   const completa = !!orderId;
   const { etichettaCommessa, iniziale: daFuori } = props;
@@ -206,9 +208,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const nonLetti = b.fonti.filter((f) => f.stato === "errore" || f.stato === "da_collegare").map((f) => f.etichetta);
   const motivi = [
     ...prontaPerScrivere(b.scrittura, clientiDelGestionale),
-    ...(legge ? ["Aspetta che finiscano le letture"] : []),
-    ...(b.scrivendo ? ["Aspetta la risposta di Silvio"] : []),
-    ...(inAttesa.length ? [`Leggi o togli ${inAttesa.join(", ")}`] : []),
+    ...(legge ? [tr("Aspetta che finiscano le letture")] : []),
+    ...(b.scrivendo ? [tr("Aspetta la risposta di Silvio")] : []),
+    ...(inAttesa.length ? [tr("Leggi o togli {fonti}", { fonti: inAttesa.join(", ") })] : []),
   ];
   const ultimo = b.messaggi[b.messaggi.length - 1];
   const statiAzienda = useQuery({
@@ -365,7 +367,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     { id: "chat", nome: "Chat", conta: b.scrivendo || legge ? "…" : undefined },
     {
       id: "commessa", nome: "Commessa", conta: diviso.subito ? String(diviso.subito) : undefined, avviso: diviso.subito > 0,
-      etichetta: diviso.subito ? `Commessa, ${diviso.subito} da decidere` : undefined,
+      etichetta: diviso.subito ? tr("Commessa, {n} da decidere", { n: diviso.subito }) : undefined,
     },
     { id: "fonti", nome: "Fonti", conta: b.fonti.length ? String(b.fonti.length) : undefined },
   ];
@@ -411,53 +413,53 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <span className="min-w-0 break-words sm:truncate">
                 {completa
                   ? <>
-                    <span className="sm:hidden" aria-hidden>Completa <span className="whitespace-nowrap">{props.etichettaCommessa ?? "la commessa"}</span></span>
-                    <span className="max-sm:sr-only">{`Completa ${props.etichettaCommessa ? `la commessa ${props.etichettaCommessa}` : "la commessa"} con Silvio`}</span>
+                    <span className="sm:hidden" aria-hidden>{tr("Completa")} <span className="whitespace-nowrap">{props.etichettaCommessa ?? tr("la commessa")}</span></span>
+                    <span className="max-sm:sr-only">{props.etichettaCommessa ? tr("Completa la commessa {nome} con Silvio", { nome: props.etichettaCommessa }) : tr("Completa la commessa con Silvio")}</span>
                   </>
-                  : "Nuova commessa con Silvio"}
+                  : tr("Nuova commessa con Silvio")}
               </span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 max-sm:sr-only">
               {completa
-                ? "Quello che c'è già resta com'è: Silvio propone solo quello che manca, anche dai documenti della commessa."
-                : "Carica quello che hai: Silvio compone la commessa, tu controlli e crei."}
+                ? tr("Quello che c'è già resta com'è: Silvio propone solo quello che manca, anche dai documenti della commessa.")
+                : tr("Carica quello che hai: Silvio compone la commessa, tu controlli e crei.")}
             </DialogDescription>
           </div>
           <Button type="button" variant="outline" size="sm" className="h-11 w-11 gap-1 max-sm:px-0 sm:w-auto lg:h-8" disabled={!b.storia.length || !!esito}
-            onClick={b.indietro} aria-keyshortcuts="Meta+Z Control+Z" title="Annulla l'ultima modifica (Cmd+Z)">
-            <Undo2 className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Annulla</span>
+            onClick={b.indietro} aria-keyshortcuts="Meta+Z Control+Z" title={tr("Annulla l'ultima modifica (Cmd+Z)")}>
+            <Undo2 className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">{tr("Annulla")}</span>
           </Button>
           {/* Sul telefono percentuale e salvataggio stanno sulla stessa riga, sotto il titolo; su schermo largo seguono la testata. */}
           <div className={cn("flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 lg:contents", tastiera && "max-lg:hidden")}>
           <dl className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600">
             <div className="flex items-center gap-2">
-              <dt>{completa ? "Completa al" : "Pronta al"}</dt>
+              <dt>{completa ? tr("Completa al") : tr("Pronta al")}</dt>
               <dd className="flex items-center gap-2 font-semibold text-slate-900">
-                <Progress value={completezza.punteggio} className="h-1.5 w-16 bg-slate-200 sm:w-20" aria-label={`Pronta al ${completezza.punteggio} %`} />
+                <Progress value={completezza.punteggio} className="h-1.5 w-16 bg-slate-200 sm:w-20" aria-label={tr("Pronta al {n} %", { n: completezza.punteggio })} />
                 {prima != null && prima !== completezza.punteggio
-                  ? <span>{prima} % <span className="text-slate-400" aria-hidden>→</span><span className="sr-only">, con Silvio</span> {completezza.punteggio} %</span>
+                  ? <span>{prima} % <span className="text-slate-400" aria-hidden>→</span><span className="sr-only">{tr(", con Silvio")}</span> {completezza.punteggio} %</span>
                   : `${completezza.punteggio} %`}
               </dd>
             </div>
             {margine && margine.parziale === false && (
               <div className="flex gap-1 max-sm:hidden">
-                <dt>Margine previsto</dt>
+                <dt>{tr("Margine previsto")}</dt>
                 <dd className="font-semibold text-slate-900">{euro(margine.euro)} ({margine.percento} %)</dd>
               </div>
             )}
             {/* Coi costi di una fase sola il margine verrebbe 98 %: finché sono parziali non è un risultato. */}
             {margine?.parziale && vedeCosti && (
-              <div className="flex gap-1 max-sm:hidden" title="Il margine si calcola quando ci sono tutti i costi.">
-                <dt>Costi inseriti</dt>
+              <div className="flex gap-1 max-sm:hidden" title={tr("Il margine si calcola quando ci sono tutti i costi.")}>
+                <dt>{tr("Costi inseriti")}</dt>
                 <dd><span className="font-semibold text-slate-900">{euro(margine.costi)}</span> ({margine.mancano})</dd>
               </div>
             )}
-            {fine && <div className="flex gap-1 max-sm:hidden"><dt>Fine lavori</dt><dd className="font-semibold text-slate-900">{dataBreve(fine)}</dd></div>}
+            {fine && <div className="flex gap-1 max-sm:hidden"><dt>{tr("Fine lavori")}</dt><dd className="font-semibold text-slate-900">{dataBreve(fine)}</dd></div>}
           </dl>
           <p className="min-w-0 text-xs text-slate-500" role="status">
-            {b.salvataggio.tipo === "in_corso" ? "salvo la bozza…"
-              : b.salvataggio.tipo === "salvata" ? "bozza salvata ✓"
-                : b.salvataggio.tipo === "errore" ? <span className="text-red-700" title={b.salvataggio.messaggio}>bozza non salvata: {b.salvataggio.messaggio}</span>
+            {b.salvataggio.tipo === "in_corso" ? tr("salvo la bozza…")
+              : b.salvataggio.tipo === "salvata" ? tr("bozza salvata ✓")
+                : b.salvataggio.tipo === "errore" ? <span className="text-red-700" title={b.salvataggio.messaggio}>{tr("bozza non salvata: {messaggio}", { messaggio: String(b.salvataggio.messaggio ?? "") })}</span>
                   : null}
           </p>
           </div>
@@ -465,22 +467,22 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
 
         {intatta && daRiprendere.isError && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 lg:px-6">
-            <p>Non riesco a recuperare le bozze precedenti. {messaggioErrore(daRiprendere.error)}</p>
-            <Button type="button" variant="outline" size="sm" disabled={daRiprendere.isFetching} onClick={() => void daRiprendere.refetch()}>Riprova a caricare le bozze</Button>
+            <p>{tr("Non riesco a recuperare le bozze precedenti. {error}", { error: String(messaggioErrore(daRiprendere.error) ?? "") })}</p>
+            <Button type="button" variant="outline" size="sm" disabled={daRiprendere.isFetching} onClick={() => void daRiprendere.refetch()}>{tr("Riprova a caricare le bozze")}</Button>
           </div>
         )}
         {ripresa && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm lg:px-6" role="region" aria-label="Bozza da riprendere">
+          <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm lg:px-6" role="region" aria-label={tr("Bozza da riprendere")}>
             <p className="min-w-0 flex-1 text-amber-900 max-sm:basis-full">
               {completa
-                ? <>Avevi già cominciato a completarla il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>
-                : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>}
+                ? <>{tr("Avevi già cominciato a completarla il {valore}.", { valore: String(dataBreve(giornoInItalia(ripresa.updated_at)) ?? "") })}</>
+                : <>{tr("Hai una commessa a metà:")} <strong>{nomeBozza(ripresa)}</strong>{tr(", modificata il")} {dataBreve(giornoInItalia(ripresa.updated_at))}.</>}
             </p>
             {(daRiprendere.data?.length ?? 0) > 1 && (
               <UniformSelect
                 value={ripresa.id}
                 onChange={(event) => setBozzaScelta(event.target.value)}
-                aria-label="Bozza da riprendere"
+                aria-label={tr("Bozza da riprendere")}
                 className="h-11 w-full rounded-md border border-input bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-72 lg:h-9"
               >
                 {daRiprendere.data?.map((bozza) => (
@@ -491,23 +493,23 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               </UniformSelect>
             )}
             <Button type="button" size="sm" className="h-11 lg:h-9" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>
-              {completa ? "Riprendi da lì" : "Riprendi la commessa"}
+              {completa ? tr("Riprendi da lì") : tr("Riprendi la commessa")}
             </Button>
             <Button type="button" size="sm" variant="outline" className="h-11 lg:h-9" onClick={() => setRifiutoRipresa(true)}>
-              {completa ? "Nuova proposta" : "Inizia un’altra"}
+              {completa ? tr("Nuova proposta") : tr("Inizia un’altra")}
             </Button>
-            <Button type="button" size="sm" variant="ghost" className="h-11 text-red-700 lg:h-9" onClick={() => setScartare(true)}>Elimina bozza</Button>
+            <Button type="button" size="sm" variant="ghost" className="h-11 text-red-700 lg:h-9" onClick={() => setScartare(true)}>{tr("Elimina bozza")}</Button>
           </div>
         )}
 
         {/* ── Schede del telefono ───────────────────────────────── */}
-        <div role="tablist" aria-label="Sezioni" className={cn("grid grid-cols-3 border-b bg-white lg:hidden", (controlla || esito || tastiera) && "hidden")}>
+        <div role="tablist" aria-label={tr("Sezioni")} className={cn("grid grid-cols-3 border-b bg-white lg:hidden", (controlla || esito || tastiera) && "hidden")}>
           {schede.map((s) => (
             <button key={s.id} type="button" role="tab" id={`scheda-${s.id}`} aria-controls={`pannello-${s.id}`} aria-selected={scheda === s.id}
               onClick={() => setScheda(s.id)} aria-label={s.etichetta}
               className={cn("flex h-12 items-center justify-center gap-1.5 border-b-2 text-[15px]",
                 scheda === s.id ? "border-orange-600 font-semibold text-slate-900" : "border-transparent text-slate-500")}>
-              {s.nome}
+              {tr(s.nome)}
               {s.conta && <span className={cn("min-w-5 rounded-full px-1.5 text-xs font-semibold", s.avviso ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-600")}>{s.conta}</span>}
             </button>
           ))}
@@ -515,10 +517,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
 
         {/* ── Corpo ─────────────────────────────────────────────── */}
         {esito ? (
-          <section className="min-h-0 flex-1 overflow-y-auto p-6" aria-label="Commessa creata">
+          <section className="min-h-0 flex-1 overflow-y-auto p-6" aria-label={tr("Commessa creata")}>
             <div className="mx-auto max-w-lg space-y-4 rounded-xl border bg-white p-6 shadow-sm">
               <p className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" aria-hidden />{completa ? "La commessa è completata" : "La commessa è nata"}
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" aria-hidden />{completa ? tr("La commessa è completata") : tr("La commessa è nata")}
               </p>
               {restatoFuori(esito, b.piano).length > 0 && (
                 <ul className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
@@ -528,9 +530,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               {esito.allegatiNonRiusciti.length > 0 && (
                 <>
                   <p className="text-sm text-slate-600">
-                    {esito.allegati ? `${esito.allegati} ${esito.allegati === 1 ? "fonte è" : "fonti sono"} tra i documenti della commessa. ` : ""}
-                    {esito.allegatiNonRiusciti.length === 1 ? "Un file non si è copiato" : `${esito.allegatiNonRiusciti.length} file non si sono copiati`}:
-                    l'originale resta nella bozza.
+                    {esito.allegati ? `${tr(esito.allegati === 1 ? "{n} fonte è tra i documenti della commessa." : "{n} fonti sono tra i documenti della commessa.", { n: esito.allegati })} ` : ""}
+                    {tr(esito.allegatiNonRiusciti.length === 1 ? "Un file non si è copiato: l'originale resta nella bozza." : "{n} file non si sono copiati: l'originale resta nella bozza.", { n: esito.allegatiNonRiusciti.length })}
                   </p>
                   <ul className="space-y-1 text-sm">
                     {esito.allegatiNonRiusciti.map((x) => <li key={x.nome}><strong>{x.nome}</strong>: {x.motivo}</li>)}
@@ -540,8 +541,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               {!!esito.risorse?.non_prenotati?.length && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
                   <p className="font-medium">
-                    {esito.risorse.non_prenotati.length === 1 ? "Un mezzo non si è prenotato" : `${esito.risorse.non_prenotati.length} mezzi non si sono prenotati`}:
-                    il resto della commessa c'è. {esito.risorse.non_prenotati.length === 1 ? "Prenotalo" : "Prenotali"} dalla scheda Mezzi della commessa.
+                    {tr(esito.risorse.non_prenotati.length === 1 ? "Un mezzo non si è prenotato: il resto della commessa c'è. Prenotalo dalla scheda Mezzi della commessa." : "{n} mezzi non si sono prenotati: il resto della commessa c'è. Prenotali dalla scheda Mezzi della commessa.", { n: esito.risorse.non_prenotati.length })}
                   </p>
                   <ul className="mt-1 space-y-0.5">
                     {esito.risorse.non_prenotati.map((x, i) => <li key={`${x.mezzo_id}-${i}`}>• {x.motivo}</li>)}
@@ -551,11 +551,11 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <div className="flex flex-wrap gap-2">
                 {esito.allegatiNonRiusciti.length > 0 && (
                   <Button type="button" variant="outline" className="h-11 gap-1 lg:h-10" disabled={riallegando} onClick={() => void riallega()}>
-                    {riallegando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}Riprova
+                    {riallegando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}{tr("Riprova")}
                   </Button>
                 )}
                 <Button type="button" className="h-11 lg:h-10" onClick={() => dopo(esito.order_id)}>
-                  {completa ? "Chiudi" : "Apri la commessa"}
+                  {completa ? tr("Chiudi") : tr("Apri la commessa")}
                 </Button>
               </div>
             </div>
@@ -565,9 +565,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
             <div className="mx-auto max-w-3xl space-y-4">
               <div className="flex items-center gap-2">
                 <Button type="button" variant="ghost" size="sm" className="h-11 gap-1 lg:h-9" onClick={() => setControlla(false)}>
-                  <ArrowLeft className="h-4 w-4" aria-hidden />Torna alla commessa
+                  <ArrowLeft className="h-4 w-4" aria-hidden />{tr("Torna alla commessa")}
                 </Button>
-                <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">{completa ? "Cosa si aggiunge" : "Cosa nascerà"}</h3>
+                <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">{completa ? tr("Cosa si aggiunge") : tr("Cosa nascerà")}</h3>
               </div>
               <RiepilogoNumeri numeri={numeri} onTocca={(n) => (n.stato === "manca" ? apri(n.chiave) : vedi([n.chiave]))} />
               {avvisoStato && <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{avvisoStato}</p>}
@@ -582,7 +582,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                           {/* Il valore è l'id: «Controlla» mostrava il codice al posto del nome. */}
                           {v.chiave === "persone.capomastro" || v.chiave === "persone.assigned_to" ? <NomeStaff companyId={companyId} id={v.testo} /> : v.chiave === "identita.sede_id" ? <NomeSede id={v.testo} /> : v.testo}
                         </span>
-                        {v.fuori && <span className="w-full text-xs text-amber-800 sm:w-auto">{v.parziale ? "entra in parte, resta fuori" : "resta fuori"}: {v.fuori}</span>}
+                        {v.fuori && <span className="w-full text-xs text-amber-800 sm:w-auto">{v.parziale ? tr("entra in parte, resta fuori") : tr("resta fuori")}: {v.fuori}</span>}
                         {v.nota && <span className="w-full text-xs text-slate-500 sm:w-auto">{v.nota}</span>}
                       </li>
                     ))}
@@ -591,23 +591,23 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               ))}
               {!b.scrittura.fasi.length && !b.scrittura.rate.length && !Object.keys(b.scrittura.ordine).length && (
                 <p className="text-sm text-slate-500">
-                  {completa ? "Ancora niente da aggiungere: rispondi alle domande di Silvio o fagli leggere un documento." : "Ancora niente: carica una fonte o scrivi due righe sul lavoro."}
+                  {completa ? tr("Ancora niente da aggiungere: rispondi alle domande di Silvio o fagli leggere un documento.") : tr("Ancora niente: carica una fonte o scrivi due righe sul lavoro.")}
                 </p>
               )}
             </div>
           </section>
         ) : (
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(210px,248px)_minmax(340px,1.15fr)_minmax(320px,1fr)] xl:grid-cols-[248px_minmax(380px,1.2fr)_minmax(340px,460px)] lg:divide-x">
-            <section id="pannello-fonti" role="tabpanel" aria-label="Fonti"
+            <section id="pannello-fonti" role="tabpanel" aria-label={tr("Fonti")}
               className={cn("min-h-0 overflow-y-auto p-3", scheda !== "fonti" && "max-lg:hidden")}>
-              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">Fonti</h3>
+              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">{tr("Fonti")}</h3>
               <ColonnaFonti companyId={companyId} orderId={orderId} fonti={b.fonti} servizi={servizi} onAggiungi={b.aggiungi}
                 onConferma={b.confermaLetture} onRiprova={b.riprova} onTogli={b.togliFonte}
                 onCollegaOfferta={(id, r) => void b.collegaOfferta(id, r)} onComeDocumento={b.leggiComeDocumento} />
             </section>
-            <section id="pannello-chat" role="tabpanel" aria-label="Chat con Silvio"
+            <section id="pannello-chat" role="tabpanel" aria-label={tr("Chat con Silvio")}
               className={cn("flex min-h-0 flex-col p-3", scheda !== "chat" && "max-lg:hidden")}>
-              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">Chat con Silvio</h3>
+              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">{tr("Chat con Silvio")}</h3>
               <ColonnaChat messaggi={b.messaggi} domanda={domanda} legge={legge} onModifica={modifica} onApri={apri}
                 onScrivi={scrivi} scrivendo={b.scrivendo} onVedi={vedi}
                 annullabile={b.storia.length > 0} passiStoria={b.storia.length} onAnnulla={b.indietro}
@@ -615,9 +615,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 fonti={b.fonti} onAllega={(f) => b.aggiungi(f.map((file) => ({ tipo: "file" as const, file })))} onConferma={b.confermaLetture}
                 suggerimenti={suggerimenti} daDecidere={daDecidere} mancano={mancano} onFonti={() => setScheda("fonti")} tastiera={tastiera} />
             </section>
-            <section id="pannello-commessa" role="tabpanel" aria-label="La commessa"
+            <section id="pannello-commessa" role="tabpanel" aria-label={tr("La commessa")}
               className={cn("min-h-0 overflow-y-auto p-3", scheda !== "commessa" && "max-lg:hidden")}>
-              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">La commessa</h3>
+              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">{tr("La commessa")}</h3>
               <ColonnaCommessa companyId={companyId} piano={b.piano} completezza={completezza} evidenziate={b.evidenziate}
                 aperta={aperta} onApri={apri} onModifica={modifica}
                 daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia}
@@ -635,44 +635,44 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <div className="min-w-0 flex-1 text-sm text-slate-700">
                 <p className={cn(vuota && "hidden")}>
                   {scrive
-                    ? <>{completa ? "Aggiunge" : "Nasce con"} <strong>{scrive}</strong><span className="max-sm:hidden">{conti.pronte ? ` (${conti.pronte} ${conti.pronte === 1 ? "dato" : "dati"} in tutto)` : ""}</span>.</>
-                    : <><strong>{conti.pronte}</strong> {conti.pronte === 1 ? "dato pronto" : "dati pronti"}.</>}
+                    ? <>{completa ? tr("Aggiunge") : tr("Nasce con")} <strong>{scrive}</strong><span className="max-sm:hidden">{conti.pronte ? ` (${tr(conti.pronte === 1 ? "{n} dato in tutto" : "{n} dati in tutto", { n: conti.pronte })})` : ""}</span>.</>
+                    : <><strong>{conti.pronte}</strong> {conti.pronte === 1 ? tr("dato pronto") : tr("dati pronti")}.</>}
                 </p>
                 <p className="text-xs text-slate-500">
                   {daDecidere.totale > 0
                     ? <button type="button" className={cn("min-h-11 text-left underline-offset-2 hover:underline max-lg:-my-2.5 lg:min-h-0", diviso.subito ? "font-medium text-amber-700" : "text-slate-600")} onClick={() => vedi(["silvio-da-decidere"])}>
                       {diviso.subito
-                        ? <>Da decidere: {testoDecisioniSubito(daDecidere)}{diviso.altre > 0 ? ` · altre ${diviso.altre}` : ""}</>
-                        : `Niente di urgente. ${titoloAltre(diviso.altre)}.`}
+                        ? <>{tr("Da decidere:")} {testoDecisioniSubito(daDecidere)}{diviso.altre > 0 ? ` · ${tr("altre {n}", { n: diviso.altre })}` : ""}</>
+                        : tr("Niente di urgente. {altre}.", { altre: String(titoloAltre(diviso.altre) ?? "") })}
                     </button>
-                    : vuota ? "Carica un documento o scrivi il lavoro nella chat." : "Niente da decidere."}
-                  <span className="max-sm:hidden">{" · "}costo AI {euroAI(conti.costoEur)}</span>
+                    : vuota ? tr("Carica un documento o scrivi il lavoro nella chat.") : tr("Niente da decidere.")}
+                  <span className="max-sm:hidden">{" "}{tr("· costo AI {costoEur}", { costoEur: euroAI(conti.costoEur) })}</span>
                 </p>
               </div>
               <div className="flex gap-2 max-sm:w-full">
                 <Button type="button" variant="outline" className="h-11 gap-1 max-sm:flex-1 lg:h-10" aria-pressed={controlla}
                   onClick={() => setControlla(!controlla)}>
-                  <ClipboardCheck className="h-4 w-4" aria-hidden />Controlla
+                  <ClipboardCheck className="h-4 w-4" aria-hidden />{tr("Controlla")}
                 </Button>
                 <Button type="button" className="h-11 gap-1 bg-orange-700 hover:bg-orange-800 max-sm:flex-1 lg:h-10"
                   disabled={creando || motivi.length > 0} aria-describedby={motivi.length ? "silvio-crea-motivi" : undefined}
                   onClick={() => void crea()}>
                   {creando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
                   {completa
-                    ? (creando ? "Completo…" : "Completa ▸")
-                    : (creando ? "Creo…" : "Crea la commessa ▸")}
+                    ? (creando ? tr("Completo…") : tr("Completa ▸"))
+                    : (creando ? tr("Creo…") : tr("Crea la commessa ▸"))}
                 </Button>
               </div>
             </div>
             {motivi.length > 0 && (
               <p id="silvio-crea-motivi" hidden={vuota} className="mt-1 text-xs text-slate-500">
-                {completa ? "Per completare" : "Per creare"}: {motivi.map(minuscola).join("; ")}.
+                {completa ? tr("Per completare") : tr("Per creare")}: {motivi.map(minuscola).join("; ")}.
               </p>
             )}
             {/* Sul telefono la barra deve restare bassa: lì si legge in «Controlla» e tra le altre cose della colonna. */}
             {avvisoStato && !controlla && <p className="mt-1 text-xs text-amber-800 max-lg:hidden">{avvisoStato}</p>}
             {nonLetti.length > 0 && (
-              <p className="mt-1 break-words text-xs text-amber-800">Non letti, restano fuori: {nonLetti.join(", ")}.</p>
+              <p className="mt-1 break-words text-xs text-amber-800">{tr("Non letti, restano fuori: {nonLetti}.", { nonLetti: nonLetti.join(", ") })}</p>
             )}
           </footer>
         )}
@@ -680,34 +680,34 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         <AlertDialog open={scartare} onOpenChange={setScartare}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Elimino questa bozza?</AlertDialogTitle>
+              <AlertDialogTitle>{tr("Elimino questa bozza?")}</AlertDialogTitle>
               <AlertDialogDescription>
-                {ripresa && !completa ? <>«{nomeBozza(ripresa)}» sparisce e non torna più. </> : "La bozza sparisce e non torna più. "}
-                Le altre bozze restano salvate.
+                {ripresa && !completa ? <>{tr("«{ripresa}» sparisce e non torna più.", { ripresa: String(nomeBozza(ripresa) ?? "") })}{" "}</> : `${tr("La bozza sparisce e non torna più.")} `}
+                {tr("Le altre bozze restano salvate.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Tienila</AlertDialogCancel>
-              <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => void ricomincia()}>Sì, buttala via</AlertDialogAction>
+              <AlertDialogCancel>{tr("Tienila")}</AlertDialogCancel>
+              <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => void ricomincia()}>{tr("Sì, buttala via")}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
         <AlertDialog open={!!chiudere} onOpenChange={(o) => { if (!o) setChiudere(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{creando ? "Silvio sta creando la commessa" : legge ? "Silvio sta ancora leggendo" : "Silvio sta ancora rispondendo"}</AlertDialogTitle>
+              <AlertDialogTitle>{creando ? tr("Silvio sta creando la commessa") : legge ? tr("Silvio sta ancora leggendo") : tr("Silvio sta ancora rispondendo")}</AlertDialogTitle>
               <AlertDialogDescription>
                 {creando
-                  ? "Aspetta un attimo: se chiudi adesso non vedi com'è andata."
+                  ? tr("Aspetta un attimo: se chiudi adesso non vedi com'è andata.")
                   : legge
-                    ? "Se chiudi adesso perdi quello che ha trovato, e la lettura si paga lo stesso. La bozza resta salvata fin qui."
-                    : "Se chiudi adesso perdi la sua risposta. La bozza resta salvata fin qui."}
+                    ? tr("Se chiudi adesso perdi quello che ha trovato, e la lettura si paga lo stesso. La bozza resta salvata fin qui.")
+                    : tr("Se chiudi adesso perdi la sua risposta. La bozza resta salvata fin qui.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Aspetta</AlertDialogCancel>
+              <AlertDialogCancel>{tr("Aspetta")}</AlertDialogCancel>
               <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => { const f = chiudere; setChiudere(null); f?.(); }}>
-                Chiudi lo stesso
+                {tr("Chiudi lo stesso")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

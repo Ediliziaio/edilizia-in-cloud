@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { exportToCSV, exportToXLSX, type CsvColumn } from "@/lib/csvExport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ReportExportMenuProps {
   rows: Record<string, string>[];
@@ -16,13 +17,14 @@ interface ReportExportMenuProps {
 }
 
 export function ReportExportMenu({ rows, columns, filenameBase, disabled }: ReportExportMenuProps) {
+  const t = useT();
   // Niente export sul telefono.
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" disabled={disabled || !rows.length} className="max-sm:hidden">
           <Download className="h-4 w-4 mr-1.5" />
-          Esporta
+          {t("Esporta")}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -32,7 +34,7 @@ export function ReportExportMenu({ rows, columns, filenameBase, disabled }: Repo
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => exportToXLSX(rows, columns, `${filenameBase}.xlsx`)}>
           <FileSpreadsheet className="h-4 w-4 mr-2" />
-          Excel (XLSX)
+          {t("Excel (XLSX)")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

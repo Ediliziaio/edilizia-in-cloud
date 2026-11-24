@@ -39,6 +39,7 @@ import {
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
 import { sezioneDellaPagina } from "@/components/preventivi/pagineEditor";
 import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Le pagine con una foto loro: l'id della pagina e la chiave della foto. Qui si
@@ -65,6 +66,7 @@ interface Props {
 }
 
 function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione, ordineDiSerie, escluse, labels, notaEscluse, obbligatorie }: Props) {
+  const t = useT();
   const items = normalizeFvPdfPagesOrder(value).filter(p => !escluse?.has(p.id)).map(p=>obbligatorie?.has(p.id)?{...p,visible:true}:p);
   // Keep excluded pages explicitly disabled when saving. Normalization would otherwise reintroduce them.
   const change = (next: FvPdfPageOrderItem[]) => onChange([...next, ...normalizeFvPdfPagesOrder(value).filter(p => escluse?.has(p.id)).map(p => ({ ...p, visible: false }))]);
@@ -109,7 +111,7 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
   const toggleVisible = (index: number) => {
     const meta = metaById.get(items[index].id);
     if (meta?.obbligatoria) {
-      toast.warning(`"${meta.label}" e' obbligatoria e resta sempre visibile`);
+      toast.warning(t("\"{label}\" e' obbligatoria e resta sempre visibile", { label: String(meta.label ?? "") }));
       return;
     }
     change(items.map((item, itemIndex) => (
@@ -120,7 +122,7 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
 
   const resetDefault = () => {
     onChange(normalizeFvPdfPagesOrder(ordineDiSerie ?? FV_PDF_PAGES_DEFAULT).map(p => escluse?.has(p.id) ? { ...p, visible: false } : p));
-    toast.success("Ordine pagine FV ripristinato");
+    toast.success(t("Ordine pagine FV ripristinato"));
   };
 
   const visibleCount = items.filter((item) => item.visible).length;
@@ -128,22 +130,22 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
 
   return (
     <div className="space-y-3">
-      {escluse?.size ? <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">{notaEscluse??"Questo modulo riguarda l’integrazione dell’accumulo. I grafici di produzione e risparmio dell’intero impianto non sono applicabili e non vengono inseriti nel PDF."}</p> : null}
+      {escluse?.size ? <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">{notaEscluse??t("Questo modulo riguarda l’integrazione dell’accumulo. I grafici di produzione e risparmio dell’intero impianto non sono applicabili e non vengono inseriti nel PDF.")}</p> : null}
       <div className={
         "flex items-start gap-2 rounded-md border px-3 py-2 text-xs " +
         (isCustomOrder
           ? "border-emerald-200 bg-emerald-50/70 text-emerald-900"
           : "border-sky-200 bg-sky-50/70 text-sky-900")
       }>
-        <span className="font-semibold">{isCustomOrder ? "Ordine personalizzato" : "Ordine di default"}</span>
+        <span className="font-semibold">{isCustomOrder ? t("Ordine personalizzato") : t("Ordine di default")}</span>
         <span className="flex-1">
-          La cover e' fissa. Le altre pagine si possono riordinare o nascondere; i prodotti restano letti dal preventivo e dal listino.
+          {t("La cover e' fissa. Le altre pagine si possono riordinare o nascondere; i prodotti restano letti dal preventivo e dal listino.")}
         </span>
       </div>
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          Trascina le righe oppure usa le frecce. Le pagine obbligatorie proteggono prezzo, componenti e firma.
+          {t("Trascina le righe oppure usa le frecce. Le pagine obbligatorie proteggono prezzo, componenti e firma.")}
         </p>
         <Button
           size="sm"
@@ -152,7 +154,7 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
           className="h-7 shrink-0 gap-1 text-[11px]"
         >
           <RotateCcw className="h-3 w-3" />
-          Default
+          {t("Default")}
         </Button>
       </div>
 
@@ -162,13 +164,13 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
         </div>
         <ImageIcon className="h-4 w-4 shrink-0 text-orange-600" />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold">Cover</div>
+          <div className="text-xs font-semibold">{t("Cover")}</div>
           <div className="truncate text-[10px] text-muted-foreground">
-            Prima pagina fissa, modificabile dalla sezione Copertina.
+            {t("Prima pagina fissa, modificabile dalla sezione Copertina.")}
           </div>
         </div>
         <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
-          Fissa
+          {t("Fissa")}
         </span>
       </div>
 
@@ -215,8 +217,8 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
       </DndContext>
 
       <div className="flex items-center justify-between border-t pt-2 text-[11px] text-muted-foreground">
-        <span>{visibleCount + 1} pagine attive (cover inclusa)</span>
-        <span>Salva per applicare ai prossimi PDF.</span>
+        <span>{t("{visibleCount} pagine attive (cover inclusa)", { visibleCount: visibleCount + 1 })}</span>
+        <span>{t("Salva per applicare ai prossimi PDF.")}</span>
       </div>
     </div>
   );
@@ -254,6 +256,7 @@ function SortableFvPageItem({
   onFoto?: () => void;
   children?: ReactNode;
 }) {
+  const t = useT();
   const {
     attributes,
     listeners,
@@ -283,7 +286,7 @@ function SortableFvPageItem({
         type="button"
         {...attributes}
         {...listeners}
-        aria-label="Trascina per riordinare"
+        aria-label={t("Trascina per riordinare")}
         className="-ml-1 cursor-grab p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" />
@@ -298,24 +301,24 @@ function SortableFvPageItem({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-semibold">{meta.label}</span>
+          <span className="text-xs font-semibold">{t(meta.label)}</span>
           {meta.obbligatoria && (
             <span className="rounded bg-orange-100 px-1 py-0.5 text-[9px] font-semibold text-orange-700">
-              Obbligatoria
+              {t("Obbligatoria")}
             </span>
           )}
           {!item.visible && (
             <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-semibold text-slate-500">
-              Nascosta
+              {t("Nascosta")}
             </span>
           )}
         </div>
         <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
-          {meta.descrizione}
+          {t(meta.descrizione)}
         </div>
         {promessa && item.visible ? (
           <div className="mt-0.5 text-[10px] text-amber-700">
-            Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.
+            {t("Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.")}
           </div>
         ) : null}
       </div>
@@ -342,8 +345,8 @@ function SortableFvPageItem({
             variant="ghost"
             onClick={onModifica}
             className="h-7 w-7"
-            aria-label={`Modifica ${meta.label}`}
-            title="Testi, voci e foto di questa pagina"
+            aria-label={t("Modifica {label}", { label: String(meta.label ?? "") })}
+            title={t("Testi, voci e foto di questa pagina")}
           >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -354,8 +357,8 @@ function SortableFvPageItem({
             variant="ghost"
             onClick={onFoto}
             className="h-7 w-7"
-            aria-label={`Foto di ${meta.label}`}
-            title="La foto di questa pagina"
+            aria-label={t("Foto di {label}", { label: String(meta.label ?? "") })}
+            title={t("La foto di questa pagina")}
           >
             <Camera className="h-3.5 w-3.5" />
           </Button>

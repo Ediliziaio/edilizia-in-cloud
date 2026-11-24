@@ -21,6 +21,7 @@ import type { AnteprimaPianta as Anteprima } from "@/lib/planimetrie/anteprime";
 import type { MappaCollegamenti } from "@/lib/planimetrie/collegamenti";
 import { STATI_PIANTA } from "@/lib/planimetrie/elenco";
 import { percorsoProgettoAssociato } from "@/lib/planimetrie/render/percorsi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   pianta: RigaPlanimetria;
@@ -40,19 +41,20 @@ export function PlanimetriaProjectCard({
   returnTo,
   onAssocia,
 }: Props) {
+  const t = useT();
   const path = percorsoProgettoAssociato(p.id, returnTo);
   const date = new Date(p.updated_at);
   const updated = Number.isFinite(date.getTime())
-    ? date.toLocaleDateString("it-IT", {
+    ? date.toLocaleDateString(intlCampo(), {
         day: "numeric",
         month: "short",
         year: "numeric",
       })
-    : "Data non disponibile";
+    : t("Data non disponibile");
   const renderPath = `/azienda/render?${new URLSearchParams({ progetto: p.id, vista: "projects" })}`;
-  const stats = a?.tavola ? "Tavola da ricalcare" : a
-    ? `${a.piano} · ${a.stanze} ${a.stanze === 1 ? "stanza" : "stanze"} · ${a.superficie.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²${a.piani > 1 ? ` · ${a.piani} piani` : ""}`
-    : `Versione ${p.versione_corrente}`;
+  const stats = a?.tavola ? t("Tavola da ricalcare") : a
+    ? `${a.piano} · ${t(a.stanze === 1 ? "{n} stanza" : "{n} stanze", { n: a.stanze })} · ${a.superficie.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} m²${a.piani > 1 ? ` · ${t("{n} piani", { n: a.piani })}` : ""}`
+    : t("Versione {numero}", { numero: String(p.versione_corrente) });
   return (
     <article
       aria-label={p.titolo}
@@ -92,7 +94,7 @@ export function PlanimetriaProjectCard({
           <h3 className="text-sm font-semibold leading-snug">
             <Link
               to={path}
-              aria-label={`Apri ${p.titolo}`}
+              aria-label={t("Apri {titolo}", { titolo: String(p.titolo ?? "") })}
               className="line-clamp-2 rounded-sm hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {p.titolo}
@@ -105,15 +107,13 @@ export function PlanimetriaProjectCard({
             </p>
           )}
           {list && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Aggiornata {updated}
-            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("Aggiornata {updated}", { updated: String(updated ?? "") })}</p>
           )}
         </div>
       </div>
       <div className={`min-w-0 ${list ? "lg:border-l lg:pl-5" : "px-4 pb-4"}`}>
         <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Schede collegate
+          {t("Schede collegate")}
         </p>
         <RiferimentiPianta riga={p} mappa={mappa} />
       </div>
@@ -128,11 +128,11 @@ export function PlanimetriaProjectCard({
             variant="ghost"
             size="sm"
             onClick={onAssocia}
-            aria-label={`Associa ${p.titolo}`}
+            aria-label={t("Associa {titolo}", { titolo: String(p.titolo ?? "") })}
             className="h-8 px-2 text-xs"
           >
             <Link2 className="mr-1.5 h-3.5 w-3.5" />
-            Collegamenti
+            {t("Collegamenti")}
           </Button>
         )}
         <Button
@@ -141,8 +141,8 @@ export function PlanimetriaProjectCard({
           variant="outline"
           className="h-8 px-2 text-xs"
         >
-          <Link to={path} aria-label={`Apri progetto ${p.titolo}`}>
-            Apri
+          <Link to={path} aria-label={t("Apri progetto {titolo}", { titolo: String(p.titolo ?? "") })}>
+            {t("Apri")}
             <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
           </Link>
         </Button>
@@ -152,7 +152,7 @@ export function PlanimetriaProjectCard({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              aria-label={`Altre azioni per ${p.titolo}`}
+              aria-label={t("Altre azioni per {titolo}", { titolo: String(p.titolo ?? "") })}
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
@@ -161,13 +161,13 @@ export function PlanimetriaProjectCard({
             <DropdownMenuItem asChild>
               <Link to={renderPath}>
                 <ImageIcon className="mr-2 h-4 w-4" />
-                Render del progetto
+                {t("Render del progetto")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to={percorsoProgettoAssociato(p.id, returnTo, true)}>
                 <FileDown className="mr-2 h-4 w-4" />
-                Fascicolo PDF
+                {t("Fascicolo PDF")}
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>

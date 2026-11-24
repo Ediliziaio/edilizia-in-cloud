@@ -28,6 +28,7 @@ import {
 import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type RapportoDaPreparare = "economia" | "rendiconto-trasporti";
 
@@ -45,6 +46,7 @@ export function RapportiPeriodoDialog({
   /** Accesso dalla commessa: il rapporto manuale parte con riferimento e indirizzo. */
   orderId?: string;
 }) {
+  const t = useT();
   const [doc, setDoc] = useState<DocumentoOperativo | null>(null);
   const [scegli, setScegli] = useState<RapportoDaPreparare | null>(null);
   const [cantiere, setCantiere] = useState("");
@@ -108,7 +110,7 @@ export function RapportiPeriodoDialog({
         toast.error(
           e instanceof Error
             ? e.message
-            : "Non riesco a preparare il riepilogo. Riprova.",
+            : t("Non riesco a preparare il riepilogo. Riprova."),
         );
     } finally {
       if (operazione.current === controller) {
@@ -133,7 +135,7 @@ export function RapportiPeriodoDialog({
       if (controller.signal.aborted) return;
       setDoc({ ...documento, commessa: ordine.data.order_code, luogo: ordine.data.work_address, destinazioneTipo: "cantiere", indirizzoCantiere: ordine.data.work_address });
     } catch (e) {
-      if (!controller.signal.aborted) toast.error(e instanceof Error ? e.message : "Rapporto trasporti non disponibile. Riprova.");
+      if (!controller.signal.aborted) toast.error(e instanceof Error ? e.message : t("Rapporto trasporti non disponibile. Riprova."));
     } finally {
       if (operazione.current === controller) { operazione.current = null; setPreparazione(null); }
     }
@@ -157,7 +159,7 @@ export function RapportiPeriodoDialog({
               ) : (
                 <FileText className="mr-1.5 h-4 w-4" />
               )}
-              Crea documento PDF
+              {t("Crea documento PDF")}
               <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -171,10 +173,10 @@ export function RapportiPeriodoDialog({
               className="block"
             >
               <span className="block font-medium">
-                Riepilogo lavori approvati
+                {t("Riepilogo lavori approvati")}
               </span>
               <span className="block text-xs text-muted-foreground">
-                Rapporto in economia: compilato dai rapportini del periodo
+                {t("Rapporto in economia: compilato dai rapportini del periodo")}
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -182,30 +184,30 @@ export function RapportiPeriodoDialog({
               onSelect={() => avvia("rendiconto-trasporti")}
               className="block"
             >
-              <span className="block font-medium">Rendiconto trasporti al cliente</span>
+              <span className="block font-medium">{t("Rendiconto trasporti al cliente")}</span>
               <span className="block text-xs text-muted-foreground">
                 {!conDatiEconomici
-                  ? "Richiede accesso alle voci e ai costi dei rapportini"
-                  : "Viaggi dei rapportini approvati nel periodo"}
+                  ? t("Richiede accesso alle voci e ai costi dei rapportini")
+                  : t("Viaggi dei rapportini approvati nel periodo")}
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem
               className="block"
               onSelect={() => void rapportoManuale()}
             >
-              <span className="block font-medium">Rapporto trasporti</span>
+              <span className="block font-medium">{t("Rapporto trasporti")}</span>
               <span className="block text-xs text-muted-foreground">
-                Modello da compilare per il trasportatore
+                {t("Modello da compilare per il trasportatore")}
               </span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <span className="text-xs text-slate-500" role="status">
           {busy
-            ? "Preparo il riepilogo con i dati registrati…"
+            ? t("Preparo il riepilogo con i dati registrati…")
             : approvati.length
-              ? `${approvati.length} ${approvati.length === 1 ? "rapportino approvato" : "rapportini approvati"} per il riepilogo automatico`
-              : "Il riepilogo si prepara dai rapportini approvati"}
+              ? t(approvati.length === 1 ? "{n} rapportino approvato per il riepilogo automatico" : "{n} rapportini approvati per il riepilogo automatico", { n: approvati.length })
+              : t("Il riepilogo si prepara dai rapportini approvati")}
         </span>
       </div>
       <Dialog open={!!scegli} onOpenChange={(open) => {
@@ -216,27 +218,27 @@ export function RapportiPeriodoDialog({
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{scegli === "rendiconto-trasporti" ? "Rendiconto trasporti al cliente" : "Riepilogo lavori approvati"}</DialogTitle>
+            <DialogTitle>{scegli === "rendiconto-trasporti" ? t("Rendiconto trasporti al cliente") : t("Riepilogo lavori approvati")}</DialogTitle>
             <DialogDescription>
               {scegli === "rendiconto-trasporti"
-                ? "Scegli la commessa per riportare il suo cliente e i viaggi approvati nel periodo."
-                : "Scegli il cantiere per preparare la bozza con cliente, lavori, ore, materiali, mezzi e prezzi di vendita disponibili."}
+                ? t("Scegli la commessa per riportare il suo cliente e i viaggi approvati nel periodo.")
+                : t("Scegli il cantiere per preparare la bozza con cliente, lavori, ore, materiali, mezzi e prezzi di vendita disponibili.")}
             </DialogDescription>
           </DialogHeader>
           <Input
-            aria-label="Cerca cantiere per il documento"
-            placeholder="Cerca per nome o codice…"
+            aria-label={t("Cerca cantiere per il documento")}
+            placeholder={t("Cerca per nome o codice…")}
             disabled={busy}
             value={cercaCantiere}
             onChange={(e) => setCercaCantiere(e.target.value)}
           />
           <OfficeSelect
-            label="Cantiere del documento"
+            label={t("Cantiere del documento")}
             value={cantiere}
               disabled={busy}
             onValueChange={setCantiere}
             options={[
-              { value: "", label: "Scegli il cantiere" },
+              { value: "", label: t("Scegli il cantiere") },
               ...cantieri
                 .filter((r) =>
                   [r.order?.order_code, nomeCantiere(r)]
@@ -256,7 +258,7 @@ export function RapportiPeriodoDialog({
             disabled={!cantiere || busy}
             onClick={() => { if (scegli) void prepara(scegli, cantiere); }}
           >
-            {busy ? "Preparo…" : "Apri bozza compilata"}
+            {busy ? t("Preparo…") : t("Apri bozza compilata")}
           </Button>
         </DialogContent>
       </Dialog>

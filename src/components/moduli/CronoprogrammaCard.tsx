@@ -18,6 +18,7 @@ import {
 } from "@/lib/preventivi/cronoprogramma";
 import { preparaCrono, type ClientCrono, type VoceCrono } from "../../../shared/piano-cantiere/cronoCalcolato.ts";
 import { regioneDaProvincia } from "../../../shared/piano-cantiere/regioni.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Una voce del computo del modulo: i campi sono gli stessi negli otto preventivatori. */
 export interface RigaPerCrono {
@@ -46,6 +47,7 @@ interface Props {
 }
 
 export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo, righe }: Props) {
+  const t = useT();
   // Il contesto, non useAuth: senza azienda la scheda funziona come prima, solo senza il calcolo.
   const effectiveCompany = useContext(AuthContext)?.effectiveCompany;
   const [calcolando, setCalcolando] = useState(false);
@@ -59,21 +61,21 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
     try {
       const esito = await preparaCrono(supabase as unknown as ClientCrono, effectiveCompany.id, voci, {}, regioneDaProvincia);
       if (!(esito.ore > 0)) {
-        toast.error("Mancano i dati per calcolare i tempi: aggiungi importi o manodopera alle voci, o scrivi le fasi a mano.");
+        toast.error(t("Mancano i dati per calcolare i tempi: aggiungi importi o manodopera alle voci, o scrivi le fasi a mano."));
         return;
       }
       onChange(fasiDaCalcolo(esito.fasi));
       setNota(esito.avvisoInterno);
       setConfermaSostituzione(false);
     } catch {
-      toast.error("Non sono riuscito a calcolare i tempi: riprova tra poco, o scrivili a mano.");
+      toast.error(t("Non sono riuscito a calcolare i tempi: riprova tra poco, o scrivili a mano."));
     } finally {
       setCalcolando(false);
     }
   };
   const pulsanteCalcola = puoCalcolare && (
     <Button type="button" size="sm" variant="default" disabled={calcolando} className="gap-1" onClick={() => { void calcola(); }}>
-      {calcolando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}Calcola dalle voci del computo
+      {calcolando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}{t("Calcola dalle voci del computo")}
     </Button>
   );
   const fasi = leggiCronoprogramma(raw);
@@ -90,22 +92,22 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
       <div className="rounded-lg border p-3">
         <p className="flex items-center gap-1.5 text-xs font-medium">
           <CalendarRange className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
-          Quanto dura il cantiere
+          {t("Quanto dura il cantiere")}
         </p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           {delModello
-            ? `Nel PDF escono le ${delModello.length} fasi scritte nel modello${durata ? ` (${durata} in tutto)` : ""}. Puoi scrivere i tempi di questo lavoro.`
-            : "Nel modello non ci sono fasi di cronoprogramma. Eventuali tempi scritti nei testi o nelle condizioni del modello restano nel PDF: controllali nell’anteprima. Scrivi qui le fasi di questo lavoro."}
+            ? t(durata ? "Nel PDF escono le {n} fasi scritte nel modello ({durata} in tutto). Puoi scrivere i tempi di questo lavoro." : "Nel PDF escono le {n} fasi scritte nel modello. Puoi scrivere i tempi di questo lavoro.", { n: delModello.length, durata: durata ?? "" })
+            : t("Nel modello non ci sono fasi di cronoprogramma. Eventuali tempi scritti nei testi o nelle condizioni del modello restano nel PDF: controllali nell’anteprima. Scrivi qui le fasi di questo lavoro.")}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {pulsanteCalcola}
           {delModello && (
             <Button type="button" size="sm" variant={puoCalcolare ? "outline" : "default"} onClick={() => onChange(delModello)}>
-              Parti da quelle del modello
+              {t("Parti da quelle del modello")}
             </Button>
           )}
           <Button type="button" size="sm" variant={delModello || puoCalcolare ? "outline" : "default"} onClick={() => onChange(fasiDiPartenza(modulo))}>
-            Fasi tipiche di questo lavoro
+            {t("Fasi tipiche di questo lavoro")}
           </Button>
         </div>
       </div>
@@ -117,7 +119,7 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <p className="flex items-center gap-1.5 text-xs font-medium">
           <CalendarRange className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
-          Quanto dura il cantiere
+          {t("Quanto dura il cantiere")}
         </p>
         <div className="flex items-center gap-2">
           {puoCalcolare && (
@@ -126,35 +128,35 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
               onClick={() => { if (confermaSostituzione) void calcola(); else setConfermaSostituzione(true); }}
             >
               {calcolando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}
-              {confermaSostituzione ? "Sostituisco le fasi scritte?" : "Ricalcola dal computo"}
+              {confermaSostituzione ? t("Sostituisco le fasi scritte?") : t("Ricalcola dal computo")}
             </Button>
           )}
-          {durata && <span className="text-[11px] font-semibold text-sky-800">{durata} in tutto</span>}
+          {durata && <span className="text-[11px] font-semibold text-sky-800">{t("{durata} in tutto", { durata: String(durata ?? "") })}</span>}
         </div>
       </div>
-      {nota && <p className="border-b px-3 py-1.5 text-[11px] text-muted-foreground">{nota} Questa nota la vedi solo tu, nel PDF non esce.</p>}
+      {nota && <p className="border-b px-3 py-1.5 text-[11px] text-muted-foreground">{t("{avviso} Questa nota la vedi solo tu, nel PDF non esce.", { avviso: String(nota ?? "") })}</p>}
 
       <div className="space-y-1.5 px-3 py-2">
         {fasi.map((f, i) => (
           <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,9.5rem)_auto] items-center gap-2">
             <GripVertical aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-300" />
             <Input
-              aria-label={`Nome della fase ${i + 1}`}
+              aria-label={t("Nome della fase {n}", { n: i + 1 })}
               value={f.fase}
-              placeholder="Es. Demolizioni"
+              placeholder={t("Es. Demolizioni")}
               onChange={(e) => cambia(i, { fase: e.target.value })}
               className="h-8 text-xs"
             />
             <Input
-              aria-label={`Durata della fase ${i + 1}`}
+              aria-label={t("Durata della fase {i}", { i: i + 1 })}
               value={f.durata ?? ""}
-              placeholder="Es. 3 giorni"
+              placeholder={t("Es. 3 giorni")}
               onChange={(e) => cambia(i, { durata: e.target.value || null })}
               className="h-8 text-xs"
             />
             <button
               type="button"
-              aria-label={`Togli la fase ${i + 1}`}
+              aria-label={t("Togli la fase {nome}", { nome: i + 1 })}
               onClick={() => onChange(fasi.filter((_, k) => k !== i))}
               disabled={fasi.length <= 1}
               className="rounded p-1 text-slate-400 hover:text-red-600 disabled:opacity-40"
@@ -171,15 +173,15 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
                 type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px]"
                 onClick={() => onChange([...fasi, { fase: "", durata: null, descrizione: null }])}
               >
-                <Plus className="h-3 w-3" />Aggiungi una fase
+                <Plus className="h-3 w-3" />{t("Aggiungi una fase")}
               </Button>
             )}
             <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-slate-500" onClick={() => onChange(null)}>
-              {delModello ? "Torna a quelle del modello" : "Togli le fasi"}
+              {delModello ? t("Torna a quelle del modello") : t("Togli le fasi")}
             </Button>
           </div>
           <span className={cn("text-[10px]", fasi.some((f) => !f.fase.trim()) ? "text-amber-700" : "text-muted-foreground")}>
-            {fasi.some((f) => !f.fase.trim()) ? "Una fase senza nome non esce nel PDF" : "Escono nel PDF, con la durata complessiva"}
+            {fasi.some((f) => !f.fase.trim()) ? t("Una fase senza nome non esce nel PDF") : t("Escono nel PDF, con la durata complessiva")}
           </span>
         </div>
       </div>

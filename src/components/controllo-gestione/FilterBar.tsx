@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useScenari } from "@/hooks/controlloGestione/useScenari";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type CGPeriodo = "annuale" | "ytd" | "mese";
 
@@ -37,6 +38,7 @@ const MESI = [
 ];
 
 export function FilterBar({ value, onChange, showScenario = false, showPeriodo = true }: FilterBarProps) {
+  const t = useT();
   const { data: scenari = [], isLoading: scenariLoading } = useScenari();
 
   const anniDisponibili = useMemo(() => {
@@ -56,7 +58,7 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
           value={String(value.anno)}
           onValueChange={(v) => update({ anno: Number(v) })}
         >
-          <SelectTrigger className="h-9 w-[96px]" aria-label="Anno">
+          <SelectTrigger className="h-9 w-[96px]" aria-label={t("Anno")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -73,13 +75,13 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
             value={value.periodo}
             onValueChange={(v) => update({ periodo: v as CGPeriodo })}
           >
-            <SelectTrigger className="h-9 w-[170px]" aria-label="Periodo">
+            <SelectTrigger className="h-9 w-[170px]" aria-label={t("Periodo")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="annuale">Anno completo</SelectItem>
-              <SelectItem value="ytd">Da gennaio al mese scelto</SelectItem>
-              <SelectItem value="mese">Singolo mese</SelectItem>
+              <SelectItem value="annuale">{t("Anno completo")}</SelectItem>
+              <SelectItem value="ytd">{t("Da gennaio al mese scelto")}</SelectItem>
+              <SelectItem value="mese">{t("Singolo mese")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -92,12 +94,12 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
             onValueChange={(v) => update({ mese: Number(v) })}
             disabled={value.periodo === "annuale"}
           >
-            <SelectTrigger className="h-9 w-[130px]" aria-label="Mese">
+            <SelectTrigger className="h-9 w-[130px]" aria-label={t("Mese")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {MESI.map((nome, idx) => (
-                <SelectItem key={idx + 1} value={String(idx + 1)}>{nome}</SelectItem>
+                <SelectItem key={idx + 1} value={String(idx + 1)}>{t(nome)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -107,20 +109,20 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
       {showScenario && (
         <div className="flex items-center gap-2">
           {/* «Predefinito» da solo non dice di cosa: qui l'etichetta resta, in riga. */}
-          <span className="text-xs text-muted-foreground">Scenario</span>
+          <span className="text-xs text-muted-foreground">{t("Scenario")}</span>
           <Select
             value={value.scenarioId ?? "_default"}
             onValueChange={(v) => update({ scenarioId: v === "_default" ? null : v })}
             disabled={scenariLoading}
           >
-            <SelectTrigger className="h-9 w-[220px]" aria-label="Scenario piano">
-              <SelectValue placeholder={scenariLoading ? "Caricamento…" : "Predefinito"} />
+            <SelectTrigger className="h-9 w-[220px]" aria-label={t("Scenario piano")}>
+              <SelectValue placeholder={scenariLoading ? t("Caricamento…") : t("Predefinito")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="_default">Predefinito</SelectItem>
+              <SelectItem value="_default">{t("Predefinito")}</SelectItem>
               {scenari.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.scenario} {s.is_default ? "(predefinito)" : ""} · {s.orizzonte_anni} anni
+                  {s.scenario} {s.is_default ? t("(predefinito)") : ""} · {t("{n} anni", { n: s.orizzonte_anni })}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -26,6 +26,7 @@ import {
 import { useFileRiservato, useImmaginiModelloFirmate } from "@/hooks/useFileRiservati";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO } from "@/lib/storage/immaginiModelloPdf";
 import { buildFvPreviewBase } from "@/lib/moduli-vendita/fvPreviewData";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Dati cliente/impianto di esempio: riempiono le pagine "dato-dipendenti"
  *  (investimento, scenario, flussi). Le pagine template-dipendenti (cover, chi
@@ -48,6 +49,7 @@ export default function FvTemplatePreviewDialog({
   logoUrl?: string | null;
   renderCampione?:(form:Record<string,unknown>)=>CampioneEditorFv;
 }) {
+  const t = useT();
   // Immagini del modello: percorsi nel bucket privato, firmati solo mentre il
   // dialogo è aperto (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
   const form = useImmaginiModelloFirmate(open ? formSalvato : null, CAMPI_IMMAGINE_FOTOVOLTAICO);
@@ -95,18 +97,16 @@ export default function FvTemplatePreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[92vh] p-0 overflow-hidden gap-0">
         <DialogHeader className="px-4 py-3 border-b">
-          <DialogTitle className="text-base">Anteprima preventivo Fotovoltaico</DialogTitle>
+          <DialogTitle className="text-base">{t("Anteprima preventivo Fotovoltaico")}</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Dati cliente e impianto di esempio. Cover, Chi siamo, recensioni,
-            garanzie, FAQ e condizioni riflettono il tuo template in tempo reale.
-            Il PDF finale può variare leggermente.
+            {t("Dati cliente e impianto di esempio. Cover, Chi siamo, recensioni, garanzie, FAQ e condizioni riflettono il tuo template in tempo reale. Il PDF finale può variare leggermente.")}
           </p>
         </DialogHeader>
         {mappe.errore && <p role="alert" className="bg-amber-50 px-4 py-2 text-xs">{mappe.errore}</p>}
         <iframe
           srcDoc={html}
           onLoad={e => mappe.carica(e.currentTarget.contentDocument)}
-          title="Anteprima preventivo Fotovoltaico"
+          title={t("Anteprima preventivo Fotovoltaico")}
           className="w-full h-[80vh] border-0 bg-white"
         />
       </DialogContent>

@@ -80,7 +80,7 @@ export function ComuneAutocomplete({
     setOpen(false);
   };
 
-  const ph = placeholder ?? (mode === "cap" ? "Cerca CAP o comune…" : "Cerca comune o CAP…");
+  const ph = placeholder ?? (mode === "cap" ? t("Cerca CAP o comune…") : t("Cerca comune o CAP…"));
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!open || results.length === 0) return;

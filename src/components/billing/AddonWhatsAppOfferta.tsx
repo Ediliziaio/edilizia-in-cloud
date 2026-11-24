@@ -21,6 +21,7 @@ import { useAttivaAddonWhatsApp } from "@/hooks/useBilling";
 import { formatCurrency } from "@/lib/formatters";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Chi può comprarlo: lo stesso controllo del server (assertMetaCompanyAdminAccess). */
 const RUOLI_ACQUISTO = new Set(["company_admin", "super_admin"]);
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function AddonWhatsAppOfferta({ inAttesaDiAttivazione = false, onAttivo }: Props) {
+  const t = useT();
   const { role } = useAuth();
   const queryClient = useQueryClient();
   const accesso = useFeatureAccess("whatsapp");
@@ -89,18 +91,18 @@ export function AddonWhatsAppOfferta({ inAttesaDiAttivazione = false, onAttivo }
   useEffect(() => {
     if (!inAttesaDiAttivazione || !attivo || avvisato.current) return;
     avvisato.current = true;
-    toast.success("WhatsApp Business è attivo: ora puoi collegare i numeri.");
+    toast.success(t("WhatsApp Business è attivo: ora puoi collegare i numeri."));
     onAttivo?.();
   }, [inAttesaDiAttivazione, attivo, onAttivo]);
 
   if (attivo) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">WhatsApp Business è attivo per la tua azienda.</p>
+        <p className="text-sm text-muted-foreground">{t("WhatsApp Business è attivo per la tua azienda.")}</p>
         <Button asChild className="w-full" data-allow-in-preview="true">
           <Link to="/azienda/whatsapp">
             <MessageCircle className="mr-2 h-4 w-4" />
-            Vai a WhatsApp
+            {t("Vai a WhatsApp")}
           </Link>
         </Button>
       </div>
@@ -119,14 +121,14 @@ export function AddonWhatsAppOfferta({ inAttesaDiAttivazione = false, onAttivo }
           )}
           <p>
             {lento
-              ? "Il pagamento risulta fatto, ma l'attivazione sta richiedendo più del solito. Ricontrolla tra un minuto; se non si sblocca scrivi all'assistenza."
-              : "Pagamento ricevuto: sto attivando WhatsApp Business…"}
+              ? t("Il pagamento risulta fatto, ma l'attivazione sta richiedendo più del solito. Ricontrolla tra un minuto; se non si sblocca scrivi all'assistenza.")
+              : t("Pagamento ricevuto: sto attivando WhatsApp Business…")}
           </p>
         </div>
         {lento && (
           <Button variant="outline" className="w-full" onClick={() => setControlli(0)}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Ricontrolla
+            {t("Ricontrolla")}
           </Button>
         )}
       </div>
@@ -139,20 +141,20 @@ export function AddonWhatsAppOfferta({ inAttesaDiAttivazione = false, onAttivo }
     <div className="space-y-3">
       <div className="rounded-lg border bg-muted/40 p-3">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-semibold">Add-on WhatsApp Business</p>
+          <p className="text-sm font-semibold">{t("Add-on WhatsApp Business")}</p>
           {offerta?.prezzoMese != null && (
             <p className="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(offerta.prezzoMese)}/mese</p>
           )}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Collega i numeri WhatsApp Business dell'azienda: messaggi, broadcast, notifiche e risposte dal CRM.
-          {offerta?.daPiano != null && ` Incluso nei piani da ${formatCurrency(offerta.daPiano)}/mese.`}
+          {t("Collega i numeri WhatsApp Business dell'azienda: messaggi, broadcast, notifiche e risposte dal CRM.")}
+          {offerta?.daPiano != null && <>{" "}{t("Incluso nei piani da {daPiano}/mese.", { daPiano: formatCurrency(offerta.daPiano) })}</>}
         </p>
       </div>
 
       {isMobileAppRuntime ? (
         <p className="text-sm text-muted-foreground">
-          L'add-on si attiva dall'area riservata sul sito web, non dall'app.
+          {t("L'add-on si attiva dall'area riservata sul sito web, non dall'app.")}
         </p>
       ) : puoAcquistare ? (
         <Button
@@ -166,11 +168,11 @@ export function AddonWhatsAppOfferta({ inAttesaDiAttivazione = false, onAttivo }
           ) : (
             <MessageCircle className="mr-2 h-4 w-4" />
           )}
-          {attiva.isPending ? "Apertura del pagamento…" : "Attiva l'add-on"}
+          {attiva.isPending ? t("Apertura del pagamento…") : t("Attiva l'add-on")}
         </Button>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Chiedi all'amministratore della tua azienda di attivare l'add-on.
+          {t("Chiedi all'amministratore della tua azienda di attivare l'add-on.")}
         </p>
       )}
     </div>

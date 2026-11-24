@@ -9,8 +9,9 @@ import { SANITARI_BAGNO, type Livello, type Locale, type Planimetria, type TipoS
 import { creaVarianteSpostamentoBagno, localiPerSpostamento, NOMI_SANITARI } from "@/lib/planimetrie/spostamentoBagno";
 import { leggiMisura } from "./editor/misure";
 import { TavolaInterattiva } from "./TavolaInterattiva";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const nomeLocale = (l: Locale) => `${l.nome} · ${(areaPoligono(l.contorno) / 10_000).toLocaleString("it-IT", { maximumFractionDigits: 2 })} m²`;
+const nomeLocale = (l: Locale) => `${l.nome} · ${(areaPoligono(l.contorno) / 10_000).toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} m²`;
 
 export function SpostaBagnoDialog({ documento, piano, daVariante, onChiudi, onSalva }: {
   documento: Planimetria;
@@ -19,6 +20,7 @@ export function SpostaBagnoDialog({ documento, piano, daVariante, onChiudi, onSa
   onChiudi: () => void;
   onSalva: (variante: ReturnType<typeof creaVarianteSpostamentoBagno>) => Promise<void>;
 }) {
+  const t = useT();
   const [baseId, setBaseId] = useState(daVariante);
   const { origini, destinazioni } = localiPerSpostamento(piano, baseId);
   const bagni = origini.filter(l => l.destinazione === "bagno");
@@ -48,7 +50,7 @@ export function SpostaBagnoDialog({ documento, piano, daVariante, onChiudi, onSa
         confermaBagno, sanitari, altezzaRivestimentoCm: altezza ?? undefined,
       }));
     } catch (error) {
-      setErrore(error instanceof Error ? error.message : "La variante non è stata salvata.");
+      setErrore(error instanceof Error ? error.message : t("La variante non è stata salvata."));
     } finally {
       setSalvando(false);
       inCorso.current = false;
@@ -57,14 +59,14 @@ export function SpostaBagnoDialog({ documento, piano, daVariante, onChiudi, onSa
   return <Dialog open onOpenChange={aperto => { if (!aperto && !inCorso.current) onChiudi(); }}>
     <DialogContent ampiezza="spazio">
       <DialogHeader>
-        <DialogTitle>Sposta bagno</DialogTitle>
-        <DialogDescription>{piano.nome} · Scegli i due locali. Il vecchio bagno diventa un ripostiglio.</DialogDescription>
+        <DialogTitle>{t("Sposta bagno")}</DialogTitle>
+        <DialogDescription>{t("{nome} · Scegli i due locali. Il vecchio bagno diventa un ripostiglio.", { nome: String(piano.nome ?? "") })}</DialogDescription>
       </DialogHeader>
       <form onSubmit={salva} className="space-y-5">
         <fieldset disabled={salvando} className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
           <div className="min-w-0 space-y-3.5">
             {daVariante && <div className="space-y-1.5">
-              <Label htmlFor="bagno-base">Parti da</Label>
+              <Label htmlFor="bagno-base">{t("Parti da")}</Label>
               <UniformSelect id="bagno-base" value={baseId ?? ""} onChange={e => {
                 const id = e.target.value || undefined;
                 setBaseId(id);
@@ -73,36 +75,36 @@ export function SpostaBagnoDialog({ documento, piano, daVariante, onChiudi, onSa
                 setDestinazione("");
                 setConfermaBagno(false);
               }}>
-                <option value="">Stato di fatto</option>
+                <option value="">{t("Stato di fatto")}</option>
                 {piano.proposte.filter(p => p.id === daVariante).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </UniformSelect>
             </div>}
             <div className="space-y-1.5">
-              <Label htmlFor="bagno-attuale">Bagno attuale</Label>
+              <Label htmlFor="bagno-attuale">{t("Bagno attuale")}</Label>
               <UniformSelect id="bagno-attuale" value={origine} onChange={e => {
                 const id = e.target.value;
                 setOrigine(id);
                 setConfermaBagno(false);
                 if (id === destinazione) setDestinazione("");
               }}>
-                <option value="">Scegli il locale</option>
-                {!!bagni.length && <optgroup label="Bagni">{bagni.map(l => <option key={l.id} value={l.id}>{nomeLocale(l)}</option>)}</optgroup>}
-                {!!altri.length && <optgroup label="Altri locali">{altri.map(l => <option key={l.id} value={l.id}>{nomeLocale(l)}</option>)}</optgroup>}
+                <option value="">{t("Scegli il locale")}</option>
+                {!!bagni.length && <optgroup label={t("Bagni")}>{bagni.map(l => <option key={l.id} value={l.id}>{nomeLocale(l)}</option>)}</optgroup>}
+                {!!altri.length && <optgroup label={t("Altri locali")}>{altri.map(l => <option key={l.id} value={l.id}>{nomeLocale(l)}</option>)}</optgroup>}
               </UniformSelect>
               {attuale && attuale.destinazione !== "bagno" && <label className="flex items-start gap-2 text-sm">
                 <input className="mt-1 accent-primary" type="checkbox" checked={confermaBagno} onChange={e => setConfermaBagno(e.target.checked)} />
-                Confermo che il locale è il bagno attuale.
+                {t("Confermo che il locale è il bagno attuale.")}
               </label>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bagno-destinazione">Locale del nuovo bagno</Label>
+              <Label htmlFor="bagno-destinazione">{t("Locale del nuovo bagno")}</Label>
               <UniformSelect id="bagno-destinazione" value={destinazione} onChange={e => setDestinazione(e.target.value)}>
-                <option value="">Scegli il locale</option>
+                <option value="">{t("Scegli il locale")}</option>
                 {destinazioni.filter(l => l.id !== origine).map(l => <option key={l.id} value={l.id}>{nomeLocale(l)}</option>)}
               </UniformSelect>
             </div>
             <fieldset className="space-y-1.5">
-              <legend className="text-sm font-medium">Sanitari previsti</legend>
+              <legend className="text-sm font-medium">{t("Sanitari previsti")}</legend>
               <div className="flex flex-wrap gap-x-3 gap-y-2">
                 {SANITARI_BAGNO.map(tipo => <label key={tipo} className="flex items-center gap-1.5 text-sm">
                   <input type="checkbox" className="accent-primary" checked={sanitari.includes(tipo)} onChange={e =>
@@ -112,23 +114,23 @@ export function SpostaBagnoDialog({ documento, piano, daVariante, onChiudi, onSa
               </div>
             </fieldset>
             <div className="space-y-1.5">
-              <Label htmlFor="bagno-rivestimento">Altezza del rivestimento <span className="text-muted-foreground">(facoltativa)</span></Label>
-              <Input id="bagno-rivestimento" placeholder="Es. 1,20 m" value={rivestimento} onChange={e => setRivestimento(e.target.value)}
+              <Label htmlFor="bagno-rivestimento">{t("Altezza del rivestimento")} <span className="text-muted-foreground">{t("(facoltativa)")}</span></Label>
+              <Input id="bagno-rivestimento" placeholder={t("Es. 1,20 m")} value={rivestimento} onChange={e => setRivestimento(e.target.value)}
                 aria-invalid={erroreAltezza} aria-describedby={erroreAltezza ? "bagno-errore-altezza" : undefined} />
-              {erroreAltezza && <p id="bagno-errore-altezza" className="text-sm text-destructive">Inserisci un’altezza positiva entro quella del locale.</p>}
+              {erroreAltezza && <p id="bagno-errore-altezza" className="text-sm text-destructive">{t("Inserisci un’altezza positiva entro quella del locale.")}</p>}
             </div>
           </div>
           <div className="min-w-0 space-y-2">
             <TavolaInterattiva documento={documento} livelloId={piano.id} ambito={baseId ? `progetto:${baseId}` : "fatto"}
               selezionato={origine} evidenzaLocali={destinazione ? [destinazione] : []} comandi
               className="h-[clamp(165px,34vh,295px)] rounded-xl border" />
-            <p className="text-xs text-muted-foreground">Le posizioni proposte dei sanitari sono indicative. Adduzioni, scarichi e aerazione si completano dopo il rilievo.</p>
+            <p className="text-xs text-muted-foreground">{t("Le posizioni proposte dei sanitari sono indicative. Adduzioni, scarichi e aerazione si completano dopo il rilievo.")}</p>
           </div>
         </fieldset>
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={salvando} onClick={onChiudi}>Annulla</Button>
-          <Button type="submit" disabled={!pronta || salvando}>{salvando ? "Salvataggio…" : "Salva variante"}</Button>
+          <Button type="button" variant="outline" disabled={salvando} onClick={onChiudi}>{t("Annulla")}</Button>
+          <Button type="submit" disabled={!pronta || salvando}>{salvando ? t("Salvataggio…") : t("Salva variante")}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

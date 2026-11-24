@@ -31,12 +31,16 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateIt } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { useT, sostituisci } from "@/lib/campo/lingua/LinguaCampo";
 
-export function periodoSquadra(s: { dal: string | null; al: string | null }): string {
-  if (s.dal && s.al) return `dal ${formatDateIt(s.dal)} al ${formatDateIt(s.al)}`;
-  if (s.dal) return `dal ${formatDateIt(s.dal)}`;
-  if (s.al) return `fino al ${formatDateIt(s.al)}`;
-  return "senza date";
+export function periodoSquadra(
+  s: { dal: string | null; al: string | null },
+  tr: (testo: string, valori?: Record<string, string | number>) => string = sostituisci,
+): string {
+  if (s.dal && s.al) return tr("dal {dal} al {al}", { dal: formatDateIt(s.dal), al: formatDateIt(s.al) });
+  if (s.dal) return tr("dal {dal}", { dal: formatDateIt(s.dal) });
+  if (s.al) return tr("fino al {al}", { al: formatDateIt(s.al) });
+  return tr("senza date");
 }
 
 interface Trascinato { persona: PersonaSquadra; da: string }
@@ -55,6 +59,7 @@ export function SquadreCommessa({
   /** Solo la finestra «Aggiungi squadra», senza elenco (commessa ancora vuota). */
   soloFinestra?: boolean;
 }) {
+  const t = useT();
   const perms = usePermissions();
   const vedeOperai = perms.canViewOperai === true || perms.isAdmin;
   const { data: tutte = [], isLoading, error } = useSquadreCommessa(orderId);
@@ -83,12 +88,12 @@ export function SquadreCommessa({
       { profiloId: persona.id, squadraId: verso?.squadra_id ?? null },
       {
         onSuccess: (prima) => {
-          toast.success(verso ? `${nome} ora è nella ${verso.nome}` : `${nome} non è più in una squadra`, {
-            description: "Vale anche per le altre commesse delle squadre.",
+          toast.success(verso ? t("{nome} ora è nella {nome2}", { nome: String(nome ?? ""), nome2: String(verso.nome ?? "") }) : t("{nome} non è più in una squadra", { nome: String(nome ?? "") }), {
+            description: t("Vale anche per le altre commesse delle squadre."),
             // Il tempo di accorgersi dello sbaglio e premere «Annulla».
             duration: 10_000,
             action: {
-              label: "Annulla",
+              label: t("Annulla"),
               onClick: () => sposta.mutate(
                 { profiloId: persona.id, squadraId: prima },
                 { onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito ad annullare.")) },
@@ -114,9 +119,9 @@ export function SquadreCommessa({
     return (
       <>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          <span>Nessuna squadra su tutta la commessa. Puoi anche mettere una squadra solo su una fase, dentro la fase.</span>
+          <span>{t("Nessuna squadra su tutta la commessa. Puoi anche mettere una squadra solo su una fase, dentro la fase.")}</span>
           {modificabile && (
-            <Button size="sm" variant="outline" className={AZIONE_TENUE.squadra} onClick={() => onAggiungiAperto(true)}>Aggiungi squadra</Button>
+            <Button size="sm" variant="outline" className={AZIONE_TENUE.squadra} onClick={() => onAggiungiAperto(true)}>{t("Aggiungi squadra")}</Button>
           )}
         </div>
         <SquadraCommessaDialog aperto={aggiungiAperto} onAperto={onAggiungiAperto} orderId={orderId} />
@@ -148,21 +153,21 @@ export function SquadreCommessa({
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-slate-900">
                     {s.nome}
-                    {!s.attiva && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(sciolta)</span>}
+                    {!s.attiva && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t("(sciolta)")}</span>}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {periodoSquadra(s)}{s.finita && " · finita"}
+                    {periodoSquadra(s, t)}{s.finita && ` ${t("· finita")}`}
                     {s.responsabile && (
-                      <> · <Crown className="inline h-3 w-3 text-orange-600" aria-hidden="true" /> {s.responsabile.nome} {s.responsabile.cognome}{s.capocantiere && ", capocantiere"}</>
+                      <> · <Crown className="inline h-3 w-3 text-orange-600" aria-hidden="true" /> {s.responsabile.nome} {s.responsabile.cognome}{s.capocantiere && `, ${t("capocantiere")}`}</>
                     )}
                   </p>
                 </div>
                 {modificabile && (
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button size="icon" variant="ghost" className="tap-compact h-8 w-8" aria-label={`Cambia le date di ${s.nome}`} onClick={() => setDate(s)}>
+                    <Button size="icon" variant="ghost" className="tap-compact h-8 w-8" aria-label={t("Cambia le date di {nome}", { nome: String(s.nome ?? "") })} onClick={() => setDate(s)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="tap-compact h-8 w-8" aria-label={`Togli ${s.nome} dalla commessa`} onClick={() => setDaTogliere(s)}>
+                    <Button size="icon" variant="ghost" className="tap-compact h-8 w-8" aria-label={t("Togli {nome} dalla commessa", { nome: String(s.nome ?? "") })} onClick={() => setDaTogliere(s)}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
@@ -176,7 +181,7 @@ export function SquadreCommessa({
                         {modificabile && attive.length > 0 && <GripVertical className="h-3.5 w-3.5 text-slate-300 max-sm:hidden" aria-hidden="true" />}
                         <AvatarOperaio nome={p.nome} cognome={p.cognome} colore={p.colore_avatar} />
                         <span>{p.nome} {p.cognome}</span>
-                        {p.ha_accesso_app && <Smartphone className="h-3.5 w-3.5 text-emerald-600" aria-label="ha l'app di cantiere" />}
+                        {p.ha_accesso_app && <Smartphone className="h-3.5 w-3.5 text-emerald-600" aria-label={t("ha l'app di cantiere")} />}
                       </span>
                     );
                     return (
@@ -201,7 +206,7 @@ export function SquadreCommessa({
                               <button
                                 type="button"
                                 className="tap-compact rounded-full border border-transparent bg-white py-0.5 pl-1 pr-2.5 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200 hover:ring-orange-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-                                aria-label={`${p.nome} ${p.cognome}: sposta o togli`}
+                                aria-label={t("{nome} {cognome}: sposta o togli", { nome: String(p.nome ?? ""), cognome: String(p.cognome ?? "") })}
                               >
                                 {chip}
                               </button>
@@ -211,15 +216,15 @@ export function SquadreCommessa({
                               {attive.filter((x) => x.squadra_id !== s.squadra_id).map((x) => (
                                 <DropdownMenuItem key={x.squadra_id} onSelect={() => spostaIn(p, x)}>
                                   <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: x.colore ?? "#94A3B8" }} aria-hidden="true" />
-                                  Sposta in {x.nome}
+                                  {t("Sposta in {nome}", { nome: x.nome })}
                                 </DropdownMenuItem>
                               ))}
-                              <DropdownMenuItem onSelect={() => spostaIn(p, null)}>Togli dalla squadra</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => spostaIn(p, null)}>{t("Togli dalla squadra")}</DropdownMenuItem>
                               {vedeOperai && (
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem asChild>
-                                    <Link to={`/azienda/manodopera/operai/${p.id}`}>Apri la scheda</Link>
+                                    <Link to={`/azienda/manodopera/operai/${p.id}`}>{t("Apri la scheda")}</Link>
                                   </DropdownMenuItem>
                                 </>
                               )}
@@ -234,7 +239,7 @@ export function SquadreCommessa({
                 </ul>
               ) : (
                 <p className="border-t bg-slate-50/60 px-3 py-2 text-xs text-muted-foreground">
-                  {bersaglio ? "Rilascia qui per metterlo in questa squadra." : "La squadra non ha ancora operai."}
+                  {bersaglio ? t("Rilascia qui per metterlo in questa squadra.") : t("La squadra non ha ancora operai.")}
                 </p>
               )}
             </li>
@@ -243,7 +248,7 @@ export function SquadreCommessa({
       </ul>
       {modificabile && attive.length > 1 && (
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Per spostare un operaio trascinalo sull'altra squadra, oppure toccalo e scegli «Sposta in…».
+          {t("Per spostare un operaio trascinalo sull'altra squadra, oppure toccalo e scegli «Sposta in…».")}
         </p>
       )}
 
@@ -261,13 +266,13 @@ export function SquadreCommessa({
       <AlertDialog open={!!daTogliere} onOpenChange={(o) => { if (!o) setDaTogliere(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Togli {daTogliere?.nome} dalla commessa?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Togli {nome} dalla commessa?", { nome: String(daTogliere?.nome ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              I suoi operai non vedranno più questo cantiere nell'app, se non ce li hai messi anche a mano. Le ore già timbrate restano.
+              {t("I suoi operai non vedranno più questo cantiere nell'app, se non ce li hai messi anche a mano. Le ore già timbrate restano.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (!daTogliere) return;
@@ -275,14 +280,14 @@ export function SquadreCommessa({
                 togli.mutate(
                   { orderId, squadraId: daTogliere.squadra_id },
                   {
-                    onSuccess: () => toast.success(`${nome} tolta dalla commessa`),
+                    onSuccess: () => toast.success(t("{nome} tolta dalla commessa", { nome: String(nome ?? "") })),
                     onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a togliere la squadra. Riprova tra qualche secondo.")),
                   },
                 );
                 setDaTogliere(null);
               }}
             >
-              Togli la squadra
+              {t("Togli la squadra")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -293,18 +298,19 @@ export function SquadreCommessa({
 
 /** Una riga per la Panoramica: quali squadre lavorano qui e da quando. */
 export function SquadreInBreve({ orderId }: { orderId: string }) {
+  const t = useT();
   const { data = [], error } = useSquadreCommessa(orderId);
   // Una squadra una volta sola, anche se è su più fasi.
   const attive = [...new Map(data.filter((s) => s.attiva && !s.finita).map((s) => [s.squadra_id, s])).values()];
   if (error || attive.length === 0) return null;
   return (
     <p className="text-sm text-slate-700">
-      <span className="text-muted-foreground">Squadre: </span>
+      <span className="text-muted-foreground">{t("Squadre:")} </span>
       {attive.map((s, i) => (
         <span key={s.squadra_id}>
           {i > 0 && ", "}
           <span className="font-medium">{s.nome}</span>{" "}
-          <span className="text-muted-foreground">({s.phase_id ? `fase ${s.fase ?? ""}`.trim() : periodoSquadra(s)})</span>
+          <span className="text-muted-foreground">({s.phase_id ? t("fase {fase}", { fase: s.fase ?? "" }).trim() : periodoSquadra(s, t)})</span>
         </span>
       ))}
     </p>
@@ -327,6 +333,7 @@ export function SquadreFase({
   modificabile: boolean;
   mostraAggiungi?: boolean;
 }) {
+  const t = useT();
   const { data = [] } = useSquadreCommessa(orderId);
   const { data: tutte = [] } = useSquadre(modificabile && mostraAggiungi);
   const metti = useSquadraSuCommessa();
@@ -339,7 +346,7 @@ export function SquadreFase({
     metti.mutate(
       { orderId, squadraId: id, dal: null, al: null, capocantiere: false, phaseId: fase.id },
       {
-        onSuccess: () => toast.success(`${nome} fa «${fase.name}»`, { description: "Segue le date della fase." }),
+        onSuccess: () => toast.success(t("{nome} fa «{name}»", { nome: String(nome ?? ""), name: String(fase.name ?? "") }), { description: t("Segue le date della fase.") }),
         onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito ad aggiungerla. Riprova tra qualche secondo.")),
       },
     );
@@ -352,13 +359,13 @@ export function SquadreFase({
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white py-1 pl-2.5 pr-1 text-sm ring-1 ring-slate-200">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
               <span className="font-medium text-slate-800">{s.nome}</span>
-              {s.responsabile && <span className="text-xs text-muted-foreground">· Caposquadra: {s.responsabile.nome} {s.responsabile.cognome}</span>}
-              {!s.segue_fase && (s.dal || s.al) && <span className="text-xs text-muted-foreground">({periodoSquadra(s)})</span>}
+              {s.responsabile && <span className="text-xs text-muted-foreground">{t("· Caposquadra: {nome} {cognome}", { nome: String(s.responsabile.nome ?? ""), cognome: String(s.responsabile.cognome ?? "") })}</span>}
+              {!s.segue_fase && (s.dal || s.al) && <span className="text-xs text-muted-foreground">({periodoSquadra(s, t)})</span>}
               {modificabile ? (
                 <button
                   type="button"
                   className="tap-compact ml-0.5 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  aria-label={`Togli ${s.nome} da ${fase.name}`}
+                  aria-label={t("Togli {nome} da {name}", { nome: String(s.nome ?? ""), name: String(fase.name ?? "") })}
                   onClick={() => togli.mutate(
                     { orderId, squadraId: s.squadra_id, phaseId: fase.id },
                     { onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a toglierla.")) },
@@ -370,8 +377,8 @@ export function SquadreFase({
             </span>
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
-            {s.componenti.length ? s.componenti.map((c) => `${c.nome} ${c.cognome}`).join(", ") : "Squadra senza operai"}
-            {s.responsabile && ` · resp. ${s.responsabile.nome} ${s.responsabile.cognome}`}
+            {s.componenti.length ? s.componenti.map((c) => `${c.nome} ${c.cognome}`).join(", ") : t("Squadra senza operai")}
+            {s.responsabile && " · "}{s.responsabile && t("resp. {nome} {cognome}", { nome: String(s.responsabile.nome ?? ""), cognome: String(s.responsabile.cognome ?? "") })}
           </TooltipContent>
         </Tooltip>
       ))}
@@ -379,25 +386,25 @@ export function SquadreFase({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" className={cn("tap-compact h-8 gap-1 rounded-full px-3", AZIONE_TENUE.squadra)} disabled={metti.isPending}>
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />Squadra
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />{t("Squadra")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {scegliibili.length === 0 ? (
               <DropdownMenuItem asChild>
-                <Link to="/azienda/manodopera?tab=operai&vista=squadre">{tutte.length === 0 ? "Crea la prima squadra" : "Tutte le squadre sono già qui"}</Link>
+                <Link to="/azienda/manodopera?tab=operai&vista=squadre">{tutte.length === 0 ? t("Crea la prima squadra") : t("Tutte le squadre sono già qui")}</Link>
               </DropdownMenuItem>
             ) : scegliibili.map((s) => (
               <DropdownMenuItem key={s.id} onSelect={() => aggiungi(s.id, s.nome)}>
                 <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
                 {s.nome}
-                <span className="ml-2 text-xs text-muted-foreground">{s.componenti.length} operai</span>
+                <span className="ml-2 text-xs text-muted-foreground">{t("{n} operai", { n: s.componenti.length })}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      {!modificabile && qui.length === 0 && <span className="text-sm text-muted-foreground">Nessuna squadra</span>}
+      {!modificabile && qui.length === 0 && <span className="text-sm text-muted-foreground">{t("Nessuna squadra")}</span>}
     </div>
   );
 }

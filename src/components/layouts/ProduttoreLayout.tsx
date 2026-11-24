@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Factory, Users, Palette, Wallet, LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NAV = [
   { to: "/produttore", end: true, label: "Rivenditori", Icon: Users },
@@ -17,6 +18,7 @@ const NAV = [
  * Responsive: sidebar su desktop (lg+), top-bar orizzontale su mobile.
  */
 export function ProduttoreLayout() {
+  const t = useT();
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -32,7 +34,7 @@ export function ProduttoreLayout() {
         <div className="border-b p-4">
           <img src={ediliziaLogo} alt="Edilizia in Cloud" className="h-8 object-contain" />
           <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-            <Factory className="h-3.5 w-3.5" /> Area Produttore
+            <Factory className="h-3.5 w-3.5" /> {t("Area Produttore")}
           </p>
         </div>
         <nav className="flex-1 space-y-1 p-2">
@@ -49,7 +51,7 @@ export function ProduttoreLayout() {
               }
             >
               <Icon className="h-4 w-4" />
-              {label}
+              {t(label)}
             </NavLink>
           ))}
         </nav>
@@ -60,7 +62,7 @@ export function ProduttoreLayout() {
             className="w-full justify-start gap-2 text-muted-foreground"
             onClick={handleLogout}
           >
-            <LogOut className="h-4 w-4" /> Esci
+            <LogOut className="h-4 w-4" /> {t("Esci")}
           </Button>
         </div>
       </aside>
@@ -82,7 +84,7 @@ export function ProduttoreLayout() {
               }
             >
               <Icon className="h-3.5 w-3.5" />
-              {label}
+              {t(label)}
             </NavLink>
           ))}
         </nav>
@@ -91,7 +93,7 @@ export function ProduttoreLayout() {
           size="icon"
           className="h-8 w-8 shrink-0 text-muted-foreground"
           onClick={handleLogout}
-          aria-label="Esci"
+          aria-label={t("Esci")}
         >
           <LogOut className="h-4 w-4" />
         </Button>

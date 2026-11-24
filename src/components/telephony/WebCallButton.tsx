@@ -1,6 +1,7 @@
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Phone } from "lucide-react";
 import { useSoftphoneOptional } from "./SoftphoneProvider";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface WebCallButtonProps {
   phone?: string | null;
@@ -27,6 +28,7 @@ export function WebCallButton({
   className,
   iconOnly = false,
 }: WebCallButtonProps) {
+  const t = useT();
   const softphone = useSoftphoneOptional();
   const disabled = !phone;
   const busy = softphone?.status && softphone.status !== "idle";
@@ -44,10 +46,10 @@ export function WebCallButton({
       className={className}
       disabled={disabled || !!busy}
       onClick={onClick}
-      title={disabled ? "Numero mancante" : label}
+      title={disabled ? t("Numero mancante") : t(label)}
     >
       <Phone className={iconOnly ? "h-4 w-4" : "h-3.5 w-3.5 mr-2"} />
-      {!iconOnly && label}
+      {!iconOnly && t(label)}
     </Button>
   );
 }

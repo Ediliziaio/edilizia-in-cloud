@@ -23,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useBillingInfo, useOpenBillingPortal } from "@/hooks/useBilling";
 import { formatCurrency } from "@/lib/formatters";
 import { EMAIL_ASSISTENZA } from "@/lib/impostazioni/contattiEdiliziaInCloud";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ function PlanOptionCard({
   cycle: "monthly" | "yearly";
   selected: boolean;
 }) {
+  const t = useT();
   const yearly = cycle === "yearly" && plan.hasYearlyPrice;
   const price = yearly ? plan.priceYearly : plan.priceMonthly;
   return (
@@ -93,7 +95,7 @@ function PlanOptionCard({
         </div>
         <div className="flex items-baseline shrink-0">
           <span className="text-2xl font-bold tabular-nums">{formatCurrency(price)}</span>
-          <span className="ml-1 text-xs text-muted-foreground">/{yearly ? "anno" : "mese"}</span>
+          <span className="ml-1 text-xs text-muted-foreground">/{yearly ? t("anno") : t("mese")}</span>
         </div>
       </div>
       {plan.features.length > 0 && (
@@ -105,9 +107,7 @@ function PlanOptionCard({
             </li>
           ))}
           {plan.features.length > 4 && (
-            <li className="text-xs text-muted-foreground/70 pl-5">
-              + altre {plan.features.length - 4} funzionalità
-            </li>
+            <li className="text-xs text-muted-foreground/70 pl-5">{t("+ altre {n} funzionalità", { n: plan.features.length - 4 })}</li>
           )}
         </ul>
       )}
@@ -129,6 +129,7 @@ export function PlanChangeDialog({
   onOpenChange: (open: boolean) => void;
   direction: "upgrade" | "downgrade";
 }) {
+  const t = useT();
   const { data: billing } = useBillingInfo();
   const { data: plans = [], isLoading } = useSelectablePlans();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
@@ -165,12 +166,12 @@ export function PlanChangeDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            {direction === "upgrade" ? "Scegli il piano superiore" : "Scegli il piano più economico"}
+            {direction === "upgrade" ? t("Scegli il piano superiore") : t("Scegli il piano più economico")}
           </DialogTitle>
           <DialogDescription>
             {direction === "upgrade"
-              ? "Sblocchi più funzioni da subito. Confermi il cambio su Stripe e paghi solo la differenza per i giorni che restano."
-              : "Il cambio è confermato su Stripe: l'eventuale credito residuo viene scalato dai prossimi addebiti."}
+              ? t("Sblocchi più funzioni da subito. Confermi il cambio su Stripe e paghi solo la differenza per i giorni che restano.")
+              : t("Il cambio è confermato su Stripe: l'eventuale credito residuo viene scalato dai prossimi addebiti.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -182,12 +183,12 @@ export function PlanChangeDialog({
           <div className="py-8 text-center space-y-2">
             <p className="font-medium text-sm">
               {direction === "upgrade"
-                ? "Sei già sul piano più completo."
-                : "Non ci sono piani più economici del tuo."}
+                ? t("Sei già sul piano più completo.")
+                : t("Non ci sono piani più economici del tuo.")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Hai esigenze particolari?{" "}
-              <a href={`mailto:${EMAIL_ASSISTENZA}`} className="text-primary hover:underline">Scrivici</a>
+              {t("Hai esigenze particolari?")}{" "}
+              <a href={`mailto:${EMAIL_ASSISTENZA}`} className="text-primary hover:underline">{t("Scrivici")}</a>
             </p>
           </div>
         ) : (
@@ -205,10 +206,10 @@ export function PlanChangeDialog({
         <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
           <Button onClick={confirm} disabled={!selected || isPending} className="w-full">
             {isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-            {selected ? `Continua con ${selected.name}` : "Seleziona un piano"}
+            {selected ? t("Continua con {name}", { name: String(selected.name ?? "") }) : t("Seleziona un piano")}
           </Button>
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full">
-            Annulla
+            {t("Annulla")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -224,6 +225,7 @@ export function CancelPlanDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const { data: billing } = useBillingInfo();
   const { data: plans = [] } = useSelectablePlans();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
@@ -246,12 +248,12 @@ export function CancelPlanDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <XCircle className="h-5 w-5 text-rose-500" />
-            Prima di annullare…
+            {t("Prima di annullare…")}
           </DialogTitle>
           <DialogDescription>
             {cheaper.length > 0
-              ? "Perderai commesse, fatture e documenti attivi. Un piano più economico ti mantiene tutto a meno."
-              : "Perderai l'accesso a commesse, fatture e documenti al termine del periodo già pagato."}
+              ? t("Perderai commesse, fatture e documenti attivi. Un piano più economico ti mantiene tutto a meno.")
+              : t("Perderai l'accesso a commesse, fatture e documenti al termine del periodo già pagato.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -283,7 +285,7 @@ export function CancelPlanDialog({
               }}
             >
               {isPending && action === "downgrade" ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-              {selected ? `Passa a ${selected.name}` : "Scegli un piano più economico"}
+              {selected ? t("Passa a {name}", { name: String(selected.name ?? "") }) : t("Scegli un piano più economico")}
             </Button>
           )}
           <Button
@@ -296,10 +298,10 @@ export function CancelPlanDialog({
             }}
           >
             {isPending && action === "cancel" ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-            Voglio comunque annullare il piano
+            {t("Voglio comunque annullare il piano")}
           </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending} className="w-full">
-            Ho cambiato idea, resto così
+            {t("Ho cambiato idea, resto così")}
           </Button>
         </DialogFooter>
       </DialogContent>

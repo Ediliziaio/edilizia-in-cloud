@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Onboarding di scelta settore (vertical) aziendale.
@@ -118,6 +119,7 @@ const VERTICAL_KEY_TO_MODULE_SLUG: Record<string, ModuloVendutaSlug> = {
 };
 
 export default function OnboardingVertical() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, refreshAuth, role, userRoles, isImpersonating } = useAuth();
   // Il settore lo sceglie il titolare o l'amministratore. Chi arriva qui da
@@ -164,7 +166,7 @@ export default function OnboardingVertical() {
       return { verticalKey, legacy };
     },
     onSuccess: async ({ legacy }) => {
-      toast.success("Settore salvato");
+      toast.success(t("Settore salvato"));
       await refreshAuth();
       // Catalogo di esempio disponibile per i serramentisti.
       if (legacy === "serramentista") {
@@ -176,7 +178,7 @@ export default function OnboardingVertical() {
     },
     onError: (err: Error) => {
       captureVelocityError("onboarding.vertical.save", err, { companyId });
-      toast.error("Errore salvataggio settore", { description: err.message });
+      toast.error(t("Errore salvataggio settore"), { description: err.message });
     },
   });
 
@@ -203,15 +205,15 @@ export default function OnboardingVertical() {
     onSuccess: (data) => {
       const cats = data.categorie_create ?? 0;
       const fams = data.famiglie_create ?? 0;
-      toast.success("Catalogo installato", {
-        description: `${cats} categorie, ${fams} famiglie create.`,
+      toast.success(t("Catalogo installato"), {
+        description: t("{cats} categorie, {fams} famiglie create.", { cats: String(cats ?? ""), fams: String(fams ?? "") }),
       });
       setInstallDialogOpen(false);
       navigate("/azienda", { replace: true });
     },
     onError: (err: Error) => {
       captureVelocityError("onboarding.vertical.install_catalog", err, { companyId });
-      toast.error("Errore installazione catalogo", { description: err.message });
+      toast.error(t("Errore installazione catalogo"), { description: err.message });
     },
   });
 
@@ -225,14 +227,13 @@ export default function OnboardingVertical() {
       <div className="min-h-screen bg-muted/30 py-10 px-4">
         <Card className="mx-auto max-w-lg">
           <CardHeader>
-            <CardTitle>Il settore lo sceglie l'amministratore</CardTitle>
+            <CardTitle>{t("Il settore lo sceglie l'amministratore")}</CardTitle>
             <CardDescription>
-              Il settore principale dell'azienda lo imposta il titolare o l'amministratore.
-              Tu puoi lavorare normalmente: quando lo avranno scelto, lo vedrai applicato.
+              {t("Il settore principale dell'azienda lo imposta il titolare o l'amministratore. Tu puoi lavorare normalmente: quando lo avranno scelto, lo vedrai applicato.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/azienda", { replace: true })}>Vai alla tua area</Button>
+            <Button onClick={() => navigate("/azienda", { replace: true })}>{t("Vai alla tua area")}</Button>
           </CardContent>
         </Card>
       </div>
@@ -243,9 +244,9 @@ export default function OnboardingVertical() {
     <div className="min-h-screen bg-muted/30 py-6 sm:py-10 px-3 sm:px-4">
       <div className="mx-auto max-w-5xl">
         <header className="mb-6 sm:mb-8 text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Quale è il tuo settore?</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("Quale è il tuo settore?")}</h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-2">
-            Scegli il settore principale della tua azienda. Potrai raffinare in seguito dalle impostazioni.
+            {t("Scegli il settore principale della tua azienda. Potrai raffinare in seguito dalle impostazioni.")}
           </p>
         </header>
 
@@ -259,19 +260,19 @@ export default function OnboardingVertical() {
           <Card className="border-red-200 dark:border-red-900/40">
             <CardContent className="py-12 text-center">
               <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-500/70" aria-hidden="true" />
-              <p className="text-sm font-medium mb-1">Impossibile caricare i settori</p>
+              <p className="text-sm font-medium mb-1">{t("Impossibile caricare i settori")}</p>
               <p className="text-xs text-muted-foreground mb-4">
-                Si è verificato un errore nel recupero dei settori. Controlla la connessione e riprova.
+                {t("Si è verificato un errore nel recupero dei settori. Controlla la connessione e riprova.")}
               </p>
               <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
-                <Loader2 className={cn("h-3.5 w-3.5", isRefetching && "animate-spin")} aria-hidden="true" /> Riprova
+                <Loader2 className={cn("h-3.5 w-3.5", isRefetching && "animate-spin")} aria-hidden="true" /> {t("Riprova")}
               </Button>
             </CardContent>
           </Card>
         ) : verticals.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center text-sm text-muted-foreground">
-              Nessun settore disponibile al momento. Riprova più tardi o contatta il supporto.
+              {t("Nessun settore disponibile al momento. Riprova più tardi o contatta il supporto.")}
             </CardContent>
           </Card>
         ) : (
@@ -302,7 +303,7 @@ export default function OnboardingVertical() {
                   {isSelected && (
                     <Badge className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 gap-1 bg-primary text-primary-foreground text-[10px] sm:text-xs">
                       <Check className="h-3 w-3" aria-hidden="true" />
-                      Selezionato
+                      {t("Selezionato")}
                     </Badge>
                   )}
                   <CardHeader className="space-y-2 sm:space-y-3 p-4 sm:p-6">
@@ -350,21 +351,19 @@ export default function OnboardingVertical() {
             <p className="leading-relaxed">
               {selectedModule.stato === "attivo" && (
                 <>
-                  <strong>Modulo {selectedModule.modulo.nome} incluso nel tuo piano.</strong>{" "}
-                  Lo strumento dedicato sarà subito disponibile dopo l'accesso.
+                  <strong>{t("Modulo {nome} incluso nel tuo piano.", { nome: String(selectedModule.modulo.nome ?? "") })}</strong>{" "}
+                  {t("Lo strumento dedicato sarà subito disponibile dopo l'accesso.")}
                 </>
               )}
               {selectedModule.stato === "bloccato" && (
                 <>
-                  <strong>Questo settore usa il modulo {selectedModule.modulo.nome}</strong> (€
-                  {selectedModule.modulo.prezzoMensile}/mese, incluso nei piani Pro ed Enterprise). Potrai
-                  attivarlo dalla sezione <em>Moduli</em> dopo l'accesso — il settore resta salvato.
+                  <strong>{t("Questo settore usa il modulo {nome}", { nome: String(selectedModule.modulo.nome ?? "") })}</strong> (€
+                  {selectedModule.modulo.prezzoMensile}{t("/mese, incluso nei piani Pro ed Enterprise). Potrai attivarlo dalla sezione")} <em>{t("Moduli")}</em> {t("dopo l'accesso — il settore resta salvato.")}
                 </>
               )}
               {selectedModule.stato === "coming_soon" && (
                 <>
-                  <strong>Il modulo {selectedModule.modulo.nome} è in arrivo.</strong> Per ora avrai gli
-                  strumenti generali; ti avviseremo al rilascio.
+                  <strong>{t("Il modulo {nome} è in arrivo.", { nome: String(selectedModule.modulo.nome ?? "") })}</strong> {t("Per ora avrai gli strumenti generali; ti avviseremo al rilascio.")}
                 </>
               )}
             </p>
@@ -381,7 +380,7 @@ export default function OnboardingVertical() {
             disabled={saveVertical.isPending}
             className="h-10 w-full sm:w-auto"
           >
-            Salta per ora
+            {t("Salta per ora")}
           </Button>
           <Button
             onClick={() => selected && saveVertical.mutate(selected)}
@@ -391,10 +390,10 @@ export default function OnboardingVertical() {
             {saveVertical.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                Salvataggio…
+                {t("Salvataggio…")}
               </>
             ) : (
-              "Conferma settore"
+              t("Conferma settore")
             )}
           </Button>
         </footer>
@@ -410,11 +409,9 @@ export default function OnboardingVertical() {
       >
         <DialogContent className="w-[96vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Installa il catalogo di esempio</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{t("Installa il catalogo di esempio")}</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Vuoi installare il catalogo di esempio serramenti? Troverai 11 categorie e oltre 30 famiglie
-              (finestre, porte finestre, scorrevoli, persiane, tapparelle, zanzariere…) già strutturate
-              con assi e varianti — <strong>senza prezzi</strong>. Potrai modificarlo liberamente.
+              {t("Vuoi installare il catalogo di esempio serramenti? Troverai 11 categorie e oltre 30 famiglie (finestre, porte finestre, scorrevoli, persiane, tapparelle, zanzariere…) già strutturate con assi e varianti —")} <strong>{t("senza prezzi")}</strong>{t(". Potrai modificarlo liberamente.")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -427,7 +424,7 @@ export default function OnboardingVertical() {
               disabled={installCatalog.isPending}
               className="h-10 w-full sm:w-auto"
             >
-              Parti da zero
+              {t("Parti da zero")}
             </Button>
             <Button
               onClick={() => installCatalog.mutate()}
@@ -437,10 +434,10 @@ export default function OnboardingVertical() {
               {installCatalog.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                  Installazione…
+                  {t("Installazione…")}
                 </>
               ) : (
-                "Installa catalogo"
+                t("Installa catalogo")
               )}
             </Button>
           </DialogFooter>

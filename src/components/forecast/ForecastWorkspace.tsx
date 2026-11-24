@@ -49,19 +49,20 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Formati ────────────────────────────────────────────────────────────────────────────────
 const money = (cents: number | null): string =>
   cents == null ? "Non disponibile" : formatCurrency(cents / 100);
 const shortDate = (date: string | null): string =>
   date
-    ? calendarDate(date).toLocaleDateString("it-IT", {
+    ? calendarDate(date).toLocaleDateString(intlCampo(), {
         day: "numeric",
         month: "short",
       })
     : "Da definire";
 const fullDate = (date: string): string =>
-  calendarDate(date).toLocaleDateString("it-IT", {
+  calendarDate(date).toLocaleDateString(intlCampo(), {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -220,6 +221,7 @@ function SourceIssues({
   onRefresh: () => void;
   refreshing: boolean;
 }) {
+  const t = useT();
   if (!issues.length) return null;
   return (
     <div
@@ -227,8 +229,8 @@ function SourceIssues({
       className="flex flex-col gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
     >
       <p>
-        <strong>Previsione incompleta.</strong> Non si sono caricate:{" "}
-        {issues.join(", ")}. I numeri riguardano solo i dati letti.
+        <strong>{t("Previsione incompleta.")}</strong>{" "}
+        {t("Non si sono caricate: {issues}. I numeri riguardano solo i dati letti.", { issues: issues.join(", ") })}
       </p>
       <Button
         size="sm"
@@ -237,7 +239,7 @@ function SourceIssues({
         disabled={refreshing}
         className="shrink-0"
       >
-        Riprova il caricamento
+        {t("Riprova il caricamento")}
       </Button>
     </div>
   );
@@ -251,6 +253,7 @@ function Toggle({
   onChange: (value: boolean) => void;
   children: ReactNode;
 }) {
+  const t = useT();
   // Interruttore a pillola: acceso = pieno, spento = solo bordo.
   return (
     <button
@@ -258,7 +261,7 @@ function Toggle({
       aria-pressed={checked}
       aria-label={
         typeof children === "string"
-          ? `Includi ${children.toLowerCase()}`
+          ? t("Includi {children}", { children: children.toLowerCase() })
           : undefined
       }
       onClick={() => onChange(!checked)}
@@ -308,6 +311,7 @@ export function ForecastWorkspace({
   onRefresh: () => void;
   refreshing?: boolean;
 }) {
+  const tr = useT();
   const dentroTesoreria = useLocation().pathname.includes("/tesoreria");
   const [params, setParams] = useSearchParams();
   const f = useMemo(
@@ -538,9 +542,11 @@ export function ForecastWorkspace({
   const undatedAccounts =
     data.opening.source === "banca" ? (data.opening.undatedAccounts ?? 0) : 0;
   const bankNote = bankOld
-    ? `Il saldo bancario è aggiornato al ${shortDate(data.opening.updatedAt)}: sincronizza i conti in Tesoreria.`
+    ? tr("Il saldo bancario è aggiornato al {data}: sincronizza i conti in Tesoreria.", { data: shortDate(data.opening.updatedAt) })
     : undatedAccounts
-      ? `${undatedAccounts === 1 ? "Un conto non ha" : `${undatedAccounts} conti non hanno`} la data di aggiornamento del saldo: verificalo in Tesoreria.`
+      ? undatedAccounts === 1
+        ? tr("Un conto non ha la data di aggiornamento del saldo: verificalo in Tesoreria.")
+        : tr("{n} conti non hanno la data di aggiornamento del saldo: verificalo in Tesoreria.", { n: undatedAccounts })
       : null;
   const incomplete = data.issues.length > 0;
   const issues = (
@@ -678,42 +684,42 @@ export function ForecastWorkspace({
   }[] = [
     {
       key: "incassi-scaduti",
-      title: "Incassi scaduti",
+      title: tr("Incassi scaduti"),
       rows: overdueIncome,
       hint: f.overdueIn
-        ? "Inclusi nel piano da oggi (interruttore attivo)."
-        : "Fuori dal piano finché non li includi: sollecita il cliente o segna l’incasso.",
-      fix: { to: "/azienda/scadenzario", label: "Apri Scadenzario" },
+        ? tr("Inclusi nel piano da oggi (interruttore attivo).")
+        : tr("Fuori dal piano finché non li includi: sollecita il cliente o segna l’incasso."),
+      fix: { to: "/azienda/scadenzario", label: tr("Apri Scadenzario") },
     },
     {
       key: "uscite-scadute",
-      title: "Uscite scadute non segnate pagate",
+      title: tr("Uscite scadute non segnate pagate"),
       rows: overdueExpense,
       hint: f.overdueOut
-        ? "Incluse nel piano da oggi (interruttore attivo)."
-        : "Fuori dal piano: se le hai già pagate segnale pagate, altrimenti includile.",
-      fix: { to: "/azienda/costi", label: "Apri Spese" },
+        ? tr("Incluse nel piano da oggi (interruttore attivo).")
+        : tr("Fuori dal piano: se le hai già pagate segnale pagate, altrimenti includile."),
+      fix: { to: "/azienda/costi", label: tr("Apri Spese") },
     },
     {
       key: "senza-data",
-      title: "Movimenti senza data",
+      title: tr("Movimenti senza data"),
       rows: projection.undated,
-      hint: "Non entrano nel saldo: aggiungi la scadenza nel documento di origine.",
+      hint: tr("Non entrano nel saldo: aggiungi la scadenza nel documento di origine."),
       fix: null,
     },
     {
       key: "stime",
-      title: "Stime incluse",
+      title: tr("Stime incluse"),
       rows: estimatesIncluded,
-      hint: "Stipendi, ricorrenze, ODA, IVA: verifica importi e date.",
+      hint: tr("Stipendi, ricorrenze, ODA, IVA: verifica importi e date."),
       fix: null,
     },
     {
       key: "doppioni",
-      title: "Possibili doppioni",
+      title: tr("Possibili doppioni"),
       rows: projection.possibleDuplicates,
-      hint: "Fatture di commessa non collegate a una rata: collegale per contarle una volta sola.",
-      fix: { to: "/azienda/ordini", label: "Apri Commesse" },
+      hint: tr("Fatture di commessa non collegate a una rata: collegale per contarle una volta sola."),
+      fix: { to: "/azienda/ordini", label: tr("Apri Commesse") },
     },
   ];
 
@@ -723,15 +729,15 @@ export function ForecastWorkspace({
         <div>
           {/* Dentro Tesoreria il titolo c'è già nella sua testata: due titoli
               uno sotto l'altro dicevano la stessa cosa. */}
-          {!dentroTesoreria && <h1 className="text-lg font-bold leading-6">Previsionale di cassa</h1>}
+          {!dentroTesoreria && <h1 className="text-lg font-bold leading-6">{tr("Previsionale di cassa")}</h1>}
           <p
             className="mt-0.5 text-xs text-muted-foreground"
             role="status"
             aria-live="polite"
           >
             {refreshing
-              ? "Caricamento dei dati in corso…"
-              : `La cassa che avrai, dal ${fullDate(data.today)}. Dati caricati alle ${new Date(data.updatedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}.`}
+              ? tr("Caricamento dei dati in corso…")
+              : tr("La cassa che avrai, dal {today}. Dati caricati alle {valore}.", { today: String(fullDate(data.today) ?? ""), valore: new Date(data.updatedAt).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" }) })}
           </p>
         </div>
         <div className="flex gap-2 print:hidden">
@@ -744,11 +750,11 @@ export function ForecastWorkspace({
             <RefreshCw
               className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")}
             />
-            {refreshing ? "Aggiornamento" : "Aggiorna"}
+            {refreshing ? tr("Aggiornamento") : tr("Aggiorna")}
           </Button>
           <Button size="sm" onClick={exportPlan} className="max-md:hidden">
             <Download className="mr-2 h-4 w-4" />
-            Esporta piano
+            {tr("Esporta piano")}
           </Button>
         </div>
       </header>
@@ -757,16 +763,16 @@ export function ForecastWorkspace({
           sotto cosa entra e quali movimenti guardare. */}
       <div
         role="group"
-        aria-label="Filtri del previsionale"
+        aria-label={tr("Filtri del previsionale")}
         className={cn(section, "divide-y print:hidden")}
       >
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3 p-3">
           <div className="flex flex-col gap-1">
-            <span className={filtroEtichetta}>Orizzonte</span>
+            <span className={filtroEtichetta}>{tr("Orizzonte")}</span>
             <div
               className="flex rounded-md bg-muted p-0.5"
               role="group"
-              aria-label="Orizzonte previsione"
+              aria-label={tr("Orizzonte previsione")}
             >
               {HORIZONS.map((days) => (
                 <button
@@ -780,16 +786,14 @@ export function ForecastWorkspace({
                     f.horizon === days &&
                       "bg-background font-semibold shadow-sm",
                   )}
-                >
-                  {days} giorni
-                </button>
+                >{tr("{days} giorni", { days: String(days ?? "") })}</button>
               ))}
             </div>
           </div>
           <label className="flex flex-col gap-1 max-md:hidden">
-            <span className={filtroEtichetta}>Incassi</span>
+            <span className={filtroEtichetta}>{tr("Incassi")}</span>
             <UniformSelect
-              aria-label="Scenario incassi"
+              aria-label={tr("Scenario incassi")}
               className={cn(selectClass, "w-52")}
               value={f.scenario}
               onChange={(e) =>
@@ -799,21 +803,21 @@ export function ForecastWorkspace({
                 })
               }
             >
-              <option value="puntuali">Incassi puntuali</option>
+              <option value="puntuali">{tr("Incassi puntuali")}</option>
               <option value="reale" disabled={delay.days == null}>
                 {delay.days == null
-                  ? "Ritardo medio reale (non disponibile)"
-                  : `Ritardo medio reale (${delay.days} giorni)`}
+                  ? tr("Ritardo medio reale (non disponibile)")
+                  : tr("Ritardo medio reale ({days} giorni)", { days: String(delay.days ?? "") })}
               </option>
-              <option value="15">Incassi +15 giorni</option>
-              <option value="30">Incassi +30 giorni</option>
+              <option value="15">{tr("Incassi +15 giorni")}</option>
+              <option value="30">{tr("Incassi +30 giorni")}</option>
             </UniformSelect>
           </label>
           <label className="flex flex-col gap-1 max-md:hidden">
-            <span className={filtroEtichetta}>Soglia di sicurezza</span>
+            <span className={filtroEtichetta}>{tr("Soglia di sicurezza")}</span>
             <div className="relative">
               <Input
-                aria-label="Soglia di sicurezza in euro"
+                aria-label={tr("Soglia di sicurezza in euro")}
                 type="number"
                 min="0"
                 step="100"
@@ -839,9 +843,9 @@ export function ForecastWorkspace({
             onClick={() => setAdvanced((v) => !v)}
             className="max-md:hidden"
           >
-            Filtri avanzati
+            {tr("Filtri avanzati")}
             {filtered
-              ? ` · ${[f.order, f.category, f.source].filter(Boolean).length} attivi`
+              ? tr(" · {n} attivi", { n: [f.order, f.category, f.source].filter(Boolean).length })
               : ""}
           </Button>
           <Button
@@ -851,7 +855,7 @@ export function ForecastWorkspace({
             className="ml-auto h-9 text-muted-foreground max-md:hidden"
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-            Azzera filtri
+            {tr("Azzera filtri")}
           </Button>
         </div>
         <div id="forecast-advanced" hidden={!advanced}>
@@ -859,14 +863,14 @@ export function ForecastWorkspace({
             <div
               className="flex flex-wrap items-center gap-1.5"
               role="group"
-              aria-label="Cosa includere"
+              aria-label={tr("Cosa includere")}
             >
-              <span className={cn(filtroEtichetta, "mr-1")}>Includi</span>
+              <span className={cn(filtroEtichetta, "mr-1")}>{tr("Includi")}</span>
               <Toggle
                 checked={f.estimates}
                 onChange={(v) => setFilter({ stime: v ? null : "0" })}
               >
-                Stime
+                {tr("Stime")}
               </Toggle>
               <Toggle
                 checked={f.overdueIn}
@@ -874,7 +878,7 @@ export function ForecastWorkspace({
                   setFilter({ "incassi-scaduti": v ? "1" : null })
                 }
               >
-                Incassi scaduti
+                {tr("Incassi scaduti")}
               </Toggle>
               <Toggle
                 checked={f.overdueOut}
@@ -882,28 +886,28 @@ export function ForecastWorkspace({
                   setFilter({ "uscite-scadute": v ? "1" : null })
                 }
               >
-                Uscite scadute
+                {tr("Uscite scadute")}
               </Toggle>
               <Toggle
                 checked={f.vatEstimates}
                 onChange={(v) => setFilter({ "iva-stimata": v ? "1" : null })}
               >
-                Stima IVA preliminare
+                {tr("Stima IVA preliminare")}
               </Toggle>
             </div>
             <div
               className="flex flex-wrap items-center gap-1.5"
               role="group"
-              aria-label="Filtra i movimenti"
+              aria-label={tr("Filtra i movimenti")}
             >
-              <span className={cn(filtroEtichetta, "mr-1")}>Filtra</span>
+              <span className={cn(filtroEtichetta, "mr-1")}>{tr("Filtra")}</span>
               <UniformSelect
-                aria-label="Commessa"
+                aria-label={tr("Commessa")}
                 className={cn(selectClass, "w-44")}
                 value={f.order}
                 onChange={(e) => setFilter({ commessa: e.target.value })}
               >
-                <option value="">Tutte le commesse</option>
+                <option value="">{tr("Tutte le commesse")}</option>
                 {orders.map(([id, label]) => (
                   <option key={id} value={id}>
                     {label}
@@ -911,12 +915,12 @@ export function ForecastWorkspace({
                 ))}
               </UniformSelect>
               <UniformSelect
-                aria-label="Categoria"
+                aria-label={tr("Categoria")}
                 className={cn(selectClass, "w-40")}
                 value={f.category}
                 onChange={(e) => setFilter({ categoria: e.target.value })}
               >
-                <option value="">Tutte le categorie</option>
+                <option value="">{tr("Tutte le categorie")}</option>
                 {categories.map((c) => (
                   <option key={c} value={c}>
                     {FORECAST_CATEGORIES[c]}
@@ -924,12 +928,12 @@ export function ForecastWorkspace({
                 ))}
               </UniformSelect>
               <UniformSelect
-                aria-label="Fonte"
+                aria-label={tr("Fonte")}
                 className={cn(selectClass, "w-36")}
                 value={f.source}
                 onChange={(e) => setFilter({ fonte: e.target.value })}
               >
-                <option value="">Tutte le fonti</option>
+                <option value="">{tr("Tutte le fonti")}</option>
                 {sources.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -938,17 +942,14 @@ export function ForecastWorkspace({
               </UniformSelect>
             </div>
             <p className="basis-full text-xs text-muted-foreground">
-              La stima IVA è esclusa per impostazione iniziale; per includerla
-              devono essere attive anche le stime. Non è una liquidazione
-              fiscale. Spostamenti e filtri cambiano solo questa simulazione.
+              {tr("La stima IVA è esclusa per impostazione iniziale; per includerla devono essere attive anche le stime. Non è una liquidazione fiscale. Spostamenti e filtri cambiano solo questa simulazione.")}
             </p>
           </div>
         </div>
       </div>
       {filtered && (
         <p className="text-xs text-muted-foreground">
-          Vista filtrata: il saldo parte dalla disponibilità di tutta l’azienda
-          e somma solo i movimenti scelti.
+          {tr("Vista filtrata: il saldo parte dalla disponibilità di tutta l’azienda e somma solo i movimenti scelti.")}
         </p>
       )}
       {(bankNote || data.opening.warning) && (
@@ -958,13 +959,13 @@ export function ForecastWorkspace({
         >
           {data.opening.warning || bankNote}{" "}
           <Link className="font-semibold underline" to="/azienda/tesoreria">
-            Apri Tesoreria
+            {tr("Apri Tesoreria")}
           </Link>
         </p>
       )}
 
       <aside
-        aria-label="Qualità della previsione"
+        aria-label={tr("Qualità della previsione")}
         className={cn(
           // Da telefono resta l'avviso, senza il conto delle fonti.
           "rounded-xl border px-4 py-3 max-md:[&>*:not(:first-child)]:hidden",
@@ -983,8 +984,8 @@ export function ForecastWorkspace({
               data.opening.cents === null ||
               projection.undated.length ||
               projection.possibleDuplicates.length
-                ? "Previsione da verificare"
-                : "Fonti caricate · verifica le ipotesi"}
+                ? tr("Previsione da verificare")
+                : tr("Fonti caricate · verifica le ipotesi")}
             </h2>
           </div>
           <Button
@@ -992,7 +993,7 @@ export function ForecastWorkspace({
             size="sm"
             onClick={() => setFilter({ scheda: "fonti" })}
           >
-            Fonti e ipotesi
+            {tr("Fonti e ipotesi")}
             {data.warnings.length ? ` · ${data.warnings.length}` : ""}
           </Button>
         </div>
@@ -1002,57 +1003,39 @@ export function ForecastWorkspace({
             size="sm"
             disabled={!projection.undated.length}
             onClick={() => openMovements("senza-data")}
-          >
-            {projection.undated.length} senza data
-          </Button>
+          >{tr("{n} senza data", { n: projection.undated.length })}</Button>
           <Button
             variant="outline"
             size="sm"
             disabled={!projection.possibleDuplicates.length}
             onClick={() => openMovements("doppioni")}
-          >
-            {projection.possibleDuplicates.length} possibili doppioni
-          </Button>
+          >{tr("{n} possibili doppioni", { n: projection.possibleDuplicates.length })}</Button>
           <Button
             variant="outline"
             size="sm"
             disabled={!estimatesIncluded.length}
             onClick={() => openMovements("stime")}
-          >
-            {estimatesIncluded.length} stime incluse
-          </Button>
+          >{tr("{n} stime incluse", { n: estimatesIncluded.length })}</Button>
           {(!f.overdueIn || !f.overdueOut) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setFilter({ scheda: "da-sistemare" })}
             >
-              Scaduti esclusi:{" "}
-              {(!f.overdueIn ? overdueIncome.length : 0) +
-                (!f.overdueOut ? overdueExpense.length : 0)}
+              {tr("Scaduti esclusi: {n}", { n: (!f.overdueIn ? overdueIncome.length : 0) +
+                (!f.overdueOut ? overdueExpense.length : 0) })}
             </Button>
           )}
         </div>
         {!!projection.undated.length && (
-          <p className="mt-2 text-xs">
-            Senza data, fuori piano: entrate{" "}
-            {money(movementTotals(projection.undated).in)} · uscite{" "}
-            {money(movementTotals(projection.undated).out)}. Importi esposti
-            separatamente, non compensati.
-          </p>
+          <p className="mt-2 text-xs">{tr("Senza data, fuori piano: entrate {in} · uscite {out}. Importi esposti separatamente, non compensati.", { in: String(money(movementTotals(projection.undated).in) ?? ""), out: String(money(movementTotals(projection.undated).out) ?? "") })}</p>
         )}
         {!!estimatesIncluded.length && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Stime nel piano: entrate{" "}
-            {money(movementTotals(estimatesIncluded).in)} · uscite{" "}
-            {money(movementTotals(estimatesIncluded).out)}.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{tr("Stime nel piano: entrate {in} · uscite {out}.", { in: String(money(movementTotals(estimatesIncluded).in) ?? ""), out: String(money(movementTotals(estimatesIncluded).out) ?? "") })}</p>
         )}
         {f.scenario === "reale" && delay.days === null && (
           <p role="status" className="mt-1 text-xs text-amber-900">
-            Storico insufficiente: il ritardo reale non è disponibile. Il
-            grafico usa il piano puntuale, non un ritardo misurato di zero
-            giorni.
+            {tr("Storico insufficiente: il ritardo reale non è disponibile. Il grafico usa il piano puntuale, non un ritardo misurato di zero giorni.")}
           </p>
         )}
       </aside>
@@ -1074,7 +1057,7 @@ export function ForecastWorkspace({
                   value={value}
                   className="min-h-9 px-3 text-xs sm:text-sm"
                 >
-                  {label}
+                  {tr(label)}
                   {value === "da-sistemare" &&
                     projection.undated.length +
                       projection.possibleDuplicates.length >
@@ -1092,7 +1075,7 @@ export function ForecastWorkspace({
               className="rounded-lg bg-muted/50 px-3 py-2"
             >
               <summary className="cursor-pointer text-sm">
-                Dettagli e fonti
+                {tr("Dettagli e fonti")}
               </summary>
               <TabsList className="mt-2 h-auto flex-wrap">
                 {TABS.filter(([key]) =>
@@ -1103,7 +1086,7 @@ export function ForecastWorkspace({
                     value={value}
                     className="min-h-9 text-xs"
                   >
-                    {label}
+                    {tr(label)}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -1118,14 +1101,14 @@ export function ForecastWorkspace({
               stato (rosso se la cassa scende sotto la soglia). */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <RiquadroNumero
-              etichetta="Disponibilità oggi"
+              etichetta={tr("Disponibilità oggi")}
               valore={money(data.opening.cents)}
               periodo={
                 data.opening.source === "banca"
-                  ? `Banca${data.opening.updatedAt ? ` · al ${shortDate(data.opening.updatedAt)}` : ""}`
+                  ? data.opening.updatedAt ? tr("Banca · al {data}", { data: shortDate(data.opening.updatedAt) }) : tr("Banca")
                   : data.opening.source === "prima-nota"
-                    ? "Prima Nota · saldo fino a oggi"
-                    : "Collega un conto o completa la Prima Nota"
+                    ? tr("Prima Nota · saldo fino a oggi")
+                    : tr("Collega un conto o completa la Prima Nota")
               }
               tono={data.opening.cents == null ? "neutro" : data.opening.cents < 0 ? "male" : "neutro"}
               // 14/11/2026: il disponibile della banca può comprendere il fido; la Tesoreria
@@ -1133,41 +1116,41 @@ export function ForecastWorkspace({
               contesto={
                 data.opening.dopoMovimenti && data.opening.bancaCents != null
                   // 15/11/2026: saldo dei conti vecchio, portato a oggi coi movimenti registrati dopo
-                  ? `Conti ${money(data.opening.bancaCents)} + ${data.opening.dopoMovimenti} movimenti registrati dopo (${money(data.opening.dopoCents ?? 0)})`
+                  ? tr("Conti {conti} + {n} movimenti registrati dopo ({dopo})", { conti: money(data.opening.bancaCents), n: data.opening.dopoMovimenti, dopo: money(data.opening.dopoCents ?? 0) })
                   : data.opening.source === "banca" && data.opening.contabileCents != null && data.opening.cents != null
                   && Math.abs(data.opening.contabileCents - data.opening.cents) >= 100
-                  ? `Saldo contabile ${money(data.opening.contabileCents)} · il disponibile comprende fidi e somme bloccate`
+                  ? tr("Saldo contabile {importo} · il disponibile comprende fidi e somme bloccate", { importo: money(data.opening.contabileCents) })
                   : undefined
               }
               // Dove va la cassa da oggi: il saldo a fine di ogni settimana dell'orizzonte.
               tendenza={data.opening.cents == null ? undefined : [data.opening.cents, ...weeks.map((w) => w.balance).filter((b): b is number => b != null)]}
-              etichettaTendenza="Saldo previsto a fine di ogni settimana, da oggi"
+              etichettaTendenza={tr("Saldo previsto a fine di ogni settimana, da oggi")}
             />
             <RiquadroNumero
-              etichetta="Punto più basso"
+              etichetta={tr("Punto più basso")}
               valore={money(projection.minimum)}
               periodo={
                 projection.minimumDate
-                  ? `Il ${shortDate(projection.minimumDate)} · nei ${f.horizon} giorni`
-                  : "Serve un saldo di partenza"
+                  ? tr("Il {data} · nei {giorni} giorni", { data: shortDate(projection.minimumDate), giorni: f.horizon })
+                  : tr("Serve un saldo di partenza")
               }
               tono={projection.minimum == null ? "neutro" : projection.need ? "male" : "buono"}
               variazione={
                 data.opening.cents && projection.minimum != null
-                  ? { pct: ((projection.minimum - data.opening.cents) / Math.abs(data.opening.cents)) * 100, nota: "Rispetto alla disponibilità di oggi" }
+                  ? { pct: ((projection.minimum - data.opening.cents) / Math.abs(data.opening.cents)) * 100, nota: tr("Rispetto alla disponibilità di oggi") }
                   : undefined
               }
             />
             <RiquadroNumero
-              etichetta="Ti mancano"
+              etichetta={tr("Ti mancano")}
               valore={money(projection.need)}
-              periodo={`per restare sopra ${money(f.threshold)}`}
+              periodo={tr("per restare sopra {soglia}", { soglia: money(f.threshold) })}
               tono={projection.need ? "male" : "buono"}
             />
             <RiquadroNumero
-              etichetta="Incassi scaduti da sollecitare"
+              etichetta={tr("Incassi scaduti da sollecitare")}
               valore={money(sum(overdueIncome))}
-              periodo={`${overdueIncome.length} ${overdueIncome.length === 1 ? "incasso" : "incassi"} oltre la scadenza`}
+              periodo={tr(overdueIncome.length === 1 ? "{n} incasso oltre la scadenza" : "{n} incassi oltre la scadenza", { n: overdueIncome.length })}
               tono={overdueIncome.length > 0 ? "attenzione" : "neutro"}
             />
           </div>
@@ -1182,29 +1165,28 @@ export function ForecastWorkspace({
             <div>
               <p className="text-xs text-muted-foreground">
                 {delayDays
-                  ? `Simulazione · incassi in ritardo di ${delayDays} giorni`
-                  : "Piano delle scadenze"}
+                  ? tr("Simulazione · incassi in ritardo di {delayDays} giorni", { delayDays: String(delayDays ?? "") })
+                  : tr("Piano delle scadenze")}
               </p>
               <h2 className="mt-0.5 text-base font-semibold">
                 {data.opening.cents == null
-                  ? "Completa il saldo per conoscere la cassa futura"
+                  ? tr("Completa il saldo per conoscere la cassa futura")
                   : projection.firstBelow
-                    ? `Sotto la soglia dal ${shortDate(projection.firstBelow)}`
-                    : "La cassa prevista resta sopra la soglia"}
+                    ? tr("Sotto la soglia dal {firstBelow}", { firstBelow: String(shortDate(projection.firstBelow) ?? "") })
+                    : tr("La cassa prevista resta sopra la soglia")}
               </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {data.opening.cents == null
-                  ? "Entrate e uscite sono consultabili. Il saldo non viene sostituito con uno zero."
-                  : `A fine periodo: ${money(projection.finalBalance)} · flusso del periodo: ${money(projection.net)}.`}
+                  ? tr("Entrate e uscite sono consultabili. Il saldo non viene sostituito con uno zero.")
+                  : tr("A fine periodo: {finalBalance} · flusso del periodo: {net}.", { finalBalance: String(money(projection.finalBalance) ?? ""), net: String(money(projection.net) ?? "") })}
               </p>
               {data.opening.cents !== null && (
                 <p className="mt-1 text-sm">
-                  <strong>{risk.daysBelow} giorni</strong> con saldo a fine
-                  giornata sotto soglia
+                  <strong>{tr("{daysBelow} giorni", { daysBelow: String(risk.daysBelow ?? "") })}</strong> {tr("con saldo a fine giornata sotto soglia")}
                   {risk.recovery
-                    ? ` · primo rientro previsto ${shortDate(risk.recovery)}`
+                    ? tr(" · primo rientro previsto {recovery}", { recovery: String(shortDate(risk.recovery) ?? "") })
                     : risk.daysBelow
-                      ? " · nessun rientro a fine giornata nell’orizzonte"
+                      ? ` ${tr("· nessun rientro a fine giornata nell’orizzonte")}`
                       : ""}
                   .
                 </p>
@@ -1214,14 +1196,13 @@ export function ForecastWorkspace({
                 projection.finalBalance !== null &&
                 projection.finalBalance >= f.threshold && (
                   <p className="mt-1 text-xs text-destructive">
-                    Il saldo finale positivo non elimina il fabbisogno nel
-                    periodo intermedio.
+                    {tr("Il saldo finale positivo non elimina il fabbisogno nel periodo intermedio.")}
                   </p>
                 )}
               {!!projection.need && !!risk.expensesToMinimum.length && (
                 <details className="mt-2 text-xs">
                   <summary className="cursor-pointer font-medium">
-                    Uscite maggiori fino al minimo
+                    {tr("Uscite maggiori fino al minimo")}
                   </summary>
                   <ul className="mt-2 space-y-1.5">
                     {risk.expensesToMinimum.map((m) => (
@@ -1237,21 +1218,20 @@ export function ForecastWorkspace({
                         </Link>
                         <span className="tabular-nums">
                           {money(m.cents)} · {shortDate(m.date)}
-                          {m.estimated ? " · stima" : ""}
+                          {m.estimated ? ` ${tr("· stima")}` : ""}
                         </span>
                       </li>
                     ))}
                   </ul>
                   <p className="mt-1 text-muted-foreground">
-                    Il minimo dipende anche dagli incassi e dal saldo iniziale;
-                    queste non sono tutte le uscite del periodo.
+                    {tr("Il minimo dipende anche dagli incassi e dal saldo iniziale; queste non sono tutte le uscite del periodo.")}
                   </p>
                 </details>
               )}
               {data.opening.cents != null && (incomplete || bankNote) && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {incomplete
-                    ? `Verifica prima di decidere: mancano ${data.issues.join(", ")}.`
+                    ? tr("Verifica prima di decidere: mancano {issues}.", { issues: data.issues.join(", ") })
                     : bankNote}
                 </p>
               )}
@@ -1262,14 +1242,14 @@ export function ForecastWorkspace({
                 size="sm"
                 onClick={() => setFilter({ scheda: "scenari" })}
               >
-                Confronta scenari
+                {tr("Confronta scenari")}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => openMovements("piano")}
               >
-                Esamina i movimenti
+                {tr("Esamina i movimenti")}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
@@ -1296,14 +1276,12 @@ export function ForecastWorkspace({
             {usciteCategoria.length > 1 && (
               <div className="mt-3 rounded-2xl border bg-card p-4 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-sm font-semibold text-foreground">Dove va la cassa</p>
-                  <p className="text-xs text-muted-foreground">
-                    Uscite dei prossimi {f.horizon} giorni per categoria · clicca per filtrare
-                  </p>
+                  <p className="text-sm font-semibold text-foreground">{tr("Dove va la cassa")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Uscite dei prossimi {horizon} giorni per categoria · clicca per filtrare", { horizon: String(f.horizon ?? "") })}</p>
                 </div>
                 <Ciambella
-                  titolo="Uscite per categoria"
-                  etichettaCentro="Uscite"
+                  titolo={tr("Uscite per categoria")}
+                  etichettaCentro={tr("Uscite")}
                   dimensione={150}
                   fette={usciteCategoria.map(([cat, cents]) => ({ nome: FORECAST_CATEGORIES[cat], valore: cents / 100 }))}
                   onFetta={(nome) => {
@@ -1321,23 +1299,22 @@ export function ForecastWorkspace({
             >
               <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
                 <SheetHeader>
-                  <SheetTitle>Movimenti del periodo</SheetTitle>
+                  <SheetTitle>{tr("Movimenti del periodo")}</SheetTitle>
                   <SheetDescription>
-                    Dettaglio della simulazione; aprire una voce non modifica la
-                    scadenza.
+                    {tr("Dettaglio della simulazione; aprire una voce non modifica la scadenza.")}
                   </SheetDescription>
                 </SheetHeader>
                 {chartPeriod && (
                   <div
                     className="border-t"
-                    aria-label="Movimenti del periodo scelto"
+                    aria-label={tr("Movimenti del periodo scelto")}
                   >
                     <div className="flex items-center justify-between gap-2 px-4 py-2">
                       <p className="text-sm font-medium">
                         {chartPeriod.start === chartPeriod.end
                           ? fullDate(chartPeriod.start)
                           : `${shortDate(chartPeriod.start)} – ${shortDate(chartPeriod.end)}`}{" "}
-                        · {chartMovements.length} movimenti
+                        · {tr("{n} movimenti", { n: chartMovements.length })}
                       </p>
                       <div className="flex gap-1">
                         <Button
@@ -1345,12 +1322,12 @@ export function ForecastWorkspace({
                           size="sm"
                           onClick={() => openMovements("piano", chartPeriod)}
                         >
-                          Apri in Movimenti
+                          {tr("Apri in Movimenti")}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label="Chiudi il periodo"
+                          aria-label={tr("Chiudi il periodo")}
                           onClick={() => setChartPeriod(null)}
                         >
                           <X className="h-4 w-4" />
@@ -1366,7 +1343,7 @@ export function ForecastWorkspace({
                           >
                             <Link
                               to={m.href}
-                              aria-label={`Apri fonte: ${m.description}`}
+                              aria-label={tr("Apri fonte: {description}", { description: String(m.description ?? "") })}
                               className="min-w-0 truncate hover:underline"
                             >
                               {m.description}
@@ -1390,14 +1367,11 @@ export function ForecastWorkspace({
                       </ul>
                     ) : (
                       <p className="px-4 pb-3 text-xs text-muted-foreground">
-                        Nessun movimento in questo periodo.
+                        {tr("Nessun movimento in questo periodo.")}
                       </p>
                     )}
                     {chartMovements.length > 12 && (
-                      <p className="px-4 py-2 text-xs text-muted-foreground">
-                        Mostrati 12 di {chartMovements.length} movimenti. Usa
-                        «Apri in Movimenti» per l’elenco completo.
-                      </p>
+                      <p className="px-4 py-2 text-xs text-muted-foreground">{tr("Mostrati 12 di {n} movimenti. Usa «Apri in Movimenti» per l’elenco completo.", { n: chartMovements.length })}</p>
                     )}
                   </div>
                 )}
@@ -1410,17 +1384,17 @@ export function ForecastWorkspace({
           {issues}
           <section
             className={cn(section, "overflow-hidden")}
-            aria-label="Confronto scenari di cassa"
+            aria-label={tr("Confronto scenari di cassa")}
           >
             <div className="border-b p-4">
               <h2 className="font-semibold">
-                Quanto cambia se gli incassi ritardano?
+                {tr("Quanto cambia se gli incassi ritardano?")}
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Ritardo medio reale:{" "}
+                {tr("Ritardo medio reale:")}{" "}
                 {delay.days === null
-                  ? "non disponibile"
-                  : `${delay.days} giorni su ${delay.samples} incassi con data attesa`}
+                  ? tr("non disponibile")
+                  : tr("{days} giorni su {samples} incassi con data attesa", { days: String(delay.days ?? ""), samples: String(delay.samples ?? "") })}
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -1441,7 +1415,7 @@ export function ForecastWorkspace({
                         key={i}
                         className="whitespace-nowrap px-3 py-2 text-left font-medium"
                       >
-                        {label}
+                        {tr(label)}
                       </th>
                     ))}
                   </tr>
@@ -1459,10 +1433,10 @@ export function ForecastWorkspace({
                         scope="row"
                         className="whitespace-nowrap px-3 py-3 text-left font-medium"
                       >
-                        {c.label}
+                        {tr(c.label)}
                         {f.scenario === c.key && (
                           <span className="ml-2 text-xs text-blue-700">
-                            Attivo
+                            {tr("Attivo")}
                           </span>
                         )}
                       </th>
@@ -1472,7 +1446,7 @@ export function ForecastWorkspace({
                       <td className="whitespace-nowrap px-3 py-2">
                         {c.projection
                           ? shortDate(c.projection.minimumDate)
-                          : "Storico insufficiente"}
+                          : tr("Storico insufficiente")}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                         {money(c.projection?.need ?? null)}
@@ -1486,7 +1460,7 @@ export function ForecastWorkspace({
                       <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                         {c.projection
                           ? money(movementTotals(c.projection.outside).in)
-                          : "Non disponibile"}
+                          : tr("Non disponibile")}
                       </td>
                       <td className="px-3 py-2">
                         <Button
@@ -1499,9 +1473,9 @@ export function ForecastWorkspace({
                               scheda: null,
                             })
                           }
-                          aria-label={`Usa scenario ${c.label}`}
+                          aria-label={tr("Usa scenario {label}", { label: String(c.label ?? "") })}
                         >
-                          Usa
+                          {tr("Usa")}
                         </Button>
                       </td>
                     </tr>
@@ -1510,9 +1484,7 @@ export function ForecastWorkspace({
               </table>
             </div>
             <p className="border-t p-3 text-xs text-muted-foreground">
-              Le esclusioni e le ipotesi indicate sopra valgono per ogni
-              scenario. Il fabbisogno è una differenza matematica dalla soglia,
-              non un finanziamento disponibile.
+              {tr("Le esclusioni e le ipotesi indicate sopra valgono per ogni scenario. Il fabbisogno è una differenza matematica dalla soglia, non un finanziamento disponibile.")}
             </p>
           </section>
         </TabsContent>
@@ -1524,7 +1496,7 @@ export function ForecastWorkspace({
             <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <caption className="sr-only">
-                  Piano settimanale con minimo giornaliero e saldo finale
+                  {tr("Piano settimanale con minimo giornaliero e saldo finale")}
                 </caption>
                 <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
@@ -1542,11 +1514,11 @@ export function ForecastWorkspace({
                           i > 0 && "text-right",
                         )}
                       >
-                        {label}
+                        {tr(label)}
                       </th>
                     ))}
                     <th>
-                      <span className="sr-only">Dettaglio</span>
+                      <span className="sr-only">{tr("Dettaglio")}</span>
                     </th>
                   </tr>
                 </thead>
@@ -1562,7 +1534,7 @@ export function ForecastWorkspace({
                           {shortDate(w.start)} – {shortDate(w.end)}
                           {below && (
                             <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive">
-                              sotto soglia
+                              {tr("sotto soglia")}
                             </span>
                           )}
                         </td>
@@ -1587,7 +1559,7 @@ export function ForecastWorkspace({
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={`Apri movimenti ${shortDate(w.start)}`}
+                            aria-label={tr("Apri movimenti {start}", { start: String(shortDate(w.start) ?? "") })}
                             onClick={() =>
                               openMovements("piano", {
                                 start: w.start,
@@ -1614,7 +1586,7 @@ export function ForecastWorkspace({
                       "w-full px-4 py-3 text-left",
                       below && "bg-destructive/5",
                     )}
-                    aria-label={`Apri settimana ${shortDate(w.start)}`}
+                    aria-label={tr("Apri settimana {start}", { start: String(shortDate(w.start) ?? "") })}
                     onClick={() =>
                       openMovements("piano", { start: w.start, end: w.end })
                     }
@@ -1652,7 +1624,7 @@ export function ForecastWorkspace({
           {issues}
           <div className="flex flex-wrap items-center gap-2">
             <UniformSelect
-              aria-label="Movimenti da mostrare"
+              aria-label={tr("Movimenti da mostrare")}
               className={cn(selectClass, "h-10 text-sm")}
               value={view}
               onChange={(e) => {
@@ -1662,19 +1634,19 @@ export function ForecastWorkspace({
             >
               {VIEWS.map(([value, label]) => (
                 <option key={value} value={value}>
-                  {label}
+                  {tr(label)}
                 </option>
               ))}
             </UniformSelect>
             {period && (
               <span className="flex items-center gap-1 text-sm">
-                Periodo {shortDate(period.start)} – {shortDate(period.end)}
+                {tr("Periodo {inizio} – {fine}", { inizio: shortDate(period.start), fine: shortDate(period.end) })}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setPeriod(null)}
                 >
-                  Rimuovi filtro periodo
+                  {tr("Rimuovi filtro periodo")}
                 </Button>
               </span>
             )}
@@ -1685,7 +1657,7 @@ export function ForecastWorkspace({
                 onClick={() => saveOverrides({})}
               >
                 <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                Ripristina tutte le date ({Object.keys(overrides).length})
+                {tr("Ripristina tutte le date ({n})", { n: Object.keys(overrides).length })}
               </Button>
             )}
           </div>
@@ -1702,8 +1674,8 @@ export function ForecastWorkspace({
             }}
             emptyHint={
               view === "piano"
-                ? "Nessun movimento nel periodo: allarga l’orizzonte o togli i filtri."
-                : "Niente in questa vista. Prova un’altra vista o togli i filtri comuni."
+                ? tr("Nessun movimento nel periodo: allarga l’orizzonte o togli i filtri.")
+                : tr("Niente in questa vista. Prova un’altra vista o togli i filtri comuni.")
             }
           />
         </TabsContent>
@@ -1714,8 +1686,8 @@ export function ForecastWorkspace({
           <div className={cn(section, "divide-y")}>
             {todo.every((t) => !t.rows.length) ? (
               <EmptyState
-                title="Niente da sistemare"
-                hint="Scadenze, date e collegamenti sono a posto per il piano scelto."
+                title={tr("Niente da sistemare")}
+                hint={tr("Scadenze, date e collegamenti sono a posto per il piano scelto.")}
               />
             ) : (
               todo.map((t) => (
@@ -1742,10 +1714,10 @@ export function ForecastWorkspace({
                       variant="outline"
                       size="sm"
                       disabled={!t.rows.length}
-                      aria-label={`Vedi ${t.title}`}
+                      aria-label={tr("Vedi {title}", { title: String(t.title ?? "") })}
                       onClick={() => openMovements(t.key)}
                     >
-                      Vedi
+                      {tr("Vedi")}
                       <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -1766,64 +1738,51 @@ export function ForecastWorkspace({
           {issues}
           <div className={cn(section, "space-y-3 p-4 text-sm leading-relaxed")}>
             <div>
-              <h2 className="font-semibold">Cosa entra nel piano</h2>
+              <h2 className="font-semibold">{tr("Cosa entra nel piano")}</h2>
               <p className="mt-1 text-muted-foreground">
-                Partenza:{" "}
-                {data.opening.source === "banca"
-                  ? "saldo disponibile dei conti attivi (se manca, il saldo contabile), più i movimenti di Prima Nota registrati dopo la data del saldo"
-                  : data.opening.source === "prima-nota"
-                    ? "saldo della Prima Nota fino a oggi"
-                    : "nessun saldo: collega un conto in Tesoreria"}
-                . Entrate: rate delle commesse con la regola della scheda
-                commessa, fatture e scadenze attive non coperte da una rata,
-                Blocca prezzo. Uscite: spese, scadenzario, pagamenti ai
-                fornitori degli articoli, ODA aperti o ricevuti senza spesa,
-                squadre esterne, provvigioni, cedolini, F24 registrati, stima
-                IVA; per i mesi senza cedolino stipendi, F24 e tredicesima stimati
-                dall’anagrafica; le spese ricorrenti mese per mese.
+                {tr("Partenza: {partenza}. Entrate: rate delle commesse con la regola della scheda commessa, fatture e scadenze attive non coperte da una rata, Blocca prezzo. Uscite: spese, scadenzario, pagamenti ai fornitori degli articoli, ODA aperti o ricevuti senza spesa, squadre esterne, provvigioni, cedolini, F24 registrati, stima IVA; per i mesi senza cedolino stipendi, F24 e tredicesima stimati dall’anagrafica; le spese ricorrenti mese per mese.", {
+                  partenza: data.opening.source === "banca"
+                    ? tr("saldo disponibile dei conti attivi (se manca, il saldo contabile), più i movimenti di Prima Nota registrati dopo la data del saldo")
+                    : data.opening.source === "prima-nota"
+                      ? tr("saldo della Prima Nota fino a oggi")
+                      : tr("nessun saldo: collega un conto in Tesoreria"),
+                })}
               </p>
             </div>
             <details>
-              <summary className="cursor-pointer font-semibold">Come si calcola</summary>
+              <summary className="cursor-pointer font-semibold">{tr("Come si calcola")}</summary>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
                 <li>
-                  Importi di cassa: IVA inclusa ove prevista, solo i residui non
-                  saldati; ritenuta applicata alle commesse con bonus.
+                  {tr("Importi di cassa: IVA inclusa ove prevista, solo i residui non saldati; ritenuta applicata alle commesse con bonus.")}
                 </li>
                 <li>
-                  Incassi e uscite scaduti restano fuori dal piano (spesso sono
-                  già pagati ma non segnati) ed entrano oggi solo con gli
-                  interruttori.
+                  {tr("Incassi e uscite scaduti restano fuori dal piano (spesso sono già pagati ma non segnati) ed entrano oggi solo con gli interruttori.")}
                 </li>
                 <li>
-                  Le fatture di una commessa non collegate a nessuna rata
-                  restano fuori come possibili doppioni.
+                  {tr("Le fatture di una commessa non collegate a nessuna rata restano fuori come possibili doppioni.")}
                 </li>
                 <li>
-                  I movimenti senza data restano fuori e sono elencati in «Da
-                  sistemare».
+                  {tr("I movimenti senza data restano fuori e sono elencati in «Da sistemare».")}
                 </li>
                 <li>
-                  Ritardo medio reale:{" "}
-                  {delay.days == null
-                    ? "non disponibile"
-                    : `${delay.days} giorni`}
-                  , da {delay.samples} incassi degli ultimi 12 mesi con una data
-                  attesa.
+                  {tr("Ritardo medio reale: {ritardo}, da {n} incassi degli ultimi 12 mesi con una data attesa.", {
+                    ritardo: delay.days == null
+                      ? tr("non disponibile")
+                      : tr("{days} giorni", { days: String(delay.days ?? "") }),
+                    n: delay.samples,
+                  })}
                 </li>
                 <li>
-                  Soglia, scenario e date spostate a mano sono simulazioni: non
-                  cambiano scadenze o pagamenti registrati.
+                  {tr("Soglia, scenario e date spostate a mano sono simulazioni: non cambiano scadenze o pagamenti registrati.")}
                 </li>
                 <li>
-                  Il minimo è a fine giornata: non rappresenta l’ordine dei
-                  bonifici nello stesso giorno.
+                  {tr("Il minimo è a fine giornata: non rappresenta l’ordine dei bonifici nello stesso giorno.")}
                 </li>
               </ul>
             </details>
             {data.warnings.length > 0 && (
               <div>
-                <h2 className="font-semibold">Ipotesi sulle stime</h2>
+                <h2 className="font-semibold">{tr("Ipotesi sulle stime")}</h2>
                 <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
                   {data.warnings.map((w) => (
                     <li key={w}>{w}</li>
@@ -1832,13 +1791,18 @@ export function ForecastWorkspace({
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Ultimo caricamento:{" "}
-              {new Date(data.updatedAt).toLocaleString("it-IT")}. I margini
-              delle commesse sono in{" "}
-              <Link className="underline" to="/azienda/ordini?tab=marginalita">
-                Commesse → Marginalità
-              </Link>
-              .
+              {(() => {
+                const [caricamentoPrima, caricamentoDopo = ""] = tr("Ultimo caricamento: {data}. I margini delle commesse sono in {link}.", { data: new Date(data.updatedAt).toLocaleString(intlCampo()) }).split("{link}");
+                return (
+                  <>
+                    {caricamentoPrima}
+                    <Link className="underline" to="/azienda/ordini?tab=marginalita">
+                      {tr("Commesse → Marginalità")}
+                    </Link>
+                    {caricamentoDopo}
+                  </>
+                );
+              })()}
             </p>
           </div>
         </TabsContent>
@@ -1854,6 +1818,7 @@ function IncassatoTab({
   data: ForecastDataset;
   delay: { days: number | null; samples: number };
 }) {
+  const t = useT();
   const collected = data.collected.filter(
     (m) =>
       m.date && m.date >= moveDay(data.today, -366) && m.date <= data.today,
@@ -1865,23 +1830,23 @@ function IncassatoTab({
     <>
       <div className={cn(section, "grid grid-cols-2 divide-x")}>
         <Metric
-          label="Incassato nel mese"
+          label={t("Incassato nel mese")}
           value={money(month)}
-          detail="Importi registrati, senza ripetere lo stesso pagamento"
+          detail={t("Importi registrati, senza ripetere lo stesso pagamento")}
         />
         <Metric
-          label="Ritardo medio reale"
+          label={t("Ritardo medio reale")}
           value={
-            delay.days == null ? "Non disponibile" : `${delay.days} giorni`
+            delay.days == null ? t("Non disponibile") : t("{days} giorni", { days: delay.days })
           }
-          detail={`${delay.samples} incassi con scadenza collegata · ultimi 12 mesi`}
+          detail={t("{n} incassi con scadenza collegata · ultimi 12 mesi", { n: delay.samples })}
         />
       </div>
       <MovementList
         rows={collected}
         today={data.today}
         collected
-        emptyHint="Nessun incasso registrato negli ultimi 12 mesi: registra gli incassi in Prima Nota o sulle rate."
+        emptyHint={t("Nessun incasso registrato negli ultimi 12 mesi: registra gli incassi in Prima Nota o sulle rate.")}
       />
     </>
   );
@@ -1903,6 +1868,7 @@ function MovementList({
   onMove?: (id: string, date: string | null) => void;
   emptyHint: string;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [direction, setDirection] = useState("all");
   const [sort, setSort] = useState<SortKey>(
@@ -1988,8 +1954,8 @@ function MovementList({
       <span className="mt-1 flex items-center gap-1">
         <input
           type="date"
-          aria-label={`Sposta incasso: ${m.description}`}
-          title="Sposta la data di questo incasso solo nella simulazione"
+          aria-label={t("Sposta incasso: {description}", { description: String(m.description ?? "") })}
+          title={t("Sposta la data di questo incasso solo nella simulazione")}
           value={overrides[m.id] ?? m.date ?? ""}
           onChange={(e) => onMove(m.id, validDay(e.target.value))}
           className="h-7 rounded border bg-background px-1 text-[11px] tabular-nums"
@@ -2001,7 +1967,7 @@ function MovementList({
             className="h-7 px-2 text-[11px]"
             onClick={() => onMove(m.id, null)}
           >
-            Ripristina
+            {t("Ripristina")}
           </Button>
         )}
       </span>
@@ -2012,8 +1978,8 @@ function MovementList({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            aria-label="Cerca nei movimenti"
-            placeholder="Cerca descrizione, cliente, commessa o fonte"
+            aria-label={t("Cerca nei movimenti")}
+            placeholder={t("Cerca descrizione, cliente, commessa o fonte")}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -2025,7 +1991,7 @@ function MovementList({
         <div className="flex flex-wrap gap-2">
           {!collected && (
             <UniformSelect
-              aria-label="Direzione movimenti"
+              aria-label={t("Direzione movimenti")}
               className={selectClass}
               value={direction}
               onChange={(e) => {
@@ -2033,21 +1999,21 @@ function MovementList({
                 setPage(1);
               }}
             >
-              <option value="all">Entrate e uscite</option>
-              <option value="in">Solo entrate</option>
-              <option value="out">Solo uscite</option>
+              <option value="all">{t("Entrate e uscite")}</option>
+              <option value="in">{t("Solo entrate")}</option>
+              <option value="out">{t("Solo uscite")}</option>
             </UniformSelect>
           )}
           <UniformSelect
-            aria-label="Ordina movimenti"
+            aria-label={t("Ordina movimenti")}
             className={selectClass}
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
           >
-            <option value="data-asc">Data: prima le vicine</option>
-            <option value="data-desc">Data: prima le lontane</option>
-            <option value="importo-desc">Importo: dal più alto</option>
-            <option value="importo-asc">Importo: dal più basso</option>
+            <option value="data-asc">{t("Data: prima le vicine")}</option>
+            <option value="data-desc">{t("Data: prima le lontane")}</option>
+            <option value="importo-desc">{t("Importo: dal più alto")}</option>
+            <option value="importo-asc">{t("Importo: dal più basso")}</option>
           </UniformSelect>
           <Button
             variant="outline"
@@ -2055,22 +2021,22 @@ function MovementList({
             onClick={exportView}
             disabled={!filtered.length}
             className="h-9"
-            title="Esporta tutti i movimenti che corrispondono ai filtri, anche nelle altre pagine"
+            title={t("Esporta tutti i movimenti che corrispondono ai filtri, anche nelle altre pagine")}
           >
             <Download className="mr-1.5 h-4 w-4" aria-hidden />
-            Esporta vista
+            {t("Esporta vista")}
           </Button>
         </div>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground">
-        <span>{filtered.length} movimenti</span>
+        <span>{t("{n} movimenti", { n: filtered.length })}</span>
         <span>
-          Entrate:{" "}
+          {t("Entrate:")}{" "}
           <strong className="tabular-nums text-success">{money(income)}</strong>
         </span>
         {!collected && (
           <span>
-            Uscite:{" "}
+            {t("Uscite:")}{" "}
             <strong className="tabular-nums text-destructive">
               {money(expenses)}
             </strong>
@@ -2078,7 +2044,7 @@ function MovementList({
         )}
       </div>
       {!visible.length ? (
-        <EmptyState title="Nessun movimento in questa vista" hint={emptyHint} />
+        <EmptyState title={t("Nessun movimento in questa vista")} hint={emptyHint} />
       ) : (
         <>
           <div className="hidden overflow-x-auto sm:block">
@@ -2094,12 +2060,12 @@ function MovementList({
                           i === 3 && "text-right",
                         )}
                       >
-                        {label}
+                        {t(label)}
                       </th>
                     ),
                   )}
                   <th>
-                    <span className="sr-only">Apri la voce</span>
+                    <span className="sr-only">{t("Apri la voce")}</span>
                   </th>
                 </tr>
               </thead>
@@ -2109,9 +2075,7 @@ function MovementList({
                     <td className="whitespace-nowrap px-3 py-2 align-top text-xs tabular-nums">
                       {shortDate(m.date)}
                       {m.expectedDate && m.expectedDate !== m.date && (
-                        <p className="mt-0.5 text-[10px] text-muted-foreground">
-                          Atteso {fullDate(m.expectedDate)}
-                        </p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">{t("Atteso {expectedDate}", { expectedDate: String(fullDate(m.expectedDate) ?? "") })}</p>
                       )}
                       {moveControl(m)}
                     </td>
@@ -2134,7 +2098,7 @@ function MovementList({
                     <td className="px-3 py-2 align-top text-xs">
                       <p>{m.source}</p>
                       <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        {status(m)}
+                        {t(status(m))}
                       </span>
                     </td>
                     <td
@@ -2152,7 +2116,7 @@ function MovementList({
                       <Button asChild size="icon" variant="ghost">
                         <Link
                           to={m.href}
-                          aria-label={`Apri fonte: ${m.description}`}
+                          aria-label={t("Apri fonte: {description}", { description: String(m.description ?? "") })}
                         >
                           <ArrowUpRight className="h-4 w-4" />
                         </Link>
@@ -2191,7 +2155,7 @@ function MovementList({
                   </span>
                 </Link>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  {shortDate(m.date)} · {m.source} · {status(m)}
+                  {shortDate(m.date)} · {m.source} · {t(status(m))}
                 </p>
                 {m.note && (
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -2204,14 +2168,12 @@ function MovementList({
         </>
       )}
       <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-        <span>
-          Pagina {currentPage} di {pages}
-        </span>
+        <span>{t("Pagina {currentPage} di {pages}", { currentPage: String(currentPage ?? ""), pages: String(pages ?? "") })}</span>
         <div className="flex gap-1">
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Pagina precedente"
+            aria-label={t("Pagina precedente")}
             disabled={currentPage <= 1}
             onClick={() => setPage(currentPage - 1)}
           >
@@ -2220,7 +2182,7 @@ function MovementList({
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Pagina successiva"
+            aria-label={t("Pagina successiva")}
             disabled={currentPage >= pages}
             onClick={() => setPage(currentPage + 1)}
           >

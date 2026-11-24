@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanPhone } from "@/lib/contactUtils";
 import { avvisiDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ContactFormData {
   first_name: string;
@@ -75,6 +76,7 @@ function isValidItalianPhone(phone: string): boolean {
 }
 
 export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditing, companyId, editingContactId }: ContactDialogProps) {
+  const t = useT();
   const formId = useId();
   const savingRef = useRef(false);
   const [form, setForm] = useState<ContactFormData>(emptyForm);
@@ -103,13 +105,13 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
     const phone = form.phone.trim();
 
     if (!email && !phone) {
-      errs.general = "Inserisci almeno un'email o un telefono";
+      errs.general = t("Inserisci almeno un'email o un telefono");
     }
     if (email && !EMAIL_REGEX.test(email)) {
-      errs.email = "Formato email non valido";
+      errs.email = t("Formato email non valido");
     }
     if (phone && !isValidItalianPhone(phone)) {
-      errs.phone = "Formato non valido. Es: +39 3xx xxxxxxx, 3xxxxxxxxx, 0x xxxxxxx";
+      errs.phone = t("Formato non valido. Es: +39 3xx xxxxxxx, 3xxxxxxxxx, 0x xxxxxxx");
     }
     return errs;
   };
@@ -131,7 +133,7 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
       if (error) throw error;
       if (data && data.length > 0) {
         const c = data[0];
-        return `Email già presente per ${c.first_name || ""} ${c.last_name || ""}`.trim();
+        return t("Email già presente per {nome}", { nome: `${c.first_name || ""} ${c.last_name || ""}`.trim() }).trim();
       }
     }
     if (phone) {
@@ -145,7 +147,7 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
       if (error) throw error;
       if (data && data.length > 0) {
         const c = data[0];
-        return `Telefono già presente per ${c.first_name || ""} ${c.last_name || ""}`.trim();
+        return t("Telefono già presente per {nome}", { nome: `${c.first_name || ""} ${c.last_name || ""}`.trim() }).trim();
       }
     }
     return null;
@@ -176,7 +178,7 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
       await onSave(normalizedForm);
       onOpenChange(false);
     } catch {
-      setErrors({ general: "Impossibile salvare il contatto. Riprova." });
+      setErrors({ general: t("Impossibile salvare il contatto. Riprova.") });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -187,22 +189,22 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
     <Dialog open={open} onOpenChange={(next) => { if (!savingRef.current) onOpenChange(next); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Modifica Contatto" : "Nuovo Contatto"}</DialogTitle>
+          <DialogTitle>{isEditing ? t("Modifica Contatto") : t("Nuovo Contatto")}</DialogTitle>
         </DialogHeader>
         <fieldset disabled={saving} aria-busy={saving} className="space-y-4 max-sm:space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-first_name`}>Nome *</Label>
+              <Label htmlFor={`${formId}-first_name`}>{t("Nome *")}</Label>
               <Input id={`${formId}-first_name`} value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-last_name`}>Cognome</Label>
+              <Label htmlFor={`${formId}-last_name`}>{t("Cognome")}</Label>
               <Input id={`${formId}-last_name`} value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-phone`}>Telefono {!form.email.trim() ? "*" : ""}</Label>
+              <Label htmlFor={`${formId}-phone`}>{t("Telefono")} {!form.email.trim() ? "*" : ""}</Label>
               <Input
                 id={`${formId}-phone`}
                 aria-invalid={!!errors.phone}
@@ -228,24 +230,24 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
           </div>
           {errors.general && <p role="alert" className="text-sm text-destructive">{errors.general}</p>}
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-company_name`}>Azienda</Label>
+            <Label htmlFor={`${formId}-company_name`}>{t("Azienda")}</Label>
             <Input id={`${formId}-company_name`} value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="contatto-cf">Codice fiscale</Label>
-              <Input id="contatto-cf" className="font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder="16 caratteri" value={form.fiscal_code ?? ""} onChange={(e) => setForm((f) => ({ ...f, fiscal_code: e.target.value }))} />
+              <Label htmlFor="contatto-cf">{t("Codice fiscale")}</Label>
+              <Input id="contatto-cf" className="font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder={t("16 caratteri")} value={form.fiscal_code ?? ""} onChange={(e) => setForm((f) => ({ ...f, fiscal_code: e.target.value }))} />
               {avvisi.codiceFiscale && <p role="status" className="text-xs text-amber-700">{avvisi.codiceFiscale}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="contatto-piva">Partita IVA</Label>
-              <Input id="contatto-piva" className="font-mono" inputMode="numeric" maxLength={20} placeholder="Se è un'azienda" value={form.vat_number ?? ""} onChange={(e) => setForm((f) => ({ ...f, vat_number: e.target.value }))} />
+              <Label htmlFor="contatto-piva">{t("Partita IVA")}</Label>
+              <Input id="contatto-piva" className="font-mono" inputMode="numeric" maxLength={20} placeholder={t("Se è un'azienda")} value={form.vat_number ?? ""} onChange={(e) => setForm((f) => ({ ...f, vat_number: e.target.value }))} />
               {avvisi.partitaIva && <p role="status" className="text-xs text-amber-700">{avvisi.partitaIva}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-city`}>Città</Label>
+              <Label htmlFor={`${formId}-city`}>{t("Città")}</Label>
               <ComuneAutocomplete
                 id={`${formId}-city`}
                 value={form.city}
@@ -254,13 +256,13 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-province`}>Provincia</Label>
-              <Input id={`${formId}-province`} value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} placeholder="Es: MI, RM, NA" maxLength={2} />
+              <Label htmlFor={`${formId}-province`}>{t("Provincia")}</Label>
+              <Input id={`${formId}-province`} value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} placeholder={t("Es: MI, RM, NA")} maxLength={2} />
             </div>
           </div>
           {/* Mobile no: tag e sede si sistemano dalla scheda o dal computer. */}
           <div className="space-y-1.5 max-sm:hidden">
-            <Label>Tag</Label>
+            <Label>{t("Tag")}</Label>
             <TagSelector
               selectedTags={form.tags}
               onTagsChange={(tags) => setForm((f) => ({ ...f, tags }))}
@@ -269,21 +271,21 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
           {/* v8.6.42 — Sede operativa di pertinenza (per LeadPerSedeChart) */}
           <SedeSelect
             id={`${formId}-sede`}
-            label="Sede operativa"
-            placeholder="Sede operativa (opzionale)"
+            label={t("Sede operativa")}
+            placeholder={t("Sede operativa (opzionale)")}
             value={form.sede_id}
             onChange={(id) => setForm((f) => ({ ...f, sede_id: id }))}
             className="space-y-1.5 max-sm:hidden"
           />
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-notes`}>Note</Label>
+            <Label htmlFor={`${formId}-notes`}>{t("Note")}</Label>
             <Textarea id={`${formId}-notes`} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} className="max-sm:min-h-[60px]" />
           </div>
         </fieldset>
         <DialogFooter>
-          <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={handleSubmit} disabled={saving || !form.first_name.trim() || !hasEmailOrPhone}>
-            {saving ? "Salvataggio..." : isEditing ? "Salva" : "Aggiungi"}
+            {saving ? t("Salvataggio...") : isEditing ? t("Salva") : t("Aggiungi")}
           </Button>
         </DialogFooter>
       </DialogContent>

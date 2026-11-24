@@ -15,6 +15,7 @@ import type {
   PosContenuto,
 } from "../../../../supabase/functions/_shared/posModello";
 import type { Modifica } from "./PosSezioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function ProdottiLavorazionePos({
   companyId,
   orderId,
@@ -32,6 +33,7 @@ export function ProdottiLavorazionePos({
   modifica: Modifica;
   ro: boolean;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState("");
   const data = d.opera.data_inizio || oggiSicurezza();
@@ -57,9 +59,7 @@ export function ProdottiLavorazionePos({
   return (
     <div className="space-y-3 rounded-lg border bg-white p-3 sm:col-span-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium">
-          Prodotti e SDS di questa lavorazione ({prodotti.length})
-        </p>
+        <p className="text-sm font-medium">{t("Prodotti e SDS di questa lavorazione ({n})", { n: prodotti.length })}</p>
         {!ro && (
           <Button
             variant="outline"
@@ -67,16 +67,16 @@ export function ProdottiLavorazionePos({
             onClick={() => setAperto((v) => !v)}
           >
             {aperto
-              ? "Chiudi inventario"
-              : "Scegli dall’inventario di commessa"}
+              ? t("Chiudi inventario")
+              : t("Scegli dall’inventario di commessa")}
           </Button>
         )}
       </div>
       {!ro && (
         <label className="block text-xs">
-          Fase della lavorazione
+          {t("Fase della lavorazione")}
           <UniformSelect
-            aria-label={`Fase della lavorazione ${n + 1}`}
+            aria-label={t("Fase della lavorazione {n}", { n: n + 1 })}
             className="mt-1 w-full rounded border bg-background p-2 text-sm"
             value={l.fase_id || ""}
             disabled={fasi.isLoading || fasi.isError}
@@ -87,7 +87,7 @@ export function ProdottiLavorazionePos({
               })
             }
           >
-            <option value="">Comune a più fasi / da precisare</option>
+            <option value="">{t("Comune a più fasi / da precisare")}</option>
             {fasi.data?.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -98,32 +98,29 @@ export function ProdottiLavorazionePos({
       )}
       {fasi.isError && (
         <p role="alert" className="text-sm text-destructive">
-          Fasi non disponibili: non confermare una nuova associazione.
+          {t("Fasi non disponibili: non confermare una nuova associazione.")}
         </p>
       )}
       {aperto && !ro && (
         <div className="space-y-2 rounded border bg-muted/20 p-3">
           {q.isLoading ? (
-            <p role="status">Caricamento inventario…</p>
+            <p role="status">{t("Caricamento inventario…")}</p>
           ) : q.isError || !q.data ? (
             <p role="alert">
-              Inventario non disponibile. Le fotografie già nel POS restano
-              conservate.
+              {t("Inventario non disponibile. Le fotografie già nel POS restano conservate.")}
             </p>
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                Prodotti della propria impresa nel periodo del POS. Scegli la
-                fase per vedere gli impieghi specifici. Per aggiungere prodotti
-                o rettificare una SDS usa Sicurezza nella commessa.
+                {t("Prodotti della propria impresa nel periodo del POS. Scegli la fase per vedere gli impieghi specifici. Per aggiungere prodotti o rettificare una SDS usa Sicurezza nella commessa.")}
               </p>
               <UniformSelect
-                aria-label={`Prodotto da collegare alla lavorazione ${n + 1}`}
+                aria-label={t("Prodotto da collegare alla lavorazione {n}", { n: n + 1 })}
                 className="w-full rounded border bg-background p-2 text-sm"
                 value={scelto}
                 onChange={(e) => setScelto(e.target.value)}
               >
-                <option value="">Scegli un impiego registrato</option>
+                <option value="">{t("Scegli un impiego registrato")}</option>
                 {disponibili.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.nome} · {p.codice || p.id.slice(0, 8)} · v{p.versione}
@@ -160,13 +157,11 @@ export function ProdottiLavorazionePos({
                   setScelto("");
                 }}
               >
-                Collega prodotto da riesaminare
+                {t("Collega prodotto da riesaminare")}
               </Button>
               {!disponibili.length && (
                 <p className="text-xs text-muted-foreground">
-                  Nessun impiego proprio pertinente. Registra i prodotti
-                  nell’inventario; questa assenza non prova che non siano usati
-                  prodotti pericolosi.
+                  {t("Nessun impiego proprio pertinente. Registra i prodotti nell’inventario; questa assenza non prova che non siano usati prodotti pericolosi.")}
                 </p>
               )}
             </>
@@ -177,7 +172,7 @@ export function ProdottiLavorazionePos({
             disabled={q.isFetching}
             onClick={() => void q.refetch()}
           >
-            Rileggi inventario
+            {t("Rileggi inventario")}
           </Button>
         </div>
       )}
@@ -201,17 +196,17 @@ export function ProdottiLavorazionePos({
                   {p.nome} · v{p.versione}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {p.produttore || "Produttore non indicato"} ·{" "}
-                  {p.codice || "Codice non indicato"}
+                  {p.produttore || t("Produttore non indicato")} ·{" "}
+                  {p.codice || t("Codice non indicato")}
                 </p>
                 <p>{p.impiego}</p>
                 <p className="text-xs">
                   SDS{" "}
                   {p.sds_necessaria === "si"
-                    ? `rev. ${p.sds_revisione || "non indicata"} · ${p.sds_data || "data non indicata"}`
+                    ? t("rev. {revisione} · {data}", { revisione: p.sds_revisione || t("non indicata"), data: p.sds_data || t("data non indicata") })
                     : p.sds_necessaria === "no"
-                      ? `dichiarata non necessaria: ${p.motivo_non_necessaria || "motivo da indicare"}`
-                      : "da valutare"}
+                      ? t("dichiarata non necessaria: {motivo}", { motivo: p.motivo_non_necessaria || t("motivo da indicare") })
+                      : t("da valutare")}
                 </p>
               </div>
               {!ro && (
@@ -226,15 +221,14 @@ export function ProdottiLavorazionePos({
                     })
                   }
                 >
-                  Togli prodotto
+                  {t("Togli prodotto")}
                 </Button>
               )}
             </div>
             {cambiato && (
               <div>
                 <p role="alert" className="text-xs text-amber-800">
-                  La fonte è cambiata. Il POS conserva la versione scelta;
-                  riesamina l’inventario prima di aggiornare questa fotografia.
+                  {t("La fonte è cambiata. Il POS conserva la versione scelta; riesamina l’inventario prima di aggiornare questa fotografia.")}
                 </p>
                 {!attuale.annullato &&
                   !attuale.materiale_cambiato &&
@@ -249,15 +243,14 @@ export function ProdottiLavorazionePos({
                         })
                       }
                     >
-                      Proponi versione aggiornata del prodotto
+                      {t("Proponi versione aggiornata del prodotto")}
                     </Button>
                   )}
               </div>
             )}
             {!ro && aperto && !q.isError && q.data && !attuale && (
               <p role="alert" className="text-xs text-amber-800">
-                Impiego originario non disponibile: non sostituirlo con un
-                omonimo.
+                {t("Impiego originario non disponibile: non sostituirlo con un omonimo.")}
               </p>
             )}
             {errori.length > 0 && (
@@ -274,8 +267,7 @@ export function ProdottiLavorazionePos({
                   })
                 }
               />
-              Ho riesaminato questo prodotto e la versione SDS indicata per la
-              lavorazione.
+              {t("Ho riesaminato questo prodotto e la versione SDS indicata per la lavorazione.")}
             </label>
           </article>
         );
@@ -292,13 +284,10 @@ export function ProdottiLavorazionePos({
             })
           }
         />
-        Ho verificato l’elenco dei prodotti realmente usati in questa
-        lavorazione, anche quando non sono previste sostanze pericolose.
+        {t("Ho verificato l’elenco dei prodotti realmente usati in questa lavorazione, anche quando non sono previste sostanze pericolose.")}
       </label>
       <p className="text-xs text-muted-foreground">
-        La conferma non è una valutazione del rischio chimico. All’approvazione
-        vengono ricontrollate versioni, copertura del periodo e SDS; i POS già
-        emessi restano invariati.
+        {t("La conferma non è una valutazione del rischio chimico. All’approvazione vengono ricontrollate versioni, copertura del periodo e SDS; i POS già emessi restano invariati.")}
       </p>
     </div>
   );

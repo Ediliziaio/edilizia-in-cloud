@@ -28,6 +28,7 @@ import {
   Clock,
   XCircle,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -175,6 +176,7 @@ function StatCard({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function EmailPipelineStatus() {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const isSuperAdmin = role === "super_admin";
@@ -200,8 +202,8 @@ export function EmailPipelineStatus() {
 
   if (statsError) return (
     <div role="alert" className="space-y-2 text-sm">
-      <p>Non è stato possibile leggere le statistiche email. I conteggi non sono disponibili.</p>
-      <button type="button" className="underline" onClick={() => void retryStats()}>Riprova</button>
+      <p>{t("Non è stato possibile leggere le statistiche email. I conteggi non sono disponibili.")}</p>
+      <button type="button" className="underline" onClick={() => void retryStats()}>{t("Riprova")}</button>
     </div>
   );
   return (
@@ -210,7 +212,7 @@ export function EmailPipelineStatus() {
       <div>
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           <Activity className="h-4 w-4 text-blue-600" />
-          Processamento ultime 24h
+          {t("Processamento ultime 24h")}
         </h3>
         {loadingStats ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -220,22 +222,22 @@ export function EmailPipelineStatus() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <StatCard
               icon={Inbox}
-              label="Email ricevute (24h)"
+              label={t("Email ricevute (24h)")}
               value={stats?.emails_24h ?? 0}
               color="text-slate-700"
             />
             <StatCard
               icon={Brain}
-              label="Classificate (24h)"
+              label={t("Classificate (24h)")}
               value={`${stats?.classified_24h ?? 0} — ${classified24Pct}%`}
-              sub={classified24Pct >= 95 ? "✓ Ottimo" : classified24Pct >= 70 ? "In corso" : "Basso"}
+              sub={classified24Pct >= 95 ? `✓ ${t("Ottimo")}` : classified24Pct >= 70 ? t("In corso") : t("Basso")}
               color={classified24Pct >= 95 ? "text-emerald-600" : classified24Pct >= 70 ? "text-amber-600" : "text-red-600"}
             />
             <StatCard
               icon={TrendingUp}
-              label="Totale classificate"
+              label={t("Totale classificate")}
               value={`${classifiedPct}%`}
-              sub={`${stats?.total_classified ?? 0} di ${stats?.total_emails ?? 0}`}
+              sub={t("{n} di {totale}", { n: stats?.total_classified ?? 0, totale: stats?.total_emails ?? 0 })}
               color={classifiedPct >= 95 ? "text-emerald-600" : "text-amber-600"}
             />
           </div>
@@ -246,7 +248,7 @@ export function EmailPipelineStatus() {
       <div>
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           <FileText className="h-4 w-4 text-violet-600" />
-          Coda di revisione documenti
+          {t("Coda di revisione documenti")}
         </h3>
         {loadingStats ? (
           <div className="grid grid-cols-2 gap-3">
@@ -256,12 +258,12 @@ export function EmailPipelineStatus() {
           <div className="grid grid-cols-2 gap-3">
             <StatCard
               icon={FileText}
-              label="Fatture da confermare"
+              label={t("Fatture da confermare")}
               value={stats?.docs_pending_confirm ?? 0}
               sub={
                 (stats?.docs_pending_confirm ?? 0) === 0
-                  ? "Tutto in ordine"
-                  : "Aprire Email AI → Fatture"
+                  ? t("Tutto in ordine")
+                  : t("Aprire Email AI → Fatture")
               }
               color={
                 (stats?.docs_pending_confirm ?? 0) > 0
@@ -271,12 +273,12 @@ export function EmailPipelineStatus() {
             />
             <StatCard
               icon={TrendingUp}
-              label="Opportunità da valutare"
+              label={t("Opportunità da valutare")}
               value={stats?.opportunita_pending ?? 0}
               sub={
                 (stats?.opportunita_pending ?? 0) === 0
-                  ? "Nessuna in attesa"
-                  : "Aprire Email AI → Opportunità"
+                  ? t("Nessuna in attesa")
+                  : t("Aprire Email AI → Opportunità")
               }
               color={
                 (stats?.opportunita_pending ?? 0) > 0
@@ -293,11 +295,9 @@ export function EmailPipelineStatus() {
         <div>
           <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
             <Clock className="h-4 w-4 text-slate-500" />
-            Salute cron
+            {t("Salute cron")}
             {!loadingHealth && health && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                {health.cron_attivi_totali} attivi
-              </span>
+              <span className="ml-auto text-xs text-muted-foreground">{t("{cron_attivi_totali} attivi", { cron_attivi_totali: String(health.cron_attivi_totali ?? "") })}</span>
             )}
           </h3>
 
@@ -307,13 +307,13 @@ export function EmailPipelineStatus() {
             cronsFailing === 0 ? (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-sm text-emerald-700">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
-                Nessun cron in errore nelle ultime 2h
+                {t("Nessun cron in errore nelle ultime 2h")}
               </div>
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700 mb-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  {cronsFailing} cron {cronsFailing === 1 ? "fallito" : "falliti"} nelle ultime 2h
+                  {t(cronsFailing === 1 ? "{n} cron fallito nelle ultime 2h" : "{n} cron falliti nelle ultime 2h", { n: cronsFailing })}
                 </div>
                 {health.cron_falliti_2h.map((c) => (
                   <div key={c.job} className="bg-white border border-red-100 rounded-lg p-3">

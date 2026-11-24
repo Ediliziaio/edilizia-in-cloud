@@ -8,6 +8,7 @@ import { BUCKET_RISERVATI } from "@/lib/storage/fileRiservati";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   items: GalleryLavoroItem[];
@@ -40,6 +41,7 @@ export function GalleryLavoriEditor({
   maxItems = 12,
   localOnly = false,
 }: Props) {
+  const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -48,7 +50,7 @@ export function GalleryLavoriEditor({
     const remaining = maxItems - items.length;
     const toUpload = Array.from(files).slice(0, remaining);
     if (toUpload.length === 0) {
-      toast.error(`Massimo ${maxItems} foto consentite`);
+      toast.error(t("Massimo {maxItems} foto consentite", { maxItems: String(maxItems ?? "") }));
       return;
     }
     setUploading(true);
@@ -56,15 +58,15 @@ export function GalleryLavoriEditor({
     for (const file of toUpload) {
       if (localOnly) {
         try { added.push({ id: crypto.randomUUID(), url: await readLocalTemplateImage(file) }); }
-        catch (error) { toast.error(error instanceof Error ? error.message : "Immagine non leggibile"); }
+        catch (error) { toast.error(error instanceof Error ? error.message : t("Immagine non leggibile")); }
         continue;
       }
-      if (!file.type.startsWith("image/")) { toast.error(`${file.name}: solo immagini`); continue; }
-      if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name}: max 8 MB`); continue; }
+      if (!file.type.startsWith("image/")) { toast.error(t("{name}: solo immagini", { name: String(file.name ?? "") })); continue; }
+      if (file.size > 8 * 1024 * 1024) { toast.error(t("{name}: max 8 MB", { name: String(file.name ?? "") })); continue; }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
       const path = `${uploadPath}/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
-      if (error) { toast.error(`Errore upload ${file.name}`); continue; }
+      if (error) { toast.error(t("Errore upload {name}", { name: String(file.name ?? "") })); continue; }
       // Mai un link firmato nel modello: scade. Da un bucket riservato si salva il
       // percorso, firmato quando serve (supabase/functions/_shared/immaginiModelloPdf.ts);
       // da uno pubblico l'indirizzo pubblico, che non scade.
@@ -75,7 +77,7 @@ export function GalleryLavoriEditor({
     }
     if (added.length > 0) {
       onChange([...items, ...added]);
-      toast.success(`${added.length} foto aggiunt${added.length === 1 ? "a" : "e"}. Salva per applicare.`);
+      toast.success(t(added.length === 1 ? "{n} foto aggiunta. Salva per applicare." : "{n} foto aggiunte. Salva per applicare.", { n: added.length }));
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
@@ -98,7 +100,7 @@ export function GalleryLavoriEditor({
               <div className="relative aspect-video bg-muted">
                 <ImgRiservata
                   src={item.url}
-                  alt={item.didascalia || `Lavoro ${idx + 1}`}
+                  alt={item.didascalia || t("Lavoro {idx}", { idx: idx + 1 })}
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
@@ -106,7 +108,7 @@ export function GalleryLavoriEditor({
                   type="button"
                   onClick={() => remove(idx)}
                   className="absolute top-1.5 right-1.5 p-1 rounded bg-black/60 text-white hover:bg-red-600 transition-colors"
-                  title="Rimuovi foto"
+                  title={t("Rimuovi foto")}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -115,13 +117,13 @@ export function GalleryLavoriEditor({
                 <Input
                   value={item.didascalia ?? ""}
                   onChange={(e) => update(idx, { didascalia: e.target.value || null })}
-                  placeholder="Didascalia (opzionale)"
+                  placeholder={t("Didascalia (opzionale)")}
                   className="h-7 text-[11px]"
                 />
                 <Input
                   value={item.luogo ?? ""}
                   onChange={(e) => update(idx, { luogo: e.target.value || null })}
-                  placeholder="Luogo / Città (opzionale)"
+                  placeholder={t("Luogo / Città (opzionale)")}
                   className="h-7 text-[11px]"
                 />
               </div>
@@ -148,11 +150,11 @@ export function GalleryLavoriEditor({
             className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-4 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
           >
             {uploading ? (
-              <span className="animate-pulse">Caricamento in corso…</span>
+              <span className="animate-pulse">{t("Caricamento in corso…")}</span>
             ) : (
               <>
                 <Upload className="h-4 w-4" />
-                Aggiungi foto lavori ({items.length}/{maxItems})
+                {t("Aggiungi foto lavori ({n}/{max})", { n: items.length, max: maxItems })}
               </>
             )}
           </button>
@@ -163,14 +165,12 @@ export function GalleryLavoriEditor({
         <div className="flex flex-col items-center gap-1 py-2 text-muted-foreground">
           <ImageIcon className="h-6 w-6 opacity-40" />
           <p className="text-[11px] text-center">
-            Carica foto di lavori realizzati — appariranno nel PDF come pagina "I nostri lavori".
+            {t("Carica foto di lavori realizzati — appariranno nel PDF come pagina \"I nostri lavori\".")}
           </p>
         </div>
       )}
 
-      <p className="text-[10px] text-muted-foreground">
-        Max {maxItems} foto · JPG/PNG/WebP · max 8 MB · aggiunta didascalia opzionale
-      </p>
+      <p className="text-[10px] text-muted-foreground">{t("Max {maxItems} foto · JPG/PNG/WebP · max 8 MB · aggiunta didascalia opzionale", { maxItems: String(maxItems ?? "") })}</p>
     </div>
   );
 }

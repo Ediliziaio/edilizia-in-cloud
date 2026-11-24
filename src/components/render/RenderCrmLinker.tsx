@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Check, ChevronsUpDown, Link2, X, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactOption {
   id: string;
@@ -58,6 +59,7 @@ export function RenderCrmLinker({
   onLinksChange,
   disabled = false,
 }: RenderCrmLinkerProps) {
+  const t = useT();
   const formId = useId();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -131,10 +133,10 @@ export function RenderCrmLinker({
         >
           <span className="flex min-w-0 items-center gap-1.5">
             <Link2 className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{hasLink ? "Collegato a CRM" : "Collega a contatto / opportunità"}</span>
+            <span className="truncate">{hasLink ? t("Collegato a CRM") : t("Collega a contatto / opportunità")}</span>
             {hasLink && (
               <Badge variant="secondary" className="ml-1 max-w-[140px] px-1 py-0 text-[10px]">
-                {[contactId && "Contatto", opportunityId && "Opportunità"].filter(Boolean).join(" + ")}
+                {[contactId && t("Contatto"), opportunityId && t("Opportunità")].filter(Boolean).join(" + ")}
               </Badge>
             )}
           </span>
@@ -145,7 +147,7 @@ export function RenderCrmLinker({
       <CollapsibleContent className="space-y-3 pt-2 px-1">
         {/* Contact selector */}
         <div className="space-y-1">
-          <Label htmlFor={`${formId}-contatto`} className="text-xs text-muted-foreground">Contatto</Label>
+          <Label htmlFor={`${formId}-contatto`} className="text-xs text-muted-foreground">{t("Contatto")}</Label>
           <div className="flex gap-1.5">
             <Popover open={contactOpen} onOpenChange={setContactOpen}>
               <PopoverTrigger asChild>
@@ -159,15 +161,15 @@ export function RenderCrmLinker({
                 >
                   {selectedContact
                     ? `${selectedContact.first_name} ${selectedContact.last_name || ""}${selectedContact.company_name ? ` (${selectedContact.company_name})` : ""}`
-                    : "Cerca contatto..."}
+                    : t("Cerca contatto...")}
                   <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[calc(100vw-2rem)] p-0 sm:w-[300px]" align="start">
                 <Command>
-                  <CommandInput placeholder="Nome, azienda, email..." />
+                  <CommandInput placeholder={t("Nome, azienda, email...")} />
                   <CommandList>
-                    <CommandEmpty>Nessun contatto</CommandEmpty>
+                    <CommandEmpty>{t("Nessun contatto")}</CommandEmpty>
                     <CommandGroup>
                       {contacts.map((c) => (
                         <CommandItem
@@ -200,7 +202,7 @@ export function RenderCrmLinker({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0"
-                aria-label="Rimuovi collegamenti a contatto e opportunità"
+                aria-label={t("Rimuovi collegamenti a contatto e opportunità")}
                 onClick={() => changeContact(null)}
               >
                 <X className="h-3.5 w-3.5" />
@@ -212,7 +214,7 @@ export function RenderCrmLinker({
         {/* Opportunity selector */}
         <div className="space-y-1">
           <Label htmlFor={`${formId}-opportunita`} className="text-xs text-muted-foreground">
-            Opportunità{contactId ? " (filtrate per contatto)" : ""}
+            {contactId ? t("Opportunità (filtrate per contatto)") : t("Opportunità")}
           </Label>
           <div className="flex gap-1.5">
             <Popover open={oppOpen} onOpenChange={setOppOpen}>
@@ -225,15 +227,15 @@ export function RenderCrmLinker({
                   size="sm"
                   className="flex-1 justify-between font-normal text-xs h-8"
                 >
-                  {selectedOpp ? selectedOpp.name : "Cerca opportunità..."}
+                  {selectedOpp ? selectedOpp.name : t("Cerca opportunità...")}
                   <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[calc(100vw-2rem)] p-0 sm:w-[300px]" align="start">
                 <Command>
-                  <CommandInput placeholder="Nome opportunità..." />
+                  <CommandInput placeholder={t("Nome opportunità...")} />
                   <CommandList>
-                    <CommandEmpty>Nessuna opportunità{contactId ? " per questo contatto" : ""}</CommandEmpty>
+                    <CommandEmpty>{contactId ? t("Nessuna opportunità per questo contatto") : t("Nessuna opportunità")}</CommandEmpty>
                     <CommandGroup>
                       {opportunities.map((o) => (
                         <CommandItem
@@ -249,7 +251,7 @@ export function RenderCrmLinker({
                             <div className="text-sm font-medium">{o.name}</div>
                             {o.value != null && o.value > 0 && (
                               <div className="text-[11px] text-muted-foreground">
-                                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(o.value)}
+                                {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(o.value)}
                               </div>
                             )}
                           </div>
@@ -266,7 +268,7 @@ export function RenderCrmLinker({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0"
-                aria-label="Rimuovi collegamento all’opportunità"
+                aria-label={t("Rimuovi collegamento all’opportunità")}
                 onClick={() => changeOpportunity(null)}
               >
                 <X className="h-3.5 w-3.5" />

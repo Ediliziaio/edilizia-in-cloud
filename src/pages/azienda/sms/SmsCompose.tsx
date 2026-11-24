@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useSendSms } from "@/hooks/useSendSms";
 import { calcolaPartiSms } from "@/lib/sms-utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const schema = z.object({
   to_number: z
@@ -32,6 +33,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function SmsCompose() {
+  const t = useT();
   const { sendSms, isPending } = useSendSms();
   const [charCount, setCharCount] = useState(0);
 
@@ -61,14 +63,14 @@ export function SmsCompose() {
       <CardHeader className="max-md:p-3 max-md:pb-2">
         <CardTitle className="flex items-center gap-2 max-md:text-sm">
           <Send className="h-5 w-5 text-eic-navy max-md:hidden" />
-          Nuovo SMS
+          {t("Nuovo SMS")}
         </CardTitle>
       </CardHeader>
       <CardContent className="max-md:p-3 max-md:pt-0">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 max-md:space-y-3">
           {/* Destinatario */}
           <div className="space-y-1.5">
-            <Label htmlFor="to_number">Numero destinatario</Label>
+            <Label htmlFor="to_number">{t("Numero destinatario")}</Label>
             <Input
               id="to_number"
               type="tel"
@@ -79,16 +81,16 @@ export function SmsCompose() {
               className={errors.to_number ? "border-red-400" : ""}
             />
             {errors.to_number && (
-              <p className="text-xs text-red-600">{errors.to_number.message}</p>
+              <p className="text-xs text-red-600">{t(errors.to_number.message ?? "")}</p>
             )}
           </div>
 
           {/* Messaggio */}
           <div className="space-y-1.5">
-            <Label htmlFor="body">Messaggio</Label>
+            <Label htmlFor="body">{t("Messaggio")}</Label>
             <Textarea
               id="body"
-              placeholder="Scrivi il testo del messaggio SMS..."
+              placeholder={t("Scrivi il testo del messaggio SMS...")}
               rows={4}
               {...register("body", {
                 onChange: (e) => setCharCount(e.target.value.length),
@@ -96,7 +98,7 @@ export function SmsCompose() {
               className={errors.body ? "border-red-400" : ""}
             />
             {errors.body && (
-              <p className="text-xs text-red-600">{errors.body.message}</p>
+              <p className="text-xs text-red-600">{t(errors.body.message ?? "")}</p>
             )}
 
             {/* Contatore caratteri */}
@@ -106,11 +108,11 @@ export function SmsCompose() {
                   dettaglio tecnico non serve, resta il conteggio. */}
               <span className="flex items-center gap-1 max-md:hidden">
                 <Info className="h-3 w-3" />
-                Charset: {partiSms.tipoCharset.toUpperCase()}
+                {t("Charset:")} {partiSms.tipoCharset.toUpperCase()}
               </span>
               <span>
-                {charCount} car. · {partiSms.parti} SMS
-                {partiSms.parti > 1 ? " (messaggio multiplo)" : ""}
+                {t("{n} car. · {parti} SMS", { n: charCount, parti: partiSms.parti })}
+                {partiSms.parti > 1 ? ` ${t("(messaggio multiplo)")}` : ""}
               </span>
             </div>
           </div>
@@ -121,7 +123,7 @@ export function SmsCompose() {
             className="w-full bg-eic-navy hover:bg-[#162d4a] text-white"
           >
             <Send className="h-4 w-4 mr-2" />
-            {isPending ? "Invio in corso…" : "Invia SMS"}
+            {isPending ? t("Invio in corso…") : t("Invia SMS")}
           </Button>
         </form>
       </CardContent>

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { LARGHEZZA_A4_PX, useFitScale } from "@/components/shared/livePreview/useFitScale";
 import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   progettoId: string;
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Props) {
+  const t = useT();
   const [html, setHtml] = useState<string | null>(null);
   const mappe = useGoogleMapsDocumentoFv(html);
   const [pagine, setPagine] = useState<number | null>(null);
@@ -50,16 +52,16 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
       });
       if (error) {
         const dettaglio = await (error as { context?: Response }).context?.json?.().catch((): null => null);
-        throw new Error((dettaglio as { error?: string } | null)?.error || "La pagina non si è aggiornata: riprova.");
+        throw new Error((dettaglio as { error?: string } | null)?.error || t("La pagina non si è aggiornata: riprova."));
       }
       const d = (data ?? {}) as { html?: string; pages_count?: number };
-      if (typeof d.html !== "string" || !d.html) throw new Error("Il server non ha restituito la pagina.");
+      if (typeof d.html !== "string" || !d.html) throw new Error(t("Il server non ha restituito la pagina."));
       setHtml(d.html);
       setPagine(typeof d.pages_count === "number" ? d.pages_count : null);
       setErrore("");
       setAggiornatoAlle(new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }));
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Errore sconosciuto");
+      setErrore(e instanceof Error ? e.message : t("Errore sconosciuto"));
     } finally {
       occupato.current = false;
       setInCorso(false);
@@ -84,29 +86,31 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
         <span className="flex items-center gap-1.5" role="status">
           {inCorso && <Loader2 className="h-3 w-3 animate-spin" />}
           {inCorso
-            ? "Aggiorno il documento…"
+            ? t("Aggiorno il documento…")
             : html
-              ? `${pagine ? `${pagine} pagine · ` : ""}aggiornato alle ${aggiornatoAlle}, all'ultimo salvataggio`
-              : "Documento del preventivo"}
+              ? pagine
+                ? t("{pagine} pagine · aggiornato alle {ora}, all'ultimo salvataggio", { pagine, ora: String(aggiornatoAlle ?? "") })
+                : t("aggiornato alle {ora}, all'ultimo salvataggio", { ora: String(aggiornatoAlle ?? "") })
+              : t("Documento del preventivo")}
         </span>
-        <Button type="button" variant="ghost" size="sm" className="h-11 w-11 shrink-0 px-1.5 xl:h-6 xl:w-auto" onClick={() => void giro()} aria-label="Aggiorna il documento ora">
+        <Button type="button" variant="ghost" size="sm" className="h-11 w-11 shrink-0 px-1.5 xl:h-6 xl:w-auto" onClick={() => void giro()} aria-label={t("Aggiorna il documento ora")}>
           <RefreshCw className="h-3 w-3" />
         </Button>
       </div>
-      <div role="group" aria-label="Zoom del documento" className="flex shrink-0 items-center justify-center gap-2 border-b bg-white p-1">
-        <Button type="button" variant="ghost" size="icon" className="h-11 w-11" aria-label="Riduci documento" onClick={fit.riduci} disabled={!fit.puoRidurre}><ZoomOut className="h-4 w-4" /></Button>
-        <Button type="button" variant="ghost" className="h-11" onClick={fit.adatta} aria-label="Adatta documento alla larghezza">Adatta · {fit.percentuale}%</Button>
-        <Button type="button" variant="ghost" size="icon" className="h-11 w-11" aria-label="Ingrandisci documento" onClick={fit.aumenta} disabled={!fit.puoAumentare}><ZoomIn className="h-4 w-4" /></Button>
+      <div role="group" aria-label={t("Zoom del documento")} className="flex shrink-0 items-center justify-center gap-2 border-b bg-white p-1">
+        <Button type="button" variant="ghost" size="icon" className="h-11 w-11" aria-label={t("Riduci documento")} onClick={fit.riduci} disabled={!fit.puoRidurre}><ZoomOut className="h-4 w-4" /></Button>
+        <Button type="button" variant="ghost" className="h-11" onClick={fit.adatta} aria-label={t("Adatta documento alla larghezza")}>{t("Adatta · {percentuale}%", { percentuale: fit.percentuale })}</Button>
+        <Button type="button" variant="ghost" size="icon" className="h-11 w-11" aria-label={t("Ingrandisci documento")} onClick={fit.aumenta} disabled={!fit.puoAumentare}><ZoomIn className="h-4 w-4" /></Button>
       </div>
       {mappe.errore && <p role="alert" className="border-b bg-amber-50 px-3 py-2 text-xs">{mappe.errore}</p>}
       <div ref={fit.ref} className="min-h-0 flex-1 overflow-auto overscroll-contain">
         {errore && !html ? (
           <div className="m-3 space-y-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-            <p className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Il documento non si è generato: {errore}</p>
-            <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => void giro()}>Riprova</Button>
+            <p className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {t("Il documento non si è generato: {errore}", { errore: String(errore ?? "") })}</p>
+            <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => void giro()}>{t("Riprova")}</Button>
           </div>
         ) : !html ? (
-          <p className="m-6 text-center text-xs text-slate-500">{attivo ? "Preparo il documento…" : "Il documento si prepara quando il pannello è aperto."}</p>
+          <p className="m-6 text-center text-xs text-slate-500">{attivo ? t("Preparo il documento…") : t("Il documento si prepara quando il pannello è aperto.")}</p>
         ) : (
           // Due livelli, come in FvLivePreviewPanel: fuori lo spazio già ridotto, dentro il foglio vero rimpicciolito.
           <div style={{ width: LARGHEZZA_A4_PX * scala, height: "100%", overflow: "hidden" }}>
@@ -115,7 +119,7 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
                 srcDoc={documento}
                 onLoad={e => mappe.carica(e.currentTarget.contentDocument)}
                 sandbox="allow-same-origin"
-                title="Il documento vero del preventivo fotovoltaico"
+                title={t("Il documento vero del preventivo fotovoltaico")}
                 className="border-0 bg-white"
                 style={{ width: LARGHEZZA_A4_PX, height: "100%", border: 0 }}
               />

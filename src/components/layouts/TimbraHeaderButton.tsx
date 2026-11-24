@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Le pagine personali, caricate solo quando si apre «Il mio stato».
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
@@ -43,7 +44,7 @@ const VOCI_STATO: Array<{ scheda: SchedaStato; label: string; icona: typeof Cloc
 const MESI = ["", "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 /** 7,5 → «7h 30m». */
 const fmtOre = (h: number) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)}h ${m % 60}m`; };
-const fmtEuro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+const fmtEuro = (n: number) => n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" });
 
 const Caricamento = () => <div className="space-y-2 p-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-32 w-full" /></div>;
 
@@ -63,6 +64,7 @@ function Tessera({ etichetta, valore, dettaglio, tono, onClick }: { etichetta: s
 
 /** Il colpo d'occhio di «Il mio stato»: monta solo a popup aperto (le query partono lì). */
 function RiepilogoStato({ onApri }: { onApri: (s: SchedaStato) => void }) {
+  const t = useT();
   const { data: profilo } = useMyHrProfilo();
   const meseCorrente = format(new Date(), "yyyy-MM");
   const { data: timbratureMese = [], isLoading: loadingMese } = useMyTimbratureMese(profilo?.id, meseCorrente);
@@ -75,20 +77,20 @@ function RiepilogoStato({ onApri }: { onApri: (s: SchedaStato) => void }) {
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <Tessera etichetta="Ore del mese" onClick={() => onApri("ore")}
+      <Tessera etichetta={t("Ore del mese")} onClick={() => onApri("ore")}
         valore={loadingMese ? "…" : fmtOre(mese.ore)}
-        dettaglio={mese.oreAttese > 0 ? `su ${fmtOre(mese.oreAttese)} attese · ${mese.giorniPresenti} gg` : `${mese.giorniPresenti} giorni presenti`} />
-      <Tessera etichetta="Ore in più" onClick={() => onApri("ferie")} tono={mese.oreInPiu > 0 ? "ambra" : undefined}
+        dettaglio={mese.oreAttese > 0 ? t("su {ore} attese · {giorni} gg", { ore: fmtOre(mese.oreAttese), giorni: mese.giorniPresenti }) : t("{giorni} giorni presenti", { giorni: mese.giorniPresenti })} />
+      <Tessera etichetta={t("Ore in più")} onClick={() => onApri("ferie")} tono={mese.oreInPiu > 0 ? "ambra" : undefined}
         valore={loadingMese ? "…" : fmtOre(mese.oreInPiu)}
-        dettaglio={mese.oreInPiu > 0 ? "oltre il contratto: chiedi lo straordinario" : "nessuna oltre il contratto"} />
-      <Tessera etichetta="Ferie residue" onClick={() => onApri("ferie")} tono="verde"
+        dettaglio={mese.oreInPiu > 0 ? t("oltre il contratto: chiedi lo straordinario") : t("nessuna oltre il contratto")} />
+      <Tessera etichetta={t("Ferie residue")} onClick={() => onApri("ferie")} tono="verde"
         valore={`${profilo.ferie_residue ?? 0} gg`}
-        dettaglio={`permessi e ROL: ${permessiOre} h`} />
-      <Tessera etichetta="Ultimo netto" onClick={() => onApri("cedolini")}
+        dettaglio={t("permessi e ROL: {ore} h", { ore: permessiOre })} />
+      <Tessera etichetta={t("Ultimo netto")} onClick={() => onApri("cedolini")}
         valore={loadingCedolini && employeeId ? "…" : ultimo ? fmtEuro(ultimo.netto) : "—"}
         dettaglio={ultimo
-          ? `${MESI[ultimo.mese] ?? ultimo.mese} ${ultimo.anno}${ultimo.contributi_dipendente != null ? ` · contributi ${fmtEuro(ultimo.contributi_dipendente)}` : ""}`
-          : "nessun cedolino"} />
+          ? `${MESI[ultimo.mese] ? new Date(2000, ultimo.mese - 1, 1).toLocaleDateString(intlCampo(), { month: "short" }) : ultimo.mese} ${ultimo.anno}${ultimo.contributi_dipendente != null ? ` · ${t("contributi {importo}", { importo: fmtEuro(ultimo.contributi_dipendente) })}` : ""}`
+          : t("nessun cedolino")} />
     </div>
   );
 }
@@ -97,6 +99,7 @@ function RiepilogoStato({ onApri }: { onApri: (s: SchedaStato) => void }) {
 const RUOLI_CON_STATO = ["company_staff", "company_admin"];
 
 export function TimbraHeaderButton() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
@@ -135,15 +138,15 @@ export function TimbraHeaderButton() {
 
   const dotCls = isEntrato ? "bg-green-500" : isInPausa ? "bg-amber-500" : "bg-slate-400";
   const statoLabel = isUscito ? "Giornata completata" : isInPausa ? "In pausa" : isEntrato ? "In servizio" : "Non hai ancora timbrato";
-  const trigger = loadingTimbrature ? { label: "Timbra", cls: "", ore: false }
-    : nonHaTimbrato ? { label: "Timbra entrata", cls: "border-green-300 bg-green-50 text-green-800 hover:bg-green-100", ore: false }
-    : isInPausa ? { label: "In pausa", cls: "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100", ore: true }
-    : isEntrato ? { label: "Timbra uscita", cls: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100", ore: true }
-    : { label: "Giornata finita", cls: "", ore: true };
+  const trigger = loadingTimbrature ? { label: t("Timbra"), cls: "", ore: false }
+    : nonHaTimbrato ? { label: t("Timbra entrata"), cls: "border-green-300 bg-green-50 text-green-800 hover:bg-green-100", ore: false }
+    : isInPausa ? { label: t("In pausa"), cls: "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100", ore: true }
+    : isEntrato ? { label: t("Timbra uscita"), cls: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100", ore: true }
+    : { label: t("Giornata finita"), cls: "", ore: true };
   const apriStato =(s: SchedaStato) => { setPopoverAperto(false); setScheda(s); };
   const fai = (tipo: TimbraturaTipo) => {
     if (!companyId || !profilo) return;
-    timbra.mutate({ companyId, profiloId: profilo.id, tipo, gps: null }, { onSuccess: () => toast.success("Timbratura registrata") });
+    timbra.mutate({ companyId, profiloId: profilo.id, tipo, gps: null }, { onSuccess: () => toast.success(t("Timbratura registrata")) });
   };
 
   return (
@@ -152,7 +155,7 @@ export function TimbraHeaderButton() {
         <PopoverTrigger asChild>
           {/* Il bottone dice la prossima mossa; il clic apre il popup (mai una
               timbratura per sbaglio da un clic distratto nella barra). */}
-          <Button variant="outline" size="sm" title="Timbra e il mio stato" aria-label="Timbra e il mio stato"
+          <Button variant="outline" size="sm" title={t("Timbra e il mio stato")} aria-label={t("Timbra e il mio stato")}
             className={cn("inline-flex h-9 shrink-0 gap-1.5 rounded-full px-2.5 text-xs font-semibold sm:px-3", trigger.cls)}>
             <Fingerprint className="h-4 w-4" aria-hidden="true" />
             <span className={cn("h-2 w-2 rounded-full", dotCls, (isEntrato || isInPausa) && "animate-pulse")} />
@@ -169,28 +172,28 @@ export function TimbraHeaderButton() {
               <div className="flex items-center gap-2">
                 <span className={cn("h-2 w-2 rounded-full", dotCls, (isEntrato || isInPausa) && "animate-pulse")} />
                 <span className="text-sm font-medium">{statoLabel}</span>
-                {!nonHaTimbrato && <span className="ml-auto text-xs font-semibold text-amber-600">{fmtOre(ore)} oggi</span>}
+                {!nonHaTimbrato && <span className="ml-auto text-xs font-semibold text-amber-600">{t("{ore} oggi", { ore: fmtOre(ore) })}</span>}
               </div>
               {!isUscito && (
                 <div className="flex flex-wrap gap-2">
-                  {nonHaTimbrato && <Button size="sm" className="flex-1 gap-1.5 bg-green-600 text-white hover:bg-green-700" disabled={busy} onClick={() => fai("entrata")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}Entrata</Button>}
+                  {nonHaTimbrato && <Button size="sm" className="flex-1 gap-1.5 bg-green-600 text-white hover:bg-green-700" disabled={busy} onClick={() => fai("entrata")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}{t("Entrata")}</Button>}
                   {isEntrato && <>
-                    <Button size="sm" variant="outline" className="flex-1 gap-1.5" disabled={busy} onClick={() => fai("pausa_inizio")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}Pausa</Button>
-                    <Button size="sm" variant="destructive" className="flex-1 gap-1.5" disabled={busy} onClick={() => fai("uscita")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}Uscita</Button>
+                    <Button size="sm" variant="outline" className="flex-1 gap-1.5" disabled={busy} onClick={() => fai("pausa_inizio")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}{t("Pausa")}</Button>
+                    <Button size="sm" variant="destructive" className="flex-1 gap-1.5" disabled={busy} onClick={() => fai("uscita")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}{t("Uscita")}</Button>
                   </>}
                   {isInPausa && <>
-                    <Button size="sm" className="flex-1 gap-1.5 bg-amber-600 text-white hover:bg-amber-700" disabled={busy} onClick={() => fai("pausa_fine")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}Riprendi</Button>
-                    <Button size="sm" variant="destructive" className="flex-1 gap-1.5" disabled={busy} onClick={() => fai("uscita")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}Uscita</Button>
+                    <Button size="sm" className="flex-1 gap-1.5 bg-amber-600 text-white hover:bg-amber-700" disabled={busy} onClick={() => fai("pausa_fine")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}{t("Riprendi")}</Button>
+                    <Button size="sm" variant="destructive" className="flex-1 gap-1.5" disabled={busy} onClick={() => fai("uscita")}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}{t("Uscita")}</Button>
                   </>}
                 </div>
               )}
-              {last?.ora_evento && <p className="text-xs text-muted-foreground">Ultima timbratura: {last.ora_evento.slice(0, 5)}</p>}
+              {last?.ora_evento && <p className="text-xs text-muted-foreground">{t("Ultima timbratura: {ora_evento}", { ora_evento: last.ora_evento.slice(0, 5) })}</p>}
               {conStato && <div className="border-t pt-2 text-sm">
-                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Il mio stato</p>
+                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("Il mio stato")}</p>
                 {VOCI_STATO.map(({ scheda: s, label, icona: Icona }) => (
                   <button key={s} type="button" onClick={() => apriStato(s)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted">
                     <Icona className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    <span className="flex-1">{label}</span>
+                    <span className="flex-1">{t(label)}</span>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   </button>
                 ))}
@@ -204,16 +207,16 @@ export function TimbraHeaderButton() {
       <Dialog open={!!scheda} onOpenChange={(aperto) => { if (!aperto) setScheda(null); }}>
         <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Il mio stato{profilo?.nome ? ` · ${[profilo.nome, profilo.cognome].filter(Boolean).join(" ")}` : ""}</DialogTitle>
+            <DialogTitle>{t("Il mio stato")}{profilo?.nome ? ` · ${[profilo.nome, profilo.cognome].filter(Boolean).join(" ")}` : ""}</DialogTitle>
           </DialogHeader>
           {scheda && (
             <div className="space-y-4">
               <RiepilogoStato onApri={setScheda} />
               <Tabs value={scheda} onValueChange={(v) => setScheda(v as SchedaStato)}>
                 <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="ore" className="gap-1.5 text-xs sm:text-sm"><Clock className="h-4 w-4" />Ore</TabsTrigger>
-                  <TabsTrigger value="ferie" className="gap-1.5 text-xs sm:text-sm"><Palmtree className="h-4 w-4" />Ferie e permessi</TabsTrigger>
-                  <TabsTrigger value="cedolini" className="gap-1.5 text-xs sm:text-sm"><Receipt className="h-4 w-4" />Cedolini</TabsTrigger>
+                  <TabsTrigger value="ore" className="gap-1.5 text-xs sm:text-sm"><Clock className="h-4 w-4" />{t("Ore")}</TabsTrigger>
+                  <TabsTrigger value="ferie" className="gap-1.5 text-xs sm:text-sm"><Palmtree className="h-4 w-4" />{t("Ferie e permessi")}</TabsTrigger>
+                  <TabsTrigger value="cedolini" className="gap-1.5 text-xs sm:text-sm"><Receipt className="h-4 w-4" />{t("Cedolini")}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="ore" className="mt-3"><Suspense fallback={<Caricamento />}><TimbraturePersonali /></Suspense></TabsContent>
                 <TabsContent value="ferie" className="mt-3"><Suspense fallback={<Caricamento />}><FeriePersonali /></Suspense></TabsContent>

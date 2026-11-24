@@ -27,6 +27,7 @@ import {
   recentRenderTitle,
   type RecentRender,
 } from "@/lib/render/recentRenders";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function RenderPreview({
   item,
@@ -37,6 +38,7 @@ function RenderPreview({
   title: string;
   list: boolean;
 }) {
+  const t = useT();
   const url = recentRenderImage(item);
   const [unavailable, setUnavailable] = useState<string | null>(null);
   const status = normalizeRenderStatus(item.status);
@@ -66,12 +68,12 @@ function RenderPreview({
           )}
           <span className="text-xs">
             {active
-              ? "Render in preparazione"
+              ? t("Render in preparazione")
               : status === "draft"
-                ? "Configurazione da completare"
+                ? t("Configurazione da completare")
                 : status === "failed"
-                  ? "Generazione non riuscita"
-                  : "Anteprima non disponibile"}
+                  ? t("Generazione non riuscita")
+                  : t("Anteprima non disponibile")}
           </span>
         </div>
       )}
@@ -96,6 +98,7 @@ export function RecentRenderCard({
   selection?: { checked: boolean; disabled: boolean; toggle: () => void };
   grouped?: boolean;
 }) {
+  const t = useT();
   const title = recentRenderTitle(item, moduleName);
   const status = normalizeRenderStatus(item.status);
   const stale = isRenderStale(item.status, item.created_at);
@@ -129,12 +132,12 @@ export function RecentRenderCard({
         >
           <label className="flex cursor-pointer items-center gap-1.5 rounded-md border bg-background/95 px-2 py-1 text-[11px]">
             <Checkbox
-              aria-label={`Seleziona ${title} del ${formatRenderDate(item.created_at)} per confronto`}
+              aria-label={t("Seleziona {title} del {created_at} per confronto", { title: String(title ?? ""), created_at: formatRenderDate(item.created_at) })}
               checked={selection.checked}
               disabled={selection.disabled}
               onCheckedChange={selection.toggle}
             />
-            Confronta
+            {t("Confronta")}
           </label>
         </div>
       )}
@@ -145,10 +148,12 @@ export function RecentRenderCard({
             : getRenderDetailPath(item.render_type, item.id)
         }
         onClick={onOpen}
-        aria-label={`Apri render ${title}${title !== moduleName ? ` · ${moduleName}` : ""} · ${formatRenderDate(item.created_at)}`}
+        aria-label={title !== moduleName
+          ? t("Apri render {titolo} · {modulo} · {data}", { titolo: title, modulo: moduleName, data: formatRenderDate(item.created_at) })
+          : t("Apri render {titolo} · {data}", { titolo: title, data: formatRenderDate(item.created_at) })}
         className={`min-w-0 flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${list ? "flex items-center gap-3 p-3 sm:gap-5" : "block"}`}
       >
-        <RenderPreview item={item} title={`Render ${title}`} list={list} />
+        <RenderPreview item={item} title={t("Render {title}", { title: String(title ?? "") })} list={list} />
         <div className={`min-w-0 space-y-2 ${list ? "flex-1 py-1" : "p-4"}`}>
           <div className="flex items-start justify-between gap-2">
             <Heading
@@ -171,7 +176,7 @@ export function RecentRenderCard({
               className={`gap-1 border-0 px-2 py-0.5 text-[11px] font-medium ${statusClass}`}
             >
               <StatusIcon className="h-3 w-3" aria-hidden="true" />
-              {stale ? "Da verificare" : renderStatusLabel(item.status)}
+              {stale ? t("Da verificare") : t(renderStatusLabel(item.status))}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -197,15 +202,15 @@ export function RecentRenderCard({
           className={`border-t bg-muted/25 px-4 py-2.5 ${list ? "sm:w-56 sm:shrink-0 sm:border-l sm:border-t-0" : "mt-auto"}`}
         >
           {item.planOrigin.projectAvailable === false ? (
-            <p className="text-xs text-muted-foreground">
-              Planimetria non disponibile · versione {item.planOrigin.version}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("Planimetria non disponibile · versione {version}", { version: String(item.planOrigin.version ?? "") })}</p>
           ) : (
             <Link
               to={item.planOrigin.projectPath}
               onClick={onOpen}
               className="flex min-w-0 items-start gap-2 rounded text-xs text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              aria-label={`Apri planimetria ${item.planOrigin.projectTitle || "collegata"} per ${title}`}
+              aria-label={item.planOrigin.projectTitle
+                ? t("Apri planimetria {progetto} per {titolo}", { progetto: item.planOrigin.projectTitle, titolo: title })
+                : t("Apri planimetria collegata per {titolo}", { titolo: title })}
             >
               <LayoutPanelTop
                 className="mt-0.5 h-4 w-4 shrink-0"
@@ -216,11 +221,9 @@ export function RecentRenderCard({
                   className="block truncate font-medium text-foreground"
                   title={item.planOrigin.projectTitle}
                 >
-                  {item.planOrigin.projectTitle || "Planimetria collegata"}
+                  {item.planOrigin.projectTitle || t("Planimetria collegata")}
                 </span>
-                <span className="mt-0.5 block">
-                  Versione {item.planOrigin.version}
-                </span>
+                <span className="mt-0.5 block">{t("Versione {version}", { version: String(item.planOrigin.version ?? "") })}</span>
               </span>
             </Link>
           )}

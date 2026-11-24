@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const messaggio = (e: unknown) =>
   typeof e === "object" && e && "message" in e
     ? String(e.message)
@@ -44,6 +45,7 @@ export function ProfiliRequisitiDialog({
   companyId: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const p = usePermissions();
   const q = useProfiliRequisiti(companyId);
   const salva = useSalvaProfiloRequisiti(companyId);
@@ -91,9 +93,9 @@ export function ProfiliRequisitiDialog({
         dati: modulo.dati,
       });
       setModulo(null);
-      toast.success("Nuova versione del profilo salvata");
+      toast.success(t("Nuova versione del profilo salvata"));
     } catch (e) {
-      setErrore(messaggio(e));
+      setErrore(t(messaggio(e)));
     }
   }
   async function cambiaArchivio(v: ProfiloRequisiti) {
@@ -101,10 +103,10 @@ export function ProfiliRequisitiDialog({
     try {
       await archivia.mutateAsync(v);
       toast.success(
-        v.archiviato ? "Versione ripristinata" : "Versione archiviata",
+        v.archiviato ? t("Versione ripristinata") : t("Versione archiviata"),
       );
     } catch (e) {
-      setErrore(messaggio(e));
+      setErrore(t(messaggio(e)));
     }
   }
   return (
@@ -125,14 +127,12 @@ export function ProfiliRequisitiDialog({
           <DialogTitle>
             {modulo
               ? modulo.precedente
-                ? "Nuova versione del profilo"
-                : "Nuovo profilo requisiti"
-              : "Profili requisiti aziendali"}
+                ? t("Nuova versione del profilo")
+                : t("Nuovo profilo requisiti")
+              : t("Profili requisiti aziendali")}
           </DialogTitle>
           <DialogDescription>
-            Attività, ruoli e criteri riutilizzabili. Ogni cantiere richiede una
-            scelta esplicita e una valutazione dell’applicabilità; il profilo
-            non costituisce un esito ITP.
+            {t("Attività, ruoli e criteri riutilizzabili. Ogni cantiere richiede una scelta esplicita e una valutazione dell’applicabilità; il profilo non costituisce un esito ITP.")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-4">
@@ -142,7 +142,7 @@ export function ProfiliRequisitiDialog({
               className="min-w-0 space-y-4"
             >
               <label className="block text-sm">
-                Nome del profilo
+                {t("Nome del profilo")}
                 <Input
                   maxLength={120}
                   value={modulo.dati.nome}
@@ -151,26 +151,26 @@ export function ProfiliRequisitiDialog({
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-sm">
-                  Attività previste
+                  {t("Attività previste")}
                   <Textarea
                     maxLength={4000}
                     value={modulo.dati.attivita}
                     onChange={(e) => cambia({ attivita: e.target.value })}
-                    placeholder="Descrivi le lavorazioni a cui può servire"
+                    placeholder={t("Descrivi le lavorazioni a cui può servire")}
                   />
                 </label>
                 <label className="text-sm">
-                  Ruoli e soggetti interessati
+                  {t("Ruoli e soggetti interessati")}
                   <Textarea
                     maxLength={4000}
                     value={modulo.dati.ruoli}
                     onChange={(e) => cambia({ ruoli: e.target.value })}
-                    placeholder="Es. impresa esecutrice, preposto, addetti alla posa"
+                    placeholder={t("Es. impresa esecutrice, preposto, addetti alla posa")}
                   />
                 </label>
               </div>
               <label className="block text-sm">
-                Condizioni e limiti d’impiego
+                {t("Condizioni e limiti d’impiego")}
                 <Textarea
                   maxLength={4000}
                   value={modulo.dati.limiti}
@@ -178,17 +178,15 @@ export function ProfiliRequisitiDialog({
                 />
               </label>
               <div className="space-y-2">
-                <h3 className="font-medium">
-                  Criteri del profilo · {modulo.dati.criteri.length}/50
-                </h3>
+                <h3 className="font-medium">{t("Criteri del profilo · {n}/50", { n: modulo.dati.criteri.length })}</h3>
                 <div className="flex flex-wrap gap-2">
                   <UniformSelect
-                    aria-label="Voce del catalogo per il profilo"
+                    aria-label={t("Voce del catalogo per il profilo")}
                     className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
                     value={voce}
                     onChange={(e) => setVoce(e.target.value)}
                   >
-                    <option value="">Scegli dal catalogo sicurezza…</option>
+                    <option value="">{t("Scegli dal catalogo sicurezza…")}</option>
                     {CATALOGO_DOCUMENTI.voci
                       .filter((v) => v.destinazione === "sicurezza")
                       .map((v) => (
@@ -219,7 +217,7 @@ export function ProfiliRequisitiDialog({
                       setVoce("");
                     }}
                   >
-                    Aggiungi voce
+                    {t("Aggiungi voce")}
                   </Button>
                   <Button
                     variant="outline"
@@ -233,7 +231,7 @@ export function ProfiliRequisitiDialog({
                       })
                     }
                   >
-                    Aggiungi criterio libero
+                    {t("Aggiungi criterio libero")}
                   </Button>
                 </div>
               </div>
@@ -248,7 +246,7 @@ export function ProfiliRequisitiDialog({
                   <div className="rounded-lg border p-3 space-y-2" key={c.id}>
                     <div className="flex items-end gap-2">
                       <label className="min-w-0 flex-1 text-sm">
-                        Titolo del criterio {i + 1}
+                        {t("Titolo del criterio")} {i + 1}
                         <Input
                           maxLength={300}
                           value={c.titolo}
@@ -265,12 +263,10 @@ export function ProfiliRequisitiDialog({
                             ),
                           })
                         }
-                      >
-                        Rimuovi criterio {i + 1}
-                      </Button>
+                      >{t("Rimuovi criterio {i}", { i: i + 1 })}</Button>
                     </div>
                     <label className="block text-sm">
-                      Riferimento da esaminare
+                      {t("Riferimento da esaminare")}
                       <Input
                         maxLength={1000}
                         value={c.riferimento}
@@ -280,7 +276,7 @@ export function ProfiliRequisitiDialog({
                       />
                     </label>
                     <label className="block text-sm">
-                      Indicazioni per chi valuta
+                      {t("Indicazioni per chi valuta")}
                       <Textarea
                         maxLength={2000}
                         value={c.indicazioni}
@@ -299,28 +295,25 @@ export function ProfiliRequisitiDialog({
                   onChange={(e) => cambia({ testi_generici: e.target.checked })}
                 />
                 <span>
-                  Ho verificato che i testi siano generici, riutilizzabili e
-                  privi di dati personali o riferimenti a un singolo cantiere.
+                  {t("Ho verificato che i testi siano generici, riutilizzabili e privi di dati personali o riferimenti a un singolo cantiere.")}
                 </span>
               </label>
               <p className="text-xs text-muted-foreground">
-                Il salvataggio crea una nuova versione. Non aggiorna i criteri
-                nelle valutazioni esistenti, non verifica documenti e non invia
-                richieste.
+                {t("Il salvataggio crea una nuova versione. Non aggiorna i criteri nelle valutazioni esistenti, non verifica documenti e non invia richieste.")}
               </p>
             </fieldset>
           ) : (
             <>
               <div className="flex flex-wrap gap-2">
                 <Input
-                  aria-label="Cerca profili per attività o ruolo"
+                  aria-label={t("Cerca profili per attività o ruolo")}
                   value={cerca}
                   onChange={(e) => setCerca(e.target.value)}
-                  placeholder="Cerca profilo, attività o ruolo…"
+                  placeholder={t("Cerca profilo, attività o ruolo…")}
                   className="flex-1"
                 />
                 {!p.solaLettura && (
-                  <Button onClick={() => nuovaVersione()}>Nuovo profilo</Button>
+                  <Button onClick={() => nuovaVersione()}>{t("Nuovo profilo")}</Button>
                 )}
               </div>
               <label className="flex items-center gap-2 text-sm">
@@ -329,17 +322,17 @@ export function ProfiliRequisitiDialog({
                   checked={archiviati}
                   onChange={(e) => setArchiviati(e.target.checked)}
                 />
-                Mostra versioni archiviate
+                {t("Mostra versioni archiviate")}
               </label>
               {q.isError ? (
                 <p role="alert">
-                  Profili non disponibili.{" "}
+                  {t("Profili non disponibili.")}{" "}
                   <Button variant="link" onClick={() => void q.refetch()}>
-                    Riprova
+                    {t("Riprova")}
                   </Button>
                 </p>
               ) : q.isLoading ? (
-                <p>Caricamento profili…</p>
+                <p>{t("Caricamento profili…")}</p>
               ) : (
                 <div className="space-y-3">
                   {cercaProfili(q.data ?? [], cerca)
@@ -364,25 +357,23 @@ export function ProfiliRequisitiDialog({
                             </h3>
                             <Badge variant="outline">
                               {v.archiviato
-                                ? "Archiviato"
+                                ? t("Archiviato")
                                 : ultima
-                                  ? "Ultima versione"
-                                  : "Versione precedente"}
+                                  ? t("Ultima versione")
+                                  : t("Versione precedente")}
                             </Badge>
                           </div>
                           <p className="text-sm">
-                            <strong>Attività:</strong> {v.attivita}
+                            <strong>{t("Attività:")}</strong> {v.attivita}
                           </p>
                           <p className="text-sm">
-                            <strong>Ruoli:</strong> {v.ruoli}
+                            <strong>{t("Ruoli:")}</strong> {v.ruoli}
                           </p>
                           <p className="text-sm">
-                            <strong>Limiti:</strong> {v.limiti}
+                            <strong>{t("Limiti:")}</strong> {v.limiti}
                           </p>
                           <details className="text-sm">
-                            <summary className="cursor-pointer">
-                              Criteri da esaminare · {v.criteri.length}
-                            </summary>
+                            <summary className="cursor-pointer">{t("Criteri da esaminare · {n}", { n: v.criteri.length })}</summary>
                             <ul className="mt-2 space-y-2">
                               {v.criteri.map((c) => (
                                 <li className="border-l-2 pl-2" key={c.id}>
@@ -396,10 +387,7 @@ export function ProfiliRequisitiDialog({
                             </ul>
                           </details>
                           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
-                            <p className="text-xs text-muted-foreground">
-                              Creato il{" "}
-                              {new Date(v.creato_il).toLocaleString("it-IT")}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{t("Creato il {valore}", { valore: new Date(v.creato_il).toLocaleString(intlCampo()) })}</p>
                             {!p.solaLettura && (
                               <div className="flex gap-2">
                                 {ultima && (
@@ -409,7 +397,7 @@ export function ProfiliRequisitiDialog({
                                     disabled={pending}
                                     onClick={() => nuovaVersione(v)}
                                   >
-                                    Nuova versione
+                                    {t("Nuova versione")}
                                   </Button>
                                 )}
                                 <Button
@@ -419,8 +407,8 @@ export function ProfiliRequisitiDialog({
                                   onClick={() => void cambiaArchivio(v)}
                                 >
                                   {v.archiviato
-                                    ? "Ripristina versione"
-                                    : "Archivia versione"}
+                                    ? t("Ripristina versione")
+                                    : t("Archivia versione")}
                                 </Button>
                               </div>
                             )}
@@ -432,9 +420,7 @@ export function ProfiliRequisitiDialog({
                     (v) => archiviati || !v.archiviato,
                   ) && (
                     <p className="text-sm text-muted-foreground">
-                      Nessun profilo con questi filtri. I profili vengono
-                      definiti dall’azienda; non sono stati creati obblighi
-                      automatici dal catalogo.
+                      {t("Nessun profilo con questi filtri. I profili vengono definiti dall’azienda; non sono stati creati obblighi automatici dal catalogo.")}
                     </p>
                   )}
                 </div>
@@ -458,18 +444,18 @@ export function ProfiliRequisitiDialog({
                   setErrore("");
                 }}
               >
-                Annulla modifica
+                {t("Annulla modifica")}
               </Button>
               <Button
                 disabled={pending || p.solaLettura}
                 onClick={() => void registra()}
               >
-                {salva.isPending ? "Salvataggio…" : "Salva nuova versione"}
+                {salva.isPending ? t("Salvataggio…") : t("Salva nuova versione")}
               </Button>
             </>
           ) : (
             <Button variant="outline" disabled={pending} onClick={onClose}>
-              Chiudi profili
+              {t("Chiudi profili")}
             </Button>
           )}
         </div>
@@ -479,13 +465,14 @@ export function ProfiliRequisitiDialog({
 }
 
 export function PulsanteProfiliRequisiti({ companyId }: { companyId: string }) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(false);
   if (!companyId || !p.canViewSicurezzaCantiere) return null;
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setAperto(true)}>
-        Profili requisiti
+        {t("Profili requisiti")}
       </Button>
       {aperto && (
         <ProfiliRequisitiDialog

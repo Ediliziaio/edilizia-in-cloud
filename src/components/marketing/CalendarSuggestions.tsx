@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapPin, Clock, Car, AlertTriangle, CheckCircle2, Ban, ChevronDown, ChevronUp } from "lucide-react";
 import DailyRoutePanel from "./DailyRoutePanel";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CalendarSuggestion {
   calendar_id: string;
@@ -38,6 +39,7 @@ const statusConfig = {
 };
 
 const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, isLoading, onSelect, selectedCalendarId }, ref) => {
+  const tr = useT();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (isLoading) {
@@ -45,7 +47,7 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
       <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Car className="h-4 w-4 text-primary animate-pulse" />
-          <span className="text-sm font-medium">Calcolo calendari consigliati...</span>
+          <span className="text-sm font-medium">{tr("Calcolo calendari consigliati...")}</span>
         </div>
         {[1, 2].map((i) => (
           <Skeleton key={i} className="h-20 w-full" />
@@ -60,7 +62,7 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Nessun calendario disponibile per questa data e posizione.
+            {tr("Nessun calendario disponibile per questa data e posizione.")}
           </p>
         </div>
       </div>
@@ -71,8 +73,8 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
     <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
       <div className="flex items-center gap-2">
         <MapPin className="h-4 w-4 text-primary" />
-        <span className="text-sm font-semibold">Calendari consigliati</span>
-        <span className="text-xs text-muted-foreground ml-auto">{suggestions.length} risultati</span>
+        <span className="text-sm font-semibold">{tr("Calendari consigliati")}</span>
+        <span className="text-xs text-muted-foreground ml-auto">{tr("{n} risultati", { n: suggestions.length })}</span>
       </div>
 
       <div className="space-y-2">
@@ -110,7 +112,7 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
                   {s.travel_minutes} min
                 </span>
                 {s.is_estimate && (
-                  <span className="text-[10px] italic text-yellow-600">(stima)</span>
+                  <span className="text-[10px] italic text-yellow-600">{tr("(stima)")}</span>
                 )}
               </div>
 
@@ -120,10 +122,8 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
               {/* KM progress bar */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>Km giornalieri</span>
-                  <span className={kmPercent > 100 ? "text-destructive font-medium" : ""}>
-                    {s.daily_km_if_assigned} / {s.max_daily_km} km
-                  </span>
+                  <span>{tr("Km giornalieri")}</span>
+                  <span className={kmPercent > 100 ? "text-destructive font-medium" : ""}>{tr("{daily_km_if_assigned} / {max_daily_km} km", { daily_km_if_assigned: String(s.daily_km_if_assigned ?? ""), max_daily_km: String(s.max_daily_km ?? "") })}</span>
                 </div>
                 <Progress
                   value={kmPercent}
@@ -154,7 +154,7 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
                     className="h-7 text-xs"
                     onClick={() => onSelect(s.calendar_id)}
                   >
-                    Seleziona
+                    {tr("Seleziona")}
                   </Button>
                 )}
 
@@ -162,7 +162,7 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-[11px] text-destructive cursor-help">Non disponibile</span>
+                        <span className="text-[11px] text-destructive cursor-help">{tr("Non disponibile")}</span>
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs text-xs">{s.reason}</TooltipContent>
                     </Tooltip>
@@ -177,7 +177,7 @@ const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, is
                   onClick={() => setExpandedId(isExpanded ? null : s.calendar_id)}
                 >
                   {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                  Percorso
+                  {tr("Percorso")}
                 </Button>
               </div>
 

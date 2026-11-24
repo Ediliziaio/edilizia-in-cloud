@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { annullaSilvio, ErroreBozza, messaggioErrore, type ClientBozze } from "@/lib/silvio-commessa/bozze";
 import { rifiutoInParole } from "./presentazione";
 import { useCreaConSilvioAttivo } from "./useCreaConSilvioAttivo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Le tabelle di Silvio non sono ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,6 +39,7 @@ export function StrisciaSilvioCommessa({ orderId, companyId, puoModificare, db =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db?: any;
 }) {
+  const t = useT();
   const attivo = useCreaConSilvioAttivo(companyId);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -71,17 +73,17 @@ export function StrisciaSilvioCommessa({ orderId, companyId, puoModificare, db =
 
   return (
     <div className="mx-0 mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm sm:mx-6"
-      role="region" aria-label="Preparato da Silvio">
+      role="region" aria-label={t("Preparato da Silvio")}>
       <Sparkles className="h-4 w-4 shrink-0 text-orange-600" aria-hidden />
       <p className="min-w-0 flex-1 text-orange-950">
-        {p.modo === "crea" ? "Silvio ha preparato" : "Silvio ha aggiunto"} <strong>{p.cose} {p.cose === 1 ? "cosa" : "cose"}</strong> in questa commessa.
+        {p.modo === "crea" ? t("Silvio ha preparato") : t("Silvio ha aggiunto")} <strong>{t(p.cose === 1 ? "{n} cosa" : "{n} cose", { n: p.cose })}</strong> {t("in questa commessa.")}
       </p>
       {puoModificare && (
         <Button type="button" size="sm" variant="outline" className="h-11 gap-1 bg-white sm:h-8" onClick={() => setConferma(true)}>
-          <Undo2 className="h-4 w-4" aria-hidden />Annulla tutto
+          <Undo2 className="h-4 w-4" aria-hidden />{t("Annulla tutto")}
         </Button>
       )}
-      <button type="button" className="grid h-11 w-11 place-items-center rounded text-orange-700 hover:bg-orange-100 sm:h-8 sm:w-8" aria-label="Nascondi" onClick={() => setChiusa(true)}>
+      <button type="button" className="grid h-11 w-11 place-items-center rounded text-orange-700 hover:bg-orange-100 sm:h-8 sm:w-8" aria-label={t("Nascondi")} onClick={() => setChiusa(true)}>
         <X className="h-4 w-4" />
       </button>
       {rifiuto && !conferma && <p role="alert" className="w-full text-xs text-red-800">{rifiuto}</p>}
@@ -89,19 +91,19 @@ export function StrisciaSilvioCommessa({ orderId, companyId, puoModificare, db =
       <AlertDialog open={conferma} onOpenChange={(o) => { if (!annullando) setConferma(o); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Annullare tutto quello che ha fatto Silvio?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Annullare tutto quello che ha fatto Silvio?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {p.modo === "crea"
-                ? "La commessa sparisce, con fasi, rate, righe e documenti che Silvio ha preparato. La bozza torna com'era: puoi ricrearla."
-                : "Tolgo quello che Silvio ha aggiunto; quello che c'era prima resta com'era."}
-              {" "}Si può solo finché nessuno ci ha lavorato sopra.
+                ? t("La commessa sparisce, con fasi, rate, righe e documenti che Silvio ha preparato. La bozza torna com'era: puoi ricrearla.")
+                : t("Tolgo quello che Silvio ha aggiunto; quello che c'era prima resta com'era.")}
+              {" "}{t("Si può solo finché nessuno ci ha lavorato sopra.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {rifiuto && <p role="alert" className="text-sm text-red-800">{rifiuto}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={annullando}>Tieni tutto</AlertDialogCancel>
+            <AlertDialogCancel disabled={annullando}>{t("Tieni tutto")}</AlertDialogCancel>
             <Button type="button" variant="destructive" disabled={annullando} onClick={() => void annulla()}>
-              {annullando && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}Annulla tutto
+              {annullando && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}{t("Annulla tutto")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

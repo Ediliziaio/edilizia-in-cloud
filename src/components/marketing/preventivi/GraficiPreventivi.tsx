@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { format, isSameMonth, startOfMonth, subMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
@@ -8,19 +7,21 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
 import type { UnifiedRow } from "./UnifiedPreventiviList";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function GraficiPreventivi({ righe, distribuzione, ricavoFirmato }: {
   righe: ReadonlyArray<Pick<UnifiedRow, "data" | "stato_unif">>;
   distribuzione: { name: string; value: number; color: string }[];
   ricavoFirmato: number;
 }) {
+  const t = useT();
   const trend = useMemo(() => {
     const oggi = new Date();
     return Array.from({ length: 6 }, (_, indice) => {
       const data = startOfMonth(subMonths(oggi, 5 - indice));
       const creati = righe.filter(riga => isSameMonth(new Date(riga.data), data));
       const vinti = creati.filter(riga => riga.stato_unif === "vinto").length;
-      return { mese: format(data, "MMM", { locale: it }), creati: creati.length, vinti };
+      return { mese: format(data, "MMM", { locale: dateFnsCampo() }), creati: creati.length, vinti };
     });
   }, [righe]);
 
@@ -31,11 +32,11 @@ export default function GraficiPreventivi({ righe, distribuzione, ricavoFirmato 
           <div>
             <h3 className="flex items-center gap-1.5 text-sm font-semibold">
               <span className="inline-block h-4 w-1 rounded bg-orange-500" />
-              Trend ultimi 6 mesi
+              {t("Trend ultimi 6 mesi")}
             </h3>
-            <p className="text-[11px] text-muted-foreground">Preventivi creati vs vinti</p>
+            <p className="text-[11px] text-muted-foreground">{t("Preventivi creati vs vinti")}</p>
           </div>
-          <span className="text-[11px] text-muted-foreground">{formatCurrency(ricavoFirmato)} firmato</span>
+          <span className="text-[11px] text-muted-foreground">{t("{ricavoFirmato} firmato", { ricavoFirmato: formatCurrency(ricavoFirmato) })}</span>
         </div>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
@@ -57,9 +58,9 @@ export default function GraficiPreventivi({ righe, distribuzione, ricavoFirmato 
         <div className="mb-3">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold">
             <span className="inline-block h-4 w-1 rounded bg-orange-500" />
-            Distribuzione per tipo
+            {t("Distribuzione per tipo")}
           </h3>
-          <p className="text-[11px] text-muted-foreground">{righe.length} preventivi totali</p>
+          <p className="text-[11px] text-muted-foreground">{t("{n} preventivi totali", { n: righe.length })}</p>
         </div>
         <div className="h-48">
           {distribuzione.length > 0 ? (
@@ -72,7 +73,7 @@ export default function GraficiPreventivi({ righe, distribuzione, ricavoFirmato 
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
-          ) : <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Nessun dato</div>}
+          ) : <div className="flex h-full items-center justify-center text-xs text-muted-foreground">{t("Nessun dato")}</div>}
         </div>
       </CardContent>
     </Card>

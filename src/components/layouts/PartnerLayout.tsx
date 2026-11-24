@@ -34,6 +34,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MENU_ITEMS = [
   { to: "/partner", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -69,6 +70,7 @@ function shouldRedirectToReferralSubdomain() {
 }
 
 function PartnerSidebar() {
+  const t = useT();
   const { signOut, profile, user } = useAuth();
 
   const { data: referrer } = useQuery<PartnerSidebarReferrer | null>({
@@ -117,7 +119,7 @@ function PartnerSidebar() {
                       activeClassName="bg-muted text-foreground font-medium"
                     >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.label}</span>
+                      <span>{t(item.label)}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -139,7 +141,7 @@ function PartnerSidebar() {
         </div>
         <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => signOut()}>
           <LogOut className="h-4 w-4" />
-          Esci
+          {t("Esci")}
         </Button>
       </div>
     </Sidebar>
@@ -147,6 +149,7 @@ function PartnerSidebar() {
 }
 
 export function PartnerLayout() {
+  const t = useT();
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
@@ -161,7 +164,7 @@ export function PartnerLayout() {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3 text-center">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Apro il portale referral...</p>
+          <p className="text-sm text-muted-foreground">{t("Apro il portale referral...")}</p>
         </div>
       </div>
     );
@@ -177,7 +180,7 @@ export function PartnerLayout() {
           <div className="flex h-14 items-center border-b px-4 lg:hidden">
             <SidebarTrigger />
           </div>
-          <ErrorBoundary title="Errore nel caricamento della pagina">
+          <ErrorBoundary title={t("Errore nel caricamento della pagina")}>
             <Outlet />
           </ErrorBoundary>
         </main>

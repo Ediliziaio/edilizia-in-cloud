@@ -23,6 +23,7 @@ import {
 import { FileText, Plus, Pencil, Trash2, Settings2, Sparkles, ChevronDown } from "lucide-react";
 import { useMessageTemplates, type MessageTemplateRow, type MessageTemplateInput } from "@/hooks/useMessageTemplates";
 import { applyTemplateVars, TEMPLATE_FIELDS, type TemplateChannel } from "@/lib/messageTemplateVars";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   channel: TemplateChannel;
@@ -45,6 +46,7 @@ const CHANNEL_LABEL: Record<TemplateChannel, string> = {
 };
 
 export function MessageTemplatePicker({ channel, vars, onInsert, triggerVariant = "outline", triggerClassName, align = "start", soloIconaSuTelefono = false }: Props) {
+  const tr = useT();
   const { templates, create, update, remove, seedExamples, isMutating } = useMessageTemplates(channel);
   const [manageOpen, setManageOpen] = useState(false);
 
@@ -61,14 +63,14 @@ export function MessageTemplatePicker({ channel, vars, onInsert, triggerVariant 
         <DropdownMenuTrigger asChild>
           <Button type="button" variant={triggerVariant} size="sm" className={triggerClassName ?? "h-8 gap-1.5 text-xs"}>
             <FileText className="h-3.5 w-3.5" />
-            <span className={soloIconaSuTelefono ? "max-md:hidden" : undefined}>Template</span>
+            <span className={soloIconaSuTelefono ? "max-md:hidden" : undefined}>{tr("Template")}</span>
             <ChevronDown className={cn("h-3 w-3 opacity-60", soloIconaSuTelefono && "max-md:hidden")} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align={align} className="w-72">
-          <DropdownMenuLabel className="text-[11px]">Template {CHANNEL_LABEL[channel]}</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-[11px]">{tr("Template {canale}", { canale: tr(CHANNEL_LABEL[channel]) })}</DropdownMenuLabel>
           {templates.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessun template per questo canale.</div>
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">{tr("Nessun template per questo canale.")}</div>
           ) : (
             templates.map((t) => (
               <DropdownMenuItem key={t.id} onClick={() => handlePick(t)} className="flex-col items-start gap-0.5">
@@ -79,7 +81,7 @@ export function MessageTemplatePicker({ channel, vars, onInsert, triggerVariant 
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setManageOpen(true)} className="gap-2">
-            <Settings2 className="h-3.5 w-3.5" /> Gestisci template
+            <Settings2 className="h-3.5 w-3.5" /> {tr("Gestisci template")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -114,6 +116,7 @@ function ManageTemplatesDialog({
   onSeed: () => Promise<void>;
   isMutating: boolean;
 }) {
+  const tr = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
@@ -161,11 +164,10 @@ function ManageTemplatesDialog({
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" /> Template {CHANNEL_LABEL[channel]}
+            <FileText className="h-5 w-5 text-primary" /> {tr("Template {canale}", { canale: tr(CHANNEL_LABEL[channel]) })}
           </DialogTitle>
           <DialogDescription>
-            Crea messaggi pronti con campi personalizzati come <code className="rounded bg-muted px-1">{"{{nome}}"}</code> o{" "}
-            <code className="rounded bg-muted px-1">{"{{commessa}}"}</code>: verranno sostituiti al momento dell'invio.
+            {tr("Crea messaggi pronti con campi personalizzati come {primo} o {secondo}: verranno sostituiti al momento dell'invio.", { primo: "{{nome}}", secondo: "{{commessa}}" })}
           </DialogDescription>
         </DialogHeader>
 
@@ -173,16 +175,16 @@ function ManageTemplatesDialog({
           {/* Lista template esistenti */}
           <section className="space-y-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Salvati ({templates.length})</h4>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tr("Salvati ({n})", { n: templates.length })}</h4>
               <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={resetForm}>
-                <Plus className="h-3.5 w-3.5" /> Nuovo
+                <Plus className="h-3.5 w-3.5" /> {tr("Nuovo")}
               </Button>
             </div>
             {templates.length === 0 ? (
               <div className="rounded-md border border-dashed p-4 text-center">
-                <p className="text-xs text-muted-foreground">Nessun template salvato.</p>
+                <p className="text-xs text-muted-foreground">{tr("Nessun template salvato.")}</p>
                 <Button type="button" variant="outline" size="sm" className="mt-2 gap-1.5" onClick={() => onSeed()} disabled={isMutating}>
-                  <Sparkles className="h-3.5 w-3.5" /> Aggiungi esempi
+                  <Sparkles className="h-3.5 w-3.5" /> {tr("Aggiungi esempi")}
                 </Button>
               </div>
             ) : (
@@ -194,10 +196,10 @@ function ManageTemplatesDialog({
                       <p className="truncate text-[11px] text-muted-foreground">{t.subject || t.body}</p>
                     </button>
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label="Modifica" onClick={() => startEdit(t)}>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={tr("Modifica")} onClick={() => startEdit(t)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label="Elimina" onClick={() => onRemove(t.id)} disabled={isMutating}>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label={tr("Elimina")} onClick={() => onRemove(t.id)} disabled={isMutating}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -210,21 +212,21 @@ function ManageTemplatesDialog({
           {/* Form crea/modifica */}
           <section className="space-y-2.5">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {editingId ? "Modifica template" : "Nuovo template"}
+              {editingId ? tr("Modifica template") : tr("Nuovo template")}
             </h4>
             <div className="space-y-1">
-              <Label className="text-xs">Nome</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Conferma appuntamento" className="h-9 text-sm" />
+              <Label className="text-xs">{tr("Nome")}</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("Es. Conferma appuntamento")} className="h-9 text-sm" />
             </div>
             {emailChannel && (
               <div className="space-y-1">
-                <Label className="text-xs">Oggetto</Label>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Oggetto dell'email" className="h-9 text-sm" />
+                <Label className="text-xs">{tr("Oggetto")}</Label>
+                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={tr("Oggetto dell'email")} className="h-9 text-sm" />
               </div>
             )}
             <div className="space-y-1">
-              <Label className="text-xs">Messaggio</Label>
-              <Textarea ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Scrivi il testo… usa i campi qui sotto" rows={6} className="text-sm resize-y" />
+              <Label className="text-xs">{tr("Messaggio")}</Label>
+              <Textarea ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} placeholder={tr("Scrivi il testo… usa i campi qui sotto")} rows={6} className="text-sm resize-y" />
             </div>
             <div className="flex flex-wrap gap-1">
               {TEMPLATE_FIELDS.map((f) => (
@@ -232,19 +234,19 @@ function ManageTemplatesDialog({
                   key={f.key}
                   variant="secondary"
                   className="cursor-pointer text-[10px] hover:bg-primary hover:text-primary-foreground"
-                  title={`Inserisci ${f.label}${f.sample ? ` (es. ${f.sample})` : ""}`}
+                  title={f.sample ? tr("Inserisci {campo} (es. {esempio})", { campo: tr(f.label), esempio: f.sample }) : tr("Inserisci {campo}", { campo: tr(f.label) })}
                   onClick={() => insertField(f.key)}
                 >
-                  + {f.label}
+                  + {tr(f.label)}
                 </Badge>
               ))}
             </div>
             <div className="flex justify-end gap-2 pt-1">
               {editingId && (
-                <Button type="button" variant="outline" size="sm" onClick={resetForm}>Annulla</Button>
+                <Button type="button" variant="outline" size="sm" onClick={resetForm}>{tr("Annulla")}</Button>
               )}
               <Button type="button" size="sm" onClick={handleSave} disabled={!canSave || isMutating}>
-                {editingId ? "Salva modifiche" : "Crea template"}
+                {editingId ? tr("Salva modifiche") : tr("Crea template")}
               </Button>
             </div>
           </section>

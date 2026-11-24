@@ -106,8 +106,10 @@ const ETICHETTA_BREVE_PASSO: Partial<Record<SrWizardStep, string>> = {
 import {
   compactText, isWizardStepComplete,
 } from "./SerramentiWizard/helpers";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function SerramentiWizard() {
+  const tr = useT();
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -166,7 +168,7 @@ export default function SerramentiWizard() {
   const { data: pdfTemplate, isLoading: loadingPdfTemplate, isError: templateError } = useTemplatePdf();
   const savedModel = useMemo<{ snapshot: ReturnType<typeof readSrQuoteModelSnapshot>; error: string | null }>(() => {
     try { return { snapshot: detail ? readSrQuoteModelSnapshot(detail.progetto.modello_snapshot, detail.progetto.company_id) : null, error: null }; }
-    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non leggibile" }; }
+    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : tr("Modello non leggibile") }; }
   }, [detail]);
   const modelId = isNew ? (isSrQuoteModelId(requestedModel) ? requestedModel : undefined) : savedModel.snapshot?.modelId;
   const modelDefinition = modelId ? findSerramentiTemplateModule(modelId) : null;
@@ -203,10 +205,10 @@ export default function SerramentiWizard() {
       await updateMut.mutateAsync({ stato: next });
       setLastSavedAt(new Date());
       const label = STATI_LABEL[next].label;
-      toast.success(`Stato → ${label}`);
+      toast.success(tr("Stato → {label}", { label: tr(label) }));
     } catch (e) {
-      toast.error("Impossibile cambiare stato", {
-        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      toast.error(tr("Impossibile cambiare stato"), {
+        description: e instanceof Error ? e.message : tr("Errore sconosciuto"),
       });
     }
   };
@@ -225,11 +227,11 @@ export default function SerramentiWizard() {
     const dismissKey = `sr-scaduto-toast-${id}`;
     if (sessionStorage.getItem(dismissKey)) return;
     sessionStorage.setItem(dismissKey, "1");
-    toast.warning("Preventivo scaduto", {
-      description: `La validità è scaduta il ${new Date(valido_fino_data).toLocaleDateString("it-IT")}. Vuoi marcarlo come "scaduto"?`,
+    toast.warning(tr("Preventivo scaduto"), {
+      description: tr("La validità è scaduta il {data}. Vuoi marcarlo come \"scaduto\"?", { data: new Date(valido_fino_data).toLocaleDateString(intlCampo()) }),
       duration: 12_000,
       action: {
-        label: "Marca scaduto",
+        label: tr("Marca scaduto"),
         onClick: () => void handleChangeStato("scaduto"),
       },
     });
@@ -243,8 +245,8 @@ export default function SerramentiWizard() {
     if (!id || !detail) return;
     try {
       const result = await duplicaMut.mutateAsync(id);
-      toast.success(`Revisione ${result.revision_number} creata`, {
-        description: `Nuovo codice: ${result.newCode}. Naviga per modificare.`,
+      toast.success(tr("Revisione {n} creata", { n: result.revision_number }), {
+        description: tr("Nuovo codice: {codice}. Naviga per modificare.", { codice: result.newCode }),
       });
       navigate(`/azienda/serramenti/${result.newId}/modifica`);
     } catch (err) {
@@ -333,11 +335,11 @@ export default function SerramentiWizard() {
       const modifiche = cached.modifiche;
       if (modifiche && cached.timestamp > serverUpdated + 5000) {
         const ageMin = Math.round((Date.now() - cached.timestamp) / 60_000);
-        toast.info("Trovate modifiche non salvate", {
-          description: `Modifiche di ${ageMin === 0 ? "pochi secondi" : `${ageMin} minuto/i`} fa. Recuperarle?`,
+        toast.info(tr("Trovate modifiche non salvate"), {
+          description: ageMin === 0 ? tr("Modifiche di pochi secondi fa. Recuperarle?") : tr("Modifiche di {n} minuto/i fa. Recuperarle?", { n: ageMin }),
           duration: 15_000,
           action: {
-            label: "Recupera",
+            label: tr("Recupera"),
             onClick: () => {
               for (const campo of Object.keys(modifiche) as Array<keyof SrProgettoRow>) {
                 segnaModifica(modificheRef.current, campo, modifiche[campo]);
@@ -345,11 +347,11 @@ export default function SerramentiWizard() {
               }
               setForm((prev) => ({ ...prev, ...modifiche }));
               setDirty(true);
-              toast.success("Modifiche ripristinate. Salvataggio in corso…");
+              toast.success(tr("Modifiche ripristinate. Salvataggio in corso…"));
             },
           },
           cancel: {
-            label: "Scarta",
+            label: tr("Scarta"),
             onClick: () => {
               if (LS_KEY) localStorage.removeItem(LS_KEY);
             },
@@ -638,11 +640,11 @@ export default function SerramentiWizard() {
   const formatLastSaved = (): string | null => {
     if (!lastSavedAt) return null;
     const seconds = Math.floor((Date.now() - lastSavedAt.getTime()) / 1000);
-    if (seconds < 5) return "Salvato adesso";
-    if (seconds < 60) return `Salvato ${seconds}s fa`;
+    if (seconds < 5) return tr("Salvato adesso");
+    if (seconds < 60) return tr("Salvato {seconds}s fa", { seconds });
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `Salvato ${minutes}min fa`;
-    return `Salvato alle ${lastSavedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`;
+    if (minutes < 60) return tr("Salvato {minutes}min fa", { minutes });
+    return tr("Salvato alle {ora}", { ora: lastSavedAt.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" }) });
   };
 
   const statoSalvataggio: StatoSalvataggio = isNew
@@ -662,7 +664,7 @@ export default function SerramentiWizard() {
         const created = await createMut.mutateAsync(await newQuoteInput());
         navigate(`/azienda/serramenti/${created.id}/modifica`, { replace: true });
       } catch (error) {
-        toast.error("Preventivo non creato", { description: error instanceof Error ? error.message : "Riprova." });
+        toast.error(tr("Preventivo non creato"), { description: error instanceof Error ? error.message : tr("Riprova.") });
       } finally {
         setCreating(false);
       }
@@ -677,7 +679,7 @@ export default function SerramentiWizard() {
     if (idx >= 0 && idx < SR_WIZARD_STEPS.length - 1) {
       setCurrentStep(SR_WIZARD_STEPS[idx + 1].key);
     } else {
-      toast.success("Preventivo salvato");
+      toast.success(tr("Preventivo salvato"));
     }
   };
 
@@ -691,8 +693,8 @@ export default function SerramentiWizard() {
       const created = await createMut.mutateAsync(await newQuoteInput());
       navigate(`/azienda/serramenti/${created.id}/modifica?ai=1`, { replace: true });
     } catch (e) {
-      toast.error("Non riesco ad avviare Silvio AI", {
-        description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
+      toast.error(tr("Non riesco ad avviare Silvio AI"), {
+        description: e instanceof Error ? e.message : tr("Riprova tra qualche secondo."),
       });
     } finally {
       setCreating(false);
@@ -741,17 +743,17 @@ export default function SerramentiWizard() {
       <div className="container mx-auto p-4 max-w-4xl">
         <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-6 text-center space-y-3">
           <p className="text-sm font-semibold text-rose-800">
-            Impossibile caricare questo preventivo.
+            {tr("Impossibile caricare questo preventivo.")}
           </p>
           <p className="text-xs text-muted-foreground">
-            Il preventivo potrebbe essere stato eliminato o c'è un problema di connessione.
+            {tr("Il preventivo potrebbe essere stato eliminato o c'è un problema di connessione.")}
           </p>
           <div className="flex items-center gap-2 justify-center flex-wrap">
             <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1">
-              <Loader2 className="h-3.5 w-3.5" /> Riprova
+              <Loader2 className="h-3.5 w-3.5" /> {tr("Riprova")}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => navigate("/azienda/marketing/preventivi")} className="gap-1">
-              <ArrowLeft className="h-3.5 w-3.5" /> Torna ai preventivi
+              <ArrowLeft className="h-3.5 w-3.5" /> {tr("Torna ai preventivi")}
             </Button>
           </div>
         </div>
@@ -761,14 +763,14 @@ export default function SerramentiWizard() {
 
   if (savedModel.error || (isNew && requestedModel && !isSrQuoteModelId(requestedModel))) {
     return <div className="mx-auto max-w-3xl space-y-4 p-6" role="alert">
-      <h1 className="text-xl font-semibold">{modelSupport.isLoading ? "Verifica del modello…" : "Collegamento del modello da completare"}</h1>
-      <p className="text-sm text-muted-foreground">{savedModel.error ?? "Il modello PDF è disponibile nelle impostazioni, ma il salvataggio del modello nel preventivo non è ancora attivo. Nessuna offerta è stata creata."}</p>
-      <Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=serramenti")}>Torna ai modelli</Button>
+      <h1 className="text-xl font-semibold">{modelSupport.isLoading ? tr("Verifica del modello…") : tr("Collegamento del modello da completare")}</h1>
+      <p className="text-sm text-muted-foreground">{savedModel.error ?? tr("Il modello PDF è disponibile nelle impostazioni, ma il salvataggio del modello nel preventivo non è ancora attivo. Nessuna offerta è stata creata.")}</p>
+      <Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=serramenti")}>{tr("Torna ai modelli")}</Button>
       {isNew && <Button variant="outline" onClick={() => {
         const context = new URLSearchParams();
         for (const key of ["contact_id", "opportunity_id"]) { const value = searchParams.get(key); if (value) context.set(key, value); }
         navigate(`/azienda/serramenti/nuovo?${context}`);
-      }}>Usa il preventivatore generale</Button>}
+      }}>{tr("Usa il preventivatore generale")}</Button>}
     </div>;
   }
 
@@ -791,28 +793,26 @@ export default function SerramentiWizard() {
       <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Hai un preventivo in bozza")}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                <p className="mb-2">Vuoi riprendere da dove eri rimasto?</p>
+                <p className="mb-2">{tr("Vuoi riprendere da dove eri rimasto?")}</p>
                 <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700 space-y-0.5">
-                  <p className="font-semibold text-slate-900">{ultimaBozza?.code ?? "Bozza"}</p>
+                  <p className="font-semibold text-slate-900">{ultimaBozza?.code ?? tr("Bozza")}</p>
                   {(ultimaBozza?.cliente_nome || ultimaBozza?.cliente_cognome) && (
                     <p>{[ultimaBozza?.cliente_nome, ultimaBozza?.cliente_cognome].filter(Boolean).join(" ")}</p>
                   )}
                   {ultimaBozza?.updated_at && (
-                    <p className="text-xs text-muted-foreground">
-                      Ultima modifica {new Date(ultimaBozza.updated_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{tr("Ultima modifica {data}", { data: new Date(ultimaBozza.updated_at).toLocaleString(intlCampo(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) })}</p>
                   )}
                 </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setResumeDismissed(true)}>Nuovo da zero</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setResumeDismissed(true)}>{tr("Nuovo da zero")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => navigate(`/azienda/serramenti/${ultimaBozza!.id}/modifica`)}>
-              Riprendi bozza
+              {tr("Riprendi bozza")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -822,32 +822,32 @@ export default function SerramentiWizard() {
       <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Salvare come bozza?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Salvare come bozza?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              I dati inseriti verranno salvati come bozza: la ritroverai nella lista e al prossimo "Nuovo preventivo".
+              {tr("I dati inseriti verranno salvati come bozza: la ritroverai nella lista e al prossimo \"Nuovo preventivo\".")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua a compilare</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Continua a compilare")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-slate-500 hover:bg-slate-600"
               onClick={() => navigate("/azienda/marketing/preventivi")}
             >
-              Esci senza salvare
+              {tr("Esci senza salvare")}
             </AlertDialogAction>
             <AlertDialogAction
               onClick={async () => {
                 try {
                   await createMut.mutateAsync(await newQuoteInput());
-                  toast.success("Bozza salvata — la ritrovi nella lista");
+                  toast.success(tr("Bozza salvata — la ritrovi nella lista"));
                 } catch (e) {
-                  toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
+                  toast.error(tr("Salvataggio bozza fallito"), { description: e instanceof Error ? e.message : undefined });
                   return;
                 }
                 navigate("/azienda/marketing/preventivi");
               }}
             >
-              Salva bozza ed esci
+              {tr("Salva bozza ed esci")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -863,7 +863,7 @@ export default function SerramentiWizard() {
             onClick={() => { void esci(); }}
             disabled={statoSalvataggio === "salvando"}
             className="h-10 w-10 shrink-0"
-            aria-label="Esci dal preventivo"
+            aria-label={tr("Esci dal preventivo")}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -871,7 +871,7 @@ export default function SerramentiWizard() {
             <div className="flex items-center gap-2 flex-wrap max-md:gap-y-0.5">
               <RectangleVertical className="h-4 w-4 text-orange-600 max-md:hidden" />
               <span className="font-semibold text-sm max-md:order-1 max-md:text-[15px]">
-                {isNew ? modelDefinition?.title ?? "Nuovo preventivo" : detail?.progetto.code}
+                {isNew ? modelDefinition?.title ?? tr("Nuovo preventivo") : detail?.progetto.code}
               </span>
               {detail?.progetto.cliente_nome && (
                 <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground">
@@ -888,15 +888,15 @@ export default function SerramentiWizard() {
                       type="button"
                       // tap-compact: senza, la regola dei 44px lo gonfiava a un riquadro giallo alto il doppio.
                       className={`tap-compact text-[10px] h-5 px-1.5 rounded border inline-flex items-center gap-0.5 hover:opacity-80 transition-opacity max-md:order-2 max-md:h-6 max-md:rounded-full max-md:px-2 max-md:text-[11px] ${statoMeta.className}`}
-                      title="Cambia stato preventivo"
+                      title={tr("Cambia stato preventivo")}
                     >
-                      {statoMeta.label}
+                      {tr(statoMeta.label)}
                       <ChevronDown className="h-2.5 w-2.5" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56">
                     <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground font-medium border-b">
-                      Cambia stato
+                      {tr("Cambia stato")}
                     </div>
                     {transizioniDisponibili.map((t, idx) => (
                       <DropdownMenuItem
@@ -904,9 +904,9 @@ export default function SerramentiWizard() {
                         onClick={() => void handleChangeStato(t.next)}
                         className="text-xs"
                       >
-                        {t.label}
+                        {tr(t.label)}
                         {idx === 0 && transizioniDisponibili.length > 2 && (
-                          <span className="ml-auto text-[9px] text-muted-foreground">consigliato</span>
+                          <span className="ml-auto text-[9px] text-muted-foreground">{tr("consigliato")}</span>
                         )}
                       </DropdownMenuItem>
                     ))}
@@ -917,7 +917,7 @@ export default function SerramentiWizard() {
                           onClick={() => void handleChangeStato("archiviato")}
                           className="text-xs text-muted-foreground"
                         >
-                          Archivia
+                          {tr("Archivia")}
                         </DropdownMenuItem>
                       </>
                     )}
@@ -925,7 +925,7 @@ export default function SerramentiWizard() {
                 </DropdownMenu>
               ) : !isNew && detail ? (
                 <Badge variant="outline" className={`text-[10px] max-md:order-2 max-md:text-[11px] ${statoMeta.className}`}>
-                  {statoMeta.label}
+                  {tr(statoMeta.label)}
                 </Badge>
               ) : null}
               {/* Badge revisione: visibile solo se revision_number > 1
@@ -937,12 +937,12 @@ export default function SerramentiWizard() {
                   className="text-[10px] border-violet-300 bg-violet-50 text-violet-700 max-md:order-2"
                   title={
                     detail.progetto.parent_id
-                      ? `Revisione ${detail.progetto.revision_number} di un preventivo precedente`
-                      : `Revisione ${detail.progetto.revision_number}`
+                      ? tr("Revisione {n} di un preventivo precedente", { n: detail.progetto.revision_number ?? "" })
+                      : tr("Revisione {n}", { n: detail.progetto.revision_number ?? "" })
                   }
                 >
                   <GitBranch className="h-2.5 w-2.5 mr-0.5" />
-                  Rev. {detail.progetto.revision_number}
+                  {tr("Rev.")} {detail.progetto.revision_number}
                 </Badge>
               )}
               {!isNew && modelDefinition && (
@@ -955,11 +955,11 @@ export default function SerramentiWizard() {
               {/* Da computer il salvataggio lo dice il piede: qui resta solo da telefono, dove il piede non ha lo stato. */}
               {(updateMut.isPending || pendingWrites > 0) ? (
                 <span className="text-[10px] text-muted-foreground flex items-center gap-1 max-md:order-5 max-md:text-xs md:hidden">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+                  <Loader2 className="h-3 w-3 animate-spin" /> {tr("Salvataggio…")}
                 </span>
               ) : dirty ? (
-                <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs md:hidden" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
-                  ● Modifiche non salvate
+                <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs md:hidden" title={tr("Le modifiche verranno salvate automaticamente entro 2 secondi")}>
+                  ● {tr("Modifiche non salvate")}
                 </span>
               ) : null}
             </div>
@@ -975,15 +975,15 @@ export default function SerramentiWizard() {
               onClick={() => void handleDuplicateAsRevision()}
               disabled={duplicaMut.isPending}
               className="hidden md:inline-flex h-9 gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
-              title="Crea una nuova revisione del preventivo (es. variante per il cliente)"
+              title={tr("Crea una nuova revisione del preventivo (es. variante per il cliente)")}
             >
               {duplicaMut.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Copy className="h-4 w-4" />
               )}
-              <span className="hidden lg:inline">Nuova revisione</span>
-              <span className="lg:hidden">Rev</span>
+              <span className="hidden lg:inline">{tr("Nuova revisione")}</span>
+              <span className="lg:hidden">{tr("Rev")}</span>
             </Button>
           )}
           {/* Anteprima PDF veloce: sempre presente nell'header sticky.
@@ -999,10 +999,10 @@ export default function SerramentiWizard() {
               className="hidden lg:inline-flex h-9 gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
               title={
                 !hasContent
-                  ? "Aggiungi almeno un serramento o accessorio per vedere l'anteprima"
+                  ? tr("Aggiungi almeno un serramento o accessorio per vedere l'anteprima")
                   : isGeneratingPdf
-                  ? "Generazione PDF in corso..."
-                  : "Apri anteprima PDF in nuova finestra"
+                  ? tr("Generazione PDF in corso...")
+                  : tr("Apri anteprima PDF in nuova finestra")
               }
             >
               {isGeneratingPdf ? (
@@ -1010,7 +1010,7 @@ export default function SerramentiWizard() {
               ) : (
                 <Eye className="h-4 w-4" />
               )}
-              <span className="hidden md:inline">Anteprima PDF</span>
+              <span className="hidden md:inline">{tr("Anteprima PDF")}</span>
               <span className="md:hidden">PDF</span>
             </Button>
           )}
@@ -1018,14 +1018,14 @@ export default function SerramentiWizard() {
       </div>
       {modelDefinition && isNew && !modelSupport.supported && (
         <p role="alert" className="mx-3 my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:mx-6">
-          {modelSupport.isLoading ? "Verifica del salvataggio…" : "Attendi l’attivazione del database prima di compilare."}
+          {modelSupport.isLoading ? tr("Verifica del salvataggio…") : tr("Attendi l’attivazione del database prima di compilare.")}
         </p>
       )}
 
       {/* Fissa in alto, col totale sempre in vista. Da telefono: pillole col nome corto. */}
       <BarraFasi
         className={cn("sticky z-30", STICKY_ALTO)}
-        passi={SR_WIZARD_STEPS.map((p) => ({ key: p.key, label: p.label, breve: ETICHETTA_BREVE_PASSO[p.key] }))}
+        passi={SR_WIZARD_STEPS.map((p) => ({ key: p.key, label: tr(p.label), breve: ETICHETTA_BREVE_PASSO[p.key] ? tr(ETICHETTA_BREVE_PASSO[p.key]!) : undefined }))}
         corrente={currentStep}
         completati={new Set(SR_WIZARD_STEPS.filter((p) => p.key !== currentStep && isWizardStepComplete(p.key, form, detail)).map((p) => p.key))}
         conAvviso={new Set(SR_WIZARD_STEPS.filter((p, idx) => idx < currentStepIndex && (
@@ -1038,13 +1038,13 @@ export default function SerramentiWizard() {
         destra={
           <>
             {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
-            <Button variant="outline" size="sm" className={cn("min-h-11 gap-1.5 xl:hidden", barraPdfCompatta ? "md:max-lg:hidden" : "max-lg:hidden")} onClick={() => setAnteprimaMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
-              <Eye className="h-4 w-4" /> <span className="hidden md:max-lg:inline">Anteprima</span>
+            <Button variant="outline" size="sm" className={cn("min-h-11 gap-1.5 xl:hidden", barraPdfCompatta ? "md:max-lg:hidden" : "max-lg:hidden")} onClick={() => setAnteprimaMobileAperta(true)} aria-label={tr("Apri l'anteprima")} title={tr("Apri l'anteprima")}>
+              <Eye className="h-4 w-4" /> <span className="hidden md:max-lg:inline">{tr("Anteprima")}</span>
             </Button>
             {/* Computer: se l'hai nascosta, da qui torna. */}
             {anteprimaNascosta && (
               <Button variant="outline" size="sm" className="hidden h-8 gap-1.5 xl:inline-flex" onClick={() => impostaAnteprimaNascosta(false)}>
-                <Eye className="h-4 w-4" /> Mostra anteprima
+                <Eye className="h-4 w-4" /> {tr("Mostra anteprima")}
               </Button>
             )}
           </>
@@ -1063,8 +1063,8 @@ export default function SerramentiWizard() {
             puoVedereImpresa={puoVedereImpresa}
             onNascondi={() => impostaAnteprimaNascosta(true)}
             nota={pdfLive && !isNew && detail
-              ? "Il documento vero, come lo riceve il cliente: si rifà da solo mentre lavori."
-              : "Bozza visiva: cliente, cantiere e righe sono quelli che usano il PDF, il microsito del cliente e l'AI. Per il documento definitivo apri «PDF vero»."}
+              ? tr("Il documento vero, come lo riceve il cliente: si rifà da solo mentre lavori.")
+              : tr("Bozza visiva: cliente, cantiere e righe sono quelli che usano il PDF, il microsito del cliente e l'AI. Per il documento definitivo apri «PDF vero».")}
           >
             {pdfLive && !isNew && detail ? (
               <AnteprimaPdfLive
@@ -1084,7 +1084,7 @@ export default function SerramentiWizard() {
             {/* ErrorBoundary granulare per step: se uno step crasha (es. dato
                 corrotto), gli altri step restano navigabili e l'utente vede
                 un fallback con "Riprova" invece dell'app blank. */}
-            <ErrorBoundary title="Errore in questa sezione del preventivo">
+            <ErrorBoundary title={tr("Errore in questa sezione del preventivo")}>
             {currentStep === "cliente" && (
               <fieldset disabled={Boolean(isNew && requestedModel && !modelSupport.supported)} className="min-w-0">
               <StepCliente
@@ -1133,7 +1133,7 @@ export default function SerramentiWizard() {
                 <Button type="button" variant="outline" className="min-h-11 w-full justify-between lg:hidden"
                   aria-expanded={notePdfAperte} aria-controls={notePdfId}
                   onClick={() => setNotePdfAperte((aperte) => !aperte)}>
-                  Appuntamento e note
+                  {tr("Appuntamento e note")}
                   <ChevronDown aria-hidden="true" className={cn("size-4", notePdfAperte && "rotate-180")} />
                 </Button>
                 <div id={notePdfId} className={cn(!notePdfAperte && "max-lg:hidden")}>
@@ -1166,18 +1166,18 @@ export default function SerramentiWizard() {
           className="min-h-11 max-lg:w-11 max-lg:shrink-0 max-lg:px-0"
         >
           {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
-          <ArrowLeft className="h-4 w-4 mr-1 max-lg:mr-0" /> <span className="max-lg:sr-only">Indietro</span>
+          <ArrowLeft className="h-4 w-4 mr-1 max-lg:mr-0" /> <span className="max-lg:sr-only">{tr("Indietro")}</span>
         </Button>
         {!isNew && currentStepIndex < SR_WIZARD_STEPS.length - 1 && (
           <Button variant="outline" className="min-h-11 max-sm:px-2.5" onClick={() => { void saveProgetto(); }}
             disabled={statoSalvataggio === "salvando" || creating}>
-            Salva
+            {tr("Salva")}
           </Button>
         )}
         <Button
           onClick={handleSaveAndContinue}
           disabled={updateMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
-          aria-label={isNew ? "Crea e continua" : currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Salva e continua"}
+          aria-label={isNew ? tr("Crea e continua") : currentStepIndex === SR_WIZARD_STEPS.length - 1 ? tr("Salva") : tr("Salva e continua")}
           className="min-h-11 gap-1 bg-orange-500 hover:bg-orange-600 max-sm:px-2.5"
         >
           {(updateMut.isPending || creating) ? (
@@ -1187,9 +1187,9 @@ export default function SerramentiWizard() {
           ) : (
             <ArrowRight className="h-4 w-4 max-[380px]:hidden" />
           )}
-          <span className="max-lg:hidden">{isNew ? "Crea e continua" :
-            currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Salva e continua"}</span>
-          <span className="lg:hidden">{currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Avanti"}</span>
+          <span className="max-lg:hidden">{isNew ? tr("Crea e continua") :
+            currentStepIndex === SR_WIZARD_STEPS.length - 1 ? tr("Salva") : tr("Salva e continua")}</span>
+          <span className="lg:hidden">{currentStepIndex === SR_WIZARD_STEPS.length - 1 ? tr("Salva") : tr("Avanti")}</span>
         </Button>
       </PiedePreventivatore>
 
@@ -1200,7 +1200,7 @@ export default function SerramentiWizard() {
         </PannelloAnteprima>
         {!isNew && (
           <Button variant="outline" size="sm" onClick={handlePreviewClick} disabled={!canPreview} className="mt-2 w-full gap-1.5">
-            <Eye className="h-4 w-4" /> Apri il PDF
+            <Eye className="h-4 w-4" /> {tr("Apri il PDF")}
           </Button>
         )}
       </AnteprimaMobile>
@@ -1224,6 +1224,7 @@ function StepCliente({
   onStartAi?: () => void;
   autoOpenAi?: boolean;
 }) {
+  const tr = useT();
   const [pickerOpen, setPickerOpen] = useState(false);
   // L'indirizzo del cliente e quello dei lavori: di serie lo stesso, e il secondo segue il primo.
   const indirizzo = useIndirizzoLavori(form, (chiave, valore) => onChange(chiave, valore));
@@ -1255,8 +1256,8 @@ function StepCliente({
 
   return (
     <SrCard
-      title="Contatto"
-      description="Collega un contatto CRM o compila i dati cliente. Verranno usati nel PDF, nel microsito e nella bozza AI."
+      title={tr("Contatto")}
+      description={tr("Collega un contatto CRM o compila i dati cliente. Verranno usati nel PDF, nel microsito e nella bozza AI.")}
       icon={<User className="h-4 w-4" />}
     >
       {/* Silvio AI come prima azione su preventivo NUOVO: crea il progetto e
@@ -1267,15 +1268,15 @@ function StepCliente({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">
-                <Sparkles className="h-4 w-4 text-orange-500" /> Silvio AI — crea il preventivo
+                <Sparkles className="h-4 w-4 text-orange-500" /> {tr("Silvio AI — crea il preventivo")}
               </p>
               <p className="text-xs leading-relaxed text-slate-600 max-md:hidden">
-                Scatta una foto del rilievo, detta a voce o scrivi cosa serve: Silvio prepara la bozza. Premendo qui creiamo il preventivo e l'assistente parte subito.
+                {tr("Scatta una foto del rilievo, detta a voce o scrivi cosa serve: Silvio prepara la bozza. Premendo qui creiamo il preventivo e l'assistente parte subito.")}
               </p>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 max-md:hidden">
-                <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> Foto rilievo</span>
-                <span className="inline-flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Detta a voce</span>
-                <span className="inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Testo</span>
+                <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> {tr("Foto rilievo")}</span>
+                <span className="inline-flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> {tr("Detta a voce")}</span>
+                <span className="inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> {tr("Testo")}</span>
               </div>
             </div>
             <Button
@@ -1285,7 +1286,7 @@ function StepCliente({
               className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
             >
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Avvia con Silvio AI
+              {tr("Avvia con Silvio AI")}
             </Button>
           </div>
         </div>
@@ -1297,12 +1298,12 @@ function StepCliente({
           <div className={cn("min-w-0", !form.cliente_id && "max-md:hidden")}>
             <p className="text-xs font-semibold text-slate-900">
               {/* Telefono: una riga per titolo e una per il nome, senza spiegazioni. */}
-              {form.cliente_id ? <>Contatto CRM<span className="max-md:hidden"> collegato</span></> : "Contatto CRM"}
+              {form.cliente_id ? <>{tr("Contatto CRM")}<span className="max-md:hidden"> {tr("collegato")}</span></> : tr("Contatto CRM")}
             </p>
             <p className={cn("truncate text-[11px] text-slate-500", !form.cliente_id && "max-md:hidden")}>
               {form.cliente_id
-                ? <>{compactText(form.cliente_nome, form.cliente_cognome) || "Contatto selezionato"}<span className="max-md:hidden"> · dati sincronizzati nel preventivo</span></>
-                : "Collega un contatto per compilare anagrafica e recapiti."}
+                ? <>{compactText(form.cliente_nome, form.cliente_cognome) || tr("Contatto selezionato")}<span className="max-md:hidden"> · {tr("dati sincronizzati nel preventivo")}</span></>
+                : tr("Collega un contatto per compilare anagrafica e recapiti.")}
             </p>
           </div>
           <div className={cn("flex shrink-0 gap-2", !form.cliente_id && "max-md:w-full")}>
@@ -1313,7 +1314,7 @@ function StepCliente({
                 onClick={() => onChange("cliente_id", null)}
                 className="tap-compact h-8 px-2 text-xs text-slate-600 hover:bg-slate-100"
               >
-                Scollega
+                {tr("Scollega")}
               </Button>
             )}
             <Button
@@ -1323,7 +1324,7 @@ function StepCliente({
               className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-md:flex-1"
             >
               <Users className="h-3.5 w-3.5" />
-              {form.cliente_id ? "Cambia" : "Seleziona cliente"}
+              {form.cliente_id ? tr("Cambia") : tr("Seleziona cliente")}
             </Button>
           </div>
         </div>
@@ -1352,7 +1353,7 @@ function StepCliente({
       <SceltaTipoCliente className="mb-3" valore={form.cliente_tipo} onChange={(t) => onChange("cliente_tipo", t)} />
       <div className="grid grid-cols-12 gap-3 max-sm:gap-2">
         <div className="col-span-6">
-          <Label className="text-xs">Nome</Label>
+          <Label className="text-xs">{tr("Nome")}</Label>
           <Input
             value={form.cliente_nome ?? ""}
             onChange={(e) => onChange("cliente_nome", e.target.value)}
@@ -1361,7 +1362,7 @@ function StepCliente({
           />
         </div>
         <div className="col-span-6">
-          <Label className="text-xs">Cognome</Label>
+          <Label className="text-xs">{tr("Cognome")}</Label>
           <Input
             value={form.cliente_cognome ?? ""}
             onChange={(e) => onChange("cliente_cognome", e.target.value)}
@@ -1370,7 +1371,7 @@ function StepCliente({
           />
         </div>
         <div className="col-span-12 md:col-span-6">
-          <Label className="text-xs">Telefono</Label>
+          <Label className="text-xs">{tr("Telefono")}</Label>
           <Input
             value={form.cliente_telefono ?? ""}
             onChange={(e) => onChange("cliente_telefono", e.target.value)}
@@ -1389,7 +1390,7 @@ function StepCliente({
           />
         </div>
         <div className="col-span-12">
-          <Label htmlFor="sr-cliente-indirizzo" className="text-xs">Indirizzo</Label>
+          <Label htmlFor="sr-cliente-indirizzo" className="text-xs">{tr("Indirizzo")}</Label>
           {/* La ricerca riempie anche città, CAP e provincia (e i lavori, se seguono il cliente). */}
           <CampoIndirizzo
             id="sr-cliente-indirizzo"
@@ -1401,7 +1402,7 @@ function StepCliente({
           />
         </div>
         <div className="col-span-6 max-sm:col-span-5">
-          <Label className="text-xs">Città</Label>
+          <Label className="text-xs">{tr("Città")}</Label>
           <Input
             value={form.cliente_citta ?? ""}
             onChange={(e) => indirizzo.cambiaCliente("citta", e.target.value)}
@@ -1419,7 +1420,7 @@ function StepCliente({
           />
         </div>
         <div className="col-span-3 max-sm:col-span-4">
-          <Label className="text-xs">Provincia</Label>
+          <Label className="text-xs">{tr("Provincia")}</Label>
           <Input
             value={form.cliente_provincia ?? ""}
             onChange={(e) => indirizzo.cambiaCliente("provincia", e.target.value)}
@@ -1456,15 +1457,16 @@ function StepImmobile({
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
 }) {
+  const t = useT();
   return (
     <SrCard
-      title="Intervento"
-      description="Che lavoro è e a che piano. L'indirizzo dei lavori si scrive nel passo Contatto."
+      title={t("Intervento")}
+      description={t("Che lavoro è e a che piano. L'indirizzo dei lavori si scrive nel passo Contatto.")}
       icon={<Home className="h-4 w-4" />}
     >
       <div className="grid grid-cols-12 gap-3 max-sm:gap-2">
         <div className="col-span-12 sm:col-span-8">
-          <Label className="text-xs">Tipo di intervento</Label>
+          <Label className="text-xs">{t("Tipo di intervento")}</Label>
           <Select
             value={form.tipo_intervento ?? "sostituzione"}
             onValueChange={(v) => onChange("tipo_intervento", v as SrTipoIntervento)}
@@ -1473,19 +1475,19 @@ function StepImmobile({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="sostituzione">Sostituzione</SelectItem>
-              <SelectItem value="nuova_costruzione">Nuova costruzione</SelectItem>
-              <SelectItem value="ristrutturazione">Ristrutturazione</SelectItem>
-              <SelectItem value="manutenzione">Manutenzione</SelectItem>
+              <SelectItem value="sostituzione">{t("Sostituzione")}</SelectItem>
+              <SelectItem value="nuova_costruzione">{t("Nuova costruzione")}</SelectItem>
+              <SelectItem value="ristrutturazione">{t("Ristrutturazione")}</SelectItem>
+              <SelectItem value="manutenzione">{t("Manutenzione")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="col-span-12 sm:col-span-4">
-          <Label className="text-xs">Piano</Label>
+          <Label className="text-xs">{t("Piano")}</Label>
           <Input
             value={form.cantiere_piano ?? ""}
             onChange={(e) => onChange("cantiere_piano", e.target.value)}
-            placeholder="3° con ascensore"
+            placeholder={t("3° con ascensore")}
             className="h-9"
           />
         </div>

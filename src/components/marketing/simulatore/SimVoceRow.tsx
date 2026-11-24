@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/formatters";
 import { calcolaVoce, round2 } from "@/lib/simulatore/calcoli";
 import type { VoceSim, FaseSim, AliquotaIva, ScenariConfig } from "@/lib/simulatore/tipi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Valore sentinella del Select "Fase" per "nessuna fase" (fase_id = null). */
 const NESSUNA_FASE = "__none__";
@@ -67,6 +68,7 @@ interface SimVoceRowProps {
 }
 
 export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = "singola" }: SimVoceRowProps) {
+  const t = useT();
   const { imponibile_ricavo } = calcolaVoce(voce);
 
   // Quando cambia il costo: ricalcola il prezzo da costo×(1+ricarico/100).
@@ -99,7 +101,7 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
         <Input
           value={voce.descrizione}
           onChange={(e) => onChange({ descrizione: e.target.value })}
-          placeholder="Descrizione voce"
+          placeholder={t("Descrizione voce")}
           className="h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input focus-visible:border-input"
         />
         {ivaMode === "mista" ? (
@@ -115,15 +117,15 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
                   )
                 }
                 className="h-3.5 w-3.5"
-                aria-label="Bene significativo"
+                aria-label={t("Bene significativo")}
               />
-              Bene significativo
+              {t("Bene significativo")}
             </Label>
             {voce.bene_significativo ? (
               <div className="flex items-center gap-1.5">
                 {/* «di cui»: la posa è dentro il prezzo della riga, non in più. Scritta
                     anche come riga a parte si contava due volte (05/10/2026). */}
-                <span className="text-[11px] text-muted-foreground" title="La parte di posa già compresa nel prezzo di questa riga">di cui posa €</span>
+                <span className="text-[11px] text-muted-foreground" title={t("La parte di posa già compresa nel prezzo di questa riga")}>{t("di cui posa €")}</span>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -134,7 +136,7 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
                     onChange({ valore_posa_associata: parseNum(e.target.value) })
                   }
                   className="h-7 w-24 px-2 text-right tabular-nums"
-                  aria-label="Di cui posa, già compresa nel prezzo"
+                  aria-label={t("Di cui posa, già compresa nel prezzo")}
                 />
               </div>
             ) : null}
@@ -152,13 +154,13 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
             }
           >
             <SelectTrigger className="h-8 px-2">
-              <SelectValue placeholder="— nessuna —" />
+              <SelectValue placeholder={t("— nessuna —")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NESSUNA_FASE}>— nessuna —</SelectItem>
+              <SelectItem value={NESSUNA_FASE}>{t("— nessuna —")}</SelectItem>
               {fasi.map((f) => (
                 <SelectItem key={f.id} value={f.id}>
-                  {f.nome || "Fase senza nome"}
+                  {f.nome || t("Fase senza nome")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -188,7 +190,7 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
           <SelectContent>
             {SIM_UM_VALUES.map((u) => (
               <SelectItem key={u} value={u}>
-                {u === "a_corpo" ? "a corpo" : u}
+                {u === "a_corpo" ? t("a corpo") : u}
               </SelectItem>
             ))}
           </SelectContent>
@@ -268,8 +270,8 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
                 onClick={reorder.onMoveUp}
                 disabled={reorder.isFirst}
                 className="text-muted-foreground transition hover:text-foreground disabled:opacity-30"
-                aria-label="Sposta su"
-                title="Sposta su"
+                aria-label={t("Sposta su")}
+                title={t("Sposta su")}
               >
                 <ChevronUp className="h-3.5 w-3.5" />
               </button>
@@ -278,8 +280,8 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
                 onClick={reorder.onMoveDown}
                 disabled={reorder.isLast}
                 className="text-muted-foreground transition hover:text-foreground disabled:opacity-30"
-                aria-label="Sposta giù"
-                title="Sposta giù"
+                aria-label={t("Sposta giù")}
+                title={t("Sposta giù")}
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
@@ -290,8 +292,8 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
             size="icon"
             onClick={onRemove}
             className="h-8 w-8 text-muted-foreground opacity-60 transition hover:text-destructive group-hover:opacity-100"
-            aria-label="Elimina riga"
-            title="Elimina riga"
+            aria-label={t("Elimina riga")}
+            title={t("Elimina riga")}
           >
             <Trash2 className="h-4 w-4" />
           </Button>

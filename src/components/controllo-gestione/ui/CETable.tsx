@@ -5,6 +5,7 @@ import { vociLeggibili } from "@/lib/controlloGestione/contoEconomico";
 import { cn } from "@/lib/utils";
 import { Info } from "lucide-react";
 import type { VoceCE } from "@/hooks/controlloGestione/useCEriclassificato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CETableProps {
   voci: VoceCE[];
@@ -15,6 +16,7 @@ interface CETableProps {
 }
 
 export function CETable({ voci, isVoceClickable, onVoceClick, spiegazioni }: CETableProps) {
+  const t = useT();
   // Nomi chiari («Valore della produzione», non «PRODOTTO INTERNO LORDO») e la
   // percentuale su OGNI riga: prima c'era solo sui cinque margini.
   const righe = vociLeggibili(voci);
@@ -23,10 +25,10 @@ export function CETable({ voci, isVoceClickable, onVoceClick, spiegazioni }: CET
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Voce</TableHead>
-            <TableHead className="text-right">Importo</TableHead>
-            <TableHead className="w-24 text-right" title="Percentuale sul valore della produzione (ricavi più variazione dei lavori in corso)">
-              % sui ricavi
+            <TableHead>{t("Voce")}</TableHead>
+            <TableHead className="text-right">{t("Importo")}</TableHead>
+            <TableHead className="w-24 text-right" title={t("Percentuale sul valore della produzione (ricavi più variazione dei lavori in corso)")}>
+              {t("% sui ricavi")}
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -42,7 +44,7 @@ export function CETable({ voci, isVoceClickable, onVoceClick, spiegazioni }: CET
                 key={v.codice}
                 role={clickable ? "button" : undefined}
                 tabIndex={clickable ? 0 : undefined}
-                title={clickable ? `Apri il dettaglio di ${v.label}` : undefined}
+                title={clickable ? t("Apri il dettaglio di {label}", { label: String(v.label ?? "") }) : undefined}
                 onClick={clickable ? () => onVoceClick?.(v) : undefined}
                 onKeyDown={
                   clickable

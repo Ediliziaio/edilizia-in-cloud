@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { DailyHoursLedger } from "./DailyHoursLedger";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DailyHoursPanel({
   orderId,
@@ -32,6 +33,7 @@ export function DailyHoursPanel({
   onMonthChange?: (month: string) => void;
   embedded?: boolean;
 }) {
+  const t = useT();
   const periodo = month
     ? {
         da: `${month}-01`,
@@ -42,7 +44,7 @@ export function DailyHoursPanel({
   if (!controller.allowed)
     return embedded ? (
       <p className="rounded-xl border bg-white p-4 text-sm text-muted-foreground">
-        Registro ore non disponibile con i permessi attuali.
+        {t("Registro ore non disponibile con i permessi attuali.")}
       </p>
     ) : null;
   const visibleController =
@@ -72,6 +74,7 @@ export function DailyHoursView({
   orderId?: string;
   embedded?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [day, setDay] = useState(oggiRoma());
   const [employee, setEmployee] = useState("");
@@ -110,8 +113,8 @@ export function DailyHoursView({
       c.setMonth(day.slice(0, 7));
       setMessage(
         result.da_valorizzare
-          ? "Ore salvate, da valorizzare. Imposta la tariffa e verifica il rapportino prima dell’approvazione."
-          : "Ore confermate: costo della commessa aggiornato.",
+          ? t("Ore salvate, da valorizzare. Imposta la tariffa e verifica il rapportino prima dell’approvazione.")
+          : t("Ore confermate: costo della commessa aggiornato."),
       );
       setRequestId(crypto.randomUUID());
       setHours("");
@@ -119,7 +122,7 @@ export function DailyHoursView({
       setOpen(false);
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Registrazione non riuscita. Riprova.",
+        e instanceof Error ? e.message : t("Registrazione non riuscita. Riprova."),
       );
     } finally {
       setBusy(false);
@@ -134,10 +137,10 @@ export function DailyHoursView({
       await c.cancel(row.reportId, row.updatedAt, row.orderId);
       setCancelId(null);
       setMessage(
-        "Registrazione annullata. Le ore e gli eventuali costi sono stati stornati.",
+        t("Registrazione annullata. Le ore e gli eventuali costi sono stati stornati."),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Annullamento non riuscito.");
+      setError(e instanceof Error ? e.message : t("Annullamento non riuscito."));
     } finally {
       setBusy(false);
     }
@@ -145,20 +148,19 @@ export function DailyHoursView({
   return (
     <section
       className="space-y-4 rounded-xl border bg-white p-4"
-      aria-label="Registro giornaliero ore"
+      aria-label={t("Registro giornaliero ore")}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold">Ore giornaliere per cantiere</h3>
+          <h3 className="font-semibold">{t("Ore giornaliere per cantiere")}</h3>
           <p className="mt-1 text-sm text-muted-foreground max-md:hidden">
-            Ore effettive da ufficio e rapportini, con stato di approvazione e
-            costi.
+            {t("Ore effettive da ufficio e rapportini, con stato di approvazione e costi.")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {embedded && (
             <Button variant="outline" className="max-md:hidden" onClick={c.retry} disabled={c.loading}>
-              Aggiorna
+              {t("Aggiorna")}
             </Button>
           )}
           {c.canEdit && (
@@ -169,7 +171,7 @@ export function DailyHoursView({
               }}
               disabled={c.loading || !!c.error}
             >
-              Registra ore
+              {t("Registra ore")}
             </Button>
           )}
         </div>
@@ -184,7 +186,7 @@ export function DailyHoursView({
       )}
       {!embedded && (
         <div className="flex flex-wrap items-center gap-3">
-          <Label htmlFor="daily-month">Mese</Label>
+          <Label htmlFor="daily-month">{t("Mese")}</Label>
           <Input
             id="daily-month"
             className="w-44"
@@ -196,7 +198,7 @@ export function DailyHoursView({
             }}
           />
           <Button variant="ghost" className="max-md:hidden" onClick={c.retry}>
-            Aggiorna
+            {t("Aggiorna")}
           </Button>
         </div>
       )}
@@ -204,34 +206,34 @@ export function DailyHoursView({
         <p role="alert" className="text-sm text-destructive">
           {c.error}{" "}
           <Button variant="outline" onClick={c.retry}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </p>
       ) : c.loading ? (
-        <p role="status">Caricamento registro…</p>
+        <p role="status">{t("Caricamento registro…")}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
             {[
               [
-                "Ore confermate",
-                `${registered.reduce((s, r) => s + r.hours, 0).toLocaleString("it-IT")} h`,
+                t("Ore confermate"),
+                `${registered.reduce((s, r) => s + r.hours, 0).toLocaleString(intlCampo())} h`,
               ],
               [
-                "Ore in attesa",
-                `${pending.reduce((s, r) => s + r.hours, 0).toLocaleString("it-IT")} h`,
+                t("Ore in attesa"),
+                `${pending.reduce((s, r) => s + r.hours, 0).toLocaleString(intlCampo())} h`,
               ],
               ...(c.showCosts
                 ? [
                     [
                       incomplete
-                        ? "Costo confermato incompleto"
-                        : "Costo confermato",
-                      incomplete ? "Da completare" : formatCurrency(total),
+                        ? t("Costo confermato incompleto")
+                        : t("Costo confermato"),
+                      incomplete ? t("Da completare") : formatCurrency(total),
                     ],
                     [
-                      "Da valorizzare",
-                      `${missingCount} ${missingCount === 1 ? "registrazione" : "registrazioni"}`,
+                      t("Da valorizzare"),
+                      t(missingCount === 1 ? "{n} registrazione" : "{n} registrazioni", { n: missingCount }),
                     ],
                   ]
                 : []),
@@ -244,11 +246,9 @@ export function DailyHoursView({
           </div>
           {!!pending.length && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm max-sm:px-2.5 max-sm:py-2 max-sm:text-[13px]">
-              Le ore in attesa non sono ancora nei costi effettivi.
+              {t("Le ore in attesa non sono ancora nei costi effettivi.")}
               {/* Telefono: la frase che conta; il come resta da tablet in su (collaudo 23/11/2026). */}
-              <span className="max-sm:hidden"> Per quelle
-              senza tariffa, completa la scheda dipendente e approva il
-              rapportino dalla commessa.</span>
+              <span className="max-sm:hidden"> {t("Per quelle senza tariffa, completa la scheda dipendente e approva il rapportino dalla commessa.")}</span>
             </p>
           )}
           <DailyHoursLedger
@@ -270,15 +270,14 @@ export function DailyHoursView({
       >
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Registra ore giornaliere</DialogTitle>
+            <DialogTitle>{t("Registra ore giornaliere")}</DialogTitle>
             <DialogDescription>
-              Confermi ore effettivamente lavorate. La previsione e i prezzi del
-              preventivo restano invariati.
+              {t("Confermi ore effettivamente lavorate. La previsione e i prezzi del preventivo restano invariati.")}
             </DialogDescription>
           </DialogHeader>
           <fieldset disabled={busy} className="space-y-4">
             <div>
-              <Label htmlFor="daily-day">Data</Label>
+              <Label htmlFor="daily-day">{t("Data")}</Label>
               <Input
                 id="daily-day"
                 type="date"
@@ -291,7 +290,7 @@ export function DailyHoursView({
               />
             </div>
             <div>
-              <Label htmlFor="daily-person">Dipendente</Label>
+              <Label htmlFor="daily-person">{t("Dipendente")}</Label>
               <UniformSelect
                 id="daily-person"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -301,7 +300,7 @@ export function DailyHoursView({
                   setRequestId(crypto.randomUUID());
                 }}
               >
-                <option value="">Seleziona dipendente</option>
+                <option value="">{t("Seleziona dipendente")}</option>
                 {c.data?.activePeople.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -310,7 +309,7 @@ export function DailyHoursView({
               </UniformSelect>
             </div>
             <div>
-              <Label htmlFor="daily-job">Cantiere / commessa</Label>
+              <Label htmlFor="daily-job">{t("Cantiere / commessa")}</Label>
               <UniformSelect
                 id="daily-job"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -321,7 +320,7 @@ export function DailyHoursView({
                   setRequestId(crypto.randomUUID());
                 }}
               >
-                <option value="">Seleziona cantiere</option>
+                <option value="">{t("Seleziona cantiere")}</option>
                 {c.data?.orders.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -330,24 +329,23 @@ export function DailyHoursView({
               </UniformSelect>
             </div>
             <div>
-              <Label htmlFor="daily-hours">Ore lavorate</Label>
+              <Label htmlFor="daily-hours">{t("Ore lavorate")}</Label>
               <Input
                 id="daily-hours"
                 inputMode="decimal"
                 value={hours}
-                placeholder="Es. 7,5"
+                placeholder={t("Es. 7,5")}
                 onChange={(e) => {
                   setHours(e.target.value);
                   setRequestId(crypto.randomUUID());
                 }}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Se lavori in due cantieri, registra una riga per ciascuno. Il
-                totale giornaliero non può superare 24 ore.
+                {t("Se lavori in due cantieri, registra una riga per ciascuno. Il totale giornaliero non può superare 24 ore.")}
               </p>
             </div>
             <div>
-              <Label htmlFor="daily-note">Note (facoltative)</Label>
+              <Label htmlFor="daily-note">{t("Note (facoltative)")}</Label>
               <Textarea
                 id="daily-note"
                 value={note}
@@ -359,8 +357,7 @@ export function DailyHoursView({
               />
             </div>
             <p className="rounded-lg bg-slate-50 p-3 text-sm">
-              Con tariffa disponibile aggiorno il costo della commessa. Senza
-              tariffa salvo le ore in attesa, senza inventare un costo a zero.
+              {t("Con tariffa disponibile aggiorno il costo della commessa. Senza tariffa salvo le ore in attesa, senza inventare un costo a zero.")}
             </p>
             {error && (
               <p role="alert" className="text-sm text-destructive">
@@ -374,10 +371,10 @@ export function DailyHoursView({
               disabled={busy}
               onClick={() => setOpen(false)}
             >
-              Chiudi
+              {t("Chiudi")}
             </Button>
             <Button disabled={busy} onClick={save}>
-              {busy ? "Salvataggio…" : "Conferma ore"}
+              {busy ? t("Salvataggio…") : t("Conferma ore")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -390,11 +387,9 @@ export function DailyHoursView({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Annullare queste ore?</DialogTitle>
+            <DialogTitle>{t("Annullare queste ore?")}</DialogTitle>
             <DialogDescription>
-              Storno le ore e il costo storico di questa registrazione. La
-              traccia rimane nei rapportini. Poi puoi inserire la giornata
-              corretta.
+              {t("Storno le ore e il costo storico di questa registrazione. La traccia rimane nei rapportini. Poi puoi inserire la giornata corretta.")}
             </DialogDescription>
           </DialogHeader>
           {error && <p role="alert">{error}</p>}
@@ -404,10 +399,10 @@ export function DailyHoursView({
               disabled={busy}
               onClick={() => setCancelId(null)}
             >
-              Mantieni
+              {t("Mantieni")}
             </Button>
             <Button variant="destructive" disabled={busy} onClick={cancel}>
-              Annulla ore
+              {t("Annulla ore")}
             </Button>
           </DialogFooter>
         </DialogContent>

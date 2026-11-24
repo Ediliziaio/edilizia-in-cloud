@@ -9,6 +9,7 @@
  * da solo con le fonti del link).
  */
 import { Suspense, useState } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Sparkles } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import type { FonteDaAggiungere } from "./useBozzaSilvio";
 const CreaConSilvioDialog = lazy(() => import("./CreaConSilvioDialog"));
 
 export function PulsanteCreaConSilvio({
-  etichetta = "Crea con Silvio", iniziale, className, variant, size, apriSubito = false, orderId = null, etichettaCommessa = null, onChiuso,
+  etichetta, iniziale, className, variant, size, apriSubito = false, orderId = null, etichettaCommessa = null, onChiuso,
 }: {
   etichetta?: string;
   iniziale?: FonteDaAggiungere | FonteDaAggiungere[] | null;
@@ -34,6 +35,7 @@ export function PulsanteCreaConSilvio({
   etichettaCommessa?: string | null;
   onChiuso?: () => void;
 }) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const attivo = useCreaConSilvioAttivo(companyId);
@@ -43,7 +45,7 @@ export function PulsanteCreaConSilvio({
     <>
       <Button type="button" variant={variant} size={size} onClick={() => setAperto(true)}
         className={cn("gap-2", !variant && "bg-orange-700 text-white hover:bg-orange-800", className)}>
-        <Sparkles className="h-4 w-4" aria-hidden />{etichetta}
+        <Sparkles className="h-4 w-4" aria-hidden />{etichetta ?? t("Crea con Silvio")}
       </Button>
       {aperto && (
         <Suspense fallback={null}>

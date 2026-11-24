@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Search, Merge, Loader2, AlertTriangle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactMergeDialogProps {
   open: boolean;
@@ -23,6 +24,7 @@ interface ContactMergeDialogProps {
 }
 
 export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyId, onMerged }: ContactMergeDialogProps) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [targetId, setTargetId] = useState<string | null>(null);
   const [masterId, setMasterId] = useState<"source" | "target">("source");
@@ -69,9 +71,9 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
       return { keepId, removeId, spostati: Number(esito?.totale ?? 0) };
     },
     onSuccess: (result) => {
-      toast.success("Contatti uniti", {
+      toast.success(t("Contatti uniti"), {
         description: result.spostati > 0
-          ? `${result.spostati} ${result.spostati === 1 ? "elemento spostato" : "elementi spostati"} sul contatto che resta`
+          ? t(result.spostati === 1 ? "{n} elemento spostato sul contatto che resta" : "{n} elementi spostati sul contatto che resta", { n: result.spostati })
           : undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["marketing-contacts"] });
@@ -88,7 +90,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
       onMerged?.(result.keepId);
     },
     onError: (err: any) => {
-      toast.error("Unione non riuscita: " + err.message);
+      toast.error(t("Unione non riuscita: {errore}", { errore: String(err.message ?? "") }));
     },
   });
 
@@ -99,37 +101,37 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Merge className="h-4 w-4" /> Unisci contatti
+            <Merge className="h-4 w-4" /> {t("Unisci contatti")}
           </DialogTitle>
           <DialogDescription>
-            Unisci un contatto duplicato in quello principale. Tutto quello che è legato al doppione (opportunità, note, messaggi anche WhatsApp, email, preventivi, fatture, appuntamenti) passa al contatto che resta.
+            {t("Unisci un contatto duplicato in quello principale. Tutto quello che è legato al doppione (opportunità, note, messaggi anche WhatsApp, email, preventivi, fatture, appuntamenti) passa al contatto che resta.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-md border p-2.5">
-            <Label className="text-[10px] text-muted-foreground">Contatto corrente</Label>
+            <Label className="text-[10px] text-muted-foreground">{t("Contatto corrente")}</Label>
             <p className="text-sm font-medium">
               {sourceContact?.first_name} {sourceContact?.last_name}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {sourceContact?.email || "No email"} · {sourceContact?.phone || "No tel"}
+              {sourceContact?.email || t("No email")} · {sourceContact?.phone || t("No tel")}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Cerca il contatto da unire</Label>
+            <Label className="text-xs">{t("Cerca il contatto da unire")}</Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Nome, email o telefono..."
+                placeholder={t("Nome, email o telefono...")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-8 text-xs"
               />
             </div>
 
-            {isLoading && <p className="text-[10px] text-muted-foreground">Ricerca...</p>}
+            {isLoading && <p className="text-[10px] text-muted-foreground">{t("Ricerca...")}</p>}
 
             {candidates.length > 0 && (
               <ScrollArea className="max-h-40">
@@ -156,7 +158,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
 
           {targetId && selectedTarget && (
             <div className="space-y-2">
-              <Label className="text-xs">Quale contatto mantenere?</Label>
+              <Label className="text-xs">{t("Quale contatto mantenere?")}</Label>
               <div className="space-y-1.5">
                 <button
                   className={cn(
@@ -164,9 +166,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
                     masterId === "source" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
                   )}
                   onClick={() => setMasterId("source")}
-                >
-                  {sourceContact?.first_name} {sourceContact?.last_name} (corrente)
-                </button>
+                >{t("{first_name} {last_name} (corrente)", { first_name: String(sourceContact?.first_name ?? ""), last_name: String(sourceContact?.last_name ?? "") })}</button>
                 <button
                   className={cn(
                     "w-full text-left rounded-md border p-2 text-[11px] transition-colors",
@@ -184,7 +184,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
             <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-[10px] text-destructive">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                Il contatto non mantenuto verrà eliminato definitivamente. Questa azione è irreversibile.
+                {t("Il contatto non mantenuto verrà eliminato definitivamente. Questa azione è irreversibile.")}
               </span>
             </div>
           )}
@@ -192,7 +192,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             size="sm"
@@ -200,7 +200,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
             onClick={() => mergeContacts.mutate()}
           >
             {mergeContacts.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-            Unisci contatti
+            {t("Unisci contatti")}
           </Button>
         </DialogFooter>
       </DialogContent>

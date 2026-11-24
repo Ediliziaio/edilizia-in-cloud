@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, Loader2, Plus, UserX } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Firmatario {
   id: string;
@@ -43,7 +44,7 @@ interface CatenaFirmatari {
 }
 
 const TIPI: Record<string, string> = { carta_identita: "Carta d'identità", passaporto: "Passaporto", patente: "Patente" };
-const dataIT = (d: string | null) => (d ? new Date(d).toLocaleDateString("it-IT") : "—");
+const dataIT = (d: string | null) => (d ? new Date(d).toLocaleDateString(intlCampo()) : "—");
 const oggi = () => new Date().toLocaleDateString("sv-SE");
 
 async function chiama(fd: FormData): Promise<Record<string, unknown>> {
@@ -55,6 +56,7 @@ async function chiama(fd: FormData): Promise<Record<string, unknown>> {
 const vuoto = { email: "", nome: "", cognome: "", codiceFiscale: "", tipo: "carta_identita", numero: "", rilasciatoDa: "", scadenza: "" };
 
 export function FirmatariIdentificati() {
+  const tr = useT();
   const formId = useId();
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
@@ -100,11 +102,11 @@ export function FirmatariIdentificati() {
       return chiama(fd);
     },
     onSuccess: () => {
-      toast.success("Documento registrato: al primo documento la persona dovrà solo accettare le condizioni.");
+      toast.success(tr("Documento registrato: al primo documento la persona dovrà solo accettare le condizioni."));
       qc.invalidateQueries({ queryKey: ["fea-firmatari", companyId] });
       setAperto(false); setDati(vuoto); setFronte(null); setRetro(null); setVisto(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Operazione non riuscita"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : tr("Operazione non riuscita")),
   });
 
   const azione = useMutation({
@@ -117,18 +119,18 @@ export function FirmatariIdentificati() {
     },
     onSuccess: ({ tipo, esito }) => {
       if (tipo === "revoca") {
-        toast.success("Identificazione revocata: per firmare con firma avanzata servirà di nuovo il documento.");
+        toast.success(tr("Identificazione revocata: per firmare con firma avanzata servirà di nuovo il documento."));
         qc.invalidateQueries({ queryKey: ["fea-firmatari", companyId] });
         return;
       }
       for (const url of [esito.fronte, esito.retro]) if (typeof url === "string") window.open(url, "_blank", "noopener");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Operazione non riuscita"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : tr("Operazione non riuscita")),
   });
 
   const campo = (k: keyof typeof vuoto, etichetta: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <div className="space-y-1">
-      <Label htmlFor={`${formId}-${k}`}>{etichetta}</Label>
+      <Label htmlFor={`${formId}-${k}`}>{tr(etichetta)}</Label>
       <Input id={`${formId}-${k}`} value={dati[k]} onChange={(e) => setDati({ ...dati, [k]: e.target.value })} {...extra} />
     </div>
   );
@@ -137,35 +139,34 @@ export function FirmatariIdentificati() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white p-4">
         <div className="max-w-2xl">
-          <p className="font-semibold text-slate-900">Chi può firmare con firma avanzata</p>
+          <p className="font-semibold text-slate-900">{tr("Chi può firmare con firma avanzata")}</p>
           <p className="text-sm text-slate-600">
-            Se hai visto di persona il documento d'identità di un cliente o di un subappaltatore, caricalo qui: al primo
-            documento dovrà solo accettare le condizioni. Altrimenti lo carica lui dalla pagina di firma.
+            {tr("Se hai visto di persona il documento d'identità di un cliente o di un subappaltatore, caricalo qui: al primo documento dovrà solo accettare le condizioni. Altrimenti lo carica lui dalla pagina di firma.")}
           </p>
         </div>
-        <Button className="gap-1" onClick={() => setAperto(true)}><Plus className="h-4 w-4" />Carica documento d'identità</Button>
+        <Button className="gap-1" onClick={() => setAperto(true)}><Plus className="h-4 w-4" />{tr("Carica documento d'identità")}</Button>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-8 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /></div>
       ) : firmatari.length === 0 ? (
-        <p className="rounded-xl border border-dashed bg-white p-6 text-center text-sm text-slate-500">Nessuno è ancora identificato.</p>
+        <p className="rounded-xl border border-dashed bg-white p-6 text-center text-sm text-slate-500">{tr("Nessuno è ancora identificato.")}</p>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-white"><Table aria-label="Firmatari identificati" className="min-w-[1150px] text-xs [&_td]:px-3 [&_td]:py-2 [&_td]:border-r [&_td]:border-slate-100 [&_th]:px-3"><TableHeader className="bg-slate-50"><TableRow><TableHead>Firmatario</TableHead><TableHead>Email</TableHead><TableHead>Documento</TableHead><TableHead>Scadenza</TableHead><TableHead>Identificazione</TableHead><TableHead>Condizioni</TableHead><TableHead className="text-right">Azioni</TableHead></TableRow></TableHeader><TableBody>{firmatari.map(f => {
+        <div className="overflow-hidden rounded-xl border bg-white"><Table aria-label={tr("Firmatari identificati")} className="min-w-[1150px] text-xs [&_td]:px-3 [&_td]:py-2 [&_td]:border-r [&_td]:border-slate-100 [&_th]:px-3"><TableHeader className="bg-slate-50"><TableRow><TableHead>{tr("Firmatario")}</TableHead><TableHead>Email</TableHead><TableHead>{tr("Documento")}</TableHead><TableHead>{tr("Scadenza")}</TableHead><TableHead>{tr("Identificazione")}</TableHead><TableHead>{tr("Condizioni")}</TableHead><TableHead className="text-right">{tr("Azioni")}</TableHead></TableRow></TableHeader><TableBody>{firmatari.map(f => {
           const scaduto = f.documento_scadenza < oggi();
           return <TableRow key={f.id}>
             <TableCell className="whitespace-nowrap font-medium">{f.cognome} {f.nome}</TableCell>
             <TableCell className="max-w-[220px] truncate" title={f.email}>{f.email}</TableCell>
-            <TableCell className="whitespace-nowrap">{TIPI[f.documento_tipo] ?? "Documento"}</TableCell>
-            <TableCell className={scaduto ? "whitespace-nowrap text-red-700" : "whitespace-nowrap"}>{dataIT(f.documento_scadenza)}{scaduto && " · scaduto"}</TableCell>
-            <TableCell className="whitespace-nowrap">{f.modalita === "azienda" ? "Caricato dall'azienda" : "Caricato dal firmatario"}</TableCell>
-            <TableCell>{scaduto ? <Badge className="bg-red-100 text-red-700">Documento scaduto</Badge> : f.dichiarazione_accettata_at ? <span className="whitespace-nowrap text-emerald-700">Accettate il {dataIT(f.dichiarazione_accettata_at)}</span> : <span className="whitespace-nowrap text-amber-700">Da accettare alla prima firma</span>}</TableCell>
+            <TableCell className="whitespace-nowrap">{TIPI[f.documento_tipo] ? tr(TIPI[f.documento_tipo]) : tr("Documento")}</TableCell>
+            <TableCell className={scaduto ? "whitespace-nowrap text-red-700" : "whitespace-nowrap"}>{dataIT(f.documento_scadenza)}{scaduto && ` ${tr("· scaduto")}`}</TableCell>
+            <TableCell className="whitespace-nowrap">{f.modalita === "azienda" ? tr("Caricato dall'azienda") : tr("Caricato dal firmatario")}</TableCell>
+            <TableCell>{scaduto ? <Badge className="bg-red-100 text-red-700">{tr("Documento scaduto")}</Badge> : f.dichiarazione_accettata_at ? <span className="whitespace-nowrap text-emerald-700">{tr("Accettate il {dichiarazione_accettata_at}", { dichiarazione_accettata_at: String(dataIT(f.dichiarazione_accettata_at) ?? "") })}</span> : <span className="whitespace-nowrap text-amber-700">{tr("Da accettare alla prima firma")}</span>}</TableCell>
             <TableCell><div className="flex justify-end gap-1">                <Button size="sm" variant="ghost" className="gap-1" disabled={azione.isPending} onClick={() => azione.mutate({ tipo: "vedi", id: f.id })}>
-                  <Eye className="h-3.5 w-3.5" />Foto
+                  <Eye className="h-3.5 w-3.5" />{tr("Foto")}
                 </Button>
                 <Button size="sm" variant="ghost" className="gap-1 text-red-600" disabled={azione.isPending}
-                  onClick={() => { if (window.confirm(`Revocare l'identificazione di ${f.nome} ${f.cognome}?`)) azione.mutate({ tipo: "revoca", id: f.id }); }}>
-                  <UserX className="h-3.5 w-3.5" />Revoca
+                  onClick={() => { if (window.confirm(tr("Revocare l'identificazione di {nome} {cognome}?", { nome: String(f.nome ?? ""), cognome: String(f.cognome ?? "") }))) azione.mutate({ tipo: "revoca", id: f.id }); }}>
+                  <UserX className="h-3.5 w-3.5" />{tr("Revoca")}
                 </Button>
 </div></TableCell>
           </TableRow>;
@@ -175,9 +176,9 @@ export function FirmatariIdentificati() {
       <Dialog open={aperto} onOpenChange={(v) => { if (!salva.isPending) setAperto(v); }}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Carica un documento d'identità</DialogTitle>
+            <DialogTitle>{tr("Carica un documento d'identità")}</DialogTitle>
             <DialogDescription>
-              Per chi hai identificato di persona. L'email deve essere quella a cui mandi i documenti da firmare.
+              {tr("Per chi hai identificato di persona. L'email deve essere quella a cui mandi i documenti da firmare.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -185,28 +186,28 @@ export function FirmatariIdentificati() {
             <div className="grid grid-cols-2 gap-3">{campo("nome", "Nome")}{campo("cognome", "Cognome")}</div>
             {campo("codiceFiscale", "Codice fiscale (facoltativo)", { maxLength: 16 })}
             <div className="space-y-1">
-              <Label htmlFor={`${formId}-tipo`}>Documento</Label>
+              <Label htmlFor={`${formId}-tipo`}>{tr("Documento")}</Label>
               <UniformSelect id={`${formId}-tipo`} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={dati.tipo} onChange={(e) => setDati({ ...dati, tipo: e.target.value })}>
-                {Object.entries(TIPI).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                {Object.entries(TIPI).map(([v, l]) => <option key={v} value={v}>{tr(l)}</option>)}
               </UniformSelect>
             </div>
             <div className="grid grid-cols-2 gap-3">{campo("numero", "Numero")}{campo("scadenza", "Scade il", { type: "date" })}</div>
             {campo("rilasciatoDa", "Rilasciato da (facoltativo)")}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1"><Label htmlFor={`${formId}-fronte`}>{serveRetro ? "Foto del fronte" : "Pagina con i dati"}</Label>
+              <div className="space-y-1"><Label htmlFor={`${formId}-fronte`}>{serveRetro ? tr("Foto del fronte") : tr("Pagina con i dati")}</Label>
                 <Input id={`${formId}-fronte`} type="file" accept="image/*,application/pdf" onChange={(e) => setFronte(e.target.files?.[0] ?? null)} /></div>
-              {serveRetro && <div className="space-y-1"><Label htmlFor={`${formId}-retro`}>Foto del retro</Label>
+              {serveRetro && <div className="space-y-1"><Label htmlFor={`${formId}-retro`}>{tr("Foto del retro")}</Label>
                 <Input id={`${formId}-retro`} type="file" accept="image/*,application/pdf" onChange={(e) => setRetro(e.target.files?.[0] ?? null)} /></div>}
             </div>
             <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-700">
               <Checkbox checked={visto} onCheckedChange={(v) => setVisto(v === true)} className="mt-0.5" />
-              <span>Ho visto il documento originale e la persona corrisponde alla foto.</span>
+              <span>{tr("Ho visto il documento originale e la persona corrisponde alla foto.")}</span>
             </label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAperto(false)} disabled={salva.isPending}>Annulla</Button>
+            <Button variant="outline" onClick={() => setAperto(false)} disabled={salva.isPending}>{tr("Annulla")}</Button>
             <Button onClick={() => salva.mutate()} disabled={!pronto || salva.isPending}>
-              {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Registra
+              {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{tr("Registra")}
             </Button>
           </DialogFooter>
         </DialogContent>

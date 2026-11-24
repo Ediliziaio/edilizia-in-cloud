@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const MAX_IMAGES = 60;
 const MAX_PDF_MB = 80;
 
@@ -174,6 +175,7 @@ interface Props {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PdfToolkitDialog({ open, onOpenChange }: Props) {
+  const tr = useT();
   const isMobile = useIsMobile();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
@@ -229,7 +231,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
   // come "documento_generico" già completato — niente analisi AI, costo zero.
   const saveToDrive = useCallback(async (bytes: Uint8Array, fileName: string, pagesCount: number | null): Promise<boolean> => {
     if (!companyId || !user) {
-      toast.error("Sessione non valida: ricarica la pagina");
+      toast.error(tr("Sessione non valida: ricarica la pagina"));
       return false;
     }
     const safe = fileName.replace(/[^a-zA-Z0-9._-]+/g, "_");
@@ -242,7 +244,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
       upErr = (await supabase.storage.from(bucket).upload(path, blob, { contentType: "application/pdf" })).error;
     }
     if (upErr) {
-      toast.error("Upload su Drive fallito", { description: upErr.message });
+      toast.error(tr("Upload su Drive fallito"), { description: upErr.message });
       return false;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -261,10 +263,10 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
       structured_fields: { source: "pdf_toolkit" },
     });
     if (insErr) {
-      toast.error("Registrazione in Drive fallita", { description: insErr.message });
+      toast.error(tr("Registrazione in Drive fallita"), { description: insErr.message });
       return false;
     }
-    toast.success("Salvato in EiC Drive", { description: fileName });
+    toast.success(tr("Salvato in EiC Drive"), { description: fileName });
     return true;
   }, [companyId, user]);
 
@@ -274,7 +276,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
     if (!files?.length) return;
     const accepted = Array.from(files).filter((f) => f.type.startsWith("image/"));
     if (accepted.length !== files.length) {
-      toast.info("Alcuni file non sono immagini e sono stati saltati");
+      toast.info(tr("Alcuni file non sono immagini e sono stati saltati"));
     }
     setImages((prev) => {
       const next = [...prev, ...accepted.map((file) => ({
@@ -283,7 +285,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
         url: URL.createObjectURL(file),
       }))];
       if (next.length > MAX_IMAGES) {
-        toast.error(`Massimo ${MAX_IMAGES} immagini per PDF`);
+        toast.error(tr("Massimo {MAX_IMAGES} immagini per PDF", { MAX_IMAGES: String(MAX_IMAGES ?? "") }));
         next.slice(MAX_IMAGES).forEach((i) => URL.revokeObjectURL(i.url));
         return next.slice(0, MAX_IMAGES);
       }
@@ -350,7 +352,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
         await saveToDrive(bytes, name, images.length);
       }
     } catch (e) {
-      toast.error("Errore nella generazione del PDF", { description: String(e) });
+      toast.error(tr("Errore nella generazione del PDF"), { description: String(e) });
     } finally {
       setImgBusy(null);
     }
@@ -362,12 +364,12 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
     if (!files?.length) return;
     const pdfs = Array.from(files).filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
     if (pdfs.length === 0) {
-      toast.error("Seleziona file PDF");
+      toast.error(tr("Seleziona file PDF"));
       return;
     }
     const totalMb = pdfs.reduce((s, f) => s + f.size, 0) / (1024 * 1024);
     if (totalMb > MAX_PDF_MB) {
-      toast.error(`File troppo grandi (max ${MAX_PDF_MB} MB totali)`);
+      toast.error(tr("File troppo grandi (max {MAX_PDF_MB} MB totali)", { MAX_PDF_MB: String(MAX_PDF_MB ?? "") }));
       return;
     }
     setLoadingPdf(true);
@@ -391,7 +393,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
         ]);
       }
     } catch (e) {
-      toast.error("Impossibile leggere il PDF", { description: String(e) });
+      toast.error(tr("Impossibile leggere il PDF"), { description: String(e) });
     } finally {
       setLoadingPdf(false);
     }
@@ -410,8 +412,8 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
   const rotatePage = useCallback((id: string) => {
     const a = annots[id];
     if (a && (a.texts.length > 0 || a.drawDataUrl)) {
-      toast.info("Pagina con testo/firma: non ruotabile", {
-        description: "Rimuovi prima le annotazioni dalla pagina.",
+      toast.info(tr("Pagina con testo/firma: non ruotabile"), {
+        description: tr("Rimuovi prima le annotazioni dalla pagina."),
       });
       return;
     }
@@ -436,8 +438,8 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
     // Il posizionamento click→coordinate PDF è affidabile solo quando la
     // pagina non ha rotazioni (né interne né applicate qui nel tool).
     if (p.srcRotate !== 0 || p.extraRotation !== 0) {
-      toast.info("Testo e firma disponibili solo su pagine non ruotate", {
-        description: "Questa pagina ha una rotazione: riportala a 0° oppure annota le altre.",
+      toast.info(tr("Testo e firma disponibili solo su pagine non ruotate"), {
+        description: tr("Questa pagina ha una rotazione: riportala a 0° oppure annota le altre."),
       });
       return;
     }
@@ -448,7 +450,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
       const preview = await renderPageBig(srcDocsRef.current[p.srcIdx].bytes, p.pageIndex);
       setAnnotPreview(preview);
     } catch (e) {
-      toast.error("Anteprima pagina non disponibile", { description: String(e) });
+      toast.error(tr("Anteprima pagina non disponibile"), { description: String(e) });
       setAnnotPage(null);
     }
   }, []);
@@ -473,7 +475,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
     if (!annotPage || annotMode !== "text") return;
     const text = annotText.trim();
     if (!text) {
-      toast.info("Scrivi prima il testo, poi clicca sul punto della pagina");
+      toast.info(tr("Scrivi prima il testo, poi clicca sul punto della pagina"));
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
@@ -609,7 +611,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
         await saveToDrive(bytes, name, pages.length);
       }
     } catch (e) {
-      toast.error("Errore nell'esportazione", { description: String(e) });
+      toast.error(tr("Errore nell'esportazione"), { description: String(e) });
     } finally {
       setExpBusy(null);
     }
@@ -621,7 +623,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
     const f = files?.[0];
     if (!f) return;
     if (f.size > MAX_PDF_MB * 1024 * 1024) {
-      toast.error(`File troppo grande (max ${MAX_PDF_MB} MB)`);
+      toast.error(tr("File troppo grande (max {MAX_PDF_MB} MB)", { MAX_PDF_MB: String(MAX_PDF_MB ?? "") }));
       return;
     }
     setCmpResult(null);
@@ -656,13 +658,13 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
       void pdf.loadingTask.destroy();
       const bytes = await out.save();
       if (bytes.byteLength >= cmpFile.bytes.byteLength) {
-        toast.info("Il PDF è già ben ottimizzato", {
-          description: `Risultato ${formatBytes(bytes.byteLength)} ≥ originale ${formatBytes(cmpFile.bytes.byteLength)}: prova "Massima compressione" o tieni l'originale.`,
+        toast.info(tr("Il PDF è già ben ottimizzato"), {
+          description: tr("Risultato {byteLength} ≥ originale {byteLength2}: prova \"Massima compressione\" o tieni l'originale.", { byteLength: formatBytes(bytes.byteLength), byteLength2: formatBytes(cmpFile.bytes.byteLength) }),
         });
       }
       setCmpResult({ bytes, pages: numPages });
     } catch (e) {
-      toast.error("Compressione fallita", { description: String(e) });
+      toast.error(tr("Compressione fallita"), { description: String(e) });
     } finally {
       setCmpProcessing(false);
     }
@@ -675,7 +677,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
       const name = cmpFile.name.replace(/\.pdf$/i, "") + "-compresso.pdf";
       if (target === "download") {
         downloadPdf(cmpResult.bytes, name);
-        toast.success("PDF compresso scaricato");
+        toast.success(tr("PDF compresso scaricato"));
       } else {
         await saveToDrive(cmpResult.bytes, name, cmpResult.pages);
       }
@@ -699,24 +701,24 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-orange-500" />
-            Strumenti PDF
+            {tr("Strumenti PDF")}
           </DialogTitle>
           <DialogDescription className="flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-            Elaborazione nel tuo browser: nessun file inviato a server esterni. "Salva in Drive" carica solo il risultato sul tuo EiC Drive.
+            {tr("Elaborazione nel tuo browser: nessun file inviato a server esterni. \"Salva in Drive\" carica solo il risultato sul tuo EiC Drive.")}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="img2pdf" className="flex-1 flex flex-col min-h-0">
           <TabsList className="shrink-0 grid w-full grid-cols-3">
             <TabsTrigger value="img2pdf" className="gap-1.5">
-              <ImagePlus className="h-3.5 w-3.5" /> Immagini → PDF
+              <ImagePlus className="h-3.5 w-3.5" /> {tr("Immagini → PDF")}
             </TabsTrigger>
             <TabsTrigger value="editpdf" className="gap-1.5">
-              <FilePlus2 className="h-3.5 w-3.5" /> Modifica / unisci
+              <FilePlus2 className="h-3.5 w-3.5" /> {tr("Modifica / unisci")}
             </TabsTrigger>
             <TabsTrigger value="compress" className="gap-1.5">
-              <Shrink className="h-3.5 w-3.5" /> Comprimi
+              <Shrink className="h-3.5 w-3.5" /> {tr("Comprimi")}
             </TabsTrigger>
           </TabsList>
 
@@ -724,8 +726,8 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
           <TabsContent value="img2pdf" className="flex-1 min-h-0 flex flex-col gap-3 mt-3">
             <label className="shrink-0 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/50 px-4 py-5 text-center transition-colors hover:bg-orange-50">
               <ImagePlus className="h-6 w-6 text-orange-500" />
-              <span className="text-sm font-semibold text-slate-800">Scegli le immagini</span>
-              <span className="text-[11px] text-slate-500">PNG, JPG, WebP — anche più di una, l'ordine si cambia dopo</span>
+              <span className="text-sm font-semibold text-slate-800">{tr("Scegli le immagini")}</span>
+              <span className="text-[11px] text-slate-500">{tr("PNG, JPG, WebP — anche più di una, l'ordine si cambia dopo")}</span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -745,11 +747,11 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                         {idx + 1}. {img.file.name}
                       </p>
                       <div className="absolute right-1 top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button type="button" onClick={() => moveImage(idx, -1)} disabled={idx === 0} aria-label="Sposta su"
+                        <button type="button" onClick={() => moveImage(idx, -1)} disabled={idx === 0} aria-label={tr("Sposta su")}
                           className="rounded bg-slate-900/80 p-1 text-white disabled:opacity-30"><ArrowUp className="h-3 w-3" /></button>
-                        <button type="button" onClick={() => moveImage(idx, 1)} disabled={idx === images.length - 1} aria-label="Sposta giù"
+                        <button type="button" onClick={() => moveImage(idx, 1)} disabled={idx === images.length - 1} aria-label={tr("Sposta giù")}
                           className="rounded bg-slate-900/80 p-1 text-white disabled:opacity-30"><ArrowDown className="h-3 w-3" /></button>
-                        <button type="button" onClick={() => removeImage(img.id)} aria-label="Rimuovi"
+                        <button type="button" onClick={() => removeImage(img.id)} aria-label={tr("Rimuovi")}
                           className="rounded bg-rose-600/90 p-1 text-white"><Trash2 className="h-3 w-3" /></button>
                       </div>
                     </div>
@@ -758,7 +760,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
 
                 <div className="shrink-0 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-semibold text-slate-600">Pagina</span>
+                    <span className="text-[11px] font-semibold text-slate-600">{tr("Pagina")}</span>
                     <div className="flex overflow-hidden rounded-md border">
                       {([["a4", "A4"], ["fit", "Su misura"]] as const).map(([v, l]) => (
                         <button
@@ -778,13 +780,13 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => void handleImagesAction("drive")} disabled={imgBusy !== null} className="gap-2">
                       {imgBusy === "drive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-                      Salva in Drive
+                      {tr("Salva in Drive")}
                     </Button>
                     {/* Niente scarico su telefono: «Salva in Drive» resta. */}
                     {!isMobile && (
                       <Button onClick={() => void handleImagesAction("download")} disabled={imgBusy !== null} className="gap-2 bg-orange-500 hover:bg-orange-600">
                         {imgBusy === "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        Scarica PDF ({images.length})
+                        {tr("Scarica PDF ({n})", { n: images.length })}
                       </Button>
                     )}
                   </div>
@@ -801,7 +803,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                 <div className="shrink-0 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-slate-800">
-                      Testo & firma — pagina {pages.findIndex((p) => p.id === annotPage.id) + 1}
+                      {tr("Testo & firma — pagina {n}", { n: pages.findIndex((p) => p.id === annotPage.id) + 1 })}
                     </p>
                     <div className="flex overflow-hidden rounded-md border">
                       <button
@@ -810,7 +812,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                         className={cn("h-7 px-2.5 text-[11px] font-medium flex items-center gap-1",
                           annotMode === "text" ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}
                       >
-                        <Type className="h-3 w-3" /> Testo
+                        <Type className="h-3 w-3" /> {tr("Testo")}
                       </button>
                       <button
                         type="button"
@@ -818,12 +820,12 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                         className={cn("h-7 px-2.5 text-[11px] font-medium flex items-center gap-1 border-l",
                           annotMode === "draw" ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}
                       >
-                        <PenLine className="h-3 w-3" /> Firma
+                        <PenLine className="h-3 w-3" /> {tr("Firma")}
                       </button>
                     </div>
                   </div>
                   <Button size="sm" onClick={() => { setAnnotPage(null); setAnnotPreview(null); }} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
-                    <Check className="h-3.5 w-3.5" /> Fatto
+                    <Check className="h-3.5 w-3.5" /> {tr("Fatto")}
                   </Button>
                 </div>
 
@@ -833,7 +835,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                       <input
                         value={annotText}
                         onChange={(e) => setAnnotText(e.target.value)}
-                        placeholder="Scrivi il testo, poi clicca sul punto della pagina…"
+                        placeholder={tr("Scrivi il testo, poi clicca sul punto della pagina…")}
                         className="h-8 min-w-0 flex-1 rounded-md border px-2.5 text-sm outline-none focus:border-orange-400"
                       />
                       <div className="flex overflow-hidden rounded-md border">
@@ -845,7 +847,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                             className={cn("h-8 w-8 font-semibold border-l first:border-l-0",
                               i === 0 ? "text-[10px]" : i === 1 ? "text-[13px]" : "text-[17px]",
                               annotSize === s ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}
-                            aria-label={`Dimensione testo ${s}pt`}
+                            aria-label={tr("Dimensione testo {s}pt", { s: String(s ?? "") })}
                           >
                             {l}
                           </button>
@@ -854,9 +856,9 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                     </>
                   ) : (
                     <>
-                      <p className="text-[11px] text-slate-500 flex-1">Disegna la firma direttamente sulla pagina (mouse o touch).</p>
+                      <p className="text-[11px] text-slate-500 flex-1">{tr("Disegna la firma direttamente sulla pagina (mouse o touch).")}</p>
                       <Button size="sm" variant="outline" onClick={clearDrawing} className="gap-1.5 h-8">
-                        <Eraser className="h-3.5 w-3.5" /> Pulisci firma
+                        <Eraser className="h-3.5 w-3.5" /> {tr("Pulisci firma")}
                       </Button>
                     </>
                   )}
@@ -869,7 +871,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                         className={cn("h-6 w-6 rounded-full border-2 transition-transform",
                           annotColor === c ? "scale-110 border-orange-400" : "border-transparent")}
                         style={{ backgroundColor: ANNOT_CSS[c] }}
-                        aria-label={`Colore ${c}`}
+                        aria-label={tr("Colore {c}", { c: String(c ?? "") })}
                       />
                     ))}
                   </div>
@@ -885,13 +887,13 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                       className={cn("relative mx-auto w-fit shadow-md", annotMode === "text" && "cursor-crosshair")}
                       onClick={placeText}
                     >
-                      <img src={annotPreview.url} alt="Pagina" className="block max-w-full" draggable={false} />
+                      <img src={annotPreview.url} alt={tr("Pagina")} className="block max-w-full" draggable={false} />
                       {/* Marker testi posizionati */}
                       {(annotsOf(annotPage.id)?.texts ?? []).map((t) => (
                         <button
                           key={t.id}
                           type="button"
-                          title="Clicca per rimuovere"
+                          title={tr("Clicca per rimuovere")}
                           onClick={(e) => { e.stopPropagation(); removeText(annotPage.id, t.id); }}
                           className="absolute -translate-y-1/2 whitespace-pre font-helvetica leading-none hover:opacity-60"
                           style={{
@@ -923,9 +925,9 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                 <label className="shrink-0 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/50 px-4 py-5 text-center transition-colors hover:bg-orange-50">
                   {loadingPdf ? <Loader2 className="h-6 w-6 animate-spin text-orange-500" /> : <FilePlus2 className="h-6 w-6 text-orange-500" />}
                   <span className="text-sm font-semibold text-slate-800">
-                    {pages.length > 0 ? "Aggiungi un altro PDF (unisci)" : "Scegli uno o più PDF"}
+                    {pages.length > 0 ? tr("Aggiungi un altro PDF (unisci)") : tr("Scegli uno o più PDF")}
                   </span>
-                  <span className="text-[11px] text-slate-500">Poi riordina, ruota, elimina pagine o aggiungi testo e firma</span>
+                  <span className="text-[11px] text-slate-500">{tr("Poi riordina, ruota, elimina pagine o aggiungi testo e firma")}</span>
                   <input
                     type="file"
                     accept="application/pdf"
@@ -943,28 +945,26 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                         <div key={p.id} className="group relative rounded-md border bg-white p-1">
                           <img
                             src={p.thumb}
-                            alt={`Pagina ${idx + 1}`}
+                            alt={tr("Pagina {idx}", { idx: idx + 1 })}
                             className="h-28 w-full rounded object-contain bg-slate-50 transition-transform"
                             style={{ transform: p.extraRotation ? `rotate(${p.extraRotation}deg)` : undefined }}
                           />
                           {annotCount(p.id) > 0 && (
-                            <span className="absolute left-1 top-1 rounded bg-orange-500 px-1 py-0.5 text-[8px] font-bold text-white">
-                              {annotCount(p.id)} annot.
-                            </span>
+                            <span className="absolute left-1 top-1 rounded bg-orange-500 px-1 py-0.5 text-[8px] font-bold text-white">{tr("{n} annot.", { n: annotCount(p.id) })}</span>
                           )}
                           <p className="mt-1 truncate text-center text-[9px] text-slate-500" title={p.srcName}>
                             {idx + 1} · {p.srcName}
                           </p>
                           <div className="absolute right-1 top-1 flex flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                            <button type="button" onClick={() => movePage(idx, -1)} disabled={idx === 0} aria-label="Sposta prima"
+                            <button type="button" onClick={() => movePage(idx, -1)} disabled={idx === 0} aria-label={tr("Sposta prima")}
                               className="rounded bg-slate-900/80 p-1 text-white disabled:opacity-30"><ArrowUp className="h-3 w-3" /></button>
-                            <button type="button" onClick={() => movePage(idx, 1)} disabled={idx === pages.length - 1} aria-label="Sposta dopo"
+                            <button type="button" onClick={() => movePage(idx, 1)} disabled={idx === pages.length - 1} aria-label={tr("Sposta dopo")}
                               className="rounded bg-slate-900/80 p-1 text-white disabled:opacity-30"><ArrowDown className="h-3 w-3" /></button>
-                            <button type="button" onClick={() => rotatePage(p.id)} aria-label="Ruota 90 gradi"
+                            <button type="button" onClick={() => rotatePage(p.id)} aria-label={tr("Ruota 90 gradi")}
                               className="rounded bg-slate-900/80 p-1 text-white"><RotateCw className="h-3 w-3" /></button>
-                            <button type="button" onClick={() => void openAnnotEditor(p)} aria-label="Aggiungi testo o firma"
+                            <button type="button" onClick={() => void openAnnotEditor(p)} aria-label={tr("Aggiungi testo o firma")}
                               className="rounded bg-orange-500/95 p-1 text-white"><Type className="h-3 w-3" /></button>
-                            <button type="button" onClick={() => removePage(p.id)} aria-label="Elimina pagina"
+                            <button type="button" onClick={() => removePage(p.id)} aria-label={tr("Elimina pagina")}
                               className="rounded bg-rose-600/90 p-1 text-white"><Trash2 className="h-3 w-3" /></button>
                           </div>
                         </div>
@@ -973,18 +973,18 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
 
                     <div className="shrink-0 flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[11px] text-slate-500">
-                        {pages.length} pagine · passa col mouse su una pagina: ordina, ruota, <span className="text-orange-600 font-semibold">testo/firma</span>, elimina
+                        {tr("{n} pagine · passa col mouse su una pagina: ordina, ruota, testo/firma, elimina", { n: pages.length })}
                       </p>
                       <div className="flex gap-2">
                         <Button variant="outline" onClick={() => void handleExportAction("drive")} disabled={expBusy !== null} className="gap-2">
                           {expBusy === "drive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-                          Salva in Drive
+                          {tr("Salva in Drive")}
                         </Button>
                         {/* Niente scarico su telefono: «Salva in Drive» resta. */}
                         {!isMobile && (
                           <Button onClick={() => void handleExportAction("download")} disabled={expBusy !== null} className="gap-2 bg-orange-500 hover:bg-orange-600">
                             {expBusy === "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                            Esporta PDF
+                            {tr("Esporta PDF")}
                           </Button>
                         )}
                       </div>
@@ -1000,10 +1000,10 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
             <label className="shrink-0 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/50 px-4 py-5 text-center transition-colors hover:bg-orange-50">
               <Shrink className="h-6 w-6 text-orange-500" />
               <span className="text-sm font-semibold text-slate-800">
-                {cmpFile ? cmpFile.name : "Scegli il PDF da comprimere"}
+                {cmpFile ? cmpFile.name : tr("Scegli il PDF da comprimere")}
               </span>
               <span className="text-[11px] text-slate-500">
-                {cmpFile ? `${formatBytes(cmpFile.bytes.byteLength)} — clicca per cambiare file` : `Massimo ${MAX_PDF_MB} MB`}
+                {cmpFile ? tr("{byteLength} — clicca per cambiare file", { byteLength: formatBytes(cmpFile.bytes.byteLength) }) : tr("Massimo {MAX_PDF_MB} MB", { MAX_PDF_MB: String(MAX_PDF_MB ?? "") })}
               </span>
               <input
                 type="file"
@@ -1016,7 +1016,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
             {cmpFile && (
               <>
                 <div className="shrink-0 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-semibold text-slate-600">Qualità</span>
+                  <span className="text-[11px] font-semibold text-slate-600">{tr("Qualità")}</span>
                   <div className="flex overflow-hidden rounded-md border">
                     {(Object.keys(COMPRESS_PRESET) as CompressQuality[]).map((q, i) => (
                       <button
@@ -1027,21 +1027,20 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                           i > 0 && "border-l",
                           cmpQuality === q ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}
                       >
-                        {COMPRESS_PRESET[q].label}
+                        {tr(COMPRESS_PRESET[q].label)}
                       </button>
                     ))}
                   </div>
                   <Button onClick={() => void runCompress()} disabled={cmpProcessing} className="gap-2 bg-orange-500 hover:bg-orange-600 ml-auto">
                     {cmpProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
-                    Comprimi
+                    {tr("Comprimi")}
                   </Button>
                 </div>
 
                 <div className="shrink-0 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
                   <p className="text-[11px] leading-snug text-amber-800">
-                    La compressione trasforma le pagine in immagini: il testo non sarà più selezionabile o ricercabile.
-                    Ideale per scansioni e foto, da evitare su contratti dove serve copiare il testo.
+                    {tr("La compressione trasforma le pagine in immagini: il testo non sarà più selezionabile o ricercabile. Ideale per scansioni e foto, da evitare su contratti dove serve copiare il testo.")}
                   </p>
                 </div>
 
@@ -1062,11 +1061,11 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => void handleCompressAction("drive")} disabled={cmpBusy !== null} className="gap-1.5">
                         {cmpBusy === "drive" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
-                        Salva in Drive
+                        {tr("Salva in Drive")}
                       </Button>
                       <Button size="sm" onClick={() => void handleCompressAction("download")} disabled={cmpBusy !== null} className="gap-1.5 bg-orange-500 hover:bg-orange-600">
                         {cmpBusy === "download" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                        Scarica
+                        {tr("Scarica")}
                       </Button>
                     </div>
                   </div>

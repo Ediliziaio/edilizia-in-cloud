@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PhoneNumberV2 {
   id: string;
@@ -52,6 +53,7 @@ interface PhoneNumberV2 {
 }
 
 export function TelephonyTab() {
+  const t = useT();
   const isAdminContext = useLocation().pathname.startsWith("/admin");
   const settingsUrl = isAdminContext ? "/admin/ai?section=config" : "/azienda/impostazioni/numeri-telefono";
   const companyId = useEffectiveCompanyId();
@@ -81,7 +83,7 @@ export function TelephonyTab() {
     mutationFn: async ({ numberId, agentId }: { numberId: string; agentId: string | null }) => {
       if (!companyId) throw new Error("Nessuna azienda associata");
       if (agentId && !allAgents.some(a => a.id === agentId)) throw new Error("Agente non disponibile per questa azienda");
-      if (allAgents.find(a => a.id === agentId)?.tools_config?.voice_provider === "fish_audio") throw new Error("Per assegnare una linea a Fish usa la configurazione Fish dell'agente.");
+      if (allAgents.find(a => a.id === agentId)?.tools_config?.voice_provider === "fish_audio") throw new Error(t("Per assegnare una linea a Fish usa la configurazione Fish dell'agente."));
       const number = numbers.find(n => n.id === numberId);
       if (!number) throw new Error("Numero non disponibile");
       if (number.elevenlabs_phone_id) {
@@ -100,7 +102,7 @@ export function TelephonyTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
-      toast.success("Agente assegnato");
+      toast.success(t("Agente assegnato"));
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -128,10 +130,10 @@ export function TelephonyTab() {
     },
     onSuccess: (inboundAssigned) => {
       queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
-      if (inboundAssigned) toast.success("Numero collegato: chiamate in entrata assegnate all'agente");
-      else toast.warning("Numero registrato, ma chiamate in entrata non assegnate. Riprova il collegamento.");
+      if (inboundAssigned) toast.success(t("Numero collegato: chiamate in entrata assegnate all'agente"));
+      else toast.warning(t("Numero registrato, ma chiamate in entrata non assegnate. Riprova il collegamento."));
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore collegamento ElevenLabs"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Errore collegamento ElevenLabs")),
   });
 
   const syncFromEL = async () => {
@@ -142,10 +144,10 @@ export function TelephonyTab() {
         company_id: companyId!,
       });
       const elNumbers = result?.phone_numbers || [];
-      toast.success(`${elNumbers.length} numeri trovati su ElevenLabs`);
+      toast.success(t("{n} numeri trovati su ElevenLabs", { n: elNumbers.length }));
       queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
     } catch (e: any) {
-      toast.error(e.message || "Errore nella sincronizzazione");
+      toast.error(e.message || t("Errore nella sincronizzazione"));
     } finally {
       setSyncing(false);
     }
@@ -156,14 +158,14 @@ export function TelephonyTab() {
       <NumberConnectionGuide />
       {fishAgents.length > 0 && (
         <section className="rounded-xl border bg-card p-4">
-          <h2 className="text-sm font-semibold">Collega un numero a un assistente Fish</h2>
+          <h2 className="text-sm font-semibold">{t("Collega un numero a un assistente Fish")}</h2>
           <ul className="mt-3 divide-y">
             {fishAgents.map(agent => (
               <li key={agent.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span className="text-sm">{agent.nome}</span>
                 <Button asChild size="sm" variant="outline">
-                  <Link to={agentsPath + "/" + agent.id + "?tab=telefonia&origine=telefonia"} aria-label={`Collegamento numero per ${agent.nome}`}>
-                    Collegamento numero
+                  <Link to={agentsPath + "/" + agent.id + "?tab=telefonia&origine=telefonia"} aria-label={t("Collegamento numero per {nome}", { nome: String(agent.nome ?? "") })}>
+                    {t("Collegamento numero")}
                   </Link>
                 </Button>
               </li>
@@ -178,12 +180,12 @@ export function TelephonyTab() {
       <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link to={settingsUrl}><Settings2 className="h-4 w-4 mr-1.5" /> {isAdminContext ? "Configurazione AI" : "Gestisci numeri"}</Link>
+            <Link to={settingsUrl}><Settings2 className="h-4 w-4 mr-1.5" /> {isAdminContext ? t("Configurazione AI") : t("Gestisci numeri")}</Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing || !companyId} title="Verifica i numeri dell'azienda su ElevenLabs">
+          <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing || !companyId} title={t("Verifica i numeri dell'azienda su ElevenLabs")}>
             {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
             {/* «Sync» all'inglese: il nome del servizio resta nel suggerimento. */}
-            Verifica ElevenLabs
+            {t("Verifica ElevenLabs")}
           </Button>
         </div>
       </div>
@@ -194,21 +196,21 @@ export function TelephonyTab() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : isError ? (
-        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare i numeri telefonici.</p>
-          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
+        <div role="alert" className="rounded-lg border p-4"><p>{t("Impossibile caricare i numeri telefonici.")}</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>{t("Riprova")}</Button></div>
       ) : numbers.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
             <Phone className="h-7 w-7 text-primary" />
           </div>
-          <p className="text-foreground font-medium">Nessun numero configurato</p>
+          <p className="text-foreground font-medium">{t("Nessun numero configurato")}</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
             {isAdminContext
-              ? "Per le chiamate AI occorre un numero della piattaforma configurato nel provider e assegnato a un agente. Le impostazioni dei numeri aziendali non gestiscono i numeri del superadmin."
-              : <>I numeri per le chiamate AI si aggiungono in <strong>Impostazioni → Telefonia</strong> (sezione "Numeri per chiamate AI"). Poi qui li assegni a un agente vocale.</>}
+              ? t("Per le chiamate AI occorre un numero della piattaforma configurato nel provider e assegnato a un agente. Le impostazioni dei numeri aziendali non gestiscono i numeri del superadmin.")
+              : <>{t("I numeri per le chiamate AI si aggiungono in")} <strong>{t("Impostazioni → Telefonia")}</strong> {t("(sezione \"Numeri per chiamate AI\"). Poi qui li assegni a un agente vocale.")}</>}
           </p>
           <Button asChild variant="default" size="sm" className="mt-4">
-            <Link to={settingsUrl}><Settings2 className="h-4 w-4 mr-1.5" /> {isAdminContext ? "Apri configurazione piattaforma" : "Vai a Telefonia"}</Link>
+            <Link to={settingsUrl}><Settings2 className="h-4 w-4 mr-1.5" /> {isAdminContext ? t("Apri configurazione piattaforma") : t("Vai a Telefonia")}</Link>
           </Button>
         </div>
       ) : (
@@ -216,12 +218,12 @@ export function TelephonyTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Numero</TableHead>
-                <TableHead>Etichetta</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Agente Assegnato</TableHead>
-                <TableHead>EL Sync</TableHead>
-                <TableHead>Stato</TableHead>
+                <TableHead>{t("Numero")}</TableHead>
+                <TableHead>{t("Etichetta")}</TableHead>
+                <TableHead>{t("Provider")}</TableHead>
+                <TableHead>{t("Agente Assegnato")}</TableHead>
+                <TableHead>{t("EL Sync")}</TableHead>
+                <TableHead>{t("Stato")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -247,12 +249,12 @@ export function TelephonyTab() {
                         }
                       >
                         <SelectTrigger className="w-48 h-8 text-xs">
-                          <SelectValue placeholder="Nessun agente" />
+                          <SelectValue placeholder={t("Nessun agente")} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">
                             <span className="flex items-center gap-1.5">
-                              <Unlink className="h-3 w-3" /> Nessuno
+                              <Unlink className="h-3 w-3" /> {t("Nessuno")}
                             </span>
                           </SelectItem>
                           {allAgents.map((ag) => (
@@ -266,12 +268,12 @@ export function TelephonyTab() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      {assignedAgent?.tools_config?.voice_provider === "fish_audio" ? <Badge variant="outline">Gestito da Fish</Badge> : num.elevenlabs_phone_id ? (
+                      {assignedAgent?.tools_config?.voice_provider === "fish_audio" ? <Badge variant="outline">{t("Gestito da Fish")}</Badge> : num.elevenlabs_phone_id ? (
                         <div className="space-y-1"><span className="flex items-center gap-1 text-xs text-primary">
-                          <Link2 className="h-3 w-3" /> Collegato
+                          <Link2 className="h-3 w-3" /> {t("Collegato")}
                         </span>{num.agent_id && <Button size="sm" variant="outline" className="h-7 text-xs"
                           disabled={linkToEL.isPending || assignAgent.isPending}
-                          onClick={() => linkToEL.mutate(num)}>Verifica e riassegna</Button>}</div>
+                          onClick={() => linkToEL.mutate(num)}>{t("Verifica e riassegna")}</Button>}</div>
                       ) : num.agent_id ? (
                         <Button
                           size="sm"
@@ -285,22 +287,22 @@ export function TelephonyTab() {
                           ) : (
                             <Link2 className="h-3 w-3 mr-1" />
                           )}
-                          Collega per chiamate
+                          {t("Collega per chiamate")}
                         </Button>
                       ) : (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Unlink className="h-3 w-3" /> Assegna un agente
+                          <Unlink className="h-3 w-3" /> {t("Assegna un agente")}
                         </span>
                       )}
                     </TableCell>
                     <TableCell>
                       {num.attivo ? (
                         <span className="flex items-center gap-1 text-xs text-primary">
-                          <CheckCircle className="h-3.5 w-3.5" /> Attivo
+                          <CheckCircle className="h-3.5 w-3.5" /> {t("Attivo")}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-xs text-destructive">
-                          <XCircle className="h-3.5 w-3.5" /> Disattivo
+                          <XCircle className="h-3.5 w-3.5" /> {t("Disattivo")}
                         </span>
                       )}
                     </TableCell>

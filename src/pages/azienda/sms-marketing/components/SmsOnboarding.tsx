@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useTelnyxSetup } from "@/hooks/useTelnyxSetup";
 import type { TelnyxNumeroDisponibile } from "@/types/sms-marketing";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type OnboardingStep = 1 | 2 | 3 | 4 | 5;
 
@@ -25,6 +26,7 @@ interface SmsOnboardingProps {
 }
 
 export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
+  const t = useT();
   const { cercaNumeri, isCercando, acquistaNumero, isAcquistando } = useTelnyxSetup();
 
   const [step, setStep] = useState<OnboardingStep>(1);
@@ -36,20 +38,20 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
 
   const handleCercaNumeri = async () => {
     if (!prefisso.trim()) {
-      toast.error("Inserisci un prefisso area (es. 02, 06)");
+      toast.error(t("Inserisci un prefisso area (es. 02, 06)"));
       return;
     }
     setErroreRicerca(null);
     try {
       const numeri = await cercaNumeri({ prefisso_area: prefisso.trim() });
       if (numeri.length === 0) {
-        setErroreRicerca(`Nessun numero disponibile per il prefisso ${prefisso}. Prova con un altro prefisso (es. 02, 06, 011).`);
+        setErroreRicerca(t("Nessun numero disponibile per il prefisso {prefisso}. Prova con un altro prefisso (es. 02, 06, 011).", { prefisso }));
         return;
       }
       setNumeriDisponibili(numeri);
       setStep(3);
     } catch (errore) {
-      setErroreRicerca(errore instanceof Error ? errore.message : "Errore nella ricerca. Riprova.");
+      setErroreRicerca(errore instanceof Error ? errore.message : t("Errore nella ricerca. Riprova."));
     }
   };
 
@@ -67,7 +69,7 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
   const handleCopiaNumero = () => {
     if (numeroAttivato) {
       navigator.clipboard.writeText(numeroAttivato);
-      toast.success("Numero copiato negli appunti");
+      toast.success(t("Numero copiato negli appunti"));
     }
   };
 
@@ -78,8 +80,8 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
       {/* Progress bar */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Configurazione numero SMS</span>
-          <span>Step {step} di 5</span>
+          <span>{t("Configurazione numero SMS")}</span>
+          <span>{t("Step {step} di 5", { step })}</span>
         </div>
         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div
@@ -97,26 +99,26 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
               <Phone className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-bold">Benvenuto nel modulo SMS</h2>
+              <h2 className="text-xl font-bold">{t("Benvenuto nel modulo SMS")}</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Invia campagne SMS ai tuoi clienti dal tuo numero italiano dedicato.
+                {t("Invia campagne SMS ai tuoi clienti dal tuo numero italiano dedicato.")}
               </p>
             </div>
             <div className="bg-muted/50 rounded-lg p-4 text-left space-y-2">
-              <p className="text-sm font-medium">Include:</p>
+              <p className="text-sm font-medium">{t("Include:")}</p>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Numero italiano dedicato (+39)</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Campagne SMS illimitate</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Report consegna in tempo reale</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Gestione opt-out automatica (GDPR)</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> {t("Numero italiano dedicato (+39)")}</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> {t("Campagne SMS illimitate")}</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> {t("Report consegna in tempo reale")}</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> {t("Gestione opt-out automatica (GDPR)")}</li>
               </ul>
             </div>
             <div className="border rounded-lg p-3 text-center">
               <p className="text-2xl font-bold">30 €<span className="text-sm font-normal text-muted-foreground">/mese</span></p>
-              <p className="text-xs text-muted-foreground">Include il numero — SMS addebitati a consumo</p>
+              <p className="text-xs text-muted-foreground">{t("Include il numero — SMS addebitati a consumo")}</p>
             </div>
             <Button className="w-full" onClick={() => setStep(2)}>
-              Inizia la configurazione <ChevronRight className="ml-1 h-4 w-4" />
+              {t("Inizia la configurazione")} <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </CardContent>
         </Card>
@@ -127,13 +129,13 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
         <Card>
           <CardContent className="p-6 space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Scegli il tuo numero</h2>
+              <h2 className="text-lg font-bold">{t("Scegli il tuo numero")}</h2>
               <p className="text-muted-foreground text-sm mt-1">
-                Inserisci il prefisso della zona geografica che preferisci.
+                {t("Inserisci il prefisso della zona geografica che preferisci.")}
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="prefisso">Prefisso area</Label>
+              <Label htmlFor="prefisso">{t("Prefisso area")}</Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -141,7 +143,7 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
                     id="prefisso"
                     value={prefisso}
                     onChange={(e) => setPrefisso(e.target.value)}
-                    placeholder="Es: 02, 06, 011"
+                    placeholder={t("Es: 02, 06, 011")}
                     className="pl-9"
                     onKeyDown={(e) => e.key === "Enter" && handleCercaNumeri()}
                   />
@@ -172,10 +174,10 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
             )}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>
-                <ChevronLeft className="mr-1 h-4 w-4" /> Indietro
+                <ChevronLeft className="mr-1 h-4 w-4" /> {t("Indietro")}
               </Button>
               <Button className="flex-1" onClick={handleCercaNumeri} disabled={isCercando || !prefisso.trim()}>
-                {isCercando ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Cerco...</> : <>Cerca numeri <ChevronRight className="ml-1 h-4 w-4" /></>}
+                {isCercando ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />{t("Cerco...")}</> : <>{t("Cerca numeri")} <ChevronRight className="ml-1 h-4 w-4" /></>}
               </Button>
             </div>
           </CardContent>
@@ -187,8 +189,8 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
         <Card>
           <CardContent className="p-6 space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Numeri disponibili</h2>
-              <p className="text-muted-foreground text-sm mt-1">Scegli il numero che preferisci</p>
+              <h2 className="text-lg font-bold">{t("Numeri disponibili")}</h2>
+              <p className="text-muted-foreground text-sm mt-1">{t("Scegli il numero che preferisci")}</p>
             </div>
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {numeriDisponibili.map((n) => (
@@ -211,14 +213,14 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>
-                <ChevronLeft className="mr-1 h-4 w-4" /> Cambia prefisso
+                <ChevronLeft className="mr-1 h-4 w-4" /> {t("Cambia prefisso")}
               </Button>
               <Button
                 className="flex-1"
                 disabled={!numeroSelezionato}
                 onClick={() => setStep(4)}
               >
-                Scegli questo numero <ChevronRight className="ml-1 h-4 w-4" />
+                {t("Scegli questo numero")} <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
             </div>
           </CardContent>
@@ -230,32 +232,32 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
         <Card>
           <CardContent className="p-6 space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Conferma attivazione</h2>
-              <p className="text-muted-foreground text-sm mt-1">Verifica i dettagli prima di procedere</p>
+              <h2 className="text-lg font-bold">{t("Conferma attivazione")}</h2>
+              <p className="text-muted-foreground text-sm mt-1">{t("Verifica i dettagli prima di procedere")}</p>
             </div>
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Numero scelto</span>
+                <span className="text-muted-foreground">{t("Numero scelto")}</span>
                 <span className="font-mono font-medium">{numeroSelezionato.numero_display}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Area</span>
-                <span>{numeroSelezionato.citta ?? `Prefisso ${numeroSelezionato.prefisso_area}`}</span>
+                <span className="text-muted-foreground">{t("Area")}</span>
+                <span>{numeroSelezionato.citta ?? t("Prefisso {prefisso}", { prefisso: numeroSelezionato.prefisso_area ?? "" })}</span>
               </div>
               <div className="border-t pt-3 flex justify-between">
-                <span className="text-sm text-muted-foreground">Canone mensile</span>
-                <span className="font-bold">30,00 €/mese</span>
+                <span className="text-sm text-muted-foreground">{t("Canone mensile")}</span>
+                <span className="font-bold">{t("{prezzo}/mese", { prezzo: "30,00 €" })}</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Il costo del numero è incluso nel tuo abbonamento. I crediti SMS sono separati e si acquistano in pacchetti.
+              {t("Il costo del numero è incluso nel tuo abbonamento. I crediti SMS sono separati e si acquistano in pacchetti.")}
             </p>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setStep(3)}>
-                <ChevronLeft className="mr-1 h-4 w-4" /> Cambia numero
+                <ChevronLeft className="mr-1 h-4 w-4" /> {t("Cambia numero")}
               </Button>
               <Button className="flex-1" onClick={handleAcquistaNumero} disabled={isAcquistando}>
-                {isAcquistando ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Attivazione...</> : "Attiva numero"}
+                {isAcquistando ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />{t("Attivazione...")}</> : t("Attiva numero")}
               </Button>
             </div>
           </CardContent>
@@ -270,11 +272,11 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-emerald-700">Numero attivato!</h2>
-              <p className="text-muted-foreground text-sm mt-1">Il tuo numero SMS è pronto per essere usato</p>
+              <h2 className="text-xl font-bold text-emerald-700">{t("Numero attivato!")}</h2>
+              <p className="text-muted-foreground text-sm mt-1">{t("Il tuo numero SMS è pronto per essere usato")}</p>
             </div>
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground mb-1">Il tuo numero SMS</p>
+              <p className="text-sm text-muted-foreground mb-1">{t("Il tuo numero SMS")}</p>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-2xl font-mono font-bold">{numeroAttivato}</span>
                 <button onClick={handleCopiaNumero} className="text-muted-foreground hover:text-foreground">
@@ -283,10 +285,10 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Ricarica il wallet SMS per iniziare a inviare campagne.
+              {t("Ricarica il wallet SMS per iniziare a inviare campagne.")}
             </p>
             <Button className="w-full" onClick={onCompleted}>
-              Vai alla dashboard SMS <ChevronRight className="ml-1 h-4 w-4" />
+              {t("Vai alla dashboard SMS")} <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </CardContent>
         </Card>

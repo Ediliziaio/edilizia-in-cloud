@@ -12,6 +12,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PiscineConfig = {
   piscina?: { tipo?: string; sistema_bordo?: string; colore_acqua?: string };
@@ -37,6 +38,7 @@ const compact = (values: Array<string | null | undefined>) =>
   values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
 
 export default function RenderPiscineGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const db = getPiscineDb();
@@ -73,7 +75,7 @@ export default function RenderPiscineGallery() {
     ]);
     return {
       id: item.id,
-      title: item.config?.piscina?.tipo ? `Piscina ${item.config.piscina.tipo.replace(/_/g, " ")}` : "Render piscina",
+      title: item.config?.piscina?.tipo ? t("Piscina {tipo}", { tipo: item.config.piscina.tipo.replace(/_/g, " ") }) : t("Render piscina"),
       date: item.created_at,
       detailPath: `/azienda/render/piscine/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -93,14 +95,14 @@ export default function RenderPiscineGallery() {
       opportunityId: item.opportunity_id,
       opportunityName: item.meta.opportunityName,
     };
-  }), [sessions]);
+  }), [sessions, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Piscine"
-      badgeLabel="Galleria piscine"
-      title="Render piscine salvati, filtrabili per sistema acqua e CRM."
-      description="Confronta le proposte piscina con tipologia, bordo, rivestimento, autore, data e associazioni commerciali sempre in evidenza."
+      moduleName={t("Piscine")}
+      badgeLabel={t("Galleria piscine")}
+      title={t("Render piscine salvati, filtrabili per sistema acqua e CRM.")}
+      description={t("Confronta le proposte piscina con tipologia, bordo, rivestimento, autore, data e associazioni commerciali sempre in evidenza.")}
       backPath="/azienda/render/piscine"
       newPath="/azienda/render/piscine/new"
       items={items}
@@ -108,9 +110,9 @@ export default function RenderPiscineGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render piscina completati appariranno qui."
-      searchPlaceholder="Cerca piscina, sfioro, rivestimento, autore..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render piscina completati appariranno qui.")}
+      searchPlaceholder={t("Cerca piscina, sfioro, rivestimento, autore...")}
       emptyIcon={Waves}
       accentClassName="text-teal-600"
     />

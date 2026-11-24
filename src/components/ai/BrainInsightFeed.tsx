@@ -11,6 +11,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Sparkles, Flame, Link2, TrendingUp, Brain, Activity, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface InsightStory {
   id: string;
@@ -54,6 +55,7 @@ export function BrainInsightFeed({
   healthPct,
   recentEventsCount,
 }: Props) {
+  const t = useT();
   const stories = useMemo<InsightStory[]>(() => {
     const list: InsightStory[] = [];
     const enabledMems = memories.filter((m) => m.enabled);
@@ -71,8 +73,8 @@ export function BrainInsightFeed({
         id: "axis",
         icon: Link2,
         accent: "text-orange-500",
-        title: "Asse di conoscenza più forte",
-        text: `${personaMap.get(topPair.pA) ?? topPair.pA} ↔ ${personaMap.get(topPair.pB) ?? topPair.pB} condividono ${topPair.count} memorie. Pensano "alla stessa cosa".`,
+        title: t("Asse di conoscenza più forte"),
+        text: t("{nomeA} ↔ {nomeB} condividono {n} memorie. Pensano \"alla stessa cosa\".", { nomeA: String(personaMap.get(topPair.pA) ?? topPair.pA), nomeB: String(personaMap.get(topPair.pB) ?? topPair.pB), n: topPair.count }),
       });
     }
 
@@ -86,8 +88,8 @@ export function BrainInsightFeed({
         id: "hot-memory",
         icon: Flame,
         accent: "text-rose-500",
-        title: "Memoria più richiamata",
-        text: `${personaName}: "${preview}" — ${top.hits_count} richiami totali.`,
+        title: t("Memoria più richiamata"),
+        text: t("{persona}: \"{anteprima}\" — {n} richiami totali.", { persona: String(personaName), anteprima: preview, n: top.hits_count ?? 0 }),
       });
     }
 
@@ -100,13 +102,13 @@ export function BrainInsightFeed({
       const personaName = personaMap.get(top.persona_key) ?? top.persona_key;
       const preview = top.content.length > 70 ? top.content.slice(0, 67) + "…" : top.content;
       const days = Math.max(0, Math.floor((Date.now() - new Date(top.created_at).getTime()) / (1000 * 60 * 60 * 24)));
-      const when = days === 0 ? "oggi" : days === 1 ? "ieri" : `${days} giorni fa`;
+      const when = days === 0 ? t("oggi") : days === 1 ? t("ieri") : t("{n} giorni fa", { n: days });
       list.push({
         id: "fresh",
         icon: Sparkles,
         accent: "text-emerald-500",
-        title: "Ultima memoria creata",
-        text: `${when}, ${personaName} ha imparato: "${preview}".`,
+        title: t("Ultima memoria creata"),
+        text: t("{quando}, {persona} ha imparato: \"{anteprima}\".", { quando: when, persona: String(personaName), anteprima: preview }),
       });
     }
 
@@ -121,8 +123,8 @@ export function BrainInsightFeed({
         id: "distribution",
         icon: TrendingUp,
         accent: "text-blue-500",
-        title: "Persona più informata",
-        text: `${topName} ha ${topPersona[1]} memorie attive — è il "cervello" più ricco della squadra.`,
+        title: t("Persona più informata"),
+        text: t("{nome} ha {n} memorie attive — è il \"cervello\" più ricco della squadra.", { nome: String(topName), n: topPersona[1] }),
       });
     }
 
@@ -132,8 +134,8 @@ export function BrainInsightFeed({
         id: "cross-total",
         icon: Brain,
         accent: "text-violet-500",
-        title: "Rete neurale aziendale",
-        text: `${totalCrossPersonaLinks} ponti collegano le tue personas. Il cervello AI pensa trasversalmente, non a silos.`,
+        title: t("Rete neurale aziendale"),
+        text: t("{n} ponti collegano le tue personas. Il cervello AI pensa trasversalmente, non a silos.", { n: totalCrossPersonaLinks }),
       });
     }
 
@@ -142,12 +144,12 @@ export function BrainInsightFeed({
       id: "health",
       icon: Activity,
       accent: healthPct >= 70 ? "text-emerald-500" : healthPct >= 40 ? "text-amber-500" : "text-rose-500",
-      title: "Salute del cervello",
+      title: t("Salute del cervello"),
       text: healthPct >= 70
-        ? `${healthPct}% delle memorie sono attive. Il sistema impara e ricorda bene.`
+        ? t("{pct}% delle memorie sono attive. Il sistema impara e ricorda bene.", { pct: healthPct })
         : healthPct >= 40
-        ? `${healthPct}% delle memorie sono attive. Spazio di miglioramento — usa di più le AI Personas.`
-        : `Solo ${healthPct}% delle memorie attive. Le AI hanno bisogno di più conversazioni.`,
+        ? t("{pct}% delle memorie sono attive. Spazio di miglioramento — usa di più le AI Personas.", { pct: healthPct })
+        : t("Solo {pct}% delle memorie attive. Le AI hanno bisogno di più conversazioni.", { pct: healthPct }),
     });
 
     // 7. Real-time activity (if events)
@@ -156,13 +158,13 @@ export function BrainInsightFeed({
         id: "live",
         icon: Activity,
         accent: "text-emerald-500",
-        title: "Attività live",
-        text: `${recentEventsCount} ${recentEventsCount === 1 ? "evento" : "eventi"} di apprendimento ${recentEventsCount === 1 ? "registrato" : "registrati"} in questa sessione. Il cervello sta imparando ora.`,
+        title: t("Attività live"),
+        text: t(recentEventsCount === 1 ? "{n} evento di apprendimento registrato in questa sessione. Il cervello sta imparando ora." : "{n} eventi di apprendimento registrati in questa sessione. Il cervello sta imparando ora.", { n: recentEventsCount }),
       });
     }
 
     return list;
-  }, [memories, personas, crossPersonaLinks, totalCrossPersonaLinks, healthPct, recentEventsCount]);
+  }, [memories, personas, crossPersonaLinks, totalCrossPersonaLinks, healthPct, recentEventsCount, t]);
 
   const [idx, setIdx] = useState(0);
   const [fading, setFading] = useState(false);
@@ -203,7 +205,7 @@ export function BrainInsightFeed({
     <button
       onClick={goNext}
       className="group w-full text-left rounded-lg bg-white/70 border border-orange-200/60 px-3 py-2 backdrop-blur-sm hover:bg-white/90 transition-colors cursor-pointer flex items-start gap-2"
-      title="Click per il prossimo insight"
+      title={t("Click per il prossimo insight")}
     >
       <Icon className={cn("h-4 w-4 shrink-0 mt-0.5 transition-transform group-hover:scale-110", current.accent)} />
       <div className={cn("min-w-0 flex-1 transition-opacity duration-300", fading ? "opacity-0" : "opacity-100")}>

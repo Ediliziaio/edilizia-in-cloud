@@ -9,6 +9,7 @@
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { renderLogo, type IntegrationItem } from "./IntegrationsCatalog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type VoceDaSistemare = {
   id: string;
@@ -30,6 +31,7 @@ export function IntegrazioniDaSistemare({
   /** Senza permesso di modifica le righe si leggono ma non hanno pulsanti. */
   conAzioni?: boolean;
 }) {
+  const t = useT();
   if (voci.length === 0) return null;
   return (
     <section
@@ -38,7 +40,7 @@ export function IntegrazioniDaSistemare({
     >
       <header className="flex items-center gap-2 border-b border-amber-200/80 px-4 py-2.5 dark:border-amber-900/60">
         <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-        <h2 id="da-sistemare-titolo" className="text-sm font-semibold">Da sistemare</h2>
+        <h2 id="da-sistemare-titolo" className="text-sm font-semibold">{t("Da sistemare")}</h2>
         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium tabular-nums text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
           {voci.length}
         </span>

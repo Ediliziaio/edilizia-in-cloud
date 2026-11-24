@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Building2, CreditCard, CheckCircle2, Loader2, Lock, LogOut, ShieldCheck, AlertTriangle,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * BillingActivationGuard — blocca l'intero gestionale finché l'azienda non ha
@@ -50,13 +51,14 @@ interface BillingFields {
  * anche da Green Energy, che era regolare.
  */
 function AltreAziende() {
+  const t = useT();
   const { multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany } = useAuth();
   const altre = multiCompanyAccesses.filter((a) => a.company_id !== selectedMultiCompanyId);
   if (altre.length === 0) return null;
 
   return (
     <div className="mt-2 flex w-full flex-col gap-1.5 border-t pt-3">
-      <p className="text-xs text-muted-foreground">Hai accesso anche a:</p>
+      <p className="text-xs text-muted-foreground">{t("Hai accesso anche a:")}</p>
       {altre.map((a) => (
         <Button
           key={a.company_id}
@@ -66,7 +68,7 @@ function AltreAziende() {
           onClick={() => switchMultiCompany(a.company_id)}
         >
           <Building2 className="mr-2 h-4 w-4" />
-          Passa a {a.company?.name ?? "un'altra azienda"}
+          {t("Passa a")} {a.company?.name ?? t("un'altra azienda")}
         </Button>
       ))}
     </div>
@@ -92,6 +94,7 @@ function BillingDataForm({
   initial: Partial<BillingFields>;
   done: boolean;
 }) {
+  const t = useT();
   const { refreshAuth } = useAuth();
   const [saving, setSaving] = useState(false);
   const [f, setF] = useState<BillingFields>({
@@ -115,7 +118,7 @@ function BillingDataForm({
 
   const handleSave = async () => {
     if (missingRequired) {
-      toast.error("Compila tutti i campi obbligatori (*)");
+      toast.error(t("Compila tutti i campi obbligatori (*)"));
       return;
     }
     setSaving(true);
@@ -135,11 +138,11 @@ function BillingDataForm({
         })
         .eq("id", companyId);
       if (error) throw error;
-      toast.success("Dati di fatturazione salvati");
+      toast.success(t("Dati di fatturazione salvati"));
       await refreshAuth();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Errore nel salvataggio";
-      toast.error("Impossibile salvare i dati", { description: msg });
+      const msg = e instanceof Error ? e.message : t("Errore nel salvataggio");
+      toast.error(t("Impossibile salvare i dati"), { description: msg });
     } finally {
       setSaving(false);
     }
@@ -148,7 +151,7 @@ function BillingDataForm({
   if (done) {
     return (
       <p className="text-sm text-muted-foreground">
-        Dati di fatturazione completi: <strong>{initial.business_name}</strong> · P.IVA {initial.vat_number}.
+        {t("Dati di fatturazione completi:")} <strong>{initial.business_name}</strong> · P.IVA {initial.vat_number}.
       </p>
     );
   }
@@ -156,21 +159,21 @@ function BillingDataForm({
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label className="text-xs">Ragione sociale *</Label>
-        <Input value={f.business_name} onChange={set("business_name")} placeholder="Es. Rossi Costruzioni S.r.l." className="h-9 text-sm" />
+        <Label className="text-xs">{t("Ragione sociale *")}</Label>
+        <Input value={f.business_name} onChange={set("business_name")} placeholder={t("Es. Rossi Costruzioni S.r.l.")} className="h-9 text-sm" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">Partita IVA *</Label>
+          <Label className="text-xs">{t("Partita IVA *")}</Label>
           <Input value={f.vat_number} onChange={set("vat_number")} placeholder="IT01234567890" className="h-9 text-sm" inputMode="numeric" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Codice fiscale</Label>
+          <Label className="text-xs">{t("Codice fiscale")}</Label>
           <Input value={f.fiscal_code} onChange={set("fiscal_code")} className="h-9 text-sm" />
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="attivazione-indirizzo-legale" className="text-xs">Indirizzo sede legale *</Label>
+        <Label htmlFor="attivazione-indirizzo-legale" className="text-xs">{t("Indirizzo sede legale *")}</Label>
         <CampoIndirizzo
           id="attivazione-indirizzo-legale"
           value={f.legal_address}
@@ -179,21 +182,21 @@ function BillingDataForm({
             ...prev,
             ...campiDaTrovato(a, { via: "legal_address", citta: "legal_city", cap: "legal_postal_code", provincia: "legal_province" }),
           }))}
-          placeholder="Via e numero civico"
+          placeholder={t("Via e numero civico")}
           className="h-9 text-sm"
         />
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="space-y-1 col-span-1 sm:col-span-2">
-          <Label className="text-xs">Città *</Label>
+          <Label className="text-xs">{t("Città *")}</Label>
           <Input value={f.legal_city} onChange={set("legal_city")} className="h-9 text-sm" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">CAP *</Label>
+          <Label className="text-xs">{t("CAP *")}</Label>
           <Input value={f.legal_postal_code} onChange={set("legal_postal_code")} className="h-9 text-sm" inputMode="numeric" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Prov.</Label>
+          <Label className="text-xs">{t("Prov.")}</Label>
           <Input value={f.legal_province} onChange={set("legal_province")} placeholder="MI" maxLength={2} className="h-9 text-sm uppercase" />
         </div>
       </div>
@@ -203,33 +206,34 @@ function BillingDataForm({
           <Input value={f.pec} onChange={set("pec")} className="h-9 text-sm" inputMode="email" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Codice destinatario (SDI)</Label>
+          <Label className="text-xs">{t("Codice destinatario (SDI)")}</Label>
           <Input value={f.sdi_code} onChange={set("sdi_code")} className="h-9 text-sm" />
         </div>
       </div>
       <Button onClick={handleSave} disabled={saving || missingRequired} className="w-full sm:w-auto">
         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        Salva dati di fatturazione
+        {t("Salva dati di fatturazione")}
       </Button>
     </div>
   );
 }
 
 function PaymentStep({ done }: { done: boolean; companyId?: string; method: string }) {
+  const t = useT();
   const startSetup = useStartCardSetup();
 
   if (done) {
-    return <p className="text-sm text-muted-foreground">Carta registrata. ✔</p>;
+    return <p className="text-sm text-muted-foreground">{t("Carta registrata. ✔")}</p>;
   }
 
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        Registra una <strong>carta</strong>: l'incasso è automatico. Nessun addebito finché non usi strumenti a consumo.
+        {t("Registra una")} <strong>{t("carta")}</strong>: {t("l'incasso è automatico. Nessun addebito finché non usi strumenti a consumo.")}
       </p>
       <Button onClick={() => startSetup.mutate()} disabled={startSetup.isPending} className="w-full sm:w-auto">
         <CreditCard className="mr-2 h-4 w-4" />
-        {startSetup.isPending ? "Apertura…" : "Aggiungi carta"}
+        {startSetup.isPending ? t("Apertura…") : t("Aggiungi carta")}
       </Button>
     </div>
   );
@@ -245,6 +249,7 @@ function PaymentStep({ done }: { done: boolean; companyId?: string; method: stri
  * questa schermata, non a ogni render del guard che avvolge tutta l'app.
  */
 function RinnovaAbbonamento() {
+  const t = useT();
   const { data: billing, isLoading } = useBillingInfo();
   const openPortal = useOpenBillingPortal();
   const attivaPiano = useStartPlanCheckout();
@@ -257,12 +262,12 @@ function RinnovaAbbonamento() {
   if (appenaPagato) {
     return (
       <div className="mt-2 flex w-full flex-col items-center gap-2">
-        <p className="text-sm font-medium">Pagamento ricevuto: il gestionale si riattiva in pochi secondi.</p>
+        <p className="text-sm font-medium">{t("Pagamento ricevuto: il gestionale si riattiva in pochi secondi.")}</p>
         <Button className="w-full" onClick={() => window.location.reload()}>
-          Ricarica la pagina
+          {t("Ricarica la pagina")}
         </Button>
         <p className="text-xs text-muted-foreground">
-          Se resta bloccato, scrivi a info@ediliziaincloud.com prima di pagare di nuovo.
+          {t("Se resta bloccato, scrivi a {email} prima di pagare di nuovo.", { email: "info@ediliziaincloud.com" })}
         </p>
       </div>
     );
@@ -282,18 +287,17 @@ function RinnovaAbbonamento() {
         }}
       >
         {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-        Rinnova abbonamento
+        {t("Rinnova abbonamento")}
       </Button>
       {dalPiano && billing && (
-        <p className="text-xs text-muted-foreground">
-          {billing.planName}: {formatCurrency(billing.planPriceMonthly)} al mese, con carta o addebito SEPA.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("{planName}: {planPriceMonthly} al mese, con carta o addebito SEPA.", { planName: String(billing.planName ?? ""), planPriceMonthly: formatCurrency(billing.planPriceMonthly) })}</p>
       )}
     </div>
   );
 }
 
 export function BillingActivationGuard({ children }: { children: ReactNode }) {
+  const t = useT();
   const { effectiveCompany, signOut } = useAuth();
   const { isBlocked, needsBillingData, needsPaymentMethod, subscriptionExpired, canManage } = useBillingActivationGate();
   // Dal telefono l'abbonamento non si rinnova e non si paga: solo dal computer
@@ -325,18 +329,18 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
               <AlertTriangle className="h-7 w-7 text-destructive" />
             </div>
-            <h1 className="text-xl font-semibold">Abbonamento scaduto</h1>
+            <h1 className="text-xl font-semibold">{t("Abbonamento scaduto")}</h1>
             <p className="text-sm text-muted-foreground">
-              Il tuo abbonamento non è più attivo e il gestionale è bloccato.
+              {t("Il tuo abbonamento non è più attivo e il gestionale è bloccato.")}
               {canManage
                 ? isMobile
-                  ? " Si rinnova dal computer: da lì la piattaforma e i tuoi dati si riattivano subito."
-                  : " Rinnova per riattivare subito la piattaforma e i tuoi dati."
-                : " Contatta l'amministratore della tua azienda per rinnovare."}
+                  ? ` ${t("Si rinnova dal computer: da lì la piattaforma e i tuoi dati si riattivano subito.")}`
+                  : ` ${t("Rinnova per riattivare subito la piattaforma e i tuoi dati.")}`
+                : ` ${t("Contatta l'amministratore della tua azienda per rinnovare.")}`}
             </p>
             {canManage && !isMobile && <RinnovaAbbonamento />}
             <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
-              <LogOut className="mr-2 h-4 w-4" /> Esci
+              <LogOut className="mr-2 h-4 w-4" /> {t("Esci")}
             </Button>
             <AltreAziende />
           </CardContent>
@@ -356,11 +360,11 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
             <ShieldCheck className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-xl font-semibold">Completa l'attivazione dell'azienda</h1>
+          <h1 className="text-xl font-semibold">{t("Completa l'attivazione dell'azienda")}</h1>
           <p className="text-sm text-muted-foreground">
-            Per usare il gestionale serve un metodo di pagamento registrato.
-            {" "}È richiesto anche con il piano gratuito; nessun addebito finché non usi servizi a consumo.
-            {" "}I dati di fatturazione servono per la fattura: puoi completarli anche dopo.
+            {t("Per usare il gestionale serve un metodo di pagamento registrato.")}
+            {" "}{t("È richiesto anche con il piano gratuito; nessun addebito finché non usi servizi a consumo.")}
+            {" "}{t("I dati di fatturazione servono per la fattura: puoi completarli anche dopo.")}
           </p>
         </div>
 
@@ -369,13 +373,12 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
           <Card className="border-amber-300 bg-amber-50/70">
             <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
               <Lock className="h-8 w-8 text-amber-600" />
-              <p className="font-semibold">Attivazione non ancora completata</p>
+              <p className="font-semibold">{t("Attivazione non ancora completata")}</p>
               <p className="text-sm text-muted-foreground">
-                L'amministratore della tua azienda deve registrare il metodo di pagamento
-                per attivare il gestionale. Contattalo per procedere.
+                {t("L'amministratore della tua azienda deve registrare il metodo di pagamento per attivare il gestionale. Contattalo per procedere.")}
               </p>
               <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
-                <LogOut className="mr-2 h-4 w-4" /> Esci
+                <LogOut className="mr-2 h-4 w-4" /> {t("Esci")}
               </Button>
               <AltreAziende />
             </CardContent>
@@ -388,8 +391,8 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <StepBadge done={billingDone} n={1} />
                   <Building2 className="h-4 w-4 text-muted-foreground" />
-                  Dati di fatturazione
-                  <span className="text-xs font-normal text-muted-foreground">· anche dopo</span>
+                  {t("Dati di fatturazione")}
+                  <span className="text-xs font-normal text-muted-foreground">· {t("anche dopo")}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -405,12 +408,12 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <StepBadge done={paymentDone} n={2} />
                   <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  Metodo di pagamento
+                  {t("Metodo di pagamento")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {isMobile && !paymentDone ? (
-                  <p className="text-sm text-muted-foreground">Il metodo di pagamento si registra dal computer.</p>
+                  <p className="text-sm text-muted-foreground">{t("Il metodo di pagamento si registra dal computer.")}</p>
                 ) : (
                   <PaymentStep
                     done={paymentDone}
@@ -423,10 +426,10 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
 
             <div className="flex items-center justify-between pt-1">
               <p className="text-xs text-muted-foreground">
-                Appena registri il metodo di pagamento, il gestionale si sblocca automaticamente.
+                {t("Appena registri il metodo di pagamento, il gestionale si sblocca automaticamente.")}
               </p>
               <Button variant="ghost" size="sm" onClick={() => signOut()}>
-                <LogOut className="mr-2 h-4 w-4" /> Esci
+                <LogOut className="mr-2 h-4 w-4" /> {t("Esci")}
               </Button>
             </div>
             <AltreAziende />

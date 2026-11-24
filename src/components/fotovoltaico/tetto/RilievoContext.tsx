@@ -4,6 +4,7 @@ import { edificioCorretto, funzioneAltezza, mondoPixel, pixelMondo, type Rilievo
 import { useArchivioRilievi } from "./archivioRilievi";
 import { caricaModelloLocale, correggiAltezzaMesh, rilasciaModello } from "./importaModello";
 import { RUNTIME_VUOTO } from "./schema3d";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { P3 } from "./tettoReale";
 export { RUNTIME_VUOTO } from "./schema3d";
 export const RilievoContext = createContext<RilievoRuntime>(RUNTIME_VUOTO);
@@ -37,6 +38,7 @@ export async function preparaRuntime(fonte: RilievoLocale) {
     }
 }
 export function useRilievoArchiviato(id: string | undefined) {
+    const t = useT();
     const archivio = useArchivioRilievi(), [stato, setStato] = useState<{
         id: string;
         runtime: RilievoRuntime | null;
@@ -49,7 +51,7 @@ export function useRilievoArchiviato(id: string | undefined) {
         (async () => { try {
             const fonte = await archivio.leggi(id);
             if (!fonte)
-                throw Error("Rilievo non presente nell’archivio dell’azienda.");
+                throw Error(t("Rilievo non presente nell’archivio dell’azienda."));
             const p = await preparaRuntime(fonte);
             if (annullato) {
                 p.rilascia();
@@ -60,7 +62,7 @@ export function useRilievoArchiviato(id: string | undefined) {
         }
         catch (e) {
             if (!annullato)
-                setStato({ id, runtime: null, errore: e instanceof Error ? e.message : "Rilievo non leggibile." });
+                setStato({ id, runtime: null, errore: e instanceof Error ? e.message : t("Rilievo non leggibile.") });
         } })();
         return () => { annullato = true; rilascia?.(); };
     }, [id, archivio]);

@@ -6,6 +6,7 @@ import { triangoliFaccia, pianoDellaFaccia, dot, sub, dalDisegnoAlMondo, type P3
 import { useRilievo, proiettaUV, verticiOrto } from "./RilievoContext";
 import { aspettoTettoFv, azimutVistaTettoFv } from "../../../../supabase/functions/_shared/fvAspettoTetto";
 import { textureCoperturaFv, distanzaCameraTettoFv } from "./materialiTetto3d";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const vec = (p: P3) => new THREE.Vector3(p.x, p.z, -p.y);
 export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selezione, onSelezione, inquadratura, invalidi = [], onPunto, puntiTracciati = [], areaPosa }: {
     pannelli: PannelloReale[];
@@ -25,6 +26,7 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
     puntiTracciati?: P3[];
     areaPosa?: DisegnoCommercialeFv;
 }) {
+  const tr = useT();
     const { edificio, orto, modello } = useRilievo();
     const host = useRef<HTMLDivElement>(null), [errore, setErrore] = useState(false);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -55,7 +57,7 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = .95;
-        renderer.domElement.setAttribute("aria-label", edificio.attributi.origine === "satellite" ? "Vista 3D delle falde tracciate sulla mappa, ruotabile e ingrandibile" : "Modello 3D reale del tetto, ruotabile e ingrandibile");
+        renderer.domElement.setAttribute("aria-label", edificio.attributi.origine === "satellite" ? tr("Vista 3D delle falde tracciate sulla mappa, ruotabile e ingrandibile") : tr("Modello 3D reale del tetto, ruotabile e ingrandibile"));
         renderer.domElement.setAttribute("role", "img");
         if (renderer.domElement.parentElement !== nodo)
             nodo.appendChild(renderer.domElement);
@@ -272,5 +274,5 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         return () => { distrutto = true; posaCamera.current = { pos: camera.position.clone(), target: controls.target.clone(), alto, versione: inquadratura.versione, volume }; renderer.domElement.removeEventListener("pointerdown", down); renderer.domElement.removeEventListener("pointerup", up); if (modello)
             scena.remove(modello); texture?.dispose(); corpi.dispose(); celleTexture.dispose(); tegole.map.dispose(); tegole.bumpMap.dispose(); sole.dispose(); observer.disconnect(); controls.dispose(); geometrie.forEach(g => g.dispose()); materiali.forEach(m => m.dispose()); };
     }, [pannelli, ids, faldaId, alto, foto, ostacoli, selezione, onSelezione, inquadratura, invalidi, edificio, orto, modello, onPunto, puntiTracciati, areaPosa]);
-    return <div className="relative w-full overflow-hidden rounded-xl bg-slate-100" style={{ height: "clamp(370px, 50vh, 540px)" }} ref={host}>{errore && <p role="alert" className="p-5 text-sm">WebGL non disponibile in questo browser. Puoi comunque confrontare l’ortofoto e i dati delle falde.</p>}</div>;
+    return <div className="relative w-full overflow-hidden rounded-xl bg-slate-100" style={{ height: "clamp(370px, 50vh, 540px)" }} ref={host}>{errore && <p role="alert" className="p-5 text-sm">{tr("WebGL non disponibile in questo browser. Puoi comunque confrontare l’ortofoto e i dati delle falde.")}</p>}</div>;
 }

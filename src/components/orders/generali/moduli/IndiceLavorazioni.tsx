@@ -6,6 +6,7 @@ import { useEdificiPriorita } from "@/hooks/useDettagliPrioritaOperazione";
 import { DEFINIZIONI_MODELLI, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cercaNellOperazione } from "@/lib/orders/generali/registroOperazione";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PER_GRUPPO = 20;
 const ordine = new Intl.Collator("it", { numeric: true, sensitivity: "base" });
@@ -17,6 +18,7 @@ export function IndiceLavorazioni({ riepilogo, attiva, tutta, apriTutte, apriCom
   apriTutte: () => void;
   apriCommessa: (id: string) => void;
 }) {
+  const t = useT();
   const { generale, figlie } = riepilogo;
   const [ricerca, setRicerca] = useState("");
   const [mobileAperto, setMobileAperto] = useState(false);
@@ -43,32 +45,32 @@ export function IndiceLavorazioni({ riepilogo, attiva, tutta, apriTutte, apriCom
     else apriTutte();
   };
 
-  return <aside aria-label="Indice lavorazioni" className="min-w-0 self-start rounded-xl border bg-card">
+  return <aside aria-label={t("Indice lavorazioni")} className="min-w-0 self-start rounded-xl border bg-card">
     <h3 className="hidden items-center gap-1.5 border-b px-2.5 py-2 text-xs font-semibold lg:flex">
-      <Layers3 className="size-3.5 text-primary" aria-hidden="true" /> Indice lavorazioni
+      <Layers3 className="size-3.5 text-primary" aria-hidden="true" /> {t("Indice lavorazioni")}
     </h3>
     <Button type="button" size="sm" variant="ghost" className="w-full justify-between lg:hidden"
       aria-expanded={mobileAperto} aria-controls={corpo} onClick={() => setMobileAperto(v => !v)}>
-      Indice lavorazioni <ChevronDown className={cn("size-4", mobileAperto && "rotate-180")} aria-hidden="true" />
+      {t("Indice lavorazioni")} <ChevronDown className={cn("size-4", mobileAperto && "rotate-180")} aria-hidden="true" />
     </Button>
     <div id={corpo} className={cn("space-y-2 p-2 lg:block", !mobileAperto && "hidden")}>
       <div className="space-y-0.5">
         <VoceIndice attiva={tutta} onClick={() => seleziona()}>
-          <Layers3 className="size-3.5 shrink-0" aria-hidden="true" /> Tutte le fasi
+          <Layers3 className="size-3.5 shrink-0" aria-hidden="true" /> {t("Tutte le fasi")}
         </VoceIndice>
         <VoceIndice attiva={!tutta && attiva === generale.id} onClick={() => seleziona(generale.id)}>
-          <FileSpreadsheet className="size-3.5 shrink-0" aria-hidden="true" /> Computo generale
+          <FileSpreadsheet className="size-3.5 shrink-0" aria-hidden="true" /> {t("Computo generale")}
         </VoceIndice>
       </div>
       <div className="relative">
         <Search className="pointer-events-none absolute left-2 top-2 size-3.5 text-muted-foreground" aria-hidden="true" />
-        <Input type="search" aria-label="Cerca unità, edificio o indirizzo" placeholder="Cerca unità o edificio…"
+        <Input type="search" aria-label={t("Cerca unità, edificio o indirizzo")} placeholder={t("Cerca unità o edificio…")}
           className="h-8 pl-7 pr-1 text-xs md:text-xs" value={ricerca} onChange={e => setRicerca(e.target.value)} />
       </div>
       <div className="max-h-[24rem] space-y-1 overflow-y-auto" aria-label={DEFINIZIONI_MODELLI[generale.modello].figlia.tante}>
         {gruppi.map(([nome, elementi]) => <GruppoIndice key={nome} nome={nome} elementi={elementi}
           attiva={tutta ? undefined : attiva} cerca={ricerca.trim() !== ""} seleziona={seleziona} />)}
-        {!gruppi.length && <p role="status" className="px-2 py-1 text-xs text-muted-foreground">Nessuna corrispondenza.</p>}
+        {!gruppi.length && <p role="status" className="px-2 py-1 text-xs text-muted-foreground">{t("Nessuna corrispondenza.")}</p>}
       </div>
     </div>
   </aside>;
@@ -81,6 +83,7 @@ function GruppoIndice({ nome, elementi, attiva, cerca, seleziona }: {
   cerca: boolean;
   seleziona: (id: string) => void;
 }) {
+  const t = useT();
   const [limite, setLimite] = useState(PER_GRUPPO);
   const selezionata = elementi.findIndex(f => f.id === attiva);
   const visibili = elementi.slice(0, limite);
@@ -100,7 +103,7 @@ function GruppoIndice({ nome, elementi, attiva, cerca, seleziona }: {
         </span>
       </VoceIndice>)}
       {elementi.length > visibili.length && <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-xs"
-        onClick={() => setLimite(n => n + PER_GRUPPO)}>Mostra altre ({elementi.length - visibili.length})</Button>}
+        onClick={() => setLimite(n => n + PER_GRUPPO)}>{t("Mostra altre ({n})", { n: elementi.length - visibili.length })}</Button>}
     </div>
   </details>;
 }

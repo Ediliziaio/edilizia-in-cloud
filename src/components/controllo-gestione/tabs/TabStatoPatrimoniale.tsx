@@ -23,6 +23,7 @@ import { Printer } from "lucide-react";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { htmlStatoPatrimoniale, vociAttivo, vociPassivo } from "@/lib/contabilita/stampaBilancio";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TabStatoPatrimonialeProps {
   anno: number;
@@ -31,6 +32,7 @@ interface TabStatoPatrimonialeProps {
 type Vista = "anno" | "confronto";
 
 export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
+  const t = useT();
   const [vista, setVista] = useState<Vista>("anno");
 
   const ViewSwitcher = (
@@ -41,10 +43,10 @@ export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
       className="justify-start"
     >
       <ToggleGroupItem value="anno" variant="outline" size="sm">
-        Bilancio anno
+        {t("Bilancio anno")}
       </ToggleGroupItem>
       <ToggleGroupItem value="confronto" variant="outline" size="sm">
-        Confronto multi-anno
+        {t("Confronto multi-anno")}
       </ToggleGroupItem>
     </ToggleGroup>
   );
@@ -74,6 +76,7 @@ export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
  * la banca: chi voleva portarlo al commercialista non aveva un foglio.
  */
 function SPStampaButton({ anno }: { anno: number }) {
+  const t = useT();
   const sp = useStatoPatrimoniale(anno);
   const anagrafica = useAnagraficaAzienda();
   const [html, setHtml] = useState<string | null>(null);
@@ -107,14 +110,14 @@ function SPStampaButton({ anno }: { anno: number }) {
           )
         }
       >
-        <Printer className="mr-2 h-4 w-4" />Stampa
+        <Printer className="mr-2 h-4 w-4" />{t("Stampa")}
       </Button>
       {html && (
         <PrintPreviewModal
           open
           onOpenChange={(v) => { if (!v) setHtml(null); }}
           htmlContent={html}
-          title="Stato patrimoniale — anteprima di stampa"
+          title={t("Stato patrimoniale — anteprima di stampa")}
           fileName={`stato-patrimoniale-${anno}`}
           soloPdf
         />
@@ -197,6 +200,7 @@ function SPExportButton({ anno }: { anno: number }) {
 }
 
 function SPSingleAnnoView({ anno }: { anno: number }) {
+  const t = useT();
   const sp = useStatoPatrimoniale(anno);
 
   if (sp.isLoading) {
@@ -215,8 +219,8 @@ function SPSingleAnnoView({ anno }: { anno: number }) {
   if (attivo.totale === 0 && passivo.totale === 0) {
     return (
       <EmptyState
-        title="Stato patrimoniale vuoto"
-        description={`Non ho dati patrimoniali per il ${anno}. Carica i cespiti e il patrimonio netto per popolare l'attivo fisso e i mezzi propri.`}
+        title={t("Stato patrimoniale vuoto")}
+        description={t("Non ho dati patrimoniali per il {anno}. Carica i cespiti e il patrimonio netto per popolare l'attivo fisso e i mezzi propri.", { anno: String(anno ?? "") })}
       />
     );
   }
@@ -227,9 +231,7 @@ function SPSingleAnnoView({ anno }: { anno: number }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <span className="text-muted-foreground">
-          Al {formatDate(sp.data.meta.data_riferimento)}
-        </span>
+        <span className="text-muted-foreground">{t("Al {data_riferimento}", { data_riferimento: formatDate(sp.data.meta.data_riferimento) })}</span>
         <span
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
@@ -240,14 +242,14 @@ function SPSingleAnnoView({ anno }: { anno: number }) {
         >
           {quadratura.quadrato ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : <Scale className="h-3.5 w-3.5" aria-hidden />}
           {quadratura.quadrato
-            ? "Impieghi e fonti quadrano"
-            : `Differenza da spiegare: ${formatCurrency(Math.abs(quadratura.differenza))}`}
+            ? t("Impieghi e fonti quadrano")
+            : t("Differenza da spiegare: {valore}", { valore: formatCurrency(Math.abs(quadratura.differenza)) })}
         </span>
       </div>
       {!quadratura.quadrato && indizi.length > 0 && (
         <details className="rounded-lg border bg-card p-3 text-sm">
           <summary className="cursor-pointer font-medium">
-            Cosa manca ({indizi.length}): {quadratura.differenza > 0 ? "fonti non registrate" : "impieghi non registrati"}
+            {t("Cosa manca ({n}):", { n: indizi.length })} {quadratura.differenza > 0 ? t("fonti non registrate") : t("impieghi non registrati")}
           </summary>
           <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs text-muted-foreground">
             {indizi.map((i) => (
@@ -335,13 +337,14 @@ function calcDeltaPct(curr: number, prev: number): number | null {
 
 function formatPctDelta(delta: number): string {
   const sign = delta >= 0 ? "+" : "";
-  return `${sign}${new Intl.NumberFormat("it-IT", {
+  return `${sign}${new Intl.NumberFormat(intlCampo(), {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(delta)}%`;
 }
 
 function SPConfrontoView({ anno }: { anno: number }) {
+  const t = useT();
   const anni = useMemo(() => [anno - 2, anno - 1, anno], [anno]);
   const q = useSPMultiAnno(anni);
 
@@ -364,8 +367,8 @@ function SPConfrontoView({ anno }: { anno: number }) {
   if (tutteVuote) {
     return (
       <EmptyState
-        title="Nessun dato di confronto"
-        description={`Non ho stato patrimoniale per gli anni ${anni.join(", ")}.`}
+        title={t("Nessun dato di confronto")}
+        description={t("Non ho stato patrimoniale per gli anni {anni}.", { anni: anni.join(", ") })}
       />
     );
   }
@@ -373,9 +376,7 @@ function SPConfrontoView({ anno }: { anno: number }) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">
-          Confronto Stato Patrimoniale · {anni[0]} → {anni[2]}
-        </CardTitle>
+        <CardTitle className="text-base">{t("Confronto Stato Patrimoniale · {da} → {a}", { da: anni[0], a: anni[2] })}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto rounded-xl border">
@@ -383,7 +384,7 @@ function SPConfrontoView({ anno }: { anno: number }) {
             <thead className="bg-muted/40">
               <tr>
                 <th className="min-w-[200px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Voce
+                  {t("Voce")}
                 </th>
                 {anni.map((a) => (
                   <th
@@ -394,7 +395,7 @@ function SPConfrontoView({ anno }: { anno: number }) {
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                  Variazione sull'anno prima
+                  {t("Variazione sull'anno prima")}
                 </th>
               </tr>
             </thead>
@@ -408,7 +409,7 @@ function SPConfrontoView({ anno }: { anno: number }) {
                   dataMap={dataMap}
                 />
               ))}
-              <SezioneHeader titolo="PASSIVO" colSpan={anni.length + 2} />
+              <SezioneHeader titolo={t("PASSIVO")} colSpan={anni.length + 2} />
               {RIGHE_PASSIVO.map((r) => (
                 <RigaConfrontoRow
                   key={`p-${r.label}`}
@@ -447,6 +448,7 @@ function RigaConfrontoRow({
   anni: number[];
   dataMap: Map<number, SPResult | null>;
 }) {
+  const t = useT();
   const valori = anni.map((a) => {
     const sp = dataMap.get(a);
     return sp ? riga.pick(sp) : null;
@@ -477,7 +479,7 @@ function RigaConfrontoRow({
         isTot && "bg-primary/5 font-bold",
       )}
     >
-      <td className="px-3 py-2">{riga.label}</td>
+      <td className="px-3 py-2">{t(riga.label)}</td>
       {valori.map((v, i) => (
         <td
           key={i}

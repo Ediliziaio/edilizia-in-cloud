@@ -9,7 +9,7 @@
 //  - "Sincronizza da Meta" aggiorna anche la copia DB (wa_meta_templates) usata
 //    dal resto dell'app (broadcast, composer, finestra 24h).
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -40,6 +40,15 @@ import {
   AlertTriangle, Loader2, RefreshCcw, Eye, Search, Plus, Pencil, Trash2,
   Bold, Italic, Variable, Info,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Mette pezzi di interfaccia (grassetti, numeri) al posto dei segnaposto di una frase già tradotta. */
+function conPezzi(frase: string, pezzi: Record<string, ReactNode>): ReactNode[] {
+  return frase.split(/(\{\w+\})/).map((p, i) => {
+    const nome = /^\{(\w+)\}$/.exec(p)?.[1];
+    return <Fragment key={i}>{nome && nome in pezzi ? pezzi[nome] : p}</Fragment>;
+  });
+}
 
 // ── Tipi locali (shape della risposta Meta /message_templates) ──
 interface MetaComponent {
@@ -227,6 +236,7 @@ function buildComponents(form: TemplateForm, customFields: CustomFieldLike[]): M
 }
 
 export default function TemplatesPage() {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const { data: numbers = [], isLoading: numbersLoading } = useWhatsAppNumbers();
   const queryClient = useQueryClient();
@@ -359,12 +369,12 @@ export default function TemplatesPage() {
     },
     onSuccess: () => {
       toast.success(editor.mode === "edit"
-        ? "Template aggiornato (torna in approvazione Meta)"
-        : "Template inviato per approvazione");
+        ? tr("Template aggiornato (torna in approvazione Meta)")
+        : tr("Template inviato per approvazione"));
       setEditor((p) => ({ ...p, open: false }));
       invalidate();
     },
-    onError: (err: Error) => toast.error("Errore", { description: err.message }),
+    onError: (err: Error) => toast.error(tr("Errore"), { description: err.message }),
   });
 
   const deleteMutation = useMutation({
@@ -376,8 +386,8 @@ export default function TemplatesPage() {
       if (data?.error) throw new Error(data.error);
       return data;
     },
-    onSuccess: () => { toast.success("Template eliminato"); invalidate(); },
-    onError: (err: Error) => toast.error("Errore eliminazione", { description: err.message }),
+    onSuccess: () => { toast.success(tr("Template eliminato")); invalidate(); },
+    onError: (err: Error) => toast.error(tr("Errore eliminazione"), { description: err.message }),
   });
 
   const numberLabel = (n: typeof usableNumbers[number]) => {
@@ -400,9 +410,9 @@ export default function TemplatesPage() {
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-amber-500" />
-            <p className="font-medium">Nessun numero WhatsApp attivo</p>
+            <p className="font-medium">{tr("Nessun numero WhatsApp attivo")}</p>
             <p className="mt-1 text-sm">
-              Collega e verifica un numero nel Centro WhatsApp per poter creare e gestire i template.
+              {tr("Collega e verifica un numero nel Centro WhatsApp per poter creare e gestire i template.")}
             </p>
           </CardContent>
         </Card>
@@ -424,10 +434,10 @@ export default function TemplatesPage() {
             disabled={sync.isPending}
           >
             {sync.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
-            Sincronizza da Meta
+            {tr("Sincronizza da Meta")}
           </Button>
           <Button onClick={openCreate} disabled={!waNumberId}>
-            <Plus className="mr-2 h-4 w-4" /> Nuovo template
+            <Plus className="mr-2 h-4 w-4" /> {tr("Nuovo template")}
           </Button>
         </div>
       </div>
@@ -436,10 +446,10 @@ export default function TemplatesPage() {
       <Card>
         <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Numero / Account WhatsApp</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{tr("Numero / Account WhatsApp")}</Label>
             <Select value={waNumberId ?? undefined} onValueChange={setWaNumberId}>
               <SelectTrigger className="w-full md:w-[420px]">
-                <SelectValue placeholder="Seleziona un numero" />
+                <SelectValue placeholder={tr("Seleziona un numero")} />
               </SelectTrigger>
               <SelectContent>
                 {usableNumbers.map((n) => (
@@ -450,11 +460,11 @@ export default function TemplatesPage() {
           </div>
           {selectedNumber && (
             <div className="text-xs text-muted-foreground md:text-right">
-              <div>WABA: <span className="font-mono">{selectedNumber.waba_id}</span></div>
+              <div>{tr("WABA:")} <span className="font-mono">{selectedNumber.waba_id}</span></div>
               {sameWaba.length > 0 && (
                 <div className="mt-1 flex items-center gap-1 text-amber-600">
                   <Info className="h-3 w-3" />
-                  Condivide i template con: {sameWaba.map((n) => n.numero).join(", ")}
+                  {tr("Condivide i template con:")} {sameWaba.map((n) => n.numero).join(", ")}
                 </div>
               )}
             </div>
@@ -464,14 +474,14 @@ export default function TemplatesPage() {
 
       <Card>
         <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
-          <CardTitle>Elenco template</CardTitle>
+          <CardTitle>{tr("Elenco template")}</CardTitle>
           <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
-              placeholder="Cerca nome, testo, stato..."
+              placeholder={tr("Cerca nome, testo, stato...")}
             />
           </div>
         </CardHeader>
@@ -484,19 +494,19 @@ export default function TemplatesPage() {
           {!listQuery.isLoading && listQuery.isError && (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6 text-center">
               <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-destructive" />
-              <p className="font-medium">Template non caricati</p>
+              <p className="font-medium">{tr("Template non caricati")}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {(listQuery.error as Error)?.message || "Errore nel caricamento dei template Meta."}
+                {(listQuery.error as Error)?.message || tr("Errore nel caricamento dei template Meta.")}
               </p>
               <Button className="mt-4" variant="outline" onClick={() => listQuery.refetch()} disabled={listQuery.isFetching}>
                 <RefreshCcw className={`mr-2 h-4 w-4 ${listQuery.isFetching ? "animate-spin" : ""}`} />
-                Riprova
+                {tr("Riprova")}
               </Button>
             </div>
           )}
           {!listQuery.isLoading && !listQuery.isError && templates.length === 0 && (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              Nessun template su questo numero. Clicca "Nuovo template" per crearne uno.
+              {tr("Nessun template su questo numero. Clicca \"Nuovo template\" per crearne uno.")}
             </div>
           )}
           {!listQuery.isLoading && !listQuery.isError && templates.length > 0 && (
@@ -504,12 +514,12 @@ export default function TemplatesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Lingua</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Variabili</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead>{tr("Nome")}</TableHead>
+                    <TableHead>{tr("Lingua")}</TableHead>
+                    <TableHead>{tr("Categoria")}</TableHead>
+                    <TableHead>{tr("Stato")}</TableHead>
+                    <TableHead>{tr("Variabili")}</TableHead>
+                    <TableHead className="text-right">{tr("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -519,30 +529,30 @@ export default function TemplatesPage() {
                       <TableRow key={(t.id ?? t.name) + t.language}>
                         <TableCell className="font-medium">{t.name}</TableCell>
                         <TableCell className="uppercase">{t.language}</TableCell>
-                        <TableCell>{categoryLabel(t.category)}</TableCell>
+                        <TableCell>{tr(categoryLabel(t.category))}</TableCell>
                         <TableCell>
-                          <Badge className={statusColor(t.status)}>{statusLabel(t.status)}</Badge>
+                          <Badge className={statusColor(t.status)}>{tr(statusLabel(t.status))}</Badge>
                         </TableCell>
                         <TableCell>{vars.length}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8"
-                              onClick={() => setPreview(t)} aria-label={`Anteprima ${t.name}`}>
+                              onClick={() => setPreview(t)} aria-label={tr("Anteprima {name}", { name: t.name })}>
                               <Eye className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8"
                               disabled={mappingsQuery.isLoading || mappingsQuery.isError}
-                              title={mappingsQuery.isLoading ? "Carico le mappature…" : mappingsQuery.isError ? "Mappature variabili non caricate: riapri la pagina prima di modificare (salvando ora le azzereresti)" : undefined}
-                              onClick={() => openEdit(t)} aria-label={`Modifica ${t.name}`}>
+                              title={mappingsQuery.isLoading ? tr("Carico le mappature…") : mappingsQuery.isError ? tr("Mappature variabili non caricate: riapri la pagina prima di modificare (salvando ora le azzereresti)") : undefined}
+                              onClick={() => openEdit(t)} aria-label={tr("Modifica {name}", { name: t.name })}>
                               <Pencil className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive"
                               disabled={deleteMutation.isPending}
                               onClick={() => {
-                                if (confirm(`Eliminare il template "${t.name}"?`)) deleteMutation.mutate(t.name);
+                                if (confirm(tr("Eliminare il template \"{name}\"?", { name: t.name }))) deleteMutation.mutate(t.name);
                               }}
-                              aria-label={`Elimina ${t.name}`}>
+                              aria-label={tr("Elimina {name}", { name: t.name })}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -554,7 +564,7 @@ export default function TemplatesPage() {
               </Table>
               {filtered.length === 0 && (
                 <div className="py-8 text-center text-sm text-muted-foreground">
-                  Nessun template corrisponde ai filtri.
+                  {tr("Nessun template corrisponde ai filtri.")}
                 </div>
               )}
             </div>
@@ -566,10 +576,8 @@ export default function TemplatesPage() {
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Anteprima: {preview?.name}</DialogTitle>
-            <DialogDescription>
-              Lingua {preview?.language?.toUpperCase()} — {categoryLabel(preview?.category ?? "")} — {statusLabel(preview?.status ?? "")}
-            </DialogDescription>
+            <DialogTitle>{tr("Anteprima: {name}", { name: preview?.name ?? "" })}</DialogTitle>
+            <DialogDescription>{tr("Lingua {lingua} — {categoria} — {stato}", { lingua: preview?.language?.toUpperCase() ?? "", categoria: tr(categoryLabel(preview?.category ?? "")), stato: tr(statusLabel(preview?.status ?? "")) })}</DialogDescription>
           </DialogHeader>
           {preview && <WhatsAppBubblePreview template={preview} />}
           <pre className="mt-3 rounded-md bg-muted p-4 text-xs overflow-x-auto">
@@ -596,6 +604,7 @@ export default function TemplatesPage() {
 
 // ── Anteprima "bolla" WhatsApp del template ──
 function WhatsAppBubblePreview({ template }: { template: MetaTemplate | TemplateForm }) {
+  const t = useT();
   const isForm = "bodyText" in template;
   const headerComp = isForm ? null : template.components?.find((c) => c.type === "HEADER");
   const headerFmt = isForm
@@ -613,7 +622,7 @@ function WhatsAppBubblePreview({ template }: { template: MetaTemplate | Template
     : (Array.isArray(btnComp?.buttons) ? btnComp!.buttons as Array<{ type?: string; text?: string }> : []);
   const isMedia = ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerFmt);
   if (!headerText && !isMedia && !body && !footer && buttons.length === 0) return null;
-  const mediaLabel = headerFmt === "IMAGE" ? "🖼️ Foto" : headerFmt === "VIDEO" ? "🎬 Video" : "📄 Documento";
+  const mediaLabel = headerFmt === "IMAGE" ? `🖼️ ${t("Foto")}` : headerFmt === "VIDEO" ? `🎬 ${t("Video")}` : `📄 ${t("Documento")}`;
   return (
     <div className="rounded-lg bg-[#e5ddd5] p-3">
       <div className="max-w-[85%] overflow-hidden rounded-lg rounded-tl-none bg-white text-sm shadow-sm">
@@ -655,6 +664,7 @@ function TemplateEditorDialog({
   onOpenChange: (o: boolean) => void;
   onSubmit: (form: TemplateForm) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState<TemplateForm>(initial);
   useEffect(() => { if (open) setForm(initial); }, [open, initial]);
   const [caricando, setCaricando] = useState(false);
@@ -665,14 +675,14 @@ function TemplateEditorDialog({
   // Carica il file dell'intestazione: al server (handle su Meta + copia pubblica),
   // poi tiene handle+url nel form. Meta accetta foto/video/PDF fino a ~16 MB.
   const caricaMediaHeader = async (file: File, kind: Exclude<HeaderKind, "none" | "text">) => {
-    if (!companyId || !waNumberId) { toast.error("Scegli prima il numero WhatsApp."); return; }
-    if (file.size > 16 * 1024 * 1024) { toast.error("Il file supera 16 MB."); return; }
+    if (!companyId || !waNumberId) { toast.error(t("Scegli prima il numero WhatsApp.")); return; }
+    if (file.size > 16 * 1024 * 1024) { toast.error(t("Il file supera 16 MB.")); return; }
     setCaricando(true);
     try {
       const b64 = await new Promise<string>((res, rej) => {
         const r = new FileReader();
         r.onload = () => res(String(r.result).split(",")[1] ?? "");
-        r.onerror = () => rej(new Error("lettura file non riuscita"));
+        r.onerror = () => rej(new Error(t("lettura file non riuscita")));
         r.readAsDataURL(file);
       });
       const { data, error } = await supabase.functions.invoke("whatsapp-templates", {
@@ -682,9 +692,9 @@ function TemplateEditorDialog({
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       set({ headerKind: kind, headerHandle: data.handle, headerMediaUrl: data.url, headerMediaNome: file.name });
-      toast.success("File caricato");
+      toast.success(t("File caricato"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Caricamento non riuscito");
+      toast.error(e instanceof Error ? e.message : t("Caricamento non riuscito"));
     } finally {
       setCaricando(false);
     }
@@ -713,61 +723,61 @@ function TemplateEditorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{mode === "edit" ? "Modifica template" : "Nuovo template"}</DialogTitle>
+          <DialogTitle>{mode === "edit" ? t("Modifica template") : t("Nuovo template")}</DialogTitle>
           <DialogDescription>
             {mode === "edit"
-              ? "Nome e lingua non sono modificabili. Dopo il salvataggio il template torna in approvazione Meta."
-              : "Il template viene inviato a Meta per approvazione (Utility più rapida, Marketing 24-48h)."}
+              ? t("Nome e lingua non sono modificabili. Dopo il salvataggio il template torna in approvazione Meta.")
+              : t("Il template viene inviato a Meta per approvazione (Utility più rapida, Marketing 24-48h).")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="space-y-1.5 md:col-span-1">
-              <Label>Nome template *</Label>
+              <Label>{t("Nome template *")}</Label>
               <Input
-                placeholder="es. promemoria_appuntamento"
+                placeholder={t("es. {esempio}", { esempio: "promemoria_appuntamento" })}
                 value={form.name}
                 disabled={mode === "edit"}
                 onChange={(e) => set({ name: e.target.value })}
               />
-              <p className="text-[11px] text-muted-foreground">minuscole, numeri, _</p>
+              <p className="text-[11px] text-muted-foreground">{t("minuscole, numeri, _")}</p>
             </div>
             <div className="space-y-1.5">
-              <Label>Categoria</Label>
+              <Label>{t("Categoria")}</Label>
               <Select value={form.category} onValueChange={(v) => set({ category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="UTILITY">Utility</SelectItem>
-                  <SelectItem value="MARKETING">Marketing</SelectItem>
-                  <SelectItem value="AUTHENTICATION">Autenticazione</SelectItem>
+                  <SelectItem value="UTILITY">{t("Utility")}</SelectItem>
+                  <SelectItem value="MARKETING">{t("Marketing")}</SelectItem>
+                  <SelectItem value="AUTHENTICATION">{t("Autenticazione")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Lingua</Label>
+              <Label>{t("Lingua")}</Label>
               <Select value={form.language} onValueChange={(v) => set({ language: v })} disabled={mode === "edit"}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="it">Italiano</SelectItem>
-                  <SelectItem value="en">Inglese</SelectItem>
-                  <SelectItem value="es">Spagnolo</SelectItem>
-                  <SelectItem value="de">Tedesco</SelectItem>
-                  <SelectItem value="fr">Francese</SelectItem>
+                  <SelectItem value="it">{t("Italiano")}</SelectItem>
+                  <SelectItem value="en">{t("Inglese")}</SelectItem>
+                  <SelectItem value="es">{t("Spagnolo")}</SelectItem>
+                  <SelectItem value="de">{t("Tedesco")}</SelectItem>
+                  <SelectItem value="fr">{t("Francese")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Intestazione (opzionale)</Label>
+            <Label>{t("Intestazione (opzionale)")}</Label>
             <div className="flex flex-wrap gap-1.5">
               {([
-                { k: "none", label: "Nessuna" },
-                { k: "text", label: "Testo" },
-                { k: "image", label: "Foto" },
-                { k: "video", label: "Video" },
-                { k: "document", label: "PDF/Documento" },
+                { k: "none", label: t("Nessuna") },
+                { k: "text", label: t("Testo") },
+                { k: "image", label: t("Foto") },
+                { k: "video", label: t("Video") },
+                { k: "document", label: t("PDF/Documento") },
               ] as const).map((o) => (
                 <Button
                   key={o.k}
@@ -784,7 +794,7 @@ function TemplateEditorDialog({
             </div>
             {form.headerKind === "text" && (
               <Input
-                placeholder="Titolo in cima al messaggio (max 60 caratteri)"
+                placeholder={t("Titolo in cima al messaggio (max 60 caratteri)")}
                 maxLength={60}
                 value={form.headerText}
                 onChange={(e) => set({ headerText: e.target.value })}
@@ -799,13 +809,12 @@ function TemplateEditorDialog({
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) caricaMediaHeader(f, form.headerKind as "image" | "video" | "document"); e.target.value = ""; }}
                   className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-primary file:px-2 file:py-1 file:text-primary-foreground"
                 />
-                {caricando && <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Carico il file…</p>}
+                {caricando && <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {t("Carico il file…")}</p>}
                 {form.headerMediaUrl && !caricando && (
-                  <p className="text-[11px] text-emerald-700">Caricato: {form.headerMediaNome || "file"} ✓</p>
+                  <p className="text-[11px] text-emerald-700">{t("Caricato: {nome} ✓", { nome: form.headerMediaNome || t("file") })}</p>
                 )}
                 <p className="text-[11px] text-muted-foreground">
-                  {form.headerKind === "image" ? "Foto JPG/PNG" : form.headerKind === "video" ? "Video MP4" : "PDF"} fino a 16 MB.
-                  Il file caricato è l'esempio per l'approvazione e viene allegato a ogni invio.
+                  {t("{tipo} fino a 16 MB. Il file caricato è l'esempio per l'approvazione e viene allegato a ogni invio.", { tipo: form.headerKind === "image" ? t("Foto JPG/PNG") : form.headerKind === "video" ? t("Video MP4") : "PDF" })}
                 </p>
               </div>
             )}
@@ -813,16 +822,16 @@ function TemplateEditorDialog({
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label>Testo del messaggio *</Label>
+              <Label>{t("Testo del messaggio *")}</Label>
               <div className="flex gap-1">
-                <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Grassetto" onClick={() => wrap("*")}>
+                <Button type="button" variant="outline" size="icon" className="h-7 w-7" title={t("Grassetto")} onClick={() => wrap("*")}>
                   <Bold className="h-3.5 w-3.5" />
                 </Button>
-                <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Corsivo" onClick={() => wrap("_")}>
+                <Button type="button" variant="outline" size="icon" className="h-7 w-7" title={t("Corsivo")} onClick={() => wrap("_")}>
                   <Italic className="h-3.5 w-3.5" />
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="h-7 gap-1" title="Inserisci variabile" onClick={insertVar}>
-                  <Variable className="h-3.5 w-3.5" /> Variabile
+                <Button type="button" variant="outline" size="sm" className="h-7 gap-1" title={t("Inserisci variabile")} onClick={insertVar}>
+                  <Variable className="h-3.5 w-3.5" /> {t("Variabile")}
                 </Button>
               </div>
             </div>
@@ -833,20 +842,23 @@ function TemplateEditorDialog({
               onChange={(e) => set({ bodyText: e.target.value })}
             />
             <p className="text-[11px] text-muted-foreground">
-              Personalizza con <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>… Formattazione WhatsApp: <code>*grassetto*</code>, <code>_corsivo_</code>, <code>~barrato~</code>.
+              {conPezzi(t("Personalizza con {uno}, {due}… Formattazione WhatsApp: {grassetto}, {corsivo}, {barrato}."), {
+                uno: <code>{"{{1}}"}</code>, due: <code>{"{{2}}"}</code>,
+                grassetto: <code>*{t("grassetto")}*</code>, corsivo: <code>_{t("corsivo")}_</code>, barrato: <code>~{t("barrato")}~</code>,
+              })}
             </p>
           </div>
 
           {vars.length > 0 && (
             <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-              <Label className="text-xs">Variabili — collega ogni {"{{n}}"} a un campo del contatto</Label>
+              <Label className="text-xs">{t("Variabili — collega ogni {variabile} a un campo del contatto", { variabile: "{{n}}" })}</Label>
               <p className="text-[11px] text-muted-foreground">
-                In fase di invio il valore si compila in automatico dal contatto. Scegli "Testo fisso" per usare un valore uguale per tutti.
+                {t("In fase di invio il valore si compila in automatico dal contatto. Scegli \"Testo fisso\" per usare un valore uguale per tutti.")}
               </p>
               {!varsContiguous && (
                 <p className="flex items-center gap-1 text-[11px] font-medium text-destructive">
                   <AlertTriangle className="h-3 w-3" />
-                  Le variabili devono essere numerate in ordine: {"{{1}}, {{2}}, {{3}}…"} senza salti.
+                  {t("Le variabili devono essere numerate in ordine: {esempio} senza salti.", { esempio: "{{1}}, {{2}}, {{3}}…" })}
                 </p>
               )}
               <div className="space-y-2">
@@ -863,25 +875,23 @@ function TemplateEditorDialog({
                       >
                         <SelectTrigger className="h-8 sm:w-60"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__fixed__">Testo fisso…</SelectItem>
+                          <SelectItem value="__fixed__">{t("Testo fisso…")}</SelectItem>
                           {Object.entries(groupedOptions).map(([group, opts]) => (
                             <SelectGroup key={group}>
-                              <SelectLabel>{group}</SelectLabel>
+                              <SelectLabel>{t(group)}</SelectLabel>
                               {opts.map((o) => (
-                                <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                                <SelectItem key={o.key} value={o.key}>{t(o.label)}</SelectItem>
                               ))}
                             </SelectGroup>
                           ))}
                         </SelectContent>
                       </Select>
                       {mapped ? (
-                        <span className="text-[11px] text-muted-foreground">
-                          es. {fieldSample(mapped, customFields)}
-                        </span>
+                        <span className="text-[11px] text-muted-foreground">{t("es. {esempio}", { esempio: fieldSample(mapped, customFields) })}</span>
                       ) : (
                         <Input
                           className="h-8 flex-1"
-                          placeholder={`Valore di esempio (per Meta)`}
+                          placeholder={t("Valore di esempio (per Meta)")}
                           value={form.examples[v] ?? ""}
                           onChange={(e) => set({ examples: { ...form.examples, [v]: e.target.value } })}
                         />
@@ -894,9 +904,9 @@ function TemplateEditorDialog({
           )}
 
           <div className="space-y-1.5">
-            <Label>Piè di pagina (opzionale)</Label>
+            <Label>{t("Piè di pagina (opzionale)")}</Label>
             <Input
-              placeholder="es. Rispondi STOP per annullare"
+              placeholder={t("es. {esempio}", { esempio: "Rispondi STOP per annullare" })}
               value={form.footerText}
               onChange={(e) => set({ footerText: e.target.value })}
             />
@@ -905,37 +915,36 @@ function TemplateEditorDialog({
           {/* Bottoni: risposta rapida, link a un sito, chiama */}
           <div className="space-y-2 rounded-md border bg-muted/30 p-3">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">Bottoni (opzionale)</Label>
+              <Label className="text-xs">{t("Bottoni (opzionale)")}</Label>
               <div className="flex flex-wrap gap-1.5">
                 <Button type="button" size="sm" variant="outline" className="h-7 gap-1" disabled={form.buttons.length >= 10}
                   onClick={() => set({ buttons: [...form.buttons, { type: "QUICK_REPLY", text: "" }] })}>
-                  <Plus className="h-3 w-3" /> Risposta rapida
+                  <Plus className="h-3 w-3" /> {t("Risposta rapida")}
                 </Button>
                 <Button type="button" size="sm" variant="outline" className="h-7 gap-1"
                   disabled={form.buttons.filter((b) => b.type === "URL").length >= 2}
                   onClick={() => set({ buttons: [...form.buttons, { type: "URL", text: "", url: "https://" }] })}>
-                  <Plus className="h-3 w-3" /> Link al sito
+                  <Plus className="h-3 w-3" /> {t("Link al sito")}
                 </Button>
                 <Button type="button" size="sm" variant="outline" className="h-7 gap-1"
                   disabled={form.buttons.some((b) => b.type === "PHONE_NUMBER")}
                   onClick={() => set({ buttons: [...form.buttons, { type: "PHONE_NUMBER", text: "Chiamaci", phone: "+39" }] })}>
-                  <Plus className="h-3 w-3" /> Chiama
+                  <Plus className="h-3 w-3" /> {t("Chiama")}
                 </Button>
               </div>
             </div>
             {form.buttons.length === 0 ? (
               <p className="text-[11px] text-muted-foreground">
-                Aggiungi bottoni sotto il messaggio: fino a 10 a risposta rapida, 2 link a un sito, 1 per chiamare.
-                Alla risposta rapida il cliente tocca il bottone e l'assistente AI riceve la risposta.
+                {t("Aggiungi bottoni sotto il messaggio: fino a 10 a risposta rapida, 2 link a un sito, 1 per chiamare. Alla risposta rapida il cliente tocca il bottone e l'assistente AI riceve la risposta.")}
               </p>
             ) : (
               <div className="space-y-2">
                 {form.buttons.map((b, i) => (
                   <div key={i} className="flex flex-col gap-1.5 rounded border bg-background p-2 sm:flex-row sm:items-center">
                     <span className="w-24 shrink-0 text-[11px] font-medium text-muted-foreground">
-                      {b.type === "URL" ? "Link" : b.type === "PHONE_NUMBER" ? "Chiama" : "Risposta"}
+                      {b.type === "URL" ? t("Link") : b.type === "PHONE_NUMBER" ? t("Chiama") : t("Risposta")}
                     </span>
-                    <Input className="h-8" placeholder="Testo del bottone (max 25)" maxLength={25}
+                    <Input className="h-8" placeholder={t("Testo del bottone (max 25)")} maxLength={25}
                       value={b.text}
                       onChange={(e) => set({ buttons: form.buttons.map((x, j) => j === i ? { ...x, text: e.target.value } : x) })} />
                     {b.type === "URL" && (
@@ -948,7 +957,7 @@ function TemplateEditorDialog({
                         value={b.phone ?? ""}
                         onChange={(e) => set({ buttons: form.buttons.map((x, j) => j === i ? { ...x, phone: e.target.value } : x) })} />
                     )}
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Togli il bottone"
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={t("Togli il bottone")}
                       onClick={() => set({ buttons: form.buttons.filter((_, j) => j !== i) })}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -959,16 +968,16 @@ function TemplateEditorDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Anteprima</Label>
+            <Label className="text-xs text-muted-foreground">{t("Anteprima")}</Label>
             <WhatsAppBubblePreview template={form} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>{t("Annulla")}</Button>
           <Button onClick={() => onSubmit(form)} disabled={!canSave || isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {mode === "edit" ? "Salva modifiche" : "Invia per approvazione"}
+            {mode === "edit" ? t("Salva modifiche") : t("Invia per approvazione")}
           </Button>
         </DialogFooter>
       </DialogContent>

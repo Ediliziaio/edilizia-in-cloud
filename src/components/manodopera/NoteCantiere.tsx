@@ -25,22 +25,24 @@ import {
   type NotaCantiere, type PerChiNota,
 } from "@/hooks/useOperai";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function quando(iso: string): string {
-  return new Date(iso).toLocaleDateString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleDateString(intlCampo(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function PerChi({ n }: { n: NotaCantiere }) {
+  const t = useT();
   if (n.per === "squadra") {
     return (
       <span className="inline-flex items-center gap-1">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: n.squadra_colore ?? "#94A3B8" }} aria-hidden="true" />
-        {n.squadra ?? "Squadra"}
+        {n.squadra ?? t("Squadra")}
       </span>
     );
   }
-  if (n.per === "persona") return <span>{n.persona ?? "Una persona"}</span>;
-  return <span>Tutti</span>;
+  if (n.per === "persona") return <span>{n.persona ?? t("Una persona")}</span>;
+  return <span>{t("Tutti")}</span>;
 }
 
 export function NoteCantiere({
@@ -58,22 +60,23 @@ export function NoteCantiere({
   /** Dentro una fase: niente titolo, bottone piccolo. */
   compatta?: boolean;
 }) {
+  const t = useT();
   const { data = [], isLoading, error, refetch } = useNoteCantiere(orderId);
   const elimina = useEliminaNota(orderId);
   const [aperta, setAperta] = useState<NotaCantiere | "nuova" | null>(null);
 
   const note = useMemo(() => data.filter((n) => (n.phase_id ?? null) === phaseId), [data, phaseId]);
 
-  if (error) return <div role="alert" className="space-y-2 rounded-lg border border-amber-200 p-3 text-xs"><p>Le note non sono disponibili. Riprova prima di aggiungerne una, per evitare duplicati.</p><Button variant="outline" size="sm" onClick={() => void refetch()}>Ricarica note</Button></div>;
+  if (error) return <div role="alert" className="space-y-2 rounded-lg border border-amber-200 p-3 text-xs"><p>{t("Le note non sono disponibili. Riprova prima di aggiungerne una, per evitare duplicati.")}</p><Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Ricarica note")}</Button></div>;
 
   return (
     <div className="space-y-2">
       {isLoading ? (
-        <p className="text-xs text-muted-foreground">Carico le note…</p>
+        <p className="text-xs text-muted-foreground">{t("Carico le note…")}</p>
       ) : note.length === 0 ? (
         !compatta && (
           <p className="text-sm text-muted-foreground">
-            Nessuna nota. Scrivi qui le istruzioni per chi lavora: le legge nell'app di cantiere.
+            {t("Nessuna nota. Scrivi qui le istruzioni per chi lavora: le legge nell'app di cantiere.")}
           </p>
         )
       ) : (
@@ -88,34 +91,34 @@ export function NoteCantiere({
             >
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 whitespace-pre-wrap text-slate-800">
-                  {n.importante && <AlertTriangle className="mr-1 inline h-3.5 w-3.5 text-amber-600" aria-label="Importante" />}
+                  {n.importante && <AlertTriangle className="mr-1 inline h-3.5 w-3.5 text-amber-600" aria-label={t("Importante")} />}
                   {n.testo}
                 </p>
                 {modificabile && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="ghost" className="tap-compact -mr-1 -mt-1 h-7 w-7 shrink-0" aria-label="Modifica o elimina la nota">
+                      <Button size="icon" variant="ghost" className="tap-compact -mr-1 -mt-1 h-7 w-7 shrink-0" aria-label={t("Modifica o elimina la nota")}>
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => setAperta(n)}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setAperta(n)}><Pencil className="mr-2 h-4 w-4" />{t("Modifica")}</DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-700"
                         onSelect={() => elimina.mutate(n.id, {
-                          onSuccess: () => toast.success("Nota eliminata"),
+                          onSuccess: () => toast.success(t("Nota eliminata")),
                           onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a eliminarla.")),
                         })}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />Elimina
+                        <Trash2 className="mr-2 h-4 w-4" />{t("Elimina")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
               </div>
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                <span className="font-medium text-slate-600">Per: <PerChi n={n} /></span>
-                <span>· {n.autore ?? "Ufficio"}, {quando(n.creata_il)}{n.modificata_il && " (modificata)"}</span>
+                <span className="font-medium text-slate-600">{t("Per:")} <PerChi n={n} /></span>
+                <span>· {n.autore ?? t("Ufficio")}, {quando(n.creata_il)}{n.modificata_il && ` ${t("(modificata)")}`}</span>
                 <Letture n={n} />
               </p>
             </li>
@@ -130,7 +133,7 @@ export function NoteCantiere({
           onClick={() => setAperta("nuova")}
         >
           <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
-          {compatta ? "Nota per gli operai" : "Scrivi una nota"}
+          {compatta ? t("Nota per gli operai") : t("Scrivi una nota")}
         </Button>
       )}
       {aperta && (
@@ -147,20 +150,21 @@ export function NoteCantiere({
 }
 
 function Letture({ n }: { n: NotaCantiere }) {
+  const t = useT();
   if (n.destinatari === 0) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="cursor-help">· nessuno la vede ancora nell'app</span>
+          <span className="cursor-help">{t("· nessuno la vede ancora nell'app")}</span>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          La vedrà chi ha l'app di cantiere e lavora qui (con la squadra o con l'accesso al cantiere).
+          {t("La vedrà chi ha l'app di cantiere e lavora qui (con la squadra o con l'accesso al cantiere).")}
         </TooltipContent>
       </Tooltip>
     );
   }
   const lette = n.letta_da.length;
-  const testo = lette === 0 ? `· non ancora letta (${n.destinatari})` : `· letta da ${lette} su ${Math.max(lette, n.destinatari)}`;
+  const testo = lette === 0 ? t("· non ancora letta ({n})", { n: n.destinatari }) : t("· letta da {lette} su {totale}", { lette, totale: Math.max(lette, n.destinatari) });
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -170,7 +174,7 @@ function Letture({ n }: { n: NotaCantiere }) {
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">
-        {lette === 0 ? "Nessuno l'ha ancora aperta nell'app." : n.letta_da.map((l) => `${l.nome}, ${quando(l.il)}`).join(" · ")}
+        {lette === 0 ? t("Nessuno l'ha ancora aperta nell'app.") : n.letta_da.map((l) => `${l.nome}, ${quando(l.il)}`).join(" · ")}
       </TooltipContent>
     </Tooltip>
   );
@@ -191,6 +195,7 @@ function NotaDialog({
   fasi: { id: string; name: string }[];
   onChiudi: () => void;
 }) {
+  const t = useT();
   const salva = useSalvaNota(orderId);
   const { data: squadreQui = [] } = useSquadreCommessa(orderId);
   const { data: tutteLeSquadre = [] } = useSquadre();
@@ -221,9 +226,9 @@ function NotaDialog({
   }, [per, squadra, squadreQuiUniche]);
 
   const invia = () => {
-    if (!testo.trim()) { toast.error("Scrivi il testo della nota."); return; }
-    if (per === "squadra" && !squadra) { toast.error("Scegli la squadra."); return; }
-    if (per === "persona" && !persona) { toast.error("Scegli la persona."); return; }
+    if (!testo.trim()) { toast.error(t("Scrivi il testo della nota.")); return; }
+    if (per === "squadra" && !squadra) { toast.error(t("Scegli la squadra.")); return; }
+    if (per === "persona" && !persona) { toast.error(t("Scegli la persona.")); return; }
     salva.mutate(
       {
         id: nota?.id ?? null,
@@ -238,7 +243,7 @@ function NotaDialog({
       },
       {
         onSuccess: () => {
-          toast.success(nota ? "Nota aggiornata" : "Nota inviata: la vedono nell'app");
+          toast.success(nota ? t("Nota aggiornata") : t("Nota inviata: la vedono nell'app"));
           onChiudi();
         },
         onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a salvare la nota. Riprova tra qualche secondo.")),
@@ -250,15 +255,15 @@ function NotaDialog({
     <Dialog open onOpenChange={(o) => { if (!o && !salva.isPending) onChiudi(); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{nota ? "Modifica la nota" : "Nota per gli operai"}</DialogTitle>
+          <DialogTitle>{nota ? t("Modifica la nota") : t("Nota per gli operai")}</DialogTitle>
           <DialogDescription>
-            La leggono nell'app di cantiere, aprendo questo lavoro. {nota ? "" : "Arriva anche come avviso sul telefono."}
+            {t("La leggono nell'app di cantiere, aprendo questo lavoro.")} {nota ? "" : t("Arriva anche come avviso sul telefono.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="nota-testo">Cosa devono sapere</Label>
+            <Label htmlFor="nota-testo">{t("Cosa devono sapere")}</Label>
             <Textarea
               id="nota-testo"
               value={testo}
@@ -266,12 +271,12 @@ function NotaDialog({
               rows={4}
               maxLength={2000}
               autoFocus
-              placeholder="Es. Le chiavi sono dal portiere dalle 7:30. Proteggere il parquet del corridoio."
+              placeholder={t("Es. Le chiavi sono dal portiere dalle 7:30. Proteggere il parquet del corridoio.")}
             />
           </div>
 
           <div className="space-y-1.5">
-            <span className="text-sm font-medium" id="nota-per">Per chi</span>
+            <span className="text-sm font-medium" id="nota-per">{t("Per chi")}</span>
             <div role="radiogroup" aria-labelledby="nota-per" className="grid grid-cols-3 gap-1.5">
               {([["tutti", "Tutti"], ["squadra", "Una squadra"], ["persona", "Una persona"]] as const).map(([v, l]) => (
                 <button
@@ -289,24 +294,24 @@ function NotaDialog({
                 </button>
               ))}
             </div>
-            {per === "tutti" && <p className="text-xs text-muted-foreground">Tutti quelli che lavorano su questa commessa.</p>}
+            {per === "tutti" && <p className="text-xs text-muted-foreground">{t("Tutti quelli che lavorano su questa commessa.")}</p>}
           </div>
 
           {per === "squadra" && (
             <div className="space-y-1.5">
-              <Label htmlFor="nota-squadra">Squadra</Label>
+              <Label htmlFor="nota-squadra">{t("Squadra")}</Label>
               <Select value={squadra} onValueChange={setSquadra}>
-                <SelectTrigger id="nota-squadra"><SelectValue placeholder="Scegli la squadra" /></SelectTrigger>
+                <SelectTrigger id="nota-squadra"><SelectValue placeholder={t("Scegli la squadra")} /></SelectTrigger>
                 <SelectContent>
                   {squadreQuiUniche.length > 0 && (
                     <SelectGroup>
-                      <SelectLabel>Su questa commessa</SelectLabel>
+                      <SelectLabel>{t("Su questa commessa")}</SelectLabel>
                       {squadreQuiUniche.map((s) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
                     </SelectGroup>
                   )}
                   {altreSquadre.length > 0 && (
                     <SelectGroup>
-                      <SelectLabel>Altre squadre</SelectLabel>
+                      <SelectLabel>{t("Altre squadre")}</SelectLabel>
                       {altreSquadre.map((s) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
                     </SelectGroup>
                   )}
@@ -317,14 +322,14 @@ function NotaDialog({
 
           {per === "persona" && (
             <div className="space-y-1.5">
-              <Label htmlFor="nota-persona">Persona</Label>
+              <Label htmlFor="nota-persona">{t("Persona")}</Label>
               {persone.length === 0 ? (
                 <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                  Metti prima una squadra sulla commessa: qui si sceglie fra chi ci lavora.
+                  {t("Metti prima una squadra sulla commessa: qui si sceglie fra chi ci lavora.")}
                 </p>
               ) : (
                 <Select value={persona} onValueChange={setPersona}>
-                  <SelectTrigger id="nota-persona"><SelectValue placeholder="Scegli la persona" /></SelectTrigger>
+                  <SelectTrigger id="nota-persona"><SelectValue placeholder={t("Scegli la persona")} /></SelectTrigger>
                   <SelectContent>
                     {persone.map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}
                   </SelectContent>
@@ -335,12 +340,12 @@ function NotaDialog({
 
           {fasi.length > 0 && (
             <div className="space-y-1.5">
-              <Label htmlFor="nota-fase">Riguarda</Label>
+              <Label htmlFor="nota-fase">{t("Riguarda")}</Label>
               <Select value={fase} onValueChange={setFase}>
                 <SelectTrigger id="nota-fase"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={TUTTA}>Tutta la commessa</SelectItem>
-                  {fasi.map((f) => <SelectItem key={f.id} value={f.id}>Fase: {f.name}</SelectItem>)}
+                  <SelectItem value={TUTTA}>{t("Tutta la commessa")}</SelectItem>
+                  {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{t("Fase: {name}", { name: String(f.name ?? "") })}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -348,15 +353,15 @@ function NotaDialog({
 
           <label htmlFor="nota-importante" className="flex cursor-pointer items-center gap-2.5 text-sm">
             <Checkbox id="nota-importante" checked={importante} onCheckedChange={(v) => setImportante(v === true)} />
-            Importante: la mettiamo in cima, evidenziata
+            {t("Importante: la mettiamo in cima, evidenziata")}
           </label>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onChiudi} disabled={salva.isPending}>Annulla</Button>
+          <Button variant="outline" onClick={onChiudi} disabled={salva.isPending}>{t("Annulla")}</Button>
           <Button onClick={invia} disabled={salva.isPending} className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
             {salva.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {nota ? "Salva" : "Invia la nota"}
+            {nota ? t("Salva") : t("Invia la nota")}
           </Button>
         </DialogFooter>
       </DialogContent>

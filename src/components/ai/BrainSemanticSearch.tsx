@@ -20,6 +20,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Search, X, Sparkles, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SearchMemory {
   id: string;
@@ -72,6 +73,7 @@ export function BrainSemanticSearch({
   typeColors,
   className,
 }: Props) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -222,7 +224,7 @@ export function BrainSemanticSearch({
         <input
           ref={inputRef}
           type="text"
-          placeholder={focused ? "es. Bianchi, fatture, ritardo…" : "Chiedi al cervello…"}
+          placeholder={focused ? t("es. Bianchi, fatture, ritardo…") : t("Chiedi al cervello…")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
@@ -252,7 +254,7 @@ export function BrainSemanticSearch({
         <div className="absolute top-full left-0 right-0 z-50 mt-0 bg-slate-900/98 border border-slate-600 border-t-transparent rounded-b-md shadow-2xl backdrop-blur-md max-h-80 overflow-y-auto">
           <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-slate-300 font-semibold border-b border-slate-700 bg-slate-800/50 flex items-center gap-1.5">
             <Sparkles className="h-3 w-3 text-orange-400" />
-            {results.length} risultat{results.length === 1 ? "o trovato" : "i trovati"}
+            {t(results.length === 1 ? "{n} risultato trovato" : "{n} risultati trovati", { n: results.length })}
           </div>
           {results.map((r) => {
             const emoji = r.category ? (categoryEmoji[r.category] ?? "⚡") : "💾";

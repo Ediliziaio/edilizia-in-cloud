@@ -23,6 +23,7 @@ import {
   type IndirizzoTrovato,
   type SuggerimentoIndirizzo,
 } from "@/lib/indirizzi/ricercaIndirizzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ATTESA_MS = 300;
 const NON_DISPONIBILE = "Ricerca non disponibile. Puoi scrivere l’indirizzo manualmente.";
@@ -74,6 +75,7 @@ export function CampoIndirizzo({
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
 }: CampoIndirizzoProps) {
+  const t = useT();
   const idAutomatico = useId();
   const inputId = id ?? idAutomatico;
   const listaId = `${inputId}-suggerimenti`;
@@ -254,7 +256,7 @@ export function CampoIndirizzo({
           <div
             id={listaId}
             role="listbox"
-            aria-label="Indirizzi suggeriti"
+            aria-label={t("Indirizzi suggeriti")}
             className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
           >
             {suggerimenti.map((s, i) => (
@@ -279,7 +281,7 @@ export function CampoIndirizzo({
           </div>
         )}
       </div>
-      {stato && <p role="status" className="mt-1 text-xs text-muted-foreground">{stato}</p>}
+      {stato && <p role="status" className="mt-1 text-xs text-muted-foreground">{t(stato)}</p>}
     </div>
   );
 }

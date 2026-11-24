@@ -23,6 +23,7 @@ import { IDEE_PRONTE } from "@/modules/render-stanza/lib/ideePronte";
 import { chiaviRenderPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import { avviaRenderStanza, lavoriDaFare, statoSessioni, type LavoroRender, type StatoLavoro } from "@/lib/planimetrie/render/renderInSerie";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_IDEE = 3;
 const IN_PARALLELO = 2;
@@ -45,6 +46,7 @@ interface Props {
 interface Riga { lavoro: LavoroRender; stato: StatoLavoro; sessione?: string; url?: string; errore?: string }
 
 export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione, documento, livelloId, ambito, stanze: stanzePiano, stanzeEdificio, soloStanza }: Props) {
+  const tr = useT();
   const [tuttiIPiani, setTuttiIPiani] = useState(false);
   const edificio = !soloStanza && (stanzeEdificio?.length ?? 0) > stanzePiano.length;
   const stanze: Array<{ id: string; nome: string; destinazione: string; livelloId?: string; piano?: string }> = edificio && tuttiIPiani ? stanzeEdificio! : stanzePiano;
@@ -122,13 +124,13 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
     let creditiFiniti = false;
     const operaio = async () => {
       for (let l = coda.shift(); l; l = coda.shift()) {
-        if (annullato.current || creditiFiniti) { aggiorna(l.chiave, { stato: "fallito", errore: creditiFiniti ? "Crediti finiti" : "Fermato" }); continue; }
+        if (annullato.current || creditiFiniti) { aggiorna(l.chiave, { stato: "fallito", errore: creditiFiniti ? tr("Crediti finiti") : tr("Fermato") }); continue; }
         aggiorna(l.chiave, { stato: "preparo" });
         try {
           const sessione = await avviaRenderStanza(ctx, l);
           aggiorna(l.chiave, { stato: "in_corso", sessione });
         } catch (e) {
-          const msg = e instanceof Error ? e.message : "Non avviato";
+          const msg = e instanceof Error ? e.message : tr("Non avviato");
           if (/crediti/i.test(msg)) creditiFiniti = true;
           aggiorna(l.chiave, { stato: "fallito", errore: msg });
         }
@@ -136,7 +138,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
     };
     await Promise.all(Array.from({ length: Math.min(IN_PARALLELO, daAvviare.length) }, operaio));
     queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
-    if (creditiFiniti) toast.error("Crediti render finiti: alcune stanze non sono partite.");
+    if (creditiFiniti) toast.error(tr("Crediti render finiti: alcune stanze non sono partite."));
   };
 
   const scegliIdea = (id: string) => setIdee((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : xs.length >= MAX_IDEE ? xs : [...xs, id]));
@@ -146,24 +148,24 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
     <Dialog open={aperto} onOpenChange={(v) => { if (!v) onChiudi(); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader><ControlloUsoBloccato documento={documento} uso="render" modifica={`/azienda/planimetrie/${planimetriaId}/modifica`} />
-          <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />{soloStanza ? "Più stili per questa stanza" : "Render di tutte le stanze"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />{soloStanza ? tr("Più stili per questa stanza") : tr("Render di tutte le stanze")}</DialogTitle>
           <DialogDescription>
-            Si parte dalla vista 3D dentro ogni stanza: misure, porte, finestre e arredi della pianta restano dove sono. Le tende si applicano alle finestre visibili nell'inquadratura. Un render costa un credito; se non riesce il credito torna.
+            {tr("Si parte dalla vista 3D dentro ogni stanza: misure, porte, finestre e arredi della pianta restano dove sono. Le tende si applicano alle finestre visibili nell'inquadratura. Un render costa un credito; se non riesce il credito torna.")}
           </DialogDescription>
         </DialogHeader>
 
         {!righe ? (
           <div className="space-y-5">
             <QualitaRender value={qualita} onChange={setQualita} />
-            {(comuni.pavimento || comuni.infissi) && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">Tutte le stanze seguiranno i materiali comuni del progetto.{comuni.pavimento ? ` Pavimento: ${descrizionePavimento(comuni.pavimento)}.` : ""} Gli stili selezionati mantengono queste scelte.</p>}
+            {(comuni.pavimento || comuni.infissi) && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">{tr("Tutte le stanze seguiranno i materiali comuni del progetto.")}{comuni.pavimento ? ` ${tr("Pavimento: {pavimento}.", { pavimento: String(descrizionePavimento(comuni.pavimento) ?? "") })}` : ""} {tr("Gli stili selezionati mantengono queste scelte.")}</p>}
             {!soloStanza && (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label className="text-sm font-semibold">Stanze</Label>
+                  <Label className="text-sm font-semibold">{tr("Stanze")}</Label>
                   {edificio && (
                     <label className="flex cursor-pointer items-center gap-2 text-xs">
                       <Checkbox checked={tuttiIPiani} onCheckedChange={(v) => { const tutti = !!v; setTuttiIPiani(tutti); setScelte(new Set((tutti ? stanzeEdificio! : stanzePiano).map((s) => s.id))); }} />
-                      Tutti i piani ({stanzeEdificio!.length} stanze)
+                      {tr("Tutti i piani ({n} stanze)", { n: stanzeEdificio!.length })}
                     </label>
                   )}
                 </div>
@@ -178,7 +180,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
               </div>
             )}
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Stile {soloStanza ? `(fino a ${MAX_IDEE}, da confrontare)` : `— uno per tutta la casa, o fino a ${MAX_IDEE} per confrontarli`}</Label>
+              <Label className="text-sm font-semibold">{tr("Stile")} {soloStanza ? tr("(fino a {MAX_IDEE}, da confrontare)", { MAX_IDEE: String(MAX_IDEE ?? "") }) : tr("— uno per tutta la casa, o fino a {MAX_IDEE} per confrontarli", { MAX_IDEE: String(MAX_IDEE ?? "") })}</Label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {IDEE_PRONTE.filter((i) => !i.stanze).map((idea) => {
                   const on = idee.includes(idea.id);
@@ -194,29 +196,29 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="serie-nota" className="text-xs">Qualcosa da aggiungere per tutte (facoltativo)</Label>
-              <Textarea id="serie-nota" rows={2} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Es. luce del tramonto, piante verdi, nessuna persona" className="text-xs" />
+              <Label htmlFor="serie-nota" className="text-xs">{tr("Qualcosa da aggiungere per tutte (facoltativo)")}</Label>
+              <Textarea id="serie-nota" rows={2} value={nota} onChange={(e) => setNota(e.target.value)} placeholder={tr("Es. luce del tramonto, piante verdi, nessuna persona")} className="text-xs" />
             </div>
             <div className={`rounded-lg border p-3 text-sm ${bastano ? "bg-muted/40" : "border-amber-300 bg-amber-50"}`}>
-              <strong>{costo} render</strong> = {costo} {costo === 1 ? "credito" : "crediti"}
-              {crediti.data && !crediti.data.unlimited && <> · ne hai {crediti.data.balance}</>}
-              {!bastano && <> · <Link to="/azienda/impostazioni/abbonamento?tab=portafoglio" className="underline">ricarica</Link> o scegli meno stanze</>}
+              <strong>{tr("{costo} render", { costo: String(costo ?? "") })}</strong> = {tr(costo === 1 ? "{n} credito" : "{n} crediti", { n: costo })}
+              {crediti.data && !crediti.data.unlimited && <>{" "}{tr("· ne hai {balance}", { balance: String(crediti.data.balance ?? "") })}</>}
+              {!bastano && <> · <Link to="/azienda/impostazioni/abbonamento?tab=portafoglio" className="underline">{tr("ricarica")}</Link> {tr("o scegli meno stanze")}</>}
             </div>
           </div>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">{fatti} di {righe.length} pronti. Puoi chiudere questa finestra: i render vanno avanti e finiscono tra i render della pianta.</p>
+            <p className="text-sm text-muted-foreground">{tr("{fatti} di {n} pronti. Puoi chiudere questa finestra: i render vanno avanti e finiscono tra i render della pianta.", { fatti: String(fatti ?? ""), n: righe.length })}</p>
             <ul className="divide-y rounded-lg border">
               {righe.map((r) => (
                 <li key={r.lavoro.chiave} className="flex items-center gap-3 p-2 text-sm">
-                  {r.url ? <a href={`/azienda/render/stanza/gallery/${r.sessione}`} aria-label={`Apri render di ${r.lavoro.localeNome}`}><img src={r.url} alt={`Render di ${r.lavoro.localeNome}`} className="h-12 w-16 rounded object-cover" /></a> : <div className="h-12 w-16 rounded bg-muted" />}
+                  {r.url ? <a href={`/azienda/render/stanza/gallery/${r.sessione}`} aria-label={tr("Apri render di {localeNome}", { localeNome: String(r.lavoro.localeNome ?? "") })}><img src={r.url} alt={tr("Render di {localeNome}", { localeNome: String(r.lavoro.localeNome ?? "") })} className="h-12 w-16 rounded object-cover" /></a> : <div className="h-12 w-16 rounded bg-muted" />}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{r.lavoro.localeNome}</p>
                     <p className="truncate text-xs text-muted-foreground">{r.lavoro.idea.nome}</p>
                   </div>
                   {r.stato === "pronto" ? <CheckCircle2 className="h-5 w-5 text-green-600" />
                     : r.stato === "fallito" ? <span className="flex items-center gap-1 text-xs text-destructive"><XCircle className="h-4 w-4" />{r.errore}</span>
-                    : <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{r.stato === "in_coda" ? "in coda" : r.stato === "preparo" ? "preparo la vista" : "l'AI lavora"}</span>}
+                    : <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{r.stato === "in_coda" ? tr("in coda") : r.stato === "preparo" ? tr("preparo la vista") : tr("l'AI lavora")}</span>}
                 </li>
               ))}
             </ul>
@@ -226,10 +228,10 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
         <DialogFooter>
           {!righe ? (
             <Button className="gap-2 bg-primary hover:bg-primary/90" disabled={!lavori.length || !bastano || !companyId} onClick={() => void parti()}>
-              <Sparkles className="h-4 w-4" />Fai {costo} render
+              <Sparkles className="h-4 w-4" />{tr("Fai {costo} render", { costo })}
             </Button>
           ) : (
-            <><Button variant="outline" onClick={onChiudi}>{inCorso ? "Chiudi (continuano da soli)" : "Chiudi"}</Button>{!inCorso && righe.some((r) => r.stato === "fallito") && <Button onClick={() => void parti(true)}>Riprova solo i render non riusciti</Button>}</>
+            <><Button variant="outline" onClick={onChiudi}>{inCorso ? tr("Chiudi (continuano da soli)") : tr("Chiudi")}</Button>{!inCorso && righe.some((r) => r.stato === "fallito") && <Button onClick={() => void parti(true)}>{tr("Riprova solo i render non riusciti")}</Button>}</>
           )}
         </DialogFooter>
       </DialogContent>

@@ -12,6 +12,7 @@ import { riservaMaterialeOperazione } from "@/lib/distinta/registroMaterialiOper
 import { unitaConsumoConfrontabile } from "@/lib/distinta/consumiMateriali";
 import { formattaQuantitaMovimento as numero, leggiQuantitaNonNegativa } from "@/lib/magazzino/quantitaMovimento";
 import { unitaMateriale } from "@/lib/orders/materialProcurement";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RiservaMaterialeOperazione({ generaleId, riga, stockId, suggerita, commessa, chiudi, salvata }: {
   generaleId: string;
@@ -22,6 +23,7 @@ export function RiservaMaterialeOperazione({ generaleId, riga, stockId, suggerit
   chiudi: () => void;
   salvata: (quantita: number) => void;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const attuale = riservaMaterialeOperazione(riga);
   const [valore, setValore] = useState(String(riga.piano.daScorta > 0 ? attuale : suggerita).replace(".", ","));
@@ -59,49 +61,49 @@ export function RiservaMaterialeOperazione({ generaleId, riga, stockId, suggerit
       });
       salvata(q);
     } catch (error) {
-      setAvviso(error && typeof error === "object" && "message" in error ? String(error.message) : "Salvataggio non confermato.");
+      setAvviso(error && typeof error === "object" && "message" in error ? String(error.message) : t("Salvataggio non confermato."));
     }
   }
 
   return <Dialog open onOpenChange={open => { if (!open && !operazione.isPending) chiudi(); }}>
     <DialogContent className="max-w-md">
       <DialogHeader>
-        <DialogTitle>{attuale > 0 ? "Modifica riserva di magazzino" : "Riserva dal magazzino"}</DialogTitle>
+        <DialogTitle>{attuale > 0 ? t("Modifica riserva di magazzino") : t("Riserva dal magazzino")}</DialogTitle>
         <DialogDescription>{riga.name} · {commessa}</DialogDescription>
       </DialogHeader>
-      {giacenza.isPending ? <p role="status" className="text-sm text-muted-foreground">Verifico la disponibilità…</p>
-        : giacenza.isError ? <p role="alert" className="text-sm text-destructive">Disponibilità non verificabile.{" "}
-          <Button size="sm" variant="link" onClick={() => void giacenza.refetch()}>Riprova</Button></p>
+      {giacenza.isPending ? <p role="status" className="text-sm text-muted-foreground">{t("Verifico la disponibilità…")}</p>
+        : giacenza.isError ? <p role="alert" className="text-sm text-destructive">{t("Disponibilità non verificabile.")}{" "}
+          <Button size="sm" variant="link" onClick={() => void giacenza.refetch()}>{t("Riprova")}</Button></p>
         : <div className="space-y-3">
           <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
             <p className="font-medium">{giacenza.data?.name}</p>
             <p className="text-xs text-muted-foreground">{[
               giacenza.data?.warehouses?.name,
-              `${numero(Number(giacenza.data?.quantity_available ?? 0))} ${um} liberi`,
-              `${numero(attuale)} ${um} già riservati alla riga`,
+              t("{quantita} {um} liberi", { quantita: numero(Number(giacenza.data?.quantity_available ?? 0)), um }),
+              t("{quantita} {um} già riservati alla riga", { quantita: numero(attuale), um }),
             ].filter(Boolean).join(" · ")}</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="riserva-materiale-quantita">Quantità da tenere riservata ({um})</Label>
+            <Label htmlFor="riserva-materiale-quantita">{t("Quantità da tenere riservata ({um})", { um })}</Label>
             <div className="flex flex-wrap items-center gap-2">
               <Input id="riserva-materiale-quantita" autoComplete="off" inputMode={quantitaIntera ? "numeric" : "decimal"}
                 value={valore} onChange={e => setValore(e.target.value)} disabled={operazione.isPending} className="w-36" />
               {attuale > 0 && <Button type="button" size="sm" variant="outline" disabled={operazione.isPending} onClick={() => setValore("0")}>
-                Libera riserva
+                {t("Libera riserva")}
               </Button>}
             </div>
-            <p className="text-xs text-muted-foreground">Massimo prenotabile {numero(max)} {um}{quantitaIntera && " · Quantità intere"}</p>
+            <p className="text-xs text-muted-foreground">{t("Massimo prenotabile {quantita} {um}", { quantita: numero(max), um })}{quantitaIntera && ` · ${t("Quantità intere")}`}</p>
           </div>
           <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-            <span>Da ordinare dopo la riserva</span>
+            <span>{t("Da ordinare dopo la riserva")}</span>
             <strong className="tabular-nums">{valido && residuo !== null ? `${numero(residuo)} ${um}` : "—"}</strong>
           </div>
         </div>}
       {avviso && <p role="alert" className="text-sm text-destructive">{avviso}</p>}
       <DialogFooter>
-        <Button type="button" variant="outline" disabled={operazione.isPending} onClick={chiudi}>Annulla</Button>
+        <Button type="button" variant="outline" disabled={operazione.isPending} onClick={chiudi}>{t("Annulla")}</Button>
         <Button type="button" disabled={!modificata || giacenza.isPending || giacenza.isError || operazione.isPending}
-          onClick={() => void conferma()}>{operazione.isPending ? "Salvo…" : q === 0 ? "Conferma rilascio" : "Conferma riserva"}</Button>
+          onClick={() => void conferma()}>{operazione.isPending ? t("Salvo…") : q === 0 ? t("Conferma rilascio") : t("Conferma riserva")}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>;

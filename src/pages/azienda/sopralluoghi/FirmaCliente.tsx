@@ -8,8 +8,10 @@ import { SignaturePad } from "@/components/surveys/engine/SignaturePad";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function FirmaCliente() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -36,20 +38,20 @@ export default function FirmaCliente() {
         <div className="mx-auto max-w-md rounded-xl border border-red-200 dark:border-red-900/40 bg-card p-6 sm:p-10 text-center">
           <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-500/70" />
           <p className="font-semibold mb-1">
-            {isError ? "Impossibile caricare la firma" : "Sopralluogo non trovato"}
+            {isError ? t("Impossibile caricare la firma") : t("Sopralluogo non trovato")}
           </p>
           <p className="text-sm text-muted-foreground mb-4">
             {isError
-              ? "Si è verificato un errore. Controlla la connessione e riprova."
-              : "Il sopralluogo potrebbe essere stato eliminato o il link non è più valido."}
+              ? t("Si è verificato un errore. Controlla la connessione e riprova.")
+              : t("Il sopralluogo potrebbe essere stato eliminato o il link non è più valido.")}
           </p>
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/azienda/sopralluoghi")}>
-              Torna alla lista
+              {t("Torna alla lista")}
             </Button>
             {isError && (
               <Button size="sm" className="bg-orange-600 hover:bg-orange-700" onClick={() => refetch()}>
-                Riprova
+                {t("Riprova")}
               </Button>
             )}
           </div>
@@ -61,9 +63,9 @@ export default function FirmaCliente() {
   if (detail.survey.client_signature_at || detail.survey.status === "signed") {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 p-6 text-center">
-        <h1 className="text-lg font-semibold">Sopralluogo già firmato</h1>
-        <p className="text-sm text-muted-foreground">Questo rilievo ha già una firma registrata. Apri il dettaglio per consultarla.</p>
-        <Button variant="outline" onClick={() => navigate(`/azienda/sopralluoghi/${id}`)}>Torna al sopralluogo</Button>
+        <h1 className="text-lg font-semibold">{t("Sopralluogo già firmato")}</h1>
+        <p className="text-sm text-muted-foreground">{t("Questo rilievo ha già una firma registrata. Apri il dettaglio per consultarla.")}</p>
+        <Button variant="outline" onClick={() => navigate(`/azienda/sopralluoghi/${id}`)}>{t("Torna al sopralluogo")}</Button>
       </div>
     );
   }

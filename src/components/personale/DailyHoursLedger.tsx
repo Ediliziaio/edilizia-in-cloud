@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { orePresenze } from "@/lib/personale/presenze";
 import type { DailyHoursController } from "@/hooks/useDailyHours";
 import type { DailyHoursLine } from "@/lib/orders/dailyHours";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PAGE_SIZE = 15;
 const EMPTY_LINES: DailyHoursLine[] = [];
@@ -20,6 +21,7 @@ export function DailyHoursLedger({
   onCancel: (reportId: string) => void;
   busy: boolean;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [person, setPerson] = useState("");
   const [order, setOrder] = useState("");
@@ -87,8 +89,8 @@ export function DailyHoursLedger({
             className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"
           />
           <Input
-            aria-label="Cerca nelle ore di cantiere"
-            placeholder="Cerca persona, cantiere o nota…"
+            aria-label={t("Cerca nelle ore di cantiere")}
+            placeholder={t("Cerca persona, cantiere o nota…")}
             value={search}
             className="h-9 pl-9"
             onChange={(e) => {
@@ -99,14 +101,14 @@ export function DailyHoursLedger({
         </div>
         <UniformSelect
           className={`${selectClass} max-md:hidden`}
-          aria-label="Dipendente del registro"
+          aria-label={t("Dipendente del registro")}
           value={person}
           onChange={(e) => {
             setPerson(e.target.value);
             setPage(1);
           }}
         >
-          <option value="">Tutti i dipendenti</option>
+          <option value="">{t("Tutti i dipendenti")}</option>
           {c.data?.people.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -115,14 +117,14 @@ export function DailyHoursLedger({
         </UniformSelect>
         <UniformSelect
           className={`${selectClass} max-md:hidden`}
-          aria-label="Cantiere del registro"
+          aria-label={t("Cantiere del registro")}
           value={order}
           onChange={(e) => {
             setOrder(e.target.value);
             setPage(1);
           }}
         >
-          <option value="">Tutti i cantieri</option>
+          <option value="">{t("Tutti i cantieri")}</option>
           {c.data?.orders.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}
@@ -131,17 +133,17 @@ export function DailyHoursLedger({
         </UniformSelect>
         <UniformSelect
           className={selectClass}
-          aria-label="Stato delle ore"
+          aria-label={t("Stato delle ore")}
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
             setPage(1);
           }}
         >
-          <option value="">Tutti gli stati</option>
-          <option value="confirmed">Confermate</option>
-          <option value="pending">In attesa</option>
-          {c.showCosts && <option value="unpriced">Da valorizzare</option>}
+          <option value="">{t("Tutti gli stati")}</option>
+          <option value="confirmed">{t("Confermate")}</option>
+          <option value="pending">{t("In attesa")}</option>
+          {c.showCosts && <option value="unpriced">{t("Da valorizzare")}</option>}
         </UniformSelect>
       </div>
       <div
@@ -149,27 +151,26 @@ export function DailyHoursLedger({
         aria-live="polite"
       >
         <span>
-          {filtered.length} registrazioni
-          {hasFilters ? ` su ${lines.length}` : " nel mese"} ·{" "}
-          {orePresenze(filtered.reduce((sum, r) => sum + r.hours, 0))}
-          {hasFilters ? " nei risultati" : " complessive"}
+          {hasFilters
+            ? t("{n} registrazioni su {totale} · {ore} nei risultati", { n: filtered.length, totale: lines.length, ore: orePresenze(filtered.reduce((sum, r) => sum + r.hours, 0)) })
+            : t("{n} registrazioni nel mese · {ore} complessive", { n: filtered.length, ore: orePresenze(filtered.reduce((sum, r) => sum + r.hours, 0)) })}
         </span>
         <div className="flex items-center gap-2">
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-7" onClick={reset}>
-              Azzera filtri
+              {t("Azzera filtri")}
             </Button>
           )}
           {pages > 1 && (
             <nav
-              aria-label="Paginazione rapida registro ore"
+              aria-label={t("Paginazione rapida registro ore")}
               className="flex items-center gap-2"
             >
               <Button
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                aria-label="Pagina precedente delle ore (in alto)"
+                aria-label={t("Pagina precedente delle ore (in alto)")}
                 disabled={currentPage <= 1}
                 onClick={() => setPage(currentPage - 1)}
               >
@@ -182,7 +183,7 @@ export function DailyHoursLedger({
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                aria-label="Pagina successiva delle ore (in alto)"
+                aria-label={t("Pagina successiva delle ore (in alto)")}
                 disabled={currentPage >= pages}
                 onClick={() => setPage(currentPage + 1)}
               >
@@ -195,40 +196,38 @@ export function DailyHoursLedger({
       {!filtered.length ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
           {lines.length
-            ? "Nessuna registrazione corrisponde ai filtri selezionati."
-            : "Nessuna ora nel mese selezionato. Registra la prima giornata."}
+            ? t("Nessuna registrazione corrisponde ai filtri selezionati.")
+            : t("Nessuna ora nel mese selezionato. Registra la prima giornata.")}
         </div>
       ) : (
         <>
           <div className="overflow-hidden rounded-lg border">
             <table className="block w-full text-sm md:table">
-              <caption className="sr-only">
-                Registro delle ore per cantiere, pagina {currentPage} di {pages}
-              </caption>
+              <caption className="sr-only">{t("Registro delle ore per cantiere, pagina {currentPage} di {pages}", { currentPage: String(currentPage ?? ""), pages: String(pages ?? "") })}</caption>
               <thead className="hidden bg-slate-50 text-left text-xs text-muted-foreground md:table-header-group">
                 <tr>
                   <th scope="col" className="p-3 font-medium">
-                    Data
+                    {t("Data")}
                   </th>
                   <th scope="col" className="p-3 font-medium">
-                    Dipendente
+                    {t("Dipendente")}
                   </th>
                   <th scope="col" className="p-3 font-medium">
-                    Cantiere / commessa
+                    {t("Cantiere / commessa")}
                   </th>
                   <th scope="col" className="p-3 text-right font-medium">
-                    Ore
+                    {t("Ore")}
                   </th>
                   <th scope="col" className="p-3 font-medium">
-                    Stato
+                    {t("Stato")}
                   </th>
                   {c.showCosts && (
                     <th scope="col" className="p-3 text-right font-medium">
-                      Costo
+                      {t("Costo")}
                     </th>
                   )}
                   <th scope="col" className="p-3">
-                    <span className="sr-only">Azioni</span>
+                    <span className="sr-only">{t("Azioni")}</span>
                   </th>
                 </tr>
               </thead>
@@ -245,24 +244,24 @@ export function DailyHoursLedger({
                       scope="row"
                       className="block py-1 text-left font-medium md:table-cell md:p-3"
                     >
-                      {people.get(r.employeeId) || "Dipendente non disponibile"}
+                      {people.get(r.employeeId) || t("Dipendente non disponibile")}
                     </th>
                     <td className="block min-w-0 py-1 md:table-cell md:max-w-[360px] md:p-3">
                       <p
                         className="break-words text-sm"
                         title={orders.get(r.orderId)}
                       >
-                        {orders.get(r.orderId) || "Commessa non disponibile"}
+                        {orders.get(r.orderId) || t("Commessa non disponibile")}
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {r.office
-                          ? "Inserito dall’ufficio"
-                          : "Rapportino cantiere"}
+                          ? t("Inserito dall’ufficio")
+                          : t("Rapportino cantiere")}
                       </p>
                       {r.note && (
                         <details className="mt-1 text-xs text-muted-foreground">
                           <summary className="w-fit cursor-pointer hover:text-foreground">
-                            Note della registrazione
+                            {t("Note della registrazione")}
                           </summary>
                           <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-slate-50 p-2">
                             {r.note}
@@ -277,17 +276,17 @@ export function DailyHoursLedger({
                       <span
                         className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs ${r.pending ? "bg-orange-50 text-orange-800" : "bg-blue-50 text-blue-700"}`}
                       >
-                        {r.pending ? "In attesa" : "Confermato"}
+                        {r.pending ? t("In attesa") : t("Confermato")}
                       </span>
                     </td>
                     {c.showCosts && (
                       <td className="block whitespace-nowrap py-1 tabular-nums md:table-cell md:p-3 md:text-right">
                         <span className="text-xs text-muted-foreground md:hidden">
-                          Costo:{" "}
+                          {t("Costo:")}{" "}
                         </span>
                         {r.cost === null ? (
                           <span className="text-xs text-orange-700">
-                            Da completare
+                            {t("Da completare")}
                           </span>
                         ) : (
                           formatCurrency(r.cost)
@@ -300,7 +299,7 @@ export function DailyHoursLedger({
                           href={`/azienda/ordini/${r.orderId}?tab=cantiere&vista_cantiere=diario#section-rapportini`}
                           className="inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         >
-                          Apri rapportini
+                          {t("Apri rapportini")}
                           <ArrowUpRight
                             aria-hidden="true"
                             className="h-3.5 w-3.5"
@@ -314,7 +313,7 @@ export function DailyHoursLedger({
                             className="h-7 text-xs text-muted-foreground hover:text-destructive"
                             onClick={() => onCancel(r.reportId)}
                           >
-                            Annulla registrazione
+                            {t("Annulla registrazione")}
                           </Button>
                         )}
                       </div>
@@ -325,29 +324,25 @@ export function DailyHoursLedger({
             </table>
           </div>
           <nav
-            aria-label="Paginazione registro ore"
+            aria-label={t("Paginazione registro ore")}
             className="flex flex-wrap items-center justify-between gap-3"
           >
-            <p className="text-xs text-muted-foreground">
-              {first}–{last} di {filtered.length} registrazioni
-            </p>
+            <p className="text-xs text-muted-foreground">{t("{first}–{last} di {n} registrazioni", { first: String(first ?? ""), last: String(last ?? ""), n: filtered.length })}</p>
             <div className="flex items-center gap-2">
               <Button
                 size="icon"
                 variant="outline"
-                aria-label="Pagina precedente delle ore"
+                aria-label={t("Pagina precedente delle ore")}
                 disabled={currentPage <= 1}
                 onClick={() => setPage(currentPage - 1)}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-xs tabular-nums">
-                Pagina {currentPage} di {pages}
-              </span>
+              <span className="text-xs tabular-nums">{t("Pagina {n} di {totale}", { n: String(currentPage ?? ""), totale: String(pages ?? "") })}</span>
               <Button
                 size="icon"
                 variant="outline"
-                aria-label="Pagina successiva delle ore"
+                aria-label={t("Pagina successiva delle ore")}
                 disabled={currentPage >= pages}
                 onClick={() => setPage(currentPage + 1)}
               >

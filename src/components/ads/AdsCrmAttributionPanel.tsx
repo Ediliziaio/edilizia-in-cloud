@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { useAdsCrmAttribution, type AdsCrmAttributionCampaign } from "@/hooks/useAdsCrmAttribution";
 import type { AdsOptimizationSeverity } from "@/lib/ads/crmAttribution";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function AdsCrmAttributionPanel({
   companyId,
@@ -23,6 +24,7 @@ export function AdsCrmAttributionPanel({
   companyId?: string;
   campaign: AdsCrmAttributionCampaign;
 }) {
+  const t = useT();
   const { metrics, recommendations, attributionActive, qualityWarnings, source, isLoading } =
     useAdsCrmAttribution({ companyId, campaign });
 
@@ -41,10 +43,10 @@ export function AdsCrmAttributionPanel({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <TrendingUp className="h-5 w-5 text-emerald-600" />
-              KPI CRM e conversioni
+              {t("KPI CRM e conversioni")}
             </CardTitle>
             <CardDescription>
-              Lead, appuntamenti, vendite e valore letti dal CRM esistente.
+              {t("Lead, appuntamenti, vendite e valore letti dal CRM esistente.")}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -56,11 +58,9 @@ export function AdsCrmAttributionPanel({
                   : "border-amber-200 bg-amber-50 text-amber-700"
               }
             >
-              {attributionActive ? "Attribution attiva" : "Attribution da completare"}
+              {attributionActive ? t("Attribution attiva") : t("Attribution da completare")}
             </Badge>
-            <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
-              Spesa: {spendSourceLabel[source]}
-            </Badge>
+            <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">{t("Spesa: {valore}", { valore: t(spendSourceLabel[source] ?? "") })}</Badge>
           </div>
         </div>
       </CardHeader>
@@ -68,18 +68,18 @@ export function AdsCrmAttributionPanel({
         {isLoading ? (
           <div className="flex items-center gap-2 rounded-lg border bg-white p-3 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Calcolo KPI CRM...
+            {t("Calcolo KPI CRM...")}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricTile icon={Users} label="Lead CRM" value={String(metrics.leads)} detail={`CPL ${formatMoney(metrics.costPerLeadCents)}`} />
-            <MetricTile icon={Target} label="Opportunità" value={String(metrics.opportunities)} detail={`${formatPct(metrics.leadToOpportunityRatePct)} dei lead`} />
-            <MetricTile icon={CalendarCheck} label="Appuntamenti" value={String(metrics.appointments)} detail={`Costo ${formatMoney(metrics.costPerAppointmentCents)}`} />
-            <MetricTile icon={Trophy} label="Vendite" value={String(metrics.won)} detail={`CAC ${formatMoney(metrics.costPerSaleCents)}`} />
-            <MetricTile icon={Euro} label="Valore venduto" value={formatMoney(metrics.revenueCents)} detail={`ROAS ${metrics.roas.toFixed(2)}x`} />
-            <MetricTile icon={TrendingUp} label="Spesa rilevata" value={formatMoney(metrics.spendCents)} detail={`Costo/opportunità ${formatMoney(metrics.costPerOpportunityCents)}`} />
-            <MetricTile icon={CalendarCheck} label="App. → vendita" value={formatPct(metrics.appointmentToSaleRatePct)} detail="Qualità commerciale" />
-            <MetricTile icon={Target} label="Opp. → vendita" value={formatPct(metrics.opportunityToSaleRatePct)} detail="Qualità pipeline" />
+            <MetricTile icon={Users} label={t("Lead CRM")} value={String(metrics.leads)} detail={`CPL ${formatMoney(metrics.costPerLeadCents)}`} />
+            <MetricTile icon={Target} label={t("Opportunità")} value={String(metrics.opportunities)} detail={t("{valore} dei lead", { valore: formatPct(metrics.leadToOpportunityRatePct) })} />
+            <MetricTile icon={CalendarCheck} label={t("Appuntamenti")} value={String(metrics.appointments)} detail={t("Costo {valore}", { valore: formatMoney(metrics.costPerAppointmentCents) })} />
+            <MetricTile icon={Trophy} label={t("Vendite")} value={String(metrics.won)} detail={`CAC ${formatMoney(metrics.costPerSaleCents)}`} />
+            <MetricTile icon={Euro} label={t("Valore venduto")} value={formatMoney(metrics.revenueCents)} detail={`ROAS ${metrics.roas.toFixed(2)}x`} />
+            <MetricTile icon={TrendingUp} label={t("Spesa rilevata")} value={formatMoney(metrics.spendCents)} detail={t("Costo/opportunità {valore}", { valore: formatMoney(metrics.costPerOpportunityCents) })} />
+            <MetricTile icon={CalendarCheck} label={t("App. → vendita")} value={formatPct(metrics.appointmentToSaleRatePct)} detail={t("Qualità commerciale")} />
+            <MetricTile icon={Target} label={t("Opp. → vendita")} value={formatPct(metrics.opportunityToSaleRatePct)} detail={t("Qualità pipeline")} />
           </div>
         )}
 
@@ -87,7 +87,7 @@ export function AdsCrmAttributionPanel({
           <div className="rounded-lg border bg-white p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Info className="h-4 w-4 text-slate-500" />
-              Decisione dopo 72 ore
+              {t("Decisione dopo 72 ore")}
             </div>
             <div className="space-y-2">
               {recommendations.map((recommendation) => (
@@ -108,7 +108,7 @@ export function AdsCrmAttributionPanel({
           <div className="rounded-lg border bg-white p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Qualità tracking
+              {t("Qualità tracking")}
             </div>
             {qualityWarnings.length > 0 ? (
               <ul className="space-y-2 text-xs leading-relaxed text-slate-600">
@@ -118,7 +118,7 @@ export function AdsCrmAttributionPanel({
               </ul>
             ) : (
               <p className="text-xs leading-relaxed text-emerald-700">
-                Campagna, CRM e spesa sono collegati abbastanza per leggere CPL, costo appuntamento e costo vendita.
+                {t("Campagna, CRM e spesa sono collegati abbastanza per leggere CPL, costo appuntamento e costo vendita.")}
               </p>
             )}
           </div>
@@ -160,7 +160,7 @@ function recommendationTone(severity: AdsOptimizationSeverity) {
 
 function formatMoney(cents: number) {
   if (!cents) return "0 EUR";
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: cents % 100 === 0 ? 0 : 2, useGrouping: "always" }).format(cents / 100);

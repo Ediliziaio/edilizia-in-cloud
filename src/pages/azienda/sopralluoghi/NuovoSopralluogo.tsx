@@ -64,6 +64,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { OrderSurveyContext } from "@/lib/surveys/orderVisits";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type LinkMode = "nessuno" | "cliente" | "prospect";
 
@@ -99,6 +100,7 @@ export function SurveyCreateForm({
   onCancel?: () => void;
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const tr = useT();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [step, setStep] = useState(1);
@@ -495,8 +497,8 @@ export function SurveyCreateForm({
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!companyId)
-        throw new Error("Apri un’azienda prima di creare il sopralluogo.");
-      if (!selectedModel) throw new Error("Seleziona un modello disponibile.");
+        throw new Error(tr("Apri un’azienda prima di creare il sopralluogo."));
+      if (!selectedModel) throw new Error(tr("Seleziona un modello disponibile."));
       const error = surveyCreationError(zip, scheduledDay, scheduledTime);
       if (error) throw new Error(error);
       const survey = await createSurvey(
@@ -543,11 +545,11 @@ export function SurveyCreateForm({
       return { survey, inAgenda, conCalendario: !!calendarioAgenda };
     },
     onSuccess: ({ survey, inAgenda, conCalendario }) => {
-      toast.success(`Sopralluogo ${survey.code} ${commessa?.appointment ? "aperto" : "creato"}`, {
+      toast.success(commessa?.appointment ? tr("Sopralluogo {codice} aperto", { codice: survey.code ?? "" }) : tr("Sopralluogo {codice} creato", { codice: survey.code ?? "" }), {
         description: inAgenda
-          ? `In agenda il ${format(new Date(`${scheduledDay}T12:00:00`), "d MMMM", { locale: it })} alle ${scheduledTime}.`
+          ? tr("In agenda il {data} alle {ora}.", { data: format(new Date(`${scheduledDay}T12:00:00`), "d MMMM", { locale: dateFnsCampo() }), ora: scheduledTime })
           : conCalendario
-            ? "Creato, ma non è stato possibile metterlo in agenda."
+            ? tr("Creato, ma non è stato possibile metterlo in agenda.")
             : undefined,
       });
       if (onCreated) onCreated(survey.id);
@@ -555,9 +557,9 @@ export function SurveyCreateForm({
     },
     onError: (e) => {
       setSubmitError(
-        e instanceof Error ? e.message : "Creazione non riuscita. Riprova.",
+        e instanceof Error ? e.message : tr("Creazione non riuscita. Riprova."),
       );
-      toast.error("Creazione non riuscita", { description: String(e) });
+      toast.error(tr("Creazione non riuscita"), { description: String(e) });
     },
     onSettled: () => {
       creating.current = false;
@@ -588,14 +590,14 @@ export function SurveyCreateForm({
   ) =>
     [p?.first_name, p?.last_name].filter(Boolean).join(" ") || p?.email || "";
   const stepNames = [
-    "Tipo di rilievo",
-    "Cliente e commessa",
-    "Luogo e organizzazione",
+    tr("Tipo di rilievo"),
+    tr("Cliente e commessa"),
+    tr("Luogo e organizzazione"),
   ];
   const stepHelp = [
-    "Scegli la scheda tecnica da compilare sul posto.",
-    "Collega i dati che hai già, oppure continua senza collegamenti.",
-    "Bastano le informazioni che conosci. Il resto si completa nel rilievo.",
+    tr("Scegli la scheda tecnica da compilare sul posto."),
+    tr("Collega i dati che hai già, oppure continua senza collegamenti."),
+    tr("Bastano le informazioni che conosci. Il resto si completa nel rilievo."),
   ];
   const fieldError = surveyCreationError(zip, scheduledDay, scheduledTime);
   const visibleModels = templatesOrdinati.filter((t) =>
@@ -621,53 +623,53 @@ export function SurveyCreateForm({
   const summary = (
     <>
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-        Il tuo sopralluogo
+        {tr("Il tuo sopralluogo")}
       </p>
       <h3 className="mt-2 text-base font-semibold text-slate-900">
-        {selectedModel?.name || "Scegli un modello"}
+        {selectedModel?.name || tr("Scegli un modello")}
       </h3>
       <dl className="mt-4 space-y-4 text-sm">
         <div>
-          <dt className="mb-1 text-xs text-slate-500">Collegamenti</dt>
+          <dt className="mb-1 text-xs text-slate-500">{tr("Collegamenti")}</dt>
           <dd className="break-words">
             {linkMode === "nessuno"
-              ? "Bozza autonoma"
+              ? tr("Bozza autonoma")
               : opportunityId
-                ? selectedOpportunity?.name || "Opportunità selezionata"
+                ? selectedOpportunity?.name || tr("Opportunità selezionata")
                 : contactId
-                  ? nomeContatto(selectedContact) || "Contatto selezionato"
+                  ? nomeContatto(selectedContact) || tr("Contatto selezionato")
               : commessa?.clientName || (clientId
-                    ? person(selectedCustomer) || "Cliente selezionato"
-                    : "Nessun cliente selezionato")}
+                    ? person(selectedCustomer) || tr("Cliente selezionato")
+                    : tr("Nessun cliente selezionato"))}
             {orderId && (
               <span className="mt-1 block text-xs text-slate-500">
-                {commessa?.orderCode || selectedOrder?.order_code || "Commessa selezionata"}
+                {commessa?.orderCode || selectedOrder?.order_code || tr("Commessa selezionata")}
               </span>
             )}
           </dd>
         </div>
         <div>
-          <dt className="mb-1 text-xs text-slate-500">Cantiere</dt>
+          <dt className="mb-1 text-xs text-slate-500">{tr("Cantiere")}</dt>
           <dd className="break-words">
             {[address.trim(), zip.trim(), city.trim()]
               .filter(Boolean)
-              .join(", ") || "Luogo da completare"}
+              .join(", ") || tr("Luogo da completare")}
           </dd>
         </div>
         <div>
-          <dt className="mb-1 text-xs text-slate-500">Appuntamento</dt>
+          <dt className="mb-1 text-xs text-slate-500">{tr("Appuntamento")}</dt>
           <dd>
             {scheduledDay
-              ? `${format(new Date(`${scheduledDay}T12:00:00`), "d MMMM yyyy", { locale: it })} · ${scheduledTime || "ora da indicare"}`
-              : "Da programmare"}
+              ? `${format(new Date(`${scheduledDay}T12:00:00`), "d MMMM yyyy", { locale: dateFnsCampo() })} · ${scheduledTime || tr("ora da indicare")}`
+              : tr("Da programmare")}
           </dd>
         </div>
         <div>
-          <dt className="mb-1 text-xs text-slate-500">Tecnico</dt>
+          <dt className="mb-1 text-xs text-slate-500">{tr("Tecnico")}</dt>
           <dd className="break-words">
             {technicianId
-              ? person(selectedMember) || "Tecnico selezionato"
-              : "Da assegnare"}
+              ? person(selectedMember) || tr("Tecnico selezionato")
+              : tr("Da assegnare")}
           </dd>
         </div>
       </dl>
@@ -681,7 +683,7 @@ export function SurveyCreateForm({
             className="min-h-9 rounded-lg"
             onClick={() => go(1)}
           >
-            Cambia modello
+            {tr("Cambia modello")}
           </Button>
           {!commessa && <Button
             type="button"
@@ -691,13 +693,12 @@ export function SurveyCreateForm({
             className="min-h-9 rounded-lg"
             onClick={() => go(2)}
           >
-            Cambia collegamenti
+            {tr("Cambia collegamenti")}
           </Button>}
         </div>
       )}
       <p className="mt-4 border-t pt-3 text-xs leading-relaxed text-slate-500">
-        Si crea una bozza, senza firma o invio al cliente. Dopo la creazione
-        potrai inserire ambienti, misure, foto e posizionamenti.
+        {tr("Si crea una bozza, senza firma o invio al cliente. Dopo la creazione potrai inserire ambienti, misure, foto e posizionamenti.")}
       </p>
     </>
   );
@@ -708,7 +709,7 @@ export function SurveyCreateForm({
           type="button"
           variant="outline"
           size="icon"
-          aria-label={step > 1 ? "Torna al passaggio precedente" : "Torna ai sopralluoghi"}
+          aria-label={step > 1 ? tr("Torna al passaggio precedente") : tr("Torna ai sopralluoghi")}
           className="h-11 w-11 shrink-0 rounded-xl"
           disabled={createMutation.isPending}
           onClick={() =>
@@ -719,27 +720,27 @@ export function SurveyCreateForm({
         </Button>
         <div>
           <p className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 max-md:hidden">
-            Nuovo sopralluogo
+            {tr("Nuovo sopralluogo")}
           </p>
           <h1 className="text-xl font-semibold tracking-tight text-slate-900 max-md:text-base sm:text-2xl">
-            Prepara il rilievo, poi lavora sul posto.
+            {tr("Prepara il rilievo, poi lavora sul posto.")}
           </h1>
           <p className="mt-1 text-sm text-slate-500 max-md:hidden">
-            Modello, collegamenti e appuntamento in un unico percorso.
+            {tr("Modello, collegamenti e appuntamento in un unico percorso.")}
           </p>
         </div>
       </header>
-      {commessa && <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm"><span className="font-medium">{commessa.orderCode || "Commessa corrente"}</span>{commessa.clientName ? ` · ${commessa.clientName}` : ""}<p className="mt-1 text-xs text-muted-foreground">Cliente e commessa sono già collegati. Qui prepari solo il sopralluogo.</p></div>}
+      {commessa && <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm"><span className="font-medium">{commessa.orderCode || tr("Commessa corrente")}</span>{commessa.clientName ? ` · ${commessa.clientName}` : ""}<p className="mt-1 text-xs text-muted-foreground">{tr("Cliente e commessa sono già collegati. Qui prepari solo il sopralluogo.")}</p></div>}
       {!companyId && (
         <p
           role="alert"
           className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm"
         >
-          Apri un’azienda per continuare.
+          {tr("Apri un’azienda per continuare.")}
         </p>
       )}
       <nav
-        aria-label="Passaggi nuovo sopralluogo"
+        aria-label={tr("Passaggi nuovo sopralluogo")}
         className={cn("grid gap-1 rounded-2xl border bg-white p-1.5 shadow-sm",commessa ? "grid-cols-2" : "grid-cols-3")}
       >
         {stepNames.map((name, i) => !commessa || i !== 1 ? (
@@ -768,7 +769,7 @@ export function SurveyCreateForm({
               {step > i + 1 ? <Check className="h-3.5 w-3.5" /> : commessa && i === 2 ? 2 : i + 1}
             </span>
             <span className="min-w-0 font-medium leading-snug sm:hidden">
-              {["Rilievo", "Cliente", "Luogo e data"][i]}
+              {[tr("Rilievo"), tr("Cliente"), tr("Luogo e data")][i]}
             </span>
             <span className="hidden min-w-0 font-medium leading-snug sm:inline">
               {name}
@@ -780,7 +781,7 @@ export function SurveyCreateForm({
         <div className="min-w-0 space-y-4">
           <div className="px-1">
             <p className="text-xs font-medium text-slate-500">
-              Passaggio {commessa && step === 3 ? 2 : step} di {commessa ? 2 : 3}
+              {tr("Passaggio {n} di {totale}", { n: commessa && step === 3 ? 2 : step, totale: commessa ? 2 : 3 })}
             </p>
             <h2
               ref={heading}
@@ -794,26 +795,23 @@ export function SurveyCreateForm({
           <fieldset disabled={createMutation.isPending} className="min-w-0">
             {step === 1 && (
               <section
-                aria-label="Modelli di sopralluogo"
+                aria-label={tr("Modelli di sopralluogo")}
                 className="space-y-4 rounded-2xl border bg-white p-4 sm:p-5"
               >
                 <div className="relative">
                   <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <Input
-                    aria-label="Cerca modello di rilievo"
+                    aria-label={tr("Cerca modello di rilievo")}
                     value={modelSearch}
                     onChange={(e) => setModelSearch(e.target.value)}
-                    placeholder="Cerca infissi, clima, fotovoltaico…"
+                    placeholder={tr("Cerca infissi, clima, fotovoltaico…")}
                     className="min-h-11 rounded-xl pl-9"
                   />
                 </div>
                 {selectedModel &&
                   modelSearch &&
                   !visibleModels.some((t) => t.id === selectedModel.id) && (
-                    <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                      Modello attivo: {selectedModel.name}. Seleziona un
-                      risultato per cambiarlo.
-                    </p>
+                    <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800">{tr("Modello attivo: {nome}. Seleziona un risultato per cambiarlo.", { nome: selectedModel.name })}</p>
                   )}
                 {tplLoading ? (
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -827,7 +825,7 @@ export function SurveyCreateForm({
                     className="rounded-xl bg-orange-50 p-4 text-sm"
                   >
                     <p>
-                      Non riesco a caricare i modelli. Controlla la connessione.
+                      {tr("Non riesco a caricare i modelli. Controlla la connessione.")}
                     </p>
                     <Button
                       type="button"
@@ -835,22 +833,19 @@ export function SurveyCreateForm({
                       className="mt-3 min-h-11 rounded-xl"
                       onClick={() => tplRefetch()}
                     >
-                      Riprova
+                      {tr("Riprova")}
                     </Button>
                   </div>
                 ) : !templatesOrdinati.length ? (
                   <p className="p-4 text-sm text-slate-500">
-                    Nessun modello disponibile per questa azienda.
+                    {tr("Nessun modello disponibile per questa azienda.")}
                   </p>
                 ) : (
                   <>
-                    <p className="text-xs text-slate-500">
-                      {visibleModels.length} modelli · quelli consigliati per la
-                      tua azienda vengono prima
-                    </p>
+                    <p className="text-xs text-slate-500">{tr("{n} modelli · quelli consigliati per la tua azienda vengono prima", { n: visibleModels.length })}</p>
                     <div
                       role="radiogroup"
-                      aria-label="Tipo di rilievo"
+                      aria-label={tr("Tipo di rilievo")}
                       className="grid gap-3 sm:grid-cols-2"
                     >
                       {visibleModels.map((t) => (
@@ -877,11 +872,11 @@ export function SurveyCreateForm({
                             {selectedModel?.id === t.id ? (
                               <span className="flex items-center gap-1 text-xs font-medium text-blue-700">
                                 <Check className="h-4 w-4" />
-                                Selezionato
+                                {tr("Selezionato")}
                               </span>
                             ) : consigliate.includes(t.category) ? (
                               <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600">
-                                Consigliato
+                                {tr("Consigliato")}
                               </span>
                             ) : null}
                           </div>
@@ -895,21 +890,21 @@ export function SurveyCreateForm({
                           )}
                           <p className="mt-3 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                             {t.is_system
-                              ? "Modello standard"
-                              : "Modello della tua azienda"}
+                              ? tr("Modello standard")
+                              : tr("Modello della tua azienda")}
                           </p>
                         </button>
                       ))}
                     </div>
                     {!visibleModels.length && (
                       <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-                        Nessun modello corrisponde alla ricerca.{" "}
+                        {tr("Nessun modello corrisponde alla ricerca.")}{" "}
                         <button
                           type="button"
                           className="font-medium text-blue-700"
                           onClick={() => setModelSearch("")}
                         >
-                          Mostra tutti
+                          {tr("Mostra tutti")}
                         </button>
                       </p>
                     )}
@@ -919,32 +914,32 @@ export function SurveyCreateForm({
             )}
             {step === 2 && (
               <section
-                aria-label="Collegamenti del sopralluogo"
+                aria-label={tr("Collegamenti del sopralluogo")}
                 className="space-y-5 rounded-2xl border bg-white p-4 sm:p-5"
               >
-                {commessa ? <div className="space-y-2 text-sm"><h3 className="font-semibold">Collegato a questa commessa</h3><p>{commessa.orderCode || "Commessa corrente"}{commessa.clientName ? ` · ${commessa.clientName}` : ""}</p><p className="text-xs text-muted-foreground">Il rilievo rimane nella commessa e usa il cliente già presente.</p></div> : <>
+                {commessa ? <div className="space-y-2 text-sm"><h3 className="font-semibold">{tr("Collegato a questa commessa")}</h3><p>{commessa.orderCode || tr("Commessa corrente")}{commessa.clientName ? ` · ${commessa.clientName}` : ""}</p><p className="text-xs text-muted-foreground">{tr("Il rilievo rimane nella commessa e usa il cliente già presente.")}</p></div> : <>
                 <div
                   role="radiogroup"
-                  aria-label="A chi si riferisce"
+                  aria-label={tr("A chi si riferisce")}
                   className="grid gap-2 sm:grid-cols-3"
                 >
                   {[
                     {
                       key: "nessuno" as const,
-                      label: "Collega più avanti",
-                      description: "Crea una bozza autonoma",
+                      label: tr("Collega più avanti"),
+                      description: tr("Crea una bozza autonoma"),
                       icon: ClipboardList,
                     },
                     {
                       key: "cliente" as const,
-                      label: "Cliente o commessa",
-                      description: "Dati già nel gestionale",
+                      label: tr("Cliente o commessa"),
+                      description: tr("Dati già nel gestionale"),
                       icon: UserRound,
                     },
                     {
                       key: "prospect" as const,
-                      label: "Contatto CRM",
-                      description: "Contatto o opportunità",
+                      label: tr("Contatto CRM"),
+                      description: tr("Contatto o opportunità"),
                       icon: Target,
                     },
                   ].map((m) => (
@@ -971,81 +966,79 @@ export function SurveyCreateForm({
                 </div>
                 {linkMode === "nessuno" ? (
                   <p className="rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-600">
-                    Nessun cliente o commessa verrà associato. Potrai aggiungere
-                    i collegamenti quando avrai le informazioni.
+                    {tr("Nessun cliente o commessa verrà associato. Potrai aggiungere i collegamenti quando avrai le informazioni.")}
                   </p>
                 ) : (
                   <>
                     {linkMode === "cliente" ? (
                       <div className="space-y-2">
                         <Label htmlFor="survey-create-client">
-                          Cliente{" "}
+                          {tr("Cliente")}{" "}
                           <span className="font-normal text-slate-400">
-                            · facoltativo
+                            {tr("· facoltativo")}
                           </span>
                         </Label>
                         <SurveyCreatePicker
                           id="survey-create-client"
-                          label="Cliente"
+                          label={tr("Cliente")}
                           value={clientId}
                           options={customers.map((c) => ({
                             id: c.id,
                             label: person(c) || c.id.slice(0, 8),
                           }))}
-                          emptyLabel="Nessun cliente selezionato"
+                          emptyLabel={tr("Nessun cliente selezionato")}
                           onChange={setClientId}
                         />
                         <p className="text-xs text-slate-500">
-                          Puoi scegliere anche soltanto la commessa qui sotto.
+                          {tr("Puoi scegliere anche soltanto la commessa qui sotto.")}
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-4">
                         <div>
                           <Label htmlFor="survey-crm-search">
-                            Cerca nel CRM
+                            {tr("Cerca nel CRM")}
                           </Label>
                           <Input
                             id="survey-crm-search"
                             value={crmSearch}
                             onChange={(e) => setCrmSearch(e.target.value)}
-                            placeholder="Nome del contatto o dell’opportunità…"
+                            placeholder={tr("Nome del contatto o dell’opportunità…")}
                             className="mt-2 min-h-11 rounded-xl"
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="survey-create-opportunity">
-                            Opportunità{" "}
+                            {tr("Opportunità")}{" "}
                             <span className="font-normal text-slate-400">
-                              · facoltativa
+                              {tr("· facoltativa")}
                             </span>
                           </Label>
                           <SurveyCreatePicker
                             id="survey-create-opportunity"
-                            label="Opportunità"
+                            label={tr("Opportunità")}
                             value={opportunityId}
                             options={crmOpps.map((o) => ({
                               id: o.id,
-                              label: o.name || "Opportunità",
+                              label: o.name || tr("Opportunità"),
                             }))}
-                            emptyLabel="Nessuna opportunità selezionata"
+                            emptyLabel={tr("Nessuna opportunità selezionata")}
                             onChange={scegliOpportunita}
                           />
                           <p className="text-xs text-slate-500">
-                            Il contatto dell’opportunità viene collegato
-                            automaticamente.
+                            {tr("Il contatto dell’opportunità viene collegato automaticamente.")}
                           </p>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="survey-create-contact">
-                            Contatto{" "}
+                            {tr("Contatto")}{" "}
                             <span className="font-normal text-slate-400">
-                              · facoltativo
+                              {tr("· facoltativo")}
                             </span>
                           </Label>
                           <SurveyCreatePicker
                             id="survey-create-contact"
-                            label="Contatto"
+                            label={tr("Contatto")}
                             value={contactId}
                             options={crmContacts.map((c) => ({
                               id: c.id,
@@ -1055,14 +1048,13 @@ export function SurveyCreateForm({
                                 c.email ||
                                 c.id.slice(0, 8),
                             }))}
-                            emptyLabel="Nessun contatto selezionato"
+                            emptyLabel={tr("Nessun contatto selezionato")}
                             disabled={!!opportunityId}
                             onChange={scegliContatto}
                           />
                           {!!opportunityId && (
                             <p className="text-xs text-slate-500">
-                              Per scegliere un altro contatto, rimuovi prima
-                              l’opportunità.
+                              {tr("Per scegliere un altro contatto, rimuovi prima l’opportunità.")}
                             </p>
                           )}
                         </div>
@@ -1070,20 +1062,20 @@ export function SurveyCreateForm({
                     )}
                     <div className="space-y-2 border-t pt-4">
                       <Label htmlFor="survey-create-order">
-                        Commessa{" "}
+                        {tr("Commessa")}{" "}
                         <span className="font-normal text-slate-400">
-                          · facoltativa
+                          {tr("· facoltativa")}
                         </span>
                       </Label>
                       <SurveyCreatePicker
                         id="survey-create-order"
-                        label="Commessa"
+                        label={tr("Commessa")}
                         value={orderId}
                         options={(orders || []).map((o) => ({
                           id: o.id,
                           label: `${o.order_code || o.id.slice(0, 8)} · ${o.client_name || "Commessa"}`,
                         }))}
-                        emptyLabel="Nessuna commessa selezionata"
+                        emptyLabel={tr("Nessuna commessa selezionata")}
                         onChange={(id) => {
                           setOrderId(id);
                           const order = orders?.find((o) => o.id === id);
@@ -1099,8 +1091,7 @@ export function SurveyCreateForm({
                         }}
                       />
                       <p className="text-xs text-slate-500">
-                        La scheda sarà visibile anche nella commessa scelta.
-                        Sono elencate le 50 commesse più recenti.
+                        {tr("La scheda sarà visibile anche nella commessa scelta. Sono elencate le 50 commesse più recenti.")}
                       </p>
                     </div>
                   </>
@@ -1111,16 +1102,16 @@ export function SurveyCreateForm({
             {step === 3 && (
               <div className="space-y-4">
                 <section
-                  aria-label="A cosa servono le misure"
+                  aria-label={tr("A cosa servono le misure")}
                   className="space-y-3 rounded-2xl border bg-white p-4 sm:p-5"
                 >
                   <div>
-                    <h3 className="font-semibold">Che sopralluogo è?</h3>
+                    <h3 className="font-semibold">{tr("Che sopralluogo è?")}</h3>
                     <p className="text-xs text-slate-500">
-                      Si ordina ai fornitori solo dalle misure del tecnico.
+                      {tr("Si ordina ai fornitori solo dalle misure del tecnico.")}
                     </p>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Tipo di sopralluogo">
+                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={tr("Tipo di sopralluogo")}>
                     {([
                       ["commerciale", "Commerciale", "Misure di massima, per fare l'offerta."],
                       ["tecnico", "Tecnico", "Misure precise: computo, preventivo e ordini."],
@@ -1138,14 +1129,14 @@ export function SurveyCreateForm({
                             : "border-slate-200 hover:bg-slate-50",
                         )}
                       >
-                        <span className="block text-sm font-medium">{titolo}</span>
-                        <span className="block text-xs text-slate-500">{testo}</span>
+                        <span className="block text-sm font-medium">{tr(titolo)}</span>
+                        <span className="block text-xs text-slate-500">{tr(testo)}</span>
                       </button>
                     ))}
                   </div>
                 </section>
                 <section
-                  aria-label="Luogo del sopralluogo"
+                  aria-label={tr("Luogo del sopralluogo")}
                   className="space-y-4 rounded-2xl border bg-white p-4 sm:p-5"
                 >
                   <div className="flex items-center gap-3">
@@ -1153,9 +1144,9 @@ export function SurveyCreateForm({
                       <MapPin className="h-4 w-4 text-slate-600" />
                     </span>
                     <div>
-                      <h3 className="font-semibold">Dove si svolge?</h3>
+                      <h3 className="font-semibold">{tr("Dove si svolge?")}</h3>
                       <p className="text-xs text-slate-500">
-                        Indica il cantiere, non l’indirizzo di fatturazione.
+                        {tr("Indica il cantiere, non l’indirizzo di fatturazione.")}
                       </p>
                     </div>
                   </div>
@@ -1169,8 +1160,8 @@ export function SurveyCreateForm({
                       comunque scrivere a mano, perché il luogo si può
                       completare durante il rilievo. */}
                   <AddressAutocomplete
-                    label="Indirizzo del cantiere"
-                    searchPlaceholder="Cerca via, civico o città..."
+                    label={tr("Indirizzo del cantiere")}
+                    searchPlaceholder={tr("Cerca via, civico o città...")}
                     editableSearch
                     value={indirizzoCantiere}
                     onChange={(dati) => {
@@ -1182,12 +1173,12 @@ export function SurveyCreateForm({
                   />
                   <p className="text-xs text-slate-500">
                     {address || city
-                      ? "Puoi completare l’indirizzo anche durante il rilievo."
-                      : "Non conosci ancora il luogo? Lascia vuoto e completalo nella bozza."}
+                      ? tr("Puoi completare l’indirizzo anche durante il rilievo.")
+                      : tr("Non conosci ancora il luogo? Lascia vuoto e completalo nella bozza.")}
                   </p>
                 </section>
-                {commessa?.appointment ? <section className="space-y-2 rounded-2xl border bg-white p-4"><h3 className="text-sm font-semibold">Appuntamento già fissato</h3><p className="text-sm">{scheduledDay ? format(new Date(`${scheduledDay}T12:00:00`), "d MMMM yyyy", {locale:it}) : "Data da verificare"}{commessa.appointment.appointment_time ? ` · ${scheduledTime}` : ""}</p><p className="text-xs text-muted-foreground">Il rilievo sarà collegato a questo appuntamento. Data e tecnico si modificano dalla pianificazione.</p></section> : <section
-                  aria-label="Appuntamento e incaricato"
+                {commessa?.appointment ? <section className="space-y-2 rounded-2xl border bg-white p-4"><h3 className="text-sm font-semibold">{tr("Appuntamento già fissato")}</h3><p className="text-sm">{scheduledDay ? format(new Date(`${scheduledDay}T12:00:00`), "d MMMM yyyy", {locale:dateFnsCampo()}) : tr("Data da verificare")}{commessa.appointment.appointment_time ? ` · ${scheduledTime}` : ""}</p><p className="text-xs text-muted-foreground">{tr("Il rilievo sarà collegato a questo appuntamento. Data e tecnico si modificano dalla pianificazione.")}</p></section> : <section
+                  aria-label={tr("Appuntamento e incaricato")}
                   className="space-y-4 rounded-2xl border bg-white p-4 sm:p-5"
                 >
                   <div className="flex items-center gap-3">
@@ -1195,26 +1186,26 @@ export function SurveyCreateForm({
                       <Calendar className="h-4 w-4 text-slate-600" />
                     </span>
                     <div>
-                      <h3 className="font-semibold">Quando e con chi?</h3>
+                      <h3 className="font-semibold">{tr("Quando e con chi?")}</h3>
                       <p className="text-xs text-slate-500">
-                        Facoltativo · puoi organizzarlo anche dopo.
+                        {tr("Facoltativo · puoi organizzarlo anche dopo.")}
                       </p>
                     </div>
                   </div>
                   {/* Prima chi: è il suo calendario a dire quali orari esistono. */}
                   <div className="space-y-2">
                     <Label htmlFor="survey-create-technician">
-                      Tecnico incaricato
+                      {tr("Tecnico incaricato")}
                     </Label>
                     <SurveyCreatePicker
                       id="survey-create-technician"
-                      label="Tecnico"
+                      label={tr("Tecnico")}
                       value={technicianId}
                       options={(members || []).map((m) => ({
                         id: m.id,
                         label: person(m) || m.id.slice(0, 8),
                       }))}
-                      emptyLabel="Da assegnare"
+                      emptyLabel={tr("Da assegnare")}
                       onChange={(id) => {
                         setTechnicianId(id);
                         setCalendarioId(null);
@@ -1223,7 +1214,7 @@ export function SurveyCreateForm({
                   </div>
                   <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="survey-create-day">Data</Label>
+                      <Label htmlFor="survey-create-day">{tr("Data")}</Label>
                       <Popover
                         open={calendarOpen}
                         onOpenChange={setCalendarOpen}
@@ -1233,7 +1224,7 @@ export function SurveyCreateForm({
                             id="survey-create-day"
                             type="button"
                             variant="outline"
-                            aria-label="Data del sopralluogo"
+                            aria-label={tr("Data del sopralluogo")}
                             className="min-h-11 w-full justify-start gap-2 rounded-xl font-normal"
                           >
                             <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
@@ -1242,9 +1233,9 @@ export function SurveyCreateForm({
                                 ? format(
                                     new Date(`${scheduledDay}T12:00:00`),
                                     "d MMM yyyy",
-                                    { locale: it },
+                                    { locale: dateFnsCampo() },
                                   )
-                                : "Da programmare"}
+                                : tr("Da programmare")}
                             </span>
                           </Button>
                         </PopoverTrigger>
@@ -1276,13 +1267,13 @@ export function SurveyCreateForm({
                               setCalendarOpen(false);
                             }}
                           >
-                            Lascia da programmare
+                            {tr("Lascia da programmare")}
                           </Button>
                         </PopoverContent>
                       </Popover>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="survey-create-time">Ora</Label>
+                      <Label htmlFor="survey-create-time">{tr("Ora")}</Label>
                       <Input
                         id="survey-create-time"
                         type="time"
@@ -1296,17 +1287,17 @@ export function SurveyCreateForm({
                   {calendariDelTecnicoScelto.length > 1 && (
                     <div className="space-y-2">
                       <Label htmlFor="survey-create-calendar">
-                        Su quale calendario
+                        {tr("Su quale calendario")}
                       </Label>
                       <SurveyCreatePicker
                         id="survey-create-calendar"
-                        label="Calendario"
+                        label={tr("Calendario")}
                         value={calendarioAgenda?.id ?? null}
                         options={calendariDelTecnicoScelto.map((c) => ({
                           id: c.id,
                           label: c.name,
                         }))}
-                        emptyLabel="Scegli il calendario"
+                        emptyLabel={tr("Scegli il calendario")}
                         onChange={setCalendarioId}
                       />
                     </div>
@@ -1317,14 +1308,14 @@ export function SurveyCreateForm({
                   {scheduledDay && calendarioAgenda && esitoSlot && (
                     <div className="space-y-2 rounded-xl bg-slate-50 p-3">
                       <p className="text-xs text-slate-600">
-                        Calendario «{calendarioAgenda.name}»
+                        {tr("Calendario «{nome}»", { nome: calendarioAgenda.name })}
                         {esitoSlot.fasce.length > 0
                           ? ` · ${esitoSlot.fasce.map((f) => `${f.da}–${f.a}`).join(", ")}`
                           : ""}
                         {(calendarioAgenda.min_notice_minutes ?? 0) > 0
-                          ? ` · preavviso ${calendarioAgenda.min_notice_minutes} min`
+                          ? ` · ${tr("preavviso {n} min", { n: calendarioAgenda.min_notice_minutes ?? 0 })}`
                           : ""}
-                        {` · ${durataSopralluogo(calendarioAgenda)} min`}
+                        {` · ${tr("{n} min", { n: durataSopralluogo(calendarioAgenda) })}`}
                       </p>
                       {esitoSlot.slot.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -1346,8 +1337,8 @@ export function SurveyCreateForm({
                       ) : (
                         <p className="text-xs text-slate-500">
                           {regoleGiorno.length === 0
-                            ? "Questo calendario non ha ancora orari di lavoro impostati: scegli l’ora a mano."
-                            : "Nessun orario libero quel giorno: puoi comunque scegliere l’ora a mano."}
+                            ? tr("Questo calendario non ha ancora orari di lavoro impostati: scegli l’ora a mano.")
+                            : tr("Nessun orario libero quel giorno: puoi comunque scegliere l’ora a mano.")}
                         </p>
                       )}
                     </div>
@@ -1363,38 +1354,37 @@ export function SurveyCreateForm({
                   {scheduledDay && !calendarioAgenda && (
                     <p className="text-xs text-slate-500">
                       {technicianId
-                        ? "Questo tecnico non ha un calendario: l’ora resta libera e il rilievo non occupa nessuno slot."
-                        : "Scegli il tecnico per vedere i suoi orari liberi e fissare il rilievo nel suo calendario."}
+                        ? tr("Questo tecnico non ha un calendario: l’ora resta libera e il rilievo non occupa nessuno slot.")
+                        : tr("Scegli il tecnico per vedere i suoi orari liberi e fissare il rilievo nel suo calendario.")}
                     </p>
                   )}
                 </section>}
                 <details className="rounded-2xl border bg-white p-4 sm:p-5">
                   <summary className="cursor-pointer text-sm font-semibold">
-                    Note e accesso al cantiere{" "}
+                    {tr("Note e accesso al cantiere")}{" "}
                     <span className="font-normal text-slate-400">
-                      · facoltativo
+                      {tr("· facoltativo")}
                     </span>
                     {notes && (
                       <span className="ml-2 text-xs text-blue-700">
-                        Compilate
+                        {tr("Compilate")}
                       </span>
                     )}
                   </summary>
                   <div className="mt-4 space-y-2">
                     <Label htmlFor="survey-create-notes">
-                      Indicazioni per il tecnico
+                      {tr("Indicazioni per il tecnico")}
                     </Label>
                     <Textarea
                       id="survey-create-notes"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       rows={4}
-                      placeholder="Citofono, referente sul posto, accesso al tetto, cosa controllare…"
+                      placeholder={tr("Citofono, referente sul posto, accesso al tetto, cosa controllare…")}
                       className="rounded-xl"
                     />
                     <p className="text-xs text-slate-500">
-                      Misure, foto e dettagli tecnici si aggiungono nella scheda
-                      successiva.
+                      {tr("Misure, foto e dettagli tecnici si aggiungono nella scheda successiva.")}
                     </p>
                   </div>
                 </details>
@@ -1406,12 +1396,12 @@ export function SurveyCreateForm({
               role="alert"
               className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900"
             >
-              {submitError || fieldError}
+              {submitError || (fieldError ? tr(fieldError) : "")}
             </p>
           )}
         </div>
         <aside
-          aria-label="Riepilogo nuovo sopralluogo"
+          aria-label={tr("Riepilogo nuovo sopralluogo")}
           className={cn(
             "min-w-0 rounded-2xl border bg-slate-50 p-4 lg:sticky lg:top-4 lg:block",
             step < 3 && "hidden",
@@ -1431,11 +1421,11 @@ export function SurveyCreateForm({
               onClick={() => go(step - 1)}
             >
               <ArrowLeft className="h-4 w-4" />
-              Indietro
+              {tr("Indietro")}
             </Button>
           ) : (
             <span className="pl-2 text-xs text-slate-500">
-              Scegli il modello
+              {tr("Scegli il modello")}
             </span>
           )}
         </div>
@@ -1446,7 +1436,7 @@ export function SurveyCreateForm({
             className="min-h-11 rounded-xl gap-2 px-5"
             onClick={() => go(step + 1)}
           >
-            Continua
+            {tr("Continua")}
             <ArrowRight className="h-4 w-4" />
           </Button>
         ) : (
@@ -1463,8 +1453,8 @@ export function SurveyCreateForm({
             )}
             <span>
               {createMutation.isPending
-                ? "Creazione…"
-                : "Crea e apri il rilievo"}
+                ? tr("Creazione…")
+                : tr("Crea e apri il rilievo")}
             </span>
           </Button>
         )}

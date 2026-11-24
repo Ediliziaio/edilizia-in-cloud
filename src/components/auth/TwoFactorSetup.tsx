@@ -11,6 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TOTP_TIMEOUT_MS = 15_000;
 
@@ -32,6 +33,7 @@ async function callTotp(action: string, extra: Record<string, string> = {}) {
 type SetupStep = "idle" | "qr" | "verify" | "backup" | "done";
 
 export function TwoFactorSetup() {
+  const t = useT();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<SetupStep>("idle");
@@ -61,7 +63,7 @@ export function TwoFactorSetup() {
       setOtpauthUri(data.otpauth_uri);
       setStep("qr");
     },
-    onError: (err: Error) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   const verifyMutation = useMutation({
@@ -70,9 +72,9 @@ export function TwoFactorSetup() {
       setBackupCodes(data.backup_codes || []);
       setStep("backup");
       queryClient.invalidateQueries({ queryKey: ["totp-status"] });
-      toast({ title: "2FA attivata con successo!" });
+      toast({ title: t("2FA attivata con successo!") });
     },
-    onError: (err: Error) => toast({ title: "Codice non valido", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("Codice non valido"), description: err.message, variant: "destructive" }),
   });
 
   const disableMutation = useMutation({
@@ -81,14 +83,14 @@ export function TwoFactorSetup() {
       setShowDisableDialog(false);
       setDisableCode("");
       queryClient.invalidateQueries({ queryKey: ["totp-status"] });
-      toast({ title: "2FA disattivata" });
+      toast({ title: t("2FA disattivata") });
     },
-    onError: (err: Error) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copiato negli appunti" });
+    toast({ title: t("Copiato negli appunti") });
   };
 
   if (statusLoading) {
@@ -97,10 +99,10 @@ export function TwoFactorSetup() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            Autenticazione a Due Fattori (2FA)
+            {t("Autenticazione a Due Fattori (2FA)")}
           </CardTitle>
           <CardDescription>
-            Verifico lo stato della protezione TOTP del tuo account.
+            {t("Verifico lo stato della protezione TOTP del tuo account.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="py-8 text-center">
@@ -113,17 +115,17 @@ export function TwoFactorSetup() {
   if (statusError) {
     const message = statusError instanceof Error
       ? statusError.message
-      : "Impossibile leggere lo stato 2FA in questo momento.";
+      : t("Impossibile leggere lo stato 2FA in questo momento.");
 
     return (
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            Autenticazione a Due Fattori (2FA)
+            {t("Autenticazione a Due Fattori (2FA)")}
           </CardTitle>
           <CardDescription>
-            Proteggi il tuo account con un codice TOTP da Google Authenticator o app simile.
+            {t("Proteggi il tuo account con un codice TOTP da Google Authenticator o app simile.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -136,7 +138,7 @@ export function TwoFactorSetup() {
             ) : (
               <RefreshCw className="h-3 w-3 mr-2" />
             )}
-            Riprova controllo 2FA
+            {t("Riprova controllo 2FA")}
           </Button>
         </CardContent>
       </Card>
@@ -150,10 +152,10 @@ export function TwoFactorSetup() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Shield className="h-4 w-4" />
-          Autenticazione a Due Fattori (2FA)
+          {t("Autenticazione a Due Fattori (2FA)")}
         </CardTitle>
         <CardDescription>
-          Proteggi il tuo account con un codice TOTP da Google Authenticator o app simile.
+          {t("Proteggi il tuo account con un codice TOTP da Google Authenticator o app simile.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -166,22 +168,20 @@ export function TwoFactorSetup() {
               <ShieldOff className="h-5 w-5 text-muted-foreground" />
             )}
             <span className="font-medium text-sm">
-              {isEnabled ? "2FA Attiva" : "2FA Non attiva"}
+              {isEnabled ? t("2FA Attiva") : t("2FA Non attiva")}
             </span>
             {isEnabled && (
-              <Badge variant="secondary" className="text-xs">
-                {status.backup_codes_remaining}/{status.backup_codes_total} codici backup
-              </Badge>
+              <Badge variant="secondary" className="text-xs">{t("{backup_codes_remaining}/{backup_codes_total} codici backup", { backup_codes_remaining: String(status.backup_codes_remaining ?? ""), backup_codes_total: String(status.backup_codes_total ?? "") })}</Badge>
             )}
           </div>
           {isEnabled ? (
             <Button variant="outline" size="sm" onClick={() => setShowDisableDialog(true)}>
-              Disattiva
+              {t("Disattiva")}
             </Button>
           ) : step === "idle" ? (
             <Button size="sm" onClick={() => setupMutation.mutate()} disabled={setupMutation.isPending}>
               {setupMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-              Configura 2FA
+              {t("Configura 2FA")}
             </Button>
           ) : null}
         </div>
@@ -190,17 +190,17 @@ export function TwoFactorSetup() {
         {step === "qr" && (
           <div className="border rounded-lg p-4 space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-medium">1. Scansiona il QR code con la tua app di autenticazione</p>
+              <p className="text-sm font-medium">{t("1. Scansiona il QR code con la tua app di autenticazione")}</p>
               <div className="flex justify-center p-4 bg-white rounded-lg">
                 <img loading="lazy"
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUri)}`}
-                  alt="QR Code TOTP"
+                  alt={t("QR Code TOTP")}
                   className="w-48 h-48"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Oppure inserisci manualmente questo codice:</p>
+              <p className="text-sm font-medium">{t("Oppure inserisci manualmente questo codice:")}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-muted px-3 py-2 rounded text-xs font-mono break-all">{secret}</code>
                 <Button variant="ghost" size="icon" onClick={() => copyToClipboard(secret)}>
@@ -209,7 +209,7 @@ export function TwoFactorSetup() {
               </div>
             </div>
             <Button onClick={() => setStep("verify")} className="w-full">
-              Continua
+              {t("Continua")}
             </Button>
           </div>
         )}
@@ -217,7 +217,7 @@ export function TwoFactorSetup() {
         {/* Step: Verify */}
         {step === "verify" && (
           <div className="border rounded-lg p-4 space-y-4">
-            <p className="text-sm font-medium">2. Inserisci il codice a 6 cifre dalla tua app</p>
+            <p className="text-sm font-medium">{t("2. Inserisci il codice a 6 cifre dalla tua app")}</p>
             <div className="flex gap-2">
               <Input
                 placeholder="000000"
@@ -231,7 +231,7 @@ export function TwoFactorSetup() {
                 disabled={verifyCode.length !== 6 || verifyMutation.isPending}
               >
                 {verifyMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                Verifica
+                {t("Verifica")}
               </Button>
             </div>
           </div>
@@ -243,9 +243,9 @@ export function TwoFactorSetup() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium">3. Salva i codici di backup</p>
+                <p className="text-sm font-medium">{t("3. Salva i codici di backup")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Questi codici possono essere usati al posto del TOTP se perdi l'accesso alla tua app. Ogni codice può essere usato una sola volta.
+                  {t("Questi codici possono essere usati al posto del TOTP se perdi l'accesso alla tua app. Ogni codice può essere usato una sola volta.")}
                 </p>
               </div>
             </div>
@@ -259,10 +259,10 @@ export function TwoFactorSetup() {
               className="w-full"
               onClick={() => copyToClipboard(backupCodes.join("\n"))}
             >
-              <Copy className="h-4 w-4 mr-2" /> Copia tutti i codici
+              <Copy className="h-4 w-4 mr-2" /> {t("Copia tutti i codici")}
             </Button>
             <Button className="w-full" onClick={() => { setStep("done"); }}>
-              Ho salvato i codici
+              {t("Ho salvato i codici")}
             </Button>
           </div>
         )}
@@ -271,9 +271,9 @@ export function TwoFactorSetup() {
         <AlertDialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Disattivare 2FA?</AlertDialogTitle>
+              <AlertDialogTitle>{t("Disattivare 2FA?")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Inserisci il codice corrente dalla tua app per confermare la disattivazione.
+                {t("Inserisci il codice corrente dalla tua app per confermare la disattivazione.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Input
@@ -284,13 +284,13 @@ export function TwoFactorSetup() {
               className="font-mono text-center text-lg tracking-widest"
             />
             <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => disableMutation.mutate(disableCode)}
                 disabled={disableCode.length !== 6 || disableMutation.isPending}
               >
                 {disableMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                Disattiva
+                {t("Disattiva")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

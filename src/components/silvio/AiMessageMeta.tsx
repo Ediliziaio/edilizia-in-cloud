@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CouncilSubOutput {
   area: string;
@@ -96,6 +97,7 @@ const AREA_LABELS: Record<string, string> = {
 };
 
 export function AiMessageMetaTop({ meta }: { meta?: AiMeta }) {
+  const t = useT();
   if (!meta) return null;
   const showReview = meta.ai_requires_human_review === true;
   const showLowConf = meta.ai_confidence === "low";
@@ -112,7 +114,7 @@ export function AiMessageMetaTop({ meta }: { meta?: AiMeta }) {
         <div className="flex items-start gap-1.5 px-2 py-1.5 bg-amber-50 border border-amber-200 rounded-md text-[11px] text-amber-900">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>
-            <strong>Da verificare prima di agire</strong> — confrontati con il responsabile dell’area.
+            <strong>{t("Da verificare prima di agire")}</strong> {t("— confrontati con il responsabile dell’area.")}
           </span>
         </div>
       )}
@@ -120,14 +122,14 @@ export function AiMessageMetaTop({ meta }: { meta?: AiMeta }) {
         <div className="flex items-start gap-1.5 px-2 py-1 bg-orange-50 border border-orange-200 rounded-md text-[11px] text-orange-800">
           <Sparkles className="h-3 w-3 shrink-0 mt-0.5" />
           <span>
-            <strong>Risposta incerta</strong> — verifica i dati prima di usarla.
+            <strong>{t("Risposta incerta")}</strong> {t("— verifica i dati prima di usarla.")}
           </span>
         </div>
       )}
       {showCouncil && (
         <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700 bg-purple-50">
           <Users className="h-3 w-3 mr-1" />
-          Analisi multi-area · {councilAreasCount} aree
+          {t("Analisi multi-area · {n} aree", { n: councilAreasCount })}
         </Badge>
       )}
     </div>
@@ -174,6 +176,7 @@ export function AiMessageMetaBottom({
 }
 
 function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="border border-purple-200 bg-purple-50/30 rounded-lg overflow-hidden">
@@ -185,7 +188,7 @@ function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
       >
         <span className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-700">
           <Brain className="h-3.5 w-3.5" />
-          Vedi dettagli per area ({subOutputs.length})
+          {t("Vedi dettagli per area ({n})", { n: subOutputs.length })}
         </span>
         <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
           <ChevronDown className="h-4 w-4 text-purple-600" />
@@ -205,7 +208,7 @@ function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
                 <div key={i} className="bg-white border border-purple-100 rounded-md p-2">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[11px] font-semibold text-purple-700">
-                      {AREA_EMOJI[s.area] ?? "•"} {AREA_LABELS[s.area] ?? PERSONA_LABELS[s.persona_key] ?? s.area}
+                      {AREA_EMOJI[s.area] ?? "•"} {AREA_LABELS[s.area] ? t(AREA_LABELS[s.area]) : PERSONA_LABELS[s.persona_key] ? t(PERSONA_LABELS[s.persona_key]) : s.area}
                       <span className="text-[10px] text-slate-400 font-normal ml-1.5">
                         ({s.area})
                       </span>
@@ -216,17 +219,15 @@ function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
                       </Badge>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-500 italic mb-1">
-                    Domanda: {s.sub_query}
-                  </p>
+                  <p className="text-[10px] text-slate-500 italic mb-1">{t("Domanda: {sub_query}", { sub_query: String(s.sub_query ?? "") })}</p>
                   {s.error ? (
-                    <p className="text-[11px] text-red-600">⚠️ Errore: {s.error}</p>
+                    <p className="text-[11px] text-red-600">{t("⚠️ Errore: {error}", { error: String(s.error ?? "") })}</p>
                   ) : s.response ? (
                     <div className="text-[12px] text-slate-700">
                       <ChatMarkdown content={s.response} sources={s.rag_sources} />
                     </div>
                   ) : (
-                    <p className="text-[11px] text-muted-foreground italic">(nessuna risposta)</p>
+                    <p className="text-[11px] text-muted-foreground italic">{t("(nessuna risposta)")}</p>
                   )}
                 </div>
               ))}

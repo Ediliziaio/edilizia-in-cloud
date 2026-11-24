@@ -32,6 +32,7 @@ import {
   useInviiInAttesa, useGestisciInvioSequenza, useStatoEsecuzioneSequenza, useEnrollSequenza,
   type Sequenza, type SequenzaStepDef,
 } from "@/lib/email-ai/hooks";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI: { v: Sequenza["tipo"]; label: string }[] = [
   { v: "followup_preventivo", label: "Follow-up preventivo" },
@@ -66,6 +67,7 @@ function nuovaBozza(companyId: string): Partial<Sequenza> & { company_id: string
 }
 
 export function SequenzeManager() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -87,7 +89,7 @@ export function SequenzeManager() {
   );
 
   if (!companyId) {
-    return <p className="p-4 text-sm text-muted-foreground">Nessuna azienda selezionata.</p>;
+    return <p className="p-4 text-sm text-muted-foreground">{t("Nessuna azienda selezionata.")}</p>;
   }
 
   return (
@@ -96,8 +98,7 @@ export function SequenzeManager() {
       <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
         <p className="text-xs text-blue-900">
-          Le sequenze si fermano <b>da sole</b> appena il destinatario risponde. Di default ogni invio
-          è una <b>bozza che approvi tu</b>; puoi mettere una sequenza in automatico nelle sue impostazioni.
+          {t("Le sequenze si fermano")} <b>{t("da sole")}</b> {t("appena il destinatario risponde. Di default ogni invio è una")} <b>{t("bozza che approvi tu")}</b>{t("; puoi mettere una sequenza in automatico nelle sue impostazioni.")}
         </p>
       </div>
 
@@ -105,11 +106,11 @@ export function SequenzeManager() {
       {(inAttesa?.length ?? 0) > 0 && (
         <section className="space-y-2">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold text-amber-800">
-            <MailWarning className="h-4 w-4" /> Da approvare ({inAttesa!.length})
+            <MailWarning className="h-4 w-4" /> {t("Da approvare ({n})", { n: inAttesa!.length })}
           </h3>
           {inAttesa!.map((inv) => (
             <div key={inv.id} className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
-              <p className="text-sm font-medium text-slate-800">{inv.oggetto || "(senza oggetto)"}</p>
+              <p className="text-sm font-medium text-slate-800">{inv.oggetto || t("(senza oggetto)")}</p>
               {inv.corpo_anteprima && (
                 <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-slate-600">{inv.corpo_anteprima}</p>
               )}
@@ -117,12 +118,12 @@ export function SequenzeManager() {
                 <Button size="sm" className="h-8 gap-1.5"
                   disabled={gestisci.isPending}
                   onClick={() => gestisci.mutate({ invio_id: inv.id, outbox_id: inv.outbox_id, azione: "inviato" })}>
-                  <Send className="h-3.5 w-3.5" /> Approva e invia
+                  <Send className="h-3.5 w-3.5" /> {t("Approva e invia")}
                 </Button>
                 <Button size="sm" variant="outline" className="h-8 gap-1.5"
                   disabled={gestisci.isPending}
                   onClick={() => gestisci.mutate({ invio_id: inv.id, outbox_id: inv.outbox_id, azione: "saltato" })}>
-                  <XCircle className="h-3.5 w-3.5" /> Salta
+                  <XCircle className="h-3.5 w-3.5" /> {t("Salta")}
                 </Button>
               </div>
             </div>
@@ -133,19 +134,19 @@ export function SequenzeManager() {
       {/* 2) LE TUE SEQUENZE */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-800">Le tue sequenze</h3>
+          <h3 className="text-sm font-semibold text-slate-800">{t("Le tue sequenze")}</h3>
           <Button size="sm" className="h-8 gap-1.5" onClick={() => setEditor(nuovaBozza(companyId))}>
-            <Plus className="h-4 w-4" /> Nuova
+            <Plus className="h-4 w-4" /> {t("Nuova")}
           </Button>
         </div>
 
         {loadingSeq ? (
-          <p className="text-xs text-muted-foreground">Caricamento…</p>
+          <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>
         ) : (sequenze?.length ?? 0) === 0 ? (
           <div className="rounded-md border border-dashed bg-slate-50/50 p-4 text-center">
             <Clock className="mx-auto mb-1 h-5 w-5 text-slate-400" />
             <p className="text-xs text-muted-foreground">
-              Nessuna sequenza. Crea il tuo primo follow-up: niente più preventivi dimenticati.
+              {t("Nessuna sequenza. Crea il tuo primo follow-up: niente più preventivi dimenticati.")}
             </p>
           </div>
         ) : (
@@ -154,20 +155,20 @@ export function SequenzeManager() {
               <div key={s.id} className="flex items-center gap-2 rounded-md border bg-white px-3 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate text-sm font-medium text-slate-800">{s.nome || "(senza nome)"}</span>
-                    <Badge variant="outline" className="text-[10px]">{tipoLabel(s.tipo)}</Badge>
+                    <span className="truncate text-sm font-medium text-slate-800">{s.nome || t("(senza nome)")}</span>
+                    <Badge variant="outline" className="text-[10px]">{t(tipoLabel(s.tipo))}</Badge>
                     <Badge variant="outline" className={s.modalita_invio === "automatico"
                       ? "border-orange-200 bg-orange-50 text-[10px] text-orange-700"
                       : "border-blue-200 bg-blue-50 text-[10px] text-blue-700"}>
-                      {s.modalita_invio === "automatico" ? "Automatico" : "Conferma"}
+                      {s.modalita_invio === "automatico" ? t("Automatico") : t("Conferma")}
                     </Badge>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {(s.step?.length ?? 0)} step · max {s.limite_invii_giorno}/giorno
-                    {s.attiva ? " · attiva" : " · in bozza"}
+                    {t("{n} step · max {limite}/giorno", { n: s.step?.length ?? 0, limite: String(s.limite_invii_giorno ?? "") })}
+                    {s.attiva ? ` ${t("· attiva")}` : ` ${t("· in bozza")}`}
                   </p>
                 </div>
-                <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Modifica"
+                <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Modifica")}
                   onClick={() => setEditor({ ...s })}>
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -175,19 +176,19 @@ export function SequenzeManager() {
                   <>
                     <Button size="sm" variant="outline" className="h-8 gap-1.5"
                       onClick={() => setEnrollFor(s)}>
-                      <UserPlus className="h-3.5 w-3.5" /> Arruola
+                      <UserPlus className="h-3.5 w-3.5" /> {t("Arruola")}
                     </Button>
                     <Button size="sm" variant="outline" className="h-8 gap-1.5"
                       disabled={approva.isPending}
                       onClick={() => approva.mutate({ id: s.id, attiva: false })}>
-                      <Pause className="h-3.5 w-3.5" /> Sospendi
+                      <Pause className="h-3.5 w-3.5" /> {t("Sospendi")}
                     </Button>
                   </>
                 ) : (
                   <Button size="sm" className="h-8 gap-1.5"
                     disabled={approva.isPending || (s.step?.length ?? 0) === 0}
                     onClick={() => approva.mutate({ id: s.id, attiva: true })}>
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Approva e attiva
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {t("Approva e attiva")}
                   </Button>
                 )}
               </div>
@@ -199,7 +200,7 @@ export function SequenzeManager() {
       {/* 3) IN CORSO */}
       {attive.length > 0 && (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-slate-800">In corso ({attive.length})</h3>
+          <h3 className="text-sm font-semibold text-slate-800">{t("In corso ({n})", { n: attive.length })}</h3>
           <div className="space-y-1.5">
             {attive.map((e) => {
               const b = STATO_BADGE[e.stato] ?? { label: e.stato, cls: "border-slate-200 bg-slate-50 text-slate-600" };
@@ -208,26 +209,26 @@ export function SequenzeManager() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-slate-800">
                       {e.destinatario_nome || e.destinatario}
-                      <span className="ml-1 text-[11px] text-muted-foreground">· {e.sequenza?.nome ?? tipoLabel(e.sequenza?.tipo ?? "")}</span>
+                      <span className="ml-1 text-[11px] text-muted-foreground">· {e.sequenza?.nome ?? t(tipoLabel(e.sequenza?.tipo ?? ""))}</span>
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Step {e.step_corrente + 1}
-                      {e.prossimo_invio_at ? ` · prossimo: ${new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short" }).format(new Date(e.prossimo_invio_at))}` : ""}
+                      {t("Step {n}", { n: e.step_corrente + 1 })}
+                      {e.prossimo_invio_at ? ` · ${t("prossimo: {data}", { data: new Intl.DateTimeFormat(intlCampo(), { day: "2-digit", month: "short" }).format(new Date(e.prossimo_invio_at)) })}` : ""}
                     </p>
                   </div>
-                  <Badge variant="outline" className={`shrink-0 text-[10px] ${b.cls}`}>{b.label}</Badge>
+                  <Badge variant="outline" className={`shrink-0 text-[10px] ${b.cls}`}>{t(b.label)}</Badge>
                   {e.stato === "in_pausa" ? (
-                    <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Riprendi"
+                    <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Riprendi")}
                       onClick={() => statoEsec.mutate({ id: e.id, stato: "attiva" })}>
                       <Play className="h-4 w-4 text-blue-600" />
                     </Button>
                   ) : (
-                    <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Pausa"
+                    <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Pausa")}
                       onClick={() => statoEsec.mutate({ id: e.id, stato: "in_pausa" })}>
                       <Pause className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Annulla"
+                  <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Annulla")}
                     onClick={() => statoEsec.mutate({ id: e.id, stato: "annullata" })}>
                     <Ban className="h-4 w-4 text-rose-500" />
                   </Button>
@@ -272,6 +273,7 @@ function EnrollDialog({
   onClose: () => void;
   onEnroll: (p: { destinatario: string; destinatario_nome?: string; variabili?: Record<string, unknown> }) => void;
 }) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
   const [importo, setImporto] = useState("");
@@ -281,34 +283,33 @@ function EnrollDialog({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Arruola in “{sequenza.nome}”</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Arruola in “{nome}”", { nome: String(sequenza.nome ?? "") })}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Il primo messaggio partirà dopo {sequenza.step?.[0]?.offset_giorni ?? 0} giorni.
-            Si fermerà da solo se il destinatario risponde.
+            {t("Il primo messaggio partirà dopo {n} giorni. Si fermerà da solo se il destinatario risponde.", { n: sequenza.step?.[0]?.offset_giorni ?? 0 })}
           </p>
           <div>
-            <Label htmlFor="en-email">Email destinatario</Label>
+            <Label htmlFor="en-email">{t("Email destinatario")}</Label>
             <Input id="en-email" type="email" value={email} placeholder="cliente@esempio.it"
               onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div>
-            <Label htmlFor="en-nome">Nome (per {"{{nome}}"})</Label>
+            <Label htmlFor="en-nome">{t("Nome (per {variabile})", { variabile: "{{nome}}" })}</Label>
             <Input id="en-nome" value={nome} placeholder="Mario Rossi" onChange={(e) => setNome(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label htmlFor="en-imp">Importo ({"{{importo}}"})</Label>
+              <Label htmlFor="en-imp">{t("Importo ({variabile})", { variabile: "{{importo}}" })}</Label>
               <Input id="en-imp" value={importo} placeholder="1.500 €" onChange={(e) => setImporto(e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="en-num">Numero ({"{{numero}}"})</Label>
+              <Label htmlFor="en-num">{t("Numero ({variabile})", { variabile: "{{numero}}" })}</Label>
               <Input id="en-num" value={numero} placeholder="PR-2026-014" onChange={(e) => setNumero(e.target.value)} />
             </div>
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button className="gap-1.5" disabled={!emailOk || enrolling}
             onClick={() => onEnroll({
               destinatario: email.trim(),
@@ -320,7 +321,7 @@ function EnrollDialog({
               },
             })}>
             {enrolling ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-            Attiva follow-up
+            {t("Attiva follow-up")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -338,6 +339,7 @@ function SequenzaEditor({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const tr = useT();
   const steps = value.step ?? [];
   const isMarketing = value.tipo === "ricontatto_opportunita" || value.tipo === "altro";
 
@@ -353,45 +355,45 @@ function SequenzaEditor({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{value.id ? "Modifica sequenza" : "Nuova sequenza"}</DialogTitle>
+          <DialogTitle>{value.id ? tr("Modifica sequenza") : tr("Nuova sequenza")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="seq-nome">Nome</Label>
-              <Input id="seq-nome" value={value.nome ?? ""} placeholder="Es. Sollecito preventivi 7 giorni"
+              <Label htmlFor="seq-nome">{tr("Nome")}</Label>
+              <Input id="seq-nome" value={value.nome ?? ""} placeholder={tr("Es. Sollecito preventivi 7 giorni")}
                 onChange={(e) => onChange({ ...value, nome: e.target.value })} />
             </div>
             <div>
-              <Label htmlFor="seq-tipo">Tipo</Label>
+              <Label htmlFor="seq-tipo">{tr("Tipo")}</Label>
               <Select value={value.tipo} onValueChange={(v) => onChange({ ...value, tipo: v as Sequenza["tipo"] })}>
                 <SelectTrigger id="seq-tipo"><SelectValue /></SelectTrigger>
-                <SelectContent>{TIPI.map((t) => <SelectItem key={t.v} value={t.v}>{t.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{TIPI.map((t) => <SelectItem key={t.v} value={t.v}>{tr(t.label)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
 
           {/* Modalità invio — la scelta richiesta */}
           <div className="rounded-md border bg-slate-50/60 p-2.5">
-            <Label htmlFor="seq-mod" className="text-sm">Come inviare</Label>
+            <Label htmlFor="seq-mod" className="text-sm">{tr("Come inviare")}</Label>
             <Select value={value.modalita_invio} onValueChange={(v) => onChange({ ...value, modalita_invio: v as "conferma" | "automatico" })}>
               <SelectTrigger id="seq-mod" className="mt-1 bg-white"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="conferma">Conferma (consigliato): prepariamo il messaggio, lo approvi tu</SelectItem>
-                <SelectItem value="automatico">Automatico: invio da solo (si ferma comunque a risposta/bounce)</SelectItem>
+                <SelectItem value="conferma">{tr("Conferma (consigliato): prepariamo il messaggio, lo approvi tu")}</SelectItem>
+                <SelectItem value="automatico">{tr("Automatico: invio da solo (si ferma comunque a risposta/bounce)")}</SelectItem>
               </SelectContent>
             </Select>
             {value.modalita_invio === "automatico" && (
               <p className="mt-1.5 flex items-start gap-1 text-[11px] text-orange-700">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                In automatico i messaggi partono senza chiederti conferma. Si fermano comunque appena il destinatario risponde, in caso di bounce o disiscrizione.
+                {tr("In automatico i messaggi partono senza chiederti conferma. Si fermano comunque appena il destinatario risponde, in caso di bounce o disiscrizione.")}
               </p>
             )}
           </div>
 
           <div>
-            <Label htmlFor="seq-limite">Limite invii al giorno (azienda)</Label>
+            <Label htmlFor="seq-limite">{tr("Limite invii al giorno (azienda)")}</Label>
             <Input id="seq-limite" type="number" min={1} max={500} value={value.limite_invii_giorno ?? 50}
               onChange={(e) => onChange({ ...value, limite_invii_giorno: Math.max(1, Math.min(500, Number(e.target.value) || 50)) })} />
           </div>
@@ -399,49 +401,49 @@ function SequenzaEditor({
           {/* Step */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Passi della sequenza</Label>
+              <Label>{tr("Passi della sequenza")}</Label>
               <Button size="sm" variant="outline" className="h-7 gap-1" onClick={addStep}>
-                <Plus className="h-3.5 w-3.5" /> Passo
+                <Plus className="h-3.5 w-3.5" /> {tr("Passo")}
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Variabili disponibili: <code>{"{{nome}}"}</code> <code>{"{{importo}}"}</code> <code>{"{{numero}}"}</code> <code>{"{{scadenza}}"}</code>
+              {tr("Variabili disponibili:")} <code>{"{{nome}}"}</code> <code>{"{{importo}}"}</code> <code>{"{{numero}}"}</code> <code>{"{{scadenza}}"}</code>
             </p>
             {steps.map((s, i) => (
               <div key={i} className="rounded-md border p-2.5">
                 <div className="mb-2 flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-600">Passo {i + 1}</span>
+                  <span className="text-xs font-medium text-slate-600">{tr("Passo {i}", { i: i + 1 })}</span>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    dopo
+                    {tr("dopo")}
                     <Input type="number" min={0} className="h-7 w-16" value={s.offset_giorni}
                       onChange={(e) => setStep(i, { offset_giorni: Math.max(0, Number(e.target.value) || 0) })} />
-                    giorni
+                    {tr("giorni")}
                   </div>
                   {steps.length > 1 && (
-                    <Button size="icon" variant="ghost" className="ml-auto h-7 w-7" aria-label="Rimuovi passo" onClick={() => delStep(i)}>
+                    <Button size="icon" variant="ghost" className="ml-auto h-7 w-7" aria-label={tr("Rimuovi passo")} onClick={() => delStep(i)}>
                       <Trash2 className="h-3.5 w-3.5 text-rose-500" />
                     </Button>
                   )}
                 </div>
-                <Input className="mb-2 h-8" placeholder="Oggetto" value={s.oggetto}
+                <Input className="mb-2 h-8" placeholder={tr("Oggetto")} value={s.oggetto}
                   onChange={(e) => setStep(i, { oggetto: e.target.value })} />
-                <Textarea rows={3} placeholder="Testo del messaggio…" value={s.corpo_template}
+                <Textarea rows={3} placeholder={tr("Testo del messaggio…")} value={s.corpo_template}
                   onChange={(e) => setStep(i, { corpo_template: e.target.value })} />
               </div>
             ))}
             {isMarketing && (
               <p className="text-[11px] text-amber-700">
-                Sequenza commerciale: aggiungeremo automaticamente un link di disiscrizione (richiesto dalla normativa).
+                {tr("Sequenza commerciale: aggiungeremo automaticamente un link di disiscrizione (richiesto dalla normativa).")}
               </p>
             )}
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{tr("Annulla")}</Button>
           <Button className="gap-1.5" disabled={!valido || saving} onClick={onSave}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva bozza
+            {tr("Salva bozza")}
           </Button>
         </DialogFooter>
       </DialogContent>

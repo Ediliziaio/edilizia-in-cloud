@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageSquare, StickyNote } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORI_NOTE = [
   "#fef9c3", "#dbeafe", "#dcfce7", "#fef3c7", "#ccfbf1",
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function WorkflowNotesPanel({ flowId }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const [nota, setNota] = useState("");
   const [salvata, setSalvata] = useState(false);
@@ -68,7 +70,7 @@ export function WorkflowNotesPanel({ flowId }: Props) {
         {/* Color palette */}
         <div>
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-            Colore sfondo nota
+            {t("Colore sfondo nota")}
           </p>
           <div className="grid grid-cols-5 gap-1.5">
             {COLORI_NOTE.map((c) => (
@@ -88,7 +90,7 @@ export function WorkflowNotesPanel({ flowId }: Props) {
             onClick={() => cambiaColore.mutate(null)}
             className="mt-2 text-[11px] text-muted-foreground hover:text-foreground underline"
           >
-            Rimuovi colore
+            {t("Rimuovi colore")}
           </button>
         </div>
 
@@ -97,13 +99,13 @@ export function WorkflowNotesPanel({ flowId }: Props) {
           <div className="flex items-center gap-2 mb-2">
             <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Nota Flusso
+              {t("Nota Flusso")}
             </label>
           </div>
           <textarea
             value={nota}
             onChange={(e) => setNota(e.target.value)}
-            placeholder="Aggiungi una nota..."
+            placeholder={t("Aggiungi una nota...")}
             rows={6}
             maxLength={5000}
             style={{ backgroundColor: flow?.note_color || undefined }}
@@ -115,7 +117,7 @@ export function WorkflowNotesPanel({ flowId }: Props) {
               onClick={() => salvaNota.mutate(nota)}
               className="text-xs text-primary hover:underline font-medium"
             >
-              {salvata ? "Salvato!" : "Salva nota"}
+              {salvata ? t("Salvato!") : t("Salva nota")}
             </button>
           </div>
         </div>
@@ -125,11 +127,11 @@ export function WorkflowNotesPanel({ flowId }: Props) {
           <div className="flex items-center gap-2 mb-2">
             <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Note Azione
+              {t("Note Azione")}
             </label>
           </div>
           <p className="text-sm text-muted-foreground italic py-4 text-center border border-dashed border-border rounded-lg">
-            Seleziona un'azione per aggiungere note specifiche
+            {t("Seleziona un'azione per aggiungere note specifiche")}
           </p>
         </div>
       </div>

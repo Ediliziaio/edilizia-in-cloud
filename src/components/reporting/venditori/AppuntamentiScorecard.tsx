@@ -5,10 +5,12 @@ import { Calendar, CheckCircle, XCircle, ArrowRight, HelpCircle } from "lucide-r
 import type { VendorKPI } from "@/hooks/useVendorReport";
 import { semaforoVenditori, tassoTesto } from "@/lib/reporting/venditoriRegole";
 import type { LucideIcon } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props { kpi: VendorKPI | null; isLoading: boolean; }
 
 export function AppuntamentiScorecard({ kpi, isLoading }: Props) {
+  const t = useT();
   if (isLoading) {
     return (
       <Card>
@@ -38,12 +40,12 @@ export function AppuntamentiScorecard({ kpi, isLoading }: Props) {
   const noShow = kpi?.appuntamenti_no_show ?? 0;
 
   const rows: { label: string; value: string | number; icon: LucideIcon; color: string }[] = [
-    { label: "Appuntamenti Fissati", value: fissati, icon: Calendar, color: "text-blue-600" },
-    { label: "Effettuati (Show-up)", value: effettuati, icon: CheckCircle, color: "text-green-600" },
-    { label: "No-Show", value: noShow, icon: XCircle, color: "text-red-500" },
-    { label: "Futuri o senza esito", value: Math.max(0, fissati - effettuati - noShow), icon: HelpCircle, color: "text-muted-foreground" },
-    { label: "App → Opportunità", value: tassoTesto(kpi?.tasso_app_to_opp), icon: ArrowRight, color: "text-indigo-600" },
-    { label: "App → Chiusura", value: tassoTesto(kpi?.tasso_app_to_close), icon: ArrowRight, color: "text-green-700" },
+    { label: t("Appuntamenti Fissati"), value: fissati, icon: Calendar, color: "text-blue-600" },
+    { label: t("Effettuati (Show-up)"), value: effettuati, icon: CheckCircle, color: "text-green-600" },
+    { label: t("No-Show"), value: noShow, icon: XCircle, color: "text-red-500" },
+    { label: t("Futuri o senza esito"), value: Math.max(0, fissati - effettuati - noShow), icon: HelpCircle, color: "text-muted-foreground" },
+    { label: t("App → Opportunità"), value: tassoTesto(kpi?.tasso_app_to_opp), icon: ArrowRight, color: "text-indigo-600" },
+    { label: t("App → Chiusura"), value: tassoTesto(kpi?.tasso_app_to_close), icon: ArrowRight, color: "text-green-700" },
   ];
 
   return (
@@ -52,14 +54,14 @@ export function AppuntamentiScorecard({ kpi, isLoading }: Props) {
       <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-1.5">
         <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
           <Calendar className="h-4 w-4 max-sm:hidden" />
-          Appuntamenti
+          {t("Appuntamenti")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 max-sm:space-y-0 max-sm:p-3 max-sm:pt-0">
         {/* Show-up rate prominente */}
         <div className="space-y-2 max-sm:hidden">
           <div className="flex items-baseline justify-between">
-            <span className="text-sm text-muted-foreground">Show-Up Rate</span>
+            <span className="text-sm text-muted-foreground">{t("Show-Up Rate")}</span>
             <span className={`text-2xl font-bold ${showUpColor}`}>{tassoTesto(showUp)}</span>
           </div>
           <Progress value={showUp ?? 0} className="h-2" />

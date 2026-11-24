@@ -29,6 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
   { value: "this_month",   label: "Questo mese"      },
@@ -45,6 +46,7 @@ const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
 const PERIOD_VALUES = new Set<PeriodPreset>(PERIODS.map((period) => period.value));
 
 export default function CruscottoDashboardPage() {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { role } = useAuth();
@@ -144,12 +146,12 @@ export default function CruscottoDashboardPage() {
         onValueChange={(v) => selectPeriod(v === "none" ? "" : (v as PeriodPreset))}
       >
         <SelectTrigger className="h-10 md:h-8 w-[155px] text-sm md:text-xs">
-          <SelectValue placeholder="Periodo" />
+          <SelectValue placeholder={t("Periodo")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Periodo widget</SelectItem>
+          <SelectItem value="none">{t("Periodo widget")}</SelectItem>
           {PERIODS.map((p) => (
-            <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            <SelectItem key={p.value} value={p.value}>{t(p.label)}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -168,7 +170,7 @@ export default function CruscottoDashboardPage() {
         <Button asChild size="sm" className="h-8 gap-1.5">
           <Link to={`/azienda/dashboards/${activeDashId}/modifica`}>
             <Pencil className="h-3.5 w-3.5" />
-            Modifica
+            {t("Modifica")}
           </Link>
         </Button>
       )}
@@ -179,7 +181,7 @@ export default function CruscottoDashboardPage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <DashboardSelectorBar
-        title={activeDash?.name ?? "Dashboard"}
+        title={activeDash?.name ?? t("Dashboard")}
         activeDashId={activeDashId}
         onSelectCustomDash={selectDash}
         actions={barActions}
@@ -193,14 +195,14 @@ export default function CruscottoDashboardPage() {
               <LayoutGrid className="h-8 w-8 text-muted-foreground/50" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold">Cruscotto pronto</h2>
+              <h2 className="text-lg font-semibold">{t("Cruscotto pronto")}</h2>
               <p className="text-sm text-muted-foreground max-w-xs">
-                Non ci sono ancora dashboard personalizzate, ma puoi aprire subito il cruscotto aziendale.
+                {t("Non ci sono ancora dashboard personalizzate, ma puoi aprire subito il cruscotto aziendale.")}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button onClick={() => navigate("/azienda/cruscotto/aziendale")} className="gap-2">
-                Apri cruscotto aziendale
+                {t("Apri cruscotto aziendale")}
                 <ArrowRight className="h-4 w-4" />
               </Button>
               <Button
@@ -209,33 +211,33 @@ export default function CruscottoDashboardPage() {
                 className="gap-2"
               >
                 <Plus className="h-4 w-4" />
-                Crea dashboard
+                {t("Crea dashboard")}
               </Button>
             </div>
           </div>
         ) : !activeDashId ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
             <LayoutGrid className="h-10 w-10 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">Seleziona una dashboard dal menu</p>
+            <p className="text-sm text-muted-foreground">{t("Seleziona una dashboard dal menu")}</p>
           </div>
         ) : dash.error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-destructive">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Non sono riuscito a caricare questa dashboard. Riprova tra qualche secondo.</span>
+              <span>{t("Non sono riuscito a caricare questa dashboard. Riprova tra qualche secondo.")}</span>
             </div>
             <Button variant="outline" size="sm" onClick={() => dash.refetch()} className="self-start sm:self-auto">
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : resolved.error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-destructive">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Dashboard caricata, ma alcuni dati non sono disponibili. Riprova per aggiornare i widget.</span>
+              <span>{t("Dashboard caricata, ma alcuni dati non sono disponibili. Riprova per aggiornare i widget.")}</span>
             </div>
             <Button variant="outline" size="sm" onClick={() => resolved.refetch()} className="self-start sm:self-auto">
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : dash.isLoading || !layout || (resolved.isLoading && !resolved.data) ? (

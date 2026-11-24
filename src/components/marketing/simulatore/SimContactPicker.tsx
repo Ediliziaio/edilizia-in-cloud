@@ -31,6 +31,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SimContactLite {
   id: string;
@@ -43,7 +44,7 @@ const simContactLabel = (c: {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
-}) => `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Senza nome";
+}, t: ReturnType<typeof useT>) => `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || t("Senza nome");
 
 interface SimContactPickerProps {
   /** Contatto attualmente selezionato (per render del trigger e del check). */
@@ -62,9 +63,10 @@ export function SimContactPicker({
   onSelect,
   onClear,
   size = "default",
-  placeholder = "Collega un contatto dal CRM…",
+  placeholder,
   className,
 }: SimContactPickerProps) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -109,15 +111,15 @@ export function SimContactPicker({
           >
             <UserRound className="h-3.5 w-3.5 shrink-0" />
             {value ? (
-              <span className="truncate">{simContactLabel(value)}</span>
+              <span className="truncate">{simContactLabel(value, t)}</span>
             ) : (
-              <span>Collega cliente</span>
+              <span>{t("Collega cliente")}</span>
             )}
             {value ? (
               <X
                 className="h-3.5 w-3.5 shrink-0 opacity-70 transition hover:opacity-100"
                 role="button"
-                aria-label="Scollega cliente"
+                aria-label={t("Scollega cliente")}
                 onClick={(e) => {
                   e.stopPropagation();
                   onClear();
@@ -138,16 +140,16 @@ export function SimContactPicker({
             <span className="flex min-w-0 items-center gap-2">
               <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
               {value ? (
-                <span className="truncate">{simContactLabel(value)}</span>
+                <span className="truncate">{simContactLabel(value, t)}</span>
               ) : (
-                <span className="text-muted-foreground">{placeholder}</span>
+                <span className="text-muted-foreground">{placeholder ?? t("Collega un contatto dal CRM…")}</span>
               )}
             </span>
             {value ? (
               <X
                 className="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
                 role="button"
-                aria-label="Scollega cliente"
+                aria-label={t("Scollega cliente")}
                 onClick={(e) => {
                   e.stopPropagation();
                   onClear();
@@ -165,13 +167,13 @@ export function SimContactPicker({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Cerca contatto…"
+            placeholder={t("Cerca contatto…")}
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
             <CommandEmpty>
-              {isFetching ? "Ricerca…" : "Nessun contatto trovato"}
+              {isFetching ? t("Ricerca…") : t("Nessun contatto trovato")}
             </CommandEmpty>
             <CommandGroup>
               {contatti.map((c) => (
@@ -189,7 +191,7 @@ export function SimContactPicker({
                       value?.id === c.id ? "opacity-100" : "opacity-0",
                     )}
                   />
-                  <span className="truncate">{simContactLabel(c)}</span>
+                  <span className="truncate">{simContactLabel(c, t)}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

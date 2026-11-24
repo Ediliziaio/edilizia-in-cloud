@@ -35,6 +35,7 @@ import { GraficoAndamento } from "@/components/charts/grafici/GraficoAndamento";
 import { GraficoRicaviCosti } from "@/components/charts/grafici/GraficoRicaviCosti";
 import { Comparsa, PillolaVariazione, StatGrafico } from "@/components/charts/grafici/comune";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, sostituisci } from "@/lib/campo/lingua/LinguaCampo";
 // Nei testi il mese per intero: «la cassa di ottobre», non «di Ott».
 const MESI_INTERI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
@@ -108,6 +109,7 @@ const ACTION_PRIORITY_STYLES: Record<ActionPriority, string> = {
 const AZIONI_GIA_NEGLI_AVVISI = new Set(["cassa-negativa", "commesse-in-perdita", "budget-ricavi"]);
 
 export function TabDashboard({ anno }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const ce  = useCEriclassificato(anno, 1, 12);
   const sp  = useStatoPatrimoniale(anno);
@@ -164,33 +166,33 @@ export function TabDashboard({ anno }: Props) {
   const varPct = (attuale: number, prec: number | undefined) =>
     !ce.data || prec == null || prec === 0 ? null : ((attuale - prec) / Math.abs(prec)) * 100;
   const notaConfronto = annoChiuso
-    ? `Rispetto al ${anno - 1}`
-    : `Rispetto al 1° gennaio–${oggiData.getDate()} ${MESI_INTERI[meseConfronto - 1]} ${anno - 1}`;
+    ? t("Rispetto al {anno}", { anno: anno - 1 })
+    : t("Rispetto al 1° gennaio–{giorno} {mese} {anno}", { giorno: oggiData.getDate(), mese: t(MESI_INTERI[meseConfronto - 1]), anno: anno - 1 });
 
   const obiettivo = useMemo<Obiettivo | null>(() => {
     if (bdg.data?.haBudget && bdg.data.ricavi.budget > 0) {
       return {
-        titolo: `Obiettivo ricavi ${anno}`,
+        titolo: t("Obiettivo ricavi {anno}", { anno: String(anno ?? "") }),
         fatto: ricavi,
         meta: bdg.data.ricavi.budget,
-        nota: `Con il passo di oggi a fine anno: ${formatEuroRiquadro(bdg.data.ricavi.previsione)}.`,
+        nota: t("Con il passo di oggi a fine anno: {previsione}.", { previsione: formatEuroRiquadro(bdg.data.ricavi.previsione) }),
         href: "/azienda/controllo-gestione/budget",
-        cta: "Budget",
+        cta: t("Budget"),
       };
     }
     const b = bep.data;
     if (b && b.bep_fatturato_minimo != null && b.bep_fatturato_minimo > 0) {
       return {
-        titolo: "Fatturato per andare in pari",
+        titolo: t("Fatturato per andare in pari"),
         fatto: b.ricavi_consuntivi,
         meta: b.bep_fatturato_minimo,
         nota: b.gia_raggiunto
-          ? `Pareggio raggiunto${b.bep_data ? ` il ${formatDate(b.bep_data)}` : ""}: da qui in poi i ricavi lasciano margine.`
+          ? b.bep_data ? t("Pareggio raggiunto il {data}: da qui in poi i ricavi lasciano margine.", { data: formatDate(b.bep_data) }) : t("Pareggio raggiunto: da qui in poi i ricavi lasciano margine.")
           : b.bep_data
-            ? `Pareggio previsto il ${formatDate(b.bep_data)}.`
-            : "Con il passo di oggi il pareggio non arriva entro l'anno.",
+            ? t("Pareggio previsto il {bep_data}.", { bep_data: formatDate(b.bep_data) })
+            : t("Con il passo di oggi il pareggio non arriva entro l'anno."),
         href: "/azienda/controllo-gestione/ce",
-        cta: "Dettaglio",
+        cta: t("Dettaglio"),
       };
     }
     return null;
@@ -202,9 +204,9 @@ export function TabDashboard({ anno }: Props) {
     // Il previsionale parte da oggi: a ottobre sono tre mesi. Il punto «Oggi»
     // (saldo dei conti adesso) dà l'inizio della linea.
     return [
-      { mese: "Oggi", saldo: cf.data.meta.saldo_apertura },
+      { mese: t("Oggi"), saldo: cf.data.meta.saldo_apertura },
       ...cf.data.mesi.map((m) => ({
-        mese: `Fine ${MESI_LABELS[m.mese - 1].toLowerCase()}`,
+        mese: t("Fine {mese}", { mese: t(MESI_LABELS[m.mese - 1]).toLowerCase() }),
         saldo: m.saldo_fine,
       })),
     ];
@@ -234,7 +236,7 @@ export function TabDashboard({ anno }: Props) {
         const primo = sottoZeroMonths[0];
         out.push({
           severity: "rosso",
-          testo: `Cassa sotto zero a ${MESI_INTERI[primo.mese - 1]} (${formatCurrency(primo.saldo_fine)}). Verifica scadenze ed entrate previste.`,
+          testo: t("Cassa sotto zero a {mese} ({saldo_fine}). Verifica scadenze ed entrate previste.", { mese: t(MESI_INTERI[primo.mese - 1]), saldo_fine: formatCurrency(primo.saldo_fine) }),
           href: "/azienda/controllo-gestione/cash-flow",
         });
       }
@@ -243,7 +245,7 @@ export function TabDashboard({ anno }: Props) {
     if (com.data && com.data.kpi.n_in_perdita > 0) {
       out.push({
         severity: "rosso",
-        testo: `${com.data.kpi.n_in_perdita} ${com.data.kpi.n_in_perdita === 1 ? "commessa stimata" : "commesse stimate"} in perdita a fine lavori (margine atteso sotto zero, aperte e chiuse).`,
+        testo: (com.data.kpi.n_in_perdita === 1 ? t("{n} commessa stimata in perdita a fine lavori (margine atteso sotto zero, aperte e chiuse).", { n: com.data.kpi.n_in_perdita }) : t("{n} commesse stimate in perdita a fine lavori (margine atteso sotto zero, aperte e chiuse).", { n: com.data.kpi.n_in_perdita })),
         href: "/azienda/controllo-gestione/commesse",
       });
     }
@@ -251,20 +253,20 @@ export function TabDashboard({ anno }: Props) {
     if (bep.data && bep.data.bep_data && !bep.data.gia_raggiunto) {
       out.push({
         severity: "giallo",
-        testo: `Break Even Point previsto per il ${formatDate(bep.data.bep_data)} (${bep.data.giorni_residui} giorni residui).`,
+        testo: t("Break Even Point previsto per il {bep_data} ({giorni_residui} giorni residui).", { bep_data: formatDate(bep.data.bep_data), giorni_residui: bep.data.giorni_residui }),
       });
     }
 
     if (idx.data?.altman.classe === "distress") {
       out.push({
         severity: "rosso",
-        testo: `Punteggio di solidità (Z-score di Altman) in zona di pericolo: ${formatNumero(idx.data.altman.z_score, 2)}. Rischio di insolvenza elevato.`,
+        testo: t("Punteggio di solidità (Z-score di Altman) in zona di pericolo: {z_score}. Rischio di insolvenza elevato.", { z_score: formatNumero(idx.data.altman.z_score, 2) }),
         href: "/azienda/controllo-gestione/indici",
       });
     } else if (idx.data?.altman.classe === "grey") {
       out.push({
         severity: "giallo",
-        testo: `Punteggio di solidità (Z-score di Altman) in zona grigia: ${formatNumero(idx.data.altman.z_score, 2)}. Da tenere d'occhio.`,
+        testo: t("Punteggio di solidità (Z-score di Altman) in zona grigia: {z_score}. Da tenere d'occhio.", { z_score: formatNumero(idx.data.altman.z_score, 2) }),
         href: "/azienda/controllo-gestione/indici",
       });
     }
@@ -272,7 +274,7 @@ export function TabDashboard({ anno }: Props) {
     if (idx.data?.dscr.valore != null && idx.data.dscr.valore < 1.2 && idx.data.dscr.classe !== "na") {
       out.push({
         severity: "giallo",
-        testo: `Copertura delle rate (DSCR) ${formatNumero(idx.data.dscr.valore, 2)}: sotto la soglia delle banche (1,20). Rinnovare o ottenere mutui sarà difficile.`,
+        testo: t("Copertura delle rate (DSCR) {valore}: sotto la soglia delle banche (1,20). Rinnovare o ottenere mutui sarà difficile.", { valore: formatNumero(idx.data.dscr.valore, 2) }),
         href: "/azienda/controllo-gestione/indici",
       });
     }
@@ -282,7 +284,7 @@ export function TabDashboard({ anno }: Props) {
       if (budgetRicavi.semaforo === "rosso") {
         out.push({
           severity: "rosso",
-          testo: `Ricavi previsti a fine anno ${formatPct(budgetRicavi.scostamentoPct, 0, true)} rispetto al budget: sotto l'obiettivo.`,
+          testo: t("Ricavi previsti a fine anno {scostamentoPct} rispetto al budget: sotto l'obiettivo.", { scostamentoPct: formatPct(budgetRicavi.scostamentoPct, 0, true) }),
           href: "/azienda/controllo-gestione/budget",
         });
       }
@@ -291,10 +293,10 @@ export function TabDashboard({ anno }: Props) {
     if (out.length === 0 && isPreparingDashboard) {
       out.push({
         severity: "giallo",
-        testo: "Indicatori in aggiornamento: le segnalazioni si ricalcolano appena arrivano tutti i dati.",
+        testo: t("Indicatori in aggiornamento: le segnalazioni si ricalcolano appena arrivano tutti i dati."),
       });
     } else if (out.length === 0) {
-      out.push({ severity: "verde", testo: "Nessuna criticità rilevata. Tutti gli indicatori in range." });
+      out.push({ severity: "verde", testo: t("Nessuna criticità rilevata. Tutti gli indicatori in range.") });
     }
     return out;
   }, [cf.data, com.data, bep.data, idx.data, budgetRicavi, isPreparingDashboard]);
@@ -306,13 +308,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "dati-in-aggiornamento",
         priority: "bassa",
-        title: "Sto aggiornando gli indicatori direzionali",
-        reason: "Alcuni dati potrebbero ancora arrivare: le priorità si aggiornano automaticamente.",
-        impact: "Evita una pagina vuota e mantiene leggibile lo stato del modulo.",
-        owner: "Sistema",
-        due: "Ora",
+        title: t("Sto aggiornando gli indicatori direzionali"),
+        reason: t("Alcuni dati potrebbero ancora arrivare: le priorità si aggiornano automaticamente."),
+        impact: t("Evita una pagina vuota e mantiene leggibile lo stato del modulo."),
+        owner: t("Sistema"),
+        due: t("Ora"),
         href: "/azienda/controllo-gestione/health",
-        cta: "Vedi controllo dei dati",
+        cta: t("Vedi controllo dei dati"),
       });
     }
 
@@ -320,13 +322,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "quadratura-bilancio",
         priority: "alta",
-        title: "Riconcilia il bilancio prima di usarlo per decisioni",
-        reason: `Attivo e passivo differiscono di ${formatCurrency(Math.abs(sp.data.quadratura.differenza))}: nella scheda Stato patrimoniale trovi le voci che mancano.`,
-        impact: "Evita analisi e report banca basati su dati non quadrati.",
-        owner: "Amministrazione",
-        due: "Oggi",
+        title: t("Riconcilia il bilancio prima di usarlo per decisioni"),
+        reason: t("Attivo e passivo differiscono di {valore}: nella scheda Stato patrimoniale trovi le voci che mancano.", { valore: formatCurrency(Math.abs(sp.data.quadratura.differenza)) }),
+        impact: t("Evita analisi e report banca basati su dati non quadrati."),
+        owner: t("Amministrazione"),
+        due: t("Oggi"),
         href: "/azienda/controllo-gestione/sp",
-        cta: "Apri stato patrimoniale",
+        cta: t("Apri stato patrimoniale"),
       });
     }
 
@@ -334,13 +336,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "cassa-negativa",
         priority: "alta",
-        title: `Metti in sicurezza la cassa di ${MESI_INTERI[worstCashMonth.mese - 1]}`,
-        reason: `Il saldo previsto scende a ${formatCurrency(worstCashMonth.saldo_fine)}.`,
-        impact: "Priorità a incassi, scadenze fornitori e uscite rinviabili.",
-        owner: "Titolare + amministrazione",
-        due: "Entro 48h",
+        title: t("Metti in sicurezza la cassa di {mese}", { mese: t(MESI_INTERI[worstCashMonth.mese - 1]) }),
+        reason: t("Il saldo previsto scende a {saldo_fine}.", { saldo_fine: formatCurrency(worstCashMonth.saldo_fine) }),
+        impact: t("Priorità a incassi, scadenze fornitori e uscite rinviabili."),
+        owner: t("Titolare + amministrazione"),
+        due: t("Entro 48h"),
         href: "/azienda/controllo-gestione/cash-flow",
-        cta: "Apri cash flow",
+        cta: t("Apri cash flow"),
       });
     }
 
@@ -348,13 +350,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "commesse-in-perdita",
         priority: "alta",
-        title: "Rivedi subito le commesse in perdita",
-        reason: `${com.data?.kpi.n_in_perdita ?? 0} commesse stanno erodendo margine.`,
-        impact: `Margine atteso totale: ${formatCurrency(com.data?.kpi.margine_atteso_totale ?? 0)}.`,
-        owner: "Responsabile commesse",
-        due: "Questa settimana",
+        title: t("Rivedi subito le commesse in perdita"),
+        reason: t("{valore} commesse stanno erodendo margine.", { valore: com.data?.kpi.n_in_perdita ?? 0 }),
+        impact: t("Margine atteso totale: {valore}.", { valore: formatCurrency(com.data?.kpi.margine_atteso_totale ?? 0) }),
+        owner: t("Responsabile commesse"),
+        due: t("Questa settimana"),
         href: "/azienda/controllo-gestione/commesse",
-        cta: "Apri commesse",
+        cta: t("Apri commesse"),
       });
     }
 
@@ -362,13 +364,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "budget-ricavi",
         priority: "media",
-        title: "Riallinea forecast ricavi e piano commerciale",
-        reason: `Ricavi previsti a fine anno ${formatPct(budgetRicavi.scostamentoPct, 0, true)} rispetto al budget.`,
-        impact: "Serve una decisione: recupero vendite, revisione target o taglio costi.",
-        owner: "Direzione commerciale",
-        due: "Entro 7 giorni",
+        title: t("Riallinea forecast ricavi e piano commerciale"),
+        reason: t("Ricavi previsti a fine anno {scostamentoPct} rispetto al budget.", { scostamentoPct: formatPct(budgetRicavi.scostamentoPct, 0, true) }),
+        impact: t("Serve una decisione: recupero vendite, revisione target o taglio costi."),
+        owner: t("Direzione commerciale"),
+        due: t("Entro 7 giorni"),
         href: "/azienda/controllo-gestione/budget",
-        cta: "Apri budget",
+        cta: t("Apri budget"),
       });
     }
 
@@ -376,13 +378,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "rating-bancario",
         priority: "media",
-        title: "Prepara un piano per migliorare il rating bancario",
-        reason: `Classe attuale ${rt.data.classe}, punteggio ${formatNumero(rt.data.score, 1)}.`,
-        impact: "Migliora negoziazione bancaria e accesso a nuove linee.",
-        owner: "Direzione + consulente",
-        due: "Entro mese",
+        title: t("Prepara un piano per migliorare il rating bancario"),
+        reason: t("Classe attuale {classe}, punteggio {score}.", { classe: rt.data.classe, score: formatNumero(rt.data.score, 1) }),
+        impact: t("Migliora negoziazione bancaria e accesso a nuove linee."),
+        owner: t("Direzione + consulente"),
+        due: t("Entro mese"),
         href: "/azienda/controllo-gestione/rating",
-        cta: "Apri rating",
+        cta: t("Apri rating"),
       });
     }
 
@@ -390,13 +392,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "pfn-ebitda",
         priority: "media",
-        title: "Riduci l'indebitamento rispetto alla marginalità",
-        reason: `Debiti finanziari netti pari a ${formatNumero(pfn.data.pfn / ebitda, 1)} anni di margine (PFN/EBITDA): le banche guardano con attenzione sopra 1,5.`,
-        impact: "Riduce pressione su cassa, rating e rinnovo fidi.",
-        owner: "Direzione finanziaria",
-        due: "Prossimi 30 giorni",
+        title: t("Riduci l'indebitamento rispetto alla marginalità"),
+        reason: t("Debiti finanziari netti pari a {valore} anni di margine (PFN/EBITDA): le banche guardano con attenzione sopra 1,5.", { valore: formatNumero(pfn.data.pfn / ebitda, 1) }),
+        impact: t("Riduce pressione su cassa, rating e rinnovo fidi."),
+        owner: t("Direzione finanziaria"),
+        due: t("Prossimi 30 giorni"),
         href: "/azienda/controllo-gestione/pfn-debiti",
-        cta: "Apri PFN",
+        cta: t("Apri PFN"),
       });
     }
 
@@ -404,13 +406,13 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "nessuna-criticita",
         priority: "bassa",
-        title: "Mantieni il ritmo e consolida i dati",
-        reason: "Gli indicatori principali non mostrano blocchi immediati.",
-        impact: "Usa il mese per migliorare forecast, note e classificazioni.",
-        owner: "Direzione",
-        due: "Mensile",
+        title: t("Mantieni il ritmo e consolida i dati"),
+        reason: t("Gli indicatori principali non mostrano blocchi immediati."),
+        impact: t("Usa il mese per migliorare forecast, note e classificazioni."),
+        owner: t("Direzione"),
+        due: t("Mensile"),
         href: "/azienda/controllo-gestione/health",
-        cta: "Controlla dati",
+        cta: t("Controlla dati"),
       });
     }
 
@@ -456,7 +458,7 @@ export function TabDashboard({ anno }: Props) {
     const cleanQuestion = question.trim();
     if (!cleanQuestion) return;
     setCfoQuestion(cleanQuestion);
-    setCfoAnswer(buildCfoAnswer(cleanQuestion, cfoContext));
+    setCfoAnswer(buildCfoAnswer(cleanQuestion, cfoContext, t));
   };
 
   if (ce.isError) {
@@ -531,18 +533,18 @@ export function TabDashboard({ anno }: Props) {
 
       {rt.data && rt.data.attendibile !== true && (
         <div role="alert" className="sm:order-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          <strong>Dati da riconciliare.</strong> Il rating è provvisorio. {(rt.data.motivi ?? []).map(formatImportiNelTesto).join(" · ")}{" "}
-          <Link className="underline" to="/azienda/controllo-gestione/health">Apri controlli dei dati</Link>
+          <strong>{t("Dati da riconciliare.")}</strong> {t("Il rating è provvisorio.")} {(rt.data.motivi ?? []).map(formatImportiNelTesto).join(" · ")}{" "}
+          <Link className="underline" to="/azienda/controllo-gestione/health">{t("Apri controlli dei dati")}</Link>
         </div>
       )}
       {/* Top: 6 KPI macro (tre per riga da 768, sei da 1280) con la variazione */}
       <div className="grid grid-cols-2 gap-2.5 sm:order-2 md:grid-cols-3 xl:grid-cols-6">
         <Comparsa indice={0}>
         <KPIMacro
-          label="Ricavi"
+          label={t("Ricavi")}
           value={ce.data ? ricavi : null}
-          sub={`Fatturato ${anno}, IVA esclusa`}
-          spiegazione="Fatture emesse nell'anno, senza IVA."
+          sub={t("Fatturato {anno}, IVA esclusa", { anno: anno })}
+          spiegazione={t("Fatture emesse nell'anno, senza IVA.")}
           icon={<TrendingUp className="h-3.5 w-3.5" />}
           tone="blue"
           href="/azienda/controllo-gestione/ce"
@@ -554,8 +556,8 @@ export function TabDashboard({ anno }: Props) {
         <KPIMacro
           label="EBITDA"
           value={ce.data ? ebitda : null}
-          sub={ce.data && pil > 0 ? `Margine ${formatPct((ebitda / pil) * 100)}` : "—"}
-          spiegazione="EBITDA (MOL): quanto resta dei ricavi dopo materiali, lavorazioni, personale e spese generali, prima di ammortamenti, interessi e tasse."
+          sub={ce.data && pil > 0 ? t("Margine {valore}", { valore: formatPct((ebitda / pil) * 100) }) : "—"}
+          spiegazione={t("EBITDA (MOL): quanto resta dei ricavi dopo materiali, lavorazioni, personale e spese generali, prima di ammortamenti, interessi e tasse.")}
           icon={<Activity className="h-3.5 w-3.5" />}
           tone={ebitda >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
@@ -565,10 +567,10 @@ export function TabDashboard({ anno }: Props) {
         </Comparsa>
         <Comparsa indice={2}>
         <KPIMacro
-          label="Utile previsto"
+          label={t("Utile previsto")}
           value={ce.data ? utile : null}
-          sub={ce.data && pil > 0 ? `Margine ${formatPct((utile / pil) * 100)}` : "—"}
-          spiegazione="Utile dopo ammortamenti, interessi e imposte stimate. Per l'anno in corso comprende i costi già programmati."
+          sub={ce.data && pil > 0 ? t("Margine {valore}", { valore: formatPct((utile / pil) * 100) }) : "—"}
+          spiegazione={t("Utile dopo ammortamenti, interessi e imposte stimate. Per l'anno in corso comprende i costi già programmati.")}
           icon={<Wallet className="h-3.5 w-3.5" />}
           tone={utile >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
@@ -578,23 +580,23 @@ export function TabDashboard({ anno }: Props) {
         </Comparsa>
         <Comparsa indice={3}>
         <KPIMacro
-          label="Cassa fine anno prevista"
+          label={t("Cassa fine anno prevista")}
           value={cf.data ? cf.data.meta.saldo_chiusura : null}
-          sub={cf.data ? `Oggi ${formatEuroRiquadro(cf.data.meta.saldo_apertura)}` : anno < new Date().getFullYear() ? "Per gli anni chiusi vedi Cash Flow" : "—"}
-          spiegazione="Saldo dei conti a fine anno: saldo di oggi più incassi attesi meno pagamenti in scadenza."
+          sub={cf.data ? t("Oggi {saldo_apertura}", { saldo_apertura: formatEuroRiquadro(cf.data.meta.saldo_apertura) }) : anno < new Date().getFullYear() ? t("Per gli anni chiusi vedi Cash Flow") : "—"}
+          spiegazione={t("Saldo dei conti a fine anno: saldo di oggi più incassi attesi meno pagamenti in scadenza.")}
           icon={<Banknote className="h-3.5 w-3.5" />}
           tone={!cf.data ? "neutral" : cf.data.meta.saldo_chiusura >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/cash-flow"
           variazione={pctCassa}
-          notaVariazione="rispetto al saldo di oggi"
+          notaVariazione={t("rispetto al saldo di oggi")}
         />
         </Comparsa>
         <Comparsa indice={4}>
         <KPIMacro
           label="PFN"
           value={pfn.data ? pfn.data.pfn : null}
-          sub={pfn.data ? (pfn.data.pfn > 0 ? "Più debiti che liquidità" : "Più liquidità che debiti") : "—"}
-          spiegazione="PFN (posizione finanziaria netta): mutui e scoperti meno soldi in banca. Sotto zero vuol dire che la liquidità copre i debiti."
+          sub={pfn.data ? (pfn.data.pfn > 0 ? t("Più debiti che liquidità") : t("Più liquidità che debiti")) : "—"}
+          spiegazione={t("PFN (posizione finanziaria netta): mutui e scoperti meno soldi in banca. Sotto zero vuol dire che la liquidità copre i debiti.")}
           icon={pfn.data && pfn.data.pfn > 0 ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
           tone={!pfn.data ? "neutral" : pfn.data.pfn > 0 ? "amber" : "green"}
           href="/azienda/controllo-gestione/pfn-debiti"
@@ -602,10 +604,10 @@ export function TabDashboard({ anno }: Props) {
         </Comparsa>
         <Comparsa indice={5}>
         <KPIMacro
-          label="Rating bancario"
-          value={rt.data ? rt.data.attendibile === true ? rt.data.classe : "Provvisorio" : "—"}
-          sub={rt.data ? rt.data.attendibile === true ? `Punteggio ${formatNumero(rt.data.score, 1)} · stima interna` : `Stima ${rt.data.classe}, dati da riconciliare` : "—"}
-          spiegazione="Stima interna di come una banca giudica l'azienda, da AAA (ottimo) a CCC. Non è il rating ufficiale della banca."
+          label={t("Rating bancario")}
+          value={rt.data ? rt.data.attendibile === true ? rt.data.classe : t("Provvisorio") : "—"}
+          sub={rt.data ? rt.data.attendibile === true ? t("Punteggio {score} · stima interna", { score: formatNumero(rt.data.score, 1) }) : t("Stima {classe}, dati da riconciliare", { classe: rt.data.classe }) : "—"}
+          spiegazione={t("Stima interna di come una banca giudica l'azienda, da AAA (ottimo) a CCC. Non è il rating ufficiale della banca.")}
           icon={<Shield className="h-3.5 w-3.5" />}
           tone={!rt.data ? "neutral" : rt.data.attendibile !== true ? "amber"
                 : (rt.data.classe === "AAA" || rt.data.classe === "AA" || rt.data.classe === "A") ? "green"
@@ -623,34 +625,34 @@ export function TabDashboard({ anno }: Props) {
           <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2 sm:p-4 sm:pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold sm:text-base">
               <IconaTitolo><Banknote className="h-3.5 w-3.5" /></IconaTitolo>
-              Cassa prevista da oggi a fine {anno}
+              {t("Cassa prevista da oggi a fine {anno}", { anno })}
             </CardTitle>
             <Link to="/azienda/controllo-gestione/cash-flow" className="shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline">
-              Cash flow →
+              {t("Cash flow →")}
             </Link>
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
             {cf.isLoading && !cf.data ? (
               <div className="flex h-56 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-                Dati cassa in aggiornamento...
+                {t("Dati cassa in aggiornamento...")}
               </div>
             ) : anno < new Date().getFullYear() ? (
-              <p className="text-sm text-muted-foreground">Per il {anno} consulta i movimenti registrati. Il previsionale parte dal mese corrente.</p>
+              <p className="text-sm text-muted-foreground">{t("Per il {anno} consulta i movimenti registrati. Il previsionale parte dal mese corrente.", { anno: String(anno ?? "") })}</p>
             ) : datiCassa.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nessun dato di cassa.</p>
+              <p className="text-sm text-muted-foreground">{t("Nessun dato di cassa.")}</p>
             ) : isMobile ? (
               // Telefono: niente grafico (illeggibile a 375px e pesante da
               // montare), i tre numeri che contano.
               <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-                <StatGrafico etichetta="Oggi" valore={formatEuroRiquadro(datiCassa[0].valore)} />
+                <StatGrafico etichetta={t("Oggi")} valore={formatEuroRiquadro(datiCassa[0].valore)} />
                 <StatGrafico
-                  etichetta="Più bassa"
+                  etichetta={t("Più bassa")}
                   valore={formatEuroRiquadro(minimoCassa?.valore ?? 0)}
                   nota={minimoCassa?.etichettaLunga}
                   tono={(minimoCassa?.valore ?? 0) < 0 ? "cattivo" : "neutro"}
                 />
                 <StatGrafico
-                  etichetta="Fine anno"
+                  etichetta={t("Fine anno")}
                   valore={formatEuroRiquadro(datiCassa[datiCassa.length - 1].valore)}
                   tono={datiCassa[datiCassa.length - 1].valore < 0 ? "cattivo" : "neutro"}
                 />
@@ -658,9 +660,9 @@ export function TabDashboard({ anno }: Props) {
             ) : (
               <GraficoAndamento
                 dati={datiCassa}
-                nomeSerie="Saldo"
+                nomeSerie={t("Saldo")}
                 lineaZero
-                notaVariazione="da oggi a fine anno"
+                notaVariazione={t("da oggi a fine anno")}
                 altezza={230}
               />
             )}
@@ -687,19 +689,19 @@ export function TabDashboard({ anno }: Props) {
             <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-4 pb-2">
               <CardTitle className="flex items-center gap-2 text-base font-semibold">
                 <IconaTitolo><BarChart3 className="h-3.5 w-3.5" /></IconaTitolo>
-                Ricavi e costi mese per mese
+                {t("Ricavi e costi mese per mese")}
               </CardTitle>
               <Link to="/azienda/controllo-gestione/ce" className="shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline">
-                Conto economico →
+                {t("Conto economico →")}
               </Link>
             </CardHeader>
             <CardContent className="p-4 pt-0">
               {mensile.isLoading && !mensile.data ? (
                 <div className="flex h-56 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-                  Dati mensili in aggiornamento...
+                  {t("Dati mensili in aggiornamento...")}
                 </div>
               ) : mensile.isError ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">Dati mensili non disponibili.</p>
+                <p className="py-8 text-center text-sm text-muted-foreground">{t("Dati mensili non disponibili.")}</p>
               ) : (
                 <GraficoRicaviCosti righe={mensile.data ?? []} />
               )}
@@ -713,7 +715,7 @@ export function TabDashboard({ anno }: Props) {
           <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2 sm:p-4 sm:pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold sm:text-base">
               <IconaTitolo tono="amber"><AlertTriangle className="h-3.5 w-3.5" /></IconaTitolo>
-              Alert e segnalazioni
+              {t("Alert e segnalazioni")}
             </CardTitle>
             <Badge variant="outline" className="shrink-0 tabular-nums">{alerts.filter((a) => a.severity !== "verde").length}</Badge>
           </CardHeader>
@@ -741,7 +743,7 @@ export function TabDashboard({ anno }: Props) {
                     <p>{a.testo}</p>
                     {a.href && (!isMobile || /cash-flow|commesse/.test(a.href)) && (
                       <Link to={a.href} className="mt-0.5 inline-block text-xs font-medium underline underline-offset-2">
-                        Approfondisci →
+                        {t("Approfondisci →")}
                       </Link>
                     )}
                   </div>
@@ -788,19 +790,20 @@ interface Obiettivo {
  * fatturato che serve per andare in pari (BEP). Barra che cresce all'apertura.
  */
 function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo | null; anno: number; caricamento: boolean }) {
+  const t = useT();
   const scura = "rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700";
   if (!obiettivo) {
     return (
       <div className={scura}>
         <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          <Target className="h-3.5 w-3.5" /> Obiettivo {anno}
+          <Target className="h-3.5 w-3.5" /> {t("Obiettivo {anno}", { anno })}
         </p>
         <p className="mt-2 text-sm text-slate-300">
-          {caricamento ? "Sto calcolando l'obiettivo…" : "Nessun budget dei ricavi e nessun punto di pareggio calcolabile."}
+          {caricamento ? t("Sto calcolando l'obiettivo…") : t("Nessun budget dei ricavi e nessun punto di pareggio calcolabile.")}
         </p>
         {!caricamento && (
           <Link to="/azienda/controllo-gestione/budget" className="mt-3 inline-block text-xs font-medium text-sky-300 underline-offset-2 hover:underline">
-            Imposta il budget →
+            {t("Imposta il budget →")}
           </Link>
         )}
       </div>
@@ -821,7 +824,7 @@ function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo 
       </div>
       <div className="mt-2 flex items-baseline gap-2">
         <span className="text-3xl font-bold tabular-nums tracking-tight">{formatNumero(Math.min(pct, 999), 0)}%</span>
-        <span className="text-xs text-slate-400">{raggiunto ? "raggiunto" : "fatto"}</span>
+        <span className="text-xs text-slate-400">{raggiunto ? t("raggiunto") : t("fatto")}</span>
       </div>
       <div
         className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"
@@ -840,9 +843,9 @@ function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo 
         />
       </div>
       <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-        <div><dt className="text-slate-400">Fatto</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.fatto)}>{formatEuroRiquadro(obiettivo.fatto)}</dd></div>
-        <div><dt className="text-slate-400">Obiettivo</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.meta)}>{formatEuroRiquadro(obiettivo.meta)}</dd></div>
-        <div><dt className="text-slate-400">Manca</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? "niente" : formatEuroRiquadro(manca)}</dd></div>
+        <div><dt className="text-slate-400">{t("Fatto")}</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.fatto)}>{formatEuroRiquadro(obiettivo.fatto)}</dd></div>
+        <div><dt className="text-slate-400">{t("Obiettivo")}</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.meta)}>{formatEuroRiquadro(obiettivo.meta)}</dd></div>
+        <div><dt className="text-slate-400">{t("Manca")}</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? t("niente") : formatEuroRiquadro(manca)}</dd></div>
       </dl>
       <p className="mt-2 border-t border-white/10 pt-2 text-[11px] text-slate-300">{obiettivo.nota}</p>
     </div>
@@ -851,6 +854,7 @@ function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo 
 
 /** Riquadro chiaro dei cantieri: conteggi e una barra divisa per stato. */
 function CardCantieri({ com }: { com: ReturnType<typeof useMarginalitaCommesse> }) {
+  const t = useT();
   const k = com.data?.kpi;
   const totale = k ? k.n_in_corso + k.n_completate : 0;
   return (
@@ -858,14 +862,14 @@ function CardCantieri({ com }: { com: ReturnType<typeof useMarginalitaCommesse> 
       <div className="flex items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-sm font-semibold">
           <IconaTitolo tono="green"><Building className="h-3.5 w-3.5" /></IconaTitolo>
-          Cantieri attivi
+          {t("Cantieri attivi")}
         </p>
         <Link to="/azienda/controllo-gestione/commesse" className="shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline">
-          Commesse →
+          {t("Commesse →")}
         </Link>
       </div>
       {com.isLoading && !com.data ? (
-        <p className="mt-3 text-sm text-muted-foreground">Dati cantieri in aggiornamento...</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("Dati cantieri in aggiornamento...")}</p>
       ) : k ? (
         <>
           {totale > 0 && (
@@ -877,42 +881,43 @@ function CardCantieri({ com }: { com: ReturnType<typeof useMarginalitaCommesse> 
           <ul className="mt-3 grid grid-cols-3 gap-2 text-center">
             <li className="rounded-xl bg-blue-500/10 px-1 py-2">
               <p className="text-lg font-bold tabular-nums leading-none text-blue-700 dark:text-blue-300">{k.n_in_corso}</p>
-              <p className="mt-1 text-[10px] text-muted-foreground">Da completare</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">{t("Da completare")}</p>
             </li>
             <li className="rounded-xl bg-emerald-500/10 px-1 py-2">
               <p className="text-lg font-bold tabular-nums leading-none text-emerald-700 dark:text-emerald-300">{k.n_completate}</p>
-              <p className="mt-1 text-[10px] text-muted-foreground">Completate</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">{t("Completate")}</p>
             </li>
             <li className="rounded-xl bg-rose-500/10 px-1 py-2">
               <p className="text-lg font-bold tabular-nums leading-none text-rose-700 dark:text-rose-300">{k.n_in_perdita}</p>
-              <p className="mt-1 text-[10px] text-muted-foreground">In perdita</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">{t("In perdita")}</p>
             </li>
           </ul>
           <p className="mt-3 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground">
-            Margine atteso totale
+            {t("Margine atteso totale")}
             <strong className={cn("tabular-nums", k.margine_atteso_totale < 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground")}>
               {formatCurrency(k.margine_atteso_totale)}
             </strong>
           </p>
         </>
       ) : (
-        <p className="mt-3 text-sm text-muted-foreground">Nessun dato.</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("Nessun dato.")}</p>
       )}
     </div>
   );
 }
 
 function PartialDataWarning({ onRetry }: { onRetry: () => void }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <div>
-          <p className="font-medium">Alcuni indicatori non sono aggiornati</p>
+          <p className="font-medium">{t("Alcuni indicatori non sono aggiornati")}</p>
         </div>
       </div>
       <Button type="button" variant="outline" size="sm" className="bg-white dark:bg-background" onClick={onRetry}>
-        Riprova indicatori
+        {t("Riprova indicatori")}
       </Button>
     </div>
   );
@@ -931,6 +936,7 @@ function DashboardActionCenter({
   onQuestionChange: (value: string) => void;
   onAsk: (question?: string) => void;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [openActionIds, setOpenActionIds] = useState<Set<string>>(() => new Set());
   const toggleAction = (actionId: string) => {
@@ -953,17 +959,17 @@ function DashboardActionCenter({
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ClipboardList className="h-4 w-4 text-primary" />
-                Regia operativa
+                {t("Regia operativa")}
               </CardTitle>
             </div>
             <Badge variant="outline" className="shrink-0">
-              {actions.length} {actions.length === 1 ? "azione" : "azioni"}
+              {(actions.length === 1 ? t("{n} azione", { n: actions.length }) : t("{n} azioni", { n: actions.length }))}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
           {actions.length === 0 && (
-            <p className="text-sm text-muted-foreground">Le priorità sono in «Alert e segnalazioni».</p>
+            <p className="text-sm text-muted-foreground">{t("Le priorità sono in «Alert e segnalazioni».")}</p>
           )}
           {actions.map((action, index) => (
             <RecommendedActionRow
@@ -984,7 +990,7 @@ function DashboardActionCenter({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Bot className="h-4 w-4 text-blue-700 dark:text-blue-400" />
-            Assistente CFO
+            {t("Assistente CFO")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -999,7 +1005,7 @@ function DashboardActionCenter({
                 onClick={() => onAsk(prompt)}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {prompt}
+                {t(prompt)}
               </Button>
             ))}
           </div>
@@ -1015,7 +1021,7 @@ function DashboardActionCenter({
                 }
               }}
               className="min-h-[86px] resize-none bg-white/85 dark:bg-background/60"
-              placeholder="Es. spiegami cosa fare nei prossimi 7 giorni per migliorare cassa e rating"
+              placeholder={t("Es. spiegami cosa fare nei prossimi 7 giorni per migliorare cassa e rating")}
             />
             {/* Senza le frasi di spiegazione: i suggerimenti e il campo bastano. */}
             <div className="flex items-center justify-end gap-3">
@@ -1026,7 +1032,7 @@ function DashboardActionCenter({
                 disabled={!cfoQuestion.trim()}
               >
                 <Send className="h-4 w-4" />
-                Analizza
+                {t("Analizza")}
               </Button>
             </div>
           </div>
@@ -1050,6 +1056,7 @@ function RecommendedActionRow({
   isOpen: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-xl border bg-card p-3 transition hover:border-primary/30 hover:shadow-sm max-sm:px-2.5 max-sm:py-2">
       {/* Mobile: tutta la riga apre il dettaglio, non solo la freccina. */}
@@ -1089,7 +1096,7 @@ function RecommendedActionRow({
             variant="ghost"
             size="icon"
             className="tap-compact h-8 w-8"
-            aria-label={isOpen ? "Chiudi dettagli azione" : "Apri dettagli azione"}
+            aria-label={isOpen ? t("Chiudi dettagli azione") : t("Apri dettagli azione")}
             aria-expanded={isOpen}
             onClick={onToggle}
           >
@@ -1104,7 +1111,7 @@ function RecommendedActionRow({
           <p className="mt-2 flex items-start gap-1.5 text-xs">
             <Target className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              <span className="font-medium text-foreground">Impatto:</span> {action.impact}
+              <span className="font-medium text-foreground">{t("Impatto:")}</span> {action.impact}
             </span>
           </p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -1130,6 +1137,7 @@ function RecommendedActionRow({
 }
 
 function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
+  const t = useT();
   // Senza risposta niente riquadro «Pronto per analizzare»: ripeteva a parole
   // i suggerimenti e il campo che stanno subito sopra.
   if (!answer) return null;
@@ -1149,7 +1157,7 @@ function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Lettura CFO
+            {t("Lettura CFO")}
           </p>
           <ul className="space-y-1.5 text-sm">
             {answer.focus.map((item) => (
@@ -1162,7 +1170,7 @@ function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
         </div>
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Prossime mosse
+            {t("Prossime mosse")}
           </p>
           <ul className="space-y-1.5 text-sm">
             {answer.nextActions.map((item) => (
@@ -1258,7 +1266,7 @@ function KPIMacro({
   return linkAttivo ? <Link to={linkAttivo} className="block h-full min-w-0">{inner}</Link> : inner;
 }
 
-function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
+function buildCfoAnswer(question: string, context: CfoContext, t: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): CfoAnswer {
   const q = question.toLowerCase();
   // Margini sul PIL (Valore della Produzione), come nel tab CE.
   const ebitdaMargin = context.pil > 0 ? (context.ebitda / context.pil) * 100 : null;
@@ -1267,107 +1275,107 @@ function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
 
   if (q.includes("cassa") || q.includes("cash") || q.includes("liquid")) {
     return {
-      title: "Diagnosi liquidità",
+      title: t("Diagnosi liquidità"),
       summary: context.saldoMinimo !== null && context.saldoMinimo < 0
-        ? `Il punto critico è ${context.meseSaldoMinimo}: saldo previsto ${formatCurrency(context.saldoMinimo)}.`
-        : "La cassa non mostra un minimo negativo evidente, ma va comunque collegata a incassi e PFN.",
+        ? t("Il punto critico è {meseSaldoMinimo}: saldo previsto {saldoMinimo}.", { meseSaldoMinimo: context.meseSaldoMinimo ? t(context.meseSaldoMinimo) : "", saldoMinimo: formatCurrency(context.saldoMinimo) })
+        : t("La cassa non mostra un minimo negativo evidente, ma va comunque collegata a incassi e PFN."),
       focus: [
-        `Saldo fine anno: ${context.saldoChiusura !== null ? formatCurrency(context.saldoChiusura) : "n.d."}.`,
+        t("Saldo fine anno: {valore}.", { valore: context.saldoChiusura !== null ? formatCurrency(context.saldoChiusura) : "n.d." }),
         `PFN: ${context.pfn !== null ? formatCurrency(context.pfn) : "n.d."}.`,
         context.commesseInPerdita > 0
-          ? `${context.commesseInPerdita} commesse in perdita possono peggiorare la cassa nei prossimi mesi.`
-          : "Le commesse non mostrano perdite immediate rilevanti.",
+          ? t("{commesseInPerdita} commesse in perdita possono peggiorare la cassa nei prossimi mesi.", { commesseInPerdita: context.commesseInPerdita })
+          : t("Le commesse non mostrano perdite immediate rilevanti."),
       ],
       nextActions: [
-        "Ordina gli incassi per scadenza e sollecita quelli che coprono il mese peggiore.",
-        "Rimanda uscite non essenziali e verifica F24, fornitori e rate mutui.",
-        "Aggiorna le voci manuali del Cash Flow per vedere subito l'effetto.",
+        t("Ordina gli incassi per scadenza e sollecita quelli che coprono il mese peggiore."),
+        t("Rimanda uscite non essenziali e verifica F24, fornitori e rate mutui."),
+        t("Aggiorna le voci manuali del Cash Flow per vedere subito l'effetto."),
       ],
       links: [
-        { label: "Apri cash flow", href: "/azienda/controllo-gestione/cash-flow" },
-        { label: "Apri PFN", href: "/azienda/controllo-gestione/pfn-debiti" },
+        { label: t("Apri cash flow"), href: "/azienda/controllo-gestione/cash-flow" },
+        { label: t("Apri PFN"), href: "/azienda/controllo-gestione/pfn-debiti" },
       ],
     };
   }
 
   if (q.includes("rating") || q.includes("banca") || q.includes("finanziamento")) {
     return {
-      title: "Piano rating banca",
-      summary: `Classe attuale ${context.ratingClasse ?? "non disponibile (dati da riconciliare)"}${context.ratingScore !== null ? `, punteggio ${formatNumero(context.ratingScore, 1)}` : ""}.`,
+      title: t("Piano rating banca"),
+      summary: t("Classe attuale {classe}{punteggio}.", { classe: context.ratingClasse ?? t("non disponibile (dati da riconciliare)"), punteggio: context.ratingScore !== null ? t(", punteggio {valore}", { valore: formatNumero(context.ratingScore, 1) }) : "" }),
       focus: [
         context.bilancioQuadrato === false
-          ? "Il bilancio non è quadrato: prima va riconciliato, altrimenti il pacchetto banca perde credibilità."
-          : "La quadratura non segnala blocchi prioritari.",
+          ? t("Il bilancio non è quadrato: prima va riconciliato, altrimenti il pacchetto banca perde credibilità.")
+          : t("La quadratura non segnala blocchi prioritari."),
         `PFN: ${context.pfn !== null ? formatCurrency(context.pfn) : "n.d."}.`,
         ebitdaMargin !== null
-          ? `Margine EBITDA: ${formatPct(ebitdaMargin)}.`
-          : "Margine EBITDA non calcolabile perché mancano ricavi.",
+          ? t("Margine EBITDA: {ebitdaMargin}.", { ebitdaMargin: formatPct(ebitdaMargin) })
+          : t("Margine EBITDA non calcolabile perché mancano ricavi."),
       ],
       nextActions: [
-        "Riconcilia le voci patrimoniali e aggiorna classificazioni contabili.",
-        "Riduci esposizione bancaria o dimostra rientri certi nel cash flow.",
-        "Genera il pacchetto banca solo dopo aver risolto le anomalie principali.",
+        t("Riconcilia le voci patrimoniali e aggiorna classificazioni contabili."),
+        t("Riduci esposizione bancaria o dimostra rientri certi nel cash flow."),
+        t("Genera il pacchetto banca solo dopo aver risolto le anomalie principali."),
       ],
       links: [
-        { label: "Apri rating", href: "/azienda/controllo-gestione/rating" },
-        { label: "Pacchetto banca", href: "/azienda/controllo-gestione/pacchetto-banca" },
+        { label: t("Apri rating"), href: "/azienda/controllo-gestione/rating" },
+        { label: t("Pacchetto banca"), href: "/azienda/controllo-gestione/pacchetto-banca" },
       ],
     };
   }
 
   if (q.includes("margine") || q.includes("commess") || q.includes("perd")) {
     return {
-      title: "Analisi margini e commesse",
+      title: t("Analisi margini e commesse"),
       summary: context.commesseInPerdita > 0
-        ? `${context.commesseInPerdita} commesse sono in perdita: qui c'è il primo recupero operativo.`
-        : "Non emergono commesse in perdita, conviene lavorare su forecast e costo atteso.",
+        ? t("{commesseInPerdita} commesse sono in perdita: qui c'è il primo recupero operativo.", { commesseInPerdita: context.commesseInPerdita })
+        : t("Non emergono commesse in perdita, conviene lavorare su forecast e costo atteso."),
       focus: [
-        `Margine atteso commesse: ${context.margineAttesoCommesse !== null ? formatCurrency(context.margineAttesoCommesse) : "n.d."}.`,
-        ebitdaMargin !== null ? `Margine EBITDA: ${formatPct(ebitdaMargin)}.` : "EBITDA non valutabile.",
+        t("Margine atteso commesse: {valore}.", { valore: context.margineAttesoCommesse !== null ? formatCurrency(context.margineAttesoCommesse) : "n.d." }),
+        ebitdaMargin !== null ? t("Margine EBITDA: {ebitdaMargin}.", { ebitdaMargin: formatPct(ebitdaMargin) }) : t("EBITDA non valutabile."),
         context.budgetRicaviVariancePct !== null
-          ? `Ricavi previsti rispetto al budget: ${formatPct(context.budgetRicaviVariancePct, 1, true)}.`
-          : "Budget ricavi non confrontabile.",
+          ? t("Ricavi previsti rispetto al budget: {budgetRicaviVariancePct}.", { budgetRicaviVariancePct: formatPct(context.budgetRicaviVariancePct, 1, true) })
+          : t("Budget ricavi non confrontabile."),
       ],
       nextActions: [
-        "Apri le commesse rosse e separa errori, acquisti extra e variazioni non fatturate.",
-        "Blocca nuove attività non preventivate senza approvazione economica.",
-        "Aggiorna il costo atteso a fine cantiere per evitare margini finti.",
+        t("Apri le commesse rosse e separa errori, acquisti extra e variazioni non fatturate."),
+        t("Blocca nuove attività non preventivate senza approvazione economica."),
+        t("Aggiorna il costo atteso a fine cantiere per evitare margini finti."),
       ],
       links: [
-        { label: "Apri commesse", href: "/azienda/controllo-gestione/commesse" },
-        { label: "Apri budget", href: "/azienda/controllo-gestione/budget" },
+        { label: t("Apri commesse"), href: "/azienda/controllo-gestione/commesse" },
+        { label: t("Apri budget"), href: "/azienda/controllo-gestione/budget" },
       ],
     };
   }
 
   if (q.includes("sintesi") || q.includes("direzione") || q.includes("report")) {
     return {
-      title: `Sintesi direzionale ${context.anno}`,
+      title: t("Sintesi direzionale {anno}", { anno: context.anno }),
       summary: primaryAction
-        ? `Priorità numero uno: ${primaryAction.title.toLowerCase()}.`
-        : "La situazione è leggibile: consolidare dati e monitorare cassa.",
+        ? t("Priorità numero uno: {valore}.", { valore: primaryAction.title.toLowerCase() })
+        : t("La situazione è leggibile: consolidare dati e monitorare cassa."),
       focus: [
-        `Ricavi: ${formatCurrency(context.ricavi)}.`,
-        `Utile previsto: ${formatCurrency(context.utile)}${utileMargin !== null ? ` (${formatPct(utileMargin)})` : ""}.`,
-        `Rating: ${context.ratingClasse ?? "n.d."}.`,
+        t("Ricavi: {ricavi}.", { ricavi: formatCurrency(context.ricavi) }),
+        t("Utile previsto: {utile}{valore}.", { utile: formatCurrency(context.utile), valore: utileMargin !== null ? ` (${formatPct(utileMargin)})` : "" }),
+        t("Rating: {valore}.", { valore: context.ratingClasse ?? "n.d." }),
       ],
       nextActions: context.azioni.slice(0, 3).map((action) => `${action.owner}: ${action.title}.`),
       links: [
-        { label: "Controllo dei dati", href: "/azienda/controllo-gestione/health" },
-        { label: "Pacchetto banca", href: "/azienda/controllo-gestione/pacchetto-banca" },
+        { label: t("Controllo dei dati"), href: "/azienda/controllo-gestione/health" },
+        { label: t("Pacchetto banca"), href: "/azienda/controllo-gestione/pacchetto-banca" },
       ],
     };
   }
 
   return {
-    title: "Lettura CFO generale",
+    title: t("Lettura CFO generale"),
     summary: primaryAction
-      ? `Partirei da questa priorità: ${primaryAction.title.toLowerCase()}.`
-      : "Non vedo criticità immediate forti: la priorità è mantenere qualità dati e forecast.",
+      ? t("Partirei da questa priorità: {valore}.", { valore: primaryAction.title.toLowerCase() })
+      : t("Non vedo criticità immediate forti: la priorità è mantenere qualità dati e forecast."),
     focus: [
-      `Ricavi ${formatCurrency(context.ricavi)}, EBITDA ${formatCurrency(context.ebitda)}.`,
-      `Cassa finale ${context.saldoChiusura !== null ? formatCurrency(context.saldoChiusura) : "n.d."}, PFN ${context.pfn !== null ? formatCurrency(context.pfn) : "n.d."}.`,
-      `Commesse in perdita: ${context.commesseInPerdita}.`,
+      t("Ricavi {ricavi}, EBITDA {ebitda}.", { ricavi: formatCurrency(context.ricavi), ebitda: formatCurrency(context.ebitda) }),
+      t("Cassa finale {valore}, PFN {valore2}.", { valore: context.saldoChiusura !== null ? formatCurrency(context.saldoChiusura) : "n.d.", valore2: context.pfn !== null ? formatCurrency(context.pfn) : "n.d." }),
+      t("Commesse in perdita: {commesseInPerdita}.", { commesseInPerdita: context.commesseInPerdita }),
     ],
     nextActions: context.azioni.slice(0, 3).map((action) => `${action.cta}: ${action.reason}`),
     links: context.azioni.slice(0, 2).map((action) => ({ label: action.cta, href: action.href })),

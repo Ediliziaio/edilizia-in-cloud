@@ -7,6 +7,7 @@ import { stornaPagamentiCosto } from "@/lib/costi/annulloCosto";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { eseguiPerRiga, messaggioErroreOperazione } from "@/lib/operazioniPerRiga";
 import type { PrimaNotaEntry } from "@/hooks/usePrimaNota";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Lo storno è del costo intero: non va presentato come cancellazione della sola riga scelta. */
 function puoStornareCosto(e: PrimaNotaEntry) {
@@ -15,6 +16,7 @@ function puoStornareCosto(e: PrimaNotaEntry) {
 }
 
 export function StornaPagamentiCosto({ righe, onFatto }: { righe: PrimaNotaEntry[]; onFatto?: () => void }) {
+  const t = useT();
   const confirm = useConfirm();
   const invio = useRef(false);
   const qc = useQueryClient();
@@ -23,19 +25,19 @@ export function StornaPagamentiCosto({ righe, onFatto }: { righe: PrimaNotaEntry
     mutationFn: (ids: string[]) => eseguiPerRiga(ids.map(id => ({ id })), r => stornaPagamentiCosto(r.id)),
     onSuccess: ({ completate, errori }) => {
       refreshFinancialQueries(qc);
-      if (completate.length) { toast.success(`Pagamenti stornati per ${completate.length} costi`); onFatto?.(); }
-      if (errori.length) toast.error(`${errori.length} costi non stornati`, { description: errori.map(e => e.motivo).join(" · "), duration: 10000 });
+      if (completate.length) { toast.success(t("Pagamenti stornati per {n} costi", { n: completate.length })); onFatto?.(); }
+      if (errori.length) toast.error(t("{n} costi non stornati", { n: errori.length }), { description: errori.map(e => e.motivo).join(" · "), duration: 10000 });
     },
-    onError: e => toast.error("Storno non riuscito", { description: messaggioErroreOperazione(e) }),
+    onError: e => toast.error(t("Storno non riuscito"), { description: messaggioErroreOperazione(e) }),
   });
   if (!costi.length) return null;
   return <Button size="sm" variant="outline" disabled={storna.isPending} onClick={async () => {
     if (invio.current) return;
     invio.current = true;
     const ids = [...costi];
-    try { if (await confirm({ title: `Stornare i pagamenti di ${costi.length} costi?`,
-      description: "Verranno stornati TUTTI i pagamenti non ancora stornati di ciascun costo selezionato, compresi gli acconti fuori da questa pagina. Il costo torna da pagare e resta invariato. In prima nota resta lo storico con una riga di storno. I pagamenti collegati alla banca o a un SAL richiedono prima la gestione del collegamento nella schermata di origine.",
-      confirmLabel: "Storna tutti i pagamenti dei costi", variant: "destructive" })) await storna.mutateAsync(ids);
+    try { if (await confirm({ title: t("Stornare i pagamenti di {n} costi?", { n: costi.length }),
+      description: t("Verranno stornati TUTTI i pagamenti non ancora stornati di ciascun costo selezionato, compresi gli acconti fuori da questa pagina. Il costo torna da pagare e resta invariato. In prima nota resta lo storico con una riga di storno. I pagamenti collegati alla banca o a un SAL richiedono prima la gestione del collegamento nella schermata di origine."),
+      confirmLabel: t("Storna tutti i pagamenti dei costi"), variant: "destructive" })) await storna.mutateAsync(ids);
     } catch { /* La mutation mostra il motivo. */ } finally { invio.current = false; }
-  }}>{storna.isPending ? "Storno in corso…" : "Storna pagamenti dei costi"}</Button>;
+  }}>{storna.isPending ? t("Storno in corso…") : t("Storna pagamenti dei costi")}</Button>;
 }

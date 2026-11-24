@@ -20,6 +20,7 @@ import {
 import { formatEuro, parseImportoIt } from "@/lib/controlloGestione/indiciBanca";
 import { formatDateIt } from "@/lib/formatters";
 import { PiggyBank, Plus, Undo2 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NESSUNO = "__nessuno__";
 
@@ -37,6 +38,7 @@ const DESTINAZIONI: { value: DestinazioneTfr; label: string }[] = [
 const etichettaDestinazione = (d: DestinazioneTfr) => DESTINAZIONI.find((x) => x.value === d)?.label ?? d;
 
 export function TfrEditor() {
+  const tr = useT();
   const movimenti = useMovimentiTfr();
   const destinazioni = useDestinazioniTfr();
   const dipendenti = useDipendentiTfr();
@@ -46,7 +48,7 @@ export function TfrEditor() {
   const { toast } = useToast();
 
   const nomi = useMemo(() => new Map((dipendenti.data ?? []).map((d) => [d.id, d.nome])), [dipendenti.data]);
-  const nomeDi = (id: string | null) => (id ? nomi.get(id) ?? "Dipendente" : "—");
+  const nomeDi = (id: string | null) => (id ? nomi.get(id) ?? tr("Dipendente") : "—");
 
   const [mov, setMov] = useState({ tipo: "liquidazione" as TipoMovimentoTfr, dipendente: NESSUNO, data: "", importo: "", note: "" });
   const [dest, setDest] = useState({ dipendente: "", destinazione: "fondo_pensione" as DestinazioneTfr, dal: "" });
@@ -54,7 +56,7 @@ export function TfrEditor() {
   const handleAggiungi = async () => {
     const importo = parseImportoIt(mov.importo);
     if (!mov.data || importo === null || Number.isNaN(importo) || importo <= 0) {
-      toast({ title: "Mancano dati", description: "Servono data e importo lordo (es. 12.500).", variant: "destructive" });
+      toast({ title: tr("Mancano dati"), description: tr("Servono data e importo lordo (es. 12.500)."), variant: "destructive" });
       return;
     }
     try {
@@ -66,32 +68,32 @@ export function TfrEditor() {
         note: mov.note.trim() || null,
       });
       setMov({ tipo: "liquidazione", dipendente: NESSUNO, data: "", importo: "", note: "" });
-      toast({ title: "Registrato: il fondo TFR cala da quella data" });
+      toast({ title: tr("Registrato: il fondo TFR cala da quella data") });
     } catch (e) {
-      toast({ title: "Non registrato", description: e instanceof Error ? e.message : "Riprova.", variant: "destructive" });
+      toast({ title: tr("Non registrato"), description: e instanceof Error ? e.message : tr("Riprova."), variant: "destructive" });
     }
   };
 
   const handleAnnulla = async (id: string) => {
     try {
       await annulla.mutateAsync(id);
-      toast({ title: "Annullato: non conta più nel fondo" });
+      toast({ title: tr("Annullato: non conta più nel fondo") });
     } catch (e) {
-      toast({ title: "Non annullato", description: e instanceof Error ? e.message : "Riprova.", variant: "destructive" });
+      toast({ title: tr("Non annullato"), description: e instanceof Error ? e.message : tr("Riprova."), variant: "destructive" });
     }
   };
 
   const handleSalvaDest = async () => {
     if (!dest.dipendente || !dest.dal) {
-      toast({ title: "Mancano dati", description: "Scegli il dipendente e da quando vale la scelta.", variant: "destructive" });
+      toast({ title: tr("Mancano dati"), description: tr("Scegli il dipendente e da quando vale la scelta."), variant: "destructive" });
       return;
     }
     try {
       await salvaDest.mutateAsync({ employee_id: dest.dipendente, destinazione: dest.destinazione, dal: dest.dal });
       setDest({ dipendente: "", destinazione: "fondo_pensione", dal: "" });
-      toast({ title: "Destinazione del TFR salvata" });
+      toast({ title: tr("Destinazione del TFR salvata") });
     } catch (e) {
-      toast({ title: "Non salvata", description: e instanceof Error ? e.message : "Riprova.", variant: "destructive" });
+      toast({ title: tr("Non salvata"), description: e instanceof Error ? e.message : tr("Riprova."), variant: "destructive" });
     }
   };
 
@@ -101,19 +103,15 @@ export function TfrEditor() {
     <Card id="tfr" className="scroll-mt-24 rounded-2xl">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <PiggyBank className="h-4 w-4" /> Fondo TFR: liquidazioni e fondi pensione
+          <PiggyBank className="h-4 w-4" /> {tr("Fondo TFR: liquidazioni e fondi pensione")}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Il fondo TFR dello Stato patrimoniale è il fondo di partenza, più il TFR che matura con i cedolini, meno
-          liquidazioni e anticipi pagati, più la rivalutazione annua: 1,5% più il 75% dell'inflazione ISTAT sul fondo
-          dell'anno prima (art. 2120 c.c.), calcolata da sola coi coefficienti ISTAT, al netto dell'imposta
-          sostitutiva del 17%. Finché dicembre non è pubblicato, il coefficiente dell'anno è stimato dall'ultimo mese. Il TFR di chi lo versa a un fondo pensione o al Fondo Tesoreria INPS resta un
-          costo del conto economico, ma non entra nel fondo: finché non è versato è un debito previdenziale.
+          {tr("Il fondo TFR dello Stato patrimoniale è il fondo di partenza, più il TFR che matura con i cedolini, meno liquidazioni e anticipi pagati, più la rivalutazione annua: 1,5% più il 75% dell'inflazione ISTAT sul fondo dell'anno prima (art. 2120 c.c.), calcolata da sola coi coefficienti ISTAT, al netto dell'imposta sostitutiva del 17%. Finché dicembre non è pubblicato, il coefficiente dell'anno è stimato dall'ultimo mese. Il TFR di chi lo versa a un fondo pensione o al Fondo Tesoreria INPS resta un costo del conto economico, ma non entra nel fondo: finché non è versato è un debito previdenziale.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <section className="space-y-3">
-          <h3 className="text-sm font-medium">Liquidazioni e anticipi pagati</h3>
+          <h3 className="text-sm font-medium">{tr("Liquidazioni e anticipi pagati")}</h3>
           {movimenti.isLoading ? (
             <Skeleton className="h-16 w-full" />
           ) : movimenti.data && movimenti.data.length > 0 ? (
@@ -122,7 +120,7 @@ export function TfrEditor() {
                 <li key={m.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                   <div className="min-w-0">
                     <p className="truncate font-medium">
-                      {m.tipo === "liquidazione" ? "Liquidazione" : "Anticipo"} · {nomeDi(m.employee_id)}
+                      {m.tipo === "liquidazione" ? tr("Liquidazione") : tr("Anticipo")} · {nomeDi(m.employee_id)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDateIt(m.data)} · {formatEuro(m.importo)}{m.note ? ` · ${m.note}` : ""}
@@ -130,60 +128,59 @@ export function TfrEditor() {
                   </div>
                   <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1 text-xs" disabled={annulla.isPending}
                     onClick={() => handleAnnulla(m.id)}>
-                    <Undo2 className="h-3.5 w-3.5" /> Annulla
+                    <Undo2 className="h-3.5 w-3.5" /> {tr("Annulla")}
                   </Button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Nessuna liquidazione o anticipo registrato.</p>
+            <p className="text-sm text-muted-foreground">{tr("Nessuna liquidazione o anticipo registrato.")}</p>
           )}
 
           <div className="grid grid-cols-1 gap-3 rounded-xl border p-3 sm:grid-cols-2 lg:grid-cols-6">
             <div className="lg:col-span-2">
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs">{tr("Tipo")}</Label>
               <Select value={mov.tipo} onValueChange={(v) => setMov((s) => ({ ...s, tipo: v as TipoMovimentoTfr }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{TIPI.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{TIPI.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="lg:col-span-2">
-              <Label className="text-xs">Dipendente (facoltativo)</Label>
+              <Label className="text-xs">{tr("Dipendente (facoltativo)")}</Label>
               <Select value={mov.dipendente} onValueChange={(v) => setMov((s) => ({ ...s, dipendente: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NESSUNO}>Non indicato</SelectItem>
+                  <SelectItem value={NESSUNO}>{tr("Non indicato")}</SelectItem>
                   {(dipendenti.data ?? []).map((d) => <SelectItem key={d.id} value={d.id}>{d.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs" htmlFor="tfr-data">Data di pagamento</Label>
+              <Label className="text-xs" htmlFor="tfr-data">{tr("Data di pagamento")}</Label>
               <Input id="tfr-data" type="date" value={mov.data} onChange={(e) => setMov((s) => ({ ...s, data: e.target.value }))} />
             </div>
             <div>
-              <Label className="text-xs" htmlFor="tfr-importo">Importo lordo (€)</Label>
-              <Input id="tfr-importo" inputMode="decimal" placeholder="es. 12.500" value={mov.importo}
+              <Label className="text-xs" htmlFor="tfr-importo">{tr("Importo lordo (€)")}</Label>
+              <Input id="tfr-importo" inputMode="decimal" placeholder={tr("es. 12.500")} value={mov.importo}
                 onChange={(e) => setMov((s) => ({ ...s, importo: e.target.value }))} />
             </div>
             <div className="sm:col-span-2 lg:col-span-4">
-              <Label className="text-xs" htmlFor="tfr-note">Note</Label>
-              <Input id="tfr-note" placeholder="facoltative" value={mov.note} onChange={(e) => setMov((s) => ({ ...s, note: e.target.value }))} />
+              <Label className="text-xs" htmlFor="tfr-note">{tr("Note")}</Label>
+              <Input id="tfr-note" placeholder={tr("facoltative")} value={mov.note} onChange={(e) => setMov((s) => ({ ...s, note: e.target.value }))} />
             </div>
             <div className="flex items-end sm:col-span-2">
               <Button size="sm" className="gap-1.5" onClick={handleAggiungi} disabled={aggiungi.isPending}>
-                <Plus className="h-4 w-4" /> Registra
+                <Plus className="h-4 w-4" /> {tr("Registra")}
               </Button>
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Importo lordo, prima delle ritenute: è quello che esce dal fondo. Non è un costo, il costo è già contato
-            mese per mese.
+            {tr("Importo lordo, prima delle ritenute: è quello che esce dal fondo. Non è un costo, il costo è già contato mese per mese.")}
           </p>
         </section>
 
         <section className="space-y-3">
-          <h3 className="text-sm font-medium">Dipendenti che non lasciano il TFR in azienda</h3>
+          <h3 className="text-sm font-medium">{tr("Dipendenti che non lasciano il TFR in azienda")}</h3>
           {destinazioni.isLoading ? (
             <Skeleton className="h-12 w-full" />
           ) : fuoriAzienda.length > 0 ? (
@@ -191,48 +188,45 @@ export function TfrEditor() {
               {fuoriAzienda.map((d) => (
                 <li key={d.employee_id} className="px-3 py-2 text-sm">
                   <span className="font-medium">{nomeDi(d.employee_id)}</span>
-                  <span className="text-muted-foreground"> · {etichettaDestinazione(d.destinazione)} dal {formatDateIt(d.dal)}</span>
+                  <span className="text-muted-foreground">{" "}{tr("· {destinazione} dal {dal}", { destinazione: tr(etichettaDestinazione(d.destinazione)), dal: formatDateIt(d.dal) })}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Tutti lasciano il TFR in azienda.</p>
+            <p className="text-sm text-muted-foreground">{tr("Tutti lasciano il TFR in azienda.")}</p>
           )}
 
           {dipendenti.data && dipendenti.data.length === 0 && !dipendenti.isLoading ? (
-            <p className="text-xs text-muted-foreground">Non vedi i dipendenti: serve il permesso di vedere il personale.</p>
+            <p className="text-xs text-muted-foreground">{tr("Non vedi i dipendenti: serve il permesso di vedere il personale.")}</p>
           ) : (
             <div className="grid grid-cols-1 gap-3 rounded-xl border p-3 sm:grid-cols-2 lg:grid-cols-6">
               <div className="lg:col-span-2">
-                <Label className="text-xs">Dipendente</Label>
+                <Label className="text-xs">{tr("Dipendente")}</Label>
                 <Select value={dest.dipendente} onValueChange={(v) => setDest((s) => ({ ...s, dipendente: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Scegli" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={tr("Scegli")} /></SelectTrigger>
                   <SelectContent>
                     {(dipendenti.data ?? []).filter((d) => d.attivo).map((d) => <SelectItem key={d.id} value={d.id}>{d.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="lg:col-span-2">
-                <Label className="text-xs">Il TFR va a</Label>
+                <Label className="text-xs">{tr("Il TFR va a")}</Label>
                 <Select value={dest.destinazione} onValueChange={(v) => setDest((s) => ({ ...s, destinazione: v as DestinazioneTfr }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{DESTINAZIONI.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{DESTINAZIONI.map((d) => <SelectItem key={d.value} value={d.value}>{tr(d.label)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs" htmlFor="tfr-dal">Dal</Label>
+                <Label className="text-xs" htmlFor="tfr-dal">{tr("Dal")}</Label>
                 <Input id="tfr-dal" type="date" value={dest.dal} onChange={(e) => setDest((s) => ({ ...s, dal: e.target.value }))} />
               </div>
               <div className="flex items-end">
-                <Button size="sm" onClick={handleSalvaDest} disabled={salvaDest.isPending}>Salva</Button>
+                <Button size="sm" onClick={handleSalvaDest} disabled={salvaDest.isPending}>{tr("Salva")}</Button>
               </div>
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">
-            Dal mese indicato il TFR del dipendente non entra nel fondo; quello maturato prima resta in azienda. Il Fondo
-            Tesoreria INPS riguarda le aziende con almeno 50 dipendenti. Si considera versato con l'F24 del 16 del mese
-            dopo (Tesoreria) o entro il 16 del mese dopo la fine del trimestre (fondi pensione). «Resta in azienda»
-            corregge una scelta inserita per errore.
+            {tr("Dal mese indicato il TFR del dipendente non entra nel fondo; quello maturato prima resta in azienda. Il Fondo Tesoreria INPS riguarda le aziende con almeno 50 dipendenti. Si considera versato con l'F24 del 16 del mese dopo (Tesoreria) o entro il 16 del mese dopo la fine del trimestre (fondi pensione). «Resta in azienda» corregge una scelta inserita per errore.")}
           </p>
         </section>
       </CardContent>

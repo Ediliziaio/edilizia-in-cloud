@@ -54,8 +54,10 @@ import {
 import {
   percorsiPlanimetrie,
 } from "@/lib/planimetrie/render/percorsi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function RenderPlanimetrieHub() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const permessi = usePermissions();
   const [params, setParams] = useSearchParams();
@@ -123,7 +125,7 @@ export default function RenderPlanimetrieHub() {
       });
       navigate(percorsiPlanimetrie.pianta(id));
     } catch (e) {
-      toast.error("Esempio non creato", {
+      toast.error(t("Esempio non creato"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -134,14 +136,14 @@ export default function RenderPlanimetrieHub() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 pb-12 sm:space-y-6">
       <TestataPlanimetrie
-        titolo="Planimetrie"
-        sottotitolo="Disegni 2D, viste 3D e render organizzati per progetto."
+        titolo={t("Planimetrie")}
+        sottotitolo={t("Disegni 2D, viste 3D e render organizzati per progetto.")}
         azioni={
           <>
             <Button asChild variant="outline" size="sm">
               <Link to="/azienda/render">
                 <ImageIcon className="mr-2 h-4 w-4" />
-                Render AI
+                {t("Render AI")}
               </Link>
             </Button>
             <div className="max-md:hidden">
@@ -151,7 +153,7 @@ export default function RenderPlanimetrieHub() {
               <Button asChild size="sm">
                 <Link to={percorsiPlanimetrie.nuova()}>
                   <Plus className="mr-1.5 h-4 w-4" />
-                  Nuova planimetria
+                  {t("Nuova planimetria")}
                 </Link>
               </Button>
             )}
@@ -162,31 +164,31 @@ export default function RenderPlanimetrieHub() {
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight">I tuoi progetti</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{t("I tuoi progetti")}</h2>
           </div>
           <div
             className="inline-flex rounded-lg border bg-muted/30 p-1"
-            aria-label="Visualizzazione dell'archivio"
+            aria-label={t("Visualizzazione dell'archivio")}
           >
             <Button
               variant={vista === "griglia" ? "secondary" : "ghost"}
               size="sm"
-              aria-label="Vista griglia"
+              aria-label={t("Vista griglia")}
               aria-pressed={vista === "griglia"}
               onClick={() => cambiaVista("griglia")}
             >
               <Grid2X2 className="mr-1.5 h-4 w-4" />
-              Griglia
+              {t("Griglia")}
             </Button>
             <Button
               variant={vista === "elenco" ? "secondary" : "ghost"}
               size="sm"
-              aria-label="Vista elenco"
+              aria-label={t("Vista elenco")}
               aria-pressed={vista === "elenco"}
               onClick={() => cambiaVista("elenco")}
             >
               <List className="mr-1.5 h-4 w-4" />
-              Elenco
+              {t("Elenco")}
             </Button>
           </div>
         </div>
@@ -204,12 +206,12 @@ export default function RenderPlanimetrieHub() {
         )}
         {anteprime.isError && (
           <p role="status" className="text-xs text-muted-foreground">
-            Le anteprime non sono disponibili. Puoi comunque aprire i progetti.{" "}
+            {t("Le anteprime non sono disponibili. Puoi comunque aprire i progetti.")}{" "}
             <button
               className="underline"
               onClick={() => void anteprime.refetch()}
             >
-              Riprova anteprime
+              {t("Riprova anteprime")}
             </button>
           </p>
         )}
@@ -218,13 +220,13 @@ export default function RenderPlanimetrieHub() {
             role="alert"
             className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
           >
-            I nomi dei collegamenti non sono disponibili.
+            {t("I nomi dei collegamenti non sono disponibili.")}
             <Button
               variant="link"
               size="sm"
               onClick={() => collegamenti.refetch()}
             >
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         )}
@@ -240,10 +242,10 @@ export default function RenderPlanimetrieHub() {
               <span>
                 {error instanceof Error
                   ? error.message
-                  : "Elenco delle piante non disponibile."}
+                  : t("Elenco delle piante non disponibile.")}
               </span>
               <Button variant="outline" size="sm" onClick={() => refetch()}>
-                Riprova
+                {t("Riprova")}
               </Button>
             </CardContent>
           </Card>
@@ -252,16 +254,15 @@ export default function RenderPlanimetrieHub() {
             <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
               <div>
                 <p className="text-lg font-semibold">
-                  Nessuna planimetria ancora
+                  {t("Nessuna planimetria ancora")}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Crea la prima pianta, poi collegala al cliente e al suo
-                  preventivo.
+                  {t("Crea la prima pianta, poi collegala al cliente e al suo preventivo.")}
                 </p>
               </div>
               {!permessi.solaLettura && (
                 <Button variant="outline" onClick={apriEsempio} disabled={esempio}>
-                  {esempio ? "Preparo l'esempio…" : "Apri una pianta d'esempio"}
+                  {esempio ? t("Preparo l'esempio…") : t("Apri una pianta d'esempio")}
                 </Button>
               )}
             </CardContent>
@@ -269,9 +270,9 @@ export default function RenderPlanimetrieHub() {
         ) : filtrate.length === 0 ? (
           <Card>
             <CardContent className="space-y-3 p-6 text-sm">
-              <p>Nessuna planimetria con questi filtri.</p>
+              <p>{t("Nessuna planimetria con questi filtri.")}</p>
               <Button variant="outline" size="sm" onClick={azzeraFiltri}>
-                Azzera i filtri
+                {t("Azzera i filtri")}
               </Button>
             </CardContent>
           </Card>
@@ -302,7 +303,7 @@ export default function RenderPlanimetrieHub() {
             </div>
             {ultimaPagina > 0 && (
               <nav
-                aria-label="Pagine dell'archivio"
+                aria-label={t("Pagine dell'archivio")}
                 className="flex items-center justify-between gap-3"
               >
                 <Button
@@ -310,17 +311,15 @@ export default function RenderPlanimetrieHub() {
                   disabled={paginaCorrente === 0}
                   onClick={() => setPagina(paginaCorrente - 1)}
                 >
-                  Precedenti
+                  {t("Precedenti")}
                 </Button>
-                <span className="text-sm text-muted-foreground">
-                  Pagina {paginaCorrente + 1} di {ultimaPagina + 1}
-                </span>
+                <span className="text-sm text-muted-foreground">{t("Pagina {n} di {totale}", { n: paginaCorrente + 1, totale: ultimaPagina + 1 })}</span>
                 <Button
                   variant="outline"
                   disabled={paginaCorrente === ultimaPagina}
                   onClick={() => setPagina(paginaCorrente + 1)}
                 >
-                  Successive
+                  {t("Successive")}
                 </Button>
               </nav>
             )}

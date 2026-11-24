@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * RenderCreditGate — banner/gate condiviso per i wizard render
@@ -46,6 +47,7 @@ export function RenderCreditGate({
   warnBelow = 3,
   hardBlock = false,
 }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -77,13 +79,13 @@ export function RenderCreditGate({
       <>
         <Alert role="status" aria-live="polite" className="mb-4 border-amber-200 bg-amber-50 text-amber-900">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Verifica crediti non disponibile</AlertTitle>
+          <AlertTitle>{t("Verifica crediti non disponibile")}</AlertTitle>
           <AlertDescription className="flex flex-col gap-3">
-            <p>Non riesco a leggere il saldo in questo momento. Puoi continuare: se i crediti non bastano, il sistema te lo dira' prima della generazione.</p>
+            <p>{t("Non riesco a leggere il saldo in questo momento. Puoi continuare: se i crediti non bastano, il sistema te lo dira' prima della generazione.")}</p>
             <div>
               <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isRefetching}>
                 <RefreshCw className={`mr-1 h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
-                Riprova verifica
+                {t("Riprova verifica")}
               </Button>
             </div>
           </AlertDescription>
@@ -111,11 +113,10 @@ export function RenderCreditGate({
           className="mb-4"
         >
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Crediti render esauriti</AlertTitle>
+          <AlertTitle>{t("Crediti render esauriti")}</AlertTitle>
           <AlertDescription className="flex flex-col gap-3">
             <p>
-              Non hai crediti render disponibili. Acquista un pacchetto per
-              continuare a generare nuove anteprime AI.
+              {t("Non hai crediti render disponibili. Acquista un pacchetto per continuare a generare nuove anteprime AI.")}
             </p>
             <div>
               <Button
@@ -123,7 +124,7 @@ export function RenderCreditGate({
                 size="sm"
                 onClick={() => navigate("/azienda/impostazioni/abbonamento?tab=portafoglio")}
               >
-                <Zap className="h-4 w-4 mr-1" /> Acquista crediti
+                <Zap className="h-4 w-4 mr-1" /> {t("Acquista crediti")}
               </Button>
             </div>
           </AlertDescription>
@@ -136,11 +137,10 @@ export function RenderCreditGate({
           className="mb-4 border-amber-200 bg-amber-50 text-amber-900"
         >
           <Zap className="h-4 w-4" />
-          <AlertTitle>Crediti render in esaurimento</AlertTitle>
+          <AlertTitle>{t("Crediti render in esaurimento")}</AlertTitle>
           <AlertDescription className="flex flex-col gap-3">
             <p>
-              Ti restano <strong>{balance}</strong> {balance === 1 ? "credito" : "crediti"} render.
-              Considera di ricaricare per evitare interruzioni.
+              {t(balance === 1 ? "Ti restano {n} credito render. Considera di ricaricare per evitare interruzioni." : "Ti restano {n} crediti render. Considera di ricaricare per evitare interruzioni.", { n: balance })}
             </p>
             <div>
               <Button
@@ -148,7 +148,7 @@ export function RenderCreditGate({
                 size="sm"
                 onClick={() => navigate("/azienda/impostazioni/abbonamento?tab=portafoglio")}
               >
-                Acquista crediti
+                {t("Acquista crediti")}
               </Button>
             </div>
           </AlertDescription>

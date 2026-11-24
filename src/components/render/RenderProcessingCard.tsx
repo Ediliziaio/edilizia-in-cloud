@@ -5,6 +5,7 @@ import {
   Brain, CheckCircle2, ImageDown, Image as ImageIcon, Sparkles, Wand2, Zap,
   type LucideIcon,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RenderProcessingCardProps {
   /** Optional preview of the source photo (objectURL or remote). */
@@ -68,8 +69,10 @@ export function RenderProcessingCard({
   dots = 0,
   accent = "red",
   tips,
-  subjectLabel = "L'AI sta lavorando sulla tua foto",
+  subjectLabel: subjectLabelProp,
 }: RenderProcessingCardProps) {
+  const t = useT();
+  const subjectLabel = subjectLabelProp ?? t("L'AI sta lavorando sulla tua foto");
   // Alcuni motori rispondono solo a immagine pronta: il tempo deve avanzare
   // anche mentre la richiesta è aperta, prima dell'eventuale polling.
   const [startedAt] = useState(() => Date.now() - reportedElapsedSec * 1000);
@@ -105,7 +108,7 @@ export function RenderProcessingCard({
           <div className="relative bg-slate-900">
             <img loading="lazy"
               src={photoPreview}
-              alt="Foto in elaborazione"
+              alt={t("Foto in elaborazione")}
               className="w-full max-h-64 object-cover opacity-50"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
@@ -131,16 +134,17 @@ export function RenderProcessingCard({
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-slate-900 truncate max-md:text-[13px]">
-                  {stages[stageIdx].label}{".".repeat(dots)}
+                  {t(stages[stageIdx].label)}{".".repeat(dots)}
                 </p>
                 {/* v8.6.33 — Messaggio dinamico: dopo 90s il "stima 1-2 min"
                     rassicura mentre la barra resta al 96%. Dopo 150s avviso che
                     è più del solito. */}
                 <p className="text-xs text-slate-500 max-md:text-[11px]">
-                  {elapsedSec}s trascorsi
-                  {elapsedSec < 90 && " · stima 1-2 min"}
-                  {elapsedSec >= 90 && elapsedSec < 150 && " · stiamo finalizzando, ci siamo quasi"}
-                  {elapsedSec >= 150 && " · sta impiegando più del previsto, attendere ancora un attimo"}
+                  {elapsedSec < 90
+                    ? t("{n}s trascorsi · stima 1-2 min", { n: elapsedSec })
+                    : elapsedSec < 150
+                      ? t("{n}s trascorsi · stiamo finalizzando, ci siamo quasi", { n: elapsedSec })
+                      : t("{n}s trascorsi · sta impiegando più del previsto, attendere ancora un attimo", { n: elapsedSec })}
                 </p>
               </div>
             </div>
@@ -177,7 +181,7 @@ export function RenderProcessingCard({
                       done ? "text-green-700" : active ? a.text : "text-slate-500"
                     }`}
                   >
-                    {s.label.split(" ")[0]}
+                    {t(s.label).split(" ")[0]}
                   </span>
                 </div>
               );
@@ -187,13 +191,13 @@ export function RenderProcessingCard({
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 flex gap-2.5 max-md:hidden">
             <Sparkles className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
             <p className="text-xs text-blue-900 leading-relaxed">
-              <span className="font-semibold">Lo sapevi? </span>
-              {tipsList[tipIdx]}
+              <span className="font-semibold">{t("Lo sapevi?")} </span>
+              {t(tipsList[tipIdx])}
             </p>
           </div>
 
           <p className="text-[11px] text-center text-slate-400">
-            Puoi lasciare aperta questa pagina · ti avviseremo quando il render è pronto
+            {t("Puoi lasciare aperta questa pagina · ti avviseremo quando il render è pronto")}
           </p>
         </div>
       </CardContent>

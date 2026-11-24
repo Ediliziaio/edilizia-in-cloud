@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Phone, PhoneOff, Mic, MicOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Centralina in-app (Fase 1, solo uscita): softphone WebRTC Telnyx.
@@ -38,6 +39,7 @@ function fmt(s: number) {
 }
 
 export function SoftphoneProvider({ children }: { children: ReactNode }) {
+  const tr = useT();
   const [status, setStatus] = useState<Status>("idle");
   const [peer, setPeer] = useState<{ number: string; name?: string } | null>(null);
   const [muted, setMuted] = useState(false);
@@ -98,8 +100,8 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => cleanup(), [cleanup]);
 
   const startCall = useCallback((number: string, opts?: { name?: string; contactId?: string }) => {
-    if (status !== "idle") { toast.error("C'è già una chiamata in corso"); return; }
-    if (!number) { toast.error("Numero mancante"); return; }
+    if (status !== "idle") { toast.error(tr("C'è già una chiamata in corso")); return; }
+    if (!number) { toast.error(tr("Numero mancante")); return; }
     setStatus("connecting");
     setPeer({ number, name: opts?.name });
 
@@ -110,7 +112,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
           ms.getTracks().forEach((t) => t.stop());
         } catch {
-          throw new Error("Permesso microfono negato: consenti il microfono per chiamare.");
+          throw new Error(tr("Permesso microfono negato: consenti il microfono per chiamare."));
         }
 
         const { data, error } = await supabase.functions.invoke("telnyx-webrtc-token", { body: {} });
@@ -118,7 +120,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);
         const loginToken = (data as { login_token?: string })?.login_token;
         const callerNumber = ((data as { caller_numbers?: string[] })?.caller_numbers || [])[0];
-        if (!loginToken) throw new Error("Token centralina non disponibile");
+        if (!loginToken) throw new Error(tr("Token centralina non disponibile"));
 
         const mod = await import("@telnyx/webrtc");
         const TelnyxRTC = mod.TelnyxRTC;
@@ -140,7 +142,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         });
         client.on("telnyx.error", (e: unknown) => {
           console.error("[softphone] telnyx.error", e);
-          toast.error("Errore di connessione alla centralina");
+          toast.error(tr("Errore di connessione alla centralina"));
           cleanup();
         });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -183,7 +185,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         client.connect();
       } catch (e) {
         console.error("[softphone] startCall", e);
-        toast.error(e instanceof Error ? e.message : "Impossibile avviare la chiamata");
+        toast.error(e instanceof Error ? e.message : tr("Impossibile avviare la chiamata"));
         cleanup();
       }
     })();
@@ -227,10 +229,10 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{peer?.name || peer?.number}</p>
               <p className="text-xs text-muted-foreground">
-                {status === "connecting" && "Connessione…"}
-                {status === "ringing" && "Sta squillando…"}
-                {status === "active" && `In chiamata · ${fmt(seconds)}`}
-                {status === "ending" && "Chiusura…"}
+                {status === "connecting" && tr("Connessione…")}
+                {status === "ringing" && tr("Sta squillando…")}
+                {status === "active" && tr("In chiamata · {seconds}", { seconds: fmt(seconds) })}
+                {status === "ending" && tr("Chiusura…")}
               </p>
             </div>
           </div>
@@ -242,8 +244,8 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               className="h-9 w-9"
               onClick={toggleMute}
               disabled={status !== "active"}
-              aria-label={muted ? "Riattiva microfono" : "Muto"}
-              title={muted ? "Riattiva microfono" : "Muto"}
+              aria-label={muted ? tr("Riattiva microfono") : tr("Muto")}
+              title={muted ? tr("Riattiva microfono") : tr("Muto")}
             >
               {muted ? <MicOff className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}
             </Button>
@@ -253,7 +255,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               className="h-9 gap-1.5"
               onClick={hangup}
             >
-              <PhoneOff className="h-4 w-4" /> Riaggancia
+              <PhoneOff className="h-4 w-4" /> {tr("Riaggancia")}
             </Button>
           </div>
         </div>

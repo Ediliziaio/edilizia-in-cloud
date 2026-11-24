@@ -10,10 +10,12 @@ import { leggiComputoCloud } from "@/lib/computo/cloudComputo";
 import { percorsoComputoCommessa } from "@/lib/computo/percorsiComputo";
 import { vociPerCommessaDallaVariante } from "@/lib/planimetrie/computoConPlanimetria";
 import { caricaPlanimetria, caricaVersione } from "@/lib/planimetrie/archivio";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ComputoStudioInCommessa({ companyId, orderId, bozzaId, generale, puoSalvare = true }: {
   companyId:string; orderId:string; bozzaId:string; generale?:boolean; puoSalvare?:boolean;
 }) {
+  const t = useT();
   const { user } = useAuth();
   const salva = useSalvaComputoImportato(orderId, companyId, user?.id);
   const { data: computi, isLoading } = useComputiCommessa(orderId, companyId);
@@ -40,21 +42,21 @@ export function ComputoStudioInCommessa({ companyId, orderId, bozzaId, generale,
     try {
       const cloud = await leggiComputoCloud(companyId,bozzaId);
       const f = cloud?.bozza.fontePlanimetria;
-      if (!cloud || !f) throw new Error("Computo di variante non disponibile.");
+      if (!cloud || !f) throw new Error(t("Computo di variante non disponibile."));
       const pianta = await caricaPlanimetria(f.planimetriaId);
-      if (pianta.riga.company_id !== companyId) throw new Error("Planimetria non disponibile per questa azienda.");
+      if (pianta.riga.company_id !== companyId) throw new Error(t("Planimetria non disponibile per questa azienda."));
       const sorgente = pianta.versione.numero === f.versione ? pianta.versione : await caricaVersione(f.planimetriaId, f.versione);
       const voci = vociPerCommessaDallaVariante(cloud.bozza, sorgente.documento);
       const esito = await salva.mutateAsync({ voci, file:[], totaleDocumento:null, titolo:cloud.bozza.titolo,
         origine:"variante-planimetria", fonteVariante:{...f,bozzaId} });
-      toast.success(esito.riusato ? "Il computo è già aggiornato" : "Computo trasferito in commessa");
-    } catch(e) { setErrore(e instanceof Error ? e.message : "Computo non salvato nella commessa."); }
+      toast.success(esito.riusato ? t("Il computo è già aggiornato") : t("Computo trasferito in commessa"));
+    } catch(e) { setErrore(e instanceof Error ? e.message : t("Computo non salvato nella commessa.")); }
     finally { inCorso.current = false; setSalvando(false); }
   };
   return <div className="flex flex-wrap items-center gap-2">
-    {destinazione && !ordine.isLoading && <Button asChild size="sm" variant="outline"><Link to={destinazione}>Apri il computo in commessa</Link></Button>}
+    {destinazione && !ordine.isLoading && <Button asChild size="sm" variant="outline"><Link to={destinazione}>{t("Apri il computo in commessa")}</Link></Button>}
     {puoSalvare && <Button size="sm" variant={copia ? "ghost" : "outline"} disabled={salvando || isLoading} onClick={() => void porta()}>
-      {salvando ? "Trasferimento…" : copia ? "Trasferisci aggiornamento" : "Porta la bozza in commessa"}
+      {salvando ? t("Trasferimento…") : copia ? t("Trasferisci aggiornamento") : t("Porta la bozza in commessa")}
     </Button>}
     {errore && <p role="alert" className="text-xs text-destructive">{errore}</p>}
   </div>;

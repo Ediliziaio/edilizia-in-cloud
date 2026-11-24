@@ -46,6 +46,7 @@ import { EmailPreviewActions } from "./config-panels/EmailPreviewActions";
 import { TriggerConditionBuilder } from "@/components/marketing/automations/TriggerConditionBuilder";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import type { TriggerFilters } from "@/types/automationBuilder";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FlowBuilderConfigPanelProps {
   selectedNode: Node | null;
@@ -166,6 +167,7 @@ export function FlowBuilderConfigPanel({
   flowId,
   triggerItemId,
 }: FlowBuilderConfigPanelProps) {
+  const t = useT();
   const catalog = useMemo(
     () => (selectedNode ? getCatalogItem(selectedNode.data?.itemId as string) : null),
     [selectedNode?.id, selectedNode?.data?.itemId]
@@ -282,7 +284,7 @@ export function FlowBuilderConfigPanel({
       <div className="flex items-center justify-between border-b px-5 py-3.5">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {catalog?.kind ?? "Nodo"}
+            {catalog?.kind ?? t("Nodo")}
           </p>
           <p className="text-sm font-medium mt-0.5">{catalog?.label ?? nodeData.label}</p>
         </div>
@@ -295,11 +297,11 @@ export function FlowBuilderConfigPanel({
         <div className="space-y-5 p-5">
           {/* Label field always */}
           <div className="space-y-2">
-            <Label className="text-xs font-medium">Etichetta nodo</Label>
+            <Label className="text-xs font-medium">{t("Etichetta nodo")}</Label>
             <Input
               value={(nodeData.label as string) || ""}
               onChange={(e) => handleChange("label", e.target.value)}
-              placeholder={catalog?.label ?? "Etichetta"}
+              placeholder={catalog?.label ?? t("Etichetta")}
               className="h-9 text-sm"
             />
           </div>
@@ -307,11 +309,11 @@ export function FlowBuilderConfigPanel({
           {/* Note text for note nodes */}
           {selectedNode.type === "note" && (
             <div className="space-y-2">
-              <Label className="text-xs font-medium">Testo nota</Label>
+              <Label className="text-xs font-medium">{t("Testo nota")}</Label>
               <Textarea
                 value={(nodeData.note_text as string) || ""}
                 onChange={(e) => handleChange("note_text", e.target.value)}
-                placeholder="Scrivi una nota..."
+                placeholder={t("Scrivi una nota...")}
                 className="text-sm min-h-[80px]"
               />
             </div>
@@ -373,7 +375,7 @@ export function FlowBuilderConfigPanel({
                   companyId={companyId}
                   triggerItemId={triggerItemId}
                 />
-                {mancante && <p className="mt-1 text-[11px] font-medium text-destructive">Campo obbligatorio: da compilare prima di pubblicare.</p>}
+                {mancante && <p className="mt-1 text-[11px] font-medium text-destructive">{t("Campo obbligatorio: da compilare prima di pubblicare.")}</p>}
               </div>
             );
           })}
@@ -395,11 +397,11 @@ export function FlowBuilderConfigPanel({
               <div className="flex items-center gap-2 border-t pt-4">
                 <Filter className="h-3.5 w-3.5 text-primary" />
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Filtri
+                  {t("Filtri")}
                 </Label>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Aggiungi condizioni per filtrare quando questo trigger si attiva.
+                {t("Aggiungi condizioni per filtrare quando questo trigger si attiva.")}
               </p>
               <TriggerConditionBuilder
                 triggerCategory={triggerCategory}
@@ -420,7 +422,7 @@ export function FlowBuilderConfigPanel({
           {campiMancanti.length > 0 && (
             <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-[11px] text-destructive">
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-              <span>Da completare: {campiMancanti.map((f) => f.label).join(", ")}.</span>
+              <span>{t("Da completare: {campi}.", { campi: campiMancanti.map((f) => f.label).join(", ") })}</span>
             </div>
           )}
 
@@ -433,7 +435,7 @@ export function FlowBuilderConfigPanel({
               onClick={handleSaveAndClose}
             >
               <Save className="mr-1 h-3.5 w-3.5" />
-              Salva
+              {t("Salva")}
             </Button>
             <Button
               variant="outline"
@@ -442,7 +444,7 @@ export function FlowBuilderConfigPanel({
               onClick={() => onDelete(selectedNode.id)}
             >
               <Trash2 className="mr-1 h-3.5 w-3.5" />
-              Elimina
+              {t("Elimina")}
             </Button>
           </div>
         </div>
@@ -452,18 +454,18 @@ export function FlowBuilderConfigPanel({
       <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Modifiche non salvate</AlertDialogTitle>
+            <AlertDialogTitle>{t("Modifiche non salvate")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Hai modifiche non salvate. Vuoi salvarle prima di chiudere?
+              {t("Hai modifiche non salvate. Vuoi salvarle prima di chiudere?")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowUnsavedDialog(false)}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setShowUnsavedDialog(false)}>{t("Annulla")}</AlertDialogCancel>
             <Button variant="outline" size="sm" onClick={handleDiscardAndClose}>
-              Chiudi senza salvare
+              {t("Chiudi senza salvare")}
             </Button>
             <AlertDialogAction onClick={handleSaveAndClose}>
-              Salva e chiudi
+              {t("Salva e chiudi")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -473,8 +475,9 @@ export function FlowBuilderConfigPanel({
 }
 
 function CustomChangedPicker({companyId,objectType,value,onChange}:{companyId?:string;objectType:string;value:string;onChange:(v:string)=>void}){
+  const t = useT();
   const {data:fields=[],isError}=useAutomationFieldDefinitions(companyId,objectType);
-  return <div className="space-y-2"><Label htmlFor="changed-custom-field">Campo che avvia il flusso</Label><UniformSelect id="changed-custom-field" className="w-full rounded border bg-background p-2 text-sm" value={value} onChange={e=>onChange(e.target.value)}><option value="">Tutti i campi di questo oggetto</option>{value&&!fields.some(f=>f.id===value)&&<option value={value} disabled>Campo non disponibile</option>}{fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</UniformSelect>{isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi.</p>}</div>;
+  return <div className="space-y-2"><Label htmlFor="changed-custom-field">{t("Campo che avvia il flusso")}</Label><UniformSelect id="changed-custom-field" className="w-full rounded border bg-background p-2 text-sm" value={value} onChange={e=>onChange(e.target.value)}><option value="">{t("Tutti i campi di questo oggetto")}</option>{value&&!fields.some(f=>f.id===value)&&<option value={value} disabled>{t("Campo non disponibile")}</option>}{fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</UniformSelect>{isError&&<p role="alert" className="text-xs text-destructive">{t("Impossibile leggere i campi.")}</p>}</div>;
 }
 
 // ── Template pronti per i messaggi di notifica ──
@@ -494,6 +497,7 @@ function TemplateMessaggioPicker({
   triggerItemId?: string;
   haOggetto: boolean;
 }) {
+  const tr = useT();
   const templates = useMemo(() => templatePerTrigger(triggerItemId), [triggerItemId]);
   const suggeriti = useMemo(
     () => new Set(templates.filter((t) => t.triggerSuggeriti?.includes(triggerItemId ?? "")).map((t) => t.id)),
@@ -512,10 +516,10 @@ function TemplateMessaggioPicker({
 
   return (
     <div className="space-y-2 rounded-lg border border-dashed bg-muted/40 p-3">
-      <Label className="text-xs font-medium">Parti da un modello</Label>
+      <Label className="text-xs font-medium">{tr("Parti da un modello")}</Label>
       <Select value="" onValueChange={applica}>
         <SelectTrigger className="h-9">
-          <SelectValue placeholder="Scegli un modello…" />
+          <SelectValue placeholder={tr("Scegli un modello…")} />
         </SelectTrigger>
         <SelectContent>
           {templates.map((t) => (
@@ -525,7 +529,7 @@ function TemplateMessaggioPicker({
                   {t.label}
                   {suggeriti.has(t.id) && (
                     <span className="rounded bg-primary/10 px-1 text-[10px] font-medium text-primary">
-                      consigliato
+                      {tr("consigliato")}
                     </span>
                   )}
                 </span>
@@ -536,13 +540,11 @@ function TemplateMessaggioPicker({
         </SelectContent>
       </Select>
       <p className="text-[11px] text-muted-foreground">
-        Sovrascrive {haOggetto ? "oggetto e messaggio" : "il messaggio"}. Poi personalizzalo come vuoi.
+        {haOggetto ? tr("Sovrascrive oggetto e messaggio. Poi personalizzalo come vuoi.") : tr("Sovrascrive il messaggio. Poi personalizzalo come vuoi.")}
       </p>
       {buchi.length > 0 && (
         <p className="text-[11px] font-medium text-amber-600">
-          Attenzione: {buchi.map((b) => `{{contatto.${b}}}`).join(", ")}{" "}
-          {buchi.length === 1 ? "non esiste" : "non esistono"} e {buchi.length === 1 ? "verrà sostituita" : "verranno sostituite"} con
-          uno spazio vuoto nel messaggio inviato.
+          {tr(buchi.length === 1 ? "Attenzione: {campi} non esiste e verrà sostituita con uno spazio vuoto nel messaggio inviato." : "Attenzione: {campi} non esistono e verranno sostituite con uno spazio vuoto nel messaggio inviato.", { campi: buchi.map((b) => `{{contatto.${b}}}`).join(", ") })}
         </p>
       )}
     </div>
@@ -564,6 +566,7 @@ function TagActionPanel({
   triggerProvidesContact: boolean;
   actionType: "aggiungi" | "rimuovi";
 }) {
+  const tr = useT();
   const tags: string[] = Array.isArray(config.tags)
     ? config.tags
     : config.tags
@@ -579,8 +582,8 @@ function TagActionPanel({
         <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
         <p className="text-xs text-green-700 dark:text-green-400">
           {triggerProvidesContact
-            ? "Agisce sul contatto che attiva il flusso."
-            : "Agisce sul contatto iscritto al flusso dal trigger."}
+            ? tr("Agisce sul contatto che attiva il flusso.")
+            : tr("Agisce sul contatto iscritto al flusso dal trigger.")}
         </p>
       </div>
 
@@ -588,7 +591,7 @@ function TagActionPanel({
       <div className="space-y-2">
         <EvidenzaObbligatoria mostra={campoVuotoTag(tags)}>
         <Label className="text-xs font-medium">
-          {actionType === "aggiungi" ? "Tag da aggiungere" : "Tag da rimuovere"}{" "}
+          {actionType === "aggiungi" ? tr("Tag da aggiungere") : tr("Tag da rimuovere")}{" "}
           <span className="text-destructive">*</span>
         </Label>
         <TagSelector
@@ -597,7 +600,7 @@ function TagActionPanel({
         />
         </EvidenzaObbligatoria>
         <p className="text-[10px] text-muted-foreground">
-          Seleziona tag esistenti o creane di nuovi direttamente qui.
+          {tr("Seleziona tag esistenti o creane di nuovi direttamente qui.")}
         </p>
       </div>
     </div>
@@ -628,6 +631,7 @@ function ConfigField({
   companyId?: string;
   triggerItemId?: string;
 }) {
+  const tr = useT();
   const [overrideAutoFill, setOverrideAutoFill] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -874,7 +878,7 @@ function ConfigField({
         <div className="flex items-center gap-2 rounded-lg border border-green-200 dark:border-green-900 bg-green-500/10 px-3 py-2.5">
           <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-green-700 dark:text-green-400">Contatto dal trigger</p>
+            <p className="text-xs font-medium text-green-700 dark:text-green-400">{tr("Contatto dal trigger")}</p>
             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{AUTO_CONTACT_VAR}</p>
           </div>
           <Button
@@ -883,7 +887,7 @@ function ConfigField({
             className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
             onClick={() => setOverrideAutoFill(true)}
           >
-            Cambia
+            {tr("Cambia")}
           </Button>
         </div>
         {field.helpText && <p className="text-[11px] text-muted-foreground">{field.helpText}</p>}
@@ -962,11 +966,11 @@ function ConfigField({
             onValueChange={(v) => onChange(v === NONE_SENTINEL ? "" : v)}
           >
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder={emptyOpt?.label ?? "Seleziona..."} />
+              <SelectValue placeholder={emptyOpt?.label ?? tr("Seleziona...")} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE_SENTINEL}>
-                {emptyOpt?.label ?? "Nessuno"}
+                {emptyOpt?.label ?? tr("Nessuno")}
               </SelectItem>
               {validOpts.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
@@ -981,15 +985,15 @@ function ConfigField({
       {field.type === "flow_select" && (
         <Select value={value ?? ""} onValueChange={onChange}>
           <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Scegli l'automazione..." />
+            <SelectValue placeholder={tr("Scegli l'automazione...")} />
           </SelectTrigger>
           <SelectContent>
-            {field.allowAll && <SelectItem value="__tutte__">Tutte le automazioni attive</SelectItem>}
+            {field.allowAll && <SelectItem value="__tutte__">{tr("Tutte le automazioni attive")}</SelectItem>}
             {flussiPubblicati.map((fl) => (
               <SelectItem key={fl.id} value={fl.id}>{fl.name}</SelectItem>
             ))}
             {flussiPubblicati.length === 0 && (
-              <SelectItem value="__nessuna__" disabled>Nessuna automazione pubblicata</SelectItem>
+              <SelectItem value="__nessuna__" disabled>{tr("Nessuna automazione pubblicata")}</SelectItem>
             )}
           </SelectContent>
         </Select>
@@ -998,10 +1002,10 @@ function ConfigField({
       {field.type === "flow_node_select" && (
         <Select value={value || "__inizio__"} onValueChange={(v) => onChange(v === "__inizio__" ? null : v)} disabled={!nodeConfig?.flow_id}>
           <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Dall'inizio" />
+            <SelectValue placeholder={tr("Dall'inizio")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__inizio__">Dall'inizio</SelectItem>
+            <SelectItem value="__inizio__">{tr("Dall'inizio")}</SelectItem>
             {passiFlusso.map((p) => (
               <SelectItem key={p.id} value={p.id}>{p.label || p.node_type}</SelectItem>
             ))}
@@ -1013,7 +1017,7 @@ function ConfigField({
         companyUsers.length > 0 ? (
           <Select value={value ?? ""} onValueChange={onChange}>
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Seleziona utente..." />
+              <SelectValue placeholder={tr("Seleziona utente...")} />
             </SelectTrigger>
             <SelectContent>
               {companyUsers.map((u: any) => (
@@ -1035,27 +1039,27 @@ function ConfigField({
       {field.type === "onboarding_template_select" && (
         <div className="space-y-1">
           <Select value={value || "standard"} onValueChange={onChange}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Scegli un percorso reale" /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={tr("Scegli un percorso reale")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="standard">Percorso predefinito</SelectItem>
-              {value && value !== "standard" && !onboardingTemplates.some(t => t.id === value) && <SelectItem value={value}>Percorso salvato non disponibile</SelectItem>}
-              {onboardingTemplates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}{t.is_default ? " (predefinito)" : ""}</SelectItem>)}
+              <SelectItem value="standard">{tr("Percorso predefinito")}</SelectItem>
+              {value && value !== "standard" && !onboardingTemplates.some(t => t.id === value) && <SelectItem value={value}>{tr("Percorso salvato non disponibile")}</SelectItem>}
+              {onboardingTemplates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}{t.is_default ? ` ${tr("(predefinito)")}` : ""}</SelectItem>)}
             </SelectContent>
           </Select>
-          {onboardingUnavailable && <p role="alert" className="text-xs text-destructive">Impossibile leggere i percorsi onboarding.</p>}
+          {onboardingUnavailable && <p role="alert" className="text-xs text-destructive">{tr("Impossibile leggere i percorsi onboarding.")}</p>}
         </div>
       )}
       {field.type === "platform_user_select" && (
         <div className="space-y-1">
           <Select value={value || "__none__"} onValueChange={v => onChange(v === "__none__" ? null : v)}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Team piattaforma" /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={tr("Team piattaforma")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Nessuna assegnazione</SelectItem>
-              {value && !platformUsers.some(u => u.id === value) && <SelectItem value={value}>Utente salvato non disponibile</SelectItem>}
+              <SelectItem value="__none__">{tr("Nessuna assegnazione")}</SelectItem>
+              {value && !platformUsers.some(u => u.id === value) && <SelectItem value={value}>{tr("Utente salvato non disponibile")}</SelectItem>}
               {platformUsers.map(u => <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || u.id}</SelectItem>)}
             </SelectContent>
           </Select>
-          {platformUsersUnavailable && <p role="alert" className="text-xs text-destructive">Impossibile leggere il team piattaforma.</p>}
+          {platformUsersUnavailable && <p role="alert" className="text-xs text-destructive">{tr("Impossibile leggere il team piattaforma.")}</p>}
         </div>
       )}
 
@@ -1085,7 +1089,7 @@ function ConfigField({
           <Input
             value={Array.isArray(value) ? value.join(",") : (value ?? "")}
             onChange={(e) => onChange(e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
-            placeholder="ID utenti separati da virgola"
+            placeholder={tr("ID utenti separati da virgola")}
             className="h-9 text-sm"
           />
         )
@@ -1094,14 +1098,14 @@ function ConfigField({
       {field.type === "entity_select" && ["agent_id", "ai_agent_id"].includes(field.id) && (
         <div className="space-y-1">
           <Select value={value || undefined} onValueChange={onChange}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Scegli un agente dell’azienda" /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={tr("Scegli un agente dell’azienda")} /></SelectTrigger>
             <SelectContent>
-              {value && !automationAgents.some(a => a.id === value) && <SelectItem value={value}>Agente salvato non disponibile</SelectItem>}
+              {value && !automationAgents.some(a => a.id === value) && <SelectItem value={value}>{tr("Agente salvato non disponibile")}</SelectItem>}
               {automationAgents.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          {agentsUnavailable && <p role="status" className="text-xs text-destructive">Impossibile caricare gli agenti. Riprova prima di pubblicare.</p>}
-          {!agentsUnavailable && automationAgents.length === 0 && <p className="text-xs text-muted-foreground">Nessun agente disponibile nell’azienda.</p>}
+          {agentsUnavailable && <p role="status" className="text-xs text-destructive">{tr("Impossibile caricare gli agenti. Riprova prima di pubblicare.")}</p>}
+          {!agentsUnavailable && automationAgents.length === 0 && <p className="text-xs text-muted-foreground">{tr("Nessun agente disponibile nell’azienda.")}</p>}
         </div>
       )}
       {field.type === "entity_select" && !["agent_id", "ai_agent_id"].includes(field.id) && (
@@ -1120,10 +1124,10 @@ function ConfigField({
             onValueChange={(v) => onChange(v === "__all__" ? null : v)}
           >
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Tutte le pagine" />
+              <SelectValue placeholder={tr("Tutte le pagine")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Tutte le pagine collegate</SelectItem>
+              <SelectItem value="__all__">{tr("Tutte le pagine collegate")}</SelectItem>
               {metaPages.map((p: any) => (
                 <SelectItem key={p.asset_id} value={p.asset_id}>{p.asset_name || p.asset_id}</SelectItem>
               ))}
@@ -1131,7 +1135,7 @@ function ConfigField({
           </Select>
         ) : (
           <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            Nessuna pagina Facebook collegata. Collega Meta da Impostazioni → Integrazioni.
+            {tr("Nessuna pagina Facebook collegata. Collega Meta da Impostazioni → Integrazioni.")}
           </p>
         )
       )}
@@ -1148,8 +1152,8 @@ function ConfigField({
           return (
             <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
               {metaForms.length === 0
-                ? "Nessun modulo lead trovato. Verifica il collegamento Meta in Impostazioni → Integrazioni."
-                : "Nessun modulo per la pagina selezionata."}
+                ? tr("Nessun modulo lead trovato. Verifica il collegamento Meta in Impostazioni → Integrazioni.")
+                : tr("Nessun modulo per la pagina selezionata.")}
             </p>
           );
         }
@@ -1163,15 +1167,15 @@ function ConfigField({
             <Popover>
               <PopoverTrigger asChild>
                 <Button type="button" variant="outline" className="h-9 w-full justify-between text-sm font-normal">
-                  {ids.length > 0 ? `${ids.length} modul${ids.length === 1 ? "o" : "i"} selezionat${ids.length === 1 ? "o" : "i"}` : "Tutti i moduli"}
+                  {ids.length > 0 ? tr(ids.length === 1 ? "{n} modulo selezionato" : "{n} moduli selezionati", { n: ids.length }) : tr("Tutti i moduli")}
                   <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[300px] p-0" align="start">
                 <Command>
-                  <CommandInput placeholder="Cerca modulo…" />
+                  <CommandInput placeholder={tr("Cerca modulo…")} />
                   <CommandList className="max-h-[240px]">
-                    <CommandEmpty>Nessun modulo trovato.</CommandEmpty>
+                    <CommandEmpty>{tr("Nessun modulo trovato.")}</CommandEmpty>
                     <CommandGroup>
                       {visibleForms.map((f: any) => (
                         <CommandItem
@@ -1195,7 +1199,7 @@ function ConfigField({
                   return (
                     <span key={fid} className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[11px]">
                       <span className="truncate">{f?.form_name || fid}</span>
-                      <button type="button" onClick={() => toggleForm(fid)} aria-label="Rimuovi modulo" className="shrink-0 text-muted-foreground hover:text-foreground">
+                      <button type="button" onClick={() => toggleForm(fid)} aria-label={tr("Rimuovi modulo")} className="shrink-0 text-muted-foreground hover:text-foreground">
                         <X className="h-3 w-3" />
                       </button>
                     </span>
@@ -1221,16 +1225,16 @@ function ConfigField({
           onValueChange={(v) => onChange(v === "__auto__" ? null : v)}
         >
           <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Scelta automatica" />
+            <SelectValue placeholder={tr("Scelta automatica")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__auto__">Scelta automatica tra i numeri liberi</SelectItem>
+            <SelectItem value="__auto__">{tr("Scelta automatica tra i numeri liberi")}</SelectItem>
             {numeriWhatsappLocale
               .filter((n) => n.numero || n.id === value)
               .map((n) => (
                 <SelectItem key={n.id} value={n.id}>
                   {[n.display_name, n.numero].filter(Boolean).join(" · ")}
-                  {n.stato !== "connected" ? " (scollegato)" : ""}
+                  {n.stato !== "connected" ? ` ${tr("(scollegato)")}` : ""}
                 </SelectItem>
               ))}
           </SelectContent>
@@ -1244,10 +1248,10 @@ function ConfigField({
             onValueChange={(v) => onChange(v === "__tutti__" ? null : v)}
           >
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Tutti i calendari" />
+              <SelectValue placeholder={tr("Tutti i calendari")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__tutti__">Tutti i calendari</SelectItem>
+              <SelectItem value="__tutti__">{tr("Tutti i calendari")}</SelectItem>
               {calendariPrenotazione.map((c: { id: string; name: string }) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
@@ -1255,7 +1259,7 @@ function ConfigField({
           </Select>
         ) : (
           <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            Nessun calendario trovato. Creane uno in Impostazioni → Appuntamenti e prenotazioni.
+            {tr("Nessun calendario trovato. Creane uno in Impostazioni → Appuntamenti e prenotazioni.")}
           </p>
         )
       )}
@@ -1264,7 +1268,7 @@ function ConfigField({
         if (calendariPrenotazione.length === 0) {
           return (
             <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-              Nessun calendario trovato. Creane uno in Impostazioni → Appuntamenti e prenotazioni.
+              {tr("Nessun calendario trovato. Creane uno in Impostazioni → Appuntamenti e prenotazioni.")}
             </p>
           );
         }
@@ -1281,15 +1285,15 @@ function ConfigField({
                 <Button type="button" variant="outline" className="h-9 w-full justify-between text-sm font-normal">
                   {ids.length > 0
                     ? `${ids.length} calendari${ids.length === 1 ? "o" : ""} selezionat${ids.length === 1 ? "o" : "i"}`
-                    : "Tutti i calendari"}
+                    : tr("Tutti i calendari")}
                   <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[300px] p-0" align="start">
                 <Command>
-                  <CommandInput placeholder="Cerca calendario…" />
+                  <CommandInput placeholder={tr("Cerca calendario…")} />
                   <CommandList className="max-h-[240px]">
-                    <CommandEmpty>Nessun calendario trovato.</CommandEmpty>
+                    <CommandEmpty>{tr("Nessun calendario trovato.")}</CommandEmpty>
                     <CommandGroup>
                       {calendariPrenotazione.map((c: { id: string; name: string }) => (
                         <CommandItem key={c.id} value={`${c.name} ${c.id}`} onSelect={() => scegli(c.id)}>
@@ -1307,7 +1311,7 @@ function ConfigField({
                 {ids.map((id) => (
                   <span key={id} className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[11px]">
                     <span className="truncate">{nome(id)}</span>
-                    <button type="button" onClick={() => scegli(id)} aria-label="Togli calendario" className="shrink-0 text-muted-foreground hover:text-foreground">
+                    <button type="button" onClick={() => scegli(id)} aria-label={tr("Togli calendario")} className="shrink-0 text-muted-foreground hover:text-foreground">
                       <X className="h-3 w-3" />
                     </button>
                   </span>
@@ -1331,7 +1335,7 @@ function ConfigField({
             }}
           >
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Seleziona pipeline..." />
+              <SelectValue placeholder={tr("Seleziona pipeline...")} />
             </SelectTrigger>
             <SelectContent>
               {crmPipelines.map((p: any) => (
@@ -1341,7 +1345,7 @@ function ConfigField({
           </Select>
         ) : (
           <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            Nessuna pipeline trovata. Creane una in CRM → Opportunità.
+            {tr("Nessuna pipeline trovata. Creane una in CRM → Opportunità.")}
           </p>
         )
       )}
@@ -1349,12 +1353,12 @@ function ConfigField({
       {field.type === "pipeline_stage_select" && (
         !nodeConfig?.pipeline_id ? (
           <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            Seleziona prima la pipeline.
+            {tr("Seleziona prima la pipeline.")}
           </p>
         ) : (
           <Select value={value || ""} onValueChange={onChange}>
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Seleziona fase..." />
+              <SelectValue placeholder={tr("Seleziona fase...")} />
             </SelectTrigger>
             <SelectContent>
               {crmStages.map((s: any) => (
@@ -1368,12 +1372,12 @@ function ConfigField({
       {field.type === "order_status_select" && (
         fasiCommessa.length === 0 ? (
           <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            Nessuna fase commessa. Creale in Impostazioni → Fasi e avanzamento.
+            {tr("Nessuna fase commessa. Creale in Impostazioni → Fasi e avanzamento.")}
           </p>
         ) : (
           <Select value={value || ""} onValueChange={onChange}>
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Seleziona fase..." />
+              <SelectValue placeholder={tr("Seleziona fase...")} />
             </SelectTrigger>
             <SelectContent>
               {fasiCommessa.map((f) => (
@@ -1382,7 +1386,7 @@ function ConfigField({
               {/* Automazioni vecchie salvavano un nome ("confermato"): resta
                   visibile finché non si sceglie una fase vera. */}
               {value && !fasiCommessa.some((f) => f.id === value) && (
-                <SelectItem value={String(value)}>{String(value)} (vecchia impostazione)</SelectItem>
+                <SelectItem value={String(value)}>{tr("{valore} (vecchia impostazione)", { valore: String(value) })}</SelectItem>
               )}
             </SelectContent>
           </Select>
@@ -1435,7 +1439,7 @@ function ConfigField({
           onClick={() => { onChange(AUTO_CONTACT_VAR); setOverrideAutoFill(false); }}
         >
           <RotateCcw className="h-3 w-3" />
-          Usa contatto dal trigger
+          {tr("Usa contatto dal trigger")}
         </button>
       )}
 

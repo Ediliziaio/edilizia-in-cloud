@@ -20,8 +20,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-const etichetta = (d: SdsAziendale) =>
-  `${d.titolo} · rev. ${d.revisione || "non indicata"} · ${d.data_rilascio || "data non indicata"}`;
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+const etichetta = (d: SdsAziendale, t: (testo: string, valori?: Record<string, string | number>) => string) =>
+  t("{titolo} · rev. {revisione} · {data}", { titolo: d.titolo, revisione: d.revisione || t("non indicata"), data: d.data_rilascio || t("data non indicata") });
 const candidabile = (d: SdsAziendale) =>
   !!d.file_path &&
   !!d.file_name &&
@@ -33,6 +34,7 @@ export function SdsAziendali({ companyId }: { companyId: string }) {
   return <LibreriaSds key={companyId} companyId={companyId} />;
 }
 function LibreriaSds({ companyId }: { companyId: string }) {
+  const t = useT();
   const p = usePermissions();
   const q = useSdsAziendali(companyId);
   const [fonti, setFonti] = useState<SdsAziendale[] | null>(null);
@@ -42,13 +44,10 @@ function LibreriaSds({ companyId }: { companyId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
         <div className="max-w-3xl text-sm">
           <p className="font-medium">
-            Una libreria per i prodotti della tua impresa
+            {t("Una libreria per i prodotti della tua impresa")}
           </p>
           <p className="mt-1 text-muted-foreground">
-            Carica ogni nuova SDS come documento distinto. Collega poi le
-            revisioni e consulta le commesse che usano ancora la versione
-            precedente. Il collegamento non verifica il documento e non
-            sostituisce le SDS nei prodotti o nei POS già emessi.
+            {t("Carica ogni nuova SDS come documento distinto. Collega poi le revisioni e consulta le commesse che usano ancora la versione precedente. Il collegamento non verifica il documento e non sostituisce le SDS nei prodotti o nei POS già emessi.")}
           </p>
         </div>
         {!p.solaLettura && (
@@ -62,49 +61,48 @@ function LibreriaSds({ companyId }: { companyId: string }) {
             }
             onClick={() => setFonti(structuredClone(q.data || []))}
           >
-            Collega revisioni
+            {t("Collega revisioni")}
           </Button>
         )}
       </div>
       <FascicoloDocumenti companyId={companyId} soloSdsAziendali />
       {q.isError && (
         <p role="alert" className="text-sm text-destructive">
-          Revisioni e impieghi non disponibili. Riprova prima di effettuare un
-          collegamento.
+          {t("Revisioni e impieghi non disponibili. Riprova prima di effettuare un collegamento.")}
         </p>
       )}
       {!q.isError && !!q.data?.length && (
         <details className="rounded-lg border bg-card p-4">
           <summary className="cursor-pointer font-medium">
-            Revisioni e commesse collegate
+            {t("Revisioni e commesse collegate")}
           </summary>
           <div className="mt-3 space-y-3">
             {q.data.map((d) => (
               <article key={d.id} className="rounded-md border p-3 text-sm">
-                <p className="font-medium">{etichetta(d)}</p>
+                <p className="font-medium">{etichetta(d, t)}</p>
                 <p className="text-muted-foreground">
-                  {STATO_EVIDENZA[d.stato] || d.stato}
+                  {STATO_EVIDENZA[d.stato] ? t(STATO_EVIDENZA[d.stato]) : d.stato}
                 </p>
                 {d.precedente_id && (
                   <p>
-                    Revisione precedente:{" "}
+                    {t("Revisione precedente:")}{" "}
                     {q.data.find((x) => x.id === d.precedente_id)?.titolo ||
-                      "Documento non disponibile"}{" "}
+                      t("Documento non disponibile")}{" "}
                     ·{" "}
                     {q.data.find((x) => x.id === d.precedente_id)?.revisione ||
-                      "revisione non indicata"}
+                      t("revisione non indicata")}
                   </p>
                 )}
                 {!!d.successive.length && (
                   <p className="mt-1 text-amber-800">
-                    Revisioni successive:{" "}
+                    {t("Revisioni successive:")}{" "}
                     {d.successive
                       .map(
                         (x) =>
-                          `${x.titolo} · ${x.revisione || "revisione non indicata"} (${STATO_EVIDENZA[x.stato as keyof typeof STATO_EVIDENZA] || x.stato})`,
+                          `${x.titolo} · ${x.revisione || t("revisione non indicata")} (${t(STATO_EVIDENZA[x.stato as keyof typeof STATO_EVIDENZA] || x.stato)})`,
                       )
                       .join("; ")}
-                    . Riesamina gli impieghi prima di aggiornare i prodotti.
+                    {t(". Riesamina gli impieghi prima di aggiornare i prodotti.")}
                   </p>
                 )}
                 {d.impieghi.length ? (
@@ -115,17 +113,16 @@ function LibreriaSds({ companyId }: { companyId: string }) {
                           className="text-primary underline"
                           to={`/azienda/ordini/${i.order_id}?tab=cantiere&vista_cantiere=sicurezza`}
                         >
-                          {i.order_code || "Apri commessa"}
+                          {i.order_code || t("Apri commessa")}
                         </Link>{" "}
-                        · {i.nome} · {i.dal} — {i.al || "senza fine indicata"}
-                        {i.annullato ? " · impiego annullato" : ""}
+                        · {i.nome} · {i.dal} — {i.al || t("senza fine indicata")}
+                        {i.annullato ? ` ${t("· impiego annullato")}` : ""}
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p className="mt-2 text-muted-foreground">
-                    Nessun impiego collegato nell’inventario prodotti. Questo
-                    elenco non include i riferimenti congelati nei POS storici.
+                    {t("Nessun impiego collegato nell’inventario prodotti. Questo elenco non include i riferimenti congelati nei POS storici.")}
                   </p>
                 )}
               </article>
@@ -153,6 +150,7 @@ export function CollegaRevisioni({
   iniziali: SdsAziendale[];
   onClose: () => void;
 }) {
+  const t = useT();
   const p = usePermissions();
   const salva = useCollegaRevisioneSds(companyId);
   const [fonti, setFonti] = useState(iniziali);
@@ -190,7 +188,7 @@ export function CollegaRevisioni({
       setLetturaFallita(false);
     } catch (e) {
       setLetturaFallita(true);
-      setErrore(e instanceof Error ? e.message : "Lettura non disponibile.");
+      setErrore(e instanceof Error ? e.message : t("Lettura non disponibile."));
     } finally {
       setLettura(false);
     }
@@ -210,7 +208,7 @@ export function CollegaRevisioni({
       setErrore(
         e instanceof Error
           ? e.message
-          : "Collegamento non confermato. Rileggi le SDS prima di riprovare.",
+          : t("Collegamento non confermato. Rileggi le SDS prima di riprovare."),
       );
     }
   }
@@ -224,17 +222,14 @@ export function CollegaRevisioni({
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Collega revisioni SDS</DialogTitle>
+          <DialogTitle>{t("Collega revisioni SDS")}</DialogTitle>
           <DialogDescription>
-            Seleziona due documenti già caricati della stessa sostanza o
-            prodotto. Il collegamento rimane nello storico e non può essere
-            riassegnato. Verifica prodotto, produttore e date prima di
-            confermare.
+            {t("Seleziona due documenti già caricati della stessa sostanza o prodotto. Il collegamento rimane nello storico e non può essere riassegnato. Verifica prodotto, produttore e date prima di confermare.")}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={occupato || !scrive} className="space-y-4">
           <div>
-            <Label htmlFor="sds-nuova">Nuova revisione caricata</Label>
+            <Label htmlFor="sds-nuova">{t("Nuova revisione caricata")}</Label>
             <UniformSelect
               id="sds-nuova"
               className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -244,18 +239,18 @@ export function CollegaRevisioni({
                 setErrore("");
               }}
             >
-              <option value="">Scegli documento</option>
+              <option value="">{t("Scegli documento")}</option>
               {fonti
                 .filter((d) => candidabile(d))
                 .map((d) => (
                   <option key={d.id} value={d.id}>
-                    {etichetta(d)}
+                    {etichetta(d, t)}
                   </option>
                 ))}
             </UniformSelect>
           </div>
           <div>
-            <Label htmlFor="sds-precedente">Documento precedente</Label>
+            <Label htmlFor="sds-precedente">{t("Documento precedente")}</Label>
             <UniformSelect
               id="sds-precedente"
               className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -265,12 +260,12 @@ export function CollegaRevisioni({
                 setErrore("");
               }}
             >
-              <option value="">Scegli documento</option>
+              <option value="">{t("Scegli documento")}</option>
               {fonti
                 .filter((d) => d.id !== nuova)
                 .map((d) => (
                   <option key={d.id} value={d.id}>
-                    {etichetta(d)}
+                    {etichetta(d, t)}
                   </option>
                 ))}
             </UniformSelect>
@@ -278,24 +273,19 @@ export function CollegaRevisioni({
         </fieldset>
         {a && (
           <div className="rounded-md border p-3 text-sm">
-            <p>
-              {a.impieghi.filter((i) => !i.annullato).length} impieghi non
-              annullati usano il documento precedente.
-            </p>
+            <p>{t("{n} impieghi non annullati usano il documento precedente.", { n: a.impieghi.filter((i) => !i.annullato).length })}</p>
             <p className="mt-1 text-muted-foreground">
-              Rimarranno collegati a questa versione fino al riesame nella
-              rispettiva commessa. Anche lo stato del vecchio documento rimane
-              invariato.
+              {t("Rimarranno collegati a questa versione fino al riesame nella rispettiva commessa. Anche lo stato del vecchio documento rimane invariato.")}
             </p>
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" disabled={occupato} onClick={rileggi}>
-            Rileggi SDS
+            {t("Rileggi SDS")}
           </Button>
           {rilette && !cambiata && (
             <span className="text-xs text-muted-foreground">
-              Le versioni selezionate coincidono con la rilettura.
+              {t("Le versioni selezionate coincidono con la rilettura.")}
             </span>
           )}
         </div>
@@ -305,8 +295,7 @@ export function CollegaRevisioni({
             className="rounded-md border border-amber-300 p-3 text-sm"
           >
             <p>
-              Uno dei documenti è cambiato o non è più disponibile. Rileggi i
-              dati aggiornati prima di confermare.
+              {t("Uno dei documenti è cambiato o non è più disponibile. Rileggi i dati aggiornati prima di confermare.")}
             </p>
             <Button
               variant="outline"
@@ -320,7 +309,7 @@ export function CollegaRevisioni({
                 }
               }}
             >
-              Usa versioni rilette
+              {t("Usa versioni rilette")}
             </Button>
           </div>
         )}
@@ -331,15 +320,15 @@ export function CollegaRevisioni({
         )}
         {!scrive && (
           <p role="alert" className="text-sm text-destructive">
-            Non puoi modificare i collegamenti SDS.
+            {t("Non puoi modificare i collegamenti SDS.")}
           </p>
         )}
         <DialogFooter>
           <Button variant="outline" disabled={occupato} onClick={onClose}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button disabled={!ammissibile} onClick={invia}>
-            Conferma collegamento
+            {t("Conferma collegamento")}
           </Button>
         </DialogFooter>
       </DialogContent>

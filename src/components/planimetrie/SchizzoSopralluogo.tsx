@@ -2,12 +2,14 @@ import { useRef, useState, type PointerEvent } from "react";
 import { Pencil, Undo2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Punto = { x: number; y: number };
 const LARGHEZZA = 960;
 const ALTEZZA = 624;
 
 export function SchizzoSopralluogo({ onChiudi, onUsa }: { onChiudi: () => void; onUsa: (file: File) => void }) {
+  const t = useT();
   const tela = useRef<HTMLCanvasElement>(null);
   const tratti = useRef<Punto[][]>([]);
   const attivo = useRef<number | null>(null);
@@ -75,31 +77,31 @@ export function SchizzoSopralluogo({ onChiudi, onUsa }: { onChiudi: () => void; 
       immagine.width = LARGHEZZA;
       immagine.height = ALTEZZA;
       const ctx = immagine.getContext("2d");
-      if (!ctx) throw new Error("Il browser non riesce a preparare lo schizzo.");
+      if (!ctx) throw new Error(t("Il browser non riesce a preparare lo schizzo."));
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, LARGHEZZA, ALTEZZA);
       ctx.drawImage(tela.current, 0, 0);
       const png = await new Promise<Blob | null>((risolvi) => immagine.toBlob(risolvi, "image/png"));
-      if (!png) throw new Error("Schizzo non disponibile. Riprova.");
+      if (!png) throw new Error(t("Schizzo non disponibile. Riprova."));
       onUsa(new File([png], "Schizzo del sopralluogo.png", { type: png.type }));
-    } catch (e) { setErrore(e instanceof Error ? e.message : "Impossibile usare lo schizzo."); }
+    } catch (e) { setErrore(e instanceof Error ? e.message : t("Impossibile usare lo schizzo.")); }
     finally { setGenerando(false); }
   };
 
   return <Dialog open onOpenChange={(aperto) => { if (!aperto && !generando) onChiudi(); }}>
     <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto">
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2"><Pencil className="h-4 w-4 text-primary" />Disegna uno schizzo</DialogTitle>
-        <DialogDescription>Traccia muri e ambienti con il dito o il mouse. Imposterai la scala nell’editor.</DialogDescription>
+        <DialogTitle className="flex items-center gap-2"><Pencil className="h-4 w-4 text-primary" />{t("Disegna uno schizzo")}</DialogTitle>
+        <DialogDescription>{t("Traccia muri e ambienti con il dito o il mouse. Imposterai la scala nell’editor.")}</DialogDescription>
       </DialogHeader>
       <div className="overflow-hidden rounded-lg border bg-white">
-        <canvas ref={tela} width={LARGHEZZA} height={ALTEZZA} aria-label="Foglio per disegnare lo schizzo" className="block h-auto w-full touch-none cursor-crosshair bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"
+        <canvas ref={tela} width={LARGHEZZA} height={ALTEZZA} aria-label={t("Foglio per disegnare lo schizzo")} className="block h-auto w-full touch-none cursor-crosshair bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"
           onPointerDown={inizia} onPointerMove={continua} onPointerUp={finisci} onPointerCancel={finisci} onLostPointerCapture={finisci} />
       </div>
       {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
       <DialogFooter className="sm:justify-between">
-        <Button type="button" variant="outline" disabled={!quanti || generando} onClick={annulla}><Undo2 className="mr-2 h-4 w-4" />Annulla ultimo tratto</Button>
-        <Button type="button" disabled={!quanti || generando} onClick={() => void usa()}>{generando ? "Preparo lo schizzo…" : "Usa lo schizzo"}</Button>
+        <Button type="button" variant="outline" disabled={!quanti || generando} onClick={annulla}><Undo2 className="mr-2 h-4 w-4" />{t("Annulla ultimo tratto")}</Button>
+        <Button type="button" disabled={!quanti || generando} onClick={() => void usa()}>{generando ? t("Preparo lo schizzo…") : t("Usa lo schizzo")}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>;

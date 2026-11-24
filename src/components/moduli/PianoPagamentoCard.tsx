@@ -25,6 +25,7 @@ import {
   type ModoPagamento, type PianoPagamento, type RataPreventivo,
 } from "@/lib/preventivi/pianoPagamento";
 import { TERMINI_RATA, testoTermine } from "@/lib/terminiPagamento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Il piano com'è salvato sul preventivo (null = non ancora deciso). */
@@ -49,6 +50,7 @@ const eventiDelModo = (modo: ModoPagamento) =>
 const arrotonda2 = (n: number) => Math.round(n * 100) / 100;
 
 export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModello, modulo }: Props) {
+  const tr = useT();
   const piano = leggiPianoPagamento(raw);
   const { modelli } = useModelliPagamento();
   const [modelloScelto, setModelloScelto] = useState("");
@@ -66,12 +68,12 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
       <div className={cn("rounded-lg border p-3", senzaTesto && "border-amber-300 bg-amber-50")}>
         <p className="flex items-center gap-1.5 text-xs font-medium">
           <BadgeEuro className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-          Come paga il cliente
+          {tr("Come paga il cliente")}
         </p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           {senzaTesto
-            ? "Nel PDF non compare nessun pagamento: nel modello non è scritto niente. Scrivi qui le rate di questo preventivo."
-            : "Nel PDF esce la frase scritta nel modello. Qui puoi fare le rate di questo preventivo, con gli importi."}
+            ? tr("Nel PDF non compare nessun pagamento: nel modello non è scritto niente. Scrivi qui le rate di questo preventivo.")
+            : tr("Nel PDF esce la frase scritta nel modello. Qui puoi fare le rate di questo preventivo, con gli importi.")}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {/* I modi di pagare che si usano in questo mestiere: il primo è quello consigliato. */}
@@ -82,7 +84,7 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
           ))}
           {modelli.length > 0 && (
             <Select value={modelloScelto} onValueChange={(v) => { setModelloScelto(v); const m = modelli.find((x) => x.id === v); if (m) scrivi(pianoDaModello(m)); }}>
-              <SelectTrigger className="h-8 w-auto min-w-[11rem] text-xs" aria-label="Parti da un modello di pagamento"><SelectValue placeholder="Da un modello…" /></SelectTrigger>
+              <SelectTrigger className="h-8 w-auto min-w-[11rem] text-xs" aria-label={tr("Parti da un modello di pagamento")}><SelectValue placeholder={tr("Da un modello…")} /></SelectTrigger>
               <SelectContent>{modelli.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}</SelectContent>
             </Select>
           )}
@@ -102,10 +104,10 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <p className="flex items-center gap-1.5 text-xs font-medium">
           <BadgeEuro className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-          Come paga il cliente
+          {tr("Come paga il cliente")}
         </p>
-        <div role="group" aria-label="Modo di pagamento" className="flex gap-1.5">
-          {([["rate", "Modalità di pagamento"], ["sal", "A SAL"]] as const).map(([modo, etichetta]) => (
+        <div role="group" aria-label={tr("Modo di pagamento")} className="flex gap-1.5">
+          {([["rate", tr("Modalità di pagamento")], ["sal", tr("A SAL")]] as const).map(([modo, etichetta]) => (
             <button
               key={modo}
               type="button"
@@ -126,30 +128,30 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
         {piano.righe.map((r, i) => (
           <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,11rem)_6rem_auto_auto_auto]">
             <Input
-              aria-label={`Nome della rata ${i + 1}`}
+              aria-label={tr("Nome della rata {n}", { n: i + 1 })}
               value={r.nome}
               maxLength={MAX_NOME_RATA_PIANO}
               onChange={(e) => cambiaRiga(i, { nome: e.target.value })}
               className="h-8 text-xs"
             />
             <Select value={r.evento} onValueChange={(v) => cambiaRiga(i, { evento: v as RataPreventivo["evento"], numero: v === "sal_numero" ? (r.numero ?? 1) : null })}>
-              <SelectTrigger className="h-8 text-xs max-sm:col-span-2" aria-label={`Quando si paga la rata ${i + 1}`}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs max-sm:col-span-2" aria-label={tr("Quando si paga la rata {k}", { k: i + 1 })}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {gruppi.map((g) => (
                   <SelectGroup key={g.gruppo.value}>
-                    <SelectLabel>{g.gruppo.label}</SelectLabel>
-                    {g.eventi.map((e) => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
+                    <SelectLabel>{tr(g.gruppo.label)}</SelectLabel>
+                    {g.eventi.map((e) => <SelectItem key={e.value} value={e.value}>{tr(e.label)}</SelectItem>)}
                   </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
             <div className="flex items-center gap-1 max-sm:col-span-1">
               {r.aMisura ? (
-                <span className="flex h-8 flex-1 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-700">a misura</span>
+                <span className="flex h-8 flex-1 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-700">{tr("a misura")}</span>
               ) : (
                 <div className="relative flex-1">
                   <Input
-                    aria-label={`Percentuale della rata ${i + 1}`}
+                    aria-label={tr("Percentuale della rata {n}", { n: i + 1 })}
                     inputMode="decimal"
                     value={String(r.percent)}
                     onChange={(e) => cambiaRiga(i, { percent: arrotonda2(Math.min(100, Math.max(0, Number(e.target.value.replace(",", ".")) || 0))) })}
@@ -162,8 +164,8 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
               {r.evento === "sal_numero" && (
                 <button
                   type="button"
-                  aria-label={r.aMisura ? `Dai una percentuale fissa alla rata ${i + 1}` : `Paga a misura la rata ${i + 1}`}
-                  title={r.aMisura ? "Dai a questa rata una percentuale fissa" : "L'importo lo dirà il SAL: si paga quello che è stato fatto"}
+                  aria-label={r.aMisura ? tr("Dai una percentuale fissa alla rata {k}", { k: i + 1 }) : tr("Paga a misura la rata {k}", { k: i + 1 })}
+                  title={r.aMisura ? tr("Dai a questa rata una percentuale fissa") : tr("L'importo lo dirà il SAL: si paga quello che è stato fatto")}
                   onClick={() => cambiaRiga(i, r.aMisura ? { aMisura: false } : { aMisura: true, percent: 0 })}
                   className="rounded p-1 text-slate-400 hover:text-emerald-700"
                 >
@@ -172,20 +174,20 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
               )}
             </div>
             <span className={cn("text-right text-xs font-semibold tabular-nums", righe[i]?.previsione && "font-normal text-slate-500")}>
-              {formatCurrency(righe[i]?.importo ?? 0)}{righe[i]?.previsione ? " circa" : ""}
+              {formatCurrency(righe[i]?.importo ?? 0)}{righe[i]?.previsione ? ` ${tr("circa")}` : ""}
             </span>
             <Select
               value={`${r.termineGiorni ?? 0}|${r.termineFineMese === true}`}
               onValueChange={(v) => { const [g, fm] = v.split("|"); cambiaRiga(i, { termineGiorni: Number(g), termineFineMese: fm === "true" }); }}
             >
-              <SelectTrigger className="h-8 w-[8.5rem] text-[11px] max-sm:col-span-2 max-sm:w-full" aria-label={`Termine di pagamento della rata ${i + 1}`}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-[8.5rem] text-[11px] max-sm:col-span-2 max-sm:w-full" aria-label={tr("Termine di pagamento della rata {k}", { k: i + 1 })}><SelectValue /></SelectTrigger>
               <SelectContent>{TERMINI_RATA.map((t) => (
                 <SelectItem key={`${t.giorni}|${t.fineMese}`} value={`${t.giorni}|${t.fineMese}`}>{testoTermine(t.giorni, t.fineMese)}</SelectItem>
               ))}</SelectContent>
             </Select>
             <button
               type="button"
-              aria-label={`Togli la rata ${i + 1}`}
+              aria-label={tr("Togli la rata {nome}", { nome: i + 1 })}
               onClick={() => scrivi({ ...piano, righe: piano.righe.filter((_, k) => k !== i) })}
               disabled={piano.righe.length <= 1}
               className="rounded p-1 text-slate-400 hover:text-red-600 disabled:opacity-40"
@@ -209,17 +211,17 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
                   }] });
                 }}
               >
-                <Plus className="h-3 w-3" />{piano.modo === "sal" ? "Aggiungi un SAL" : "Aggiungi una rata"}
+                <Plus className="h-3 w-3" />{piano.modo === "sal" ? tr("Aggiungi un SAL") : tr("Aggiungi una rata")}
               </Button>
             )}
             <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-slate-500" onClick={() => onChange(null)}>
-              Togli il piano
+              {tr("Togli il piano")}
             </Button>
           </div>
           <span className={cn("text-[11px] font-semibold tabular-nums", completo ? "text-emerald-700" : "text-amber-700")}>
             {quota > 0
-              ? `${somma}% fisso + ${quota}% a misura — Totale ${formatCurrency(totale)}`
-              : completo ? `Totale ${formatCurrency(totale)}` : `${somma}% di 100 — mancano ${arrotonda2(100 - somma)} punti`}
+              ? tr("{somma}% fisso + {quota}% a misura — Totale {totale}", { somma: String(somma ?? ""), quota: String(quota ?? ""), totale: formatCurrency(totale) })
+              : completo ? tr("Totale {importo}", { importo: formatCurrency(totale) }) : tr("{somma}% di 100 — mancano {valore} punti", { somma: String(somma ?? ""), valore: String(arrotonda2(100 - somma) ?? "") })}
           </span>
         </div>
 
@@ -227,8 +229,8 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
           <p role="alert" className="flex items-start gap-1.5 rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
             <TriangleAlert aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0" />
             {piano.righe.some((r) => r.aMisura)
-              ? "Le rate fisse si prendono tutto il prezzo: alle rate a misura non resta niente da fatturare."
-              : "Finché le rate non fanno 100 il piano non esce nel PDF: il cliente vedrebbe un piano che non copre il prezzo."}
+              ? tr("Le rate fisse si prendono tutto il prezzo: alle rate a misura non resta niente da fatturare.")
+              : tr("Finché le rate non fanno 100 il piano non esce nel PDF: il cliente vedrebbe un piano che non copre il prezzo.")}
           </p>
         )}
 
@@ -236,12 +238,12 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
         {(piano.modo === "sal" || !!piano.ritenuta) && (
           <div className="flex flex-wrap items-end gap-2">
             <div>
-              <Label className="text-[11px] text-muted-foreground" htmlFor="piano-ritenuta">Ritenuta di garanzia %</Label>
+              <Label className="text-[11px] text-muted-foreground" htmlFor="piano-ritenuta">{tr("Ritenuta di garanzia %")}</Label>
               <Input
                 id="piano-ritenuta"
                 inputMode="decimal"
                 className="mt-0.5 h-8 w-24 text-xs"
-                placeholder="nessuna"
+                placeholder={tr("nessuna")}
                 defaultValue={piano.ritenuta ? String(piano.ritenuta.percentuale).replace(".", ",") : ""}
                 onBlur={(e) => {
                   const r = leggiRitenutaPiano({ percentuale: e.target.value, svincolo: piano.ritenuta?.svincolo ?? "collaudo", mesi: piano.ritenuta?.mesi ?? 12 });
@@ -251,15 +253,15 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
             </div>
             {piano.ritenuta && (
               <div>
-                <Label className="text-[11px] text-muted-foreground" htmlFor="piano-svincolo">Si restituisce</Label>
+                <Label className="text-[11px] text-muted-foreground" htmlFor="piano-svincolo">{tr("Si restituisce")}</Label>
                 <Select
                   value={piano.ritenuta.svincolo === "mesi" ? String(piano.ritenuta.mesi) : "collaudo"}
                   onValueChange={(v) => scrivi({ ...piano, ritenuta: { ...piano.ritenuta!, svincolo: v === "collaudo" ? "collaudo" : "mesi", mesi: v === "collaudo" ? piano.ritenuta!.mesi : Number(v) } })}
                 >
                   <SelectTrigger id="piano-svincolo" className="mt-0.5 h-8 w-48 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="collaudo">al collaudo</SelectItem>
-                    {[6, 12, 24].map((m) => <SelectItem key={m} value={String(m)}>{m} mesi dopo la fine lavori</SelectItem>)}
+                    <SelectItem value="collaudo">{tr("al collaudo")}</SelectItem>
+                    {[6, 12, 24].map((m) => <SelectItem key={m} value={String(m)}>{tr("{m} mesi dopo la fine lavori", { m: String(m ?? "") })}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -268,19 +270,19 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
         )}
 
         <div>
-          <Label className="text-[11px] text-muted-foreground" htmlFor="piano-note">Nota sui pagamenti (facoltativa)</Label>
+          <Label className="text-[11px] text-muted-foreground" htmlFor="piano-note">{tr("Nota sui pagamenti (facoltativa)")}</Label>
           <Input
             id="piano-note"
             value={piano.note ?? ""}
-            placeholder="Es. Bonifico bancario a 30 giorni data fattura."
+            placeholder={tr("Es. Bonifico bancario a 30 giorni data fattura.")}
             onChange={(e) => scrivi({ ...piano, note: e.target.value || null })}
             className="mt-0.5 h-8 text-xs"
           />
         </div>
 
         <p className="text-[10px] text-muted-foreground max-sm:hidden">
-          Le stesse rate diventano quelle della commessa quando il cliente accetta.{" "}
-          <Link to="/azienda/impostazioni/modelli-pagamento" className="underline">I modelli dell'azienda</Link> sono il punto di partenza.
+          {tr("Le stesse rate diventano quelle della commessa quando il cliente accetta.")}{" "}
+          <Link to="/azienda/impostazioni/modelli-pagamento" className="underline">{tr("I modelli dell'azienda")}</Link> {tr("sono il punto di partenza.")}
         </p>
       </div>
     </div>

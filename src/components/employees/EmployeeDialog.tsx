@@ -36,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const employeeSchema = z.object({
   first_name: z.string().min(1, "Nome obbligatorio"),
@@ -89,9 +90,9 @@ export function EmployeeDialog({
   isSaving,
   roleType = 'operaio',
 }: EmployeeDialogProps) {
+  const t = useT();
   const effectiveRoleType = employee?.role_type || roleType;
   const isStaffInterno = effectiveRoleType === 'staff_interno';
-  const entityLabel = isStaffInterno ? 'Staff' : 'Operaio';
   const form = useForm<z.input<typeof employeeSchema>, unknown, EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -173,12 +174,14 @@ export function EmployeeDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {employee ? `Modifica ${entityLabel}` : `Nuovo ${entityLabel}`}
+            {employee
+              ? (isStaffInterno ? t("Modifica Staff") : t("Modifica Operaio"))
+              : (isStaffInterno ? t("Nuovo Staff") : t("Nuovo Operaio"))}
           </DialogTitle>
           <DialogDescription>
             {employee
-              ? `Modifica i dati del ${entityLabel.toLowerCase()}`
-              : `Inserisci i dati del nuovo ${entityLabel.toLowerCase()}`}
+              ? (isStaffInterno ? t("Modifica i dati del staff") : t("Modifica i dati del operaio"))
+              : (isStaffInterno ? t("Inserisci i dati del nuovo staff") : t("Inserisci i dati del nuovo operaio"))}
           </DialogDescription>
         </DialogHeader>
 
@@ -190,7 +193,7 @@ export function EmployeeDialog({
                 name="first_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome *</FormLabel>
+                    <FormLabel>{t("Nome *")}</FormLabel>
                     <FormControl>
                       <Input placeholder="Mario" {...field} />
                     </FormControl>
@@ -204,7 +207,7 @@ export function EmployeeDialog({
                 name="last_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cognome *</FormLabel>
+                    <FormLabel>{t("Cognome *")}</FormLabel>
                     <FormControl>
                       <Input placeholder="Rossi" {...field} />
                     </FormControl>
@@ -226,7 +229,7 @@ export function EmployeeDialog({
                     </FormControl>
                     {/* fn_employees_autolink_user: stessa email di un utente dell'azienda → scheda collegata. */}
                     <FormDescription>
-                      Con l'email di un utente dell'app, la scheda si collega a lui: i giorni in cantiere lo segnano occupato nelle prenotazioni.
+                      {t("Con l'email di un utente dell'app, la scheda si collega a lui: i giorni in cantiere lo segnano occupato nelle prenotazioni.")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -238,7 +241,7 @@ export function EmployeeDialog({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefono</FormLabel>
+                    <FormLabel>{t("Telefono")}</FormLabel>
                     <FormControl>
                       <Input placeholder="+39 333 1234567" {...field} />
                     </FormControl>
@@ -253,12 +256,12 @@ export function EmployeeDialog({
               name="phone_whatsapp"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Numero WhatsApp (Bot AI)</FormLabel>
+                  <FormLabel>{t("Numero WhatsApp (Bot AI)")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="+39 333 1234567 (per il bot cantiere)" {...field} />
+                    <Input placeholder={t("+39 333 1234567 (per il bot cantiere)")} {...field} />
                   </FormControl>
                   <FormDescription>
-                    Numero WhatsApp per inviare rapportini, DDT e foto via bot AI.
+                    {t("Numero WhatsApp per inviare rapportini, DDT e foto via bot AI.")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -270,30 +273,30 @@ export function EmployeeDialog({
               name="area"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Area Aziendale *</FormLabel>
+                  <FormLabel>{t("Area Aziendale *")}</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleziona area" />
+                        <SelectValue placeholder={t("Seleziona area")} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="cantiere">
-                        <span className="flex items-center gap-2">🏗️ Cantiere</span>
+                        <span className="flex items-center gap-2">{t("🏗️ Cantiere")}</span>
                       </SelectItem>
                       <SelectItem value="commerciale">
-                        <span className="flex items-center gap-2">💼 Commerciale</span>
+                        <span className="flex items-center gap-2">{t("💼 Commerciale")}</span>
                       </SelectItem>
                       <SelectItem value="amministrazione">
-                        <span className="flex items-center gap-2">🏢 Amministrazione</span>
+                        <span className="flex items-center gap-2">{t("🏢 Amministrazione")}</span>
                       </SelectItem>
                       <SelectItem value="tecnico">
-                        <span className="flex items-center gap-2">🔧 Tecnico</span>
+                        <span className="flex items-center gap-2">{t("🔧 Tecnico")}</span>
                       </SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Determina in quale calendario e in quali assegnazioni appare questo dipendente
+                    {t("Determina in quale calendario e in quali assegnazioni appare questo dipendente")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -305,7 +308,7 @@ export function EmployeeDialog({
               name="profilo_costo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Contratto per il costo</FormLabel>
+                  <FormLabel>{t("Contratto per il costo")}</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -313,14 +316,14 @@ export function EmployeeDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="auto">Automatico · {ETICHETTA_PROFILO[profiloAuto]}</SelectItem>
+                      <SelectItem value="auto">{t("Automatico · {valore}", { valore: t(ETICHETTA_PROFILO[profiloAuto]) })}</SelectItem>
                       {PROFILI_COSTO.map((k) => (
-                        <SelectItem key={k} value={k}>{ETICHETTA_PROFILO[k]}</SelectItem>
+                        <SelectItem key={k} value={k}>{t(ETICHETTA_PROFILO[k])}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Decide mensilità e oneri (INPS, INAIL, Cassa Edile, TFR). I valori sono in «Valori del costo», in cima alla pagina.
+                    {t("Decide mensilità e oneri (INPS, INAIL, Cassa Edile, TFR). I valori sono in «Valori del costo», in cima alla pagina.")}
                   </FormDescription>
                 </FormItem>
               )}
@@ -332,7 +335,7 @@ export function EmployeeDialog({
                 name="gross_salary"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Stipendio Lordo (€/mese) *</FormLabel>
+                    <FormLabel>{t("Stipendio Lordo (€/mese) *")}</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" min="0" {...field} />
                     </FormControl>
@@ -346,7 +349,7 @@ export function EmployeeDialog({
                 name="net_salary"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Stipendio Netto (€/mese) *</FormLabel>
+                    <FormLabel>{t("Stipendio Netto (€/mese) *")}</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" min="0" {...field} />
                     </FormControl>
@@ -361,13 +364,13 @@ export function EmployeeDialog({
               name="monthly_hours"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Ore Lavorative Mensili *</FormLabel>
+                  <FormLabel>{t("Ore Lavorative Mensili *")}</FormLabel>
                   <FormControl>
                     <Input type="number" min="1" max="744" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Costo orario vero: <strong>{formatCurrency(hourlyCost)}/h</strong>
-                    {" "}· {p.mensilita} mensilità, {oneriPercento(p, inpsRate).toLocaleString("it-IT")}% di oneri, {p.ore_produttive}% di ore produttive
+                    {t("Costo orario vero:")} <strong>{formatCurrency(hourlyCost)}/h</strong>
+                    {" "}· {t("{mensilita} mensilità, {oneri}% di oneri, {ore}% di ore produttive", { mensilita: String(p.mensilita ?? ""), oneri: oneriPercento(p, inpsRate).toLocaleString(intlCampo()), ore: String(p.ore_produttive ?? "") })}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -379,14 +382,12 @@ export function EmployeeDialog({
               name="costo_orario"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Costo orario in commessa (€/h)</FormLabel>
+                  <FormLabel>{t("Costo orario in commessa (€/h)")}</FormLabel>
                   <FormControl>
                     <Input type="number" min="0" step="0.5" placeholder={String(hourlyCost || "")} {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormDescription>
-                    Quando un rapportino viene approvato, le ore diventano costo di
-                    commessa a questa tariffa. Se lasci vuoto si usa il costo vero
-                    calcolato dallo stipendio, il valore suggerito qui sopra.
+                    {t("Quando un rapportino viene approvato, le ore diventano costo di commessa a questa tariffa. Se lasci vuoto si usa il costo vero calcolato dallo stipendio, il valore suggerito qui sopra.")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -399,9 +400,9 @@ export function EmployeeDialog({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
-                    <FormLabel>Dipendente Attivo</FormLabel>
+                    <FormLabel>{t("Dipendente Attivo")}</FormLabel>
                     <FormDescription>
-                      I dipendenti inattivi non sono selezionabili per nuovi ordini
+                      {t("I dipendenti inattivi non sono selezionabili per nuovi ordini")}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -420,7 +421,7 @@ export function EmployeeDialog({
             {employee?.id && (
               <div className="pt-3 border-t">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                  Campi personalizzati
+                  {t("Campi personalizzati")}
                 </p>
                 <EntityCustomFieldsSection entityType="employee" entityId={employee.id} />
               </div>
@@ -432,10 +433,10 @@ export function EmployeeDialog({
                 variant="outline"
                 onClick={() => onOpenChange(false)}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button type="submit" disabled={isSaving}>
-                {isSaving ? "Salvataggio..." : employee ? "Salva Modifiche" : `Crea ${entityLabel}`}
+                {isSaving ? t("Salvataggio...") : employee ? t("Salva Modifiche") : (isStaffInterno ? t("Crea Staff") : t("Crea Operaio"))}
               </Button>
             </DialogFooter>
           </form>

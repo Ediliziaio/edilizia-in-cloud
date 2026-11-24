@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { BuilderBlock as BuilderBlockType, BlockType } from "./builderTypes";
 import { BuilderBlock } from "./BuilderBlock";
 import { Package } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface BuilderCanvasProps {
   blocks: BuilderBlockType[];
@@ -71,6 +72,7 @@ function SortableBlock({
 }
 
 export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplicateBlock, onDeleteBlock, onMoveBlock, previewWidth, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId, onInlineEdit }: BuilderCanvasProps) {
+  const t = useT();
   const { setNodeRef, isOver } = useDroppable({ id: "canvas-drop" });
 
   return (
@@ -83,7 +85,7 @@ export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplic
         {blocks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[560px] text-muted-foreground gap-3">
             <Package className="h-12 w-12 opacity-30" />
-            <p className="text-sm">Trascina un elemento qui per iniziare</p>
+            <p className="text-sm">{t("Trascina un elemento qui per iniziare")}</p>
           </div>
         ) : (
           <div className="space-y-4 p-7 md:p-8">

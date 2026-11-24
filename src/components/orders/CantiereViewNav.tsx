@@ -4,6 +4,7 @@ import {
 } from "@/lib/orders/detailNavigation";
 import { OrderWorkspaceNav } from "./OrderWorkspaceNav";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Cronoprogramma uses a phase agenda on mobile instead of a reduced Gantt. */
 export const VISTE_SOLO_SCHERMO_GRANDE: ReadonlySet<CantiereView> = new Set();
@@ -20,11 +21,12 @@ export function CantiereViewNav({
   /** Le viste che questo utente non può aprire (permesso o piano). */
   nascoste?: ReadonlySet<CantiereView>;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const views = CANTIERE_VIEWS.filter((v) => !nascoste?.has(v.value) && !(isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(v.value)));
   return (
     <OrderWorkspaceNav
-      label="Viste del cantiere"
+      label={t("Viste del cantiere")}
       views={views}
       value={value}
       onChange={onChange}

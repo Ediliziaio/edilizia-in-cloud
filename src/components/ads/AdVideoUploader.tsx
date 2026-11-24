@@ -26,6 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STORAGE_BUCKET = "ad-media";
 const MAX_BYTES = 200 * 1024 * 1024; // 200 MB
@@ -41,6 +42,7 @@ interface Props {
 const fromTable = (n: string) => (supabase as any).from(n);
 
 export function AdVideoUploader({ companyId, onUploaded }: Props) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -64,7 +66,7 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
 
   const handleFile = async (file: File) => {
     if (!companyId) {
-      toast.error("Azienda non identificata");
+      toast.error(t("Azienda non identificata"));
       return;
     }
 
@@ -72,15 +74,15 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
     const fileName = file.name.toLowerCase();
     const typeOk = ACCEPTED_TYPES.includes(file.type) || ACCEPTED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
     if (!typeOk) {
-      toast.error("Formato non supportato", {
-        description: "Usa MP4, MOV, AVI o WebM.",
+      toast.error(t("Formato non supportato"), {
+        description: t("Usa MP4, MOV, AVI o WebM."),
       });
       return;
     }
 
     if (file.size > MAX_BYTES) {
-      toast.error("File troppo grande", {
-        description: `Max ${(MAX_BYTES / 1024 / 1024).toFixed(0)} MB. Comprimi il video o riducine la durata.`,
+      toast.error(t("File troppo grande"), {
+        description: t("Max {valore} MB. Comprimi il video o riducine la durata.", { valore: (MAX_BYTES / 1024 / 1024).toFixed(0) }),
       });
       return;
     }
@@ -100,8 +102,8 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
       setDimensions({ w: video.videoWidth, h: video.videoHeight });
       // Warning se troppo piccolo
       if (video.videoWidth < 600 || video.videoHeight < 600) {
-        toast.warning("Risoluzione bassa", {
-          description: "Meta consiglia minimo 600x600. Per qualità migliore usa 1080x1080.",
+        toast.warning(t("Risoluzione bassa"), {
+          description: t("Meta consiglia minimo 600x600. Per qualità migliore usa 1080x1080."),
         });
       }
     };
@@ -127,8 +129,8 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
 
       if (uploadErr) {
         if (uploadErr.message.includes("Bucket not found")) {
-          toast.error("Storage non configurato", {
-            description: `Crea il bucket '${STORAGE_BUCKET}' in Supabase Storage.`,
+          toast.error(t("Storage non configurato"), {
+            description: t("Crea il bucket '{STORAGE_BUCKET}' in Supabase Storage.", { STORAGE_BUCKET: String(STORAGE_BUCKET ?? "") }),
           });
           return;
         }
@@ -175,7 +177,7 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
       if (insertErr) throw insertErr;
 
       setProgress(100);
-      toast.success("Video caricato!", {
+      toast.success(t("Video caricato!"), {
         description: `${name || previewFile.name}${duration ? ` · ${duration}s` : ""}${aspectRatio ? ` · ${aspectRatio}` : ""}`,
       });
 
@@ -187,7 +189,7 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
       reset();
     } catch (e) {
       console.error("[AdVideoUploader] upload failed", e);
-      toast.error("Errore upload", {
+      toast.error(t("Errore upload"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -202,9 +204,9 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
         <div className="flex items-center gap-2">
           <Video className="h-5 w-5 text-rose-600" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-slate-950">Carica video</p>
+            <p className="text-sm font-semibold text-slate-950">{t("Carica video")}</p>
             <p className="text-[11px] text-slate-500">
-              MP4/MOV · max 200 MB · ideali 1080x1080 (1:1) o 1080x1350 (4:5) · 5-30 secondi
+              {t("MP4/MOV · max 200 MB · ideali 1080x1080 (1:1) o 1080x1350 (4:5) · 5-30 secondi")}
             </p>
           </div>
         </div>
@@ -233,7 +235,7 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
           >
             <Upload className={cn("h-6 w-6", dragOver ? "text-rose-600" : "text-slate-400")} />
             <p className="text-sm font-medium text-slate-700">
-              Trascina qui un video o <span className="text-rose-600 underline">scegli file</span>
+              {t("Trascina qui un video o")} <span className="text-rose-600 underline">{t("scegli file")}</span>
             </p>
             <p className="text-[10px] text-slate-500">.mp4 · .mov · .webm · .avi</p>
           </button>
@@ -274,16 +276,16 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
             {duration !== null && (duration < 1 || duration > 240) && (
               <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                {duration < 1 ? "Video troppo corto (min 1s)" : "Sopra 4 minuti — Meta non consiglia per feed"}
+                {duration < 1 ? t("Video troppo corto (min 1s)") : t("Sopra 4 minuti — Meta non consiglia per feed")}
               </div>
             )}
 
             <div>
-              <Label className="mb-1 block text-[11px]">Nome asset</Label>
+              <Label className="mb-1 block text-[11px]">{t("Nome asset")}</Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value.slice(0, 60))}
-                placeholder="Es. Demo posa serramenti Milano"
+                placeholder={t("Es. Demo posa serramenti Milano")}
                 maxLength={60}
               />
             </div>
@@ -292,7 +294,7 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
               <div>
                 <Progress value={progress} className="h-2" />
                 <p className="mt-1 text-center text-[10px] text-slate-500">
-                  {progress < 70 ? "Upload in corso..." : "Salvataggio metadata..."}
+                  {progress < 70 ? t("Upload in corso...") : t("Salvataggio metadata...")}
                 </p>
               </div>
             )}
@@ -303,9 +305,9 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
               className="w-full bg-rose-600 hover:bg-rose-700"
             >
               {isUploading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Caricamento...</>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("Caricamento...")}</>
               ) : (
-                <><Upload className="mr-2 h-4 w-4" /> Salva in libreria</>
+                <><Upload className="mr-2 h-4 w-4" /> {t("Salva in libreria")}</>
               )}
             </Button>
           </div>

@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Code, Eye, Variable } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TemplateEditorProps {
   value: string;
@@ -19,6 +20,7 @@ const VARIABLES = [
 ];
 
 export function TemplateEditor({ value, onChange }: TemplateEditorProps) {
+  const t = useT();
   const [preview, setPreview] = useState(false);
   const previewHtml = useMemo(
     () => DOMPurify.sanitize(value || "<p>Anteprima vuota</p>"),
@@ -46,18 +48,18 @@ export function TemplateEditor({ value, onChange }: TemplateEditorProps) {
           variant={preview ? "default" : "outline"}
           onClick={() => setPreview(true)}
         >
-          <Eye className="h-3.5 w-3.5 mr-1" /> Anteprima
+          <Eye className="h-3.5 w-3.5 mr-1" /> {t("Anteprima")}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" size="sm" variant="outline">
-              <Variable className="h-3.5 w-3.5 mr-1" /> Variabili
+              <Variable className="h-3.5 w-3.5 mr-1" /> {t("Variabili")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             {VARIABLES.map((v) => (
               <DropdownMenuItem key={v.value} onClick={() => insertVariable(v.value)}>
-                {v.label} <span className="ml-auto text-xs text-muted-foreground">{v.value}</span>
+                {t(v.label)} <span className="ml-auto text-xs text-muted-foreground">{v.value}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -69,7 +71,7 @@ export function TemplateEditor({ value, onChange }: TemplateEditorProps) {
           className="w-full h-80 border rounded-md bg-background"
           sandbox=""
           srcDoc={previewHtml}
-          title="Anteprima email"
+          title={t("Anteprima email")}
         />
       ) : (
         <Textarea

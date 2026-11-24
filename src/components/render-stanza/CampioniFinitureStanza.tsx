@@ -5,14 +5,16 @@ import { floorSurfacePhoto } from "../../../shared/render-references/floorRefere
 import { normalizeRoomFloorConfig } from "../../../shared/render-room/roomRenderConfig.ts";
 import { applicaCampionePavimento, campionePavimentoAttivo } from "@/modules/render-stanza/lib/campioniFiniture";
 import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CampioniFinitureStanza({ value, onChange, disabled, onPersonalizza }: { value: ConfigurazioneStanza; onChange: (c: ConfigurazioneStanza) => void; disabled?: boolean; onPersonalizza?: () => void }) {
+  const t = useT();
   const attivo = campionePavimentoAttivo(value);
   return (
-    <section aria-label="Materiali realistici del render" className="space-y-3 rounded-xl border bg-background p-3 sm:p-4">
+    <section aria-label={t("Materiali realistici del render")} className="space-y-3 rounded-xl border bg-background p-3 sm:p-4">
       <div>
-        <h3 className="text-sm font-semibold">Finiture per il render</h3>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Scegli un campione per il pavimento: imposta materiale, effetto, colore e formato. Puoi personalizzare essenza, posa e finitura in “Pavimento” qui sotto.</p>
+        <h3 className="text-sm font-semibold">{t("Finiture per il render")}</h3>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("Scegli un campione per il pavimento: imposta materiale, effetto, colore e formato. Puoi personalizzare essenza, posa e finitura in “Pavimento” qui sotto.")}</p>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {PAVIMENTI_STANZA.map((c) => {
@@ -29,8 +31,8 @@ export function CampioniFinitureStanza({ value, onChange, disabled, onPersonaliz
           );
         })}
       </div>
-      {value.pavimento.attivo && onPersonalizza && <button type="button" disabled={disabled} onClick={onPersonalizza} className="text-xs font-medium text-primary underline underline-offset-4">Personalizza colore, posa e finitura</button>}
-      {value.pavimento.attivo && <p className="text-[11px] text-muted-foreground">Il pavimento scelto qui viene applicato al render. Le misure, le porte e le finestre della stanza restano quelle della planimetria.</p>}
+      {value.pavimento.attivo && onPersonalizza && <button type="button" disabled={disabled} onClick={onPersonalizza} className="text-xs font-medium text-primary underline underline-offset-4">{t("Personalizza colore, posa e finitura")}</button>}
+      {value.pavimento.attivo && <p className="text-[11px] text-muted-foreground">{t("Il pavimento scelto qui viene applicato al render. Le misure, le porte e le finestre della stanza restano quelle della planimetria.")}</p>}
     </section>
   );
 }

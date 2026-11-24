@@ -52,6 +52,7 @@ import { variantiBestInfissi, modelloBestInfissi } from "@/lib/listino/bestInfis
 
 import { VariantiTecnicheProdotto } from "@/components/listino/VariantiTecnicheProdotto";
 import { SchedaModelloBestInfissi } from '@/components/listino/SchedaModelloBestInfissi';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FamilyConfiguratorProps {
   confirmLabel?: string;
@@ -96,7 +97,7 @@ function uuid(): string {
 }
 
 export function FamilyConfigurator({
-  confirmLabel = "Aggiungi al preventivo",
+  confirmLabel,
   variantiTecniche,
   item,
   tariffe,
@@ -106,6 +107,7 @@ export function FamilyConfigurator({
   inserimentoContinuo,
   nuovaMisura = 0,
 }: FamilyConfiguratorProps) {
+  const tr = useT();
   const famigliaCompleta = item.family;
   const modello = modelloBestInfissi(famigliaCompleta);
   const [specificheTecniche, setSpecificheTecniche] = useState<Record<string, string>>({});
@@ -226,8 +228,8 @@ export function FamilyConfigurator({
     ...pricing.warnings,
     ...(!pricing.fuori_listino && misureValide && pricing.unit_price_vendita <= 0
       ? [family.modalita_prezzo_base === 'griglia'
-          ? 'Griglia prezzo da completare: questo prodotto non può essere aggiunto finché il listino non contiene il prezzo per la configurazione scelta.'
-          : "Prezzo non impostato nel listino: scrivilo nella riga del preventivo."]
+          ? tr("Griglia prezzo da completare: questo prodotto non può essere aggiunto finché il listino non contiene il prezzo per la configurazione scelta.")
+          : tr("Prezzo non impostato nel listino: scrivilo nella riga del preventivo.")]
       : []),
   ];
 
@@ -328,19 +330,19 @@ export function FamilyConfigurator({
         <>
       <SchedaModelloBestInfissi famiglia={famigliaCompleta} />
       <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 text-muted-foreground max-sm:h-8">
-        <ArrowLeft className="mr-1 h-4 w-4" /> Cambia prodotto
+        <ArrowLeft className="mr-1 h-4 w-4" /> {tr("Cambia prodotto")}
       </Button>
 
       {chiedeMisure(family) && nuovaMisura > 0 && (
         <p className="text-sm font-medium text-primary">
-          Stesse scelte di prima: scrivi le misure del prossimo pezzo.
+          {tr("Stesse scelte di prima: scrivi le misure del prossimo pezzo.")}
         </p>
       )}
       {chiedeMisure(family) && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="larghezza">
-              {family.griglia_asse_x_label || "Larghezza (mm)"}
+              {family.griglia_asse_x_label || tr("Larghezza (mm)")}
             </Label>
             <Input
               id="larghezza"
@@ -354,7 +356,7 @@ export function FamilyConfigurator({
           </div>
           <div>
             <Label htmlFor="altezza">
-              {family.griglia_asse_y_label || "Altezza (mm)"}
+              {family.griglia_asse_y_label || tr("Altezza (mm)")}
             </Label>
             <Input
               id="altezza"
@@ -389,7 +391,7 @@ export function FamilyConfigurator({
                   }
                 >
                   <SelectTrigger id={`axis-${axis.id}`}>
-                    <SelectValue placeholder="Seleziona…" />
+                    <SelectValue placeholder={tr("Seleziona…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {values.map((v) => (
@@ -416,18 +418,18 @@ export function FamilyConfigurator({
           />
           <div className="space-y-0.5">
             <Label htmlFor="includi-posa" className="cursor-pointer">
-              Includi manodopera nel preventivo
+              {tr("Includi manodopera nel preventivo")}
             </Label>
             <p className="text-xs text-muted-foreground">
               {manodoperaManuale
-                ? `Prezzo cliente: ${formatCurrency(posaUnit)}/${posaUm}. `
+                ? tr("Prezzo cliente: {prezzo}/{unita}.", { prezzo: formatCurrency(posaUnit), unita: posaUm }) + " "
                 : tariffaPosa
-                  ? `Tariffa: ${tariffaPosa.nome} (${formatCurrency(posaUnit)}/${posaUm}). `
+                  ? tr("Tariffa: {nome} ({prezzo}/{unita}).", { nome: tariffaPosa.nome, prezzo: formatCurrency(posaUnit), unita: posaUm }) + " "
                   : ""}
-              {item.posa_linked ? "Verrà aggiunta una riga separata collegata al prodotto: quantità ed eliminazione seguiranno il prodotto." : "Verrà aggiunta una riga separata, modificabile indipendentemente dal prodotto."}
+              {item.posa_linked ? tr("Verrà aggiunta una riga separata collegata al prodotto: quantità ed eliminazione seguiranno il prodotto.") : tr("Verrà aggiunta una riga separata, modificabile indipendentemente dal prodotto.")}
             </p>
-            {!posaDisponibile && <p role="alert" className="text-xs text-destructive">La tariffa collegata non è disponibile o è inattiva. Correggi il collegamento oppure deseleziona la manodopera per inserire solo il prodotto.</p>}
-            {includePosa && posaDisponibile && posaUnit <= 0 && <p role="status" className="text-xs text-amber-800">Prezzo cliente della manodopera da completare sulla riga. Il costo d’acquisto non verrà usato come vendita.</p>}
+            {!posaDisponibile && <p role="alert" className="text-xs text-destructive">{tr("La tariffa collegata non è disponibile o è inattiva. Correggi il collegamento oppure deseleziona la manodopera per inserire solo il prodotto.")}</p>}
+            {includePosa && posaDisponibile && posaUnit <= 0 && <p role="status" className="text-xs text-amber-800">{tr("Prezzo cliente della manodopera da completare sulla riga. Il costo d’acquisto non verrà usato come vendita.")}</p>}
           </div>
         </div>
       )}
@@ -457,19 +459,19 @@ export function FamilyConfigurator({
       <Card>
         <CardContent className="space-y-1.5 p-3">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Prezzo unitario</span>
+            <span className="text-muted-foreground">{tr("Prezzo unitario")}</span>
             <span className="font-medium">
               {pricing.unit_price_vendita > 0 ? formatCurrency(pricing.unit_price_vendita) : "Da completare"}
             </span>
           </div>
           {includePosa && posaDisponibile && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Manodopera</span>
+              <span className="text-muted-foreground">{tr("Manodopera")}</span>
               <span className="font-medium">{formatCurrency(posaTotale)}</span>
             </div>
           )}
           <div className="flex justify-between border-t pt-2 text-base font-semibold">
-            <span>Totale</span>
+            <span>{tr("Totale")}</span>
             <span>{pricing.unit_price_vendita > 0 ? formatCurrency(totaleCompleto) : "Da completare"}</span>
           </div>
         </CardContent>
@@ -477,7 +479,7 @@ export function FamilyConfigurator({
 
       <AzioniProdotto
         disabled={!canConfirm}
-        confirmLabel={confirmLabel}
+        confirmLabel={confirmLabel ?? tr("Aggiungi al preventivo")}
         inserimentoContinuo={inserimentoContinuo}
         puoDuplicare={chiedeMisure(family)}
         onConferma={handleConfirm}

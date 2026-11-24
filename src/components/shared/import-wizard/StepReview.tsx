@@ -12,6 +12,7 @@ import type { AnteprimaImport, EsitoImportazione, PersonaScelta } from "@/lib/im
 import type { Programmazione } from "@/lib/importazione/programmata";
 import { OpzioniImportazione, type AutomazioneScelta } from "./OpzioniImportazione";
 import { motivoAnnullamentoFallito } from "@/lib/importazione/registro";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StepReviewProps {
   objectType: ObjectType;
@@ -45,6 +46,7 @@ interface StepReviewProps {
 
 /** «Ho sbagliato file»: sposta nel cestino quello che l'importazione ha creato. */
 function AnnullaImportazione({ onAnnulla, programmata }: { onAnnulla: () => Promise<string>; programmata: boolean }) {
+  const t = useT();
   const [stato, setStato] = useState<{ fase: "pronto" | "in_corso" | "fatto" | "errore"; testo?: string }>({ fase: "pronto" });
   if (stato.fase === "fatto") return <p className="rounded-md border bg-muted/40 p-3 text-sm">{stato.testo}</p>;
   return (
@@ -53,8 +55,8 @@ function AnnullaImportazione({ onAnnulla, programmata }: { onAnnulla: () => Prom
         variant="outline" className="w-full" disabled={stato.fase === "in_corso"}
         onClick={async () => {
           const domanda = programmata
-            ? "Annullare l'importazione? Le righe non ancora entrate non entreranno, e quello che è già entrato come nuovo va nel cestino (anche le opportunità spostate di fase nel frattempo)."
-            : "Annullare l'importazione? Quello che è stato creato va nel cestino, anche le opportunità spostate di fase nel frattempo. I contatti che c'erano già e sono stati solo aggiornati restano come sono.";
+            ? t("Annullare l'importazione? Le righe non ancora entrate non entreranno, e quello che è già entrato come nuovo va nel cestino (anche le opportunità spostate di fase nel frattempo).")
+            : t("Annullare l'importazione? Quello che è stato creato va nel cestino, anche le opportunità spostate di fase nel frattempo. I contatti che c'erano già e sono stati solo aggiornati restano come sono.");
           if (!window.confirm(domanda)) return;
           setStato({ fase: "in_corso" });
           try {
@@ -64,47 +66,48 @@ function AnnullaImportazione({ onAnnulla, programmata }: { onAnnulla: () => Prom
           }
         }}
       >
-        <Undo2 className="mr-2 h-4 w-4" /> {stato.fase === "in_corso" ? "Annullo…" : "Ho sbagliato file: annulla questa importazione"}
+        <Undo2 className="mr-2 h-4 w-4" /> {stato.fase === "in_corso" ? t("Annullo…") : t("Ho sbagliato file: annulla questa importazione")}
       </Button>
       {stato.fase === "errore" && <p className="text-xs text-destructive">{stato.testo}</p>}
-      {stato.fase === "pronto" && <p className="text-xs text-muted-foreground">Si può fare anche dopo, per 7 giorni, dall'elenco.</p>}
+      {stato.fase === "pronto" && <p className="text-xs text-muted-foreground">{t("Si può fare anche dopo, per 7 giorni, dall'elenco.")}</p>}
     </div>
   );
 }
 
 /** Cosa succederà: i numeri prima di premere il pulsante. */
 function Anteprima({ stato, contatti, onRiprova }: { stato: NonNullable<StepReviewProps["anteprima"]>; contatti: boolean; onRiprova?: () => void }) {
+  const tr = useT();
   if (stato.errore) {
     return (
       <p className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
-        Non sono riuscito a calcolare l'anteprima. L'importazione funziona lo stesso.{" "}
-        {onRiprova && <button type="button" className="underline" onClick={onRiprova}>Riprova</button>}
+        {tr("Non sono riuscito a calcolare l'anteprima. L'importazione funziona lo stesso.")}{" "}
+        {onRiprova && <button type="button" className="underline" onClick={onRiprova}>{tr("Riprova")}</button>}
       </p>
     );
   }
   if (!stato.dati) {
-    return <p className="flex items-center gap-2 rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Controllo il file…</p>;
+    return <p className="flex items-center gap-2 rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {tr("Controllo il file…")}</p>;
   }
   const a = stato.dati;
   const voci = contatti
     ? [
-        { n: a.nuovi, t: "contatti nuovi", tono: "verde" },
-        { n: a.aggiornati, t: "già presenti, da aggiornare", tono: "verde" },
-        { n: a.saltati, t: "non trovati, verranno saltati", tono: "giallo" },
-        { n: a.doppi, t: "doppi nel file, importati una volta", tono: "giallo" },
-        { n: a.nonValide, t: "con un errore, non importati", tono: "rosso" },
-        { n: a.senzaContatto, t: "senza email né telefono", tono: "giallo" },
+        { n: a.nuovi, t: tr("contatti nuovi"), tono: "verde" },
+        { n: a.aggiornati, t: tr("già presenti, da aggiornare"), tono: "verde" },
+        { n: a.saltati, t: tr("non trovati, verranno saltati"), tono: "giallo" },
+        { n: a.doppi, t: tr("doppi nel file, importati una volta"), tono: "giallo" },
+        { n: a.nonValide, t: tr("con un errore, non importati"), tono: "rosso" },
+        { n: a.senzaContatto, t: tr("senza email né telefono"), tono: "giallo" },
       ]
     : [
-        { n: a.nuovi, t: "opportunità da creare", tono: "verde" },
-        { n: a.aggiornati, t: "collegate a contatti già presenti", tono: "verde" },
-        { n: a.nonValide, t: "con un errore, non importate", tono: "rosso" },
-        { n: a.senzaContatto, t: "senza email né telefono del contatto", tono: "giallo" },
+        { n: a.nuovi, t: tr("opportunità da creare"), tono: "verde" },
+        { n: a.aggiornati, t: tr("collegate a contatti già presenti"), tono: "verde" },
+        { n: a.nonValide, t: tr("con un errore, non importate"), tono: "rosso" },
+        { n: a.senzaContatto, t: tr("senza email né telefono del contatto"), tono: "giallo" },
       ];
   const colore = { verde: "text-green-700", giallo: "text-amber-700", rosso: "text-destructive" } as const;
   return (
     <div className="rounded-lg border bg-muted/20 p-4">
-      <p className="mb-2 text-sm text-muted-foreground">Su {a.righe} righe del file:</p>
+      <p className="mb-2 text-sm text-muted-foreground">{tr("Su {righe} righe del file:", { righe: String(a.righe ?? "") })}</p>
       <div className="grid gap-2 sm:grid-cols-3">
         {voci.filter((v) => v.n > 0).map((v) => (
           <div key={v.t} className="rounded-md bg-background px-3 py-2">
@@ -145,27 +148,28 @@ export function StepReview({
   importMode, consent, onConsentChange, isImporting, result, fileRows, opzioni,
   anteprima, onRiprovaAnteprima, onScaricaRighe, onAnnulla,
 }: StepReviewProps) {
+  const t = useT();
   const mappedEntries = fileHeaders
     .filter((h) => mapping[h])
     .map((h) => ({ header: h, field: fields.find((f) => f.key === mapping[h]) }));
 
-  const label = objectType === "contacts" ? "contatti" : "opportunità";
-  const modeLabel = importMode === "create" ? "Crea" : importMode === "update" ? "Aggiorna" : "Crea e aggiorna";
+  const label = objectType === "contacts" ? t("contatti") : t("opportunità");
+  const modeLabel = importMode === "create" ? t("Crea") : importMode === "update" ? t("Aggiorna") : t("Crea e aggiorna");
 
   if (isImporting) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Importazione in corso...</p>
+        <p className="text-sm text-muted-foreground">{t("Importazione in corso...")}</p>
       </div>
     );
   }
 
   if (result) {
     const conteggi = [
-      { n: result.creati, testo: (n: number) => (n === 1 ? "nuovo" : "nuovi") },
-      { n: result.aggiornati, testo: (n: number) => (n === 1 ? "aggiornato" : "aggiornati") },
-      { n: result.saltati, testo: () => "saltati: non trovati" },
+      { n: result.creati, testo: (n: number) => (n === 1 ? t("nuovo") : t("nuovi")) },
+      { n: result.aggiornati, testo: (n: number) => (n === 1 ? t("aggiornato") : t("aggiornati")) },
+      { n: result.saltati, testo: () => t("saltati: non trovati") },
     ].filter((c) => (c.n ?? 0) > 0);
     const avvisi = result.avvisi ?? [];
     return (
@@ -173,24 +177,22 @@ export function StepReview({
         {result.programmata ? (
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-5 text-primary">
             <p className="flex items-center gap-2 text-base font-semibold">
-              <CalendarClock className="h-5 w-5 shrink-0" /> Importazione programmata: {result.programmata.totale} {label}
+              <CalendarClock className="h-5 w-5 shrink-0" /> {t("Importazione programmata: {n} {label}", { n: result.programmata.totale, label })}
             </p>
             <p className="mt-2 pl-7 text-sm text-foreground">
-              {result.programmata.descrizione}.{result.programmata.fine ? <> Finisce verso <strong>{result.programmata.fine}</strong>.</> : null}
+              {result.programmata.descrizione}.{result.programmata.fine ? <> {t("Finisce verso")} <strong>{result.programmata.fine}</strong>.</> : null}
             </p>
             {(result.fatto ?? []).length > 0 && (
               <ul className="mt-2 space-y-1 pl-7 text-sm text-foreground">
                 {result.fatto!.map((f, i) => <li key={i}>✓ {f}</li>)}
               </ul>
             )}
-            <p className="mt-1 pl-7 text-xs text-muted-foreground">
-              Va avanti da sola anche a computer spento. La segui, la metti in pausa o la annulli dall'elenco dei {label}.
-            </p>
+            <p className="mt-1 pl-7 text-xs text-muted-foreground">{t("Va avanti da sola anche a computer spento. La segui, la metti in pausa o la annulli dall'elenco dei {label}.", { label: String(label ?? "") })}</p>
           </div>
         ) : result.success > 0 ? (
           <div className="rounded-lg border border-green-200 bg-green-50 p-5 text-green-800 dark:bg-green-900/20 dark:text-green-400">
             <p className="flex items-center gap-2 text-base font-semibold">
-              <CheckCircle2 className="h-5 w-5 shrink-0" /> Importazione completata: {result.success} {result.success === 1 ? label.replace(/i$/, "o") : label}
+              <CheckCircle2 className="h-5 w-5 shrink-0" /> {t("Importazione completata: {n} {label}", { n: result.success, label: result.success === 1 ? (objectType === "contacts" ? t("contatto") : t("opportunità")) : label })}
             </p>
             {conteggi.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2 pl-7">
@@ -207,11 +209,10 @@ export function StepReview({
           </div>
         ) : (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-destructive">
-            <p className="flex items-center gap-2 text-base font-semibold"><AlertCircle className="h-5 w-5" /> Nessuna riga importata</p>
+            <p className="flex items-center gap-2 text-base font-semibold"><AlertCircle className="h-5 w-5" /> {t("Nessuna riga importata")}</p>
             {(result.saltati ?? 0) > 0 && (
               <p className="mt-2 pl-7 text-sm">
-                {result.saltati} {result.saltati === 1 ? "riga saltata" : "righe saltate"}: nessun contatto esistente con la stessa email o
-                lo stesso telefono. Per aggiungerli come nuovi scegli «Crea e aggiorna» al passo 2.
+                {t(result.saltati === 1 ? "{n} riga saltata: nessun contatto esistente con la stessa email o lo stesso telefono. Per aggiungerli come nuovi scegli «Crea e aggiorna» al passo 2." : "{n} righe saltate: nessun contatto esistente con la stessa email o lo stesso telefono. Per aggiungerli come nuovi scegli «Crea e aggiorna» al passo 2.", { n: result.saltati ?? 0 })}
               </p>
             )}
           </div>
@@ -220,18 +221,18 @@ export function StepReview({
           <AnnullaImportazione onAnnulla={onAnnulla} programmata={!!result.programmata} />
         )}
         {(result.nonRiuscito ?? []).length > 0 && (
-          <Elenco tono="amber" titolo="Da completare a mano" righe={result.nonRiuscito!} />
+          <Elenco tono="amber" titolo={t("Da completare a mano")} righe={result.nonRiuscito!} />
         )}
         {avvisi.length > 0 && (
-          <Elenco tono="amber" titolo={`${avvisi.length} ${avvisi.length === 1 ? "riga non importata perché doppia" : "righe non importate perché doppie"}`} righe={avvisi} />
+          <Elenco tono="amber" titolo={t(avvisi.length === 1 ? "{n} riga non importata perché doppia" : "{n} righe non importate perché doppie", { n: avvisi.length })} righe={avvisi} />
         )}
         {onScaricaRighe && (
           <Button variant="outline" className="w-full" onClick={onScaricaRighe}>
-            <Download className="mr-2 h-4 w-4" /> Scarica le righe da correggere (Excel)
+            <Download className="mr-2 h-4 w-4" /> {t("Scarica le righe da correggere (Excel)")}
           </Button>
         )}
         {result.errors.length > 0 && (
-          <Elenco tono="red" titolo={`${result.errors.length} ${result.errors.length === 1 ? "riga non importata per un errore" : "righe non importate per un errore"}`} righe={result.errors} />
+          <Elenco tono="red" titolo={t(result.errors.length === 1 ? "{n} riga non importata per un errore" : "{n} righe non importate per un errore", { n: result.errors.length })} righe={result.errors} />
         )}
       </div>
     );
@@ -241,14 +242,14 @@ export function StepReview({
     <div className="max-w-3xl mx-auto space-y-6">
       {anteprima && (
         <div>
-          <h3 className="text-sm font-semibold mb-3">Cosa succederà</h3>
+          <h3 className="text-sm font-semibold mb-3">{t("Cosa succederà")}</h3>
           <Anteprima stato={anteprima} contatti={objectType === "contacts"} onRiprova={onRiprovaAnteprima} />
         </div>
       )}
 
       {opzioni && (
         <div>
-          <h3 className="text-sm font-semibold mb-3">Quando e dopo l'importazione</h3>
+          <h3 className="text-sm font-semibold mb-3">{t("Quando e dopo l'importazione")}</h3>
           <OpzioniImportazione
             {...opzioni}
             opportunita={objectType !== "contacts"}
@@ -261,32 +262,30 @@ export function StepReview({
 
       {/* Document info */}
       <div>
-        <h3 className="text-sm font-semibold mb-3">Rivedi importazione</h3>
+        <h3 className="text-sm font-semibold mb-3">{t("Rivedi importazione")}</h3>
         <div className="flex items-center gap-3 border rounded-lg p-4 bg-muted/30">
           <FileSpreadsheet className="h-8 w-8 text-primary shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{fileName}</p>
-            <p className="text-xs text-muted-foreground">{formatSize(fileSize)} · {fileRows.length} righe · Modalità: {modeLabel}</p>
+            <p className="text-xs text-muted-foreground">{t("{fileSize} · {n} righe · Modalità: {modeLabel}", { fileSize: formatSize(fileSize), n: fileRows.length, modeLabel: String(modeLabel ?? "") })}</p>
           </div>
           <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-0">
-            Caricato
+            {t("Caricato")}
           </Badge>
         </div>
       </div>
 
       {/* Mapping summary table */}
       <div>
-        <h3 className="text-sm font-semibold mb-3">
-          Mappatura colonne ({mappedEntries.length} di {fileHeaders.length})
-        </h3>
+        <h3 className="text-sm font-semibold mb-3">{t("Mappatura colonne ({n} di {n2})", { n: mappedEntries.length, n2: fileHeaders.length })}</h3>
         <ScrollArea className="max-h-[220px]">
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Colonna file</TableHead>
-                  <TableHead className="text-xs">Campo destinazione</TableHead>
-                  <TableHead className="text-xs">Obbligatorio</TableHead>
+                  <TableHead className="text-xs">{t("Colonna file")}</TableHead>
+                  <TableHead className="text-xs">{t("Campo destinazione")}</TableHead>
+                  <TableHead className="text-xs">{t("Obbligatorio")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -296,9 +295,9 @@ export function StepReview({
                     <TableCell className="text-sm py-1.5">{field?.label || mapping[header]}</TableCell>
                     <TableCell className="py-1.5">
                       {field?.required ? (
-                        <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Sì</Badge>
+                        <Badge className="bg-primary/10 text-primary border-0 text-[10px]">{t("Sì")}</Badge>
                       ) : (
-                        <span className="text-xs text-muted-foreground">No</span>
+                        <span className="text-xs text-muted-foreground">{t("No")}</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -317,10 +316,7 @@ export function StepReview({
           onCheckedChange={(v) => onConsentChange(!!v)}
           className="mt-0.5"
         />
-        <label htmlFor="consent" className="text-sm text-muted-foreground cursor-pointer leading-relaxed">
-          Confermo che tutti i {label} coinvolti in questa importazione hanno acconsentito a essere contattati
-          e che i dati rispettano le normative sulla privacy (GDPR).
-        </label>
+        <label htmlFor="consent" className="text-sm text-muted-foreground cursor-pointer leading-relaxed">{t("Confermo che tutti i {label} coinvolti in questa importazione hanno acconsentito a essere contattati e che i dati rispettano le normative sulla privacy (GDPR).", { label: String(label ?? "") })}</label>
       </div>
     </div>
   );

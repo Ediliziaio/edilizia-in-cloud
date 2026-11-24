@@ -32,6 +32,7 @@ import {
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
 import { sezioneDellaPagina } from "@/components/preventivi/pagineEditor";
 import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Le pagine con una foto loro: l'id della pagina e la chiave della foto. Qui si
@@ -61,10 +62,11 @@ interface Props {
 }
 
 function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione, defaults, intervention }: Props) {
+  const t = useT();
   // Normalizziamo sempre: garantisce che tutte le pagine canoniche siano
   // presenti e che le obbligatorie abbiano visible=true.
   const items = normalizePdfPagesOrder(value);
-  const metaById = new Map<string, SrPdfPageMeta>(SR_PDF_PAGES_META.map((m) => [m.id, intervention && m.id === "come_funziona" ? { ...m, label: "Come scegliere il prodotto", descrizione: "Caratteristiche specifiche dell'intervento." } : m]));
+  const metaById = new Map<string, SrPdfPageMeta>(SR_PDF_PAGES_META.map((m) => [m.id, intervention && m.id === "come_funziona" ? { ...m, label: t("Come scegliere il prodotto"), descrizione: t("Caratteristiche specifiche dell'intervento.") } : m]));
 
   // Highlight ephemero dell'item appena mosso: serve come conferma visiva
   // (oltre al toast). Si auto-resetta dopo 800ms.
@@ -89,8 +91,8 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
     const meta = metaById.get(items[oldIndex].id);
     onChange(arrayMove(items, oldIndex, newIndex));
     flash(String(active.id));
-    toast.success(`Pagina "${meta?.label ?? items[oldIndex].id}" spostata`, {
-      description: `Ricorda di salvare per applicare ai prossimi PDF.`,
+    toast.success(t("Pagina \"{label}\" spostata", { label: meta?.label ?? items[oldIndex].id }), {
+      description: t("Ricorda di salvare per applicare ai prossimi PDF."),
       duration: 2000,
     });
   };
@@ -100,7 +102,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
     const meta = metaById.get(items[idx].id);
     onChange(arrayMove(items, idx, idx - 1));
     flash(items[idx].id);
-    toast.success(`"${meta?.label ?? items[idx].id}" spostata su`, { duration: 1500 });
+    toast.success(t("\"{label}\" spostata su", { label: meta?.label ?? items[idx].id }), { duration: 1500 });
   };
 
   const moveDown = (idx: number) => {
@@ -108,13 +110,13 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
     const meta = metaById.get(items[idx].id);
     onChange(arrayMove(items, idx, idx + 1));
     flash(items[idx].id);
-    toast.success(`"${meta?.label ?? items[idx].id}" spostata giù`, { duration: 1500 });
+    toast.success(t("\"{label}\" spostata giù", { label: meta?.label ?? items[idx].id }), { duration: 1500 });
   };
 
   const toggleVisible = (idx: number) => {
     const meta = metaById.get(items[idx].id);
     if (meta?.obbligatoria) {
-      toast.warning(`"${meta.label}" è obbligatoria, non può essere nascosta`, {
+      toast.warning(t("\"{label}\" è obbligatoria, non può essere nascosta", { label: String(meta.label ?? "") }), {
         duration: 2500,
       });
       return;
@@ -124,15 +126,15 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
     flash(items[idx].id);
     toast.success(
       items[idx].visible
-        ? `"${meta?.label ?? items[idx].id}" nascosta dal PDF`
-        : `"${meta?.label ?? items[idx].id}" ora visibile nel PDF`,
+        ? t("\"{label}\" nascosta dal PDF", { label: meta?.label ?? items[idx].id })
+        : t("\"{label}\" ora visibile nel PDF", { label: meta?.label ?? items[idx].id }),
       { duration: 1800 },
     );
   };
 
   const resetDefault = () => {
     onChange(defaults ?? SR_PDF_PAGES_DEFAULT);
-    toast.success("Ordine pagine ripristinato al default", { duration: 2000 });
+    toast.success(t("Ordine pagine ripristinato al default"), { duration: 2000 });
   };
 
   const visibiliCount = items.filter((i) => i.visible).length;
@@ -152,22 +154,20 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
           : "border-blue-200 bg-blue-50/50 text-blue-900")
       }>
         <div className="font-semibold">
-          {isCustomOrder ? "✓ Ordine personalizzato" : "ℹ Ordine di default"}
+          {isCustomOrder ? t("✓ Ordine personalizzato") : t("ℹ Ordine di default")}
         </div>
         <div className="flex-1">
           {isCustomOrder
-            ? "Stai vedendo un ordine personalizzato. Ricorda di cliccare \"Salva\" in basso a destra per applicarlo ai prossimi PDF."
-            : "Stai vedendo l'ordine di default. Trascina o usa le frecce per personalizzarlo, poi clicca \"Salva\"."}
+            ? t("Stai vedendo un ordine personalizzato. Ricorda di cliccare \"Salva\" in basso a destra per applicarlo ai prossimi PDF.")
+            : t("Stai vedendo l'ordine di default. Trascina o usa le frecce per personalizzarlo, poi clicca \"Salva\".")}
         </div>
       </div>
 
       {/* Intro + reset */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs text-muted-foreground">
-          Trascina per riordinare. Tocca l'occhio per mostrare/nascondere una pagina.
-          La <strong>cover</strong> è sempre la prima e non riordinabile. Le pagine con le immagini
-          dei prodotti stanno sempre prima dell'<strong>allegato tecnico</strong>, e la{" "}
-          <strong>proposta economica</strong> subito dopo: se le sposti, tornano lì.
+          {t("Trascina per riordinare. Tocca l'occhio per mostrare/nascondere una pagina. La")} <strong>{t("cover")}</strong> {t("è sempre la prima e non riordinabile. Le pagine con le immagini dei prodotti stanno sempre prima dell'")}<strong>{t("allegato tecnico")}</strong>{t(", e la")}{" "}
+          <strong>{t("proposta economica")}</strong> {t("subito dopo: se le sposti, tornano lì.")}
         </div>
         <Button
           size="sm"
@@ -176,7 +176,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
           className="h-7 text-[11px] text-muted-foreground hover:text-foreground gap-1"
         >
           <RotateCcw className="h-3 w-3" />
-          Ripristina ordine default
+          {t("Ripristina ordine default")}
         </Button>
       </div>
 
@@ -187,13 +187,13 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
         </div>
         <ImageIcon className="h-4 w-4 text-orange-600 shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold">Cover (copertina)</div>
+          <div className="text-xs font-semibold">{t("Cover (copertina)")}</div>
           <div className="text-[10px] text-muted-foreground">
-            Sempre la prima pagina del PDF. Personalizzabile dalla tab "Cover".
+            {t("Sempre la prima pagina del PDF. Personalizzabile dalla tab \"Cover\".")}
           </div>
         </div>
         <span className="text-[10px] text-orange-600 bg-orange-100 rounded px-1.5 py-0.5 font-medium shrink-0">
-          Fissa
+          {t("Fissa")}
         </span>
       </div>
 
@@ -243,12 +243,9 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
 
       {/* Counter */}
       <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t">
-        <span>
-          {visibiliCount + 1} pagine attive su {items.length + 1} totali
-          (1 cover + {visibiliCount} riordinabili)
-        </span>
+        <span>{t("{visibiliCount} pagine attive su {n} totali (1 cover + {visibiliCount2} riordinabili)", { visibiliCount: visibiliCount + 1, n: items.length + 1, visibiliCount2: String(visibiliCount ?? "") })}</span>
         <span className="italic">
-          Modifiche salvate al click su "Salva"
+          {t("Modifiche salvate al click su \"Salva\"")}
         </span>
       </div>
     </div>
@@ -278,6 +275,7 @@ function SortablePageItem({
   onFoto?: () => void;
   children?: ReactNode;
 }) {
+  const t = useT();
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: item.id });
@@ -306,8 +304,8 @@ function SortablePageItem({
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-1 -ml-1 touch-none"
-        aria-label="Trascina per riordinare"
-        title="Trascina"
+        aria-label={t("Trascina per riordinare")}
+        title={t("Trascina")}
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -326,12 +324,12 @@ function SortablePageItem({
           <span className="text-xs font-semibold">{meta.label}</span>
           {meta.obbligatoria && (
             <span className="text-[9px] text-orange-600 bg-orange-100 rounded px-1 py-0.5 font-medium">
-              Obbligatoria
+              {t("Obbligatoria")}
             </span>
           )}
           {!item.visible && (
             <span className="text-[9px] text-slate-500 bg-slate-100 rounded px-1 py-0.5 font-medium">
-              Nascosta
+              {t("Nascosta")}
             </span>
           )}
         </div>
@@ -340,7 +338,7 @@ function SortablePageItem({
         </div>
         {promessa && item.visible ? (
           <div className="text-[10px] text-amber-700 mt-0.5">
-            Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.
+            {t("Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.")}
           </div>
         ) : null}
       </div>
@@ -353,8 +351,8 @@ function SortablePageItem({
           onClick={onMoveUp}
           disabled={isFirst}
           className="h-7 w-7"
-          aria-label="Sposta su"
-          title="Sposta su"
+          aria-label={t("Sposta su")}
+          title={t("Sposta su")}
         >
           <ChevronUp className="h-3.5 w-3.5" />
         </Button>
@@ -364,8 +362,8 @@ function SortablePageItem({
           onClick={onMoveDown}
           disabled={isLast}
           className="h-7 w-7"
-          aria-label="Sposta giù"
-          title="Sposta giù"
+          aria-label={t("Sposta giù")}
+          title={t("Sposta giù")}
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </Button>
@@ -378,11 +376,11 @@ function SortablePageItem({
             "h-7 w-7 " +
             (meta.obbligatoria ? "" : item.visible ? "text-orange-600" : "text-slate-400")
           }
-          aria-label={item.visible ? "Nascondi pagina" : "Mostra pagina"}
+          aria-label={item.visible ? t("Nascondi pagina") : t("Mostra pagina")}
           title={
             meta.obbligatoria
-              ? "Pagina obbligatoria, sempre visibile"
-              : item.visible ? "Nascondi questa pagina dal PDF" : "Mostra questa pagina nel PDF"
+              ? t("Pagina obbligatoria, sempre visibile")
+              : item.visible ? t("Nascondi questa pagina dal PDF") : t("Mostra questa pagina nel PDF")
           }
         >
           {item.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
@@ -393,8 +391,8 @@ function SortablePageItem({
             variant="ghost"
             onClick={onModifica}
             className="h-7 w-7"
-            aria-label={`Modifica ${meta.label}`}
-            title="Testi, voci e foto di questa pagina"
+            aria-label={t("Modifica {nome}", { nome: String(meta.label ?? "") })}
+            title={t("Testi, voci e foto di questa pagina")}
           >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -405,8 +403,8 @@ function SortablePageItem({
             variant="ghost"
             onClick={onFoto}
             className="h-7 w-7"
-            aria-label={`Foto di ${meta.label}`}
-            title="La foto di questa pagina"
+            aria-label={t("Foto di {nome}", { nome: String(meta.label ?? "") })}
+            title={t("La foto di questa pagina")}
           >
             <Camera className="h-3.5 w-3.5" />
           </Button>

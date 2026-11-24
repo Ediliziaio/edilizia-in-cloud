@@ -14,8 +14,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ChatSession {
   id: string;
@@ -38,6 +38,7 @@ interface ChatMessage {
 }
 
 export function ChatConversazioniTab() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [cerca, setCerca] = useState("");
   const [filtroStato, setFiltroStato] = useState("tutti");
@@ -49,7 +50,7 @@ export function ChatConversazioniTab() {
   useEffect(() => { const timer = setTimeout(() => { setSearch(cerca.trim()); setPage(0); }, 300); return () => clearTimeout(timer); }, [cerca]);
   useEffect(() => { setSelectedSession(null); setPage(0); setMessagePage(0); }, [companyId, filtroStato, source]);
   const showDate = (value: string, pattern: string) => Number.isFinite(new Date(value).getTime())
-    ? format(new Date(value), pattern, { locale: it }) : "Data non disponibile";
+    ? format(new Date(value), pattern, { locale: dateFnsCampo() }) : t("Data non disponibile");
 
   // Fetch sessions with agent name
   const { data: sessionResult, isLoading, isError, error: sessionError, refetch } = useQuery({
@@ -93,16 +94,13 @@ export function ChatConversazioniTab() {
         {/* Back + header */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => setSelectedSession(null)}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("Indietro")}
           </Button>
           <div className="flex-1">
             <h3 className="text-sm font-semibold">
-              Chat con {selectedSessionData.agent_nome || "Agente"}
+              {t("Chat con {nome}", { nome: selectedSessionData.agent_nome || t("Agente") })}
             </h3>
-            <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-              {showDate(selectedSessionData.iniziata_il, "d MMM yyyy HH:mm")}
-              {" · "}{selectedSessionData.messaggi_totali} messaggi
-            </p>
+            <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("{iniziata_il} · {messaggi_totali} messaggi", { iniziata_il: String(showDate(selectedSessionData.iniziata_il, "d MMM yyyy HH:mm") ?? ""), messaggi_totali: String(selectedSessionData.messaggi_totali ?? "") })}</p>
           </div>
           <Badge variant={selectedSessionData.stato === "attiva" ? "default" : "secondary"}>
             {selectedSessionData.stato}
@@ -119,11 +117,11 @@ export function ChatConversazioniTab() {
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
                 ) : messagesError ? (
-                  <div role="alert" className="py-8 text-center"><p>Impossibile caricare i messaggi.</p>
-                    <Button variant="outline" className="mt-2" onClick={() => retryMessages()}>Riprova</Button></div>
+                  <div role="alert" className="py-8 text-center"><p>{t("Impossibile caricare i messaggi.")}</p>
+                    <Button variant="outline" className="mt-2" onClick={() => retryMessages()}>{t("Riprova")}</Button></div>
                 ) : messages.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    Nessun messaggio in questa sessione.
+                    {t("Nessun messaggio in questa sessione.")}
                   </p>
                 ) : (
                   messages.map((msg) => (
@@ -157,9 +155,9 @@ export function ChatConversazioniTab() {
           </CardContent>
         </Card>
         {(messagePage > 0 || messageResult?.has_more) && <div className="flex items-center justify-between">
-          <Button variant="outline" disabled={messagePage === 0 || loadingMessages} onClick={() => setMessagePage(p => p - 1)}>Messaggi precedenti</Button>
-          <span className="text-sm">Pagina {messagePage + 1}</span>
-          <Button variant="outline" disabled={!messageResult?.has_more || loadingMessages} onClick={() => setMessagePage(p => p + 1)}>Messaggi successivi</Button>
+          <Button variant="outline" disabled={messagePage === 0 || loadingMessages} onClick={() => setMessagePage(p => p - 1)}>{t("Messaggi precedenti")}</Button>
+          <span className="text-sm">{t("Pagina {messagePage}", { messagePage: messagePage + 1 })}</span>
+          <Button variant="outline" disabled={!messageResult?.has_more || loadingMessages} onClick={() => setMessagePage(p => p + 1)}>{t("Messaggi successivi")}</Button>
         </div>}
       </div>
     );
@@ -169,7 +167,7 @@ export function ChatConversazioniTab() {
     // Telefono: ricerca e stato sulla stessa riga, stato vuoto in una riga.
     <div className="space-y-4 max-md:space-y-3">
       <p className="text-sm text-muted-foreground" role="status">
-        Conversazioni degli agenti e del widget del sito, distinte per canale. La ricerca comprende tutto lo storico.
+        {t("Conversazioni degli agenti e del widget del sito, distinte per canale. La ricerca comprende tutto lo storico.")}
       </p>
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap max-md:flex-nowrap max-md:gap-2">
@@ -178,7 +176,7 @@ export function ChatConversazioniTab() {
           <Input
             value={cerca}
             onChange={(e) => setCerca(e.target.value)}
-            placeholder="Cerca sessione..."
+            placeholder={t("Cerca sessione...")}
             className="pl-8 h-8 text-sm max-md:h-9"
           />
         </div>
@@ -187,14 +185,14 @@ export function ChatConversazioniTab() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti</SelectItem>
-            <SelectItem value="attiva">Attive</SelectItem>
-            <SelectItem value="chiusa">Chiuse</SelectItem>
+            <SelectItem value="tutti">{t("Tutti")}</SelectItem>
+            <SelectItem value="attiva">{t("Attive")}</SelectItem>
+            <SelectItem value="chiusa">{t("Chiuse")}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={source} onValueChange={setSource}>
           <SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="tutti">Tutti i canali</SelectItem><SelectItem value="agente">Agenti AI</SelectItem><SelectItem value="sito">Widget sito</SelectItem></SelectContent>
+          <SelectContent><SelectItem value="tutti">{t("Tutti i canali")}</SelectItem><SelectItem value="agente">{t("Agenti AI")}</SelectItem><SelectItem value="sito">{t("Widget sito")}</SelectItem></SelectContent>
         </Select>
       </div>
 
@@ -204,17 +202,17 @@ export function ChatConversazioniTab() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : isError ? (
-        <div role="alert" className="rounded-lg border p-4"><p>{sessionError instanceof Error ? sessionError.message : "Impossibile caricare le sessioni chat."}</p>
-          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
+        <div role="alert" className="rounded-lg border p-4"><p>{sessionError instanceof Error ? sessionError.message : t("Impossibile caricare le sessioni chat.")}</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>{t("Riprova")}</Button></div>
       ) : filteredSessions.length === 0 && sessions.length > 0 ? (
-        <div className="py-8 text-center"><p>Nessuna sessione corrisponde alla ricerca.</p>
-          <Button variant="outline" className="mt-2" onClick={() => setCerca("")}>Azzera ricerca</Button></div>
+        <div className="py-8 text-center"><p>{t("Nessuna sessione corrisponde alla ricerca.")}</p>
+          <Button variant="outline" className="mt-2" onClick={() => setCerca("")}>{t("Azzera ricerca")}</Button></div>
       ) : sessions.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center max-md:py-4">
           <MessageSquare className="h-10 w-10 text-muted-foreground mb-3 max-md:hidden" />
-          <p className="font-semibold max-md:text-[13px]">Nessuna sessione chat</p>
+          <p className="font-semibold max-md:text-[13px]">{t("Nessuna sessione chat")}</p>
           <p className="text-sm text-muted-foreground mt-1 max-md:hidden">
-            Nessuna sessione registrata per gli agenti AI e i filtri selezionati.
+            {t("Nessuna sessione registrata per gli agenti AI e i filtri selezionati.")}
           </p>
         </div>
       ) : (
@@ -232,7 +230,7 @@ export function ChatConversazioniTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate">
-                      {s.agent_nome || "Agente"}
+                      {s.agent_nome || t("Agente")}
                     </p>
                     <Badge variant={s.stato === "attiva" ? "default" : "secondary"} className="text-[9px] max-md:text-[11px]">
                       {s.stato}
@@ -241,7 +239,7 @@ export function ChatConversazioniTab() {
                   </div>
                   <div className="flex items-center gap-3 mt-0.5">
                     <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 max-md:text-[11px]">
-                      <MessageSquare className="h-2.5 w-2.5" /> {s.messaggi_totali} msg
+                      <MessageSquare className="h-2.5 w-2.5" /> {t("{n} msg", { n: s.messaggi_totali })}
                     </span>
                     <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 max-md:text-[11px]">
                       <Clock className="h-2.5 w-2.5" /> {Math.round(s.durata_secondi / 60)}m
@@ -258,9 +256,9 @@ export function ChatConversazioniTab() {
         </div>
       )}
       {(page > 0 || sessionResult?.has_more) && <div className="flex items-center justify-between">
-        <Button variant="outline" disabled={page === 0 || isLoading} onClick={() => setPage(p => p - 1)}>Precedenti</Button>
-        <span className="text-sm">Pagina {page + 1}</span>
-        <Button variant="outline" disabled={!sessionResult?.has_more || isLoading} onClick={() => setPage(p => p + 1)}>Successive</Button>
+        <Button variant="outline" disabled={page === 0 || isLoading} onClick={() => setPage(p => p - 1)}>{t("Precedenti")}</Button>
+        <span className="text-sm">{t("Pagina {page}", { page: page + 1 })}</span>
+        <Button variant="outline" disabled={!sessionResult?.has_more || isLoading} onClick={() => setPage(p => p + 1)}>{t("Successive")}</Button>
       </div>}
     </div>
   );

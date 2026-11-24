@@ -19,6 +19,7 @@ import {
   type TechnicalRenderConfig,
   type TechnicalRenderModuleId,
 } from "@/lib/render/technicalRenderModules";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type TechnicalGalleryRow = {
   id: string;
@@ -47,6 +48,7 @@ function compact(values: Array<string | null | undefined>) {
 }
 
 export default function RenderTechnicalModuleGallery({ moduleId }: { moduleId: TechnicalRenderModuleId }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const db = supabase as unknown as DynamicSupabase;
@@ -89,8 +91,8 @@ export default function RenderTechnicalModuleGallery({ moduleId }: { moduleId: T
     return {
       id: item.id,
       title: config?.interventionPreset
-        ? `${spec.label} · ${config.interventionPreset.replace(/_/g, " ")}`
-        : `Render ${spec.singularLabel}`,
+        ? `${t(spec.label)} · ${config.interventionPreset.replace(/_/g, " ")}`
+        : t("Render {tipo}", { tipo: t(spec.singularLabel) }),
       date: item.created_at,
       detailPath: `/azienda/render/${moduleId}/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -109,14 +111,14 @@ export default function RenderTechnicalModuleGallery({ moduleId }: { moduleId: T
       opportunityId: item.opportunity_id,
       opportunityName: item.meta.opportunityName,
     };
-  }), [moduleId, sessions, spec]);
+  }), [moduleId, sessions, spec, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName={spec.label}
-      badgeLabel={`Galleria ${spec.label.toLowerCase()}`}
-      title={spec.galleryTitle}
-      description={spec.galleryDescription}
+      moduleName={t(spec.label)}
+      badgeLabel={t("Galleria {label}", { label: t(spec.label).toLowerCase() })}
+      title={t(spec.galleryTitle)}
+      description={t(spec.galleryDescription)}
       backPath={`/azienda/render/${moduleId}`}
       newPath={`/azienda/render/${moduleId}/new`}
       items={items}
@@ -124,9 +126,9 @@ export default function RenderTechnicalModuleGallery({ moduleId }: { moduleId: T
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription={`I render ${spec.singularLabel} completati appariranno qui.`}
-      searchPlaceholder={`Cerca ${spec.singularLabel}, materiale, autore, cliente...`}
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render {singularLabel} completati appariranno qui.", { singularLabel: t(spec.singularLabel) })}
+      searchPlaceholder={t("Cerca {singularLabel}, materiale, autore, cliente...", { singularLabel: t(spec.singularLabel) })}
       emptyIcon={Image}
       accentClassName={hubConfig.accentClassName}
     />

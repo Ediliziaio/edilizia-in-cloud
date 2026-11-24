@@ -6,6 +6,7 @@ import type { FunnelStage } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
 import { fmtCur } from "./utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   funnel: FunnelStage[] | undefined;
@@ -23,6 +24,7 @@ const STAGE_COLORS = [
 ];
 
 export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading, compact }: Props) {
+  const t = useT();
   const [hovered, setHovered] = useState<number | null>(null);
 
   const stages = funnel || [];
@@ -47,7 +49,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Pipeline aperta per fase</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("Pipeline aperta per fase")}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </CardContent>
@@ -62,12 +64,12 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
     <Wrapper {...wrapperProps}>
       {!compact && (
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Pipeline aperta per fase</CardTitle>
+          <CardTitle className="text-base">{t("Pipeline aperta per fase")}</CardTitle>
         </CardHeader>
       )}
       <CardContent className={compact ? "p-0" : ""}>
         {stages.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
+          <p className="text-sm text-muted-foreground text-center py-8">{t("Nessuno stage configurato")}</p>
         ) : (
           <div className="space-y-3">
             <FunnelChart
@@ -111,7 +113,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
                     </div>
                     <div className="flex items-center gap-2.5 shrink-0 text-muted-foreground tabular-nums">
                       {stage.avg_days_in_stage > 0 && (
-                        <span className="hidden sm:inline text-[10px]">{stage.avg_days_in_stage}gg</span>
+                        <span className="hidden sm:inline text-[10px]">{t("{days_stalled}gg", { days_stalled: String(stage.avg_days_in_stage ?? "") })}</span>
                       )}
                       {convRate !== null && (
                         <span className={cn("text-[10px]", isBottleneck && "text-red-600 dark:text-red-400 font-semibold")}>
@@ -129,9 +131,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
             </div>
 
             {!compact && (
-              <p className="text-[11px] text-muted-foreground">
-                Opportunità aperte oggi per fase; la % è la quota sul totale ({totale}).
-              </p>
+              <p className="text-[11px] text-muted-foreground">{t("Opportunità aperte oggi per fase; la % è la quota sul totale ({totale}).", { totale: String(totale ?? "") })}</p>
             )}
           </div>
         )}

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Chiave = "giornale_auto_enabled" | "morning_briefing_enabled" | "promemoria_preventivo_cliente";
 type BriefSilvio = "spento" | "responsabili" | "tutti";
@@ -45,6 +46,7 @@ const VOCI: Array<{ chiave: Chiave; titolo: string; descrizione: string }> = [
 ];
 
 export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: string; canEdit: boolean }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [inSalvataggio, setInSalvataggio] = useState<Chiave | "silvio_brief_mattino" | null>(null);
   const chiaveQuery = ["automazioni-che-partono-da-sole", companyId];
@@ -68,7 +70,7 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
       if (error) throw error;
       if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore.");
       queryClient.setQueryData(chiaveQuery, { ...(stato ?? {}), silvio_brief_mattino: valore });
-      toast.success(valore === "spento" ? "Brief di Silvio spento" : "Brief di Silvio acceso: parte domattina");
+      toast.success(valore === "spento" ? t("Brief di Silvio spento") : t("Brief di Silvio acceso: parte domattina"));
     } catch (e) {
       toast.error(motivoDelRifiuto(e, "Non sono riuscito a salvare: riprova."));
     } finally {
@@ -85,7 +87,7 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
       if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore.");
       queryClient.setQueryData(chiaveQuery, { ...(stato ?? {}), [chiave]: acceso });
       if (chiave === "giornale_auto_enabled") void queryClient.invalidateQueries({ queryKey: ["giornale-bozza-serale", companyId] });
-      toast.success(acceso ? "Acceso" : "Spento");
+      toast.success(acceso ? t("Acceso") : t("Spento"));
     } catch (e) {
       toast.error(motivoDelRifiuto(e, "Non sono riuscito a salvare: riprova."));
     } finally {
@@ -96,24 +98,24 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
   return (
     <SezioneImpostazione
       id="cosa-parte-da-solo"
-      titolo="Cosa parte da solo"
+      titolo={t("Cosa parte da solo")}
       descrizione={<>
-        Niente parte se non lo accendi tu. Il report del mattino e i messaggi agli operai su WhatsApp si accendono nelle{" "}
-        <Link to="/azienda/whatsapp?tab=automazioni" className="underline">Automazioni del bot WhatsApp</Link>.
+        {t("Niente parte se non lo accendi tu. Il report del mattino e i messaggi agli operai su WhatsApp si accendono nelle")}{" "}
+        <Link to="/azienda/whatsapp?tab=automazioni" className="underline">{t("Automazioni del bot WhatsApp")}</Link>.
       </>}
     >
       {isError ? (
         <div className="p-4 text-sm text-muted-foreground">
-          Non riesco a leggere le impostazioni.{" "}
-          <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+          {t("Non riesco a leggere le impostazioni.")}{" "}
+          <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button>
         </div>
       ) : (
         <div className="divide-y">
           <div className="flex flex-wrap items-start justify-between gap-4 p-4">
             <div className="min-w-0 flex-1">
-              <Label htmlFor="auto-silvio-brief" className="text-sm font-medium">Brief di Silvio del mattino</Label>
+              <Label htmlFor="auto-silvio-brief" className="text-sm font-medium">{t("Brief di Silvio del mattino")}</Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Ogni mattina, nella chat di Silvio dell'app: cosa c'è oggi, cosa è in ritardo, incassi e scadenze, solo quello che ognuno può vedere. Usa il credito AI.
+                {t("Ogni mattina, nella chat di Silvio dell'app: cosa c'è oggi, cosa è in ritardo, incassi e scadenze, solo quello che ognuno può vedere. Usa il credito AI.")}
               </p>
             </div>
             <UniformSelect
@@ -123,21 +125,21 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
               onChange={(e) => void cambiaBrief(e.target.value as BriefSilvio)}
               className="h-9 rounded-md border bg-background px-2 text-sm"
             >
-              {BRIEF_SILVIO.map((b) => <option key={b.valore} value={b.valore}>{b.etichetta}</option>)}
+              {BRIEF_SILVIO.map((b) => <option key={b.valore} value={b.valore}>{t(b.etichetta)}</option>)}
             </UniformSelect>
           </div>
           {VOCI.map((v) => (
             <div key={v.chiave} className="flex items-start justify-between gap-4 p-4">
               <div className="min-w-0">
-                <Label htmlFor={`auto-${v.chiave}`} className="text-sm font-medium">{v.titolo}</Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">{v.descrizione}</p>
+                <Label htmlFor={`auto-${v.chiave}`} className="text-sm font-medium">{t(v.titolo)}</Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t(v.descrizione)}</p>
               </div>
               <Switch
                 id={`auto-${v.chiave}`}
                 checked={stato?.[v.chiave] === true}
                 disabled={!canEdit || !stato || inSalvataggio !== null}
                 onCheckedChange={(acceso) => void cambia(v.chiave, acceso)}
-                aria-label={v.titolo}
+                aria-label={t(v.titolo)}
               />
             </div>
           ))}

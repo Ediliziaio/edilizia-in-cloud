@@ -37,6 +37,7 @@ import { EmailTemplatePicker } from "@/components/email/EmailTemplatePicker";
 import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type QuickSendChannel = "sms" | "whatsapp" | "email" | "whatsapp_locale";
 
@@ -101,6 +102,7 @@ export function QuickContactSendDialog({
   open, onOpenChange, contactId, name, phone, email, context, defaultChannel = "sms", onSent,
   prefill, initialAttachments, orderId, azioniExtra,
 }: QuickContactSendDialogProps) {
+  const tr = useT();
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
 
@@ -271,10 +273,10 @@ export function QuickContactSendDialog({
           company_id: effectiveCompany?.id ?? null,
         },
       });
-      if (error) throw new Error(error.message ?? "Generazione fallita");
+      if (error) throw new Error(error.message ?? tr("Generazione fallita"));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = data as any;
-      if (r?.ok === false) throw new Error(r?.error ?? "Generazione fallita");
+      if (r?.ok === false) throw new Error(r?.error ?? tr("Generazione fallita"));
       return { subject: r?.subject, body: r?.body, mode: vars.mode ?? "generate", ch: vars.ch };
     },
     onSuccess: (r) => {
@@ -287,23 +289,23 @@ export function QuickContactSendDialog({
         setWaSeedAt((n) => n + 1);
       }
       setPannello(null);
-      toast.success(r.mode === "refine" ? "Testo rielaborato" : "Bozza generata", { description: "Modificala pure prima di inviare." });
+      toast.success(r.mode === "refine" ? tr("Testo rielaborato") : tr("Bozza generata"), { description: tr("Modificala pure prima di inviare.") });
     },
-    onError: (e) => toast.error("AI non disponibile", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("AI non disponibile"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   // ── Allegati email (bucket email-attachments) ──
   const handleFiles = async (files: FileList | null) => {
     if (!files || !user?.id) return;
     for (const file of Array.from(files)) {
-      if (file.size > 15 * 1024 * 1024) { toast.error(`${file.name} supera 15MB`); continue; }
+      if (file.size > 15 * 1024 * 1024) { toast.error(tr("{name} supera 15MB", { name: String(file.name ?? "") })); continue; }
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
       const storagePath = `${user.id}/quick/${crypto.randomUUID()}-${safe}`;
       setAttachments((a) => [...a, { name: file.name, size: file.size, mime: file.type || "application/octet-stream", storage_path: storagePath, uploading: true }]);
       const { error } = await supabase.storage.from("email-attachments").upload(storagePath, file, { contentType: file.type || "application/octet-stream", upsert: false });
       if (error) {
         setAttachments((a) => a.filter((x) => x.storage_path !== storagePath));
-        toast.error(`Upload fallito: ${file.name}`);
+        toast.error(tr("Upload fallito: {name}", { name: String(file.name ?? "") }));
       } else {
         setAttachments((a) => a.map((x) => x.storage_path === storagePath ? { ...x, uploading: false } : x));
       }
@@ -318,13 +320,13 @@ export function QuickContactSendDialog({
   // ── Email send (con firma) ──
   const sendEmail = useMutation({
     mutationFn: async () => {
-      if (!user?.id || !effectiveCompany?.id) throw new Error("Non autenticato");
-      if (!emailFrom) throw new Error("Seleziona l'account mittente");
-      if (!hasEmail) throw new Error("Il contatto non ha un'email");
+      if (!user?.id || !effectiveCompany?.id) throw new Error(tr("Non autenticato"));
+      if (!emailFrom) throw new Error(tr("Seleziona l'account mittente"));
+      if (!hasEmail) throw new Error(tr("Il contatto non ha un'email"));
       const subject = emailSubject.trim();
       const body = emailBody.trim();
-      if (!subject) throw new Error("Aggiungi un oggetto");
-      if (!body) throw new Error("Scrivi un messaggio");
+      if (!subject) throw new Error(tr("Aggiungi un oggetto"));
+      if (!body) throw new Error(tr("Scrivi un messaggio"));
 
       const sig = sigEnabled ? sigText.trim() : "";
       const finalText = sig ? `${body}\n\n-- \n${sig}` : body;
@@ -345,17 +347,17 @@ export function QuickContactSendDialog({
         .select("id").single();
       if (insErr) throw insErr;
       const { data, error } = await supabase.functions.invoke("email-send", { body: { outbox_id: outboxRow.id } });
-      if (error) throw new Error(error.message ?? "Invio fallito");
+      if (error) throw new Error(error.message ?? tr("Invio fallito"));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((data as any)?.ok === false) throw new Error((data as any)?.error ?? "Invio fallito");
+      if ((data as any)?.ok === false) throw new Error((data as any)?.error ?? tr("Invio fallito"));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-threads"] });
-      toast.success(`Email inviata a ${fullName || email}`, fullName ? { description: email ?? undefined } : undefined);
+      toast.success(tr("Email inviata a {destinatario}", { destinatario: fullName || email || "" }), fullName ? { description: email ?? undefined } : undefined);
       dopoInvio({ channel: "email", subject: emailSubject.trim(), body: emailBody.trim() });
       onSent?.(); onOpenChange(false);
     },
-    onError: (e) => toast.error("Errore invio email", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Errore invio email"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   const bloccoEmail = motivoBloccoEmail({ mittente: emailFrom, oggetto: emailSubject, testo: emailBody, caricamento: attachments.some((a) => a.uploading) });
@@ -375,7 +377,7 @@ export function QuickContactSendDialog({
     if (channel === "email") provaInvioEmail();
   };
 
-  const senzaTelefono = <p className="py-6 text-center text-xs italic text-muted-foreground">Il contatto non ha un numero di telefono.</p>;
+  const senzaTelefono = <p className="py-6 text-center text-xs italic text-muted-foreground">{tr("Il contatto non ha un numero di telefono.")}</p>;
   const bottoneStrumento = (nome: "ai" | "allegati" | "template", icona: ReactNode, etichetta: string) => (
     <Button
       type="button" variant="ghost" size="sm" aria-pressed={pannello === nome} title={etichetta}
@@ -391,23 +393,23 @@ export function QuickContactSendDialog({
       <DialogContent className="flex max-h-[92vh] w-[96vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]">
         <Tabs value={channel} onValueChange={(v) => setChannel(v as QuickSendChannel)} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader className="flex-row flex-wrap items-center gap-x-3 gap-y-1 space-y-0 border-b py-2 pl-4 pr-11 text-left">
-            <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold max-sm:basis-full">{fullName || "Nuovo messaggio"}</DialogTitle>
-            <DialogDescription className="sr-only">Scrivi e invia un messaggio al contatto.</DialogDescription>
+            <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold max-sm:basis-full">{fullName || tr("Nuovo messaggio")}</DialogTitle>
+            <DialogDescription className="sr-only">{tr("Scrivi e invia un messaggio al contatto.")}</DialogDescription>
             {azioniExtra && <div className="flex shrink-0 items-center gap-1.5">{azioniExtra}</div>}
             <TabsList className="h-8 shrink-0">
-              <TabsTrigger value="sms" disabled={!hasPhone} title={hasPhone ? "SMS" : "Telefono mancante"} className="h-6 gap-1 px-2 text-xs"><Smartphone className="h-3.5 w-3.5" /> SMS</TabsTrigger>
-              <TabsTrigger value="whatsapp" disabled={!hasPhone} title={hasPhone ? "WhatsApp" : "Telefono mancante"} className="h-6 gap-1 px-2 text-xs"><MessageSquare className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
-              <TabsTrigger value="email" disabled={!hasEmail} title={hasEmail ? "Email" : "Email mancante"} className="h-6 gap-1 px-2 text-xs"><Mail className="h-3.5 w-3.5" /> Email</TabsTrigger>
+              <TabsTrigger value="sms" disabled={!hasPhone} title={hasPhone ? "SMS" : tr("Telefono mancante")} className="h-6 gap-1 px-2 text-xs"><Smartphone className="h-3.5 w-3.5" /> SMS</TabsTrigger>
+              <TabsTrigger value="whatsapp" disabled={!hasPhone} title={hasPhone ? "WhatsApp" : tr("Telefono mancante")} className="h-6 gap-1 px-2 text-xs"><MessageSquare className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
+              <TabsTrigger value="email" disabled={!hasEmail} title={hasEmail ? "Email" : tr("Email mancante")} className="h-6 gap-1 px-2 text-xs"><Mail className="h-3.5 w-3.5" /> Email</TabsTrigger>
               {isPlatformContext && (
-                <TabsTrigger value="whatsapp_locale" disabled={!hasPhone} className="h-6 gap-1 px-2 text-xs"><MessageSquare className="h-3.5 w-3.5" /> WA Locale</TabsTrigger>
+                <TabsTrigger value="whatsapp_locale" disabled={!hasPhone} className="h-6 gap-1 px-2 text-xs"><MessageSquare className="h-3.5 w-3.5" /> {tr("WA Locale")}</TabsTrigger>
               )}
             </TabsList>
           </DialogHeader>
 
           {bozzaTornata && (
             <div className="flex items-center justify-between gap-2 border-b bg-amber-50 px-4 py-1 text-xs text-amber-900">
-              <span>Bozza ripresa da dove l'avevi lasciata.</span>
-              <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={scartaBozza}>Scarta</button>
+              <span>{tr("Bozza ripresa da dove l'avevi lasciata.")}</span>
+              <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={scartaBozza}>{tr("Scarta")}</button>
             </div>
           )}
 
@@ -418,7 +420,7 @@ export function QuickContactSendDialog({
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
                   <p className="pb-1 text-xs text-muted-foreground">A {phone}</p>
                   <Textarea
-                    placeholder="Scrivi l'SMS…" aria-label="Testo dell'SMS"
+                    placeholder={tr("Scrivi l'SMS…")} aria-label={tr("Testo dell'SMS")}
                     value={smsText}
                     onChange={(e) => setSmsText(e.target.value.slice(0, SMS_MAX))}
                     onKeyDown={handleComposerKeyDown}
@@ -441,13 +443,13 @@ export function QuickContactSendDialog({
                 </div>
                 <div className="flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2">
                   <div className="flex items-center gap-0.5">
-                    {bottoneStrumento("template", <FileText className="h-3.5 w-3.5" />, "Template")}
-                    {bottoneStrumento("ai", <Sparkles className="h-3.5 w-3.5" />, "Scrivi con l'AI")}
+                    {bottoneStrumento("template", <FileText className="h-3.5 w-3.5" />, tr("Template"))}
+                    {bottoneStrumento("ai", <Sparkles className="h-3.5 w-3.5" />, tr("Scrivi con l'AI"))}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] tabular-nums text-muted-foreground">{smsText.length}/{SMS_MAX} · {Math.max(1, Math.ceil(smsText.length / 153))} seg.</span>
-                    <Button size="sm" className="gap-1.5" onClick={handleSendSms} disabled={!smsText.trim() || smsSending} title="⌘+Invio">
-                      {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia
+                    <span className="text-[11px] tabular-nums text-muted-foreground">{tr("{n}/{max} · {seg} seg.", { n: smsText.length, max: SMS_MAX, seg: Math.max(1, Math.ceil(smsText.length / 153)) })}</span>
+                    <Button size="sm" className="gap-1.5" onClick={handleSendSms} disabled={!smsText.trim() || smsSending} title={tr("⌘+Invio")}>
+                      {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {tr("Invia")}
                     </Button>
                   </div>
                 </div>
@@ -463,7 +465,7 @@ export function QuickContactSendDialog({
                 phone={cleanPhone} isSending={waSending} contactFields={waContactFields}
                 seedText={waSeedText} seedAt={waSeedAt}
                 onSend={async ({ waNumberId, content, template, idempotencyKey }) => {
-                  if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return false; }
+                  if (!effectiveCompany?.id) { toast.error(tr("Azienda non disponibile")); return false; }
                   setWaSending(true);
                   try {
                     const payload: Record<string, unknown> = { idempotency_key: idempotencyKey, company_id: effectiveCompany.id, to: cleanPhone, wa_number_id: waNumberId, ...(contactId ? { contact_id: contactId } : {}) };
@@ -473,9 +475,9 @@ export function QuickContactSendDialog({
                     if (error) throw new Error(await readInvokeError(error));
                     if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
                     requireWhatsAppReceipt(data);
-                    toast.success("Messaggio accettato da WhatsApp"); dopoInvio({ channel: "whatsapp", body: content ?? template?.name ?? "" }); onSent?.(); onOpenChange(false);
+                    toast.success(tr("Messaggio accettato da WhatsApp")); dopoInvio({ channel: "whatsapp", body: content ?? template?.name ?? "" }); onSent?.(); onOpenChange(false);
                     return true;
-                  } catch (e) { toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp"); return false; }
+                  } catch (e) { toast.error(e instanceof Error ? e.message : tr("Errore invio WhatsApp")); return false; }
                   finally { setWaSending(false); }
                 }}
               />
@@ -487,7 +489,7 @@ export function QuickContactSendDialog({
                     onRefine={() => composeAi.mutate({ ch: "whatsapp" })}
                   />
                 )}
-                {bottoneStrumento("ai", <Sparkles className="h-3.5 w-3.5" />, "Scrivi con l'AI")}
+                {bottoneStrumento("ai", <Sparkles className="h-3.5 w-3.5" />, tr("Scrivi con l'AI"))}
               </div>
             ) : senzaTelefono}
           </TabsContent>
@@ -498,10 +500,10 @@ export function QuickContactSendDialog({
               {hasPhone ? (
                 <>
                   <p className="text-[11px] text-muted-foreground">
-                    Invio dal pool di numeri non-ufficiali. Il mittente è scelto per tag e capacità giornaliera.
+                    {tr("Invio dal pool di numeri non-ufficiali. Il mittente è scelto per tag e capacità giornaliera.")}
                   </p>
                   <Textarea
-                    placeholder="Scrivi il messaggio WhatsApp…"
+                    placeholder={tr("Scrivi il messaggio WhatsApp…")}
                     value={waLocaleText}
                     onChange={(e) => setWaLocaleText(e.target.value)}
                     rows={8}
@@ -520,18 +522,18 @@ export function QuickContactSendDialog({
                             body: { action: "send_text", contact_id: contactId ?? null, to: cleanPhone, text: waLocaleText.trim() },
                           });
                           if (error) throw new Error(await extractInvokeError(error));
-                          toast.success("Messaggio WhatsApp Locale inviato");
+                          toast.success(tr("Messaggio WhatsApp Locale inviato"));
                           setWaLocaleText("");
                           onSent?.();
                           onOpenChange(false);
                         } catch (e) {
-                          toast.error(e instanceof Error ? e.message : "Errore invio");
+                          toast.error(e instanceof Error ? e.message : tr("Errore invio"));
                         } finally {
                           setWaLocaleSending(false);
                         }
                       }}
                     >
-                      {waLocaleSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia
+                      {waLocaleSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {tr("Invia")}
                     </Button>
                   </div>
                 </>
@@ -542,11 +544,11 @@ export function QuickContactSendDialog({
           {/* Email */}
           <TabsContent value="email" className="mt-0 min-h-0 flex-1 flex-col data-[state=active]:flex">
             {!hasEmail ? (
-              <p className="py-6 text-center text-xs italic text-muted-foreground">Il contatto non ha un'email.</p>
+              <p className="py-6 text-center text-xs italic text-muted-foreground">{tr("Il contatto non ha un'email.")}</p>
             ) : emailAccounts.length === 0 ? (
               <div className="m-4 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-                Nessuna casella collegata.{" "}
-                <LinkImpostazione to="/azienda/impostazioni/mio-profilo?tab=email" className="font-medium underline">Collega Gmail/Outlook/IMAP</LinkImpostazione> per inviare email da qui.
+                {tr("Nessuna casella collegata.")}{" "}
+                <LinkImpostazione to="/azienda/impostazioni/mio-profilo?tab=email" className="font-medium underline">{tr("Collega Gmail/Outlook/IMAP")}</LinkImpostazione> {tr("per inviare email da qui.")}
               </div>
             ) : (
               <>
@@ -555,20 +557,20 @@ export function QuickContactSendDialog({
                     <span className="w-6 shrink-0 text-muted-foreground">A</span>
                     <span className="min-w-0 flex-1 truncate" title={email ?? undefined}>{email}</span>
                     {!ccBccVisible && (
-                      <button type="button" className="shrink-0 font-medium text-primary hover:underline" onClick={() => setCcBccVisible(true)}>Cc/Ccn</button>
+                      <button type="button" className="shrink-0 font-medium text-primary hover:underline" onClick={() => setCcBccVisible(true)}>{tr("Cc/Ccn")}</button>
                     )}
                   </div>
                   {ccBccVisible && (
                     <div className="grid grid-cols-2 gap-2 border-b py-1.5">
-                      <Input placeholder="Cc (separati da virgola)" value={emailCc} onChange={(e) => setEmailCc(e.target.value)} className="h-7 text-xs" />
-                      <Input placeholder="Ccn (separati da virgola)" value={emailBcc} onChange={(e) => setEmailBcc(e.target.value)} className="h-7 text-xs" />
+                      <Input placeholder={tr("Cc (separati da virgola)")} value={emailCc} onChange={(e) => setEmailCc(e.target.value)} className="h-7 text-xs" />
+                      <Input placeholder={tr("Ccn (separati da virgola)")} value={emailBcc} onChange={(e) => setEmailBcc(e.target.value)} className="h-7 text-xs" />
                     </div>
                   )}
                   <div className="flex items-center gap-2 border-b py-1 text-xs">
-                    <span className="w-6 shrink-0 text-muted-foreground">Da</span>
+                    <span className="w-6 shrink-0 text-muted-foreground">{tr("Da")}</span>
                     {emailAccounts.length > 1 ? (
                       <Select value={emailFrom} onValueChange={setEmailFrom}>
-                        <SelectTrigger aria-label="Casella mittente" className="h-7 border-0 px-0 text-xs shadow-none focus:ring-0"><SelectValue placeholder="Scegli la casella" /></SelectTrigger>
+                        <SelectTrigger aria-label={tr("Casella mittente")} className="h-7 border-0 px-0 text-xs shadow-none focus:ring-0"><SelectValue placeholder={tr("Scegli la casella")} /></SelectTrigger>
                         <SelectContent>
                           {emailAccounts.map((a) => <SelectItem key={a.id} value={a.id} className="text-xs">{a.email_address ?? a.id}</SelectItem>)}
                         </SelectContent>
@@ -578,12 +580,12 @@ export function QuickContactSendDialog({
                     )}
                   </div>
                   <Input
-                    placeholder="Oggetto" aria-label="Oggetto" value={emailSubject}
+                    placeholder={tr("Oggetto")} aria-label={tr("Oggetto")} value={emailSubject}
                     onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
                     className="h-9 rounded-none border-0 border-b px-0 text-sm font-medium shadow-none focus-visible:ring-0"
                   />
                   <Textarea
-                    placeholder="Scrivi l'email…" aria-label="Testo dell'email"
+                    placeholder={tr("Scrivi l'email…")} aria-label={tr("Testo dell'email")}
                     value={emailBody}
                     onChange={(e) => { setEmailBody(e.target.value.slice(0, 50_000)); setAvvisoAllegato(false); }}
                     onKeyDown={handleComposerKeyDown}
@@ -594,13 +596,13 @@ export function QuickContactSendDialog({
                   {/* La firma dove la vedrà il cliente, in fondo al testo */}
                   <div className="pb-2 text-xs text-muted-foreground">
                     {sigEnabled && sigEdit ? (
-                      <Textarea placeholder="La tua firma (es. Nome Cognome · Azienda · tel)…" aria-label="Firma" value={sigText} onChange={(e) => setSigText(e.target.value.slice(0, 1000))} rows={3} className="text-xs" />
+                      <Textarea placeholder={tr("La tua firma (es. Nome Cognome · Azienda · tel)…")} aria-label={tr("Firma")} value={sigText} onChange={(e) => setSigText(e.target.value.slice(0, 1000))} rows={3} className="text-xs" />
                     ) : sigEnabled && sigText ? (
                       <p className="whitespace-pre-wrap">{sigText}</p>
                     ) : null}
                     <div className="mt-1 flex gap-3">
-                      {sigEnabled && <button type="button" className="hover:underline" onClick={() => setSigEdit((v) => !v)}>{sigEdit ? "Fatto" : sigText ? "Modifica firma" : "Scrivi la firma"}</button>}
-                      {(sigText || !sigEnabled) && <button type="button" className="hover:underline" onClick={() => { setSigEnabled((v) => !v); setSigEdit(false); }}>{sigEnabled ? "Togli firma" : "Aggiungi firma"}</button>}
+                      {sigEnabled && <button type="button" className="hover:underline" onClick={() => setSigEdit((v) => !v)}>{sigEdit ? tr("Fatto") : sigText ? tr("Modifica firma") : tr("Scrivi la firma")}</button>}
+                      {(sigText || !sigEnabled) && <button type="button" className="hover:underline" onClick={() => { setSigEnabled((v) => !v); setSigEdit(false); }}>{sigEnabled ? tr("Togli firma") : tr("Aggiungi firma")}</button>}
                     </div>
                   </div>
 
@@ -613,7 +615,7 @@ export function QuickContactSendDialog({
                           <span className="min-w-0 truncate" title={a.name}>{a.name}</span>
                           {a.size > 0 && <span className="shrink-0 text-muted-foreground">{Math.max(1, Math.round(a.size / 1024))} KB</span>}
                           {a.uploading ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : (
-                            <button type="button" onClick={() => removeAttachment(a.storage_path)} className="shrink-0 text-muted-foreground hover:text-rose-600" aria-label={`Rimuovi ${a.name}`}><X className="h-3 w-3" /></button>
+                            <button type="button" onClick={() => removeAttachment(a.storage_path)} className="shrink-0 text-muted-foreground hover:text-rose-600" aria-label={tr("Rimuovi {name}", { name: String(a.name ?? "") })}><X className="h-3 w-3" /></button>
                           )}
                         </li>
                       ))}
@@ -642,7 +644,7 @@ export function QuickContactSendDialog({
                       {pannello === "allegati" && (
                         <div className="space-y-2 rounded-lg bg-muted/40 p-2">
                           <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => fileInputRef.current?.click()}>
-                            <Upload className="h-3.5 w-3.5" /> Dal computer
+                            <Upload className="h-3.5 w-3.5" /> {tr("Dal computer")}
                           </Button>
                           {orderId && (
                             <OrderDocumentAttacher
@@ -664,21 +666,21 @@ export function QuickContactSendDialog({
                 {avvisoAllegato && (
                   <div className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-amber-50 px-4 py-1.5 text-xs text-amber-900">
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 flex-1">Il testo parla di un allegato, ma non c'è nessun file.</span>
-                    <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={() => setPannello("allegati")}>Allega</button>
-                    <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={provaInvioEmail}>Invia lo stesso</button>
+                    <span className="min-w-0 flex-1">{tr("Il testo parla di un allegato, ma non c'è nessun file.")}</span>
+                    <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={() => setPannello("allegati")}>{tr("Allega")}</button>
+                    <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={provaInvioEmail}>{tr("Invia lo stesso")}</button>
                   </div>
                 )}
                 <div className="flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2">
                   <div className="flex items-center gap-0.5">
-                    {bottoneStrumento("allegati", <Paperclip className="h-3.5 w-3.5" />, attachments.length > 0 ? `Allega (${attachments.length})` : "Allega")}
-                    {bottoneStrumento("template", <FileText className="h-3.5 w-3.5" />, "Template")}
-                    {bottoneStrumento("ai", <Sparkles className="h-3.5 w-3.5" />, "Scrivi con l'AI")}
+                    {bottoneStrumento("allegati", <Paperclip className="h-3.5 w-3.5" />, attachments.length > 0 ? tr("Allega ({n})", { n: attachments.length }) : tr("Allega"))}
+                    {bottoneStrumento("template", <FileText className="h-3.5 w-3.5" />, tr("Template"))}
+                    {bottoneStrumento("ai", <Sparkles className="h-3.5 w-3.5" />, tr("Scrivi con l'AI"))}
                   </div>
                   <div className="flex items-center gap-2">
-                    {bloccoEmail && <span className="text-[11px] text-muted-foreground max-sm:hidden">{bloccoEmail}</span>}
-                    <Button size="sm" className="gap-1.5" onClick={provaInvioEmail} disabled={!!bloccoEmail || sendEmail.isPending} title={bloccoEmail ?? "⌘+Invio"}>
-                      {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia
+                    {bloccoEmail && <span className="text-[11px] text-muted-foreground max-sm:hidden">{tr(bloccoEmail)}</span>}
+                    <Button size="sm" className="gap-1.5" onClick={provaInvioEmail} disabled={!!bloccoEmail || sendEmail.isPending} title={bloccoEmail ? tr(bloccoEmail) : tr("⌘+Invio")}>
+                      {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {tr("Invia")}
                     </Button>
                   </div>
                 </div>
@@ -706,11 +708,12 @@ function AiAssistRow({
   onRefine: (action: string) => void;
   currentText: string;
 }) {
+  const tr = useT();
   const hasText = currentText.trim().length > 0;
   return (
     <div className="rounded-lg bg-orange-50/60 p-2 space-y-1.5">
       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-700">
-        <Sparkles className="h-3.5 w-3.5" /> Scrivi con l'AI
+        <Sparkles className="h-3.5 w-3.5" /> {tr("Scrivi con l'AI")}
       </div>
       {/* Preset rapidi → riempiono l'istruzione */}
       <div className="flex flex-wrap gap-1">
@@ -721,12 +724,12 @@ function AiAssistRow({
             onClick={() => setInstruction(p)}
             className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] text-orange-700 hover:bg-orange-100 max-md:text-[11px]"
           >
-            {p}
+            {tr(p)}
           </button>
         ))}
       </div>
       <Textarea
-        placeholder="Cosa vuoi dire? Es: «proponi un sopralluogo per gli impianti del condominio la prossima settimana»"
+        placeholder={tr("Cosa vuoi dire? Es: «proponi un sopralluogo per gli impianti del condominio la prossima settimana»")}
         value={instruction}
         onChange={(e) => setInstruction(e.target.value.slice(0, 1000))}
         rows={2}
@@ -736,18 +739,18 @@ function AiAssistRow({
         <Select value={tone} onValueChange={setTone}>
           <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {TONES.map((t) => <SelectItem key={t} value={t} className="text-xs capitalize">{t}</SelectItem>)}
+            {TONES.map((t) => <SelectItem key={t} value={t} className="text-xs capitalize">{tr(t)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Button size="sm" className="h-7 gap-1.5 bg-orange-600 hover:bg-orange-700 text-xs" onClick={onGenerate} disabled={pending}>
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Genera
+          {tr("Genera")}
         </Button>
       </div>
       {/* Rielabora il testo già scritto */}
       {hasText && (
         <div className="flex flex-wrap items-center gap-1 pt-0.5">
-          <span className="text-[10px] text-muted-foreground max-md:text-[11px]">Sul testo:</span>
+          <span className="text-[10px] text-muted-foreground max-md:text-[11px]">{tr("Sul testo:")}</span>
           {[["Migliora", "migliora il testo rendendolo più chiaro e professionale"], ["Accorcia", "accorcia il testo mantenendo il messaggio"], ["Allunga", "espandi il testo con qualche dettaglio utile"], ["Più formale", "rendi il testo più formale"]].map(([label, act]) => (
             <button
               key={label}
@@ -756,7 +759,7 @@ function AiAssistRow({
               onClick={() => onRefine(act)}
               className="rounded-md border bg-white px-1.5 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50 max-md:text-[11px]"
             >
-              {label}
+              {tr(label)}
             </button>
           ))}
         </div>

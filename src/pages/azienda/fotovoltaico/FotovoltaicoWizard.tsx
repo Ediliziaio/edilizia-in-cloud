@@ -201,9 +201,10 @@ import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateE
 import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { creaModelloPreventivo, interventiDelModulo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const formatEur = (n: number) =>
-  `€ ${n.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
+  `€ ${n.toLocaleString(intlCampo(), { maximumFractionDigits: 0 })}`;
 
 /** Le frasi inglesi che supabase-js usa quando il server risponde con un errore o non risponde: a chi compila non dicono niente. */
 const ERRORI_GENERICI_DEL_SERVER: Array<[RegExp, string]> = [
@@ -267,6 +268,7 @@ export default function FotovoltaicoWizardPerProgetto() {
 }
 
 function FotovoltaicoWizard() {
+  const t = useT();
   const { id } = useParams<{ id?: string }>();
   // Company effettiva del frontend (multi-azienda): serve a creare il progetto
   // sotto l'azienda selezionata nello switcher, non sotto la primaria del profilo.
@@ -367,10 +369,10 @@ function FotovoltaicoWizard() {
   useEffect(() => {
     if (initialDraft && !id && !restoredToastShown.current) {
       restoredToastShown.current = true;
-      const toastId = toast.info("Bozza ripristinata dal salvataggio locale", {
-        description: "Hai dati non salvati dall'ultima sessione.",
+      const toastId = toast.info(t("Bozza ripristinata dal salvataggio locale"), {
+        description: t("Hai dati non salvati dall'ultima sessione."),
         action: {
-          label: "Ricomincia",
+          label: t("Ricomincia"),
           onClick: () => {
             // Cancella draft + dismiss toast + reload
             clearPersistedDraft(null, draftScope);
@@ -802,7 +804,7 @@ function FotovoltaicoWizard() {
     if (readOnlyMode) {
       // F14a: dedup del toast — un singolo gesto (es. slider) chiama update()
       // più volte di fila; senza id si accumulerebbero N toast identici.
-      toast.error("Progetto in sola lettura. Clona per creare una nuova versione.", {
+      toast.error(t("Progetto in sola lettura. Clona per creare una nuova versione."), {
         id: "fv-readonly",
       });
       return;
@@ -1013,7 +1015,7 @@ function FotovoltaicoWizard() {
         // stale/quasi vuoto invece della vera bozza (bug "ripristina non
         // riprende la bozza").
         clearPersistedDraft(null, draftScope);
-        toast.success("Progetto creato — continua con i consumi");
+        toast.success(t("Progetto creato — continua con i consumi"));
       } else {
         await aggiornaProgetto.mutateAsync({
           id: progettoId,
@@ -1058,7 +1060,7 @@ function FotovoltaicoWizard() {
     } catch (e) {
       if (!mountedRef.current) return false;
       setAutoSaveState("error");
-      toast.error(`Salvataggio non riuscito: ${describeError(e)}`);
+      toast.error(t("Salvataggio non riuscito: {e}", { e: String(describeError(e) ?? "") }));
       return false;
     } finally {
       if (mountedRef.current) setSalvando(false);
@@ -1070,7 +1072,7 @@ function FotovoltaicoWizard() {
     if (!progettoId) {
       // Nessun progetto creato (es. Fase 1 non salvata correttamente): niente
       // return silenzioso — "Avanti" sembrava non funzionare. Dai feedback + recupera.
-      toast.error("Completa la Fase 1 (Cliente) e premi Avanti per creare il progetto, poi prosegui.");
+      toast.error(t("Completa la Fase 1 (Cliente) e premi Avanti per creare il progetto, poi prosegui."));
       goTo(1);
       return;
     }
@@ -1096,7 +1098,7 @@ function FotovoltaicoWizard() {
     } catch (e) {
       if (!mountedRef.current) return;
       setAutoSaveState("error");
-      toast.error(`Salvataggio consumi: ${describeError(e)}`);
+      toast.error(t("Salvataggio consumi: {e}", { e: String(describeError(e) ?? "") }));
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
@@ -1157,7 +1159,7 @@ function FotovoltaicoWizard() {
           fonteEffettiva = "solar_api";
         } catch (solarErr) {
           if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
-          toast.message("Solar API non disponibile per questo edificio — uso PVGIS", {
+          toast.message(t("Solar API non disponibile per questo edificio — uso PVGIS"), {
             description: describeError(solarErr),
           });
           result = await chiamaPvgis();
@@ -1168,7 +1170,7 @@ function FotovoltaicoWizard() {
 
       if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
       if (!result) {
-        toast.error("Nessun dato dal servizio. Prova un'altra fonte o usa l'inserimento manuale.");
+        toast.error(t("Nessun dato dal servizio. Prova un'altra fonte o usa l'inserimento manuale."));
         return;
       }
 
@@ -1256,11 +1258,11 @@ function FotovoltaicoWizard() {
       const oreTxt = ore != null ? `${ore.toFixed(0)} h sole/anno` : "ore sole non disponibili";
       const maxTxt = numMax != null ? `max ${numMax} pannelli` : "geometria da definire";
       const stimaTxt = isMock ? " (dati dimostrativi)" : "";
-      toast.success(`Tetto analizzato: ${oreTxt} · ${maxTxt}${stimaTxt}`);
+      toast.success(t("Tetto analizzato: {oreTxt} · {maxTxt}{stimaTxt}", { oreTxt: String(oreTxt ?? ""), maxTxt: String(maxTxt ?? ""), stimaTxt: String(stimaTxt ?? "") }));
     } catch (e) {
       if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
       toast.error(
-        `Analisi tetto fallita: ${describeError(e)}. Puoi cambiare fonte o passare a "Manuale".`,
+        t("Analisi tetto fallita: {e}. Puoi cambiare fonte o passare a \"Manuale\".", { e: String(describeError(e) ?? "") }),
       );
     } finally {
       if (mountedRef.current && versione === versioneAnalisiTetto.current) setAnalizzandoTetto(false);
@@ -1290,7 +1292,7 @@ function FotovoltaicoWizard() {
     } catch (e) {
       if (!mountedRef.current) return;
       setAutoSaveState("error");
-      toast.error(`Salvataggio non riuscito: ${describeError(e)}`);
+      toast.error(t("Salvataggio non riuscito: {e}", { e: String(describeError(e) ?? "") }));
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
@@ -1354,7 +1356,7 @@ function FotovoltaicoWizard() {
           const netto = Number(r.tariffa_oraria_netta) || 0;
           return {
             tariffa_id: r.tariffa_id,
-            descrizione: r.descrizione || "Manodopera",
+            descrizione: r.descrizione || t("Manodopera"),
             ore: Number(r.ore) || 0,
             tariffa_oraria_netta: netto,
             tariffa_oraria_vendita: vendita,
@@ -1368,7 +1370,7 @@ function FotovoltaicoWizard() {
         replace: true,
         righe: data.servizi_righe.map((r, i) => ({
           tipo: tipoServizioFv(r.tipo),
-          descrizione: r.descrizione || "Servizio",
+          descrizione: r.descrizione || t("Servizio"),
           quantita: Number(r.quantita) || 1,
           prezzo_netto: Number(r.prezzo_netto) || 0,
           prezzo_vendita: Number(r.prezzo_vendita) || 0,
@@ -1389,7 +1391,7 @@ function FotovoltaicoWizard() {
     } catch (e) {
       if (!mountedRef.current) return;
       setAutoSaveState("error");
-      toast.error(`Salvataggio configurazione: ${describeError(e)}`);
+      toast.error(t("Salvataggio configurazione: {e}", { e: String(describeError(e) ?? "") }));
       if (opts?.skipNav) throw e; // in generazione: propaga per non emettere importi stantii
     } finally {
       if (!opts?.skipNav && mountedRef.current) setSalvando(false);
@@ -1437,16 +1439,16 @@ function FotovoltaicoWizard() {
         ?.costi;
       if (costiRes?.sconto_limitato) {
         toast.warning(
-          `Sconto oltre il massimo consentito dalle regole aziendali: applicato ${formatEur(costiRes.sconto_eur_applicato ?? 0)}.`,
+          t("Sconto oltre il massimo consentito dalle regole aziendali: applicato {valore}.", { valore: formatEur(costiRes.sconto_eur_applicato ?? 0) }),
         );
       }
-      if (!opts?.silent) toast.success("Calcolo finanziario completato");
+      if (!opts?.silent) toast.success(t("Calcolo finanziario completato"));
       return (result as Record<string, unknown>) ?? null;
     } catch (e) {
       if (!mountedRef.current) return null;
       const msg = describeError(e);
       setScenarioErr(msg);
-      toast.error(`Calcolo finanziario fallito: ${msg}`);
+      toast.error(t("Calcolo finanziario fallito: {msg}", { msg: String(msg ?? "") }));
       return null;
     } finally {
       if (mountedRef.current) setCalcolandoFinanziario(false);
@@ -1586,7 +1588,7 @@ function FotovoltaicoWizard() {
     } catch (e) {
       if (!mountedRef.current) return;
       setAutoSaveState("error");
-      toast.error(`Salvataggio finanziamento: ${describeError(e)}`);
+      toast.error(t("Salvataggio finanziamento: {e}", { e: String(describeError(e) ?? "") }));
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
@@ -1605,7 +1607,7 @@ function FotovoltaicoWizard() {
     // guard, "Genera ed emetti" riscriverebbe stato="emesso" (regredendo un
     // firmato) e rigenererebbe il PDF.
     if (readOnlyMode) {
-      toast.info("Progetto in sola lettura: clonalo per generare una nuova versione.");
+      toast.info(t("Progetto in sola lettura: clonalo per generare una nuova versione."));
       return;
     }
     setSalvando(true);
@@ -1653,7 +1655,7 @@ function FotovoltaicoWizard() {
       // vecchio: il PDF avrebbe mostrato la rata vecchia accanto al prezzo nuovo.
       if (rataPrima > 0 && (await rataSalvata()) === 0) {
         if (!mountedRef.current) return;
-        toast.warning("Il prezzo è cambiato: conferma di nuovo il finanziamento prima di emettere.");
+        toast.warning(t("Il prezzo è cambiato: conferma di nuovo il finanziamento prima di emettere."));
         goTo(6);
         return;
       }
@@ -1697,11 +1699,11 @@ function FotovoltaicoWizard() {
       // Pulisci draft locale: progetto è emesso, niente più bozze locali
       clearPersistedDraft(progettoId, draftScope);
       clearPersistedDraft(null, draftScope);
-      toast.success("Preventivo emesso! Apri la scheda 'Preventivo' per visualizzarlo.");
+      toast.success(t("Preventivo emesso! Apri la scheda 'Preventivo' per visualizzarlo."));
       navigate(`/azienda/marketing/fotovoltaico/${progettoId}`);
     } catch (e) {
       if (!mountedRef.current) return;
-      toast.error(`Generazione preventivo: ${describeError(e)}`);
+      toast.error(t("Generazione preventivo: {e}", { e: String(describeError(e) ?? "") }));
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
@@ -1787,7 +1789,7 @@ function FotovoltaicoWizard() {
 
   const handleSaveDraft = useCallback(async (): Promise<boolean> => {
     if (!progettoId) {
-      toast.info("Compila e salva la fase 2 (immobile) per creare il progetto bozza.");
+      toast.info(t("Compila e salva la fase 2 (immobile) per creare il progetto bozza."));
       return false;
     }
     if (step === 5 && (localConversationalAi || leggiDisegnoCommerciale(data.layout_overlay))) {
@@ -1878,12 +1880,12 @@ function FotovoltaicoWizard() {
 
       if (!mountedRef.current) return true;
       markSaved();
-      toast.success("Bozza salvata");
+      toast.success(t("Bozza salvata"));
       return true;
     } catch (e) {
       if (!mountedRef.current) return false;
       setAutoSaveState("error");
-      toast.error(`Salvataggio bozza: ${describeError(e)}`);
+      toast.error(t("Salvataggio bozza: {e}", { e: String(describeError(e) ?? "") }));
       return false;
     } finally {
       if (mountedRef.current) setSalvando(false);
@@ -1898,10 +1900,10 @@ function FotovoltaicoWizard() {
     if (!progettoId || duplicaProgetto.isPending) return;
     try {
       const nuovoId = await duplicaProgetto.mutateAsync(progettoId);
-      toast.success("Progetto duplicato: stai lavorando sulla nuova versione");
+      toast.success(t("Progetto duplicato: stai lavorando sulla nuova versione"));
       navigate(`/azienda/marketing/fotovoltaico/${nuovoId}/modifica`);
     } catch (e) {
-      toast.error(`Duplicazione non riuscita: ${describeError(e)}`);
+      toast.error(t("Duplicazione non riuscita: {e}", { e: String(describeError(e) ?? "") }));
     }
   };
 
@@ -1921,7 +1923,7 @@ function FotovoltaicoWizard() {
       : "Compila la fase 1 per iniziare";
 
   const lastSaveText = lastSaveAt
-    ? `Ultima modifica ${lastSaveAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+    ? `Ultima modifica ${lastSaveAt.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" })}`
     : undefined;
 
   // ─── Anteprima live a destra ─────────────────────────────────────────────
@@ -1966,7 +1968,7 @@ function FotovoltaicoWizard() {
       ? "In compilazione"
       : "Bozza";
 
-  if (modelloSalvato.error || (!id && requestedModel && !modelloRichiesto)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{modelloSalvato.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=fotovoltaico")}>Scegli un intervento</Button></div>;
+  if (modelloSalvato.error || (!id && requestedModel && !modelloRichiesto)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">{t("Intervento non disponibile")}</h1><p>{modelloSalvato.error ?? t("Il tipo di intervento richiesto non è riconosciuto.")}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=fotovoltaico")}>{t("Scegli un intervento")}</Button></div>;
 
   return (
     // A filo coi bordi del contenitore che scorre (<main> ha 12/24 px di spazio): barra e
@@ -2011,7 +2013,7 @@ function FotovoltaicoWizard() {
                 // Dati inseriti ma nessuna bozza DB ancora: chiedi cosa fare
                 setExitDialogOpen(true);
               }}
-              aria-label={readOnlyMode ? "Chiudi" : "Salva e chiudi"}
+              aria-label={readOnlyMode ? t("Chiudi") : t("Salva e chiudi")}
               className="px-3 py-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5 max-md:px-2.5"
             >
               <X className="h-4 w-4" /> <span className="max-md:hidden">{readOnlyMode ? "Chiudi" : "Salva e chiudi"}</span>
@@ -2021,10 +2023,10 @@ function FotovoltaicoWizard() {
                 type="button"
                 onClick={() => void handleDuplica()}
                 disabled={duplicaProgetto.isPending}
-                aria-label="Duplica"
+                aria-label={t("Duplica")}
                 className="px-3 py-1.5 text-sm font-semibold text-slate-700 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 inline-flex items-center gap-1.5 max-md:px-2.5"
               >
-                <Copy className="h-4 w-4" /> <span className="max-md:hidden">Duplica</span>
+                <Copy className="h-4 w-4" /> <span className="max-md:hidden">{t("Duplica")}</span>
               </button>
             )}
           </>
@@ -2041,7 +2043,7 @@ function FotovoltaicoWizard() {
       />
       {intervento && !progettoId && !modelSupport.supported && (
         <p role="alert" className="mx-3 my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:mx-6">
-          {modelSupport.isLoading ? "Verifica del salvataggio…" : "Attendi l’attivazione del database prima di compilare."}
+          {modelSupport.isLoading ? t("Verifica del salvataggio…") : t("Attendi l’attivazione del database prima di compilare.")}
         </p>
       )}
 
@@ -2049,12 +2051,12 @@ function FotovoltaicoWizard() {
       <AlertDialog open={Boolean(!id && !progettoId && !requestedModel && ultimaBozza && !resumeDismissed && !readOnlyMode)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
+            <AlertDialogTitle>{t("Hai un preventivo in bozza")}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                <p className="mb-2">Vuoi riprendere da dove eri rimasto?</p>
+                <p className="mb-2">{t("Vuoi riprendere da dove eri rimasto?")}</p>
                 <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700 space-y-0.5">
-                  <p className="font-semibold text-slate-900">{ultimaBozza?.numero ?? "Bozza"}</p>
+                  <p className="font-semibold text-slate-900">{ultimaBozza?.numero ?? t("Bozza")}</p>
                   {(ultimaBozza?.cliente?.first_name || ultimaBozza?.cliente?.last_name) && (
                     <p>{[ultimaBozza?.cliente?.first_name, ultimaBozza?.cliente?.last_name].filter(Boolean).join(" ")}</p>
                   )}
@@ -2062,9 +2064,7 @@ function FotovoltaicoWizard() {
                     <p>{[ultimaBozza?.indirizzo, ultimaBozza?.comune].filter(Boolean).join(", ")}</p>
                   )}
                   {ultimaBozza?.updated_at && (
-                    <p className="text-xs text-muted-foreground">
-                      Ultima modifica {new Date(ultimaBozza.updated_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("Ultima modifica {valore}", { valore: new Date(ultimaBozza.updated_at).toLocaleString(intlCampo(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) })}</p>
                   )}
                 </div>
               </div>
@@ -2072,10 +2072,10 @@ function FotovoltaicoWizard() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setResumeDismissed(true)}>
-              Nuovo da zero
+              {t("Nuovo da zero")}
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => navigate(`/azienda/marketing/fotovoltaico/${ultimaBozza!.id}`)}>
-              Riprendi bozza
+              {t("Riprendi bozza")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2085,11 +2085,8 @@ function FotovoltaicoWizard() {
       <AlertDialog open={senzaPrezzo != null} onOpenChange={(open) => { if (!open) setSenzaPrezzo(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Manca il prezzo di vendita</AlertDialogTitle>
-            <AlertDialogDescription>
-              I componenti non hanno un prezzo nel listino e non hai scritto un prezzo a corpo: il
-              preventivo uscirebbe a {formatEur(senzaPrezzo?.totale ?? 0)}, solo pratiche e posa.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("Manca il prezzo di vendita")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("I componenti non hanno un prezzo nel listino e non hai scritto un prezzo a corpo: il preventivo uscirebbe a {valore}, solo pratiche e posa.", { valore: formatEur(senzaPrezzo?.totale ?? 0) })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
@@ -2099,7 +2096,7 @@ function FotovoltaicoWizard() {
                 window.setTimeout(() => document.getElementById("fv-prezzo-manuale")?.focus(), 300);
               }}
             >
-              Scrivi il prezzo
+              {t("Scrivi il prezzo")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
@@ -2107,7 +2104,7 @@ function FotovoltaicoWizard() {
                 void handleGeneraEdEmetti({ confermaSenzaPrezzo: true });
               }}
             >
-              Emetti così
+              {t("Emetti così")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2116,15 +2113,15 @@ function FotovoltaicoWizard() {
       <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Salvare come bozza?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Salvare come bozza?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {data.indirizzo && data.latitudine != null && data.longitudine != null
-                ? "I dati inseriti verranno salvati come bozza: la ritroverai nella lista preventivi e al prossimo \"Nuovo preventivo\"."
-                : "Per salvare la bozza sul server serve almeno l'indirizzo dell'impianto. I dati inseriti restano comunque memorizzati su questo dispositivo e verranno ripresi al prossimo accesso."}
+                ? t("I dati inseriti verranno salvati come bozza: la ritroverai nella lista preventivi e al prossimo \"Nuovo preventivo\".")
+                : t("Per salvare la bozza sul server serve almeno l'indirizzo dell'impianto. I dati inseriti restano comunque memorizzati su questo dispositivo e verranno ripresi al prossimo accesso.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua a compilare</AlertDialogCancel>
+            <AlertDialogCancel>{t("Continua a compilare")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-slate-500 hover:bg-slate-600"
               onClick={() => {
@@ -2132,7 +2129,7 @@ function FotovoltaicoWizard() {
                 navigate("/azienda/marketing/preventivi");
               }}
             >
-              Esci senza salvare
+              {t("Esci senza salvare")}
             </AlertDialogAction>
             {data.indirizzo && data.latitudine != null && data.longitudine != null && (
               <AlertDialogAction
@@ -2140,11 +2137,11 @@ function FotovoltaicoWizard() {
                   // Prima usciva con «Bozza salvata» anche quando il salvataggio falliva.
                   if (!(await handleSalvaStep2())) return;
                   clearPersistedDraft(null, draftScope);
-                  toast.success("Bozza salvata — la ritrovi tra i preventivi");
+                  toast.success(t("Bozza salvata — la ritrovi tra i preventivi"));
                   navigate("/azienda/marketing/preventivi");
                 }}
               >
-                Salva bozza ed esci
+                {t("Salva bozza ed esci")}
               </AlertDialogAction>
             )}
           </AlertDialogFooter>
@@ -2156,11 +2153,10 @@ function FotovoltaicoWizard() {
         <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-8 py-3 text-sm text-amber-900 flex items-start gap-3 flex-wrap">
           <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <div className="flex-1 min-w-[260px]">
-            <strong>Modalità sola lettura · </strong>
+            <strong>{t("Modalità sola lettura ·")} </strong>
             {readOnlyReason}
             <span className="block text-xs text-amber-800/80 mt-0.5">
-              Cosa puoi fare: scaricare il preventivo PDF, consultare i dettagli, oppure
-              clonare il progetto per crearne una nuova versione modificabile.
+              {t("Cosa puoi fare: scaricare il preventivo PDF, consultare i dettagli, oppure clonare il progetto per crearne una nuova versione modificabile.")}
             </span>
           </div>
           {progettoId && (
@@ -2171,7 +2167,7 @@ function FotovoltaicoWizard() {
                 disabled={duplicaProgetto.isPending}
                 className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
               >
-                ⎘ Clona
+                {t("⎘ Clona")}
               </button>
               <button
                 type="button"
@@ -2180,7 +2176,7 @@ function FotovoltaicoWizard() {
                 }
                 className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
               >
-                Vai al dettaglio →
+                {t("Vai al dettaglio →")}
               </button>
             </div>
           )}
@@ -2196,13 +2192,13 @@ function FotovoltaicoWizard() {
         destra={
           <>
             {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
-            <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs xl:hidden" onClick={() => setAnteprimaMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
-              <Eye className="h-3.5 w-3.5" /> Anteprima
+            <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs xl:hidden" onClick={() => setAnteprimaMobileAperta(true)} aria-label={t("Apri l'anteprima")} title={t("Apri l'anteprima")}>
+              <Eye className="h-3.5 w-3.5" /> {t("Anteprima")}
             </Button>
             {/* Computer: se l'hai nascosta, da qui torna. */}
             {anteprimaNascosta && (
               <Button variant="outline" size="sm" className="hidden h-6 gap-1 px-2 text-xs xl:inline-flex" onClick={() => impostaAnteprimaNascosta(false)}>
-                <Eye className="h-3.5 w-3.5" /> Mostra anteprima
+                <Eye className="h-3.5 w-3.5" /> {t("Mostra anteprima")}
               </Button>
             )}
           </>
@@ -2215,7 +2211,7 @@ function FotovoltaicoWizard() {
             n <= step || navigableSteps.has(n) || n === step + 1;
           if (!isClickable) {
             toast.info(
-              `Completa la fase ${step} prima di passare alla fase ${n}.`,
+              t("Completa la fase {step} prima di passare alla fase {n}.", { step: String(step ?? ""), n: String(n ?? "") }),
               { duration: 3000 },
             );
             return;
@@ -2245,10 +2241,10 @@ function FotovoltaicoWizard() {
             puoVedereImpresa={puoVedereImpresa}
             onNascondi={() => impostaAnteprimaNascosta(true)}
             nota={conDocumentoVero
-              ? "Il documento vero, come lo riceve il cliente: si rifà dopo ogni salvataggio (passando alla fase dopo)."
+              ? t("Il documento vero, come lo riceve il cliente: si rifà dopo ogni salvataggio (passando alla fase dopo).")
               : progettoId
-                ? "Bozza visiva: cliente, impianto, righe e prezzo sono quelli del preventivo. Il documento vero è in «PDF vero»."
-                : "Bozza visiva: il documento vero compare qui appena il progetto è salvato."}
+                ? t("Bozza visiva: cliente, impianto, righe e prezzo sono quelli del preventivo. Il documento vero è in «PDF vero».")
+                : t("Bozza visiva: il documento vero compare qui appena il progetto è salvato.")}
           >
             {conDocumentoVero ? (
               <PdfVeroFotovoltaico
@@ -2267,7 +2263,7 @@ function FotovoltaicoWizard() {
           {step === 1 && <Step1Cliente data={data} update={update} />}
           {step === 2 && <Step2Immobile data={data} update={update} />}
           {step === 3 && (
-            <Step3Consumi data={data} update={update} profili={profili as never} progettoId={progettoId} readOnlyMode={readOnlyMode} onIndirizzoFornitura={indirizzo=>{update("indirizzo",indirizzo);update("latitudine",null);update("longitudine",null);goTo(2);toast.info("Indirizzo di fornitura proposto: seleziona il risultato per confermare la posizione.");}} />
+            <Step3Consumi data={data} update={update} profili={profili as never} progettoId={progettoId} readOnlyMode={readOnlyMode} onIndirizzoFornitura={indirizzo=>{update("indirizzo",indirizzo);update("latitudine",null);update("longitudine",null);goTo(2);toast.info(t("Indirizzo di fornitura proposto: seleziona il risultato per confermare la posizione."));}} />
           )}
           {step === 4 && (
             <Step4Tetto
@@ -2280,8 +2276,8 @@ function FotovoltaicoWizard() {
             />
           )}
           {step === 5 && (<>
-            {localConversationalAi && progettoId && !readOnlyMode && <Button type="button" variant="outline" className="mb-4 rounded-full border-orange-300" onClick={()=>setConversationOpen(true)}>Apri Silvio AI · configura l’impianto</Button>}
-            {conversationOpen && localConversationalAi && progettoId && effectiveCompanyId && !readOnlyMode && <Suspense fallback={<p role="status">Apro Silvio AI…</p>}><FvConversationalAi companyId={effectiveCompanyId} companyName={effectiveCompany?.name??''} projectId={progettoId} numero={progettoEsistente?.numero??'Bozza locale'} data={data}
+            {localConversationalAi && progettoId && !readOnlyMode && <Button type="button" variant="outline" className="mb-4 rounded-full border-orange-300" onClick={()=>setConversationOpen(true)}>{t("Apri Silvio AI · configura l’impianto")}</Button>}
+            {conversationOpen && localConversationalAi && progettoId && effectiveCompanyId && !readOnlyMode && <Suspense fallback={<p role="status">{t("Apro Silvio AI…")}</p>}><FvConversationalAi companyId={effectiveCompanyId} companyName={effectiveCompany?.name??''} projectId={progettoId} numero={progettoEsistente?.numero??'Bozza locale'} data={data}
               createdAt={progettoEsistente?.created_at} projectVersion={progettoEsistente?.updated_at}
               modelTitle={intervento?.title}
               template={(modelloSalvato.snapshot?.template??fvTemplate??{}) as Record<string,unknown>}
@@ -2396,6 +2392,7 @@ export function Step1Cliente({
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
 }) {
+  const tr = useT();
   // I dati cambiati qui tornano al contatto collegato (07/11/2026). L'indirizzo del FV è quello dell'impianto,
   // non del cliente: al contatto non si manda.
   useAggiornaContattoDalPreventivo(data.cliente_id, {
@@ -2408,11 +2405,11 @@ export function Step1Cliente({
       <FvPanelTitle
         step={1}
         totalSteps={TOTAL_STEPS}
-        title="Dati del cliente"
+        title={tr("Dati del cliente")}
         subtitle={
           <>
-            Anagrafica e contatti del committente. Collega un contatto dal{" "}
-            <strong>CRM EiC</strong> per compilare i dati in automatico.
+            {tr("Anagrafica e contatti del committente. Collega un contatto dal")}{" "}
+            <strong>{tr("CRM EiC")}</strong> {tr("per compilare i dati in automatico.")}
           </>
         }
       />
@@ -2449,37 +2446,37 @@ export function Step1Cliente({
       }} />
       {/* Anagrafica e contatti affiancati, il cointestato sotto su tutta la riga (07/11/2026). */}
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <FvCard title="Anagrafica">
+        <FvCard title={tr("Anagrafica")}>
           {/* Telefono: nome e cognome affiancati. */}
           <div className="grid grid-cols-2 gap-3 mb-3 max-sm:gap-2">
             <div>
-              <Label>Nome *</Label>
+              <Label>{tr("Nome *")}</Label>
               <Input
                 value={data.cliente_nome}
                 onChange={(e) => update("cliente_nome", e.target.value)}
-                placeholder="Mario"
+                placeholder={tr("Mario")}
                 autoComplete="given-name"
               />
             </div>
             <div>
-              <Label>Cognome *</Label>
+              <Label>{tr("Cognome *")}</Label>
               <Input
                 value={data.cliente_cognome}
                 onChange={(e) => update("cliente_cognome", e.target.value)}
-                placeholder="Rossi"
+                placeholder={tr("Rossi")}
                 autoComplete="family-name"
               />
             </div>
           </div>
           <div>
-            <Label>Tipologia / Archetipo *</Label>
+            <Label>{tr("Tipologia / Archetipo *")}</Label>
             <Select value={data.archetipo} onValueChange={(v) => update("archetipo", v as FvArchetipo)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="privato_prima">Privato — prima casa</SelectItem>
-                <SelectItem value="privato_seconda">Privato — seconda casa</SelectItem>
-                <SelectItem value="privato_isee">Privato — ISEE basso (Reddito Energetico)</SelectItem>
-                <SelectItem value="pmi">PMI / Partita IVA</SelectItem>
+                <SelectItem value="privato_prima">{tr("Privato — prima casa")}</SelectItem>
+                <SelectItem value="privato_seconda">{tr("Privato — seconda casa")}</SelectItem>
+                <SelectItem value="privato_isee">{tr("Privato — ISEE basso (Reddito Energetico)")}</SelectItem>
+                <SelectItem value="pmi">{tr("PMI / Partita IVA")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -2492,10 +2489,10 @@ export function Step1Cliente({
             />
           </div>
         </FvCard>
-        <FvCard title="Contatti">
+        <FvCard title={tr("Contatti")}>
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <div>
-              <Label>Cellulare *</Label>
+              <Label>{tr("Cellulare *")}</Label>
               <Input
                 type="tel"
                 value={data.cliente_telefono}
@@ -2517,8 +2514,7 @@ export function Step1Cliente({
           </div>
           <div className="max-md:hidden">
             <FvCallout variant="info">
-              * Almeno uno tra <strong>cellulare</strong> ed <strong>email</strong> è obbligatorio per
-              inviare il preventivo.
+              {tr("* Almeno uno tra")} <strong>{tr("cellulare")}</strong> {tr("ed")} <strong>{tr("email")}</strong> {tr("è obbligatorio per inviare il preventivo.")}
             </FvCallout>
           </div>
         </FvCard>
@@ -2547,6 +2543,7 @@ function Step2Immobile({
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
 }) {
+  const t = useT();
   const [geoLoading, setGeoLoading] = useState(false);
   // Ultimo indirizzo geocodificato con successo — evita richieste duplicate
   // quando il blur scatta senza che l'utente abbia cambiato il testo.
@@ -2575,7 +2572,7 @@ function Step2Immobile({
       .join(", ")
       .trim();
     if (indirizzo.length < 4) {
-      if (!silent) toast.error("Inserisci prima l'indirizzo");
+      if (!silent) toast.error(t("Inserisci prima l'indirizzo"));
       return;
     }
     if (silent && indirizzo === lastGeocodedRef.current) return;
@@ -2591,7 +2588,7 @@ function Step2Immobile({
         regione?: string | null; in_italia?: boolean;
       };
       if (res?.lat == null || res?.lng == null) {
-        if (!silent) toast.error("Indirizzo non trovato. Inserisci lat/lng manualmente.");
+        if (!silent) toast.error(t("Indirizzo non trovato. Inserisci lat/lng manualmente."));
         return;
       }
       lastGeocodedRef.current = indirizzo;
@@ -2606,11 +2603,11 @@ function Step2Immobile({
       toast.success(
         res.comune
           ? `Trovato: ${res.comune}${res.provincia ? ` (${res.provincia})` : ""} — coordinate impostate`
-          : `Coordinate trovate: ${res.lat.toFixed(5)}, ${res.lng.toFixed(5)}`,
+          : t("Coordinate trovate: {lat}, {lng}", { lat: res.lat.toFixed(5), lng: res.lng.toFixed(5) }),
       );
     } catch (e) {
       if (!silent) {
-        toast.error(`Geocoding non disponibile (${describeError(e)}). Inserisci lat/lng a mano.`);
+        toast.error(t("Geocoding non disponibile ({e}). Inserisci lat/lng a mano.", { e: String(describeError(e) ?? "") }));
       }
     } finally {
       setGeoLoading(false);
@@ -2631,43 +2628,42 @@ function Step2Immobile({
       <FvPanelTitle
         step={2}
         totalSteps={TOTAL_STEPS}
-        title="Immobile"
+        title={t("Immobile")}
         subtitle={
           <>
-            Indirizzo dove sarà installato l'impianto. Scegli un <strong>suggerimento</strong> mentre digiti
-            e comune, provincia, CAP e coordinate (per Solar API/PVGIS) si compilano da soli.
+            {t("Indirizzo dove sarà installato l'impianto. Scegli un")} <strong>{t("suggerimento")}</strong> {t("mentre digiti e comune, provincia, CAP e coordinate (per Solar API/PVGIS) si compilano da soli.")}
           </>
         }
       />
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <FvCard title="Indirizzo impianto">
+        <FvCard title={t("Indirizzo impianto")}>
           <div className="mb-3">
-            <Label htmlFor="fv-indirizzo">Indirizzo completo *</Label>
+            <Label htmlFor="fv-indirizzo">{t("Indirizzo completo *")}</Label>
             <CampoIndirizzo
               id="fv-indirizzo"
-              placeholder="Inizia a digitare: Via Roma 12, Milano…"
+              placeholder={t("Inizia a digitare: Via Roma 12, Milano…")}
               value={data.indirizzo}
               onChange={(v) => update("indirizzo", v)}
               onScegli={sceltoIndirizzo}
               onBlur={handleIndirizzoBlur}
             />
             <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
-              Scegli un suggerimento: comune, provincia, CAP e coordinate si compilano da soli.
+              {t("Scegli un suggerimento: comune, provincia, CAP e coordinate si compilano da soli.")}
             </p>
           </div>
           {/* Telefono: comune, provincia e CAP su una riga; coordinate affiancate. */}
           <div className="grid grid-cols-12 gap-3 mb-3 sm:grid-cols-3 max-sm:gap-2">
             <div className="col-span-5 sm:col-span-1">
-              <Label>Comune</Label>
+              <Label>{t("Comune")}</Label>
               <Input
                 value={data.comune}
                 onChange={(e) => update("comune", e.target.value)}
-                placeholder="Milano"
+                placeholder={t("Milano")}
               />
             </div>
             <div className="col-span-3 sm:col-span-1">
-              <Label><span className="max-sm:hidden">Prov. (sigla)</span><span className="sm:hidden">Prov.</span></Label>
+              <Label><span className="max-sm:hidden">{t("Prov. (sigla)")}</span><span className="sm:hidden">{t("Prov.")}</span></Label>
               <Input
                 maxLength={2}
                 value={data.provincia}
@@ -2686,7 +2682,7 @@ function Step2Immobile({
           </div>
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div>
-              <Label>Latitudine <span className="font-normal text-muted-foreground max-sm:hidden">(consigliata)</span></Label>
+              <Label>{t("Latitudine")} <span className="font-normal text-muted-foreground max-sm:hidden">{t("(consigliata)")}</span></Label>
               <Input
                 type="number"
                 step="0.000001"
@@ -2702,7 +2698,7 @@ function Step2Immobile({
               />
             </div>
             <div>
-              <Label>Longitudine <span className="font-normal text-muted-foreground max-sm:hidden">(consigliata)</span></Label>
+              <Label>{t("Longitudine")} <span className="font-normal text-muted-foreground max-sm:hidden">{t("(consigliata)")}</span></Label>
               <Input
                 type="number"
                 step="0.000001"
@@ -2721,18 +2717,17 @@ function Step2Immobile({
           {data.latitudine != null &&
             data.longitudine != null &&
             !isCoordinataItalia(data.latitudine, data.longitudine) && (
-              <FvCallout variant="error" title="Coordinate fuori Italia">
-                Range valido: lat <strong>{ITALIA_LAT_MIN}–{ITALIA_LAT_MAX}</strong>, lng{" "}
-                <strong>{ITALIA_LNG_MIN}–{ITALIA_LNG_MAX}</strong>. Solar API e PVGIS sono
-                ottimizzati per il territorio italiano.
+              <FvCallout variant="error" title={t("Coordinate fuori Italia")}>
+                {t("Range valido: lat")} <strong>{ITALIA_LAT_MIN}–{ITALIA_LAT_MAX}</strong>{t(", lng")}{" "}
+                <strong>{ITALIA_LNG_MIN}–{ITALIA_LNG_MAX}</strong>{t(". Solar API e PVGIS sono ottimizzati per il territorio italiano.")}
               </FvCallout>
             )}
         </FvCard>
 
-        <FvCard title="Caratteristiche edificio">
+        <FvCard title={t("Caratteristiche edificio")}>
           <div className="grid grid-cols-2 gap-3 mb-3 max-sm:gap-2">
             <div>
-              <Label>Tipologia</Label>
+              <Label>{t("Tipologia")}</Label>
               <Select
                 value={data.tipologia_immobile}
                 onValueChange={(v) => {
@@ -2743,16 +2738,16 @@ function Step2Immobile({
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="residenziale">Residenziale</SelectItem>
-                  <SelectItem value="capannone">Capannone</SelectItem>
-                  <SelectItem value="ufficio">Ufficio</SelectItem>
-                  <SelectItem value="agricolo">Agricolo</SelectItem>
-                  <SelectItem value="altro">Altro</SelectItem>
+                  <SelectItem value="residenziale">{t("Residenziale")}</SelectItem>
+                  <SelectItem value="capannone">{t("Capannone")}</SelectItem>
+                  <SelectItem value="ufficio">{t("Ufficio")}</SelectItem>
+                  <SelectItem value="agricolo">{t("Agricolo")}</SelectItem>
+                  <SelectItem value="altro">{t("Altro")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Superficie (m²)</Label>
+              <Label>{t("Superficie (m²)")}</Label>
               <Input
                 type="number"
                 value={data.superficie_immobile_mq ?? ""}
@@ -2764,20 +2759,20 @@ function Step2Immobile({
             </div>
           </div>
           <div className="mb-3">
-            <Label>Popolazione comune (per stima CER)</Label>
+            <Label>{t("Popolazione comune (per stima CER)")}</Label>
             <Input
               type="number"
               value={data.popolazione_comune ?? ""}
               onChange={(e) =>
                 update("popolazione_comune", e.target.value ? Number(e.target.value) : null)
               }
-              placeholder="es. 1.350.000 per Milano"
+              placeholder={t("es. 1.350.000 per Milano")}
             />
           </div>
           {data.tipologia_immobile === "residenziale" ? (
             <>
               <div className="mt-3">
-                <Label className="mb-2 block font-medium">Tipo di abitazione</Label>
+                <Label className="mb-2 block font-medium">{t("Tipo di abitazione")}</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -2790,9 +2785,9 @@ function Step2Immobile({
                   >
                     <Home className={`h-5 w-5 ${data.prima_casa ? "text-orange-500" : "text-slate-400"}`} />
                     <span className={`font-semibold ${data.prima_casa ? "text-orange-700" : "text-slate-600"}`}>
-                      Prima casa
+                      {t("Prima casa")}
                     </span>
-                    <span className="text-xs font-bold text-emerald-600">Detrazione 50%</span>
+                    <span className="text-xs font-bold text-emerald-600">{t("Detrazione 50%")}</span>
                   </button>
                   <button
                     type="button"
@@ -2805,23 +2800,22 @@ function Step2Immobile({
                   >
                     <Building2 className={`h-5 w-5 ${!data.prima_casa ? "text-orange-500" : "text-slate-400"}`} />
                     <span className={`font-semibold ${!data.prima_casa ? "text-orange-700" : "text-slate-600"}`}>
-                      Seconda casa
+                      {t("Seconda casa")}
                     </span>
-                    <span className="text-xs font-bold text-amber-600">Detrazione 36%</span>
+                    <span className="text-xs font-bold text-amber-600">{t("Detrazione 36%")}</span>
                   </button>
                 </div>
                 <p className="mt-1.5 text-xs text-muted-foreground max-md:hidden">
-                  Detrazione IRPEF spalmata in 10 anni · plafond €96.000 · prima casa max €48.000 recuperati · seconda casa max €34.560
+                  {t("Detrazione IRPEF spalmata in 10 anni · plafond €96.000 · prima casa max €48.000 recuperati · seconda casa max €34.560")}
                 </p>
               </div>
-              <FvCallout variant="tip" title={`IVA del preventivo: ${percentualeIvaFv(data.iva_aliquota)}%`}>
-                <span className="max-md:hidden">Per le abitazioni si applica di norma il 10%. L'aliquota si cambia nella Fase 5, accanto al prezzo di vendita.</span>
+              <FvCallout variant="tip" title={t("IVA del preventivo: {iva_aliquota}%", { iva_aliquota: String(percentualeIvaFv(data.iva_aliquota) ?? "") })}>
+                <span className="max-md:hidden">{t("Per le abitazioni si applica di norma il 10%. L'aliquota si cambia nella Fase 5, accanto al prezzo di vendita.")}</span>
               </FvCallout>
             </>
           ) : (
-            <FvCallout variant="tip" title={`Detrazione abitativa non applicabile · IVA ${percentualeIvaFv(data.iva_aliquota)}%`}>
-              <span className="max-md:hidden">Per capannoni, uffici e immobili non residenziali l'IVA è di norma al 22%: l'aliquota si
-              cambia nella Fase 5. La detrazione IRPEF 50%/36% è riservata agli immobili residenziali.</span>
+            <FvCallout variant="tip" title={t("Detrazione abitativa non applicabile · IVA {iva_aliquota}%", { iva_aliquota: String(percentualeIvaFv(data.iva_aliquota) ?? "") })}>
+              <span className="max-md:hidden">{t("Per capannoni, uffici e immobili non residenziali l'IVA è di norma al 22%: l'aliquota si cambia nella Fase 5. La detrazione IRPEF 50%/36% è riservata agli immobili residenziali.")}</span>
             </FvCallout>
           )}
         </FvCard>
@@ -2844,39 +2838,40 @@ export function Step3Consumi({
   profili: Array<{ codice: string; nome_visualizzato: string; emoji: string | null }>;
   progettoId?: string | null; readOnlyMode?: boolean; onIndirizzoFornitura?: (indirizzo:string)=>void;
 }) {
+  const t = useT();
 
   return (
     <>
       <FvPanelTitle
         step={3}
         totalSteps={TOTAL_STEPS}
-        title="Consumi elettrici attuali"
-        subtitle="Carica la bolletta, controlla il riepilogo e personalizza la proposta con poche scelte."
+        title={t("Consumi elettrici attuali")}
+        subtitle={t("Carica la bolletta, controlla il riepilogo e personalizza la proposta con poche scelte.")}
       />
 
       <FvBolletteConsumi consumoManuale={data.consumo_annuo_kwh} costoManuale={data.costo_kwh_attuale} progettoId={progettoId} value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)} onApplica={r=>{update("consumo_annuo_kwh",r.consumo);update("costo_kwh_attuale",r.costoEvitabile);}} onIndirizzo={indirizzo=>onIndirizzoFornitura?.(indirizzo)}/>
       <FvProfiloEnergetico consumoAnnuo={data.consumo_annuo_kwh} value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)}/>
-      {!data.analisi_consumi && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Tariffa e impostazioni manuali</summary>
+      {!data.analisi_consumi && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">{t("Tariffa e impostazioni manuali")}</summary>
       <div className="mt-3 grid gap-4">
-        <FvCard title="Dati consumo">
+        <FvCard title={t("Dati consumo")}>
           {/* Telefono: i campi a coppie, come al computer. */}
           <div className="grid grid-cols-2 gap-3 mb-3 max-sm:gap-2">
             <div>
-              <Label>Consumo annuo kWh *</Label>
+              <Label>{t("Consumo annuo kWh *")}</Label>
               <Input
                 type="number"
                 value={data.consumo_annuo_kwh ?? ""}
                 onChange={(e) =>
                   update("consumo_annuo_kwh", e.target.value ? Number(e.target.value) : null)
                 }
-                placeholder="es. 3500"
+                placeholder={t("es. 3500")}
               />
               <p className="text-xs text-slate-500 mt-1 max-md:hidden">
-                Tipico residenziale: 2.500 – 4.500 kWh/anno
+                {t("Tipico residenziale: 2.500 – 4.500 kWh/anno")}
               </p>
             </div>
             <div>
-              <Label>Costo evitabile €/kWh</Label>
+              <Label>{t("Costo evitabile €/kWh")}</Label>
               <Input
                 type="number"
                 step="0.001"
@@ -2896,21 +2891,21 @@ export function Step3Consumi({
           </div>
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div>
-              <Label>Tipo tariffa</Label>
+              <Label>{t("Tipo tariffa")}</Label>
               <Select
                 value={data.tariffa_tipo}
                 onValueChange={(v) => update("tariffa_tipo", v as FvTariffaTipo)}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="monoraria">Monoraria</SelectItem>
-                  <SelectItem value="bioraria">Bioraria F1/F2</SelectItem>
-                  <SelectItem value="trioraria">Trioraria F1/F2/F3</SelectItem>
+                  <SelectItem value="monoraria">{t("Monoraria")}</SelectItem>
+                  <SelectItem value="bioraria">{t("Bioraria F1/F2")}</SelectItem>
+                  <SelectItem value="trioraria">{t("Trioraria F1/F2/F3")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Profilo consumo</Label>
+              <Label>{t("Profilo consumo")}</Label>
               <Select
                 value={data.profilo_consumo}
                 onValueChange={(v) =>
@@ -2954,6 +2949,7 @@ export function Step4Tetto({
   onAnalizza: (fonte?: "solar_api" | "pvgis") => void;
   readOnlyMode: boolean;
 }) {
+  const t = useT();
   const senzaMappa = preventivoSenzaMappa(data.layout_overlay);
   const localitaRichiesta = useRef<string | null>(null);
   useEffect(() => {
@@ -2970,47 +2966,47 @@ export function Step4Tetto({
       <FvPanelTitle
         step={4}
         totalSteps={TOTAL_STEPS}
-        title="Tetto e stima solare"
-        subtitle="Prepara il preventivo con o senza disegno: la mappa e il piano di posa sono facoltativi."
+        title={t("Tetto e stima solare")}
+        subtitle={t("Prepara il preventivo con o senza disegno: la mappa e il piano di posa sono facoltativi.")}
       />
       <FvSceltaProgettazione senzaMappa={senzaMappa} disabled={readOnlyMode || analizzando}
         onChange={(rapido) => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, rapido))} />
       {!senzaMappa&&data.latitudine!=null&&data.longitudine!=null&&<FvMappaTetto key={`${data.latitudine}:${data.longitudine}`} progettoId={progettoId} ricerca={{lat:data.latitudine,lng:data.longitudine}} indirizzo={data.indirizzo} riferimento={data.riferimento_tetto??null} piano={leggiDisegnoCommerciale(data.layout_overlay)} modificabile={!readOnlyMode} onPosizione={r=>update("riferimento_tetto",r)} onChange={p=>update("layout_overlay",p)}/>}
       {senzaMappa && (
-        <FvCard title="Stima solare senza mappa">
-          <p className="mb-4 text-sm text-slate-600">Scegli numero e modello dei pannelli nella fase Impianto. La capienza del tetto resta da verificare con il sopralluogo.</p>
+        <FvCard title={t("Stima solare senza mappa")}>
+          <p className="mb-4 text-sm text-slate-600">{t("Scegli numero e modello dei pannelli nella fase Impianto. La capienza del tetto resta da verificare con il sopralluogo.")}</p>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-slate-700" aria-live="polite">
-              <strong>{data.comune || data.indirizzo || "Località da completare nella fase Immobile"}</strong>
-              <p className="mt-1">{analizzando ? "Calcolo della stima solare dalla località…" : data.ore_sole_annue != null && data.ore_sole_annue > 0
-                ? data.fonte_dati_tetto === "manuale" ? "Stima solare inserita manualmente." : "Stima solare disponibile per questa località."
-                : "La stima solare viene ricavata automaticamente dall’indirizzo dell’impianto."}</p>
+              <strong>{data.comune || data.indirizzo || t("Località da completare nella fase Immobile")}</strong>
+              <p className="mt-1">{analizzando ? t("Calcolo della stima solare dalla località…") : data.ore_sole_annue != null && data.ore_sole_annue > 0
+                ? data.fonte_dati_tetto === "manuale" ? t("Stima solare inserita manualmente.") : t("Stima solare disponibile per questa località.")
+                : t("La stima solare viene ricavata automaticamente dall’indirizzo dell’impianto.")}</p>
             </div>
             <Button type="button" variant="outline" disabled={readOnlyMode || analizzando || data.latitudine == null || data.longitudine == null}
               onClick={() => onAnalizza("pvgis")}>
-              {analizzando ? "Calcolo in corso…" : "Ricalcola dalla località"}
+              {analizzando ? t("Calcolo in corso…") : t("Ricalcola dalla località")}
             </Button>
           </div>
-          {(data.latitudine == null || data.longitudine == null) && <p className="mt-3 text-xs text-slate-500">Seleziona l’indirizzo completo nella fase Immobile: la località serve per ricavare la stima solare.</p>}
-          <p className="mt-3 text-xs text-slate-500">La stima automatica assume orientamento sud e inclinazione di 30°. Nessuna vista satellitare o disposizione dei pannelli viene inserita nel documento.</p>
+          {(data.latitudine == null || data.longitudine == null) && <p className="mt-3 text-xs text-slate-500">{t("Seleziona l’indirizzo completo nella fase Immobile: la località serve per ricavare la stima solare.")}</p>}
+          <p className="mt-3 text-xs text-slate-500">{t("La stima automatica assume orientamento sud e inclinazione di 30°. Nessuna vista satellitare o disposizione dei pannelli viene inserita nel documento.")}</p>
           <details className="mt-4 border-t border-slate-200 pt-3">
-            <summary className="cursor-pointer text-sm font-medium text-slate-600">Impostazioni avanzate · dato solare manuale</summary>
+            <summary className="cursor-pointer text-sm font-medium text-slate-600">{t("Impostazioni avanzate · dato solare manuale")}</summary>
             <div className="mt-3 max-w-sm">
-              <Label htmlFor="fv-ore-senza-mappa">Ore equivalenti annue</Label>
+              <Label htmlFor="fv-ore-senza-mappa">{t("Ore equivalenti annue")}</Label>
               <Input id="fv-ore-senza-mappa" type="number" min={1} step="any" disabled={readOnlyMode || analizzando}
-                value={data.ore_sole_annue ?? ""} placeholder="es. 1450"
+                value={data.ore_sole_annue ?? ""} placeholder={t("es. 1450")}
                 onChange={(e) => {
                   update("ore_sole_annue", e.target.value ? Number(e.target.value) : null);
                   update("fonte_dati_tetto", "manuale");
                   update("qualita_dati_tetto", "manual");
                 }} />
-              <p className="mt-1 text-xs text-slate-500">Solo per sostituire la stima automatica con un dato tecnico verificato. Le perdite dell’impianto sono applicate nel calcolo.</p>
+              <p className="mt-1 text-xs text-slate-500">{t("Solo per sostituire la stima automatica con un dato tecnico verificato. Le perdite dell’impianto sono applicate nel calcolo.")}</p>
             </div>
           </details>
         </FvCard>
       )}
-      {!senzaMappa && <p className="mb-3 text-xs text-slate-600">Nella fase Impianto puoi disporre i pannelli e vedere il tetto in 2D e 3D.</p>}
-      {!senzaMappa && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Origine dei dati e opzioni della stima solare</summary><FvCard title="Sorgente dati" className="mt-3">
+      {!senzaMappa && <p className="mb-3 text-xs text-slate-600">{t("Nella fase Impianto puoi disporre i pannelli e vedere il tetto in 2D e 3D.")}</p>}
+      {!senzaMappa && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">{t("Origine dei dati e opzioni della stima solare")}</summary><FvCard title={t("Sorgente dati")} className="mt-3">
         {/* Telefono: le tre sorgenti in una fila di tasselli piccoli, senza descrizioni. */}
         <div className="grid grid-cols-3 gap-3 max-sm:gap-2">
           <SourceTile
@@ -3018,9 +3014,9 @@ export function Step4Tetto({
             onClick={() => update("fonte_dati_tetto", "solar_api")}
             disabled={readOnlyMode}
             icon={<Sparkles className="h-5 w-5 text-orange-500" />}
-            title="Google Solar API"
+            title={t("Google Solar API")}
             titleBreve="Google"
-            description="Potenziale solare del tetto, dove coperto. Foto e quote nel pannello della mappa."
+            description={t("Potenziale solare del tetto, dove coperto. Foto e quote nel pannello della mappa.")}
             badge="Consigliato"
           />
           <SourceTile
@@ -3028,17 +3024,17 @@ export function Step4Tetto({
             onClick={() => update("fonte_dati_tetto", "pvgis")}
             disabled={readOnlyMode}
             icon={<Sun className="h-5 w-5 text-amber-500" />}
-            title="PVGIS (JRC EU)"
+            title={t("PVGIS (JRC EU)")}
             titleBreve="PVGIS"
-            description="Dati irradiazione gratuiti europei. Niente geometria del tetto."
+            description={t("Dati irradiazione gratuiti europei. Niente geometria del tetto.")}
           />
           <SourceTile
             active={data.fonte_dati_tetto === "manuale"}
             onClick={() => update("fonte_dati_tetto", "manuale")}
             disabled={readOnlyMode}
             icon={<FileText className="h-5 w-5 text-slate-500" />}
-            title="Manuale"
-            description="Inserisci tu i parametri se le altre fonti non rispondono."
+            title={t("Manuale")}
+            description={t("Inserisci tu i parametri se le altre fonti non rispondono.")}
           />
         </div>
 
@@ -3052,12 +3048,12 @@ export function Step4Tetto({
             {analizzando ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Stiamo analizzando il tetto…
+                {t("Stiamo analizzando il tetto…")}
               </>
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                Analizza tetto ora
+                {t("Analizza tetto ora")}
               </>
             )}
           </button>
@@ -3066,21 +3062,21 @@ export function Step4Tetto({
 
 
       {!senzaMappa && data.fonte_dati_tetto === "manuale" && (
-        <FvCard title="Parametri manuali" className="mt-4">
+        <FvCard title={t("Parametri manuali")} className="mt-4">
           <div className="grid sm:grid-cols-3 gap-3">
             <div>
-              <Label>Ore sole annue</Label>
+              <Label>{t("Ore sole annue")}</Label>
               <Input
                 type="number"
                 value={data.ore_sole_annue ?? ""}
                 onChange={(e) =>
                   update("ore_sole_annue", e.target.value ? Number(e.target.value) : null)
                 }
-                placeholder="es. 1450"
+                placeholder={t("es. 1450")}
               />
             </div>
             <div>
-              <Label>Numero pannelli max (facoltativo)</Label>
+              <Label>{t("Numero pannelli max (facoltativo)")}</Label>
               <Input
                 type="number"
                 value={data.numero_pannelli_max ?? ""}
@@ -3095,7 +3091,7 @@ export function Step4Tetto({
               />
             </div>
             <div>
-              <Label>Potenza max kWp</Label>
+              <Label>{t("Potenza max kWp")}</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -3107,7 +3103,7 @@ export function Step4Tetto({
                 }}
               />
               <p className="text-[11px] text-muted-foreground mt-1 max-md:hidden">
-                Collegata al n° pannelli (modulo di riferimento 540 W)
+                {t("Collegata al n° pannelli (modulo di riferimento 540 W)")}
               </p>
             </div>
           </div>
@@ -3117,7 +3113,7 @@ export function Step4Tetto({
       {!senzaMappa && !leggiDisegnoCommerciale(data.layout_overlay)?.mappa && data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
         <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
           <FvKpi
-            label="Sup. utilizzabile"
+            label={t("Sup. utilizzabile")}
             value={
               data.superficie_tetto_disponibile_mq
                 ? data.superficie_tetto_disponibile_mq.toFixed(0)
@@ -3126,19 +3122,19 @@ export function Step4Tetto({
             unit="m²"
           />
           <FvKpi
-            label="Pannelli max"
+            label={t("Pannelli max")}
             value={data.numero_pannelli_max ?? "—"}
             unit="pz"
             variant="orange"
           />
           <FvKpi
-            label="Potenza max"
+            label={t("Potenza max")}
             value={data.potenza_max_kwp?.toFixed(1) ?? "—"}
             unit="kWp"
             variant="navy"
           />
           <FvKpi
-            label="Ore sole/anno"
+            label={t("Ore sole/anno")}
             value={data.ore_sole_annue?.toFixed(0) ?? "—"}
             unit="h"
             variant="green"
@@ -3148,36 +3144,33 @@ export function Step4Tetto({
 
       {data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
         <>
-          <FvCallout variant="info" title="Stima solare disponibile" >
+          <FvCallout variant="info" title={t("Stima solare disponibile")} >
             <span className="max-md:hidden">
-            Dati acquisiti dalla sorgente <strong>{data.fonte_dati_tetto === "solar_api" ? "Google Solar API" : data.fonte_dati_tetto === "pvgis" ? "PVGIS" : "manuale"}</strong>.
-            {data.qualita_dati_tetto && <> Qualità dati: <strong>{data.qualita_dati_tetto}</strong>.</>}
-            {data.imagery_date && <> Immagine satellitare del <strong>{data.imagery_date}</strong>.</>}
+            {t("Dati acquisiti dalla sorgente")} <strong>{data.fonte_dati_tetto === "solar_api" ? t("Google Solar API") : data.fonte_dati_tetto === "pvgis" ? "PVGIS" : t("manuale")}</strong>.
+            {data.qualita_dati_tetto && <> {t("Qualità dati:")} <strong>{data.qualita_dati_tetto}</strong>.</>}
+            {data.imagery_date && <> {t("Immagine satellitare del")} <strong>{data.imagery_date}</strong>.</>}
             {data.azimut_tetto && (
-              <> Orientamento prevalente: <strong>{data.azimut_tetto}</strong>
-                {data.inclinazione_tetto != null && <> · inclinazione <strong>{data.inclinazione_tetto}°</strong></>}.</>
+              <> {t("Orientamento prevalente:")} <strong>{data.azimut_tetto}</strong>
+                {data.inclinazione_tetto != null && <> {t("· inclinazione")} <strong>{data.inclinazione_tetto}°</strong></>}.</>
             )}
-            {" "}Procedi alla configurazione impianto per dimensionare l'investimento.
+            {" "}{t("Procedi alla configurazione impianto per dimensionare l'investimento.")}
             </span>
           </FvCallout>
           {/* Fix #16 Sprint 3: warning persistente se dati sono mock dev */}
           {data.tetto_mock && (
-            <FvCallout variant="warn" title="Dati stimati (modalità sviluppo)">
-              Stima generata da modello statistico Italia perché la chiave Google Solar
-              API non è configurata. I numeri sono ragionevoli per Milano/Roma/Napoli ma{" "}
-              <strong>non rappresentano una misura reale</strong> del tetto specifico del
-              cliente. L'amministratore può configurare la chiave reale in <em>Admin → FV
-              Modulo → API & Secrets</em>.
+            <FvCallout variant="warn" title={t("Dati stimati (modalità sviluppo)")}>
+              {t("Stima generata da modello statistico Italia perché la chiave Google Solar API non è configurata. I numeri sono ragionevoli per Milano/Roma/Napoli ma")}{" "}
+              <strong>{t("non rappresentano una misura reale")}</strong> {t("del tetto specifico del cliente. L'amministratore può configurare la chiave reale in")} <em>{t("Admin → FV Modulo → API & Secrets")}</em>.
             </FvCallout>
           )}
 
           {/* Ombreggiamento da ostacoli vicini (alberi/edifici adiacenti).
               Lo slider/Select MOSTRA la percentuale ma SALVA la frazione 0..1.
               Default 0 = "Nessuno" → nessun impatto sui progetti esistenti. */}
-          <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Ombre vicine e verifiche del tetto</summary><FvCard title="Ombreggiamento da ostacoli vicini" className="mt-3">
+          <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">{t("Ombre vicine e verifiche del tetto")}</summary><FvCard title={t("Ombreggiamento da ostacoli vicini")} className="mt-3">
             <div className="grid sm:grid-cols-2 gap-3 items-start">
               <div>
-                <Label>Ombra da alberi o edifici vicini (opzionale)</Label>
+                <Label>{t("Ombra da alberi o edifici vicini (opzionale)")}</Label>
                 <Select
                   value={String(Math.round((data.perdita_ombreggiamento_pct ?? 0) * 100))}
                   onValueChange={(v) =>
@@ -3189,21 +3182,18 @@ export function Step4Tetto({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Nessuno</SelectItem>
-                    <SelectItem value="5">Leggero — 5%</SelectItem>
-                    <SelectItem value="10">Moderato — 10%</SelectItem>
-                    <SelectItem value="15">Sensibile — 15%</SelectItem>
-                    <SelectItem value="20">Marcato — 20%</SelectItem>
-                    <SelectItem value="30">Forte — 30%</SelectItem>
-                    <SelectItem value="40">Molto forte — 40%</SelectItem>
+                    <SelectItem value="0">{t("Nessuno")}</SelectItem>
+                    <SelectItem value="5">{t("Leggero — 5%")}</SelectItem>
+                    <SelectItem value="10">{t("Moderato — 10%")}</SelectItem>
+                    <SelectItem value="15">{t("Sensibile — 15%")}</SelectItem>
+                    <SelectItem value="20">{t("Marcato — 20%")}</SelectItem>
+                    <SelectItem value="30">{t("Forte — 30%")}</SelectItem>
+                    <SelectItem value="40">{t("Molto forte — 40%")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <p className="text-xs text-slate-500 leading-relaxed sm:pt-6 max-md:hidden">
-                L'orizzonte e le colline sono già considerati nei dati di
-                irradiazione: indica qui <strong>solo</strong> le ombre ravvicinate
-                (un albero alto, un edificio adiacente) che riducono la produzione.
-                Riduce la stima di produzione del valore scelto.
+                {t("L'orizzonte e le colline sono già considerati nei dati di irradiazione: indica qui")} <strong>{t("solo")}</strong> {t("le ombre ravvicinate (un albero alto, un edificio adiacente) che riducono la produzione. Riduce la stima di produzione del valore scelto.")}
               </p>
             </div>
           </FvCard></details>
@@ -3290,6 +3280,7 @@ export function FvScontoCard({
   calcolando: boolean;
   onRicalcola: () => void;
 }) {
+  const t = useT();
   const { data: discountRules = [] } = useDiscountRules();
   // Il margine dopo lo sconto è un numero interno: lo vede solo chi può vedere costi e margini.
   const puoVedereImpresa = usePuoVedereImpresa();
@@ -3354,19 +3345,18 @@ export function FvScontoCard({
       className="shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow hover:shadow-md transition-all inline-flex items-center gap-1.5 disabled:opacity-60"
     >
       {calcolando ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-      Ricalcola
+      {t("Ricalcola")}
     </button>
   );
 
   return (
-    <FvCard title="Sconto commerciale">
+    <FvCard title={t("Sconto commerciale")}>
       <p className="text-xs text-slate-500 mb-3 max-md:hidden">
-        Applica uno sconto e verifica subito se rientra nelle <strong>regole aziendali</strong> o se
-        richiede <strong>autorizzazione</strong>. Il limite viene comunque applicato al calcolo.
+        {t("Applica uno sconto e verifica subito se rientra nelle")} <strong>{t("regole aziendali")}</strong> {t("o se richiede")} <strong>{t("autorizzazione")}</strong>{t(". Il limite viene comunque applicato al calcolo.")}
       </p>
       <div className="flex flex-wrap items-end gap-3 mb-3">
         <div>
-          <Label className="text-xs text-slate-500 mb-1 block">Tipo di sconto</Label>
+          <Label className="text-xs text-slate-500 mb-1 block">{t("Tipo di sconto")}</Label>
           <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden">
             <button
               type="button"
@@ -3392,7 +3382,7 @@ export function FvScontoCard({
         </div>
         <div className="w-40">
           <Label className="text-xs text-slate-500 mb-1 block">
-            {data.sconto_tipo === "pct" ? "Sconto (%)" : "Sconto (€)"}
+            {data.sconto_tipo === "pct" ? t("Sconto (%)") : t("Sconto (€)")}
           </Label>
           <Input
             inputMode="decimal"
@@ -3403,7 +3393,7 @@ export function FvScontoCard({
               const v = e.target.value.trim() === "" ? null : Math.max(0, parseDecimalIT(e.target.value));
               update("sconto_valore", v);
             }}
-            placeholder={data.sconto_tipo === "pct" ? "es. 5" : "es. 500"}
+            placeholder={data.sconto_tipo === "pct" ? t("es. 5") : t("es. 500")}
             className={`h-10 ${
               discountVerdict === "blocked"
                 ? "border-red-400 focus-visible:ring-red-400"
@@ -3414,45 +3404,44 @@ export function FvScontoCard({
           />
         </div>
         <div className="text-xs text-slate-500 pb-2">
-          Regole aziendali: sconto max <strong>{discountEval.scontoMaxPct.toFixed(1)}%</strong>
+          {t("Regole aziendali: sconto max")} <strong>{discountEval.scontoMaxPct.toFixed(1)}%</strong>
           {discountEval.approvaOltrePct != null && (
-            <> · approvazione oltre <strong>{discountEval.approvaOltrePct.toFixed(1)}%</strong></>
+            <> {t("· approvazione oltre")} <strong>{discountEval.approvaOltrePct.toFixed(1)}%</strong></>
           )}
-          {discountEval.isFallback && <> · (nessuna regola: fallback 10%)</>}
+          {discountEval.isFallback && <> {t("· (nessuna regola: fallback 10%)")}</>}
         </div>
       </div>
 
       {/* Verdetto di autorizzazione */}
       {scontoAttivo && scontoPctRichiesto != null && discountVerdict === "ok" && (
         <p className="text-xs text-emerald-700 mb-3 flex items-center gap-1.5">
-          ✓ Sconto {scontoPctRichiesto.toFixed(1)}% entro le regole — <strong>autorizzato</strong>
+          {t("✓ Sconto")} {scontoPctRichiesto.toFixed(1)}{t("% entro le regole —")} <strong>{t("autorizzato")}</strong>
           {puoVedereImpresa && hasCosto && hasBase && (
-            <> · margine post-sconto <strong>{margineLivePct.toFixed(1)}%</strong> ({formatEur(margineLiveEur)})</>
+            <> {t("· margine post-sconto")} <strong>{margineLivePct.toFixed(1)}%</strong> ({formatEur(margineLiveEur)})</>
           )}
         </p>
       )}
       {scontoAttivo && scontoPctRichiesto != null && discountVerdict === "approve" && (
         <p className="text-xs text-amber-700 mb-3 flex items-center gap-1.5">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Sconto {scontoPctRichiesto.toFixed(1)}% oltre soglia {discountEval.approvaOltrePct?.toFixed(1)}%: richiede <strong>approvazione admin</strong>.
+          {t("Sconto")} {scontoPctRichiesto.toFixed(1)}{t("% oltre soglia")} {discountEval.approvaOltrePct?.toFixed(1)}{t("%: richiede")} <strong>{t("approvazione admin")}</strong>.
         </p>
       )}
       {scontoAttivo && scontoPctRichiesto != null && discountVerdict === "blocked" && (
         <p className="text-xs text-red-600 mb-3 flex items-center gap-1.5">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Sconto {scontoPctRichiesto.toFixed(1)}% oltre il massimo consentito ({discountEval.scontoMaxPct.toFixed(1)}%):
-          verrà limitato a {discountEval.scontoMaxPct.toFixed(1)}%{hasBase && <> (≈ {formatEur(scontoCapEur)})</>}.
+          {t("Sconto")} {scontoPctRichiesto.toFixed(1)}{t("% oltre il massimo consentito (")}{discountEval.scontoMaxPct.toFixed(1)}{t("%): verrà limitato a")} {discountEval.scontoMaxPct.toFixed(1)}%{hasBase && <> (≈ {formatEur(scontoCapEur)})</>}.
         </p>
       )}
       {scontoAttivo && scontoPctRichiesto == null && (
         <p className="text-xs text-slate-500 mb-3">
-          Per validare l'autorizzazione di uno sconto in € serve il prezzo base: premi
-          <strong> Ricalcola</strong> qui sotto oppure imposta lo sconto in %.
+          {t("Per validare l'autorizzazione di uno sconto in € serve il prezzo base: premi")}
+          <strong> {t("Ricalcola")}</strong> {t("qui sotto oppure imposta lo sconto in %.")}
         </p>
       )}
       {costi?.sconto_limitato && !scontoDaRicalcolare && (
         <p className="text-xs text-amber-700 mb-3">
-          ⚠ Lo sconto richiesto superava le regole: il calcolo ha applicato{" "}
+          {t("⚠ Lo sconto richiesto superava le regole: il calcolo ha applicato")}{" "}
           <strong>{formatEur(scontoServerApplicato)}</strong>.
         </p>
       )}
@@ -3461,11 +3450,11 @@ export function FvScontoCard({
       {hasBase ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
           <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-            <div className="text-xs text-slate-500">Prezzo pieno (netto)</div>
+            <div className="text-xs text-slate-500">{t("Prezzo pieno (netto)")}</div>
             <div className="font-extrabold text-slate-900 tabular-nums">{formatEur(prezzoPienoNetto)}</div>
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-            <div className="text-xs text-slate-500">Sconto applicato</div>
+            <div className="text-xs text-slate-500">{t("Sconto applicato")}</div>
             <div className="font-extrabold text-slate-900 tabular-nums">
               −{formatEur(scontoApplicatoLive)}
               {scontoApplicatoLive > 0 && (
@@ -3476,12 +3465,12 @@ export function FvScontoCard({
             </div>
           </div>
           <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
-            <div className="text-xs text-orange-700">Prezzo netto scontato</div>
+            <div className="text-xs text-orange-700">{t("Prezzo netto scontato")}</div>
             <div className="font-extrabold text-orange-800 tabular-nums">{formatEur(prezzoNettoScontatoLive)}</div>
           </div>
           {puoVedereImpresa && (hasCosto ? (
             <div className={`rounded-lg border p-3 ${margineLiveEur >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`}>
-              <div className={`text-xs ${margineLiveEur >= 0 ? "text-emerald-700" : "text-rose-700"}`}>Margine post-sconto</div>
+              <div className={`text-xs ${margineLiveEur >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{t("Margine post-sconto")}</div>
               <div className={`font-extrabold tabular-nums ${margineLiveEur >= 0 ? "text-emerald-800" : "text-rose-700"}`}>
                 {formatEur(margineLiveEur)}
                 <span className="text-xs font-medium ml-1">({margineLivePct.toFixed(1)}%)</span>
@@ -3489,15 +3478,15 @@ export function FvScontoCard({
             </div>
           ) : (
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-              <div className="text-xs text-slate-500">Margine post-sconto</div>
-              <div className="text-xs text-slate-400 pt-1">{costi?.costi_incompleti ? "Non disponibile: mancano i costi d'acquisto" : "Calcola per vederlo"}</div>
+              <div className="text-xs text-slate-500">{t("Margine post-sconto")}</div>
+              <div className="text-xs text-slate-400 pt-1">{costi?.costi_incompleti ? t("Non disponibile: mancano i costi d'acquisto") : t("Calcola per vederlo")}</div>
             </div>
           ))}
         </div>
       ) : (
         scontoAttivo && !readOnlyMode && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-xs text-slate-500">{puoVedereImpresa ? "Prezzo scontato e margine: calcola lo scenario per vederli." : "Prezzo scontato: calcola lo scenario per vederlo."}</p>
+            <p className="text-xs text-slate-500">{puoVedereImpresa ? t("Prezzo scontato e margine: calcola lo scenario per vederli.") : t("Prezzo scontato: calcola lo scenario per vederlo.")}</p>
             {RicalcolaBtn}
           </div>
         )
@@ -3506,8 +3495,7 @@ export function FvScontoCard({
       {scontoDaRicalcolare && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
           <p className="text-xs text-blue-900">
-            Sconto modificato: premi <strong>Ricalcola</strong> per applicarlo a IVA, rata, payback
-            e a tutti i numeri del preventivo.
+            {t("Sconto modificato: premi")} <strong>{t("Ricalcola")}</strong> {t("per applicarlo a IVA, rata, payback e a tutti i numeri del preventivo.")}
           </p>
           {!readOnlyMode && RicalcolaBtn}
         </div>
@@ -3551,6 +3539,7 @@ export function Step5Configurazione({
   onRicalcola: () => void;
   EditorDisegno?: React.ComponentType<FvDisegnoPreventivoProps>;
 }) {
+  const tr = useT();
   // Il costo d'acquisto dei prodotti extra lo vede (e lo scrive) solo chi può vedere costi e margini.
   const puoVedereImpresa = usePuoVedereImpresa();
   // Prodotti extra: ricerca live sull'INTERO listino generale (article_families).
@@ -3818,10 +3807,10 @@ export function Step5Configurazione({
       <FvPanelTitle
         step={5}
         totalSteps={TOTAL_STEPS}
-        title="Configurazione impianto"
+        title={tr("Configurazione impianto")}
         subtitle={
           <>
-            Dimensionamento via <strong>motore PVGIS + algoritmo accumulo</strong>. Modificabile dal venditore.
+            {tr("Dimensionamento via")} <strong>{tr("motore PVGIS + algoritmo accumulo")}</strong>{tr(". Modificabile dal venditore.")}
           </>
         }
       />
@@ -3832,14 +3821,14 @@ export function Step5Configurazione({
         <div className="mb-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
           <div className="flex-1 text-sm text-amber-900">
-            <strong>Nessun componente nel catalogo FV.</strong>{" "}
-            I prodotti del tuo listino non sono ancora stati collegati al preventivatore.
+            <strong>{tr("Nessun componente nel catalogo FV.")}</strong>{" "}
+            {tr("I prodotti del tuo listino non sono ancora stati collegati al preventivatore.")}
           </div>
           <Link
             to="/azienda/marketing/fotovoltaico/componenti"
             className="inline-flex items-center gap-1.5 shrink-0 px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 transition-colors"
           >
-            Collega il listino al preventivatore
+            {tr("Collega il listino al preventivatore")}
           </Link>
         </div>
       )}
@@ -3847,7 +3836,7 @@ export function Step5Configurazione({
       {/* ── Composizione offerta: scelta esplicita Kit pronto vs manuale ── */}
       {kitDisponibili.length > 0 && (
         <div className="mb-4">
-          <FvCard title="Composizione offerta">
+          <FvCard title={tr("Composizione offerta")}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
@@ -3861,12 +3850,12 @@ export function Step5Configurazione({
               >
                 <div className="flex items-center gap-2 font-semibold text-slate-900">
                   <Zap className={`h-4 w-4 ${modalitaOfferta === "kit" ? "text-orange-500" : "text-slate-400"}`} />
-                  Kit pronti dal listino
+                  {tr("Kit pronti dal listino")}
                   <span className="ml-auto text-[11px] font-bold text-orange-600 bg-orange-100 rounded-full px-2 py-0.5">
                     {kitDisponibili.length}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Potenza, accumulo e prezzo già impostati: un click e l'offerta è pronta.</p>
+                <p className="text-xs text-slate-500 mt-1">{tr("Potenza, accumulo e prezzo già impostati: un click e l'offerta è pronta.")}</p>
               </button>
               <button
                 type="button"
@@ -3883,9 +3872,9 @@ export function Step5Configurazione({
               >
                 <div className="flex items-center gap-2 font-semibold text-slate-900">
                   <Wrench className={`h-4 w-4 ${modalitaOfferta === "manuale" ? "text-orange-500" : "text-slate-400"}`} />
-                  Configurazione manuale
+                  {tr("Configurazione manuale")}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Scegli pannello, inverter e accumulo dal catalogo: la potenza si calcola dai moduli.</p>
+                <p className="text-xs text-slate-500 mt-1">{tr("Scegli pannello, inverter e accumulo dal catalogo: la potenza si calcola dai moduli.")}</p>
               </button>
             </div>
 
@@ -3895,14 +3884,14 @@ export function Step5Configurazione({
                   <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
                     <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-slate-900">{data.kit_nome ?? "Kit selezionato"}</p>
+                      <p className="truncate font-semibold text-slate-900">{data.kit_nome ?? tr("Kit selezionato")}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <span className="rounded bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                          {data.potenza_kwp.toLocaleString("it-IT")} kWp
+                          {data.potenza_kwp.toLocaleString(intlCampo())} kWp
                         </span>
                         {data.con_accumulo && data.capacita_accumulo_kwh > 0 && (
                           <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-700">
-                            {data.capacita_accumulo_kwh.toLocaleString("it-IT")} kWh
+                            {data.capacita_accumulo_kwh.toLocaleString(intlCampo())} kWh
                           </span>
                         )}
                         {data.kit_prezzo != null && (
@@ -3917,14 +3906,14 @@ export function Step5Configurazione({
                           onClick={() => setKitDialogOpen(true)}
                           className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-orange-300"
                         >
-                          Cambia kit
+                          {tr("Cambia kit")}
                         </button>
                         <button
                           type="button"
                           onClick={rimuoviKit}
                           className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 hover:border-red-300 hover:text-red-600"
                         >
-                          Rimuovi
+                          {tr("Rimuovi")}
                         </button>
                       </div>
                     )}
@@ -3937,7 +3926,7 @@ export function Step5Configurazione({
                     className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/50 px-4 py-6 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-50 disabled:opacity-50"
                   >
                     <Zap className="h-4 w-4" />
-                    Sfoglia i {kitDisponibili.length} kit disponibili
+                    {tr("Sfoglia i")} {kitDisponibili.length} {tr("kit disponibili")}
                   </button>
                 )}
 
@@ -3945,9 +3934,9 @@ export function Step5Configurazione({
                 <Dialog open={kitDialogOpen} onOpenChange={setKitDialogOpen}>
                   <DialogContent className="flex max-h-[85vh] max-w-4xl flex-col">
                     <DialogHeader>
-                      <DialogTitle>Scegli un kit pronto</DialogTitle>
+                      <DialogTitle>{tr("Scegli un kit pronto")}</DialogTitle>
                       <DialogDescription>
-                        Potenza, accumulo e prezzo sono già impostati: un click e l'offerta è pronta.
+                        {tr("Potenza, accumulo e prezzo sono già impostati: un click e l'offerta è pronta.")}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-wrap items-center gap-2">
@@ -3955,31 +3944,31 @@ export function Step5Configurazione({
                         type="text"
                         value={kitSearch}
                         onChange={(e) => setKitSearch(e.target.value)}
-                        placeholder="Cerca kit o marca…"
+                        placeholder={tr("Cerca kit o marca…")}
                         className="flex-1 min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
                       />
                       <UniformSelect value={kitPotenza} onChange={(e) => setKitPotenza(e.target.value as typeof kitPotenza)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
-                        <option value="all">Tutte le potenze</option>
-                        <option value="s3">≤ 3 kWp</option>
-                        <option value="3_6">3–6 kWp</option>
-                        <option value="6_10">6–10 kWp</option>
-                        <option value="g10">&gt; 10 kWp</option>
+                        <option value="all">{tr("Tutte le potenze")}</option>
+                        <option value="s3">{tr("≤ 3 kWp")}</option>
+                        <option value="3_6">{tr("3–6 kWp")}</option>
+                        <option value="6_10">{tr("6–10 kWp")}</option>
+                        <option value="g10">{tr("> 10 kWp")}</option>
                       </UniformSelect>
                       <UniformSelect value={kitAccumulo} onChange={(e) => setKitAccumulo(e.target.value as typeof kitAccumulo)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
-                        <option value="all">Con o senza accumulo</option>
-                        <option value="con">Con accumulo</option>
-                        <option value="senza">Senza accumulo</option>
+                        <option value="all">{tr("Con o senza accumulo")}</option>
+                        <option value="con">{tr("Con accumulo")}</option>
+                        <option value="senza">{tr("Senza accumulo")}</option>
                       </UniformSelect>
                       <UniformSelect value={kitSort} onChange={(e) => setKitSort(e.target.value as typeof kitSort)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
-                        <option value="nome">Ordina: nome</option>
-                        <option value="prezzo">Ordina: prezzo</option>
-                        <option value="potenza">Ordina: potenza</option>
+                        <option value="nome">{tr("Ordina: nome")}</option>
+                        <option value="prezzo">{tr("Ordina: prezzo")}</option>
+                        <option value="potenza">{tr("Ordina: potenza")}</option>
                       </UniformSelect>
                     </div>
-                    <p className="text-[11px] text-slate-400">{kitFiltrati.length} di {kitDisponibili.length} kit</p>
+                    <p className="text-[11px] text-slate-400">{tr("{n} di {n2} kit", { n: kitFiltrati.length, n2: kitDisponibili.length })}</p>
                     <div className="-mx-1 overflow-y-auto px-1">
                       {kitFiltrati.length === 0 ? (
-                        <p className="py-10 text-center text-sm text-slate-500">Nessun kit corrisponde ai filtri.</p>
+                        <p className="py-10 text-center text-sm text-slate-500">{tr("Nessun kit corrisponde ai filtri.")}</p>
                       ) : (
                         <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3">
                           {kitFiltrati.map((k) => {
@@ -4002,21 +3991,21 @@ export function Step5Configurazione({
                                 <p className="pr-6 text-sm font-semibold text-slate-900">{k.nome}</p>
                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                   <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                                    {Number(k.fv_kwp).toLocaleString("it-IT")} kWp
+                                    {Number(k.fv_kwp).toLocaleString(intlCampo())} kWp
                                   </span>
                                   {Number(k.fv_accumulo_kwh ?? 0) > 0 && (
                                     <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-700">
-                                      {Number(k.fv_accumulo_kwh).toLocaleString("it-IT")} kWh
+                                      {Number(k.fv_accumulo_kwh).toLocaleString(intlCampo())} kWh
                                     </span>
                                   )}
                                 </div>
                                 {k.prezzo_offerta != null && (
                                   <p className="mt-2 text-lg font-extrabold text-slate-900">
-                                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Number(k.prezzo_offerta))}
+                                    {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Number(k.prezzo_offerta))}
                                     <span className="ml-1 text-[11px] font-semibold text-slate-500">+ IVA</span>
                                   </p>
                                 )}
-                                <p className="mt-1 text-[11px] text-slate-400">{selected ? "Selezionato" : "Click per applicare"}</p>
+                                <p className="mt-1 text-[11px] text-slate-400">{selected ? tr("Selezionato") : tr("Click per applicare")}</p>
                               </button>
                             );
                           })}
@@ -4030,7 +4019,7 @@ export function Step5Configurazione({
 
             {modalitaOfferta === "manuale" && (
               <p className="text-xs text-muted-foreground mt-3">
-                Componi l'impianto con le sezioni qui sotto: pannello, inverter, accumulo e servizi. La potenza si aggiorna dal numero di moduli scelti.
+                {tr("Componi l'impianto con le sezioni qui sotto: pannello, inverter, accumulo e servizi. La potenza si aggiorna dal numero di moduli scelti.")}
               </p>
             )}
           </FvCard>
@@ -4038,9 +4027,9 @@ export function Step5Configurazione({
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <FvKpi label="Potenza" value={data.potenza_kwp.toFixed(2)} unit="kWp" variant="orange" />
+        <FvKpi label={tr("Potenza")} value={data.potenza_kwp.toFixed(2)} unit="kWp" variant="orange" />
         <FvKpi
-          label="Pannelli"
+          label={tr("Pannelli")}
           value={
             data.numero_pannelli_scelti > 0
               ? `${data.numero_pannelli_scelti} × ${Math.round((data.potenza_kwp * 1000) / data.numero_pannelli_scelti)}`
@@ -4049,12 +4038,12 @@ export function Step5Configurazione({
           unit="Wp"
         />
         <FvKpi
-          label="Accumulo"
+          label={tr("Accumulo")}
           value={data.con_accumulo ? data.capacita_accumulo_kwh : 0}
           unit="kWh"
         />
         <FvKpi
-          label="Producibilità"
+          label={tr("Producibilità")}
           value={stimaProducibilita > 0 ? stimaProducibilita.toFixed(0) : "—"}
           unit="kWh/a"
           variant="green"
@@ -4064,28 +4053,28 @@ export function Step5Configurazione({
       <FvSuggerimentoPannelli data={data} pannelli={pannelli} modificabile={!readOnlyMode}
         onApplica={patch=>{update("numero_pannelli_scelti",patch.numero_pannelli_scelti);update("potenza_kwp",patch.potenza_kwp);}}/>
       {!data.kit_bundle_id&&<FvScenariEnergia data={data} listino={{pannelli,inverter,accumuli}} regoleSconto={regoleDisegno} modificabile={!readOnlyMode} onLayout={p=>update("layout_overlay",p)} onScenario={patch=>{(Object.keys(patch) as Array<keyof typeof patch>).forEach(k=>update(k,patch[k] as never));}}/>}
-      <FvCard title="Simulatore del tetto · 2D e 3D (facoltativo)" className="mb-4">
+      <FvCard title={tr("Simulatore del tetto · 2D e 3D (facoltativo)")} className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
             {leggiDisegnoCommerciale(data.layout_overlay)
-              ? `${leggiDisegnoCommerciale(data.layout_overlay)!.pannelli.length} pannelli nel disegno, collegati alla configurazione e al PDF.`
-              : "Disegna le falde in 2D, controlla la posa in 3D oppure importa il rilievo del cliente. Quantità e potenza seguono la disposizione confermata."}
+              ? tr("{n} pannelli nel disegno, collegati alla configurazione e al PDF.", { n: leggiDisegnoCommerciale(data.layout_overlay)!.pannelli.length })
+              : tr("Disegna le falde in 2D, controlla la posa in 3D oppure importa il rilievo del cliente. Quantità e potenza seguono la disposizione confermata.")}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" disabled={!!data.kit_bundle_id || (readOnlyMode && !leggiDisegnoCommerciale(data.layout_overlay))}
               onClick={() => { const ripreso = leggiDisegnoCommerciale(cambiaModalitaProgettazione(data.layout_overlay, false)); setDisegnoBozza(ripreso ?? geometriaInAttesa); setDisegnoAperto(true); }}>
-              {leggiDisegnoCommerciale(data.layout_overlay) ? readOnlyMode ? "Visualizza disposizione pannelli" : "Modifica disposizione pannelli" : "Disegna il tetto"}
+              {leggiDisegnoCommerciale(data.layout_overlay) ? readOnlyMode ? tr("Visualizza disposizione pannelli") : tr("Modifica disposizione pannelli") : tr("Disegna il tetto")}
             </Button>
-            {leggiDisegnoCommerciale(data.layout_overlay) && !readOnlyMode && <Button type="button" variant="ghost" size="sm" onClick={() => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, true))}>Escludi il disegno dal PDF</Button>}
+            {leggiDisegnoCommerciale(data.layout_overlay) && !readOnlyMode && <Button type="button" variant="ghost" size="sm" onClick={() => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, true))}>{tr("Escludi il disegno dal PDF")}</Button>}
           </div>
         </div>
-        {!!daRivedereAttuali && <p role="alert" className="mt-2 text-xs text-amber-700">{daRivedereAttuali} pannelli da riposizionare dopo le modifiche. Apri il disegno prima di salvare o generare il PDF.</p>}
-        {!data.pannello_id && <p className="mt-2 text-[11px] text-slate-400">Puoi preparare ora il tetto con dimensioni indicative. Seleziona poi il pannello dal listino per confermare potenza, quantità e prezzo.</p>}
-        {data.kit_bundle_id && <p className="mt-2 text-[11px] text-slate-400">Il kit mantiene le proprie quantità: passa alla configurazione a componenti per usare il disegno modificabile.</p>}
+        {!!daRivedereAttuali && <p role="alert" className="mt-2 text-xs text-amber-700">{tr("{daRivedereAttuali} pannelli da riposizionare dopo le modifiche. Apri il disegno prima di salvare o generare il PDF.", { daRivedereAttuali: String(daRivedereAttuali ?? "") })}</p>}
+        {!data.pannello_id && <p className="mt-2 text-[11px] text-slate-400">{tr("Puoi preparare ora il tetto con dimensioni indicative. Seleziona poi il pannello dal listino per confermare potenza, quantità e prezzo.")}</p>}
+        {data.kit_bundle_id && <p className="mt-2 text-[11px] text-slate-400">{tr("Il kit mantiene le proprie quantità: passa alla configurazione a componenti per usare il disegno modificabile.")}</p>}
       </FvCard>
       <Dialog open={disegnoAperto} onOpenChange={setDisegnoAperto}>
         <DialogContent className="fv-roof-dialog w-[calc(100vw-2rem)] max-w-5xl max-h-[92dvh] flex flex-col gap-0 overflow-hidden p-0">
-          <DialogHeader className="px-5 py-4 border-b shrink-0"><DialogTitle>Piano di posa dei pannelli</DialogTitle><DialogDescription>Controlla disposizione e totale, poi usa il disegno nel preventivo. Annulla mantiene la configurazione precedente.</DialogDescription></DialogHeader>
+          <DialogHeader className="px-5 py-4 border-b shrink-0"><DialogTitle>{tr("Piano di posa dei pannelli")}</DialogTitle><DialogDescription>{tr("Controlla disposizione e totale, poi usa il disegno nel preventivo. Annulla mantiene la configurazione precedente.")}</DialogDescription></DialogHeader>
           <div className="fv-roof-dialog-content min-h-0 overflow-y-auto px-4 py-3">
           <EditorDisegno
             companyId={companyId}
@@ -4100,15 +4089,15 @@ export function Step5Configurazione({
             onChange={setDisegnoBozza} />
           </div>
           <div className="fv-roof-dialog-footer shrink-0 border-t bg-white px-5 py-3">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500" aria-label="Riepilogo disposizione">
-              <span><strong className="text-slate-900">{disegnoBozza?.pannelli.length ?? 0}</strong> pannelli</span>
-              <span><strong className="text-slate-900">{disegnoBozza && wattDisegno>0 ? formatDecimalIT(datiDisegno.potenza_kwp) : "Da definire"}</strong> kWp</span>
-              <span>Totale IVA inclusa <strong className="text-slate-900">{disegnoBozza && wattDisegno>0 && totaleDisegno != null ? formattaEuro(totaleDisegno, 2) : "Da calcolare dopo la scelta del pannello"}</strong></span>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500" aria-label={tr("Riepilogo disposizione")}>
+              <span><strong className="text-slate-900">{disegnoBozza?.pannelli.length ?? 0}</strong> {tr("pannelli")}</span>
+              <span><strong className="text-slate-900">{disegnoBozza && wattDisegno>0 ? formatDecimalIT(datiDisegno.potenza_kwp) : tr("Da definire")}</strong> kWp</span>
+              <span>{tr("Totale IVA inclusa")} <strong className="text-slate-900">{disegnoBozza && wattDisegno>0 && totaleDisegno != null ? formattaEuro(totaleDisegno, 2) : tr("Da calcolare dopo la scelta del pannello")}</strong></span>
             </div>
-            {data.prezzo_vendita_manuale != null && data.prezzo_vendita_manuale > 0 && <p className="text-[11px] text-slate-500 mt-1">È mantenuto il prezzo a corpo della configurazione.</p>}
-            {!!problemiDisegno.length && <p role="alert" className="text-xs text-amber-700 mt-2">Riposiziona {problemiDisegno.length} pannelli evidenziati prima di usare la disposizione.</p>}
-            <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDisegnoAperto(false)}>{readOnlyMode ? "Chiudi disposizione" : "Annulla"}</Button>
-              {!readOnlyMode && (wattDisegno>0?<Button type="button" disabled={!disegnoBozza?.pannelli.length || problemiDisegno.length > 0} onClick={applicaDisegno}>Usa disposizione nel preventivo</Button>:<Button type="button" disabled={!disegnoBozza} onClick={()=>{setGeometriaInAttesa(disegnoBozza);setDisegnoAperto(false);window.setTimeout(()=>document.getElementById("fv-modello-pannello")?.focus(),0);}}>Conserva il disegno e scegli il pannello</Button>)}
+            {data.prezzo_vendita_manuale != null && data.prezzo_vendita_manuale > 0 && <p className="text-[11px] text-slate-500 mt-1">{tr("È mantenuto il prezzo a corpo della configurazione.")}</p>}
+            {!!problemiDisegno.length && <p role="alert" className="text-xs text-amber-700 mt-2">{tr("Riposiziona {n} pannelli evidenziati prima di usare la disposizione.", { n: problemiDisegno.length })}</p>}
+            <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDisegnoAperto(false)}>{readOnlyMode ? tr("Chiudi disposizione") : tr("Annulla")}</Button>
+              {!readOnlyMode && (wattDisegno>0?<Button type="button" disabled={!disegnoBozza?.pannelli.length || problemiDisegno.length > 0} onClick={applicaDisegno}>{tr("Usa disposizione nel preventivo")}</Button>:<Button type="button" disabled={!disegnoBozza} onClick={()=>{setGeometriaInAttesa(disegnoBozza);setDisegnoAperto(false);window.setTimeout(()=>document.getElementById("fv-modello-pannello")?.focus(),0);}}>{tr("Conserva il disegno e scegli il pannello")}</Button>)}
             </div>
           </div>
         </DialogContent>
@@ -4120,7 +4109,7 @@ export function Step5Configurazione({
       <div className="mb-4">
         <FvCallout
           variant={readinessVariant}
-          title="Controllo operativo prima dell'offerta"
+          title={tr("Controllo operativo prima dell'offerta")}
           action={<FvChip variant={readiness.status === "ready" ? "green" : readiness.status === "review" ? "yellow" : "red"}>{readiness.score}/100</FvChip>}
         >
           <div className="space-y-2">
@@ -4141,18 +4130,17 @@ export function Step5Configurazione({
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <FvCard title="Dimensionamento">
+        <FvCard title={tr("Dimensionamento")}>
           <div className="space-y-4">
             {data.kit_bundle_id && (
-              <FvCallout variant="info" title="Definito dal kit">
-                Potenza, accumulo e numero moduli arrivano dal kit{" "}
-                <strong>{data.kit_nome}</strong>. Rimuovi il kit (riquadro in alto) per
-                configurare manualmente.
+              <FvCallout variant="info" title={tr("Definito dal kit")}>
+                {tr("Potenza, accumulo e numero moduli arrivano dal kit")}{" "}
+                <strong>{data.kit_nome}</strong>{tr(". Rimuovi il kit (riquadro in alto) per configurare manualmente.")}
               </FvCallout>
             )}
             <div className={data.kit_bundle_id ? "opacity-60 pointer-events-none" : ""}>
               <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="fv-numero-pannelli">Numero pannelli</Label>
+                <Label htmlFor="fv-numero-pannelli">{tr("Numero pannelli")}</Label>
                 <Input id="fv-numero-pannelli" type="number" min={1} step={1}
                   className="w-28 text-right font-bold text-orange-600"
                   disabled={!!data.kit_bundle_id || readOnlyMode || !!leggiDisegnoCommerciale(data.layout_overlay)}
@@ -4165,7 +4153,7 @@ export function Step5Configurazione({
               </div>
               <input
                 type="range"
-                aria-label="Regola il numero di pannelli"
+                aria-label={tr("Regola il numero di pannelli")}
                 min={1}
                 max={Math.max(data.numero_pannelli_max ?? 60, data.numero_pannelli_scelti, 1)}
                 value={data.numero_pannelli_scelti}
@@ -4178,15 +4166,15 @@ export function Step5Configurazione({
                 className="w-full accent-orange-500"
               />
               <p className="text-[11px] text-slate-500 mt-1">
-                {leggiDisegnoCommerciale(data.layout_overlay) ? "Quantità collegata al disegno: aggiungi o rimuovi i pannelli nella tavola." : data.numero_pannelli_max
-                  ? `Capienza indicata: ${data.numero_pannelli_max} pannelli. Da confermare sul posto.`
-                  : "Capienza del tetto da verificare. Puoi inserire direttamente il numero di pannelli, anche oltre la scala del cursore."}
+                {leggiDisegnoCommerciale(data.layout_overlay) ? tr("Quantità collegata al disegno: aggiungi o rimuovi i pannelli nella tavola.") : data.numero_pannelli_max
+                  ? tr("Capienza indicata: {numero_pannelli_max} pannelli. Da confermare sul posto.", { numero_pannelli_max: String(data.numero_pannelli_max ?? "") })
+                  : tr("Capienza del tetto da verificare. Puoi inserire direttamente il numero di pannelli, anche oltre la scala del cursore.")}
               </p>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label>Accumulo (kWh)</Label>
+                <Label>{tr("Accumulo (kWh)")}</Label>
                 <span className="text-orange-600 font-bold text-lg tabular-nums">
                   {data.con_accumulo ? data.capacita_accumulo_kwh : 0}
                 </span>
@@ -4215,19 +4203,17 @@ export function Step5Configurazione({
 
           {!data.analisi_consumi && suggerisciAccumulo && data.capacita_accumulo_kwh < 5 && (
             <div className="max-md:hidden">
-              <FvCallout variant="tip" title="Suggerimento accumulo">
-                Profilo consumo <strong>{data.profilo_consumo}</strong>: con accumulo <strong>5 kWh</strong> sposti
-                l'energia prodotta a mezzogiorno verso le 18-22h, raggiungi il <strong>70% di
-                autoconsumo</strong> e migliori il payback di 1-2 anni.
+              <FvCallout variant="tip" title={tr("Suggerimento accumulo")}>
+                {tr("Profilo consumo")} <strong>{data.profilo_consumo}</strong>{tr(": con accumulo")} <strong>{tr("5 kWh")}</strong> {tr("sposti l'energia prodotta a mezzogiorno verso le 18-22h, raggiungi il")} <strong>{tr("70% di autoconsumo")}</strong> e migliori il payback di 1-2 anni.
               </FvCallout>
             </div>
           )}
         </FvCard>
 
-        <FvCard title="Modelli da listino">
+        <FvCard title={tr("Modelli da listino")}>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="fv-modello-pannello">Modello pannello</Label>
+              <Label htmlFor="fv-modello-pannello">{tr("Modello pannello")}</Label>
               <Select
                 value={data.pannello_id ?? ""}
                 onValueChange={(v) => {
@@ -4236,13 +4222,13 @@ export function Step5Configurazione({
                 }}
                 disabled={!!data.kit_bundle_id || readOnlyMode}
               >
-                <SelectTrigger id="fv-modello-pannello" aria-label="Modello pannello">
-                  <SelectValue placeholder="Seleziona pannello…" />
+                <SelectTrigger id="fv-modello-pannello" aria-label={tr("Modello pannello")}>
+                  <SelectValue placeholder={tr("Seleziona pannello…")} />
                 </SelectTrigger>
                 <SelectContent>
                   {pannelli.length === 0 ? (
                     <SelectItem value="__none__" disabled>
-                      Nessun pannello in listino
+                      {tr("Nessun pannello in listino")}
                     </SelectItem>
                   ) : (
                     pannelli.map((p) => (
@@ -4258,19 +4244,19 @@ export function Step5Configurazione({
               </Select>
             </div>
             <div>
-              <Label>Inverter</Label>
+              <Label>{tr("Inverter")}</Label>
               <Select
                 value={data.inverter_id ?? ""}
                 onValueChange={(v) => update("inverter_id", v || null)}
                 disabled={!!data.kit_bundle_id || readOnlyMode}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleziona inverter…" />
+                  <SelectValue placeholder={tr("Seleziona inverter…")} />
                 </SelectTrigger>
                 <SelectContent>
                   {inverter.length === 0 ? (
                     <SelectItem value="__none__" disabled>
-                      Nessun inverter
+                      {tr("Nessun inverter")}
                     </SelectItem>
                   ) : (
                     inverter.map((p) => (
@@ -4286,7 +4272,7 @@ export function Step5Configurazione({
               </Select>
             </div>
             <div>
-              <Label>Accumulo (opzionale)</Label>
+              <Label>{tr("Accumulo (opzionale)")}</Label>
               <Select
                 value={data.accumulo_id ?? "__none__"}
                 onValueChange={(v) => {
@@ -4304,13 +4290,13 @@ export function Step5Configurazione({
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nessun accumulo</SelectItem>
+                  <SelectItem value="__none__">{tr("Nessun accumulo")}</SelectItem>
                   {accumuli.map((p) => (
                     <SelectItem
                       key={(p as { id: string }).id}
                       value={(p as { id: string }).id}
                     >
-                      {p.descrizione as string} ({p.capacita_kwh as number} kWh)
+                      {p.descrizione as string} ({p.capacita_kwh as number} {tr("kWh)")}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -4320,49 +4306,49 @@ export function Step5Configurazione({
             {/* ── Manodopera & Servizi: righe scelte dal commerciale ── */}
             {data.kit_bundle_id && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                <strong>Kit chiavi in mano:</strong> il prezzo del kit comprende tutto. Manodopera e pratiche non vengono aggiunte. Puoi comunque inserire voci extra qui sotto se un caso lo richiede.
+                <strong>{tr("Kit chiavi in mano:")}</strong> {tr("il prezzo del kit comprende tutto. Manodopera e pratiche non vengono aggiunte. Puoi comunque inserire voci extra qui sotto se un caso lo richiede.")}
               </div>
             )}
             {!data.kit_bundle_id && !readOnlyMode && data.manodopera_righe.length === 0 && data.servizi_righe.length === 0 && (
               <p className="text-xs text-slate-400">
-                Nessuna voce impostata. Aggiungi manodopera e servizi solo se servono, con i pulsanti qui sotto.
+                {tr("Nessuna voce impostata. Aggiungi manodopera e servizi solo se servono, con i pulsanti qui sotto.")}
               </p>
             )}
 
             {/* MANODOPERA */}
             <div>
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
-                <Label className="whitespace-nowrap">Manodopera</Label>
+                <Label className="whitespace-nowrap">{tr("Manodopera")}</Label>
                 {!readOnlyMode && (
                   <div className="flex items-center gap-2">
                     <Select value="" onValueChange={(v) => { const t = tariffeFv.find((x) => x.id === v); if (t) aggiungiManodoperaDaTariffa(t); }}>
-                      <SelectTrigger className="tap-compact h-8 w-auto gap-1 text-xs"><SelectValue placeholder="+ Da tariffa" /></SelectTrigger>
+                      <SelectTrigger className="tap-compact h-8 w-auto gap-1 text-xs"><SelectValue placeholder={tr("+ Da tariffa")} /></SelectTrigger>
                       <SelectContent>
-                        {tariffeFv.length === 0 && <SelectItem value="__none__" disabled>Nessuna tariffa in anagrafica</SelectItem>}
+                        {tariffeFv.length === 0 && <SelectItem value="__none__" disabled>{tr("Nessuna tariffa in anagrafica")}</SelectItem>}
                         {tariffeFv.map((t) => (
                           <SelectItem key={t.id} value={t.id}>{t.nome} — {Number(t.prezzo_vendita).toFixed(0)}€/{t.unita}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <button type="button" onClick={aggiungiManodoperaLibera} className="tap-compact whitespace-nowrap text-xs font-semibold text-orange-600">+ Voce libera</button>
+                    <button type="button" onClick={aggiungiManodoperaLibera} className="tap-compact whitespace-nowrap text-xs font-semibold text-orange-600">{tr("+ Voce libera")}</button>
                   </div>
                 )}
               </div>
               {data.manodopera_righe.length === 0 ? (
-                <p className="text-xs text-slate-400">Nessuna manodopera. Aggiungi una voce (da tariffa o libera) se serve.</p>
+                <p className="text-xs text-slate-400">{tr("Nessuna manodopera. Aggiungi una voce (da tariffa o libera) se serve.")}</p>
               ) : (
                 <div className="space-y-2">
                   {/* Il costo segue il prezzo finché sono uguali: con «costo || prezzo» restava la prima cifra digitata (1500 → costo 1). */}
                   {data.manodopera_righe.map((r, idx) => (
                     // La descrizione su una riga e «ore × tariffa» sotto quando la carta è stretta (telefono, o con la colonna dell'anteprima): in una riga sola usciva dalla carta.
                     <div key={idx} className="flex flex-wrap items-center gap-2">
-                      <input value={r.descrizione} onChange={(e) => aggiornaManodopera(idx, { descrizione: e.target.value })} placeholder="Descrizione" disabled={readOnlyMode} className="min-w-[11rem] flex-1 rounded border border-slate-200 px-2 py-1 text-sm max-md:basis-full" />
+                      <input value={r.descrizione} onChange={(e) => aggiornaManodopera(idx, { descrizione: e.target.value })} placeholder={tr("Descrizione")} disabled={readOnlyMode} className="min-w-[11rem] flex-1 rounded border border-slate-200 px-2 py-1 text-sm max-md:basis-full" />
                       <div className="flex items-center gap-2 max-md:w-full">
-                        <input type="number" min={0} value={r.ore} onChange={(e) => aggiornaManodopera(idx, { ore: Number(e.target.value) })} title="Ore" disabled={readOnlyMode} className="w-16 rounded border border-slate-200 px-2 py-1 text-sm" />
+                        <input type="number" min={0} value={r.ore} onChange={(e) => aggiornaManodopera(idx, { ore: Number(e.target.value) })} title={tr("Ore")} disabled={readOnlyMode} className="w-16 rounded border border-slate-200 px-2 py-1 text-sm" />
                         <span className="text-xs text-slate-400">h ×</span>
-                        <input type="number" min={0} value={r.tariffa_oraria_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaManodopera(idx, { tariffa_oraria_vendita: v, tariffa_oraria_netta: r.tariffa_oraria_netta === r.tariffa_oraria_vendita ? v : r.tariffa_oraria_netta }); }} title="€/h vendita" disabled={readOnlyMode} className="w-20 rounded border border-slate-200 px-2 py-1 text-sm" />
+                        <input type="number" min={0} value={r.tariffa_oraria_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaManodopera(idx, { tariffa_oraria_vendita: v, tariffa_oraria_netta: r.tariffa_oraria_netta === r.tariffa_oraria_vendita ? v : r.tariffa_oraria_netta }); }} title={tr("€/h vendita")} disabled={readOnlyMode} className="w-20 rounded border border-slate-200 px-2 py-1 text-sm" />
                         <span className="text-xs text-slate-400">€/h</span>
-                        {!readOnlyMode && <button type="button" onClick={() => rimuoviManodopera(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500 max-md:ml-auto" title="Rimuovi">✕</button>}
+                        {!readOnlyMode && <button type="button" onClick={() => rimuoviManodopera(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500 max-md:ml-auto" title={tr("Rimuovi")}>✕</button>}
                       </div>
                     </div>
                   ))}
@@ -4373,34 +4359,34 @@ export function Step5Configurazione({
             {/* SERVIZI E PRATICHE */}
             <div>
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
-                <Label className="whitespace-nowrap"><span className="max-md:hidden">Servizi e pratiche</span><span className="md:hidden">Servizi</span></Label>
+                <Label className="whitespace-nowrap"><span className="max-md:hidden">{tr("Servizi e pratiche")}</span><span className="md:hidden">{tr("Servizi")}</span></Label>
                 {!readOnlyMode && (
                   <div className="flex items-center gap-2">
                     <Select value="" onValueChange={(v) => { const s = serviziCatalogo.find((x) => String(x.id) === v); if (s) aggiungiServizioDaCatalogo(s); }}>
-                      <SelectTrigger className="tap-compact h-8 w-auto gap-1 whitespace-nowrap text-xs"><SelectValue placeholder="+ Dal catalogo" /></SelectTrigger>
+                      <SelectTrigger className="tap-compact h-8 w-auto gap-1 whitespace-nowrap text-xs"><SelectValue placeholder={tr("+ Dal catalogo")} /></SelectTrigger>
                       <SelectContent>
-                        {serviziCatalogo.length === 0 && <SelectItem value="__none__" disabled>Catalogo servizi vuoto</SelectItem>}
+                        {serviziCatalogo.length === 0 && <SelectItem value="__none__" disabled>{tr("Catalogo servizi vuoto")}</SelectItem>}
                         {serviziCatalogo.map((s) => (
                           // L'importo qui è il costo del servizio (prezzo_netto_default): lo vede solo chi può vedere costi e margini.
                           <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.descrizione ?? "Servizio")}{puoVedereImpresa ? ` — ${Number(s.prezzo_netto_default ?? 0).toFixed(0)}€` : ""}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <button type="button" onClick={aggiungiServizioLibero} className="tap-compact whitespace-nowrap text-xs font-semibold text-orange-600">+ Voce libera</button>
+                    <button type="button" onClick={aggiungiServizioLibero} className="tap-compact whitespace-nowrap text-xs font-semibold text-orange-600">{tr("+ Voce libera")}</button>
                   </div>
                 )}
               </div>
               {data.servizi_righe.length === 0 ? (
-                <p className="text-xs text-slate-400">Nessun servizio/pratica. Aggiungi dal tuo catalogo o come voce libera.</p>
+                <p className="text-xs text-slate-400">{tr("Nessun servizio/pratica. Aggiungi dal tuo catalogo o come voce libera.")}</p>
               ) : (
                 <div className="space-y-2">
                   {data.servizi_righe.map((r, idx) => (
                     <div key={idx} className="flex flex-wrap items-center gap-2">
-                      <input value={r.descrizione} onChange={(e) => aggiornaServizio(idx, { descrizione: e.target.value })} placeholder="Descrizione servizio" disabled={readOnlyMode} className="min-w-[11rem] flex-1 rounded border border-slate-200 px-2 py-1 text-sm max-md:min-w-0" />
+                      <input value={r.descrizione} onChange={(e) => aggiornaServizio(idx, { descrizione: e.target.value })} placeholder={tr("Descrizione servizio")} disabled={readOnlyMode} className="min-w-[11rem] flex-1 rounded border border-slate-200 px-2 py-1 text-sm max-md:min-w-0" />
                       <div className="flex items-center gap-2 max-md:contents">
-                        <input type="number" min={0} value={r.prezzo_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaServizio(idx, { prezzo_vendita: v, prezzo_netto: r.prezzo_netto === r.prezzo_vendita ? v : r.prezzo_netto }); }} title="Prezzo vendita" disabled={readOnlyMode} className="w-24 rounded border border-slate-200 px-2 py-1 text-sm" />
+                        <input type="number" min={0} value={r.prezzo_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaServizio(idx, { prezzo_vendita: v, prezzo_netto: r.prezzo_netto === r.prezzo_vendita ? v : r.prezzo_netto }); }} title={tr("Prezzo vendita")} disabled={readOnlyMode} className="w-24 rounded border border-slate-200 px-2 py-1 text-sm" />
                         <span className="text-xs text-slate-400">€</span>
-                        {!readOnlyMode && <button type="button" onClick={() => rimuoviServizio(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500" title="Rimuovi">✕</button>}
+                        {!readOnlyMode && <button type="button" onClick={() => rimuoviServizio(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500" title={tr("Rimuovi")}>✕</button>}
                       </div>
                     </div>
                   ))}
@@ -4416,7 +4402,7 @@ export function Step5Configurazione({
                   onChange={(e) => update("con_wallbox", e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
                 />
-                <span>Wallbox (cross-sell auto elettrica)</span>
+                <span>{tr("Wallbox (cross-sell auto elettrica)")}</span>
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
@@ -4425,7 +4411,7 @@ export function Step5Configurazione({
                   onChange={(e) => update("con_ottimizzatori", e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
                 />
-                <span>Ottimizzatori per ombreggiamento (PR +3%)</span>
+                <span>{tr("Ottimizzatori per ombreggiamento (PR +3%)")}</span>
               </label>
             </div>
           </div>
@@ -4437,19 +4423,19 @@ export function Step5Configurazione({
           prezzo finale (imponibile), sostituisce la somma delle righe e ignora lo
           sconto. L'IVA la sceglie chi prepara il preventivo, anche con un kit. */}
       <div className="mt-4">
-        <FvCard title="Prezzo di vendita e IVA">
+        <FvCard title={tr("Prezzo di vendita e IVA")}>
           <div className="grid gap-4 md:grid-cols-3 md:items-start">
             {data.kit_bundle_id ? (
               <div>
-                <Label>Prezzo del kit (imponibile, IVA esclusa)</Label>
+                <Label>{tr("Prezzo del kit (imponibile, IVA esclusa)")}</Label>
                 <p className="mt-2 text-2xl font-extrabold text-slate-900 tabular-nums">
                   {data.kit_prezzo != null ? formatEur(data.kit_prezzo) : "—"}
                 </p>
-                <p className="mt-1 text-[11px] text-slate-500">Arriva dal kit scelto.</p>
+                <p className="mt-1 text-[11px] text-slate-500">{tr("Arriva dal kit scelto.")}</p>
               </div>
             ) : (
               <div>
-                <Label htmlFor="fv-prezzo-manuale">Prezzo a corpo (imponibile, IVA esclusa)</Label>
+                <Label htmlFor="fv-prezzo-manuale">{tr("Prezzo a corpo (imponibile, IVA esclusa)")}</Label>
                 <div className="relative mt-1">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">€</span>
                   <Input
@@ -4462,14 +4448,12 @@ export function Step5Configurazione({
                       const raw = e.target.value.trim();
                       update("prezzo_vendita_manuale", raw === "" ? null : Math.max(0, parseDecimalIT(raw)));
                     }}
-                    placeholder="Calcola dal listino"
+                    placeholder={tr("Calcola dal listino")}
                     className="pl-7"
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500 max-md:hidden">
-                  Senza listino scrivi qui il prezzo: <strong>è il prezzo di vendita finale</strong>,
-                  sostituisce la somma delle righe e ignora lo sconto. Vuoto = somma di componenti,
-                  manodopera e servizi.
+                  {tr("Senza listino scrivi qui il prezzo:")} <strong>{tr("è il prezzo di vendita finale")}</strong>{tr(", sostituisce la somma delle righe e ignora lo sconto. Vuoto = somma di componenti, manodopera e servizi.")}
                 </p>
               </div>
             )}
@@ -4491,14 +4475,12 @@ export function Step5Configurazione({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-[11px] text-slate-500 max-md:hidden">Vale per tutto il preventivo: totale, PDF e commessa.</p>
+              <p className="mt-1 text-[11px] text-slate-500 max-md:hidden">{tr("Vale per tutto il preventivo: totale, PDF e commessa.")}</p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               {(data.kit_bundle_id ? Number(data.kit_prezzo ?? 0) : Number(data.prezzo_vendita_manuale ?? 0)) > 0 ? (
                 <>
-                  <p className="text-xs text-slate-500">
-                    Chiavi in mano (IVA {percentualeIvaFv(data.iva_aliquota)}% inclusa)
-                  </p>
+                  <p className="text-xs text-slate-500">{tr("Chiavi in mano (IVA {iva_aliquota}% inclusa)", { iva_aliquota: String(percentualeIvaFv(data.iva_aliquota) ?? "") })}</p>
                   <p className="text-2xl font-extrabold text-slate-900 tabular-nums">
                     {formatEur(
                       Math.round(
@@ -4508,7 +4490,7 @@ export function Step5Configurazione({
                     )}
                   </p>
                   {data.kit_bundle_id && data.sconto_valore != null && data.sconto_valore > 0 && (
-                    <p className="text-[11px] text-slate-500">Prima dello sconto.</p>
+                    <p className="text-[11px] text-slate-500">{tr("Prima dello sconto.")}</p>
                   )}
                   {!data.kit_bundle_id && !readOnlyMode && (
                     <button
@@ -4516,14 +4498,14 @@ export function Step5Configurazione({
                       onClick={() => update("prezzo_vendita_manuale", null)}
                       className="mt-1 text-xs font-semibold text-orange-600 underline"
                     >
-                      Torna al prezzo calcolato dal listino
+                      {tr("Torna al prezzo calcolato dal listino")}
                     </button>
                   )}
                 </>
               ) : (
                 <p className="text-xs text-slate-500">
-                  Prezzo calcolato da componenti, manodopera e servizi. Il totale chiavi in mano è nella{" "}
-                  <strong>Fase 6</strong>.
+                  {tr("Prezzo calcolato da componenti, manodopera e servizi. Il totale chiavi in mano è nella")}{" "}
+                  <strong>{tr("Fase 6")}</strong>.
                 </p>
               )}
             </div>
@@ -4553,11 +4535,9 @@ export function Step5Configurazione({
           con categoria='altro' insieme ai componenti principali e sommate
           automaticamente nel riepilogo economico dello Step 6. */}
       <div className="mt-4">
-        <FvCard title="Prodotti extra dal listino (opzionale)">
+        <FvCard title={tr("Prodotti extra dal listino (opzionale)")}>
           <p className="text-sm text-slate-600 mb-3 max-md:hidden">
-            Aggiungi al preventivo altri prodotti del tuo listino (es. caldaia,
-            climatizzatore, colonnina di ricarica). Vengono sommati al totale e
-            compaiono nel riepilogo economico della Fase 6.
+            {tr("Aggiungi al preventivo altri prodotti del tuo listino (es. caldaia, climatizzatore, colonnina di ricarica). Vengono sommati al totale e compaiono nel riepilogo economico della Fase 6.")}
           </p>
 
           {!readOnlyMode && (
@@ -4566,7 +4546,7 @@ export function Step5Configurazione({
                 <Input
                   value={extraSearch}
                   onChange={(e) => setExtraSearch(e.target.value)}
-                  placeholder="Cerca prodotto del listino da aggiungere…"
+                  placeholder={tr("Cerca prodotto del listino da aggiungere…")}
                 />
                 {extraSearch.trim() && (
                   <div className="absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -4585,7 +4565,7 @@ export function Step5Configurazione({
                     ))}
                     {listinoExtra.length >= 40 && (
                       <p className="px-3 py-1.5 text-[11px] text-slate-400">
-                        Mostro i primi 40: scrivi di più per restringere.
+                        {tr("Mostro i primi 40: scrivi di più per restringere.")}
                       </p>
                     )}
                     <button
@@ -4594,7 +4574,7 @@ export function Step5Configurazione({
                       className="w-full text-left text-sm px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-500 border-t border-slate-100"
                     >
                       <Plus className="h-3.5 w-3.5 shrink-0" />
-                      <span>Aggiungi "{extraSearch.trim()}" come prodotto libero</span>
+                      <span>{tr("Aggiungi \"{extraSearch}\" come prodotto libero", { extraSearch: extraSearch.trim() })}</span>
                     </button>
                   </div>
                 )}
@@ -4605,13 +4585,13 @@ export function Step5Configurazione({
                 className="shrink-0 flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-500 hover:border-orange-400 hover:text-orange-600 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Prodotto libero
+                {tr("Prodotto libero")}
               </button>
             </div>
           )}
 
           {data.prodotti_extra.length === 0 ? (
-            <p className="text-xs text-slate-400">Nessun prodotto extra aggiunto.</p>
+            <p className="text-xs text-slate-400">{tr("Nessun prodotto extra aggiunto.")}</p>
           ) : (
             <div className="space-y-2">
               {data.prodotti_extra.map((ex, idx) => (
@@ -4620,7 +4600,7 @@ export function Step5Configurazione({
                   className="grid grid-cols-12 gap-2 items-end rounded-lg border border-slate-200 bg-slate-50/60 p-2.5"
                 >
                   <div className="col-span-12 min-[1700px]:col-span-5">
-                    <Label className="text-[11px] text-slate-500">Descrizione</Label>
+                    <Label className="text-[11px] text-slate-500">{tr("Descrizione")}</Label>
                     <Input
                       value={ex.descrizione}
                       disabled={readOnlyMode}
@@ -4629,7 +4609,7 @@ export function Step5Configurazione({
                     />
                   </div>
                   <div className="col-span-3 min-[1700px]:col-span-2">
-                    <Label className="text-[11px] text-slate-500">Quantità · {ex.unita_misura ?? "pz"}</Label>
+                    <Label className="text-[11px] text-slate-500">{tr("Quantità ·")} {ex.unita_misura ?? tr("pz")}</Label>
                     <Input
                       type="number"
                       min={ex.unita_misura === "m" ? 0.01 : 1}
@@ -4643,7 +4623,7 @@ export function Step5Configurazione({
                     />
                   </div>
                   <div className="col-span-4 min-[1700px]:col-span-2">
-                    <Label className="text-[11px] text-slate-500">Vendita € (unit.)</Label>
+                    <Label className="text-[11px] text-slate-500">{tr("Vendita € (unit.)")}</Label>
                     <div className="flex gap-1 items-center">
                       <Input
                         key={`pv-${ex.uid ?? idx}-${ex.prezzo_vendita === 0 ? "gratis" : "paid"}`}
@@ -4659,12 +4639,12 @@ export function Step5Configurazione({
                           e.target.value = v > 0 ? formatDecimalIT(v) : "";
                         }}
                         className="h-9 text-sm bg-white min-w-0"
-                        placeholder={ex.prezzo_vendita === 0 ? "Gratis" : "0,00"}
+                        placeholder={ex.prezzo_vendita === 0 ? tr("Gratis") : "0,00"}
                       />
                       {!readOnlyMode && (
                         <button
                           type="button"
-                          title={ex.prezzo_vendita === 0 ? "Prodotto gratuito" : "Imposta come gratuito"}
+                          title={ex.prezzo_vendita === 0 ? tr("Prodotto gratuito") : tr("Imposta come gratuito")}
                           onClick={() => aggiornaExtra(idx, { prezzo_vendita: 0 })}
                           className={`shrink-0 rounded px-1.5 py-1 text-[10px] font-medium transition-colors ${
                             ex.prezzo_vendita === 0
@@ -4672,14 +4652,14 @@ export function Step5Configurazione({
                               : "bg-slate-100 text-slate-400 hover:bg-green-50 hover:text-green-600"
                           }`}
                         >
-                          Gratis
+                          {tr("Gratis")}
                         </button>
                       )}
                     </div>
                   </div>
                   {puoVedereImpresa && (
                     <div className="col-span-4 min-[1700px]:col-span-2">
-                      <Label className="text-[11px] text-slate-500">Acquisto € (margine)</Label>
+                      <Label className="text-[11px] text-slate-500">{tr("Acquisto € (margine)")}</Label>
                       <Input
                         inputMode="decimal"
                         defaultValue={ex.prezzo_acquisto ?? ""}
@@ -4701,8 +4681,8 @@ export function Step5Configurazione({
                         type="button"
                         onClick={() => rimuoviExtra(idx)}
                         className="text-slate-400 hover:text-red-500 transition-colors"
-                        aria-label="Rimuovi prodotto extra"
-                        title="Rimuovi"
+                        aria-label={tr("Rimuovi prodotto extra")}
+                        title={tr("Rimuovi")}
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -4710,14 +4690,14 @@ export function Step5Configurazione({
                   </div>
                   <div className="col-span-11 text-[11px] text-slate-500 -mt-1">
                     {ex.prezzo_vendita === 0
-                      ? <span className="text-green-600 font-medium">Gratuito (incluso nel preventivo)</span>
-                      : <>Totale riga: <strong>{formatEur((Number(ex.prezzo_vendita) || 0) * (ex.quantita || 1))}</strong></>
+                      ? <span className="text-green-600 font-medium">{tr("Gratuito (incluso nel preventivo)")}</span>
+                      : <>{tr("Totale riga:")} <strong>{formatEur((Number(ex.prezzo_vendita) || 0) * (ex.quantita || 1))}</strong></>
                     }
                   </div>
                 </div>
               ))}
               <p className="text-xs text-slate-500 text-right">
-                Totale prodotti extra:{" "}
+                {tr("Totale prodotti extra:")}{" "}
                 <strong className="text-slate-700">
                   {formatEur(
                     data.prodotti_extra.reduce(
@@ -4782,23 +4762,24 @@ function FvPaymentToggle({
   ivaPerc?: number;
   onChange: (m: "cash" | "rate" | "zero" | "noleggio") => void;
 }) {
+  const t = useT();
   const baseOpts: Array<{
     key: "cash" | "rate" | "zero" | "noleggio";
     icon: string;
     label: string;
     sub: string;
   }> = [
-    { key: "cash", icon: "⚡", label: "Pagamento immediato", sub: `Cash · IVA ${ivaPerc}%` },
+    { key: "cash", icon: "⚡", label: t("Pagamento immediato"), sub: t("Cash · IVA {ivaPerc}%", { ivaPerc: String(ivaPerc ?? "") }) },
     {
       key: "rate",
       icon: "€",
-      label: "Rateale finanziato",
+      label: t("Rateale finanziato"),
       sub: topConsigliata
         ? `${topConsigliata.finanziaria_nome ?? "Top"} · ${durata} mesi · TAEG ${topConsigliata.rata.taeg.toFixed(2)}%`
-        : `${durata} mesi · finanziaria consigliata`,
+        : t("{durata} mesi · finanziaria consigliata", { durata: String(durata ?? "") }),
     },
-    { key: "zero", icon: "0", label: "Tasso zero", sub: `${durata} rate · 0% interessi` },
-    { key: "noleggio", icon: "B2B", label: "Noleggio azienda", sub: "Zero anticipo · canone operativo" },
+    { key: "zero", icon: "0", label: t("Tasso zero"), sub: t("{durata} rate · 0% interessi", { durata: String(durata ?? "") }) },
+    { key: "noleggio", icon: "B2B", label: t("Noleggio azienda"), sub: t("Zero anticipo · canone operativo") },
   ];
   const opts = noleggioEnabled
     ? baseOpts
@@ -4852,6 +4833,7 @@ function ModalitaPagamentoCard({
   rataPrestito: number;
   durataMesi: number;
 }) {
+  const tr = useT();
   const mp =
     data.modalita_pagamento ??
     INITIAL.modalita_pagamento ?? { tranche: [], note: null, anticipo_pct: 0 };
@@ -4859,7 +4841,7 @@ function ModalitaPagamentoCard({
   const cardTitle = (
     <span className="inline-flex items-center gap-2">
       <Wallet className="h-4 w-4 text-orange-500" />
-      Modalità di pagamento
+      {tr("Modalità di pagamento")}
     </span>
   );
 
@@ -4867,7 +4849,7 @@ function ModalitaPagamentoCard({
   const noteField = (
     <div className="mt-4">
       <Label className="text-xs text-slate-600">
-        Note / condizioni di pagamento (facoltative)
+        {tr("Note / condizioni di pagamento (facoltative)")}
       </Label>
       <textarea
         value={mp.note ?? ""}
@@ -4875,7 +4857,7 @@ function ModalitaPagamentoCard({
           update("modalita_pagamento", { ...mp, note: e.target.value || null })
         }
         rows={2}
-        placeholder="Es. Acconto tramite bonifico bancario. Saldo a collaudo e allaccio."
+        placeholder={tr("Es. Acconto tramite bonifico bancario. Saldo a collaudo e allaccio.")}
         className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-y"
       />
     </div>
@@ -4884,25 +4866,24 @@ function ModalitaPagamentoCard({
   // ═══ NOLEGGIO operativo: zero anticipo, canone mensile ═══════════════════
   if (modalita === "noleggio") {
     return (
-      <FvCard title={cardTitle} action={<FvChip variant="navy">Noleggio operativo</FvChip>} className="mt-4">
+      <FvCard title={cardTitle} action={<FvChip variant="navy">{tr("Noleggio operativo")}</FvChip>} className="mt-4">
         <p className="text-xs text-slate-500 mb-3 max-md:hidden">
-          Nel noleggio operativo il cliente <strong>non versa un anticipo</strong>:
-          paga un canone mensile tutto incluso. Comparirà nel preventivo PDF.
+          {tr("Nel noleggio operativo il cliente")} <strong>{tr("non versa un anticipo")}</strong>{tr(": paga un canone mensile tutto incluso. Comparirà nel preventivo PDF.")}
         </p>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-wrap items-center gap-x-10 gap-y-2">
           <div>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Anticipo</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{tr("Anticipo")}</div>
             <div className="text-lg font-bold text-slate-900 tabular-nums">€ 0</div>
           </div>
           <div>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Canone mensile</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{tr("Canone mensile")}</div>
             <div className="text-lg font-bold text-orange-600 tabular-nums">
               {formatEur(rataPrestito)}<span className="text-sm font-medium text-slate-500">/mese</span>
             </div>
           </div>
           <div>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Durata</div>
-            <div className="text-lg font-bold text-slate-900 tabular-nums">{durataMesi} mesi</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{tr("Durata")}</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">{tr("{n} mesi", { n: String(durataMesi ?? "") })}</div>
           </div>
         </div>
         {noteField}
@@ -4935,14 +4916,13 @@ function ModalitaPagamentoCard({
         className="mt-4"
       >
         <p className="text-xs text-slate-500 mb-3 max-md:hidden">
-          Con il finanziamento il cliente versa un <strong>anticipo in contanti</strong>{" "}
-          alla firma e rateizza il resto. Imposta l'anticipo: la rata si ricalcola
-          sul capitale residuo. Comparirà nel preventivo PDF.
+          {tr("Con il finanziamento il cliente versa un")} <strong>{tr("anticipo in contanti")}</strong>{" "}
+          {tr("alla firma e rateizza il resto. Imposta l'anticipo: la rata si ricalcola sul capitale residuo. Comparirà nel preventivo PDF.")}
         </p>
 
         {/* Anticipo: preset rapidi + input % */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          <span className="text-xs font-medium text-slate-600 mr-1">Anticipo alla firma:</span>
+          <span className="text-xs font-medium text-slate-600 mr-1">{tr("Anticipo alla firma:")}</span>
           {[0, 10, 20, 30].map((p) => (
             <button
               key={p}
@@ -4973,29 +4953,27 @@ function ModalitaPagamentoCard({
         {/* Riepilogo: anticipo + finanziato + rata */}
         <div className="grid sm:grid-cols-3 gap-2">
           <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Anticipo alla firma</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{tr("Anticipo alla firma")}</div>
             <div className="text-lg font-bold text-slate-900 tabular-nums">{formatEur(anticipoEur)}</div>
-            <div className="text-[11px] text-slate-400">{anticipoPct}% del totale</div>
+            <div className="text-[11px] text-slate-400">{tr("{n}% del totale", { n: String(anticipoPct ?? "") })}</div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Importo finanziato</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{tr("Importo finanziato")}</div>
             <div className="text-lg font-bold text-slate-900 tabular-nums">{formatEur(finanziatoEur)}</div>
-            <div className="text-[11px] text-slate-400">resto rateizzato</div>
+            <div className="text-[11px] text-slate-400">{tr("resto rateizzato")}</div>
           </div>
           <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-orange-600">Rata mensile</div>
+            <div className="text-[11px] uppercase tracking-wide text-orange-600">{tr("Rata mensile")}</div>
             <div className="text-lg font-bold text-orange-700 tabular-nums">
               {formatEur(rataScalata)}<span className="text-xs font-medium">/mese</span>
             </div>
             <div className="text-[11px] text-orange-600/80">
-              {durataMesi} rate{anticipoPct > 0 ? ` · senza anticipo ${formatEur(rataPrestito)}` : ""}
+              {durataMesi} {tr("rate")}{anticipoPct > 0 ? tr(" · senza anticipo {rataPrestito}", { rataPrestito: formatEur(rataPrestito) }) : ""}
             </div>
           </div>
         </div>
 
-        <div className="mt-2 text-right text-sm font-bold text-slate-700 tabular-nums">
-          Totale chiavi in mano · {formatEur(investimento)}
-        </div>
+        <div className="mt-2 text-right text-sm font-bold text-slate-700 tabular-nums">{tr("Totale chiavi in mano · {investimento}", { investimento: formatEur(investimento) })}</div>
 
         {noteField}
       </FvCard>
@@ -5038,7 +5016,7 @@ function ModalitaPagamentoCard({
       title={
         <span className="inline-flex items-center gap-2">
           <Wallet className="h-4 w-4 text-orange-500" />
-          Modalità di pagamento
+          {tr("Modalità di pagamento")}
         </span>
       }
       action={
@@ -5049,9 +5027,7 @@ function ModalitaPagamentoCard({
       className="mt-4"
     >
       <p className="text-xs text-slate-500 mb-3 max-md:hidden">
-        Pagamento immediato: come il cliente salda l'importo in contanti
-        (acconto, stati di avanzamento, saldo). Comparirà nel preventivo PDF.
-        Per rateizzare scegli "Rateale finanziato" qui sopra.
+        {tr("Pagamento immediato: come il cliente salda l'importo in contanti (acconto, stati di avanzamento, saldo). Comparirà nel preventivo PDF. Per rateizzare scegli \"Rateale finanziato\" qui sopra.")}
       </p>
 
       {/* Preset rapidi */}
@@ -5079,7 +5055,7 @@ function ModalitaPagamentoCard({
             <Input
               value={t.label}
               onChange={(e) => updateRow(i, { label: e.target.value })}
-              placeholder="Es. Acconto alla firma"
+              placeholder={tr("Es. Acconto alla firma")}
               className="flex-1 h-9 text-sm"
             />
             <div className="relative w-20 shrink-0">
@@ -5106,7 +5082,7 @@ function ModalitaPagamentoCard({
               type="button"
               onClick={() => removeRow(i)}
               disabled={tranche.length <= 1}
-              aria-label="Rimuovi tranche"
+              aria-label={tr("Rimuovi tranche")}
               className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
             >
               <X className="h-4 w-4" />
@@ -5123,21 +5099,18 @@ function ModalitaPagamentoCard({
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-dashed border-slate-300 text-slate-600 hover:border-orange-400 hover:text-orange-600"
         >
           <Plus className="h-3.5 w-3.5" />
-          Aggiungi tranche
+          {tr("Aggiungi tranche")}
         </button>
         <div
           className={`text-sm font-bold tabular-nums ${
             sumOk ? "text-emerald-600" : "text-amber-600"
           }`}
-        >
-          Totale {sommaPct.toFixed(0)}% · {formatEur(investimento)}
-        </div>
+        >{tr("Totale {sommaPct}% · {investimento}", { sommaPct: sommaPct.toFixed(0), investimento: formatEur(investimento) })}</div>
       </div>
 
       {!sumOk && (
         <p className="text-[11px] text-amber-600 mt-1.5">
-          La somma delle percentuali deve essere 100% perché gli importi
-          quadrino col totale.
+          {tr("La somma delle percentuali deve essere 100% perché gli importi quadrino col totale.")}
         </p>
       )}
 
@@ -5171,6 +5144,7 @@ function Step6FinanziarioPrivato({
   fvTemplate: Record<string, unknown> | null | undefined;
   onRicalcola: () => void;
 }) {
+  const tTesto = useT();
   // Confronto varianti (gap vs Reonic/Autarc): profili autoconsumo per stimare
   // il delta delle varianti con/senza accumulo. Hook prima di ogni early-return.
   const { data: profiliAutoconsumo } = useProfiliAutoconsumo();
@@ -5180,11 +5154,11 @@ function Step6FinanziarioPrivato({
       <FvCard>
         <div className="py-12 text-center space-y-3">
           <Loader2 className="h-12 w-12 mx-auto animate-spin text-orange-500" />
-          <p className="font-semibold text-slate-900">Sto calcolando il tuo scenario finanziario…</p>
+          <p className="font-semibold text-slate-900">{tTesto("Sto calcolando il tuo scenario finanziario…")}</p>
           {/* Fix #18 Sprint 3: progress indicator step-by-step (cycling) */}
           <FvCalcoloProgress />
           <p className="text-xs text-slate-400 max-w-md mx-auto mt-3">
-            Tipicamente 2-5 secondi. Se richiede più di 30 secondi prova "Ricalcola".
+            {tTesto("Tipicamente 2-5 secondi. Se richiede più di 30 secondi prova \"Ricalcola\".")}
           </p>
         </div>
       </FvCard>
@@ -5193,9 +5167,9 @@ function Step6FinanziarioPrivato({
 
   if (error || !scenario) {
     return (
-      <FvCard title="Calcolo finanziario">
-        <FvCallout variant="error" title={error ? "Calcolo non riuscito" : "Nessun calcolo eseguito"}>
-          {error ?? "Premi ricalcola per generare lo scenario finanziario completo (NPV, IRR, sensitivity, what-if)."}
+      <FvCard title={tTesto("Calcolo finanziario")}>
+        <FvCallout variant="error" title={error ? tTesto("Calcolo non riuscito") : tTesto("Nessun calcolo eseguito")}>
+          {error ?? tTesto("Premi ricalcola per generare lo scenario finanziario completo (NPV, IRR, sensitivity, what-if).")}
         </FvCallout>
         <div className="mt-4 text-center">
           <button
@@ -5204,7 +5178,7 @@ function Step6FinanziarioPrivato({
             className="px-5 py-2.5 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow-md hover:shadow-lg transition-all inline-flex items-center gap-2"
           >
             <RefreshCw className="h-4 w-4" />
-            {error ? "Riprova calcolo" : "Calcola scenario"}
+            {error ? tTesto("Riprova calcolo") : tTesto("Calcola scenario")}
           </button>
         </div>
       </FvCard>
@@ -5407,10 +5381,10 @@ function Step6FinanziarioPrivato({
       <FvPanelTitle
         step={6}
         totalSteps={TOTAL_STEPS}
-        title="Anteprima finanziaria per il cliente"
+        title={tTesto("Anteprima finanziaria per il cliente")}
         subtitle={
           <>
-            Quello che vedrà il cliente nel preventivo PDF. Cambia modalità di pagamento per simulare gli scenari finanziari.
+            {tTesto("Quello che vedrà il cliente nel preventivo PDF. Cambia modalità di pagamento per simulare gli scenari finanziari.")}
           </>
         }
       />
@@ -5428,28 +5402,28 @@ function Step6FinanziarioPrivato({
       {/* Sprint 4: Modalità rateale dettagli + confronto top 3 finanziarie */}
       {data.finanziamento_modalita === "rate" && (
         <FvCard
-          title="Modalità rateale — dettagli e confronto"
+          title={tTesto("Modalità rateale — dettagli e confronto")}
           action={
             tabelleFinanziamento.length > 0 ? (
-              <FvChip variant="green">✓ Configurato in Impostazioni Azienda</FvChip>
+              <FvChip variant="green">{tTesto("✓ Configurato in Impostazioni Azienda")}</FvChip>
             ) : (
-              <FvChip variant="yellow">⚠ Nessuna tabella attiva</FvChip>
+              <FvChip variant="yellow">{tTesto("⚠ Nessuna tabella attiva")}</FvChip>
             )
           }
           className="mt-4"
         >
           {tabelleFinanziamento.length === 0 ? (
             <FvCallout variant="warn">
-              <strong>Nessuna tabella finanziamento attiva</strong> per l'importo{" "}
-              {formatEur(investimento)}. L'amministratore può caricare nuove tabelle in{" "}
-              <em>Impostazioni → Finanziamenti</em>.
+              <strong>{tTesto("Nessuna tabella finanziamento attiva")}</strong> {tTesto("per l'importo")}{" "}
+              {formatEur(investimento)}{tTesto(". L'amministratore può caricare nuove tabelle in")}{" "}
+              <em>{tTesto("Impostazioni → Finanziamenti")}</em>.
             </FvCallout>
           ) : (
             <>
               {/* Dropdown durata + finanziaria scelta */}
               <div className="grid sm:grid-cols-2 gap-3 mb-4">
                 <div>
-                  <Label>Durata finanziamento</Label>
+                  <Label>{tTesto("Durata finanziamento")}</Label>
                   <Select
                     value={String(data.durata_mesi_scelta ?? 84)}
                     onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
@@ -5464,15 +5438,13 @@ function Step6FinanziarioPrivato({
                       )
                         .sort((a, b) => a - b)
                         .map((d) => (
-                          <SelectItem key={d} value={String(d)}>
-                            {d} mesi ({(d / 12).toFixed(0)} anni)
-                          </SelectItem>
+                          <SelectItem key={d} value={String(d)}>{tTesto("{d} mesi ({valore} anni)", { d: String(d ?? ""), valore: (d / 12).toFixed(0) })}</SelectItem>
                         ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Finanziaria scelta</Label>
+                  <Label>{tTesto("Finanziaria scelta")}</Label>
                   <Select
                     value={data.tabella_finanziamento_id ?? "__top__"}
                     onValueChange={(v) =>
@@ -5482,7 +5454,7 @@ function Step6FinanziarioPrivato({
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__top__">
-                        ★ Top consigliata (best TAEG)
+                        {tTesto("★ Top consigliata (best TAEG)")}
                       </SelectItem>
                       {tabelleFinanziamento.map((t) => (
                         <SelectItem key={t.id} value={t.id}>
@@ -5498,8 +5470,8 @@ function Step6FinanziarioPrivato({
               {topFinanziamenti.length > 0 && (
                 <div className="space-y-2 mb-3">
                   <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Confronto top {topFinanziamenti.length} per importo {formatEur(investimento)} ×{" "}
-                    {data.durata_mesi_scelta ?? 84} mesi
+                    {tTesto("Confronto top")} {topFinanziamenti.length} {tTesto("per importo")} {formatEur(investimento)} ×{" "}
+                    {data.durata_mesi_scelta ?? 84} {tTesto("mesi")}
                   </div>
                   {topFinanziamenti.map((t, i) => {
                     const isSelected =
@@ -5516,7 +5488,7 @@ function Step6FinanziarioPrivato({
                       >
                         {i === 0 && (
                           <span className="absolute -top-2 right-3 bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            ★ Consigliata
+                            {tTesto("★ Consigliata")}
                           </span>
                         )}
                         <div className="flex justify-between items-center">
@@ -5525,11 +5497,11 @@ function Step6FinanziarioPrivato({
                               {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
                             </div>
                             <div className="text-[11px] text-slate-500">
-                              {t.rata.durata_mesi} mesi · TAEG{" "}
-                              <strong>{t.rata.taeg.toFixed(2)}%</strong> · TAN{" "}
+                              {t.rata.durata_mesi} {tTesto("mesi · TAEG")}{" "}
+                              <strong>{t.rata.taeg.toFixed(2)}%</strong> {tTesto("· TAN")}{" "}
                               {t.rata.tan.toFixed(2)}%
                               {t.rata.spese_istruttoria
-                                ? ` · spese istruttoria ${formatEur(t.rata.spese_istruttoria)}`
+                                ? tTesto(" · spese istruttoria {spese_istruttoria}", { spese_istruttoria: formatEur(t.rata.spese_istruttoria) })
                                 : ""}
                             </div>
                           </div>
@@ -5558,31 +5530,29 @@ function Step6FinanziarioPrivato({
                     <table className="w-full text-sm">
                       <tbody>
                         <tr>
-                          <td className="text-slate-600 py-1">Importo finanziato</td>
+                          <td className="text-slate-600 py-1">{tTesto("Importo finanziato")}</td>
                           <td className="text-right font-semibold tabular-nums">
                             {formatEur(r.importo_erogato)}
                           </td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">Numero rate</td>
-                          <td className="text-right font-semibold tabular-nums">
-                            {r.numero_rate} mensili
-                          </td>
+                          <td className="text-slate-600 py-1">{tTesto("Numero rate")}</td>
+                          <td className="text-right font-semibold tabular-nums">{tTesto("{numero_rate} mensili", { numero_rate: String(r.numero_rate ?? "") })}</td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">Importo rata</td>
+                          <td className="text-slate-600 py-1">{tTesto("Importo rata")}</td>
                           <td className="text-right font-bold text-orange-600 tabular-nums">
                             {formatEur(r.importo_rata)}/mese
                           </td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">Totale dovuto</td>
+                          <td className="text-slate-600 py-1">{tTesto("Totale dovuto")}</td>
                           <td className="text-right font-semibold tabular-nums">
                             {formatEur(r.importo_totale_dovuto)}
                           </td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">Costo del credito</td>
+                          <td className="text-slate-600 py-1">{tTesto("Costo del credito")}</td>
                           <td className="text-right font-semibold tabular-nums text-slate-700">
                             {formatEur(r.interessi_cliente ?? r.importo_totale_dovuto - r.importo_erogato)}
                           </td>
@@ -5594,9 +5564,7 @@ function Step6FinanziarioPrivato({
               })()}
 
               <FvCallout variant="info" >
-                Calcolato dal <strong>modulo Finanziamenti EiC</strong> con tabelle reali. Il
-                TAEG include spese istruttoria. Validato server-side contro le soglie ARERA
-                antiusura.
+                {tTesto("Calcolato dal")} <strong>{tTesto("modulo Finanziamenti EiC")}</strong> {tTesto("con tabelle reali. Il TAEG include spese istruttoria. Validato server-side contro le soglie ARERA antiusura.")}
               </FvCallout>
             </>
           )}
@@ -5605,10 +5573,10 @@ function Step6FinanziarioPrivato({
 
       {/* Tasso zero: la durata si sceglie qui, subito sotto la modalità. */}
       {data.finanziamento_modalita === "zero" && (
-        <FvCard title="Tasso zero — durata" className="mt-4">
+        <FvCard title={tTesto("Tasso zero — durata")} className="mt-4">
           <div className="grid sm:grid-cols-2 gap-3 items-end">
             <div>
-              <Label>Numero di rate</Label>
+              <Label>{tTesto("Numero di rate")}</Label>
               <Select
                 value={String(data.durata_mesi_scelta ?? 60)}
                 onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
@@ -5616,12 +5584,12 @@ function Step6FinanziarioPrivato({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[12, 24, 36, 48, 60, 84, 120].map((d) => (
-                    <SelectItem key={d} value={String(d)}>{d} rate</SelectItem>
+                    <SelectItem key={d} value={String(d)}>{tTesto("{n} rate", { n: String(d ?? "") })}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-slate-500">La rata, con l'anticipo, è qui sotto in «Modalità di pagamento».</p>
+            <p className="text-xs text-slate-500">{tTesto("La rata, con l'anticipo, è qui sotto in «Modalità di pagamento».")}</p>
           </div>
         </FvCard>
       )}
@@ -5641,7 +5609,7 @@ function Step6FinanziarioPrivato({
 
       {/* Confronto varianti — affianca configurazioni alternative (gap vs Reonic/Autarc) */}
       {!data.analisi_consumi&&<FvConfrontoVarianti ctx={ctxVarianti} className="mb-4" />}
-      {data.analisi_consumi&&<p className="mb-4 text-sm text-slate-600">Le configurazioni con quantità, spazio e prezzi del listino si confrontano nella fase Impianto.</p>}
+      {data.analisi_consumi&&<p className="mb-4 text-sm text-slate-600">{tTesto("Le configurazioni con quantità, spazio e prezzi del listino si confrontano nella fase Impianto.")}</p>}
 
       {/* Simulatore interattivo — il cliente muove i parametri e vede i numeri live.
           Telefono: da qui in giù è la presentazione al cliente (grafici a 25 anni, scenari,
@@ -5672,10 +5640,10 @@ function Step6FinanziarioPrivato({
         </div>
         <div className="relative">
           <div className="text-xs uppercase tracking-widest font-semibold mb-2 text-orange-200">
-            ★ L'INVESTIMENTO
+            {tTesto("★ L'INVESTIMENTO")}
           </div>
           <h2 className="text-xl sm:text-2xl font-bold mb-3 max-w-[80%]">
-            Il tuo impianto fotovoltaico in 25 anni
+            {tTesto("Il tuo impianto fotovoltaico in 25 anni")}
           </h2>
           <div className="flex flex-wrap items-baseline gap-6 sm:gap-8 mt-4">
             <span
@@ -5688,20 +5656,20 @@ function Step6FinanziarioPrivato({
               {formatEur(guadagnoNetto25Anni)}
             </span>
             <div className="text-sm space-y-1.5 max-w-xs">
-              <div>guadagno netto in 25 anni vs senza FV</div>
+              <div>{tTesto("guadagno netto in 25 anni vs senza FV")}</div>
               <div>
-                Investimento:{" "}
+                {tTesto("Investimento:")}{" "}
                 <strong className="text-orange-200">{formatEur(investimento)}</strong>
               </div>
               <div>
-                Detrazione IRPEF:{" "}
+                {tTesto("Detrazione IRPEF:")}{" "}
                 <strong className="text-orange-200">
                   {formatEur(detrazione10anni)}
                 </strong>{" "}
-                in 10 anni
+                {tTesto("in 10 anni")}
               </div>
               <div>
-                Costo netto effettivo:{" "}
+                {tTesto("Costo netto effettivo:")}{" "}
                 <strong className="text-orange-200">{formatEur(costoNettoReale)}</strong>
               </div>
             </div>
@@ -5711,15 +5679,15 @@ function Step6FinanziarioPrivato({
 
       {/* 4 KPI HERO */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <FvKpi label="Investimento" value={formatEur(investimento)} />
-        <FvKpi label="Risparmio anno 1" value={formatEur(risparmioAnno1)} variant="green" />
+        <FvKpi label={tTesto("Investimento")} value={formatEur(investimento)} />
+        <FvKpi label={tTesto("Risparmio anno 1")} value={formatEur(risparmioAnno1)} variant="green" />
         <FvKpi
-          label="Payback"
+          label={tTesto("Payback")}
           value={(scenario.payback_anni as number | null) ?? "—"}
           unit="anni"
           variant="orange"
         />
-        <FvKpi label="Risparmio 25 anni" value={formatEur(risparmio25Anni)} variant="green" />
+        <FvKpi label={tTesto("Risparmio 25 anni")} value={formatEur(risparmio25Anni)} variant="green" />
       </div>
 
       {/* 3 NUM CARDS — Rata vs Risparmio vs Costo netto reale (Sprint 4: rata REALE) */}
@@ -5727,12 +5695,12 @@ function Step6FinanziarioPrivato({
         <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-5 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <div className="text-xs uppercase tracking-wider font-semibold text-blue-900 mb-1.5">
             {data.finanziamento_modalita === "cash"
-              ? "Pagamento cash"
+              ? tTesto("Pagamento cash")
               : data.finanziamento_modalita === "zero"
-                ? "Rata mensile (tasso 0%)"
+                ? tTesto("Rata mensile (tasso 0%)")
                 : data.finanziamento_modalita === "noleggio"
-                  ? "Canone operativo"
-                  : "Rata mensile finanziata"}
+                  ? tTesto("Canone operativo")
+                  : tTesto("Rata mensile finanziata")}
           </div>
           <div className="text-3xl font-extrabold text-blue-900 tabular-nums">
             {formatEur(rataMensile)}
@@ -5743,26 +5711,26 @@ function Step6FinanziarioPrivato({
         </div>
         <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-5 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <div className="text-xs uppercase tracking-wider font-semibold text-emerald-900 mb-1.5">
-            Risparmio bolletta
+            {tTesto("Risparmio bolletta")}
           </div>
           <div className="text-3xl font-extrabold text-emerald-700 tabular-nums">
             {formatEur(risparmioMensile)}
           </div>
-          <div className="text-xs text-emerald-700 mt-1">ogni mese, primo anno</div>
+          <div className="text-xs text-emerald-700 mt-1">{tTesto("ogni mese, primo anno")}</div>
         </div>
         <div className="rounded-2xl border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-orange-200 p-5 text-center relative transition-all hover:-translate-y-0.5 hover:shadow-lg">
           {/* Sul bordo in alto, al centro: nelle carte strette (con la colonna dell'anteprima) in un angolo copriva il titolo. */}
           <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[9px] font-bold tracking-wider text-orange-700 shadow-sm">
-            ★ COSTO REALE
+            {tTesto("★ COSTO REALE")}
           </div>
           <div className="text-xs uppercase tracking-wider font-semibold text-orange-900 mb-1.5">
-            Costo netto reale
+            {tTesto("Costo netto reale")}
           </div>
           <div className="text-4xl font-extrabold tabular-nums text-orange-700 animate-fv-pulse-scale">
             {formatEur(costoNettoMensile)}
           </div>
           <div className="text-xs text-orange-800 mt-1">
-            /mese · dopo risparmio{data.finanziamento_modalita === "noleggio" ? " e beneficio fiscale" : ""}
+            {tTesto("/mese · dopo risparmio")}{data.finanziamento_modalita === "noleggio" ? ` ${tTesto("e beneficio fiscale")}` : ""}
           </div>
         </div>
       </div>
@@ -5771,11 +5739,11 @@ function Step6FinanziarioPrivato({
       {cassaAnni.length > 0 && (
         <FvCard
           className="max-md:hidden"
-          title="Cassa cumulata 25 anni"
+          title={tTesto("Cassa cumulata 25 anni")}
           action={
             <div className="flex gap-2">
-              <FvChip variant="green">★ Breakeven anno {(scenario.payback_anni as number | null) ?? "—"}</FvChip>
-              <FvChip variant="orange">{formatEur(guadagnoNetto25Anni)} a fine vita</FvChip>
+              <FvChip variant="green">{tTesto("★ Breakeven anno")} {(scenario.payback_anni as number | null) ?? "—"}</FvChip>
+              <FvChip variant="orange">{tTesto("{guadagnoNetto25Anni} a fine vita", { guadagnoNetto25Anni: formatEur(guadagnoNetto25Anni) })}</FvChip>
             </div>
           }
         >
@@ -5787,23 +5755,23 @@ function Step6FinanziarioPrivato({
           capienza è tema da commercialista del cliente, non entriamo nel merito. */}
 
       {/* Sensitivity */}
-      <FvCard title="Cosa succede se cambia il prezzo dell'energia" className="mt-4 max-md:hidden">
+      <FvCard title={tTesto("Cosa succede se cambia il prezzo dell'energia")} className="mt-4 max-md:hidden">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <ScenarioBox
-            label="Pessimistico (-15%)"
+            label={tTesto("Pessimistico (-15%)")}
             payback={sens_minus15?.payback_anni}
             npv={sens_minus15?.npv}
             icon={<TrendingDown className="h-4 w-4 text-red-600" />}
           />
           <ScenarioBox
-            label="Base"
+            label={tTesto("Base")}
             payback={scenario.payback_anni as number | null}
             npv={scenario.npv_25_anni as number}
             icon={<Award className="h-4 w-4 text-amber-500" />}
             highlight
           />
           <ScenarioBox
-            label="Ottimistico (+15%)"
+            label={tTesto("Ottimistico (+15%)")}
             payback={sens_plus15?.payback_anni}
             npv={sens_plus15?.npv}
             icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
@@ -5812,27 +5780,27 @@ function Step6FinanziarioPrivato({
       </FvCard>
 
       {/* What-if scenari */}
-      <FvCard title="Se tra 2-3 anni…" className="mt-4 max-md:hidden">
+      <FvCard title={tTesto("Se tra 2-3 anni…")} className="mt-4 max-md:hidden">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <ScenarioBox
-            label="…compri auto elettrica"
+            label={tTesto("…compri auto elettrica")}
             payback={auto_ev?.payback_anni}
             npv={auto_ev?.npv}
-            subtitle={`autoconsumo ${(auto_ev?.autoconsumo * 100 || 0).toFixed(0)}%`}
+            subtitle={tTesto("autoconsumo {valore}%", { valore: (auto_ev?.autoconsumo * 100 || 0).toFixed(0) })}
           />
           <ScenarioBox
-            label="…installi pompa calore"
+            label={tTesto("…installi pompa calore")}
             payback={pdc?.payback_anni}
             npv={pdc?.npv}
-            subtitle="sostituisci caldaia gas"
+            subtitle={tTesto("sostituisci caldaia gas")}
           />
         </div>
       </FvCard>
 
       {/* Incentivi applicati */}
       {incentivi.length > 0 && (
-        <FvCard title="Incentivi considerati nello scenario" className="mt-4">
-          <p className="mb-3 text-sm text-slate-600">Importi stimati: requisiti, condizioni e capienza fiscale da verificare sul caso concreto.</p>
+        <FvCard title={tTesto("Incentivi considerati nello scenario")} className="mt-4">
+          <p className="mb-3 text-sm text-slate-600">{tTesto("Importi stimati: requisiti, condizioni e capienza fiscale da verificare sul caso concreto.")}</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {incentivi.map((inc) => (
               <div
@@ -5841,7 +5809,7 @@ function Step6FinanziarioPrivato({
               >
                 <div className="font-semibold text-sm text-slate-900">{inc.nome}</div>
                 <div className="text-xl font-bold mt-1 text-orange-600 tabular-nums">
-                  {inc.importo_eur != null ? formatEur(inc.importo_eur) : "Da verificare"}
+                  {inc.importo_eur != null ? formatEur(inc.importo_eur) : tTesto("Da verificare")}
                 </div>
               </div>
             ))}
@@ -5851,7 +5819,7 @@ function Step6FinanziarioPrivato({
 
       {data.finanziamento_modalita === "noleggio" && (
         <FvCard
-          title="Noleggio operativo fotovoltaico per aziende"
+          title={tTesto("Noleggio operativo fotovoltaico per aziende")}
           action={
             <FvChip
               variant={
@@ -5868,7 +5836,7 @@ function Step6FinanziarioPrivato({
           className="mt-4"
         >
           {!noleggioScenario.eligible ? (
-            <FvCallout variant="warn" title="Scenario pensato per aziende">
+            <FvCallout variant="warn" title={tTesto("Scenario pensato per aziende")}>
               {noleggioScenario.nextAction}
             </FvCallout>
           ) : (
@@ -5883,48 +5851,48 @@ function Step6FinanziarioPrivato({
                 }
                 title={
                   noleggioScenario.status === "recommended"
-                    ? "Canone sostenibile per proposta B2B"
-                    : "Verifica sostenibilità del canone"
+                    ? tTesto("Canone sostenibile per proposta B2B")
+                    : tTesto("Verifica sostenibilità del canone")
                 }
               >
                 {noleggioScenario.nextAction}
               </FvCallout>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 text-sm">
                 <div className="rounded-lg bg-slate-50 border p-3">
-                  <div className="text-xs text-slate-500">Anticipo</div>
+                  <div className="text-xs text-slate-500">{tTesto("Anticipo")}</div>
                   <div className="font-extrabold text-slate-900">{formatEur(noleggioScenario.anticipo_eur)}</div>
                 </div>
                 <div className="rounded-lg bg-slate-50 border p-3">
-                  <div className="text-xs text-slate-500">Canone</div>
+                  <div className="text-xs text-slate-500">{tTesto("Canone")}</div>
                   <div className="font-extrabold text-slate-900">{formatEur(noleggioScenario.canone_mensile)}/mese</div>
                 </div>
                 <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
-                  <div className="text-xs text-emerald-700">Risparmio energia</div>
+                  <div className="text-xs text-emerald-700">{tTesto("Risparmio energia")}</div>
                   <div className="font-extrabold text-emerald-800">{formatEur(noleggioScenario.risparmio_mensile)}/mese</div>
                 </div>
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                  <div className="text-xs text-blue-700">Beneficio fiscale stimato</div>
+                  <div className="text-xs text-blue-700">{tTesto("Beneficio fiscale stimato")}</div>
                   <div className="font-extrabold text-blue-800">{formatEur(noleggioScenario.beneficio_fiscale_mensile)}/mese</div>
                 </div>
                 <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
-                  <div className="text-xs text-orange-700">Costo effettivo</div>
+                  <div className="text-xs text-orange-700">{tTesto("Costo effettivo")}</div>
                   <div className="font-extrabold text-orange-800">{formatEur(noleggioScenario.costo_effettivo_mensile)}/mese</div>
                 </div>
               </div>
               <div className="grid md:grid-cols-3 gap-2 text-xs text-slate-600">
                 <div className="rounded-md bg-white border p-2">
-                  Durata: <strong>{noleggioScenario.durata_mesi} mesi</strong>
+                  {tTesto("Durata:")} <strong>{tTesto("{n} mesi", { n: String(noleggioScenario.durata_mesi ?? "") })}</strong>
                 </div>
                 <div className="rounded-md bg-white border p-2">
-                  Manutenzione inclusa stimata:{" "}
+                  {tTesto("Manutenzione inclusa stimata:")}{" "}
                   <strong>{formatEur(noleggioScenario.manutenzione_inclusa_mensile)}/mese</strong>
                 </div>
                 <div className="rounded-md bg-white border p-2">
-                  Copertura canone: <strong>{(noleggioScenario.copertura_canone_pct * 100).toFixed(0)}%</strong>
+                  {tTesto("Copertura canone:")} <strong>{(noleggioScenario.copertura_canone_pct * 100).toFixed(0)}%</strong>
                 </div>
               </div>
               <p className="text-[11px] text-slate-500">
-                Stima commerciale: deducibilita e trattamento fiscale vanno confermati con consulente e contratto del provider.
+                {tTesto("Stima commerciale: deducibilita e trattamento fiscale vanno confermati con consulente e contratto del provider.")}
               </p>
             </div>
           )}
@@ -5940,18 +5908,17 @@ function Step6FinanziarioPrivato({
       >
         <div className="text-center mb-5">
           <div className="inline-block bg-white text-orange-700 px-4 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase mb-3">
-            ★ Perché farlo ADESSO
+            {tTesto("★ Perché farlo ADESSO")}
           </div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-2 leading-tight">
-            Negli ultimi 10 anni le bollette sono salite del{" "}
+            {tTesto("Negli ultimi 10 anni le bollette sono salite del")}{" "}
             <span className="text-orange-600">+240%</span>
           </h2>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-tight">
-            Il tuo stipendio? Solo <span className="text-red-600">+11,5%</span>
+            {tTesto("Il tuo stipendio? Solo")} <span className="text-red-600">+11,5%</span>
           </h2>
           <p className="text-sm text-slate-700 mt-3 max-w-xl mx-auto">
-            Dati Codacons + ISTAT. La differenza è una mazzata che peggiora ogni anno. Il fotovoltaico è
-            l'unico modo concreto per <strong>uscire da questa forbice</strong>.
+            {tTesto("Dati Codacons + ISTAT. La differenza è una mazzata che peggiora ogni anno. Il fotovoltaico è l'unico modo concreto per")} <strong>{tTesto("uscire da questa forbice")}</strong>.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
@@ -5959,19 +5926,19 @@ function Step6FinanziarioPrivato({
             {
               val: "+240%",
               lbl: "Bolletta luce",
-              sub: "2012 → 2022 · Codacons",
+              sub: tTesto("2012 → 2022 · Codacons"),
               color: "text-red-600",
             },
             {
               val: "+107%",
               lbl: "In soli 5 anni",
-              sub: "2019 → 2024 · Confcommercio",
+              sub: tTesto("2019 → 2024 · Confcommercio"),
               color: "text-orange-600",
             },
             {
               val: "+11,5%",
               lbl: "Reddito famiglie",
-              sub: "Stesso periodo · ISTAT",
+              sub: tTesto("Stesso periodo · ISTAT"),
               color: "text-slate-500",
             },
           ].map((k) => (
@@ -6007,18 +5974,18 @@ function Step6FinanziarioPrivato({
               const bollette25Anni = proiezioneSpesaFv(spesaAnnuaAttuale, variazione);
               return bollette25Anni != null ? (
                 <>
-                  Spesa stimata in 25 anni senza impianto:{" "}
-                  <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> di{" "}
-                  {spesaLetta != null ? "bollette" : "acquisti di energia, escluse le quote fisse"} (variazione ipotizzata {new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 2 }).format(variazione as number)}/anno, come nel calcolo)
+                  {tTesto("Spesa stimata in 25 anni senza impianto:")}{" "}
+                  <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> {tTesto("di")}{" "}
+                  {spesaLetta != null ? tTesto("bollette") : tTesto("acquisti di energia, escluse le quote fisse")} {tTesto("(variazione ipotizzata")} {new Intl.NumberFormat(intlCampo(), { style: "percent", maximumFractionDigits: 2 }).format(variazione as number)}{tTesto("/anno, come nel calcolo)")}
                   <br />
                 </>
               ) : null;
             })()}
-            {"Investimento "}<strong className="text-orange-400">{formatEur(investimento)}</strong>.{" "}
-            <strong className="text-emerald-400">Saldo cumulato stimato a 25 anni: {formatEur(guadagnoNetto25Anni)}</strong>.
+            {`${tTesto("Investimento")} `}<strong className="text-orange-400">{formatEur(investimento)}</strong>.{" "}
+            <strong className="text-emerald-400">{tTesto("Saldo cumulato stimato a 25 anni: {guadagnoNetto25Anni}", { guadagnoNetto25Anni: formatEur(guadagnoNetto25Anni) })}</strong>.
           </div>
           <div className="relative text-sm opacity-85 mt-3">
-            Stima legata a produzione, consumi, tariffe, manutenzione e benefici fiscali effettivamente utilizzabili.
+            {tTesto("Stima legata a produzione, consumi, tariffe, manutenzione e benefici fiscali effettivamente utilizzabili.")}
           </div>
         </div>
       </div>
@@ -6030,7 +5997,7 @@ function Step6FinanziarioPrivato({
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5"
         >
           <RefreshCw className="h-3 w-3" />
-          Ricalcola
+          {tTesto("Ricalcola")}
         </button>
       </div>
     </>
@@ -6061,6 +6028,7 @@ function ScenarioBox({
   highlight?: boolean;
   subtitle?: string;
 }) {
+  const t = useT();
   return (
     <div
       className={`rounded-xl border p-3.5 transition-all hover:-translate-y-0.5 hover:shadow ${
@@ -6073,12 +6041,12 @@ function ScenarioBox({
       </div>
       <div className="mt-2 space-y-0.5">
         <div className="text-sm">
-          Payback: <strong className="tabular-nums">{payback ?? "—"} anni</strong>
+          {t("Payback:")} <strong className="tabular-nums">{payback ?? "—"} {t("anni")}</strong>
         </div>
         <div className="text-sm">
-          NPV:{" "}
+          {t("NPV:")}{" "}
           <strong className="tabular-nums">
-            € {(npv ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 0 })}
+            € {(npv ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 0 })}
           </strong>
         </div>
         {subtitle && <div className="text-xs text-slate-500">{subtitle}</div>}
@@ -6104,6 +6072,7 @@ export function FvControlloEconomico({
   variant: ComponentProps<typeof FvCallout>["variant"];
   title: string;
 }) {
+  const t = useT();
   const puoVedereImpresa = usePuoVedereImpresa();
   if (!puoVedereImpresa) return null;
   return (
@@ -6122,31 +6091,28 @@ export function FvControlloEconomico({
           {/* Telefono: i margini si guardano dal computer. */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs max-md:hidden">
             <div className="rounded-md bg-white/70 p-2">
-              <div className="text-slate-500">Margine reale</div>
+              <div className="text-slate-500">{t("Margine reale")}</div>
               <div className="font-bold text-slate-900">
                 {guard.metrics.margine_pct != null ? `${(guard.metrics.margine_pct * 100).toFixed(1)}%` : "—"}
                 {guard.metrics.margine_target_pct != null && (
-                  <span className="font-medium text-slate-500">
-                    {" "}
-                    / target {(guard.metrics.margine_target_pct * 100).toFixed(0)}%
-                  </span>
+                  <span className="font-medium text-slate-500">{" "}{t("/ target {valore}%", { valore: (guard.metrics.margine_target_pct * 100).toFixed(0) })}</span>
                 )}
               </div>
             </div>
             <div className="rounded-md bg-white/70 p-2">
-              <div className="text-slate-500">Margine lordo</div>
+              <div className="text-slate-500">{t("Margine lordo")}</div>
               <div className="font-bold text-slate-900">
                 {guard.metrics.margine_eur != null ? formatEur(guard.metrics.margine_eur) : "—"}
               </div>
             </div>
             <div className="rounded-md bg-white/70 p-2">
-              <div className="text-slate-500">CPL massimo</div>
+              <div className="text-slate-500">{t("CPL massimo")}</div>
               <div className="font-bold text-slate-900">
                 {guard.metrics.cpl_max_sostenibile != null ? formatEur(guard.metrics.cpl_max_sostenibile) : "—"}
               </div>
             </div>
             <div className="rounded-md bg-white/70 p-2">
-              <div className="text-slate-500">Rata meno risparmio</div>
+              <div className="text-slate-500">{t("Rata meno risparmio")}</div>
               <div className="font-bold text-slate-900">
                 {guard.metrics.costo_netto_mensile != null ? `${formatEur(guard.metrics.costo_netto_mensile)}/mese` : "—"}
               </div>
@@ -6176,6 +6142,7 @@ export function Step7VistaImpresa({
   progettoId: string;
   scenario: Record<string, unknown> | null;
 }) {
+  const t = useT();
   const puoVedereImpresa = usePuoVedereImpresa();
   const costi = scenario?.costi as
     | {
@@ -6191,15 +6158,15 @@ export function Step7VistaImpresa({
   // non si conosce: «n.d.» invece di un numero inventato.
   const nd = Boolean(costi?.costi_incompleti);
   const euro = (v: number | null | undefined) =>
-    (v ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 0 });
+    (v ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 0 });
 
   // Costo diretto e margine sono dell'impresa: senza il permesso la fase resta nel percorso ma non mostra i numeri.
   if (!puoVedereImpresa) {
     return (
       <>
-        <FvPanelTitle step={7} totalSteps={TOTAL_STEPS} title="Vista impresa (interna)" subtitle="Costi e margini dell'impresa." />
-        <FvCallout variant="info" title="Vista riservata">
-          Questa vista è riservata a chi può vedere costi e margini. Per questo preventivo vai avanti alla fase successiva: il cliente non la vede mai.
+        <FvPanelTitle step={7} totalSteps={TOTAL_STEPS} title={t("Vista impresa (interna)")} subtitle={t("Costi e margini dell'impresa.")} />
+        <FvCallout variant="info" title={t("Vista riservata")}>
+          {t("Questa vista è riservata a chi può vedere costi e margini. Per questo preventivo vai avanti alla fase successiva: il cliente non la vede mai.")}
         </FvCallout>
       </>
     );
@@ -6210,35 +6177,35 @@ export function Step7VistaImpresa({
       <FvPanelTitle
         step={7}
         totalSteps={TOTAL_STEPS}
-        title="Vista impresa (interna)"
+        title={t("Vista impresa (interna)")}
         subtitle={
           <>
-            Marginalità, costi diretti, allocazione cantiere. <strong>Solo per il venditore</strong> — il cliente non lo vede mai.
+            {t("Marginalità, costi diretti, allocazione cantiere.")} <strong>{t("Solo per il venditore")}</strong> {t("— il cliente non lo vede mai.")}
           </>
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <FvKpi
-          label="Costo diretto"
+          label={t("Costo diretto")}
           value={nd ? "n.d." : euro(costi?.costo_totale_netto)}
           unit="€"
         />
         <FvKpi
-          label="Prezzo vendita"
-          value={(costi?.prezzo_vendita_iva_inclusa ?? 0).toLocaleString("it-IT", {
+          label={t("Prezzo vendita")}
+          value={(costi?.prezzo_vendita_iva_inclusa ?? 0).toLocaleString(intlCampo(), {
             maximumFractionDigits: 0,
           })}
           unit="€"
         />
         <FvKpi
-          label="Margine €"
+          label={t("Margine €")}
           value={nd || costi?.margine_eur == null ? "n.d." : euro(costi.margine_eur)}
           unit="€"
           variant="green"
         />
         <FvKpi
-          label="Margine %"
+          label={t("Margine %")}
           value={nd || costi?.margine_pct == null ? "n.d." : `${(costi.margine_pct * 100).toFixed(1)}`}
           unit="%"
           variant="orange"
@@ -6247,25 +6214,22 @@ export function Step7VistaImpresa({
 
       {nd && (
         <div className="mb-4">
-          <FvCallout variant="tip" title="Margine non disponibile">
-            Alcune voci non hanno un costo d'acquisto (listino senza prezzi, kit o prezzo a corpo): il
-            preventivo esce lo stesso, il margine si vedrà caricando i costi nel listino.
+          <FvCallout variant="tip" title={t("Margine non disponibile")}>
+            {t("Alcune voci non hanno un costo d'acquisto (listino senza prezzi, kit o prezzo a corpo): il preventivo esce lo stesso, il margine si vedrà caricando i costi nel listino.")}
           </FvCallout>
         </div>
       )}
 
       {/* Telefono: i numeri sopra bastano; le due spiegazioni restano al computer. */}
       <div className="max-md:hidden">
-        <FvCallout variant="info" title="Vista riservata venditore + Titolare">
-          Questa schermata non viene mai esportata né inviata al cliente. I numeri qui sono interni
-          all'impresa: margini, allocazione squadra, costi reali. Il cliente vede solo la fase 6.
+        <FvCallout variant="info" title={t("Vista riservata venditore + Titolare")}>
+          {t("Questa schermata non viene mai esportata né inviata al cliente. I numeri qui sono interni all'impresa: margini, allocazione squadra, costi reali. Il cliente vede solo la fase 6.")}
         </FvCallout>
       </div>
 
-      <FvCard title="Modifiche componenti & manodopera" className="mt-4 max-md:hidden">
+      <FvCard title={t("Modifiche componenti & manodopera")} className="mt-4 max-md:hidden">
         <p className="text-sm text-slate-600 mb-3">
-          Per modificare componenti, manodopera o servizi torna alla <strong>Fase 5</strong>. Le modifiche al margine per
-          singolo componente saranno disponibili nella pagina <strong>Dettaglio progetto</strong> dopo l'emissione.
+          {t("Per modificare componenti, manodopera o servizi torna alla")} <strong>{t("Fase 5")}</strong>{t(". Le modifiche al margine per singolo componente saranno disponibili nella pagina")} <strong>{t("Dettaglio progetto")}</strong> {t("dopo l'emissione.")}
         </p>
       </FvCard>
     </>
@@ -6302,26 +6266,24 @@ function Step8Genera({
   modelloCondizioniId?: string | null;
   condizioniSpenteNelModello: boolean;
 }) {
+  const t = useT();
   return (
     <>
       <FvPanelTitle
         step={8}
         totalSteps={TOTAL_STEPS}
-        title="Genera preventivo professionale"
+        title={t("Genera preventivo professionale")}
         subtitle={
           <>
-            Riepilogo finale e generazione del <strong>preventivo HTML configurabile</strong> (cover,
-            viste tetto, componenti, produzione, flussi energetici, risparmio, costi futuri,
-            piano economico, cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
-            Apribile nel browser e stampabile come PDF con un click.
+            {t("Riepilogo finale e generazione del")} <strong>{t("preventivo HTML configurabile")}</strong> {t("(cover, viste tetto, componenti, produzione, flussi energetici, risparmio, costi futuri, piano economico, cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma). Apribile nel browser e stampabile come PDF con un click.")}
           </>
         }
       />
 
       {analisiDisponibile && <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-900">
         <input type="checkbox" className="mt-1 h-5 w-5" checked={analisiAttiva} disabled={salvando || readOnly} onChange={e => void onAnalisi(e.target.checked)}/>
-        <span><strong className="block">Includi consumi e analisi energetica nel PDF</strong>
-          <span className="mt-1 block text-slate-600">Bolletta confermata, produzione, flussi di energia e risparmio stimato. La scelta vale per questo preventivo.</span></span>
+        <span><strong className="block">{t("Includi consumi e analisi energetica nel PDF")}</strong>
+          <span className="mt-1 block text-slate-600">{t("Bolletta confermata, produzione, flussi di energia e risparmio stimato. La scelta vale per questo preventivo.")}</span></span>
       </label>}
 
       {/* Il documento con o senza la parte contrattuale, e le condizioni riscritte per questo cliente: la stessa
@@ -6347,12 +6309,10 @@ function Step8Genera({
         <div className="py-8 text-center space-y-4 max-md:space-y-3 max-md:py-1">
           <FileText className="h-16 w-16 mx-auto text-orange-500 max-md:hidden" />
           <h3 className="text-xl font-bold text-slate-900 max-md:text-base">
-            Pronto a generare il preventivo
+            {t("Pronto a generare il preventivo")}
           </h3>
           <p className="text-sm text-slate-500 max-w-md mx-auto max-md:hidden">
-            Genereremo un documento <strong>print-ready A4</strong> con tutti i dati reali del
-            progetto, grafici inline, viste satellitari del tetto, calcoli finanziari completi
-            e pagina firma cliente. Tempo stimato: 5 secondi.
+            {t("Genereremo un documento")} <strong>{t("print-ready A4")}</strong> {t("con tutti i dati reali del progetto, grafici inline, viste satellitari del tetto, calcoli finanziari completi e pagina firma cliente. Tempo stimato: 5 secondi.")}
           </p>
           <button
             type="button"
@@ -6363,29 +6323,27 @@ function Step8Genera({
             {salvando ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Generazione in corso…
+                {t("Generazione in corso…")}
               </>
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                Genera ed emetti preventivo
+                {t("Genera ed emetti preventivo")}
               </>
             )}
           </button>
           {readOnly && (
             <p className="text-xs text-amber-700 max-w-md mx-auto">
-              🔒 Progetto in sola lettura: già emesso/firmato. Clona il progetto
-              per generare una nuova versione del preventivo.
+              {t("🔒 Progetto in sola lettura: già emesso/firmato. Clona il progetto per generare una nuova versione del preventivo.")}
             </p>
           )}
         </div>
       </FvCard>
 
       <div className="max-md:hidden">
-        <FvCallout variant="success" title="Tutto pronto per la generazione finale">
-          Il preventivo verrà salvato nello storage e diventa scaricabile dalla scheda <strong>Preventivo</strong>
-          del dettaglio progetto. Potrai aprirlo nel browser ("Apri preventivo") oppure stamparlo
-          direttamente in PDF ("Apri e stampa subito").
+        <FvCallout variant="success" title={t("Tutto pronto per la generazione finale")}>
+          {t("Il preventivo verrà salvato nello storage e diventa scaricabile dalla scheda")} <strong>{t("Preventivo")}</strong>
+          {t("del dettaglio progetto. Potrai aprirlo nel browser (\"Apri preventivo\") oppure stamparlo direttamente in PDF (\"Apri e stampa subito\").")}
         </FvCallout>
       </div>
     </>

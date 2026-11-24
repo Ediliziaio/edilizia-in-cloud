@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import type { CatalogItem, ConfiguredItem } from "@/types/catalogItem";
 import { configuraProdottoSemplice } from "@/lib/preventivi/configurazioneSemplice";
 import { formatCurrency } from "@/lib/formatters";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const numero = (value: string) => Number(value.replace(",", "."));
 export function BatchProductConfigurator({
@@ -20,6 +21,7 @@ export function BatchProductConfigurator({
   onAddItems: (items: ConfiguredItem[], next: number) => void;
   onRemove: (item: CatalogItem) => void;
 }) {
+  const t = useT();
   const [valori, setValori] = useState<
     Record<string, { quantita: string; prezzo: string }>
   >({});
@@ -81,32 +83,31 @@ export function BatchProductConfigurator({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" onClick={onBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Torna alla selezione
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t("Torna alla selezione")}
         </Button>
         <span className="text-sm text-muted-foreground">
-          {righe.length} prodotti ·{" "}
-          {incomplete ? `${incomplete} da completare` : "pronti da aggiungere"}
+          {incomplete ? t("{n} prodotti · {incompleti} da completare", { n: righe.length, incompleti: incomplete }) : t("{n} prodotti · pronti da aggiungere", { n: righe.length })}
         </span>
       </div>
       <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3">
         <label className="space-y-1 text-xs font-medium">
-          Quantità per tutti
+          {t("Quantità per tutti")}
           <Input
-            aria-label="Quantità per tutti"
+            aria-label={t("Quantità per tutti")}
             className="w-32"
             inputMode="decimal"
-            placeholder="Lascia invariata"
+            placeholder={t("Lascia invariata")}
             value={quantitaComune}
             onChange={(e) => setQuantitaComune(e.target.value)}
           />
         </label>
         <label className="space-y-1 text-xs font-medium">
-          Prezzo cliente per tutti (€)
+          {t("Prezzo cliente per tutti (€)")}
           <Input
-            aria-label="Prezzo cliente per tutti"
+            aria-label={t("Prezzo cliente per tutti")}
             className="w-44"
             inputMode="decimal"
-            placeholder="Lascia invariato"
+            placeholder={t("Lascia invariato")}
             value={prezzoComune}
             onChange={(e) => setPrezzoComune(e.target.value)}
           />
@@ -132,24 +133,23 @@ export function BatchProductConfigurator({
             )
           }
         >
-          Applica a tutti
+          {t("Applica a tutti")}
         </Button>
         <p className="w-full text-xs text-muted-foreground">
-          Le modifiche valgono solo per questo preventivo, non aggiornano il
-          listino.
+          {t("Le modifiche valgono solo per questo preventivo, non aggiornano il listino.")}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="text-left text-xs text-muted-foreground">
-              <th className="p-3">Prodotto</th>
-              <th className="p-3">Costo interno</th>
-              <th className="p-3">Quantità</th>
-              <th className="p-3">Prezzo cliente (€)</th>
-              <th className="p-3 text-right">Totale</th>
+              <th className="p-3">{t("Prodotto")}</th>
+              <th className="p-3">{t("Costo interno")}</th>
+              <th className="p-3">{t("Quantità")}</th>
+              <th className="p-3">{t("Prezzo cliente (€)")}</th>
+              <th className="p-3 text-right">{t("Totale")}</th>
               <th className="p-3">
-                <span className="sr-only">Rimuovi</span>
+                <span className="sr-only">{t("Rimuovi")}</span>
               </th>
             </tr>
           </thead>
@@ -166,16 +166,14 @@ export function BatchProductConfigurator({
                 >
                   <td className="p-3 font-medium">
                     {riga.item.nome}
-                    <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                      Unità: {riga.item.unit_of_measure}
-                    </span>
+                    <span className="mt-1 block text-xs font-normal text-muted-foreground">{t("Unità: {unita}", { unita: String(riga.item.unit_of_measure ?? "") })}</span>
                   </td>
                   <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">
-                    {costo == null ? "Non disponibile" : costo.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 4 })}
+                    {costo == null ? t("Non disponibile") : costo.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 4 })}
                   </td>
                   <td className="p-3">
                     <Input
-                      aria-label={`Quantità ${riga.item.nome}`}
+                      aria-label={t("Quantità {nome}", { nome: String(riga.item.nome ?? "") })}
                       className="w-24"
                       aria-invalid={!Number.isFinite(numero(riga.quantita)) || numero(riga.quantita) <= 0}
                       inputMode="decimal"
@@ -187,11 +185,11 @@ export function BatchProductConfigurator({
                   </td>
                   <td className="p-3">
                     <Input
-                      aria-label={`Prezzo cliente ${riga.item.nome}`}
+                      aria-label={t("Prezzo cliente {nome}", { nome: String(riga.item.nome ?? "") })}
                       className={`w-36 ${!valida(riga) ? "border-amber-300 bg-amber-50/40" : ""}`}
                       aria-invalid={!Number.isFinite(numero(riga.prezzo)) || numero(riga.prezzo) <= 0}
                       inputMode="decimal"
-                      placeholder="Da definire"
+                      placeholder={t("Da definire")}
                       value={riga.prezzo}
                       onChange={(e) =>
                         modifica(index, "prezzo", e.target.value)
@@ -209,7 +207,7 @@ export function BatchProductConfigurator({
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label={`Rimuovi ${riga.item.nome}`}
+                      aria-label={t("Rimuovi {nome}", { nome: String(riga.item.nome ?? "") })}
                       onClick={() =>
                         onRemove(riga.item)
                       }
@@ -226,15 +224,13 @@ export function BatchProductConfigurator({
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t pt-4">
         <div>
           <p className="text-xs text-muted-foreground">
-            {incomplete ? "Totale parziale" : "Totale vendita"} · IVA esclusa
+            {incomplete ? t("Totale parziale · IVA esclusa") : t("Totale vendita · IVA esclusa")}
           </p>
           <strong className="text-2xl tabular-nums">
             {formatCurrency(totale)}
           </strong>
           {incomplete > 0 && (
-            <p role="status" className="mt-1 text-xs text-amber-800">
-              Completa quantità e prezzi delle {incomplete} righe indicate.
-            </p>
+            <p role="status" className="mt-1 text-xs text-amber-800">{t("Completa quantità e prezzi delle {incomplete} righe indicate.", { incomplete: String(incomplete ?? "") })}</p>
           )}
         </div>
         <Button
@@ -253,7 +249,7 @@ export function BatchProductConfigurator({
           }}
         >
           <Plus className="mr-2 h-4 w-4" />
-          Aggiungi {righe.length} prodotti al preventivo
+          {t("Aggiungi {n} prodotti al preventivo", { n: righe.length })}
         </Button>
       </div>
     </div>

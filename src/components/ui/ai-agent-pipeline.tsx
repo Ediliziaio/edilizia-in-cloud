@@ -8,6 +8,7 @@ import {
 } from "@/lib/ai/attivita";
 import { cn } from "@/lib/utils";
 import type { AttivitaAi } from "../../../shared/aiAttivita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const fasi = [
   { nome: "Ricezione", Icona: Inbox },
@@ -52,14 +53,15 @@ export function AiAgentPipeline({ attivita, adesso, disponibile, azione }: {
   disponibile: boolean;
   azione?: ReactNode;
 }) {
+  const t = useT();
   const id = useId();
   const riduciMovimento = useReducedMotion();
 
   if (!attivita) return (
     <section aria-labelledby={id} className="rounded-xl border border-dashed bg-card px-6 py-12 text-center">
       <Activity className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden="true" />
-      <h3 id={id} className="text-sm font-semibold">{disponibile ? "Dettaglio attività" : "Registro non disponibile"}</h3>
-      {disponibile && <p className="mt-1 text-sm text-muted-foreground">Scegli un’attività per vedere i passaggi.</p>}
+      <h3 id={id} className="text-sm font-semibold">{disponibile ? t("Dettaglio attività") : t("Registro non disponibile")}</h3>
+      {disponibile && <p className="mt-1 text-sm text-muted-foreground">{t("Scegli un’attività per vedere i passaggi.")}</p>}
     </section>
   );
 
@@ -91,7 +93,7 @@ export function AiAgentPipeline({ attivita, adesso, disponibile, azione }: {
               transition={{ duration: riduciMovimento ? 0 : 0.16, ease: "easeOut" }}
               className="text-lg font-semibold leading-snug tracking-tight sm:text-xl"
             >
-              {stato === "interrotta" ? "Aggiornamenti interrotti" : fase.testo}
+              {stato === "interrotta" ? t("Aggiornamenti interrotti") : fase.testo}
             </motion.p>
           </AnimatePresence>
         </div>
@@ -101,7 +103,7 @@ export function AiAgentPipeline({ attivita, adesso, disponibile, azione }: {
             <motion.div className="h-full origin-left bg-primary/60" initial={false}
               animate={{ scaleX: fase.tratto / 2 }} transition={{ duration: riduciMovimento ? 0 : 0.22, ease: "easeOut" }} />
           </div>
-          <ol aria-label="Fasi della richiesta" className="relative grid grid-cols-3 text-center">
+          <ol aria-label={t("Fasi della richiesta")} className="relative grid grid-cols-3 text-center">
             {fasi.map(({ nome, Icona }, indice) => {
               const corrente = indice === fase.tratto;
               const conclusa = indice < fase.tratto && raggiunte.has(indice as 0 | 1 | 2);
@@ -109,10 +111,10 @@ export function AiAgentPipeline({ attivita, adesso, disponibile, azione }: {
                 <li key={nome} aria-current={corrente ? "step" : undefined} className="flex flex-col items-center gap-1.5">
                   <span className={cn("grid size-9 place-items-center rounded-full border bg-card text-muted-foreground",
                     conclusa && "border-primary/30 text-primary", corrente && cn("border-transparent", toni[stato]))}>
-                    {conclusa ? <Check className="size-4" aria-label="Passaggio completato" />
+                    {conclusa ? <Check className="size-4" aria-label={t("Passaggio completato")} />
                       : <Icona className="size-4" aria-hidden="true" />}
                   </span>
-                  <span className={cn("text-xs text-muted-foreground", corrente && "font-semibold text-foreground")}>{nome}</span>
+                  <span className={cn("text-xs text-muted-foreground", corrente && "font-semibold text-foreground")}>{t(nome)}</span>
                 </li>
               );
             })}
@@ -122,30 +124,30 @@ export function AiAgentPipeline({ attivita, adesso, disponibile, azione }: {
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b px-4 py-3 text-xs sm:px-5">
         <div className="min-w-0">
-          <dt className="flex items-center gap-1.5 text-muted-foreground"><UserRound className="size-3.5" aria-hidden="true" /> Avviata da</dt>
+          <dt className="flex items-center gap-1.5 text-muted-foreground"><UserRound className="size-3.5" aria-hidden="true" /> {t("Avviata da")}</dt>
           <dd className="mt-1 truncate font-semibold" title={nomeAttore(attivita)}>{nomeAttore(attivita)}</dd>
         </div>
         <div>
-          <dt className="flex items-center gap-1.5 text-muted-foreground"><Clock3 className="size-3.5" aria-hidden="true" /> Tempo trascorso</dt>
+          <dt className="flex items-center gap-1.5 text-muted-foreground"><Clock3 className="size-3.5" aria-hidden="true" /> {t("Tempo trascorso")}</dt>
           <TempoAttivita attivita={attivita} adesso={adesso} inCorso={stato === "in_corso"} />
         </div>
         {attivita.modello && (
           <div className="col-span-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-            <dt className="flex items-center gap-1.5 text-muted-foreground"><Cpu className="size-3.5" aria-hidden="true" /> Ultimo motore usato</dt>
-            <dd className="break-all font-medium">{attivita.modello === "regole" ? "Regole del gestionale" : attivita.modello}</dd>
+            <dt className="flex items-center gap-1.5 text-muted-foreground"><Cpu className="size-3.5" aria-hidden="true" /> {t("Ultimo motore usato")}</dt>
+            <dd className="break-all font-medium">{attivita.modello === "regole" ? t("Regole del gestionale") : attivita.modello}</dd>
           </div>
         )}
       </dl>
       {attivita.lotti && (
         <div className="border-b px-4 py-3 sm:px-5">
-          <p className="mb-2 text-xs font-semibold tabular-nums">{attivita.lotti.completati} su {attivita.lotti.totale} lotti completati</p>
-          <Progress aria-label="Avanzamento della riconciliazione" className="h-1.5"
+          <p className="mb-2 text-xs font-semibold tabular-nums">{t("{completati} su {totale} lotti completati", { completati: String(attivita.lotti.completati ?? ""), totale: String(attivita.lotti.totale ?? "") })}</p>
+          <Progress aria-label={t("Avanzamento della riconciliazione")} className="h-1.5"
             indicatorClassName="motion-reduce:transition-none"
             value={100 * attivita.lotti.completati / attivita.lotti.totale} />
         </div>
       )}
       <div className="px-4 pb-3 pt-3.5 sm:px-5">
-        <h4 className="mb-2 text-sm font-semibold">Cronologia</h4>
+        <h4 className="mb-2 text-sm font-semibold">{t("Cronologia")}</h4>
         <ol className="max-h-[16rem] divide-y overflow-y-auto overscroll-contain">
           {passaggi.map((passo, indice) => (
             <li key={passo.chiave} className="flex items-start gap-2 py-2 text-xs">
@@ -153,7 +155,7 @@ export function AiAgentPipeline({ attivita, adesso, disponibile, azione }: {
               <span className={cn("min-w-0 flex-1 leading-relaxed", indice === 0 && "font-semibold")}>{faseAttivita(passo.fase).testo}</span>
               {passo.durata_ms != null && (
                 <span className="shrink-0 rounded bg-muted px-1.5 font-medium tabular-nums leading-relaxed"
-                  title="Durata del passaggio">{durataPassaggio(passo.durata_ms)}</span>
+                  title={t("Durata del passaggio")}>{durataPassaggio(passo.durata_ms)}</span>
               )}
               <time className="shrink-0 tabular-nums leading-relaxed text-muted-foreground" dateTime={passo.at}>{oraAttivita(passo.at)}</time>
             </li>

@@ -37,6 +37,7 @@ import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
 import {
   mesiApertura, margineAlMese, mesiSostenibili, mesiRitardo, costoRitardo, fmtMesi,
 } from "@/lib/controlloGestione/tempoCommessa";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
@@ -64,6 +65,7 @@ const SEMAFORO_LABEL: Record<Semaforo, string> = {
 };
 
 export function TabCommesse({ anno }: Props) {
+  const t = useT();
   const [filter, setFilter] = useState<"all" | "in_corso" | "completato" | "assistenza">("all");
   const [sortBy, setSortBy] = useState<"preventivo" | "manodopera" | "perdita">("preventivo");
   // Mobile: numeri senza spiegazioni, filtro di stato e una riga per cantiere
@@ -174,82 +176,82 @@ export function TabCommesse({ anno }: Props) {
     <div className="space-y-4">
       {/* KPI bar */}
       <p className="text-xs text-muted-foreground">
-        {kpi.n_anno ?? kpi.n_commesse} commesse aperte nel {anno}
-        {(kpi.n_pregresso ?? 0) > 0 && <> + {kpi.n_pregresso} degli anni prima ancora da chiudere</>}. Clicca una riga per aprirla.
+        {t("{n} commesse aperte nel {anno}", { n: kpi.n_anno ?? kpi.n_commesse, anno })}
+        {(kpi.n_pregresso ?? 0) > 0 && <>{" "}{t("+ {n} degli anni prima ancora da chiudere", { n: kpi.n_pregresso ?? 0 })}</>}.{" "}{t("Clicca una riga per aprirla.")}
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         <KPIMini
-          label="Commesse"
+          label={t("Commesse")}
           value={String(kpi.n_commesse)}
-          sub={`${kpi.n_in_corso} in lavorazione · ${kpi.n_completate} finite · ${kpi.n_assistenza ?? 0} in assistenza`}
+          sub={t("{inCorso} in lavorazione · {finite} finite · {assistenza} in assistenza", { inCorso: kpi.n_in_corso, finite: kpi.n_completate, assistenza: kpi.n_assistenza ?? 0 })}
         />
         <KPIMini
-          label="Preventivato"
+          label={t("Preventivato")}
           value={formatCurrency(kpi.preventivo_totale)}
-          sub="Contratti più varianti approvate, senza IVA"
+          sub={t("Contratti più varianti approvate, senza IVA")}
           tone="blue"
         />
         <KPIMini
-          label="Costi sostenuti"
+          label={t("Costi sostenuti")}
           value={formatCurrency(kpi.consuntivo_totale)}
-          sub="Costi diretti delle commesse valutabili"
+          sub={t("Costi diretti delle commesse valutabili")}
           tone="amber"
         />
         <KPIMini
-          label="Manodopera"
+          label={t("Manodopera")}
           value={labor ? formatCurrency(labor.costo) : "—"}
           sub={
             labor
-              ? `${labor.ore.toLocaleString("it-IT")} ore${labor.incidenza !== null ? ` · ${percIt(labor.incidenza, 0)} dei costi` : ""}`
+              ? `${t("{n} ore", { n: labor.ore.toLocaleString(intlCampo()) })}${labor.incidenza !== null ? ` · ${t("{valore} dei costi", { valore: percIt(labor.incidenza, 0) })}` : ""}`
               : "—"
           }
           tone="amber"
         />
         <KPIMini
-          label="Margine atteso a fine lavori"
+          label={t("Margine atteso a fine lavori")}
           value={(kpi.preventivo_con_margine_atteso ?? kpi.preventivo_valutabile) > 0 ? formatCurrency(kpi.margine_atteso_totale) : "—"}
           sub={
             (kpi.preventivo_con_margine_atteso ?? kpi.preventivo_valutabile) > 0
-              ? `${percIt((kpi.margine_atteso_totale / (kpi.preventivo_con_margine_atteso ?? kpi.preventivo_valutabile)) * 100)} sulle commesse valutabili`
-              : "Costi da completare"
+              ? t("{valore} sulle commesse valutabili", { valore: percIt((kpi.margine_atteso_totale / (kpi.preventivo_con_margine_atteso ?? kpi.preventivo_valutabile)) * 100) })
+              : t("Costi da completare")
           }
           tone="neutral"
         />
         <KPIMini
-          label="Stimate in perdita"
+          label={t("Stimate in perdita")}
           value={String(kpi.n_in_perdita)}
-          sub={kpi.n_in_perdita > 0 ? "A fine lavori i costi supereranno il preventivo" : "Nessuna commessa in perdita"}
+          sub={kpi.n_in_perdita > 0 ? t("A fine lavori i costi supereranno il preventivo") : t("Nessuna commessa in perdita")}
           tone="neutral"
           onClick={kpi.n_in_perdita > 0 ? () => setSortBy("perdita") : undefined}
         />
         <KPIMini
-          label="Non valutabili"
+          label={t("Non valutabili")}
           value={String(counts?.grigio ?? 0)}
           sub={counts && counts.grigio > 0
-            ? `${counts.senzaDati} senza costi o preventivo · ${counts.troppoPresto} sotto il 20% di avanzamento`
-            : "Tutte valutabili"}
+            ? t("{senzaDati} senza costi o preventivo · {troppoPresto} sotto il 20% di avanzamento", { senzaDati: counts.senzaDati, troppoPresto: counts.troppoPresto })
+            : t("Tutte valutabili")}
           tone="neutral"
         />
         {isMobile ? null : quotaStruttura !== null ? (
           <KPIMini
-            label="Quota struttura"
-            value={`${formatCurrency(quotaStruttura)}/mese`}
-            sub={`${formatCurrency(strutturaNonManodopera ?? 0)} struttura ÷ ${cantieriAttiviStruttura} cantieri attivi`}
+            label={t("Quota struttura")}
+            value={t("{importo}/mese", { importo: formatCurrency(quotaStruttura) })}
+            sub={t("{importo} struttura ÷ {n} cantieri attivi", { importo: formatCurrency(strutturaNonManodopera ?? 0), n: cantieriAttiviStruttura })}
             tone="blue"
           />
         ) : (
           <Card className="min-w-0 rounded-2xl border-dashed bg-muted/30">
             <CardContent className="p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Quota struttura</p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t("Quota struttura")}</p>
               <p className="mt-0.5 text-lg font-bold text-muted-foreground">—</p>
               <p className="text-[11px] text-muted-foreground">
                 {structure.isError ? (
-                  "Dati struttura non disponibili"
+                  t("Dati struttura non disponibili")
                 ) : cantieriAttiviStruttura <= 0 ? (
-                  "Nessun cantiere in corso"
+                  t("Nessun cantiere in corso")
                 ) : (
                   <Link to="/azienda/costi" className="font-medium text-primary hover:underline">
-                    Inserisci i costi fissi →
+                    {t("Inserisci i costi fissi →")}
                   </Link>
                 )}
               </p>
@@ -266,21 +268,21 @@ export function TabCommesse({ anno }: Props) {
             value={filter}
             onValueChange={(v) => v && setFilter(v as typeof filter)}
           >
-            <ToggleGroupItem value="all" variant="outline" size="sm" className="tap-compact">Tutte</ToggleGroupItem>
-            <ToggleGroupItem value="in_corso" variant="outline" size="sm" className="tap-compact">Da completare</ToggleGroupItem>
-            <ToggleGroupItem value="assistenza" variant="outline" size="sm">Assistenza</ToggleGroupItem>
-            <ToggleGroupItem value="completato" variant="outline" size="sm" className="tap-compact">Completate</ToggleGroupItem>
+            <ToggleGroupItem value="all" variant="outline" size="sm" className="tap-compact">{t("Tutte")}</ToggleGroupItem>
+            <ToggleGroupItem value="in_corso" variant="outline" size="sm" className="tap-compact">{t("Da completare")}</ToggleGroupItem>
+            <ToggleGroupItem value="assistenza" variant="outline" size="sm">{t("Assistenza")}</ToggleGroupItem>
+            <ToggleGroupItem value="completato" variant="outline" size="sm" className="tap-compact">{t("Completate")}</ToggleGroupItem>
           </ToggleGroup>
           <div className="flex items-center gap-1.5 max-sm:hidden">
-            <span className="text-xs text-muted-foreground">Ordina:</span>
+            <span className="text-xs text-muted-foreground">{t("Ordina:")}</span>
             <ToggleGroup
               type="single"
               value={sortBy}
               onValueChange={(v) => v && setSortBy(v as typeof sortBy)}
             >
-              <ToggleGroupItem value="preventivo" variant="outline" size="sm">Valore</ToggleGroupItem>
-              <ToggleGroupItem value="manodopera" variant="outline" size="sm">Incidenza manodopera</ToggleGroupItem>
-              <ToggleGroupItem value="perdita" variant="outline" size="sm">Prima le perdite</ToggleGroupItem>
+              <ToggleGroupItem value="preventivo" variant="outline" size="sm">{t("Valore")}</ToggleGroupItem>
+              <ToggleGroupItem value="manodopera" variant="outline" size="sm">{t("Incidenza manodopera")}</ToggleGroupItem>
+              <ToggleGroupItem value="perdita" variant="outline" size="sm">{t("Prima le perdite")}</ToggleGroupItem>
             </ToggleGroup>
           </div>
         </div>
@@ -291,7 +293,7 @@ export function TabCommesse({ anno }: Props) {
               counts[s] > 0 && (
                 <Badge key={s} variant="outline" className={cn("text-[11px]", SEMAFORO_BG[s])}>
                   <span className={cn("mr-1.5 inline-block h-1.5 w-1.5 rounded-full", SEMAFORO_COLORS[s])} />
-                  {SEMAFORO_LABEL[s]}: {counts[s]}
+                  {t(SEMAFORO_LABEL[s])}: {counts[s]}
                 </Badge>
               )
             ))}
@@ -319,7 +321,7 @@ export function TabCommesse({ anno }: Props) {
                   {r.margine_atteso !== null ? formatCurrencyCompact(r.margine_atteso) : "—"}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {r.margine_atteso_perc !== null ? percIt(r.margine_atteso_perc, 0) : "non valutabile"}
+                  {r.margine_atteso_perc !== null ? percIt(r.margine_atteso_perc, 0) : t("non valutabile")}
                 </p>
               </div>
               </Link>
@@ -332,10 +334,9 @@ export function TabCommesse({ anno }: Props) {
       <Card className={cn("rounded-2xl", isMobile && righe.length > 0 && "hidden")}>
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
           <div>
-            <CardTitle className="text-base">Marginalità per cantiere</CardTitle>
+            <CardTitle className="text-base">{t("Marginalità per cantiere")}</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Margine a fine lavori = preventivo − costi ÷ avanzamento, dal 20% di avanzamento in su. Tempo: margine al
-              mese contro la quota di struttura.
+              {t("Margine a fine lavori = preventivo − costi ÷ avanzamento, dal 20% di avanzamento in su. Tempo: margine al mese contro la quota di struttura.")}
             </p>
           </div>
           <ExportButton
@@ -392,11 +393,11 @@ export function TabCommesse({ anno }: Props) {
         <CardContent>
           {righe.length === 0 ? (
             <EmptyState
-              title="Nessuna commessa"
+              title={t("Nessuna commessa")}
               description={
                 filter === "all"
-                  ? `Per il ${anno} non ci sono commesse registrate.`
-                  : "Nessuna commessa per questo filtro."
+                  ? t("Per il {anno} non ci sono commesse registrate.", { anno: String(anno ?? "") })
+                  : t("Nessuna commessa per questo filtro.")
               }
             />
           ) : (
@@ -405,14 +406,14 @@ export function TabCommesse({ anno }: Props) {
                 <thead className="bg-muted/40">
                   <tr>
                     <th className="w-2 px-1 py-2"></th>
-                    <th className="min-w-[200px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Commessa</th>
-                    <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Preventivo</th>
-                    <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Consuntivo</th>
-                    <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Manodopera</th>
-                    <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Avanz.</th>
-                    <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Tempo</th>
-                    <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine diretto ora</th>
-                    <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine fine prev.</th>
+                    <th className="min-w-[200px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t("Commessa")}</th>
+                    <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Preventivo")}</th>
+                    <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Consuntivo")}</th>
+                    <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Manodopera")}</th>
+                    <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t("Avanz.")}</th>
+                    <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Tempo")}</th>
+                    <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Margine diretto ora")}</th>
+                    <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">{t("Margine fine prev.")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -443,13 +444,13 @@ export function TabCommesse({ anno }: Props) {
                             </Link>
                             {r.creation_year !== undefined && r.creation_year < anno && (
                               <Badge variant="outline" className="mt-0.5 text-[10px] font-normal">
-                                Del {r.creation_year} · {r.work_state === "completed" ? "rate da incassare" : "ancora aperta"}
+                                {t("Del {anno}", { anno: r.creation_year })} · {r.work_state === "completed" ? t("rate da incassare") : t("ancora aperta")}
                               </Badge>
                             )}
                             <p className="truncate text-xs text-muted-foreground">
                               {r.cliente ?? "—"}
-                              {r.work_start && ` · dal ${formatDate(r.work_start)}`}
-                              {r.work_end && ` al ${formatDate(r.work_end)}`}
+                              {r.work_start && ` · ${t("dal {data}", { data: formatDate(r.work_start) })}`}
+                              {r.work_end && ` ${t("al {data}", { data: formatDate(r.work_end) })}`}
                             </p>
                           </div>
                         </div>
@@ -472,8 +473,8 @@ export function TabCommesse({ anno }: Props) {
                                   : "text-muted-foreground",
                               )}
                             >
-                              {r.consuntivo > 0 && `${percIt((r.costo_manodopera / r.consuntivo) * 100, 0)} dei costi`}
-                              {r.ore_manodopera > 0 && ` · ${r.ore_manodopera.toLocaleString("it-IT")} h`}
+                              {r.consuntivo > 0 && t("{valore} dei costi", { valore: percIt((r.costo_manodopera / r.consuntivo) * 100, 0) })}
+                              {r.ore_manodopera > 0 && ` · ${r.ore_manodopera.toLocaleString(intlCampo())} h`}
                             </span>
                           </>
                         ) : (
@@ -509,7 +510,7 @@ export function TabCommesse({ anno }: Props) {
                             </span>
                           </>
                         ) : (
-                          <span className="text-xs font-medium text-amber-700">Costi da completare</span>
+                          <span className="text-xs font-medium text-amber-700">{t("Costi da completare")}</span>
                         )}
                       </td>
                       <td
@@ -533,7 +534,7 @@ export function TabCommesse({ anno }: Props) {
                           </>
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            {r.dati_economici_completi ? "Sotto il 20%: troppo presto" : "—"}
+                            {r.dati_economici_completi ? t("Sotto il 20%: troppo presto") : "—"}
                           </span>
                         )}
                       </td>
@@ -563,6 +564,7 @@ function CellaTempo({
   oggi: string;
   quotaStruttura: number | null;
 }) {
+  const t = useT();
   const mesi = oggi ? mesiApertura(riga.work_start, riga.work_end, oggi) : null;
   const alMese = mesi !== null ? margineAlMese(riga.margine, mesi) : null;
   const ritardoMesi = oggi ? mesiRitardo(promessa, riga.work_end, oggi) : 0;
@@ -576,7 +578,7 @@ function CellaTempo({
       <td className="px-3 py-2 text-right">
         <span
           className="text-xs text-muted-foreground"
-          title="Compila la data di inizio lavori sulla commessa"
+          title={t("Compila la data di inizio lavori sulla commessa")}
         >
           —
         </span>
@@ -591,7 +593,7 @@ function CellaTempo({
           <div className="inline-flex cursor-default flex-col items-end gap-0.5">
             <span className="inline-flex items-center gap-1 text-sm tabular-nums">
               <Timer className="h-3 w-3 text-muted-foreground" />
-              {fmtMesi(mesi)} mesi
+              {t("{n} mesi", { n: fmtMesi(mesi) })}
             </span>
             {alMese !== null ? (
               <span
@@ -600,47 +602,41 @@ function CellaTempo({
                   sottoQuota ? "font-medium text-amber-600" : "text-muted-foreground",
                 )}
               >
-                {formatCurrency(alMese)}/mese
+                {t("{importo}/mese", { importo: formatCurrency(alMese) })}
               </span>
             ) : (
-              <span className="text-[10px] text-muted-foreground">appena aperta</span>
+              <span className="text-[10px] text-muted-foreground">{t("appena aperta")}</span>
             )}
             {ritardoEur !== null && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                ritardo −{formatCurrency(ritardoEur)}
-              </span>
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">{t("ritardo −{ritardoEur}", { ritardoEur: formatCurrency(ritardoEur) })}</span>
             )}
           </div>
         </TooltipTrigger>
         <TooltipContent side="left" className="max-w-[260px] space-y-1 text-xs">
           <p>
-            Aperta da <strong>{fmtMesi(mesi)} mesi</strong>
-            {riga.work_end ? " (chiusa)" : ""}.
+            {t("Aperta da")} <strong>{t("{n} mesi", { n: fmtMesi(mesi) })}</strong>
+            {riga.work_end ? ` ${t("(chiusa)")}` : ""}.
           </p>
           {alMese !== null && quotaStruttura !== null && (
             <p>
-              Rende <strong>{formatCurrency(alMese)}/mese</strong> contro una quota di
-              struttura di {formatCurrency(quotaStruttura)}/mese
-              {sottoQuota && " — sotto quota: il cantiere non paga l'affitto dell'azienda"}.
+              {t("Rende {importo}/mese contro una quota di struttura di {quota}/mese", { importo: formatCurrency(alMese), quota: formatCurrency(quotaStruttura) })}
+              {sottoQuota && ` ${t("— sotto quota: il cantiere non paga l'affitto dell'azienda")}`}.
             </p>
           )}
           {sostenibili !== null && (
             <p>
-              Il margine attuale paga la struttura per{" "}
-              <strong>{fmtMesi(sostenibili)} mesi</strong>.
+              {t("Il margine attuale paga la struttura per")}{" "}
+              <strong>{t("{n} mesi", { n: fmtMesi(sostenibili) })}</strong>.
             </p>
           )}
           {ritardoEur !== null && (
             <p>
-              {fmtMesi(ritardoMesi)} mesi oltre la consegna promessa
-              {promessa ? ` (${formatDate(promessa)})` : ""}: ≈{formatCurrency(ritardoEur)} di
-              struttura consumata in più.
+              {t("{n} mesi oltre la consegna promessa{data}: ≈{importo} di struttura consumata in più.", { n: fmtMesi(ritardoMesi), data: promessa ? ` (${formatDate(promessa)})` : "", importo: formatCurrency(ritardoEur) })}
             </p>
           )}
           {quotaStruttura === null && (
             <p className="text-muted-foreground">
-              Inserisci i costi fissi in Costi per vedere quota di struttura e costo del
-              ritardo.
+              {t("Inserisci i costi fissi in Costi per vedere quota di struttura e costo del ritardo.")}
             </p>
           )}
         </TooltipContent>

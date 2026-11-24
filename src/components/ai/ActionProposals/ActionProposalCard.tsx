@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, CheckCircle, Clock, Pencil, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ProposalRow {
   id: string;
@@ -69,6 +70,7 @@ function getActionPayload(payload: Record<string, unknown> | null | undefined): 
 }
 
 export function ActionProposalCard({ proposalId }: { proposalId: string }) {
+  const t = useT();
   const [proposal, setProposal] = useState<ProposalRow | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
@@ -142,11 +144,11 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
         },
       });
       if (invokeErr) throw new Error(invokeErr.message);
-      toast.success("Azione applicata con successo");
+      toast.success(t("Azione applicata con successo"));
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Errore: ${msg}`);
+      toast.error(t("Errore: {msg}", { msg: String(msg ?? "") }));
       return false;
     } finally {
       setIsProcessing(false);
@@ -163,14 +165,14 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
     try {
       parsed = JSON.parse(editedPayloadText);
     } catch {
-      toast.error("JSON non valido", {
-        description: "Correggi il payload prima di confermare l'azione.",
+      toast.error(t("JSON non valido"), {
+        description: t("Correggi il payload prima di confermare l'azione."),
       });
       return;
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      toast.error("Payload non valido", {
-        description: "Il payload modificato deve essere un oggetto JSON.",
+      toast.error(t("Payload non valido"), {
+        description: t("Il payload modificato deve essere un oggetto JSON."),
       });
       return;
     }
@@ -188,10 +190,10 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
         p_reason: "Rifiutata dalla UI",
       } as never);
       if (dbErr) throw new Error(dbErr.message);
-      toast.info("Azione rifiutata");
+      toast.info(t("Azione rifiutata"));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Errore: ${msg}`);
+      toast.error(t("Errore: {msg}", { msg: String(msg ?? "") }));
     } finally {
       setIsProcessing(false);
     }
@@ -201,7 +203,7 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
     return (
       <Card className="mt-3">
         <CardContent className="p-3 text-xs text-muted-foreground">
-          Caricamento proposta…
+          {t("Caricamento proposta…")}
         </CardContent>
       </Card>
     );
@@ -210,7 +212,7 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
   const isPending = proposal.status === "pending";
   const isRed = proposal.risk_level === "red";
   const isGreen = proposal.risk_level === "green";
-  const labelTitle = isRed ? "Conferma OBBLIGATORIA" : "Conferma azione";
+  const labelTitle = isRed ? t("Conferma OBBLIGATORIA") : t("Conferma azione");
 
   return (
     <>
@@ -224,14 +226,14 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
             <Badge
               variant="outline"
               className="text-[10px] gap-1 bg-violet-50 text-violet-700 border-violet-300 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800"
-              title={proposal.signal_type ? `Triggerato da: ${proposal.signal_type}` : undefined}
+              title={proposal.signal_type ? t("Triggerato da: {signal_type}", { signal_type: String(proposal.signal_type ?? "") }) : undefined}
             >
               <Sparkles className="h-2.5 w-2.5" />
-              Suggerito da AI
+              {t("Suggerito da AI")}
             </Badge>
             ) : null}
             <Badge variant={isPending ? "default" : "outline"} className="ml-auto text-[10px]">
-              {STATUS_LABEL[proposal.status] ?? proposal.status}
+              {STATUS_LABEL[proposal.status] ? t(STATUS_LABEL[proposal.status]) : proposal.status}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -240,7 +242,7 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
 
           {proposal.payload && Object.keys(proposal.payload).length > 0 && (
             <details className="text-xs">
-              <summary className="cursor-pointer text-muted-foreground">Dettagli payload</summary>
+              <summary className="cursor-pointer text-muted-foreground">{t("Dettagli payload")}</summary>
               <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-[10px]">
                 {JSON.stringify(getActionPayload(proposal.payload), null, 2)}
               </pre>
@@ -251,20 +253,20 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {countdown ? `Scade tra ${countdown}` : "Senza scadenza"}
+                {countdown ? t("Scade tra {countdown}", { countdown: String(countdown ?? "") }) : t("Senza scadenza")}
               </span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={handleReject} disabled={isProcessing}>
                   <XCircle className="mr-1 h-3 w-3" />
-                  Rifiuta
+                  {t("Rifiuta")}
                 </Button>
                 <Button size="sm" variant="outline" onClick={openEditor} disabled={isProcessing}>
                   <Pencil className="mr-1 h-3 w-3" />
-                  Modifica
+                  {t("Modifica")}
                 </Button>
                 <Button size="sm" onClick={() => void handleConfirm()} disabled={isProcessing}>
                   <CheckCircle className="mr-1 h-3 w-3" />
-                  Conferma
+                  {t("Conferma")}
                 </Button>
               </div>
             </div>
@@ -279,9 +281,9 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Modifica proposta prima della conferma</DialogTitle>
+            <DialogTitle>{t("Modifica proposta prima della conferma")}</DialogTitle>
             <DialogDescription>
-              Puoi correggere testo, note, date e dettagli operativi. I campi sensibili restano protetti lato server.
+              {t("Puoi correggere testo, note, date e dettagli operativi. I campi sensibili restano protetti lato server.")}
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -292,11 +294,11 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditorOpen(false)} disabled={isProcessing}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button onClick={confirmEditedPayload} disabled={isProcessing}>
               <CheckCircle className="mr-1 h-3.5 w-3.5" />
-              Conferma modifiche
+              {t("Conferma modifiche")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -83,6 +83,7 @@ import {
   ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
   ReferenceLine, ReferenceDot, ResponsiveContainer,
 } from "recharts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Aliquote IVA standard supportate dal Select. */
 const IVA_STANDARD_VALUES = new Set([0, 4, 10, 22]);
@@ -157,6 +158,7 @@ interface Props {
 }
 
 export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso }: Props) {
+  const tr = useT();
   // ─── Auth + permission gating ────────────────────────────────────────────
   // Solo admin/titolare possono:
   //  - modificare lo sconto (i commerciali base vedono i campi read-only)
@@ -489,7 +491,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
    *  quote_approvals con stato 'pending' visibile in /preventivi/approvazioni. */
   const handleRequestApproval = async () => {
     if (!user?.id) {
-      toast.error("Sessione non valida. Ricarica la pagina.");
+      toast.error(tr("Sessione non valida. Ricarica la pagina."));
       return;
     }
     try {
@@ -503,13 +505,13 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
         note_richiesta: null,
       });
       if (error) throw error;
-      toast.success("Richiesta inviata all'amministrazione", {
-        description: `Sconto ${scontoPctMostrato}% in attesa di approvazione. Riceverai notifica appena viene decisa.`,
+      toast.success(tr("Richiesta inviata all'amministrazione"), {
+        description: tr("Sconto {scontoPctMostrato}% in attesa di approvazione. Riceverai notifica appena viene decisa.", { scontoPctMostrato: String(scontoPctMostrato ?? "") }),
       });
       void qc.invalidateQueries({ queryKey: ["sr-quote-approval", progettoId] });
     } catch (err) {
-      toast.error("Impossibile inviare la richiesta", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error(tr("Impossibile inviare la richiesta"), {
+        description: err instanceof Error ? err.message : tr("Errore sconosciuto"),
       });
     }
   };
@@ -931,8 +933,8 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
   // e il piano no), tutti e due, o nessuno dei due (la tabella della finanziaria non dà più quella rata).
   const motiviIndietro = avvisoPianoIndietro ? motivoPianoIndietro(pianiSalvati[0], forbice.media, anticipoPct) : null;
   const aCosaNonCorrisponde = !motiviIndietro ? "" : motiviIndietro.totale && motiviIndietro.anticipo
-    ? "al totale e all'anticipo attuali"
-    : motiviIndietro.anticipo ? "all'anticipo attuale" : motiviIndietro.totale ? "al totale attuale" : "ai dati attuali";
+    ? tr("al totale e all'anticipo attuali")
+    : motiviIndietro.anticipo ? tr("all'anticipo attuale") : motiviIndietro.totale ? tr("al totale attuale") : tr("ai dati attuali");
 
   // Il recupero in 10 anni segue il totale: l'anno di pareggio si rifà dal totale, dal risparmio scritto e dalla
   // detrazione. Solo con il risparmio acceso e una detrazione; non si scrive se è già uguale.
@@ -957,14 +959,14 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             <Calculator className="h-5 w-5" />
           </span>
           <div className="space-y-1">
-            <p className="text-sm font-semibold">Non c'è ancora niente da calcolare</p>
+            <p className="text-sm font-semibold">{tr("Non c'è ancora niente da calcolare")}</p>
             <p className="mx-auto max-w-sm text-xs text-muted-foreground">
-              Prezzo, sconto, rate e detrazione partono dai serramenti dell'offerta: aggiungine almeno uno e torna qui.
+              {tr("Prezzo, sconto, rate e detrazione partono dai serramenti dell'offerta: aggiungine almeno uno e torna qui.")}
             </p>
           </div>
           {onVaiAlPasso && (
             <Button type="button" onClick={() => onVaiAlPasso("bom")} className="bg-orange-500 hover:bg-orange-600 max-sm:w-full">
-              Vai all'Offerta
+              {tr("Vai all'Offerta")}
             </Button>
           )}
         </div>
@@ -976,11 +978,11 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
     <div className="space-y-3">
       {/* Riepilogo BOM */}
       <SrCard
-        title="Riepilogo composizione"
+        title={tr("Riepilogo composizione")}
         description={[
-          `${detail.serramenti.length} ${detail.serramenti.length === 1 ? "serramento" : "serramenti"}`,
-          `${detail.accessori.length} ${detail.accessori.length === 1 ? "complemento" : "complementi"}`,
-          `${(detail.servizi ?? []).length} ${(detail.servizi ?? []).length === 1 ? "servizio" : "servizi"}`,
+          tr(detail.serramenti.length === 1 ? "{n} serramento" : "{n} serramenti", { n: detail.serramenti.length }),
+          tr(detail.accessori.length === 1 ? "{n} complemento" : "{n} complementi", { n: detail.accessori.length }),
+          tr((detail.servizi ?? []).length === 1 ? "{n} servizio" : "{n} servizi", { n: (detail.servizi ?? []).length }),
           `${formatNumero(totaleCalc.metri_quadri, 2)} m²`,
         ].join(" · ")}
         icon={<Calculator className="h-4 w-4" />}
@@ -988,28 +990,28 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
         {/* Telefono: le tre voci in riga; imponibile e totale li dice il riquadro «Totale» sotto. */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 max-md:grid-cols-3">
           {/* La posa è nel prezzo solo degli articoli che la hanno a listino. */}
-          <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} hint="Posa compresa dove prevista" />
-          <SrKpi label="Complementi" value={formatEuro(totaleCalc.imponibile_accessori)} />
-          <SrKpi label="Servizi" value={formatEuro(totaleCalc.imponibile_servizi)} hint="Trasporto, ENEA, ecc." />
+          <SrKpi label={tr("Serramenti")} value={formatEuro(totaleCalc.imponibile_serramenti)} hint={tr("Posa compresa dove prevista")} />
+          <SrKpi label={tr("Complementi")} value={formatEuro(totaleCalc.imponibile_accessori)} />
+          <SrKpi label={tr("Servizi")} value={formatEuro(totaleCalc.imponibile_servizi)} hint={tr("Trasporto, ENEA, ecc.")} />
           <SrKpi
             className="max-md:hidden"
-            label="Imponibile"
+            label={tr("Imponibile")}
             value={formatEuro(totaleCalc.imponibile_netto)}
             hint={[
-              totaleCalc.prezzo_manuale ? "Prezzo scritto a mano" : null,
-              totaleCalc.sconto > 0 ? `Sconto: -${formatEuro(totaleCalc.sconto)}` : null,
+              totaleCalc.prezzo_manuale ? tr("Prezzo scritto a mano") : null,
+              totaleCalc.sconto > 0 ? tr("Sconto: -{importo}", { importo: formatEuro(totaleCalc.sconto) }) : null,
             ].filter(Boolean).join(" · ") || undefined}
           />
-          <SrKpi label="IVA inclusa" value={formatEuro(totaleCalc.totale_iva_inclusa)} variant="primary" className="max-md:hidden" />
+          <SrKpi label={tr("IVA inclusa")} value={formatEuro(totaleCalc.totale_iva_inclusa)} variant="primary" className="max-md:hidden" />
         </div>
       </SrCard>
 
       {/* Sconto + totale */}
       <SrCard
-        title="Totale preventivo (PDF cliente)"
+        title={tr("Totale preventivo (PDF cliente)")}
         description={totaleCalc.prezzo_manuale
-          ? "Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dal prezzo scritto qui sotto."
-          : "Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dalle righe dell'offerta."}
+          ? tr("Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dal prezzo scritto qui sotto.")
+          : tr("Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dalle righe dell'offerta.")}
         icon={<Euro className="h-4 w-4" />}
       >
         {/* Un solo contenitore a griglia: ogni blocco (prezzo scritto a mano, regole, avvisi, campi, margine, totale)
@@ -1041,15 +1043,11 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               <span>
                 {puoScontare ? (
                   <>
-                    Puoi applicare uno sconto fino al <strong>{formatPct(discountEval.scontoMaxPct, 1)}</strong>, il
-                    massimo deciso dall'azienda.<span className="max-md:hidden"> Per andare oltre usa <strong>Richiedi
-                    approvazione</strong>: il titolare riceve la richiesta in <em>Preventivi → Approvazioni</em>.</span>
+                    {tr("Puoi applicare uno sconto fino al")} <strong>{formatPct(discountEval.scontoMaxPct, 1)}</strong>{tr(", il massimo deciso dall'azienda.")}<span className="max-md:hidden"> {tr("Per andare oltre usa")} <strong>{tr("Richiedi approvazione")}</strong>{tr(": il titolare riceve la richiesta in")} <em>{tr("Preventivi → Approvazioni")}</em>.</span>
                   </>
                 ) : (
                   <>
-                    Lo sconto è gestito dall'amministrazione.<span className="max-md:hidden"> Puoi proporre uno sconto
-                    superiore al consentito tramite <strong>Richiedi approvazione</strong> —
-                    il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.</span>
+                    {tr("Lo sconto è gestito dall'amministrazione.")}<span className="max-md:hidden"> {tr("Puoi proporre uno sconto superiore al consentito tramite")} <strong>{tr("Richiedi approvazione")}</strong> {tr("— il titolare riceverà la richiesta in")} <em>{tr("Preventivi → Approvazioni")}</em>.</span>
                   </>
                 )}
               </span>
@@ -1073,22 +1071,19 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               <div className="flex-1">
                 {approvalState === "approved" && (
                   <>
-                    <strong>Sconto approvato.</strong> Sconto richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% ·
-                    {" "}autorizzato: {approvalRow?.sconto_autorizzato_pct?.toFixed(1) ?? "—"}%.
-                    {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Nota: {approvalRow.note_decisione}</span>}
+                    <strong>{tr("Sconto approvato.")}</strong> {tr("Sconto richiesto: {richiesto}% · autorizzato: {autorizzato}%.", { richiesto: approvalRow?.sconto_richiesto_pct?.toFixed(1) ?? "", autorizzato: approvalRow?.sconto_autorizzato_pct?.toFixed(1) ?? "—" })}
+                    {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">{tr("Nota: {nota}", { nota: String(approvalRow.note_decisione ?? "") })}</span>}
                   </>
                 )}
                 {approvalState === "rejected" && (
                   <>
-                    <strong>Sconto respinto dall'amministrazione.</strong> Richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}%.
-                    {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Motivo: {approvalRow.note_decisione}</span>}
+                    <strong>{tr("Sconto respinto dall'amministrazione.")}</strong> {tr("Richiesto: {richiesto}%.", { richiesto: approvalRow?.sconto_richiesto_pct?.toFixed(1) ?? "" })}
+                    {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">{tr("Motivo: {voce}", { voce: String(approvalRow.note_decisione ?? "") })}</span>}
                   </>
                 )}
                 {approvalState === "pending" && (
                   <>
-                    <strong>Richiesta in attesa.</strong> Sconto {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% inviato il{" "}
-                    {approvalRow?.requested_at ? new Date(approvalRow.requested_at).toLocaleDateString("it-IT") : "—"}.
-                    L'amministrazione riceve la richiesta in <em>Preventivi → Approvazioni</em>.
+                    <strong>{tr("Richiesta in attesa.")}</strong> {tr("Sconto {valore}% inviato il {data}. L'amministrazione riceve la richiesta in", { valore: approvalRow?.sconto_richiesto_pct?.toFixed(1) ?? "", data: approvalRow?.requested_at ? new Date(approvalRow.requested_at).toLocaleDateString(intlCampo()) : "—" })} <em>{tr("Preventivi → Approvazioni")}</em>.
                   </>
                 )}
               </div>
@@ -1099,7 +1094,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               la riga dei campi è allineata; il verdetto sullo sconto sta sotto il campo. */}
           <div className="col-span-6 md:col-span-3">
             <Label htmlFor="sr-sconto-pct" className="text-xs block h-4 flex items-center gap-1">
-              Sconto %
+              {tr("Sconto %")}
               {!puoScontare && <Lock className="h-3 w-3 text-blue-500" />}
             </Label>
             <Input
@@ -1119,24 +1114,24 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                   ? "border-amber-400 focus-visible:ring-amber-400"
                   : ""
               }`}
-              title={!puoScontare ? "Solo l'amministrazione può modificare lo sconto. Usa Richiedi approvazione." : undefined}
+              title={!puoScontare ? tr("Solo l'amministrazione può modificare lo sconto. Usa Richiedi approvazione.") : undefined}
             />
             {discountVerdict === "blocked" && (
               <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
                 <ShieldAlert className="h-3 w-3" />
-                Oltre max {formatPct(discountEval.scontoMaxPct, 1)}{isAdmin ? " — serve override admin" : ": non applicato, chiedi l'approvazione"}
+                {isAdmin ? tr("Oltre max {max} — serve override admin", { max: formatPct(discountEval.scontoMaxPct, 1) }) : tr("Oltre max {max}: non applicato, chiedi l'approvazione", { max: formatPct(discountEval.scontoMaxPct, 1) })}
               </p>
             )}
             {discountVerdict === "approve" && (
               <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
-                Oltre {discountEval.approvaOltrePct?.toFixed(1)}% — richiede approvazione admin
+                {tr("Oltre {valore}% — richiede approvazione admin", { valore: discountEval.approvaOltrePct?.toFixed(1) ?? "" })}
               </p>
             )}
             {discountVerdict === "ok" && scontoPctMostrato > 0 && (
               <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1">
                 <CheckCircle2 className="h-3 w-3" />
-                Entro le regole aziendali
+                {tr("Entro le regole aziendali")}
               </p>
             )}
             {/* CTA "Richiedi approvazione": visibile a chiunque (admin incluso
@@ -1150,13 +1145,13 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 className="tap-compact mt-1.5 h-7 text-[11px] gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
               >
                 <Send className="h-3 w-3" />
-                Richiedi approvazione
+                {tr("Richiedi approvazione")}
               </Button>
             )}
           </div>
           <div className="col-span-6 md:col-span-3">
             <Label htmlFor="sr-sconto-fisso" className="text-xs block h-4 flex items-center gap-1">
-              Sconto fisso (€)
+              {tr("Sconto fisso (€)")}
               {!puoScontare && <Lock className="h-3 w-3 text-blue-500" />}
             </Label>
             <Input
@@ -1168,12 +1163,12 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               onBlur={(e) => scriviScontoFisso(Number(e.target.value))}
               readOnly={!puoScontare}
               className={`h-9 text-xs mt-1 ${!puoScontare ? "bg-slate-50 cursor-not-allowed" : fissoOltreIlTetto ? "border-red-400 focus-visible:ring-red-400" : ""}`}
-              title={!puoScontare ? "Solo l'amministrazione può modificare lo sconto." : undefined}
+              title={!puoScontare ? tr("Solo l'amministrazione può modificare lo sconto.") : undefined}
             />
             {fissoOltreIlTetto && (
               <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
                 <ShieldAlert className="h-3 w-3" />
-                Al massimo {formatEuro(scontoFissoMax)} con questo sconto: il tetto è {formatPct(discountEval.scontoMaxPct, 1)}
+                {tr("Al massimo {importo} con questo sconto: il tetto è {max}", { importo: formatEuro(scontoFissoMax), max: formatPct(discountEval.scontoMaxPct, 1) })}
               </p>
             )}
           </div>
@@ -1194,19 +1189,19 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">0%<span className="iva-desc"> — Esente / Non imponibile</span></SelectItem>
-                <SelectItem value="4">4%<span className="iva-desc"> — IVA speciale (Legge 104 / disabilità)</span></SelectItem>
-                <SelectItem value="10">10%<span className="iva-desc"> — Ristrutturazione edilizia</span></SelectItem>
-                <SelectItem value="22">22%<span className="iva-desc"> — Ordinaria</span></SelectItem>
+                <SelectItem value="0">0%<span className="iva-desc"> {tr("— Esente / Non imponibile")}</span></SelectItem>
+                <SelectItem value="4">4%<span className="iva-desc"> {tr("— IVA speciale (Legge 104 / disabilità)")}</span></SelectItem>
+                <SelectItem value="10">10%<span className="iva-desc"> {tr("— Ristrutturazione edilizia")}</span></SelectItem>
+                <SelectItem value="22">22%<span className="iva-desc"> {tr("— Ordinaria")}</span></SelectItem>
                 <SelectItem value="mista" disabled={ivaMistaSenzaVoci && form.iva_percentuale !== IVA_MISTA_SENTINEL}>
-                  IVA mista<span className="iva-desc"> — Beni Significativi (DM 29.12.99)</span>
+                  {tr("IVA mista")}<span className="iva-desc"> {tr("— Beni Significativi (DM 29.12.99)")}</span>
                 </SelectItem>
                 {/* Valore legacy fuori standard (es. preventivi vecchi a 21%, 5%,
                     27%): lo mostriamo come opzione cosi' il commerciale
                     sa che e' un valore non standard e puo' correggerlo. */}
                 {isLegacyIvaValue(form.iva_percentuale) && (
                   <SelectItem value={String(form.iva_percentuale)}>
-                    {form.iva_percentuale}%<span className="iva-desc"> — non standard (legacy)</span>
+                    {form.iva_percentuale}%<span className="iva-desc"> {tr("— non standard (legacy)")}</span>
                   </SelectItem>
                 )}
               </SelectContent>
@@ -1219,23 +1214,23 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 ripartire. Il calcolo in quel caso mette tutto al 22%. */}
             {form.iva_percentuale === IVA_MISTA_SENTINEL && ivaMistaSenzaVoci && (
               <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-1 mt-1 leading-tight">
-                ⚠ Con il prezzo scritto a mano e le voci senza prezzo l'IVA mista non si può ripartire: scegli l'aliquota.
+                {tr("⚠ Con il prezzo scritto a mano e le voci senza prezzo l'IVA mista non si può ripartire: scegli l'aliquota.")}
               </p>
             )}
             {!ivaMistaSenzaVoci && form.iva_percentuale === IVA_MISTA_SENTINEL && (
               <p className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-1 mt-1 leading-tight">
-                ℹ Regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa/accessori, eccedenza al 22%.
+                {tr("ℹ Regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa/accessori, eccedenza al 22%.")}
               </p>
             )}
             {/* Hint per valore legacy non standard: invita a correggere. */}
             {isLegacyIvaValue(form.iva_percentuale) && (
               <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-1 mt-1 leading-tight">
-                ⚠ Valore non standard. Aliquote IT: 0/4/10/22%. Seleziona quella corretta.
+                {tr("⚠ Valore non standard. Aliquote IT: 0/4/10/22%. Seleziona quella corretta.")}
               </p>
             )}
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs block h-4">Validità (giorni)</Label>
+            <Label className="text-xs block h-4">{tr("Validità (giorni)")}</Label>
             <Input
               type="number"
               defaultValue={form.valido_fino_giorni ?? 15}
@@ -1261,7 +1256,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 un totale diverso da quello che il tasto dice;
               · i tasti oltre il massimo sono spenti, e «Arriva a €» dice quanto servirebbe senza applicarlo.
               L'amministrazione non ha un tetto: vede il limite, non è fermata. */}
-          <div className="col-span-12" title={!puoScontare ? "Solo l'amministrazione può cambiare lo sconto." : undefined}>
+          <div className="col-span-12" title={!puoScontare ? tr("Solo l'amministrazione può cambiare lo sconto.") : undefined}>
             <ScontoRapido
               className="md:flex md:flex-wrap md:items-center md:justify-between md:gap-x-6 md:space-y-0"
               valorePct={scontoInVigorePct}
@@ -1275,7 +1270,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             />
             {puoScontare && form.iva_percentuale === IVA_MISTA_SENTINEL && (
               <p className="mt-1 text-[10px] leading-4 text-muted-foreground max-sm:hidden">
-                «Arriva a €» non c'è con l'IVA mista: l'aliquota cambia con lo sconto.
+                {tr("«Arriva a €» non c'è con l'IVA mista: l'aliquota cambia con lo sconto.")}
               </p>
             )}
           </div>
@@ -1287,14 +1282,12 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
 
           <div className="col-span-12">
             <div className="rounded-md bg-orange-50 border border-orange-200 p-4">
-              <p className="text-[10px] uppercase font-semibold text-orange-900 mb-1">Totale preventivo</p>
+              <p className="text-[10px] uppercase font-semibold text-orange-900 mb-1">{tr("Totale preventivo")}</p>
               <p className="text-2xl font-bold text-orange-900 tabular-nums">
                 {formatEuro(forbice.media, 2)}
-                <span className="text-xs font-normal opacity-70 ml-2">IVA inclusa</span>
+                <span className="text-xs font-normal opacity-70 ml-2">{tr("IVA inclusa")}</span>
               </p>
-              <p className="text-[10px] text-orange-600 mt-1">
-                Imponibile {formatEuro(totaleCalc.imponibile_netto, 2)} · IVA {formatEuro(totaleCalc.iva_importo, 2)}
-              </p>
+              <p className="text-[10px] text-orange-600 mt-1">{tr("Imponibile {imponibile} · IVA {iva}", { imponibile: formatEuro(totaleCalc.imponibile_netto, 2), iva: formatEuro(totaleCalc.iva_importo, 2) })}</p>
             </div>
           </div>
 
@@ -1308,38 +1301,38 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               <div className="rounded-md bg-blue-50/40 border border-blue-200 p-4 space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="text-[10px] uppercase font-semibold text-eic-navy-deep">
-                    📊 Riepilogo IVA mista · Regola Beni Significativi (DM 29.12.99)
+                    {tr("📊 Riepilogo IVA mista · Regola Beni Significativi (DM 29.12.99)")}
                   </p>
                   <span className="text-[10px] text-slate-600 max-md:hidden">
-                    IVA calcolata sulle righe del preventivo
+                    {tr("IVA calcolata sulle righe del preventivo")}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">Imponibile 10%</p>
+                    <p className="text-[10px] uppercase text-slate-500">{tr("Imponibile 10%")}</p>
                     <p className="font-bold text-slate-900 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.imponibile_10)}</p>
                   </div>
                   <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">IVA 10%</p>
+                    <p className="text-[10px] uppercase text-slate-500">{tr("IVA 10%")}</p>
                     <p className="font-bold text-emerald-700 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.iva_10)}</p>
                   </div>
                   <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">Imponibile 22%</p>
+                    <p className="text-[10px] uppercase text-slate-500">{tr("Imponibile 22%")}</p>
                     <p className="font-bold text-slate-900 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.imponibile_22)}</p>
                   </div>
                   <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">IVA 22%</p>
+                    <p className="text-[10px] uppercase text-slate-500">{tr("IVA 22%")}</p>
                     <p className="font-bold text-amber-700 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.iva_22)}</p>
                   </div>
                 </div>
                 {/* Dettaglio split Beni Significativi (educational) */}
                 <p className="text-[10px] text-slate-600 leading-relaxed max-md:hidden">
-                  <strong>Serramenti</strong> (bene significativo) al 10% fino a {formatEuro(totaleCalc.mista_breakdown.altre_prestazioni)}{" "}
-                  (= valore accessori + posa + altre opere).
+                  <strong>{tr("Serramenti")}</strong> {tr("(bene significativo) al 10% fino a")} {formatEuro(totaleCalc.mista_breakdown.altre_prestazioni)}{" "}
+                  {tr("(= valore accessori + posa + altre opere).")}
                   {totaleCalc.mista_breakdown.bs_quota_22 > 0 ? (
-                    <> Eccedenza al 22%: <strong>{formatEuro(totaleCalc.mista_breakdown.bs_quota_22)}</strong>.</>
+                    <> {tr("Eccedenza al 22%:")} <strong>{formatEuro(totaleCalc.mista_breakdown.bs_quota_22)}</strong>.</>
                   ) : (
-                    <> Nessuna eccedenza al 22%.</>
+                    <> {tr("Nessuna eccedenza al 22%.")}</>
                   )}
                 </p>
               </div>
@@ -1351,8 +1344,8 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
       {/* Come paga il cliente: un interruttore Bonifico / Finanziamento, le varianti come pastiglie e le rate in
           righe compatte (nome · quando · % · importo). Si scrive tutto subito nel preventivo. */}
       <SrCard
-        title="Come paga il cliente"
-        description="Bonifico o finanziamento: la scelta guida gli step qui sotto. Compare nel PDF come piano concordato."
+        title={tr("Come paga il cliente")}
+        description={tr("Bonifico o finanziamento: la scelta guida gli step qui sotto. Compare nel PDF come piano concordato.")}
         icon={<Wallet className="h-4 w-4" />}
       >
         <div className="space-y-3">
@@ -1361,15 +1354,15 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 voci sono due pulsanti col bordo: la scelta è da fare, non uno stato già deciso. */}
             <div
               role="group"
-              aria-label="Come paga il cliente"
+              aria-label={tr("Come paga il cliente")}
               className={cn(
                 "grid w-full grid-cols-2 md:inline-grid md:w-auto",
                 unaFamigliaScelta ? "gap-0.5 rounded-lg bg-slate-100 p-0.5" : "gap-2",
               )}
             >
               {([
-                { fam: "bonifico" as const, icon: <Wallet className="h-4 w-4" />, label: "Bonifico", sub: "Acconti e saldo, senza finanziaria" },
-                { fam: "finanziamento" as const, icon: <CreditCard className="h-4 w-4" />, label: "Finanziamento", sub: "Rate tramite finanziaria" },
+                { fam: "bonifico" as const, icon: <Wallet className="h-4 w-4" />, label: tr("Bonifico"), sub: tr("Acconti e saldo, senza finanziaria") },
+                { fam: "finanziamento" as const, icon: <CreditCard className="h-4 w-4" />, label: tr("Finanziamento"), sub: tr("Rate tramite finanziaria") },
               ]).map((o) => {
                 const attivo = famigliaPagamento === o.fam;
                 return (
@@ -1428,7 +1421,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                     : "border-dashed border-slate-300 bg-transparent text-slate-500 hover:text-slate-700",
                 )}
               >
-                Personalizzato
+                {tr("Personalizzato")}
               </button>
             </div>
           </div>
@@ -1444,7 +1437,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             </>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Scegli come paga il cliente: le rate compaiono nel preventivo appena scegli.
+              {tr("Scegli come paga il cliente: le rate compaiono nel preventivo appena scegli.")}
             </p>
           )}
         </div>
@@ -1453,14 +1446,12 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
       {/* Simulazione finanziamento — c'è solo se lo schema scelto lo prevede */}
       {pagamentoScelto && schemaCfg.hasFinanziamento && (
         <SrCard
-          title="Simulazione finanziamento"
-          description="Scegli le rate: la rata viene dalla tabella della finanziaria (o dal piano manuale) e compare nel PDF."
+          title={tr("Simulazione finanziamento")}
+          description={tr("Scegli le rate: la rata viene dalla tabella della finanziaria (o dal piano manuale) e compare nel PDF.")}
           icon={<CreditCard className="h-4 w-4" />}
         >
           {avvisoPianoIndietro && (
-            <SrCallout variant="warning" icon={<AlertTriangle className="h-3.5 w-3.5" />} className="mb-3">
-              Il preventivo è già {motivoDeciso}: il piano di finanziamento non corrisponde {aCosaNonCorrisponde}. Resta com'è, non si riscrive da solo.
-            </SrCallout>
+            <SrCallout variant="warning" icon={<AlertTriangle className="h-3.5 w-3.5" />} className="mb-3">{tr("Il preventivo è già {motivoDeciso}: il piano di finanziamento non corrisponde {aCosaNonCorrisponde}. Resta com'è, non si riscrive da solo.", { motivoDeciso: motivoDeciso ? tr(motivoDeciso) : "", aCosaNonCorrisponde })}</SrCallout>
           )}
           <SimulazioneFinanziamento
             totale={forbice.media}
@@ -1491,15 +1482,15 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
 
       {/* Ecobonus */}
       <SrCard
-        title="Detrazione fiscale (Ecobonus)"
-        description="Detrazione IRPEF recuperata in 10 quote annuali."
+        title={tr("Detrazione fiscale (Ecobonus)")}
+        description={tr("Detrazione IRPEF recuperata in 10 quote annuali.")}
         icon={<Calendar className="h-4 w-4" />}
       >
         <div className="space-y-3">
           <div className="flex items-center justify-between border rounded-md p-2.5 bg-muted/20">
             <div>
-              <p className="text-sm font-medium">Includi nel preventivo</p>
-              <p className="text-[10px] text-muted-foreground max-md:hidden">Aliquote 2026: 50% sull'abitazione principale, 36% sulle altre</p>
+              <p className="text-sm font-medium">{tr("Includi nel preventivo")}</p>
+              <p className="text-[10px] text-muted-foreground max-md:hidden">{tr("Aliquote 2026: 50% sull'abitazione principale, 36% sulle altre")}</p>
             </div>
             {/* Telefono: l'interruttore è alto 24 px; l'area che risponde al tocco si allarga a 48×44 (il bordo da 2 px non conta) senza cambiare l'aspetto. */}
             <Switch checked={bonusAttivo} onCheckedChange={setBonusAttivo} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']" />
@@ -1508,7 +1499,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             <>
               <div className="grid grid-cols-12 gap-2">
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Aliquota</Label>
+                  <Label className="text-xs">{tr("Aliquota")}</Label>
                   <Select value={String(aliquota)} onValueChange={(v) => setAliquota(Number(v))}>
                     <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -1521,10 +1512,10 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               </div>
               {ecobonusCalc && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <SrKpi label="Base detraibile" value={formatEuro(ecobonusCalc.base_calcolo)} hint="Max 96.000 €" />
-                  <SrKpi label="Aliquota" value={formatPct(ecobonusCalc.aliquota)} />
-                  <SrKpi label="Detrazione totale" value={formatEuro(ecobonusCalc.detrazione_totale)} variant="success" />
-                  <SrKpi label="Rata annuale × 10 anni" value={formatEuro(ecobonusCalc.rata_annuale)} variant="success" />
+                  <SrKpi label={tr("Base detraibile")} value={formatEuro(ecobonusCalc.base_calcolo)} hint={tr("Max 96.000 €")} />
+                  <SrKpi label={tr("Aliquota")} value={formatPct(ecobonusCalc.aliquota)} />
+                  <SrKpi label={tr("Detrazione totale")} value={formatEuro(ecobonusCalc.detrazione_totale)} variant="success" />
+                  <SrKpi label={tr("Rata annuale × 10 anni")} value={formatEuro(ecobonusCalc.rata_annuale)} variant="success" />
                 </div>
               )}
             </>
@@ -1536,27 +1527,26 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
           e i calcoli stanno qui sopra, nel componente: chiudere la scheda non cancella niente e non cambia
           quello che si scrive nel preventivo e nel PDF (lo scrivono i gestori di questi campi, aperta o no). */}
       <ExtraRichiudibile
-        titolo="Risparmio energetico (per il PDF)"
-        titoloBreve="Risparmio energetico"
+        titolo={tr("Risparmio energetico (per il PDF)")}
+        titoloBreve={tr("Risparmio energetico")}
         icona={<Leaf className="h-4 w-4" />}
-        stato={risparmioAttivo ? "Attivo" : undefined}
-        statoDettaglio={risparmioAttivo && risparmioCalc ? `${formatEuro(risparmioCalc.risparmio_eur_anno)}/anno` : undefined}
+        stato={risparmioAttivo ? tr("Attivo") : undefined}
+        statoDettaglio={risparmioAttivo && risparmioCalc ? tr("{importo}/anno", { importo: formatEuro(risparmioCalc.risparmio_eur_anno) }) : undefined}
         aperto={extraAperti.risparmio}
         onApertoChange={(aperto) => setExtraAperti((prima) => ({ ...prima, risparmio: aperto }))}
       >
         <p className="text-[11px] text-muted-foreground max-md:hidden">
-          Mostra al cliente quanto risparmierà ogni anno in bolletta + il payback completo dopo la detrazione.
+          {tr("Mostra al cliente quanto risparmierà ogni anno in bolletta + il payback completo dopo la detrazione.")}
         </p>
         <div className="space-y-3">
           <div className="flex items-center justify-between border rounded-md p-2.5 bg-muted/20">
             <div>
-              <p className="text-sm font-medium">Calcola risparmio in bolletta</p>
+              <p className="text-sm font-medium">{tr("Calcola risparmio in bolletta")}</p>
               <p className="text-[10px] text-muted-foreground">
-                Zona climatica rilevata: <span className="font-semibold">{zonaClimatica}</span> ·
-                m² serramenti: {formatNumero(totaleCalc.metri_quadri, 2)}
+                {tr("Zona climatica rilevata:")} <span className="font-semibold">{zonaClimatica}</span> {tr("· m² serramenti:")} {formatNumero(totaleCalc.metri_quadri, 2)}
               </p>
             </div>
-            <Switch aria-label="Calcola risparmio in bolletta" checked={risparmioAttivo} onCheckedChange={(attivo) => aggiornaRisparmio({ attivo })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']" />
+            <Switch aria-label={tr("Calcola risparmio in bolletta")} checked={risparmioAttivo} onCheckedChange={(attivo) => aggiornaRisparmio({ attivo })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']" />
           </div>
           {risparmioAttivo && (
             <>
@@ -1564,7 +1554,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               <div className="grid grid-cols-12 gap-2">
                 <div className="col-span-6 md:col-span-3">
                   <Label className="text-xs flex items-center gap-1">
-                    Uw attuale (W/m²K)
+                    {tr("Uw attuale (W/m²K)")}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button type="button" className="text-muted-foreground hover:text-orange-600">
@@ -1572,21 +1562,21 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                         </button>
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <p className="text-xs font-semibold mb-1">Uw — Trasmittanza termica del serramento</p>
-                        <p className="text-[11px]">Trasmittanza del serramento completo. Usa una valutazione documentata: materiale, eta e numero di vetri da soli non identificano un valore Uw.</p>
+                        <p className="text-xs font-semibold mb-1">{tr("Uw — Trasmittanza termica del serramento")}</p>
+                        <p className="text-[11px]">{tr("Trasmittanza del serramento completo. Usa una valutazione documentata: materiale, eta e numero di vetri da soli non identificano un valore Uw.")}</p>
                       </TooltipContent>
                     </Tooltip>
                   </Label>
                   <Input
-                    aria-label="Uw attuale per la stima" type="number" step={0.1} value={uwAttuale}
+                    aria-label={tr("Uw attuale per la stima")} type="number" step={0.1} value={uwAttuale}
                     onChange={(e) => aggiornaRisparmio({ uwAttuale: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Ipotesi di calcolo da confermare</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">{tr("Ipotesi di calcolo da confermare")}</p>
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <Label className="text-xs flex items-center gap-1">
-                    Uw nuovo (W/m²K)
+                    {tr("Uw nuovo (W/m²K)")}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button type="button" className="text-muted-foreground hover:text-orange-600">
@@ -1594,30 +1584,30 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                         </button>
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <p className="text-xs font-semibold mb-1">Uw del nuovo serramento</p>
-                        <p className="text-[11px]">Valore del serramento completo nella configurazione proposta. Non confondere Uw con Ug del solo vetro o con un valore limite di catalogo.</p>
+                        <p className="text-xs font-semibold mb-1">{tr("Uw del nuovo serramento")}</p>
+                        <p className="text-[11px]">{tr("Valore del serramento completo nella configurazione proposta. Non confondere Uw con Ug del solo vetro o con un valore limite di catalogo.")}</p>
                       </TooltipContent>
                     </Tooltip>
                   </Label>
                   <Input
-                    aria-label="Uw nuovo per la stima" type="number" step={0.1} value={uwNuovo}
+                    aria-label={tr("Uw nuovo per la stima")} type="number" step={0.1} value={uwNuovo}
                     onChange={(e) => aggiornaRisparmio({ uwNuovo: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Dato della configurazione proposta</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">{tr("Dato della configurazione proposta")}</p>
                 </div>
                 <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs">m² casa</Label>
+                  <Label className="text-xs">{tr("m² casa")}</Label>
                   <Input
-                    aria-label="Superficie casa per la stima" type="number" min={1} value={m2Casa}
+                    aria-label={tr("Superficie casa per la stima")} type="number" min={1} value={m2Casa}
                     onChange={(e) => aggiornaRisparmio({ m2Casa: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
                 </div>
                 <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs"><span className="max-md:hidden">Bolletta riscaldamento attuale (€/anno)</span><span className="md:hidden">Bolletta (€/anno)</span></Label>
+                  <Label className="text-xs"><span className="max-md:hidden">{tr("Bolletta riscaldamento attuale (€/anno)")}</span><span className="md:hidden">{tr("Bolletta (€/anno)")}</span></Label>
                   <Input
-                    aria-label="Spesa annua riscaldamento" type="number" min={0} value={bollettaAttuale}
+                    aria-label={tr("Spesa annua riscaldamento")} type="number" min={0} value={bollettaAttuale}
                     onChange={(e) => aggiornaRisparmio({ bolletta: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
@@ -1626,23 +1616,23 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               {risparmioCalc && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <SrKpi
-                    label="Risparmio /anno"
+                    label={tr("Risparmio /anno")}
                     value={formatEuro(risparmioCalc.risparmio_eur_anno)}
                     hint={`${formatNumero(risparmioCalc.risparmio_kwh_anno, 0)} kWh`}
                     variant="success"
                   />
                   {risparmioCalc.risparmio_pct != null && (
-                    <SrKpi label="% bolletta" value={formatPct(risparmioCalc.risparmio_pct, 1)} variant="success" />
+                    <SrKpi label={tr("% bolletta")} value={formatPct(risparmioCalc.risparmio_pct, 1)} variant="success" />
                   )}
                   <SrKpi
-                    label="CO₂ /anno"
+                    label={tr("CO₂ /anno")}
                     value={formatNumero(risparmioCalc.co2_risparmiata_kg_anno / 1000, 2)}
                     unit="t"
                     variant="success"
-                    hint="Equivalente a ~5 alberi/anno"
+                    hint={tr("Equivalente a ~5 alberi/anno")}
                   />
                   <SrKpi
-                    label="Zona climatica"
+                    label={tr("Zona climatica")}
                     value={zonaClimatica}
                     hint={`${risparmioCalc.gradi_giorno} GG`}
                   />
@@ -1657,23 +1647,23 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
       {/* Recupero economico 10 anni (vista cliente) — extra richiudibile, chiuso di serie */}
       {cashflow && (
         <ExtraRichiudibile
-          titolo="Recupero economico · 10 anni"
-          titoloBreve="Recupero in 10 anni"
+          titolo={tr("Recupero economico · 10 anni")}
+          titoloBreve={tr("Recupero in 10 anni")}
           icona={<TrendingUp className="h-4 w-4" />}
-          statoDettaglio={cashflow.payback_anni != null ? `Payback ${formatNumero(cashflow.payback_anni, 1)} anni` : "Payback oltre 10 anni"}
+          statoDettaglio={cashflow.payback_anni != null ? tr("Payback {anni} anni", { anni: formatNumero(cashflow.payback_anni, 1) }) : tr("Payback oltre 10 anni")}
           statoTono="neutro"
           aperto={extraAperti.recupero}
           onApertoChange={(aperto) => setExtraAperti((prima) => ({ ...prima, recupero: aperto }))}
         >
           <p className="text-[11px] text-muted-foreground max-md:hidden">
-            Confronta il totale preventivo con risparmio bolletta e detrazione fiscale anno per anno.
+            {tr("Confronta il totale preventivo con risparmio bolletta e detrazione fiscale anno per anno.")}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 max-md:mb-0">
-            <SrKpi label="Totale preventivo" value={formatEuro(forbice.media)} />
-            <SrKpi label="Recuperato in 10 anni" value={formatEuro(cashflow.totale_recuperato_10y)} variant="success" />
-            <SrKpi label="% Recupero" value={formatPct(cashflow.pct_recuperato_10y, 0)} variant={cashflow.pct_recuperato_10y >= 100 ? "success" : "warning"} />
+            <SrKpi label={tr("Totale preventivo")} value={formatEuro(forbice.media)} />
+            <SrKpi label={tr("Recuperato in 10 anni")} value={formatEuro(cashflow.totale_recuperato_10y)} variant="success" />
+            <SrKpi label={tr("% Recupero")} value={formatPct(cashflow.pct_recuperato_10y, 0)} variant={cashflow.pct_recuperato_10y >= 100 ? "success" : "warning"} />
             <SrKpi
-              label="Payback"
+              label={tr("Payback")}
               value={cashflow.payback_anni != null ? formatNumero(cashflow.payback_anni, 1) : ">10"}
               unit={cashflow.payback_anni != null ? "anni" : ""}
               variant={cashflow.payback_anni != null && cashflow.payback_anni <= 10 ? "success" : "warning"}
@@ -1687,12 +1677,12 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[10px]">Anno</TableHead>
-                  <TableHead className="text-[10px]">Risparmio bolletta</TableHead>
-                  <TableHead className="text-[10px]">Detrazione</TableHead>
-                  <TableHead className="text-[10px]">Flusso anno</TableHead>
-                  <TableHead className="text-[10px]">Cumulato</TableHead>
-                  <TableHead className="text-[10px]">Netto vs. totale</TableHead>
+                  <TableHead className="text-[10px]">{tr("Anno")}</TableHead>
+                  <TableHead className="text-[10px]">{tr("Risparmio bolletta")}</TableHead>
+                  <TableHead className="text-[10px]">{tr("Detrazione")}</TableHead>
+                  <TableHead className="text-[10px]">{tr("Flusso anno")}</TableHead>
+                  <TableHead className="text-[10px]">{tr("Cumulato")}</TableHead>
+                  <TableHead className="text-[10px]">{tr("Netto vs. totale")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1719,10 +1709,10 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
       {detail.serramenti.length === 0 && !totaleCalc.prezzo_manuale && (
         <SrCallout variant="warning">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>⚠️ Nell'offerta non ci sono serramenti: il totale viene solo da complementi e servizi.</span>
+            <span>{tr("⚠️ Nell'offerta non ci sono serramenti: il totale viene solo da complementi e servizi.")}</span>
             {onVaiAlPasso && (
               <Button type="button" size="sm" variant="outline" onClick={() => onVaiAlPasso("bom")} className="text-xs">
-                Vai all'Offerta
+                {tr("Vai all'Offerta")}
               </Button>
             )}
           </div>
@@ -1745,12 +1735,11 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-amber-900">
                 {tutte
-                  ? `Preventivo "solo fornitura": tutte le ${tot} unità senza manodopera.`
-                  : `${senzaPosa.length} riga${senzaPosa.length === 1 ? "" : "he"} con manodopera esclusa (${tot} di ${totSerr} unità).`}
+                  ? tr("Preventivo \"solo fornitura\": tutte le {tot} unità senza manodopera.", { tot: String(tot ?? "") })
+                  : tr(senzaPosa.length === 1 ? "{n} riga con manodopera esclusa ({tot} di {totSerr} unità)." : "{n} righe con manodopera esclusa ({tot} di {totSerr} unità).", { n: senzaPosa.length, tot, totSerr })}
               </p>
               <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed max-md:hidden">
-                Il cliente dovrà occuparsi personalmente della posa per gli articoli marcati come <strong>"Solo fornitura"</strong>.
-                Riepilogo dettagliato verrà incluso nel PDF preventivo.
+                {tr("Il cliente dovrà occuparsi personalmente della posa per gli articoli marcati come")} <strong>{tr("\"Solo fornitura\"")}</strong>{tr(". Riepilogo dettagliato verrà incluso nel PDF preventivo.")}
               </p>
             </div>
           </div>
@@ -1767,10 +1756,13 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
 // del mouse. Come prima, solo da tablet in su.
 
 function RigaRegoleSconti({ regole, className }: { regole: DiscountEvalResult; className?: string }) {
+  const t = useT();
   const applicate = regole.matchingRules.map((r) => r.name).join(" · ");
   const suggerimento = regole.isFallback
-    ? "Nessuna regola di scontistica combacia con questo preventivo: vale il massimo predefinito."
-    : `Applicate: ${applicate}${regole.primaryRule && regole.matchingRules.length > 1 ? ` (principale: ${regole.primaryRule.name})` : ""}`;
+    ? t("Nessuna regola di scontistica combacia con questo preventivo: vale il massimo predefinito.")
+    : regole.primaryRule && regole.matchingRules.length > 1
+      ? t("Applicate: {applicate} (principale: {principale})", { applicate, principale: regole.primaryRule.name })
+      : t("Applicate: {applicate}", { applicate });
   return (
     <div
       className={cn(
@@ -1780,18 +1772,18 @@ function RigaRegoleSconti({ regole, className }: { regole: DiscountEvalResult; c
       title={suggerimento}
     >
       <Tag className="h-3.5 w-3.5 shrink-0 text-eic-navy-deep" />
-      <span className="font-semibold text-eic-navy-deep">Regole sconti</span>
+      <span className="font-semibold text-eic-navy-deep">{t("Regole sconti")}</span>
       {regole.isFallback ? (
-        <span>nessuna regola configurata: massimo {formatPct(regole.scontoMaxPct, 1)}</span>
+        <span>{t("nessuna regola configurata: massimo {scontoMaxPct}", { scontoMaxPct: formatPct(regole.scontoMaxPct, 1) })}</span>
       ) : (
         <>
-          <span>max <strong className="tabular-nums text-slate-800">{formatPct(regole.scontoMaxPct, 1)}</strong></span>
+          <span>{t("max")} <strong className="tabular-nums text-slate-800">{formatPct(regole.scontoMaxPct, 1)}</strong></span>
           <span>
             {regole.approvaOltrePct != null
-              ? <>approvazione oltre <strong className="tabular-nums text-slate-800">{formatPct(regole.approvaOltrePct, 1)}</strong></>
-              : "nessuna approvazione richiesta"}
+              ? <>{t("approvazione oltre")} <strong className="tabular-nums text-slate-800">{formatPct(regole.approvaOltrePct, 1)}</strong></>
+              : t("nessuna approvazione richiesta")}
           </span>
-          <span>margine min <strong className="tabular-nums text-slate-800">{formatPct(regole.margineMinPct, 1)}</strong></span>
+          <span>{t("margine min")} <strong className="tabular-nums text-slate-800">{formatPct(regole.margineMinPct, 1)}</strong></span>
         </>
       )}
       <a
@@ -1800,7 +1792,7 @@ function RigaRegoleSconti({ regole, className }: { regole: DiscountEvalResult; c
         rel="noreferrer"
         className="ml-auto text-[11px] text-eic-navy-deep underline hover:no-underline"
       >
-        Configura regole →
+        {t("Configura regole →")}
       </a>
     </div>
   );
@@ -1827,6 +1819,7 @@ interface MargineRiga {
 }
 
 function RigaMargine({ m, className }: { m: MargineRiga; className?: string }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -1839,16 +1832,16 @@ function RigaMargine({ m, className }: { m: MargineRiga; className?: string }) {
         className,
       )}
       title={
-        "Lo vede solo chi ha il permesso sui margini o sui costi. Il margine è calcolato su valori netti IVA esclusa: imponibile vendita meno costo acquisto netto."
-        + (m.costiCompleti ? " Tutte le righe vendute hanno un costo collegato." : ` Mancano costi su ${m.righeSenzaCosto} righe: completa il listino/costo per vedere il margine reale.`)
+        t("Lo vede solo chi ha il permesso sui margini o sui costi. Il margine è calcolato su valori netti IVA esclusa: imponibile vendita meno costo acquisto netto.")
+        + " " + (m.costiCompleti ? t("Tutte le righe vendute hanno un costo collegato.") : t("Mancano costi su {n} righe: completa il listino/costo per vedere il margine reale.", { n: m.righeSenzaCosto }))
       }
     >
       <span className="inline-flex items-center gap-1.5 font-semibold">
         <TrendingUp className="h-3.5 w-3.5" />
-        Margine (interno)
+        {t("Margine (interno)")}
       </span>
       <span className="text-slate-600">
-        {m.costiCompleti ? null : <>parziale{" "}</>}
+        {m.costiCompleti ? null : <>{t("parziale")}{" "}</>}
         <strong className={cn("tabular-nums", m.margine >= 0 ? "text-emerald-700" : "text-rose-700")}>
           {m.righeConCosto > 0 ? formatEuro(m.margine) : "—"}
         </strong>
@@ -1858,20 +1851,20 @@ function RigaMargine({ m, className }: { m: MargineRiga; className?: string }) {
           </strong>
         )}
       </span>
-      <span className="text-slate-600">costo <strong className="tabular-nums text-slate-800">{formatEuro(m.costoTotale)}</strong></span>
-      <span className="text-slate-600">vendita <strong className="tabular-nums text-slate-800">{formatEuro(m.vendita)}</strong></span>
+      <span className="text-slate-600">{t("costo")} <strong className="tabular-nums text-slate-800">{formatEuro(m.costoTotale)}</strong></span>
+      <span className="text-slate-600">{t("vendita")} <strong className="tabular-nums text-slate-800">{formatEuro(m.vendita)}</strong></span>
       {!m.costiCompleti ? (
         <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
           <Info className="h-3 w-3" />
-          Costi incompleti: mancano su {m.righeSenzaCosto} {m.righeSenzaCosto === 1 ? "riga" : "righe"}
+          {t(m.righeSenzaCosto === 1 ? "Costi incompleti: mancano su {n} riga" : "Costi incompleti: mancano su {n} righe", { n: m.righeSenzaCosto })}
         </span>
       ) : m.sottoTarget ? (
         <span className="inline-flex items-center gap-1 font-semibold text-rose-700">
           <TrendingDown className="h-3 w-3" />
-          Sotto target {formatPct(m.margineMinPct, 1)}
+          {t("Sotto target")} {formatPct(m.margineMinPct, 1)}
         </span>
       ) : null}
-      {m.isFetchingGridCosts && <span className="text-slate-500">aggiorno i costi…</span>}
+      {m.isFetchingGridCosts && <span className="text-slate-500">{t("aggiorno i costi…")}</span>}
     </div>
   );
 }
@@ -1894,6 +1887,7 @@ function RoiChart({
   costoIniziale: number;
   payback: number | null;
 }) {
+  const t = useT();
   // Dataset per recharts: prepend anno 0 = € 0 (origine del recupero)
   const data = useMemo(() => [
     { anno: 0, cumulato: 0, flusso_anno: 0, risparmio_bolletta: 0, detrazione: 0 },
@@ -1931,11 +1925,11 @@ function RoiChart({
               dataKey="anno"
               tick={{ fontSize: 11, fill: "#64748b" }}
               tickFormatter={(v) => v === 0 ? "" : `${v}`}
-              label={{ value: "Anni", position: "insideBottom", offset: -2, fontSize: 10, fill: "#94a3b8" }}
+              label={{ value: t("Anni"), position: "insideBottom", offset: -2, fontSize: 10, fill: "#94a3b8" }}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "#64748b" }}
-              tickFormatter={(v) => `${Math.round(v).toLocaleString("it-IT", { useGrouping: true })} €`}
+              tickFormatter={(v) => `${Math.round(v).toLocaleString(intlCampo(), { useGrouping: true })} €`}
               domain={[0, maxY]}
               width={70}
             />
@@ -1950,25 +1944,25 @@ function RoiChart({
                 const netto = d.cumulato - costoIniziale;
                 return (
                   <div className="bg-white rounded-md border border-slate-200 shadow-md p-2.5 text-xs">
-                    <p className="font-bold text-slate-900 mb-1">Anno {d.anno}</p>
+                    <p className="font-bold text-slate-900 mb-1">{t("Anno {valore}", { valore: String(d.anno ?? "") })}</p>
                     <div className="space-y-0.5 text-[11px]">
                       <p className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Risparmio bolletta</span>
-                        <span className="tabular-nums font-medium">€ {d.risparmio_bolletta.toLocaleString("it-IT", { useGrouping: true })}</span>
+                        <span className="text-muted-foreground">{t("Risparmio bolletta")}</span>
+                        <span className="tabular-nums font-medium">€ {d.risparmio_bolletta.toLocaleString(intlCampo(), { useGrouping: true })}</span>
                       </p>
                       <p className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Detrazione fiscale</span>
-                        <span className="tabular-nums font-medium">€ {d.detrazione.toLocaleString("it-IT", { useGrouping: true })}</span>
+                        <span className="text-muted-foreground">{t("Detrazione fiscale")}</span>
+                        <span className="tabular-nums font-medium">€ {d.detrazione.toLocaleString(intlCampo(), { useGrouping: true })}</span>
                       </p>
                       <div className="border-t border-slate-100 my-1" />
                       <p className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Cumulato</span>
-                        <span className="tabular-nums font-bold text-emerald-700">€ {d.cumulato.toLocaleString("it-IT", { useGrouping: true })}</span>
+                        <span className="text-muted-foreground">{t("Cumulato")}</span>
+                        <span className="tabular-nums font-bold text-emerald-700">€ {d.cumulato.toLocaleString(intlCampo(), { useGrouping: true })}</span>
                       </p>
                       <p className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Netto vs totale</span>
+                        <span className="text-muted-foreground">{t("Netto vs totale")}</span>
                         <span className={`tabular-nums font-semibold ${netto >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                          {netto >= 0 ? "+" : ""}€ {netto.toLocaleString("it-IT", { useGrouping: true })}
+                          {netto >= 0 ? "+" : ""}€ {netto.toLocaleString(intlCampo(), { useGrouping: true })}
                         </span>
                       </p>
                     </div>
@@ -1995,7 +1989,7 @@ function RoiChart({
               strokeDasharray="6 4"
               strokeWidth={1.5}
               label={{
-                value: `Totale € ${costoIniziale.toLocaleString("it-IT", { useGrouping: true })}`,
+                value: t("Totale € {valore}", { valore: costoIniziale.toLocaleString(intlCampo(), { useGrouping: true }) }),
                 position: "insideTopRight",
                 fill: "#ef4444",
                 fontSize: 11,
@@ -2012,7 +2006,7 @@ function RoiChart({
                 stroke="#fff"
                 strokeWidth={2}
                 label={{
-                  value: `🎯 Break-even anno ${paybackPoint.anno.toFixed(1)}`,
+                  value: t("🎯 Break-even anno {anno}", { anno: paybackPoint.anno.toFixed(1) }),
                   position: "top",
                   fill: "#f97316",
                   fontSize: 11,
@@ -2028,16 +2022,16 @@ function RoiChart({
       <div className="flex flex-wrap items-center justify-center gap-4 mt-2 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-0.5 bg-emerald-500" />
-          Recupero cumulato
+          {t("Recupero cumulato")}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 border-t border-dashed border-red-500" />
-          Soglia totale
+          {t("Soglia totale")}
         </span>
         {paybackPoint && (
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500" />
-            Break-even
+            {t("Break-even")}
           </span>
         )}
       </div>

@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STORAGE_BUCKET = "ad-media";
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -30,6 +31,7 @@ interface Props {
 const fromTable = (n: string) => (supabase as any).from(n);
 
 export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -45,18 +47,18 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
 
   const handleFile = async (file: File) => {
     if (!companyId) {
-      toast.error("Azienda non identificata");
+      toast.error(t("Azienda non identificata"));
       return;
     }
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error("Formato non supportato", {
-        description: "Solo PNG, JPG, WebP",
+      toast.error(t("Formato non supportato"), {
+        description: t("Solo PNG, JPG, WebP"),
       });
       return;
     }
     if (file.size > MAX_BYTES) {
-      toast.error("File troppo grande", {
-        description: `Max ${(MAX_BYTES / 1024 / 1024).toFixed(0)} MB`,
+      toast.error(t("File troppo grande"), {
+        description: t("Max {valore} MB", { valore: (MAX_BYTES / 1024 / 1024).toFixed(0) }),
       });
       return;
     }
@@ -91,7 +93,7 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
       }
 
       if (uploadResult.error) {
-        toast.error("Upload fallito", { description: uploadResult.error.message });
+        toast.error(t("Upload fallito"), { description: uploadResult.error.message });
         return;
       }
 
@@ -126,8 +128,8 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
 
       // Warning se troppo piccola per Meta
       if (widthPx > 0 && (widthPx < 600 || heightPx < 600)) {
-        toast.warning("Immagine piccola", {
-          description: `${widthPx}×${heightPx}px — Meta consiglia almeno 600px lato corto`,
+        toast.warning(t("Immagine piccola"), {
+          description: t("{widthPx}×{heightPx}px — Meta consiglia almeno 600px lato corto", { widthPx: String(widthPx ?? ""), heightPx: String(heightPx ?? "") }),
         });
       }
 
@@ -155,8 +157,8 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
         if (insertErr) {
           const msg = String(insertErr.message ?? "");
           if (msg.includes("does not exist") || msg.includes("schema cache")) {
-            toast.warning("Migration ad_media non applicata", {
-              description: "L'immagine è stata caricata in Storage ma non indicizzata nel DB.",
+            toast.warning(t("Migration ad_media non applicata"), {
+              description: t("L'immagine è stata caricata in Storage ma non indicizzata nel DB."),
             });
             onUploaded?.({ id: fallbackMediaId, public_url: publicUrl });
             resetUploadState();
@@ -165,8 +167,8 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
           throw insertErr;
         }
 
-        toast.success("Immagine caricata", {
-          description: `${widthPx}×${heightPx}px · ${(file.size / 1024).toFixed(0)} KB`,
+        toast.success(t("Immagine caricata"), {
+          description: t("{widthPx}×{heightPx}px · {valore} KB", { widthPx: String(widthPx ?? ""), heightPx: String(heightPx ?? ""), valore: (file.size / 1024).toFixed(0) }),
         });
 
         qc.invalidateQueries({ queryKey: ["ad-media-library"] });
@@ -176,7 +178,7 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
         // Cleanup best-effort: senza riga DB il file in storage resterebbe
         // orfano (pubblico e non tracciato) per sempre.
         await supabase.storage.from(STORAGE_BUCKET).remove([fileName]).catch(() => {});
-        toast.error("Errore inserimento DB", {
+        toast.error(t("Errore inserimento DB"), {
           description: String((e as Error).message ?? e),
         });
       }
@@ -191,11 +193,11 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
     <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
       <CardContent className="space-y-3 p-4 max-sm:p-0">
         <div className="max-sm:hidden">
-          <Label className="mb-1 block text-xs">Nome immagine (opzionale)</Label>
+          <Label className="mb-1 block text-xs">{t("Nome immagine (opzionale)")}</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Es. Bagno via Roma — prima/dopo"
+            placeholder={t("Es. Bagno via Roma — prima/dopo")}
           />
         </div>
 
@@ -219,14 +221,14 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
             <div className="relative">
               <img loading="lazy"
                 src={preview}
-                alt="Preview"
+                alt={t("Preview")}
                 className="max-h-48 rounded-lg object-contain"
               />
               <button
                 type="button"
                 onClick={() => setPreview(null)}
                 className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow"
-                aria-label="Rimuovi"
+                aria-label={t("Rimuovi")}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -238,11 +240,11 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
               </div>
               <div className="max-sm:min-w-0 max-sm:flex-1">
                 <p className="text-sm font-semibold text-slate-700 max-sm:text-[13px]">
-                  <span className="max-sm:hidden">Trascina un'immagine qui o clicca per scegliere</span>
-                  <span className="sm:hidden">Aggiungi una foto</span>
+                  <span className="max-sm:hidden">{t("Trascina un'immagine qui o clicca per scegliere")}</span>
+                  <span className="sm:hidden">{t("Aggiungi una foto")}</span>
                 </p>
                 <p className="mt-1 text-xs text-slate-500 max-sm:mt-0 max-sm:truncate max-sm:text-[11px]">
-                  {hint ?? "PNG, JPG, WebP · max 10 MB · consigliato min 600px lato corto"}
+                  {hint ?? t("PNG, JPG, WebP · max 10 MB · consigliato min 600px lato corto")}
                 </p>
               </div>
             </>
@@ -267,7 +269,7 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
             onClick={() => inputRef.current?.click()}
           >
             {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {isUploading ? "Upload in corso..." : "Scegli file"}
+            {isUploading ? t("Upload in corso...") : t("Scegli file")}
           </Button>
         </div>
       </CardContent>

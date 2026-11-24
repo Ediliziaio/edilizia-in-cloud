@@ -13,6 +13,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, ExternalLink } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ProviderGuide {
   id: string;
@@ -133,14 +134,13 @@ const PROVIDERS: ProviderGuide[] = [
 ];
 
 export function ProviderGuideAccordion() {
+  const t = useT();
   return (
     <div className="space-y-3">
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Guida pratica per inserire i record DNS sul pannello del tuo registrar.
-          Non è nell'elenco? Tutti i registrar accettano i valori in tabella —
-          cerca la voce <strong>Gestione DNS</strong> o <strong>DNS Zone</strong> nel pannello.
+          {t("Guida pratica per inserire i record DNS sul pannello del tuo registrar. Non è nell'elenco? Tutti i registrar accettano i valori in tabella — cerca la voce")} <strong>{t("Gestione DNS")}</strong> o <strong>{t("DNS Zone")}</strong> {t("nel pannello.")}
         </AlertDescription>
       </Alert>
 
@@ -150,34 +150,32 @@ export function ProviderGuideAccordion() {
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-3 text-left">
                 <span className="font-semibold">{p.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  Propagazione: {p.avgPropagation}
-                </span>
+                <span className="text-xs text-muted-foreground">{t("Propagazione: {avgPropagation}", { avgPropagation: String(p.avgPropagation ?? "") })}</span>
               </div>
             </AccordionTrigger>
             <AccordionContent className="space-y-4 text-sm">
               <div>
-                <p className="font-medium mb-1">Percorso nel pannello:</p>
+                <p className="font-medium mb-1">{t("Percorso nel pannello:")}</p>
                 <code className="text-xs bg-muted px-2 py-1 rounded block">
                   {p.adminPath}
                 </code>
               </div>
 
               <div>
-                <p className="font-medium mb-2">Passi:</p>
+                <p className="font-medium mb-2">{t("Passi:")}</p>
                 <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
                   {p.steps.map((step, idx) => (
-                    <li key={idx} className="leading-relaxed">{step}</li>
+                    <li key={idx} className="leading-relaxed">{t(step)}</li>
                   ))}
                 </ol>
               </div>
 
               {p.gotchas.length > 0 && (
                 <div>
-                  <p className="font-medium mb-2">Attenzione:</p>
+                  <p className="font-medium mb-2">{t("Attenzione:")}</p>
                   <ul className="list-disc list-inside space-y-1 text-xs text-muted-foreground">
                     {p.gotchas.map((g, idx) => (
-                      <li key={idx} className="leading-relaxed">{g}</li>
+                      <li key={idx} className="leading-relaxed">{t(g)}</li>
                     ))}
                   </ul>
                 </div>
@@ -190,7 +188,7 @@ export function ProviderGuideAccordion() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  Documentazione ufficiale {p.name}
+                  {t("Documentazione ufficiale {nome}", { nome: p.name })}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}

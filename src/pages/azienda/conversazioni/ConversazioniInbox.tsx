@@ -37,6 +37,7 @@ import {
   type FiltroCanale,
 } from "@/lib/conversazioni/presentazione";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const CANALE_META: Record<CanaleConversazione, { label: string; Icon: typeof Mail; dot: string }> = {
   email:    { label: "Email",    Icon: Mail,          dot: "bg-blue-500" },
@@ -60,7 +61,7 @@ function formatOra(ts: string | null): string {
   if (!ts) return "";
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat("it-IT", {
+  return new Intl.DateTimeFormat(intlCampo(), {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   }).format(d);
 }
@@ -72,27 +73,27 @@ function giornoDi(ts: string | null): string {
 }
 
 /** «Oggi», «Ieri» o «25 settembre 2026», come nella chat del Team. */
-function etichettaGiorno(ts: string | null): string {
+function etichettaGiorno(ts: string | null, t: (testo: string) => string): string {
   if (!ts) return "";
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
   const oggi = new Date();
   const ieri = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - 1);
-  if (d.toDateString() === oggi.toDateString()) return "Oggi";
-  if (d.toDateString() === ieri.toDateString()) return "Ieri";
-  return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(d);
+  if (d.toDateString() === oggi.toDateString()) return t("Oggi");
+  if (d.toDateString() === ieri.toDateString()) return t("Ieri");
+  return new Intl.DateTimeFormat(intlCampo(), { day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
 /** «modello · ✗ non consegnato: problema di pagamento…» → «Non consegnato: problema di pagamento…». */
-function motivoMancataConsegna(esito: string): string {
+function motivoMancataConsegna(esito: string, tr: (testo: string) => string): string {
   const t = esito.replace(/^modello\s*·\s*/i, "").replace(/^[×✕✗]\s*/, "").trim();
-  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Non consegnato";
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : tr("Non consegnato");
 }
 
 function oraDi(ts: string | null): string {
   if (!ts) return "";
   const d = new Date(ts);
-  return Number.isNaN(d.getTime()) ? "" : new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(d);
+  return Number.isNaN(d.getTime()) ? "" : new Intl.DateTimeFormat(intlCampo(), { hour: "2-digit", minute: "2-digit" }).format(d);
 }
 
 interface Props {
@@ -100,6 +101,7 @@ interface Props {
 }
 
 export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
+  const t = useT();
   const { profile, effectiveCompany, user } = useAuth();
   const companyId = companyIdOverride ?? effectiveCompany?.id ?? profile?.company_id ?? null;
 
@@ -250,7 +252,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     if (!selectedItem) return;
     overlay.mutate(
       { entitaTipo: selectedItem.entita_tipo, entitaId: selectedItem.entita_id, patch: { stato } },
-      { onSuccess: () => toast.success(stato === "chiusa" ? "Conversazione chiusa" : "Conversazione riaperta") },
+      { onSuccess: () => toast.success(stato === "chiusa" ? t("Conversazione chiusa") : t("Conversazione riaperta")) },
     );
   };
 
@@ -274,7 +276,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           bot_in_pausa_il: pausa ? new Date().toISOString() : null,
         },
       },
-      { onSuccess: () => toast.success(pausa ? "Assistente in pausa: la conversazione la segui tu" : "Assistente riattivato") },
+      { onSuccess: () => toast.success(pausa ? t("Assistente in pausa: la conversazione la segui tu") : t("Assistente riattivato")) },
     );
   };
 
@@ -287,7 +289,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
         entitaId: selectedItem.entita_id,
         patch: { assegnato_a: mine ? null : user.id },
       },
-      { onSuccess: () => toast.success(mine ? "Assegnazione rimossa" : "Assegnata a te") },
+      { onSuccess: () => toast.success(mine ? t("Assegnazione rimossa") : t("Assegnata a te")) },
     );
   };
 
@@ -302,11 +304,11 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           {/* Mobile: il titolo ripete la linguetta sopra; restano ricerca e stato. */}
           <div className="hidden md:flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold flex items-center gap-2">
-              <Inbox className="h-4 w-4" /> Conversazioni
+              <Inbox className="h-4 w-4" /> {t("Conversazioni")}
             </h2>
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
-              aria-label="Aggiorna conversazioni"
+              aria-label={t("Aggiorna conversazioni")}
               disabled={isFetching}
               onClick={() => {
                 // Una lettura già in corso si aspetta, non si rifà.
@@ -319,15 +321,15 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca contatto o cliente…" aria-label="Cerca conversazione" className="pl-8 h-9" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Cerca contatto o cliente…")} aria-label={t("Cerca conversazione")} className="pl-8 h-9" />
           </div>
           {/* Filtri stato (triage GHL-style) */}
           <div className="mt-2 flex items-center gap-1 flex-wrap">
             {([
-              { k: "tutte", label: "Tutte" },
-              { k: "non_lette", label: "Non lette" },
-              { k: "mie", label: "Mie" },
-              { k: "chiuse", label: "Chiuse" },
+              { k: "tutte", label: t("Tutte") },
+              { k: "non_lette", label: t("Non lette") },
+              { k: "mie", label: t("Mie") },
+              { k: "chiuse", label: t("Chiuse") },
             ] as const).map((f) => (
               <button
                 key={f.k}
@@ -352,7 +354,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               onClick={() => setCanaleFilter("tutti")}
               className={cn("rounded-full px-2 py-0.5 text-[11px]", canaleFilter === "tutti" ? "bg-foreground/10 font-medium" : "text-muted-foreground hover:bg-muted")}
             >
-              Tutti
+              {t("Tutti")}
             </button>
             {(Object.keys(CANALE_META) as CanaleConversazione[]).map((ch) => {
               const M = CANALE_META[ch];
@@ -361,8 +363,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 <button
                   key={ch}
                   type="button"
-                  aria-label={`Filtra ${M.label}`}
-                  title={M.label}
+                  aria-label={t("Filtra {cosa}", { cosa: t(M.label) })}
+                  title={t(M.label)}
                   onClick={() => setCanaleFilter(active ? "tutti" : ch)}
                   className={cn("rounded-full p-1 transition-colors", active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
                 >
@@ -386,13 +388,13 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           ) : isError ? (
             <div className="p-6 text-center text-sm text-muted-foreground">
               <AlertCircle className="h-5 w-5 mx-auto mb-2 text-amber-500" />
-              Non riesco a caricare le conversazioni.
-              <p className="text-xs mt-1">Riprova tra qualche secondo. Se il problema persiste, contatta l'assistenza.</p>
+              {t("Non riesco a caricare le conversazioni.")}
+              <p className="text-xs mt-1">{t("Riprova tra qualche secondo. Se il problema persiste, contatta l'assistenza.")}</p>
             </div>
           ) : filtrate.length === 0 ? (
             <div className="p-6 text-center text-sm text-muted-foreground">
               <Inbox className="h-5 w-5 mx-auto mb-2 opacity-50" />
-              Nessuna conversazione{search ? " trovata" : ""}.
+              {search ? t("Nessuna conversazione trovata.") : t("Nessuna conversazione.")}
             </div>
           ) : (
             <ul className="divide-y">
@@ -425,13 +427,13 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium text-sm truncate flex items-center gap-1.5">
                             {isCliente ? <Briefcase className="h-3 w-3 text-indigo-500 shrink-0" /> : <User className="h-3 w-3 text-muted-foreground shrink-0" />}
-                            {c.nome || c.email || c.telefono || "Senza nome"}
+                            {c.nome || c.email || c.telefono || t("Senza nome")}
                           </span>
                           <span className="text-[10px] text-muted-foreground shrink-0">{formatOra(c.ultimo_ts)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-0.5">
                           <span className="text-xs text-muted-foreground truncate">
-                            {c.ultimo_direzione === "out" ? "Tu: " : ""}{c.anteprima || "—"}
+                            {c.ultimo_direzione === "out" ? `${t("Tu:")} ` : ""}{c.anteprima || "—"}
                           </span>
                           {c.non_letti > 0 && (
                             <Badge className="h-5 min-w-5 px-1.5 rounded-full text-[10px] shrink-0">{c.non_letti}</Badge>
@@ -460,7 +462,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           <div className="flex-1 flex items-center justify-center text-center text-muted-foreground p-8">
             <div>
               <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Seleziona una conversazione per vedere tutti i messaggi<br />(email, SMS, WhatsApp) con quel contatto o cliente.</p>
+              <p className="text-sm">{t("Seleziona una conversazione per vedere tutti i messaggi")}<br />{t("(email, SMS, WhatsApp) con quel contatto o cliente.")}</p>
             </div>
           </div>
         ) : (
@@ -472,10 +474,10 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 ~175px su 812, e ogni bottone lì diventa di 44px. */}
             <header className="px-3 sm:px-4 py-2 border-b bg-background shrink-0 space-y-1.5">
               <div className="flex items-center gap-2.5 min-w-0">
-                <Button variant="ghost" size="icon" className="md:hidden -ml-1 h-8 w-8 shrink-0" aria-label="Torna alla lista" onClick={() => setSelectedKey(null)}>
+                <Button variant="ghost" size="icon" className="md:hidden -ml-1 h-8 w-8 shrink-0" aria-label={t("Torna alla lista")} onClick={() => setSelectedKey(null)}>
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
-                <Link to={schedaHref} className="tap-compact shrink-0" aria-label="Apri la scheda del contatto">
+                <Link to={schedaHref} className="tap-compact shrink-0" aria-label={t("Apri la scheda del contatto")}>
                   <Avatar className="h-9 w-9">
                     <AvatarFallback className={cn("text-xs", selectedItem.entita_tipo === "cliente" ? "bg-indigo-100 text-indigo-700" : "bg-primary/10 text-primary")}>
                       {iniziali(selectedItem.nome, selectedItem.email)}
@@ -486,9 +488,9 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                   <Link
                     to={schedaHref}
                     className="tap-compact font-semibold text-sm hover:underline flex items-center gap-1.5 min-w-0"
-                    title="Apri la scheda completa"
+                    title={t("Apri la scheda completa")}
                   >
-                    <span className="truncate">{selectedItem.nome || selectedItem.email || "Senza nome"}</span>
+                    <span className="truncate">{selectedItem.nome || selectedItem.email || t("Senza nome")}</span>
                     <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                   </Link>
                   <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -504,36 +506,36 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 </div>
                 <Badge variant="secondary" className="gap-1 shrink-0 max-md:hidden">
                   {selectedItem.entita_tipo === "cliente" ? <Briefcase className="h-3 w-3" /> : <User className="h-3 w-3" />}
-                  {selectedItem.entita_tipo === "cliente" ? "Cliente" : "Contatto"}
+                  {selectedItem.entita_tipo === "cliente" ? t("Cliente") : t("Contatto")}
                 </Badge>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="tap-compact h-9 w-9 shrink-0 md:hidden" aria-label="Azioni sulla conversazione">
+                    <Button variant="ghost" size="icon" className="tap-compact h-9 w-9 shrink-0 md:hidden" aria-label={t("Azioni sulla conversazione")}>
                       <MoreHorizontal className="h-5 w-5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuItem onClick={() => setSchedaOpen(true)}>
-                      <Info className="h-4 w-4 mr-2" /> Scheda
+                      <Info className="h-4 w-4 mr-2" /> {t("Scheda")}
                     </DropdownMenuItem>
                     {selectedItem.entita_tipo === "contatto" && assistente.data?.haAgente && (
                       <DropdownMenuItem onClick={cambiaPausaAssistente} disabled={overlay.isPending}>
                         {assistente.data.inPausa
-                          ? <><Bot className="h-4 w-4 mr-2" /> Riattiva l'assistente</>
-                          : <><PauseCircle className="h-4 w-4 mr-2" /> Metti in pausa l'assistente</>}
+                          ? <><Bot className="h-4 w-4 mr-2" /> {t("Riattiva l'assistente")}</>
+                          : <><PauseCircle className="h-4 w-4 mr-2" /> {t("Metti in pausa l'assistente")}</>}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={assegnaAMe} disabled={overlay.isPending}>
                       <UserCheck className="h-4 w-4 mr-2" />
-                      {selectedItem.assegnato_a === user?.id ? "Togli l'assegnazione" : "Assegna a me"}
+                      {selectedItem.assegnato_a === user?.id ? t("Togli l'assegnazione") : t("Assegna a me")}
                     </DropdownMenuItem>
                     {selectedItem.stato === "chiusa" ? (
                       <DropdownMenuItem onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
-                        <RotateCcw className="h-4 w-4 mr-2" /> Riapri
+                        <RotateCcw className="h-4 w-4 mr-2" /> {t("Riapri")}
                       </DropdownMenuItem>
                     ) : (
                       <DropdownMenuItem onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
-                        <CheckCircle2 className="h-4 w-4 mr-2" /> Chiudi
+                        <CheckCircle2 className="h-4 w-4 mr-2" /> {t("Chiudi")}
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -545,7 +547,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                   variant="ghost" size="sm" className="h-7 gap-1.5 text-xs xl:hidden"
                   onClick={() => setSchedaOpen(true)}
                 >
-                  <Info className="h-3.5 w-3.5" /> Scheda
+                  <Info className="h-3.5 w-3.5" /> {t("Scheda")}
                 </Button>
                 {selectedItem.entita_tipo === "contatto" && assistente.data?.haAgente && (
                   <Button
@@ -553,11 +555,11 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                     size="sm" className="h-7 gap-1.5 text-xs"
                     onClick={cambiaPausaAssistente} disabled={overlay.isPending}
                     title={assistente.data.inPausa
-                      ? `L'assistente non risponde a questo contatto${assistente.data.motivo ? ` (${assistente.data.motivo})` : ""}. Clicca per riattivarlo.`
-                      : "Metti in pausa l'assistente WhatsApp per questo contatto"}
+                      ? t("L'assistente non risponde a questo contatto{motivo}. Clicca per riattivarlo.", { motivo: assistente.data.motivo ? ` (${assistente.data.motivo})` : "" })
+                      : t("Metti in pausa l'assistente WhatsApp per questo contatto")}
                   >
                     {assistente.data.inPausa ? <PauseCircle className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
-                    {assistente.data.inPausa ? "Assistente in pausa" : "Pausa assistente"}
+                    {assistente.data.inPausa ? t("Assistente in pausa") : t("Pausa assistente")}
                   </Button>
                 )}
                 <Button
@@ -566,15 +568,15 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                   onClick={assegnaAMe} disabled={overlay.isPending}
                 >
                   <UserCheck className="h-3.5 w-3.5" />
-                  {selectedItem.assegnato_a === user?.id ? "Assegnata a te" : "Assegna a me"}
+                  {selectedItem.assegnato_a === user?.id ? t("Assegnata a te") : t("Assegna a me")}
                 </Button>
                 {selectedItem.stato === "chiusa" ? (
                   <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
-                    <RotateCcw className="h-3.5 w-3.5" />Riapri
+                    <RotateCcw className="h-3.5 w-3.5" />{t("Riapri")}
                   </Button>
                 ) : (
                   <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
-                    <CheckCircle2 className="h-3.5 w-3.5" />Chiudi
+                    <CheckCircle2 className="h-3.5 w-3.5" />{t("Chiudi")}
                   </Button>
                 )}
               </div>
@@ -622,7 +624,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                   ))}
                 </div>
               ) : timeline.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-10">Nessun messaggio in questa conversazione.</div>
+                <div className="text-center text-sm text-muted-foreground py-10">{t("Nessun messaggio in questa conversazione.")}</div>
               ) : (
                 // min-h-full + justify-end: con pochi messaggi stanno in basso
                 // vicino alla barra, come nella chat del Team.
@@ -632,9 +634,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                       <Button
                         variant="ghost" size="sm" className="text-xs text-muted-foreground"
                         onClick={() => setShownCount((n) => n + 30)}
-                      >
-                        Carica precedenti ({timeline.length - shownCount})
-                      </Button>
+                      >{t("Carica precedenti ({n})", { n: timeline.length - shownCount })}</Button>
                     </div>
                   )}
                   {timeline.slice(-shownCount).map((m, i, visibili) => {
@@ -645,7 +645,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                     // e' l'informazione che serve davvero.
                     const locale = m.ref_tabella === "openwa_messages";
                     const meta = CANALE_META[m.canale] ?? CANALE_META.email;
-                    const etichetta = locale ? "WA Locale" : meta.label;
+                    const etichetta = locale ? t("WA Locale") : t(meta.label);
                     const out = m.direzione === "out";
                     // Per l'email `oggetto` è l'oggetto; per il WhatsApp
                     // ufficiale è l'esito («modello · ✓✓ letto», «× non consegnato: …»).
@@ -662,7 +662,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                         {nuovoGiorno && (
                           <div className="flex justify-center my-3">
                             <span className="bg-white dark:bg-[#202c33] text-[#54656f] dark:text-gray-400 text-[11px] font-medium px-2.5 py-0.5 rounded-lg shadow-sm">
-                              {etichettaGiorno(m.ts)}
+                              {etichettaGiorno(m.ts, t)}
                             </span>
                           </div>
                         )}
@@ -684,18 +684,18 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                                 >
                                   <div className="flex items-center gap-1.5 border-b bg-blue-50/70 px-3 py-1.5 text-[11px] dark:bg-blue-950/30">
                                     <Mail className="h-3.5 w-3.5 text-blue-600" />
-                                    <span className="font-semibold text-blue-700 dark:text-blue-300">{out ? "Email inviata" : "Email ricevuta"}</span>
+                                    <span className="font-semibold text-blue-700 dark:text-blue-300">{out ? t("Email inviata") : t("Email ricevuta")}</span>
                                     <span className="ml-auto text-muted-foreground" title={formatOra(m.ts)}>{oraDi(m.ts)}</span>
                                   </div>
                                   <div className="space-y-0.5 px-3 pt-2 text-[11px] text-muted-foreground">
                                     {perc ? (
                                       <>
-                                        <p><span className="font-medium text-foreground/70">Da:</span> {perc.da || "—"}</p>
+                                        <p><span className="font-medium text-foreground/70">{t("Da:")}</span> {perc.da || "—"}</p>
                                         <p><span className="font-medium text-foreground/70">A:</span> {perc.a || "—"}</p>
-                                        {perc.via && <p><span className="font-medium text-foreground/70">Tramite:</span> {perc.via}</p>}
+                                        {perc.via && <p><span className="font-medium text-foreground/70">{t("Tramite:")}</span> {perc.via}</p>}
                                       </>
                                     ) : (
-                                      <p><span className="font-medium text-foreground/70">{out ? "A:" : "Da:"}</span> {m.controparte || "—"}</p>
+                                      <p><span className="font-medium text-foreground/70">{out ? "A:" : t("Da:")}</span> {m.controparte || "—"}</p>
                                     )}
                                   </div>
                                   <div className="px-3 pb-2.5 pt-1.5">
@@ -713,7 +713,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                                           return next;
                                         })}
                                       >
-                                        {aperta ? "Mostra meno" : "Mostra tutto"}
+                                        {aperta ? t("Mostra meno") : t("Mostra tutto")}
                                       </button>
                                     )}
                                   </div>
@@ -738,16 +738,16 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                                 >
                                   <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold text-green-700 dark:text-green-400">
                                     <meta.Icon className="h-3 w-3" />
-                                    {etichetta}{modello ? " · modello" : ""}
+                                    {etichetta}{modello ? ` ${t("· modello")}` : ""}
                                   </p>
                                   {riga && <p className="mb-0.5 text-[10px] text-[#667781]">{riga}</p>}
-                                  {locale && oggetto && <p className="text-[10px] text-[#667781] mb-0.5">Da {oggetto}</p>}
+                                  {locale && oggetto && <p className="text-[10px] text-[#667781] mb-0.5">{t("Da {nome}", { nome: String(oggetto ?? "") })}</p>}
                                   <p className="text-[13px] leading-snug whitespace-pre-wrap break-words pr-[4.5rem]">
-                                    {m.testo || (m.media_url ? "[allegato]" : "—")}
+                                    {m.testo || (m.media_url ? t("[allegato]") : "—")}
                                   </p>
                                   {nonConsegnato && (
                                     <p className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400 pr-[4.5rem]">
-                                      {motivoMancataConsegna(oggetto)}
+                                      {motivoMancataConsegna(oggetto, t)}
                                     </p>
                                   )}
                                   <span
@@ -796,7 +796,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
       {selectedItem && (
         <Sheet open={schedaOpen} onOpenChange={setSchedaOpen}>
           <SheetContent side="right" className="p-0 sm:max-w-md">
-            <VisuallyHidden><SheetTitle>Scheda contatto</SheetTitle></VisuallyHidden>
+            <VisuallyHidden><SheetTitle>{t("Scheda contatto")}</SheetTitle></VisuallyHidden>
             <ContactDetailPanel entitaTipo={selectedItem.entita_tipo} entitaId={selectedItem.entita_id} />
           </SheetContent>
         </Sheet>

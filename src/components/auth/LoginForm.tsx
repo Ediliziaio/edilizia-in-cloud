@@ -33,6 +33,7 @@ import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { messaggioErroreLogin } from "@/lib/auth/erroriLogin";
 import { leggiAccountSenzaAzienda, MESSAGGIO_ACCOUNT_SENZA_AZIENDA } from "@/lib/auth/accountSenzaAzienda";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type ViewMode = "login" | "forgot" | "2fa" | "email-otp";
 
@@ -48,6 +49,7 @@ function isLocalDevOrigin(): boolean {
 }
 
 export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, ref) {
+  const t = useT();
   const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -165,7 +167,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
       if (error) {
         const msg = messaggioErroreLogin(error);
         setFormError(msg);
-        toast({ variant: "destructive", title: "Errore di accesso", description: msg });
+        toast({ variant: "destructive", title: t("Errore di accesso"), description: msg });
         return;
       }
 
@@ -195,8 +197,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           setFormError("Il tuo account è stato bloccato dall'amministratore. Contatta il supporto.");
           toast({
             variant: "destructive",
-            title: "Accesso bloccato",
-            description: "Il tuo account è stato bloccato. Contatta l'amministratore.",
+            title: t("Accesso bloccato"),
+            description: t("Il tuo account è stato bloccato. Contatta l'amministratore."),
           });
           return;
         }
@@ -239,7 +241,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         // un errore rosso anche se il login è riuscito. In produzione il check
         // resta attivo; in dev lo saltiamo per non bloccare/debuggare login.
         if (isLocalDevOrigin()) {
-          toast({ title: "Accesso effettuato", description: "Benvenuto!" });
+          toast({ title: t("Accesso effettuato"), description: t("Benvenuto!") });
           return;
         }
 
@@ -269,8 +271,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         // Mandatory 2FA setup if required by company admin
         if (totpStatus?.require_2fa && !totpStatus?.enabled) {
           toast({
-            title: "Autenticazione a due fattori obbligatoria",
-            description: "Il tuo account richiede la configurazione del 2FA per accedere.",
+            title: t("Autenticazione a due fattori obbligatoria"),
+            description: t("Il tuo account richiede la configurazione del 2FA per accedere."),
           });
           window.location.href = "/azienda/impostazioni/mio-profilo?tab=sicurezza";
           return;
@@ -289,8 +291,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
       setFormError("Si è verificato un errore. Riprova più tardi.");
       toast({
         variant: "destructive",
-        title: "Errore",
-        description: "Si è verificato un errore. Riprova più tardi.",
+        title: t("Errore"),
+        description: t("Si è verificato un errore. Riprova più tardi."),
       });
     } finally {
       clearTimeout(hardStopId);
@@ -318,8 +320,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
       setFormError("Si è verificato un errore. Riprova più tardi.");
       toast({
         variant: "destructive",
-        title: "Errore",
-        description: "Si è verificato un errore. Riprova più tardi.",
+        title: t("Errore"),
+        description: t("Si è verificato un errore. Riprova più tardi."),
       });
     } finally {
       setIsLoading(false);
@@ -340,7 +342,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   };
 
   const handle2FAVerified = () => {
-    toast({ title: "Accesso effettuato", description: "Benvenuto!" });
+    toast({ title: t("Accesso effettuato"), description: t("Benvenuto!") });
     // navigate invece di window.location.reload(): il reload forzava
     // re-fetch HTML + re-parse bundle JS + re-init React + re-bootstrap
     // auth (5-15s percepiti). La sessione Supabase è già attiva post-2FA
@@ -353,7 +355,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const handle2FACancel = async () => {
     await supabase.auth.signOut();
     setView("login");
-    toast({ title: "Accesso annullato", description: "Verifica 2FA richiesta." });
+    toast({ title: t("Accesso annullato"), description: t("Verifica 2FA richiesta.") });
   };
 
   const gradientStyle = loginBgColor
@@ -404,12 +406,12 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {/* Headline */}
           <div className="space-y-3">
             <h1 className="text-3xl font-bold text-white leading-tight">
-              {isWhiteLabel ? platformName : "Il tuo gestionale per l'edilizia"}
+              {isWhiteLabel ? platformName : t("Il tuo gestionale per l'edilizia")}
             </h1>
             <p className="text-white/60 text-base leading-relaxed">
               {isWhiteLabel
                 ? loginSubtitle
-                : "Controlla margini, cantieri e clienti — tutto in un unico posto."}
+                : t("Controlla margini, cantieri e clienti — tutto in un unico posto.")}
             </p>
           </div>
 
@@ -421,7 +423,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   <div className="rounded-full bg-eic-orange/20 p-2 shrink-0">
                     <Icon className="h-4 w-4 text-eic-orange" />
                   </div>
-                  <span className="text-sm">{text}</span>
+                  <span className="text-sm">{t(text)}</span>
                 </div>
               ))}
             </div>
@@ -435,7 +437,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   <Star key={i} className="h-3.5 w-3.5 fill-eic-orange text-eic-orange" />
                 ))}
               </div>
-              <span className="text-white/60 text-xs">4.9/5 da 142 imprese edili</span>
+              <span className="text-white/60 text-xs">{t("4.9/5 da 142 imprese edili")}</span>
             </div>
           )}
         </div>
@@ -483,7 +485,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
               }}
               onVerified={() => {
                 markSessionStarted(); // v8.6.99 — session TTL 45gg parte da ora
-                toast({ title: "Accesso confermato", description: "Benvenuto!" });
+                toast({ title: t("Accesso confermato"), description: t("Benvenuto!") });
                 // AuthContext rileva la sessione già attiva e ridirige automaticamente.
                 // Forziamo un reload per assicurarsi che la dashboard si carichi pulita.
                 window.location.href = COMPANY_APP_HOME;
@@ -495,8 +497,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {view === "login" && (
             <div className="animate-in fade-in-0 duration-300 space-y-5 sm:space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground">Accedi al gestionale</h2>
-                <p className="text-muted-foreground text-sm">Imprese, collaboratori e clienti: inserisci le tue credenziali per accedere</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t("Accedi al gestionale")}</h2>
+                <p className="text-muted-foreground text-sm">{t("Imprese, collaboratori e clienti: inserisci le tue credenziali per accedere")}</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
@@ -521,13 +523,13 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t("Password")}</Label>
                     <button
                       type="button"
                       onClick={switchToForgot}
                       className="text-xs text-eic-orange hover:text-eic-orange/80 font-medium transition-colors"
                     >
-                      Password dimenticata?
+                      {t("Password dimenticata?")}
                     </button>
                   </div>
                   <div className="relative">
@@ -548,7 +550,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
-                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                      aria-label={showPassword ? t("Nascondi password") : t("Mostra password")}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -579,10 +581,10 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Accesso in corso...
+                      {t("Accesso in corso...")}
                     </>
                   ) : (
-                    "Accedi al gestionale"
+                    t("Accedi al gestionale")
                   )}
                 </Button>
               </form>
@@ -594,7 +596,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   dopo signInWithPassword. Niente più login senza password. */}
 
               <p className="text-center text-xs text-muted-foreground leading-relaxed">
-                L'accesso è riservato agli utenti registrati.
+                {t("L'accesso è riservato agli utenti registrati.")}
                 {/* App Store Guideline 3.1.1: nell'app mobile (iOS/Android) NON deve
                     comparire alcun link al sito/marketing — Apple lo considera un
                     accesso indiretto a meccanismi di acquisto esterni. Usiamo
@@ -607,7 +609,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   <>
                     <br />
                     <a href="https://www.ediliziaincloud.com" className="text-eic-orange hover:text-eic-orange/80 font-medium transition-colors" target="_blank" rel="noopener noreferrer">
-                      Scopri Edilizia in Cloud →
+                      {t("Scopri Edilizia in Cloud →")}
                     </a>
                   </>
                 )}
@@ -619,18 +621,18 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {view === "forgot" && (
             <div className="animate-in fade-in-0 duration-300 space-y-5 sm:space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground">Reimposta la password</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t("Reimposta la password")}</h2>
                 <p className="text-muted-foreground text-sm">
-                  Ti invieremo un link via email per reimpostare la password
+                  {t("Ti invieremo un link via email per reimpostare la password")}
                 </p>
               </div>
 
               {resetSent ? (
                 <div className="text-center space-y-4 py-4">
                   <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
-                  <p className="text-foreground font-medium">Controlla la tua email</p>
+                  <p className="text-foreground font-medium">{t("Controlla la tua email")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Abbiamo inviato le istruzioni per reimpostare la password al tuo indirizzo email.
+                    {t("Abbiamo inviato le istruzioni per reimpostare la password al tuo indirizzo email.")}
                   </p>
                 </div>
               ) : (
@@ -670,10 +672,10 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Invio in corso...
+                        {t("Invio in corso...")}
                       </>
                     ) : (
-                      "Invia link di reset"
+                      t("Invia link di reset")
                     )}
                   </Button>
                 </form>
@@ -685,7 +687,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                 onClick={switchToLogin}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Torna al login
+                {t("Torna al login")}
               </Button>
             </div>
           )}

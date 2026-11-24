@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TemplateDialogProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface TemplateDialogProps {
 }
 
 export function TemplateDialog({ open, onOpenChange, template, defaultFolderId }: TemplateDialogProps) {
+  const t = useT();
   const { user, effectiveCompany: company } = useAuth();
   const qc = useQueryClient();
   const isEdit = !!template;
@@ -80,7 +82,7 @@ export function TemplateDialog({ open, onOpenChange, template, defaultFolderId }
       }
     },
     onSuccess: () => {
-      toast.success(isEdit ? "Template aggiornato" : "Template creato");
+      toast.success(isEdit ? t("Template aggiornato") : t("Template creato"));
       qc.invalidateQueries({ queryKey: ["email-templates"] });
       onOpenChange(false);
     },
@@ -91,24 +93,24 @@ export function TemplateDialog({ open, onOpenChange, template, defaultFolderId }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Modifica template" : "Nuovo template"}</DialogTitle>
+          <DialogTitle>{isEdit ? t("Modifica template") : t("Nuovo template")}</DialogTitle>
           <DialogDescription>
-            {isEdit ? "Modifica il contenuto del template email" : "Crea un nuovo template email personalizzato"}
+            {isEdit ? t("Modifica il contenuto del template email") : t("Crea un nuovo template email personalizzato")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Nome template</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Welcome Email" />
+              <Label>{t("Nome template")}</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Es. Welcome Email")} />
             </div>
             <div>
-              <Label>Cartella</Label>
+              <Label>{t("Cartella")}</Label>
               <Select value={folderId} onValueChange={setFolderId}>
-                <SelectTrigger><SelectValue placeholder="Home" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("Home")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Home</SelectItem>
+                  <SelectItem value="none">{t("Home")}</SelectItem>
                   {folders.map((f: any) => (
                     <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
@@ -117,19 +119,19 @@ export function TemplateDialog({ open, onOpenChange, template, defaultFolderId }
             </div>
           </div>
           <div>
-            <Label>Oggetto</Label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Oggetto dell'email" />
+            <Label>{t("Oggetto")}</Label>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t("Oggetto dell'email")} />
           </div>
           <div>
-            <Label>Contenuto HTML</Label>
+            <Label>{t("Contenuto HTML")}</Label>
             <TemplateEditor value={htmlContent} onChange={setHtmlContent} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={() => mutation.mutate()} disabled={!name || mutation.isPending}>
-            {mutation.isPending ? "Salvataggio..." : isEdit ? "Salva" : "Crea template"}
+            {mutation.isPending ? t("Salvataggio...") : isEdit ? t("Salva") : t("Crea template")}
           </Button>
         </DialogFooter>
       </DialogContent>

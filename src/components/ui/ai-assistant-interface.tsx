@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * AIAssistantInterface — empty-state in stile ChatGPT/Claude per Silvio AI
@@ -50,6 +51,7 @@ export function AIAssistantInterface({
   /** Graffetta nella barra: senza, una chat nuova non poteva partire da un contratto o da una foto. */
   onAttach?: () => void;
 }) {
+  const tr = useT();
   const [inputValue, setInputValue] = useState("");
   const isMobile = useIsMobile();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,11 +88,14 @@ export function AIAssistantInterface({
         className="mb-4 sm:mb-6 text-center"
       >
         <h1 className="text-xl sm:text-2xl md:text-[28px] leading-tight font-bold text-slate-800 sm:mb-1.5">
-          A cosa stai pensando{userName ? `, ${userName}` : ""}?
+          {userName ? tr("A cosa stai pensando, {nome}?", { nome: userName }) : tr("A cosa stai pensando?")}
         </h1>
         {/* Mobile: la domanda sopra basta, la spiegazione no. */}
         <p className="hidden sm:block text-slate-500 text-sm md:text-[15px]">
-          Chiedi a <span className="font-medium text-orange-600">Silvio</span> di cantieri, finanza, clienti e molto altro.
+          {(() => {
+            const [prima, dopo = ""] = tr("Chiedi a {nome} di cantieri, finanza, clienti e molto altro.", { nome: "Silvio" }).split("Silvio");
+            return <>{prima}<span className="font-medium text-orange-600">Silvio</span>{dopo}</>;
+          })()}
         </p>
       </motion.div>
 
@@ -107,7 +112,7 @@ export function AIAssistantInterface({
           autoFocus={autoFocusDesktop}
           type="text"
           // Mobile: il testo lungo si troncava in «Fai una domanda a Si».
-          placeholder={isMobile ? "Chiedi a Silvio…" : "Fai una domanda a Silvio…"}
+          placeholder={isMobile ? tr("Chiedi a Silvio…") : tr("Fai una domanda a Silvio…")}
           value={inputValue}
           disabled={disabled}
           enterKeyHint="send"
@@ -126,8 +131,8 @@ export function AIAssistantInterface({
             onClick={onAttach}
             disabled={disabled}
             className="tap-compact p-2 rounded-full text-slate-400 transition-colors hover:text-slate-600 max-sm:p-2.5"
-            aria-label="Allega un documento o una foto"
-            title="Allega contratto, DDT, fattura o foto"
+            aria-label={tr("Allega un documento o una foto")}
+            title={tr("Allega contratto, DDT, fattura o foto")}
           >
             <Paperclip className="w-5 h-5 max-sm:h-4 max-sm:w-4" />
           </button>
@@ -140,8 +145,8 @@ export function AIAssistantInterface({
             "tap-compact p-2 rounded-full transition-colors max-sm:p-2.5",
             voice.recording ? "text-rose-500 bg-rose-50 animate-pulse" : "text-slate-400 hover:text-slate-600",
           )}
-          aria-label={voice.recording ? "Ferma registrazione" : "Detta con la voce"}
-          title={voice.recording ? "Ferma e trascrivi" : "Detta con la voce"}
+          aria-label={voice.recording ? tr("Ferma registrazione") : tr("Detta con la voce")}
+          title={voice.recording ? tr("Ferma e trascrivi") : tr("Detta con la voce")}
         >
           {voice.transcribing ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -161,7 +166,7 @@ export function AIAssistantInterface({
               ? "bg-orange-500 text-white hover:bg-orange-600"
               : "bg-slate-100 text-slate-400 cursor-not-allowed",
           )}
-          aria-label="Invia"
+          aria-label={tr("Invia")}
         >
           <ArrowUp className="w-4 h-4" />
         </button>
@@ -189,8 +194,8 @@ export function AIAssistantInterface({
                 <Icon className="h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-medium text-slate-700 max-sm:whitespace-nowrap max-sm:text-[13px]">{s.title}</span>
-                <span className="hidden sm:block text-xs text-slate-400 line-clamp-2">{s.prompt}</span>
+                <span className="block text-sm font-medium text-slate-700 max-sm:whitespace-nowrap max-sm:text-[13px]">{tr(s.title)}</span>
+                <span className="hidden sm:block text-xs text-slate-400 line-clamp-2">{tr(s.prompt)}</span>
               </span>
             </motion.button>
           );

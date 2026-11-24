@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface Salesperson {
   id: string;
@@ -32,6 +33,7 @@ interface SalespersonSelectProps {
 
 export const SalespersonSelect = React.forwardRef<HTMLDivElement, SalespersonSelectProps>(
   function SalespersonSelect({ value, onChange, disabled }, ref) {
+  const t = useT();
     const { effectiveCompany } = useAuth();
 
     const { data: salespeople = [] } = useQuery({
@@ -63,20 +65,20 @@ export const SalespersonSelect = React.forwardRef<HTMLDivElement, SalespersonSel
       <div className="space-y-2" ref={ref}>
         <Label className="flex items-center gap-2">
           <UserCheck className="h-4 w-4" />
-          Venditore
+          {t("Venditore")}
         </Label>
         <Select value={value || "none"} onValueChange={handleChange} disabled={disabled}>
           <SelectTrigger>
-            <SelectValue placeholder="Seleziona venditore (opzionale)" />
+            <SelectValue placeholder={t("Seleziona venditore (opzionale)")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Nessun venditore</SelectItem>
+            <SelectItem value="none">{t("Nessun venditore")}</SelectItem>
             {salespeople.map((sp) => (
               <SelectItem key={sp.id} value={sp.id}>
                 {sp.first_name} {sp.last_name}
                 <span className="text-muted-foreground ml-2 text-xs">
                   ({sp.compensation_mode === "fixed_only"
-                    ? "solo fisso"
+                    ? t("solo fisso")
                     : sp.commission_type === "fixed"
                       ? formatCurrency(sp.commission_value)
                       : `${sp.commission_value}%`})

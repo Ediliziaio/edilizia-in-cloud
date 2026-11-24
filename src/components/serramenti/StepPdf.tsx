@@ -28,6 +28,7 @@ import { perLaFirma } from "@/lib/preventivi/condizioniDelPreventivo";
 import { quoteModelTemplate } from "@/lib/serramenti/quoteModel";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 /** Di chi è il piano di un preventivo già deciso: «resta quello firmato / accettato / della commessa». */
 const PIANO_DEL_DECISO: Record<MotivoDeciso, string> = { firmato: "firmato", accettato: "accettato", "in commessa": "della commessa" };
 
@@ -54,6 +55,7 @@ interface ChecklistItem {
 }
 
 export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondizioni }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const p = detail.progetto;
   const generaPdfMut = useGeneraPdf(progettoId);
@@ -107,14 +109,14 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
   const checks: ChecklistItem[] = [
     {
       ok: !!(p.cliente_nome || p.cliente_cognome),
-      label: "Anagrafica cliente",
-      hint: !p.cliente_nome ? "Manca il nome" : undefined,
+      label: t("Anagrafica cliente"),
+      hint: !p.cliente_nome ? t("Manca il nome") : undefined,
       breve: "cliente", passo: "cliente",
     },
     {
       ok: !!(p.cantiere_indirizzo || p.cliente_indirizzo),
-      label: "Indirizzo dei lavori",
-      hint: !p.cantiere_indirizzo && !p.cliente_indirizzo ? "Scrivilo nel passo Contatto" : undefined,
+      label: t("Indirizzo dei lavori"),
+      hint: !p.cantiere_indirizzo && !p.cliente_indirizzo ? t("Scrivilo nel passo Contatto") : undefined,
       breve: "indirizzo", passo: "cliente",
     },
     {
@@ -122,56 +124,56 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
       // Il check verifica che ci sia almeno qualcosa nel BOM, altrimenti
       // la sintesi sarebbe vuota.
       ok: !!sintesiCalcolata,
-      label: "Sintesi intervento",
+      label: t("Sintesi intervento"),
       hint: !sintesiCalcolata
-        ? "Aggiungi almeno un serramento o complemento: la sintesi si genera da lì."
+        ? t("Aggiungi almeno un serramento o complemento: la sintesi si genera da lì.")
         : undefined,
       breve: "serramenti", passo: "bom",
     },
     {
       ok: Array.isArray(p.esigenze) && p.esigenze.filter((e) => e.titolo).length >= 1,
-      label: "Almeno 1 esigenza",
+      label: t("Almeno 1 esigenza"),
       // Le esigenze del cliente sono facoltative (la scheda lo dice, il PDF le stampa solo se ci sono): senza, PDF, link di firma e commessa si fanno lo stesso.
       facoltativo: true,
-      hint: "consigliata: più ne metti meglio è (max 3 entrano nel PDF)",
+      hint: t("consigliata: più ne metti meglio è (max 3 entrano nel PDF)"),
       breve: "esigenze", passo: "immobile",
     },
     {
       ok: numSerramenti > 0,
-      label: `${numSerramenti} ${numSerramenti === 1 ? "serramento" : "serramenti"} nell'offerta`,
-      hint: numSerramenti === 0 ? "Mancanti — vai allo Step Serramenti" : undefined,
+      label: t(numSerramenti === 1 ? "{n} serramento nell'offerta" : "{n} serramenti nell'offerta", { n: numSerramenti }),
+      hint: numSerramenti === 0 ? t("Mancanti — vai allo Step Serramenti") : undefined,
       breve: "serramenti", passo: "bom",
     },
     {
       ok: Number(p.totale_max ?? p.totale_min ?? 0) > 0,
-      label: "Totale preventivo calcolato",
-      hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Il totale si scrive da solo: aggiungi i serramenti con il loro prezzo, o scrivi il prezzo nel passo Economia" : undefined,
+      label: t("Totale preventivo calcolato"),
+      hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? t("Il totale si scrive da solo: aggiungi i serramenti con il loro prezzo, o scrivi il prezzo nel passo Economia") : undefined,
       breve: "totale", passo: "economia",
     },
     ...(finanziamentoNelPdf ? [{
       ok: !pianoSulTotaleVecchio,
       facoltativo: true,
-      label: "Finanziamento calcolato sul totale di adesso",
+      label: t("Finanziamento calcolato sul totale di adesso"),
       hint: !pianoSulTotaleVecchio
         ? undefined
         : motivoDeciso
-          ? `Il preventivo è già ${motivoDeciso}: il piano di finanziamento resta quello ${PIANO_DEL_DECISO[motivoDeciso]}; per cambiarlo serve una nuova revisione.`
-          : "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia, si ricalcola da solo",
+          ? t("Il preventivo è già {motivoDeciso}: il piano di finanziamento resta quello {valore}; per cambiarlo serve una nuova revisione.", { motivoDeciso: t(motivoDeciso), valore: t(PIANO_DEL_DECISO[motivoDeciso]) })
+          : t("il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia, si ricalcola da solo"),
       breve: "finanziamento", passo: "economia" as SrWizardStep,
     }] : []),
     ...(rate.length > 0 ? [{
       ok: rateAl100,
       facoltativo: true,
-      label: "Rate di pagamento al 100%",
-      hint: rateAl100 ? undefined : `le rate fanno ${formatNumero(sommaRate, 2)}%: nel PDF il cliente legge un piano che non copre tutto il totale`,
+      label: t("Rate di pagamento al 100%"),
+      hint: rateAl100 ? undefined : t("le rate fanno {sommaRate}%: nel PDF il cliente legge un piano che non copre tutto il totale", { sommaRate: formatNumero(sommaRate, 2) }),
       breve: "rate", passo: "economia" as SrWizardStep,
     }] : []),
     {
       ok: !!p.consulenza_at,
-      label: "Appuntamento di consulenza",
+      label: t("Appuntamento di consulenza"),
       // Il titolare (15/09): la data non è obbligatoria. Senza, il PDF non la scrive.
       facoltativo: true,
-      hint: !p.consulenza_at ? "facoltativo: senza data il PDF non la scrive" : undefined,
+      hint: !p.consulenza_at ? t("facoltativo: senza data il PDF non la scrive") : undefined,
     },
   ];
 
@@ -194,11 +196,11 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
         <div className="flex items-center gap-2 rounded-xl bg-orange-50 px-3 py-2 text-orange-900">
           <Link2 className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-            Pagina del cliente{p.pdf_generated_at && ` del ${new Date(p.pdf_generated_at).toLocaleDateString("it-IT")}`}
+            {p.pdf_generated_at ? t("Pagina del cliente del {data}", { data: new Date(p.pdf_generated_at).toLocaleDateString(intlCampo()) }) : t("Pagina del cliente")}
           </span>
           <Button asChild variant="ghost" size="sm" className="tap-compact -my-1 h-8 gap-1.5 px-2 text-xs">
             <a href={p.public_url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-3.5 w-3.5" /> Apri
+              <ExternalLink className="h-3.5 w-3.5" /> {t("Apri")}
             </a>
           </Button>
         </div>
@@ -216,18 +218,18 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
 
       {/* Anteprima dati PDF. Da 1280 px in su non serve: a destra c'è il PDF vero (07/11/2026). */}
       <SrCard
-        title="Anteprima dati preventivo"
-        description="Riepilogo di cosa entrerà nel PDF cliente."
+        title={t("Anteprima dati preventivo")}
+        description={t("Riepilogo di cosa entrerà nel PDF cliente.")}
         icon={<FileText className="h-4 w-4" />}
         className="xl:hidden"
       >
         {/* Telefono: codice e totale sono già nella testata e qui sotto. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 max-md:hidden">
-          <SrKpi label="Codice" value={p.code} />
-          <SrKpi label="Serramenti" value={numSerramenti} />
-          <SrKpi label="Complementi" value={detail.accessori.reduce((a, x) => a + (x.quantita ?? 1), 0)} />
+          <SrKpi label={t("Codice")} value={p.code} />
+          <SrKpi label={t("Serramenti")} value={numSerramenti} />
+          <SrKpi label={t("Complementi")} value={detail.accessori.reduce((a, x) => a + (x.quantita ?? 1), 0)} />
           <SrKpi
-            label="Totale IVA inclusa"
+            label={t("Totale IVA inclusa")}
             value={formatEuroRangeOrSingle(p.totale_min, p.totale_max, 2)}
             variant="primary"
           />
@@ -235,30 +237,26 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 max-md:mb-0">
           <div className="border-l-4 border-orange-200 pl-3 py-1">
-            <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina 1 — Proposta</p>
+            <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">{t("Pagina 1 — Proposta")}</p>
             <p className="text-sm">
               {[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "—"}
               {p.cantiere_citta && ` · ${p.cantiere_citta}`}
-              {numSerramenti > 0 && ` · ${numSerramenti} serramenti`}
+              {numSerramenti > 0 && ` · ${t("{n} serramenti", { n: numSerramenti })}`}
             </p>
             <p className="text-xs text-muted-foreground mt-1 italic">
-              {sintesiCalcolata || "Aggiungi serramenti o complementi per generare la sintesi"}
+              {sintesiCalcolata || t("Aggiungi serramenti o complementi per generare la sintesi")}
             </p>
           </div>
           <div className="border-l-4 border-orange-200 pl-3 py-1">
-            <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina economica</p>
+            <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">{t("Pagina economica")}</p>
             <p className="text-sm font-bold text-orange-600">
               {formatEuroRangeOrSingle(p.totale_min, p.totale_max, 2)}
             </p>
             {p.risparmio_calcolato && p.risparmio_eur_anno && (
-              <p className="text-xs text-orange-600 mt-1">
-                ⚡ Risparmio: {formatEuro(p.risparmio_eur_anno)}/anno
-              </p>
+              <p className="text-xs text-orange-600 mt-1">{t("⚡ Risparmio: {risparmio_eur_anno}/anno", { risparmio_eur_anno: formatEuro(p.risparmio_eur_anno) })}</p>
             )}
             {Number(p.detrazione_aliquota) > 0 && (
-              <p className="text-xs text-orange-600">
-                🏛 Detrazione {formatNumero(p.detrazione_aliquota)}%: {formatEuro(p.detrazione_eur_totale)}
-              </p>
+              <p className="text-xs text-orange-600">{t("🏛 Detrazione {detrazione_aliquota}%: {detrazione_eur_totale}", { detrazione_aliquota: formatNumero(p.detrazione_aliquota), detrazione_eur_totale: formatEuro(p.detrazione_eur_totale) })}</p>
             )}
           </div>
         </div>
@@ -268,7 +266,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
           <p>
-            Da completare:{" "}
+            {t("Da completare:")}{" "}
             {mancano.map((c, i) => (
               <span key={c.breve}>
                 {i > 0 && ", "}
@@ -278,9 +276,9 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
                     className="tap-compact font-medium underline underline-offset-2"
                     onClick={() => onVaiAlPasso(c.passo!)}
                   >
-                    {c.breve}
+                    {t(c.breve ?? "")}
                   </button>
-                ) : c.breve}
+                ) : t(c.breve ?? "")}
               </span>
             ))}
           </p>
@@ -289,8 +287,8 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
 
       {/* Checklist completezza */}
       <SrCard
-        title="Checklist completezza"
-        description="Tutti gli elementi richiesti per generare un PDF presentabile."
+        title={t("Checklist completezza")}
+        description={t("Tutti gli elementi richiesti per generare un PDF presentabile.")}
         icon={<Check className="h-4 w-4" />}
         variant={ready ? "highlight" : "default"}
         className="max-md:hidden"
@@ -316,14 +314,14 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
 
       {/* Genera PDF nativo A4 (RACCOMANDATO) */}
       <SrCard
-        title="Scarica PDF da inviare al cliente"
-        description="PDF A4 pronto da stampare o allegare via email. Include anagrafica, totale preventivo, modalità di pagamento, allegato tecnico e render."
+        title={t("Scarica PDF da inviare al cliente")}
+        description={t("PDF A4 pronto da stampare o allegare via email. Include anagrafica, totale preventivo, modalità di pagamento, allegato tecnico e render.")}
         icon={<Download className="h-4 w-4" />}
         className="max-md:hidden"
       >
         {!ready && (
           <SrCallout variant="warning" className="mb-3">
-            ⚠️ Completa prima {erroriCount === 1 ? "l'elemento mancante" : `i ${erroriCount} elementi mancanti`} nella checklist sopra.
+            {erroriCount === 1 ? t("⚠️ Completa prima l'elemento mancante nella checklist sopra.") : t("⚠️ Completa prima i {n} elementi mancanti nella checklist sopra.", { n: erroriCount })}
           </SrCallout>
         )}
 
@@ -342,7 +340,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
               ) : (
                 <Download className="h-4 w-4" />
               )}
-              Scarica PDF (A4)
+              {t("Scarica PDF (A4)")}
             </Button>
           )}
           <Button
@@ -352,12 +350,12 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
             size="lg"
             className="flex-1 gap-2 sm:flex-none"
           >
-            <Eye className="h-4 w-4" /> Anteprima PDF
+            <Eye className="h-4 w-4" /> {t("Anteprima PDF")}
           </Button>
         </div>
         <p className="text-[11px] text-muted-foreground mb-2">
-          ⚡ Generato direttamente nel browser, senza attese server. File pronto da{" "}
-          <strong>allegare via email</strong> o <strong>stampare</strong>.
+          {t("⚡ Generato direttamente nel browser, senza attese server. File pronto da")}{" "}
+          <strong>{t("allegare via email")}</strong> {t("o")} <strong>{t("stampare")}</strong>.
         </p>
       </SrCard>
 
@@ -381,7 +379,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
           pdfDisponibile={ready}
           onIndietro={onIndietro}
           disabled={!ready || motiviSoloInvio.length > 0}
-          disabledReason={`Completa prima: ${[...mancano.map((c) => c.breve), ...motiviSoloInvio].join(", ")}`}
+          disabledReason={t("Completa prima: {elenco}", { elenco: [...mancano.map((c) => c.breve), ...motiviSoloInvio].map((voce) => t(voce ?? "")).join(", ") })}
           // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
           generaPdfBlob={(destinazione) => renderSerramentoBlob({ detail: destinazione === "firma" ? { ...detail, progetto: perLaFirma(p) } : detail, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
         />
@@ -393,8 +391,8 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
           - "Scarica PDF (A4)" sopra → file PDF da inviare via email
           - Questo qui sotto       → URL pubblico per firma digitale */}
       <SrCard
-        title="Pagina di anteprima per il cliente"
-        description="Una pagina che il cliente apre dal telefono per leggere il preventivo. Per la firma usa «Invia per firma» qui sopra: il cliente riceve il codice via email."
+        title={t("Pagina di anteprima per il cliente")}
+        description={t("Una pagina che il cliente apre dal telefono per leggere il preventivo. Per la firma usa «Invia per firma» qui sopra: il cliente riceve il codice via email.")}
         icon={<Link2 className="h-4 w-4" />}
         className="max-md:hidden"
       >
@@ -407,28 +405,26 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
             {generaPdfMut.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <Link2 className="h-4 w-4" />}
-            {paginaFirmaUrl ? "Aggiorna pagina" : "Genera pagina"}
+            {paginaFirmaUrl ? t("Aggiorna pagina") : t("Genera pagina")}
           </Button>
           {paginaFirmaUrl && (
             <Button asChild variant="outline" className="gap-2">
               <a href={paginaFirmaUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" /> Apri pagina
+                <ExternalLink className="h-4 w-4" /> {t("Apri pagina")}
               </a>
             </Button>
           )}
         </div>
 
         {p.pdf_generated_at && (
-          <p className="text-[11px] text-muted-foreground mt-2">
-            Ultimo link generato: {new Date(p.pdf_generated_at).toLocaleString("it-IT")}
-          </p>
+          <p className="text-[11px] text-muted-foreground mt-2">{t("Ultimo link generato: {valore}", { valore: new Date(p.pdf_generated_at).toLocaleString(intlCampo()) })}</p>
         )}
 
         {p.public_url && (
           <div className="mt-3 p-3 rounded-md bg-orange-50 border border-orange-200">
             <p className="text-[11px] font-semibold text-orange-900 mb-1 flex items-center gap-1.5">
               <Link2 className="h-3.5 w-3.5" />
-              Pagina da condividere con il cliente
+              {t("Pagina da condividere con il cliente")}
             </p>
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-xs bg-white px-2 py-1 rounded border border-orange-200 flex-1 min-w-0 truncate font-mono">
@@ -438,26 +434,26 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
                 size="sm" variant="outline"
                 onClick={() => {
                   navigator.clipboard.writeText(p.public_url!);
-                  toast.success("Link copiato");
+                  toast.success(t("Link copiato"));
                 }}
                 className="gap-1 h-8"
               >
-                <Copy className="h-3.5 w-3.5" /> Copia
+                <Copy className="h-3.5 w-3.5" /> {t("Copia")}
               </Button>
               <Button asChild size="sm" variant="outline" className="gap-1 h-8">
                 <a href={p.public_url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-3.5 w-3.5" /> Apri
+                  <ExternalLink className="h-3.5 w-3.5" /> {t("Apri")}
                 </a>
               </Button>
             </div>
             <p className="text-[10px] text-orange-600 mt-1.5">
-              Il cliente apre il preventivo senza login; per firmare usa il link con il codice mandato da «Invia per firma».
+              {t("Il cliente apre il preventivo senza login; per firmare usa il link con il codice mandato da «Invia per firma».")}
             </p>
           </div>
         )}
 
         <SrCallout variant="info" className="mt-3">
-          💡 Per far <strong>firmare</strong> il cliente usa «Invia per firma». Questa pagina serve solo a leggere il preventivo.
+          {t("💡 Per far")} <strong>{t("firmare")}</strong> {t("il cliente usa «Invia per firma». Questa pagina serve solo a leggere il preventivo.")}
         </SrCallout>
       </SrCard>
 
@@ -466,7 +462,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
         modulo="sr"
         progettoId={progettoId}
         ordineId={p.ordine_id ?? null}
-        bloccoMotivo={!ready ? "Completa prima la checklist sopra per creare la commessa." : null}
+        bloccoMotivo={!ready ? t("Completa prima la checklist sopra per creare la commessa.") : null}
         codice={p.code}
         clientName={[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || null}
       />

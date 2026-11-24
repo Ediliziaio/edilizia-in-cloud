@@ -41,6 +41,7 @@ import {
   FACADE_GUTTER_PHOTOS,
   PLASTER_FINISH_PHOTOS,
 } from "../../../shared/render-references/facadeReferences.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const INTERVENTION_OPTIONS: { value: TipoInterventoFacciata; label: string; desc: string }[] = [
   { value: "tinteggiatura", label: "Solo tinteggiatura", desc: "Cambiamo colore e finitura superficiale senza inventare nuovi rilievi." },
@@ -143,6 +144,7 @@ function cardClass(active: boolean) {
 }
 
 export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfigFormProps) {
+  const t = useT();
   const update = (partial: Partial<ConfigurazioneFacciata>) => onChange({ ...config, ...partial });
   const setElemento = <K extends keyof ConfigurazioneFacciata["elementi"]>(key: K, value: ConfigurazioneFacciata["elementi"][K]) =>
     update({ elementi: { ...config.elementi, [key]: value } });
@@ -157,28 +159,28 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
             <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Building2 className="h-4 w-4 text-orange-600" />
-              Analisi edificio esistente
+              {t("Analisi edificio esistente")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">{analysis.buildingType}</Badge>
               <Badge variant="secondary">{analysis.buildingStyle}</Badge>
-              <Badge variant="secondary">{analysis.floorsCount} piani</Badge>
-              <Badge variant="secondary">{analysis.openingsVisible} aperture</Badge>
+              <Badge variant="secondary">{t("{floorsCount} piani", { floorsCount: analysis.floorsCount })}</Badge>
+              <Badge variant="secondary">{t("{openingsVisible} aperture", { openingsVisible: analysis.openingsVisible })}</Badge>
               <Badge variant="secondary">{analysis.currentCondition}</Badge>
             </div>
             <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
               <div className="rounded-lg border bg-background/70 p-3">
-                <p className="uppercase tracking-wide text-[10px]">Finitura attuale</p>
+                <p className="uppercase tracking-wide text-[10px]">{t("Finitura attuale")}</p>
                 <p className="mt-1 font-medium text-foreground">{analysis.currentPlasterFinish}</p>
               </div>
               <div className="rounded-lg border bg-background/70 p-3">
-                <p className="uppercase tracking-wide text-[10px]">Colore facciata</p>
+                <p className="uppercase tracking-wide text-[10px]">{t("Colore facciata")}</p>
                 <p className="mt-1 font-medium text-foreground">{analysis.currentFacadeColor}</p>
               </div>
               <div className="rounded-lg border bg-background/70 p-3">
-                <p className="uppercase tracking-wide text-[10px]">Contesto da preservare</p>
+                <p className="uppercase tracking-wide text-[10px]">{t("Contesto da preservare")}</p>
                 <p className="mt-1 font-medium text-foreground">{analysis.preservedContext.slice(0, 3).join(", ")}</p>
               </div>
             </div>
@@ -190,7 +192,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
         <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
           <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
             <Building2 className="h-4 w-4 text-orange-600" />
-            Tipo di intervento
+            {t("Tipo di intervento")}
           </CardTitle>
         </CardHeader>
         <CardContent className="max-md:p-3 max-md:pt-0">
@@ -202,8 +204,8 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 className={`rounded-xl border p-4 text-left transition max-md:p-2.5 ${cardClass(config.tipo_intervento === option.value)}`}
                 onClick={() => update({ tipo_intervento: option.value })}
               >
-                <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{option.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{option.desc}</p>
+                <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{t(option.label)}</p>
+                <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{t(option.desc)}</p>
               </button>
             ))}
           </div>
@@ -215,7 +217,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Paintbrush className="h-4 w-4 text-orange-600" />
-              Intonaco / tinteggiatura
+              {t("Intonaco / tinteggiatura")}
             </CardTitle>
             <Switch
               checked={config.intonaco.attivo}
@@ -227,7 +229,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           <CardContent className="space-y-4 max-md:space-y-3 max-md:p-3 max-md:pt-0">
             <div className="grid gap-3 md:grid-cols-[180px,1fr,140px] max-md:gap-2">
               <div>
-                <Label className="text-xs max-md:text-[11px]">Colore</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Colore")}</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="color"
@@ -243,25 +245,25 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </div>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Nome / RAL</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Nome / RAL")}</Label>
                 {/* Telefono: nome e RAL affiancati. */}
                 <div className="mt-1 grid gap-2 md:grid-cols-2 max-md:grid-cols-2">
                   <Input
                     value={config.intonaco.colore_nome ?? ""}
                     onChange={(e) => update({ intonaco: { ...config.intonaco, colore_nome: e.target.value } })}
-                    placeholder="Bianco perla"
+                    placeholder={t("Bianco perla")}
                     className="h-10 text-sm"
                   />
                   <Input
                     value={config.intonaco.colore_ral ?? ""}
                     onChange={(e) => update({ intonaco: { ...config.intonaco, colore_ral: e.target.value } })}
-                    placeholder="RAL 1013"
+                    placeholder={t("RAL 1013")}
                     className="h-10 text-sm"
                   />
                 </div>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Zona</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Zona")}</Label>
                 <Select
                   value={config.intonaco.zona}
                   onValueChange={(value) => update({ intonaco: { ...config.intonaco, zona: value as ConfigurazioneFacciata["intonaco"]["zona"] } })}
@@ -272,7 +274,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   <SelectContent>
                     {PAINT_ZONES.map((zone) => (
                       <SelectItem key={zone.value} value={zone.value}>
-                        {zone.label}
+                        {t(zone.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -281,7 +283,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
             </div>
 
             <div>
-              <Label className="text-xs max-md:text-[11px]">Finitura</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Finitura")}</Label>
               <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
                 {FINISH_OPTIONS.map((finish) => (
                   <button
@@ -293,13 +295,13 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                     {PLASTER_FINISH_PHOTOS[finish.value] && (
                       <ReferenceThumb
                         photo={PLASTER_FINISH_PHOTOS[finish.value]}
-                        alt={`Intonaco ${finish.label.toLowerCase()}`}
+                        alt={t("Intonaco {label}", { label: t(finish.label).toLowerCase() })}
                         className="h-12 w-12 shrink-0 rounded-md max-md:h-10 max-md:w-10"
                       />
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{finish.label}</p>
-                      <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{finish.desc}</p>
+                      <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{t(finish.label)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{t(finish.desc)}</p>
                     </div>
                   </button>
                 ))}
@@ -314,7 +316,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Layers className="h-4 w-4 text-orange-600" />
-              Rivestimenti e zone applicative
+              {t("Rivestimenti e zone applicative")}
             </CardTitle>
             <Switch
               checked={config.rivestimento.attivo}
@@ -335,20 +337,20 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   {CLADDING_PHOTOS[material.value] && (
                     <ReferenceThumb
                       photo={CLADDING_PHOTOS[material.value]}
-                      alt={`Rivestimento ${material.label}`}
+                      alt={t("Rivestimento {label}", { label: t(material.label) })}
                       className="h-12 w-12 shrink-0 rounded-md max-md:h-10 max-md:w-10"
                     />
                   )}
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{material.label}</p>
-                    <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{material.desc}</p>
+                    <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{t(material.label)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{t(material.desc)}</p>
                   </div>
                 </button>
               ))}
             </div>
             <div className="grid gap-3 md:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
               <div>
-                <Label className="text-xs max-md:text-[11px]">Zona applicazione</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Zona applicazione")}</Label>
                 <Select
                   value={config.rivestimento.zona}
                   onValueChange={(value) => update({ rivestimento: { ...config.rivestimento, zona: value as ConfigurazioneFacciata["rivestimento"]["zona"] } })}
@@ -359,14 +361,14 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   <SelectContent>
                     {CLADDING_ZONES.map((zone) => (
                       <SelectItem key={zone.value} value={zone.value}>
-                        {zone.label}
+                        {t(zone.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Posa / composizione</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Posa / composizione")}</Label>
                 {/* La miniatura mostra la posa scelta (una foto dentro le voci finirebbe anche nel campo chiuso). */}
                 <div className="mt-1 flex items-center gap-2">
                   {CLADDING_PATTERN_PHOTOS[config.rivestimento.posa ?? "corsi_regolari"] && (
@@ -386,7 +388,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                     <SelectContent>
                       {CLADDING_PATTERNS.map((pattern) => (
                         <SelectItem key={pattern.value} value={pattern.value}>
-                          {pattern.label}
+                          {t(pattern.label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -394,11 +396,11 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </div>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Colore fuga / giunto</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Colore fuga / giunto")}</Label>
                 <Input
                   value={config.rivestimento.fuga_colore ?? ""}
                   onChange={(e) => update({ rivestimento: { ...config.rivestimento, fuga_colore: e.target.value } })}
-                  placeholder="Grigio chiaro"
+                  placeholder={t("Grigio chiaro")}
                   className="mt-1 h-10 text-sm"
                 />
               </div>
@@ -412,7 +414,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Thermometer className="h-4 w-4 text-orange-600" />
-              Cappotto termico
+              {t("Cappotto termico")}
             </CardTitle>
             <Switch
               checked={config.cappotto.attivo}
@@ -424,7 +426,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           <CardContent className="space-y-4 max-md:space-y-3 max-md:p-3 max-md:pt-0">
             <div className="grid gap-3 md:grid-cols-4 max-md:grid-cols-2 max-md:gap-2">
               <div>
-                <Label className="text-xs max-md:text-[11px]">Spessore</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Spessore")}</Label>
                 <Select
                   value={String(config.cappotto.spessore_cm)}
                   onValueChange={(value) => update({ cappotto: { ...config.cappotto, spessore_cm: Number(value) as ConfigurazioneFacciata["cappotto"]["spessore_cm"] } })}
@@ -434,15 +436,13 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   </SelectTrigger>
                   <SelectContent>
                     {[4, 6, 8, 10, 12, 14].map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n} cm
-                      </SelectItem>
+                      <SelectItem key={n} value={String(n)}>{n} cm</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Sistema</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Sistema")}</Label>
                 <Select
                   value={config.cappotto.sistema}
                   onValueChange={(value) => update({ cappotto: { ...config.cappotto, sistema: value as ConfigurazioneFacciata["cappotto"]["sistema"] } })}
@@ -452,13 +452,13 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="eps">EPS</SelectItem>
-                    <SelectItem value="lana_roccia">Lana di roccia</SelectItem>
-                    <SelectItem value="fibra_legno">Fibra di legno</SelectItem>
+                    <SelectItem value="lana_roccia">{t("Lana di roccia")}</SelectItem>
+                    <SelectItem value="fibra_legno">{t("Fibra di legno")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Zona</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Zona")}</Label>
                 <Select
                   value={config.cappotto.zona ?? "tutta"}
                   onValueChange={(value) => update({ cappotto: { ...config.cappotto, zona: value as NonNullable<ConfigurazioneFacciata["cappotto"]["zona"]> } })}
@@ -469,14 +469,14 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   <SelectContent>
                     {INSULATION_ZONES.map((zone) => (
                       <SelectItem key={zone.value} value={zone.value}>
-                        {zone.label}
+                        {t(zone.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Colore finitura</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Colore finitura")}</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="color"
@@ -502,40 +502,40 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
         <CardHeader className="pb-3 max-md:hidden">
           <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
             <Columns2 className="h-4 w-4 text-orange-600" />
-            Elementi architettonici e dettagli
+            {t("Elementi architettonici e dettagli")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 max-md:p-0">
-          <DettagliTelefono titolo="Elementi architettonici e dettagli">
+          <DettagliTelefono titolo={t("Elementi architettonici e dettagli")}>
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-xl border p-4 space-y-3 max-md:p-3">
-              <p className="text-sm font-semibold max-md:text-[13px]">Cornici e marcapiani</p>
+              <p className="text-sm font-semibold max-md:text-[13px]">{t("Cornici e marcapiani")}</p>
               <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Cornici finestre</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Cornici finestre")}</Label>
                   <Select
                     value={config.elementi.cornici_finestre.azione}
                     onValueChange={(value) => setElemento("cornici_finestre", { ...config.elementi.cornici_finestre, azione: value as ConfigurazioneFacciata["elementi"]["cornici_finestre"]["azione"] })}
                   >
                     <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mantieni">Mantieni</SelectItem>
-                      <SelectItem value="aggiungi">Aggiungi</SelectItem>
-                      <SelectItem value="rimuovi">Rimuovi</SelectItem>
+                      <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                      <SelectItem value="aggiungi">{t("Aggiungi")}</SelectItem>
+                      <SelectItem value="rimuovi">{t("Rimuovi")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Marcapiani</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Marcapiani")}</Label>
                   <Select
                     value={config.elementi.marcapiani.azione}
                     onValueChange={(value) => setElemento("marcapiani", { ...config.elementi.marcapiani, azione: value as ConfigurazioneFacciata["elementi"]["marcapiani"]["azione"] })}
                   >
                     <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mantieni">Mantieni</SelectItem>
-                      <SelectItem value="aggiungi">Aggiungi</SelectItem>
-                      <SelectItem value="rimuovi">Rimuovi</SelectItem>
+                      <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                      <SelectItem value="aggiungi">{t("Aggiungi")}</SelectItem>
+                      <SelectItem value="rimuovi">{t("Rimuovi")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -547,8 +547,8 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                     <Input
                       value={config.elementi.cornici_finestre.colore_hex ?? ""}
                       onChange={(e) => setElemento("cornici_finestre", { ...config.elementi.cornici_finestre, colore_hex: e.target.value })}
-                      placeholder="Colore cornici (#FFFFFF)"
-                      aria-label="Colore cornici"
+                      placeholder={t("Colore cornici (#FFFFFF)")}
+                      aria-label={t("Colore cornici")}
                       className="h-10 text-sm"
                     />
                   )}
@@ -557,15 +557,15 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                       <Input
                         value={config.elementi.marcapiani.spessore ?? ""}
                         onChange={(e) => setElemento("marcapiani", { ...config.elementi.marcapiani, spessore: e.target.value })}
-                        placeholder="Spessore marcapiani"
-                        aria-label="Spessore marcapiani"
+                        placeholder={t("Spessore marcapiani")}
+                        aria-label={t("Spessore marcapiani")}
                         className="h-10 text-sm"
                       />
                       <Input
                         value={config.elementi.marcapiani.colore_hex ?? ""}
                         onChange={(e) => setElemento("marcapiani", { ...config.elementi.marcapiani, colore_hex: e.target.value })}
-                        placeholder="Colore marcapiani"
-                        aria-label="Colore marcapiani"
+                        placeholder={t("Colore marcapiani")}
+                        aria-label={t("Colore marcapiani")}
                         className="h-10 text-sm"
                       />
                     </>
@@ -575,10 +575,10 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
             </div>
 
             <div className="rounded-xl border p-4 space-y-3 max-md:p-3">
-              <p className="text-sm font-semibold max-md:text-[13px]">Davanzali, zoccolatura, gronde</p>
+              <p className="text-sm font-semibold max-md:text-[13px]">{t("Davanzali, zoccolatura, gronde")}</p>
               <div className="grid gap-3 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Davanzali</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Davanzali")}</Label>
                   <Select
                     value={config.elementi.davanzali.azione}
                     onValueChange={(value) => {
@@ -589,27 +589,27 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   >
                     <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mantieni">Mantieni</SelectItem>
-                      <SelectItem value="sostituisci">Sostituisci</SelectItem>
+                      <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                      <SelectItem value="sostituisci">{t("Sostituisci")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Zoccolatura</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Zoccolatura")}</Label>
                   <Select
                     value={config.elementi.zoccolatura.azione}
                     onValueChange={(value) => setElemento("zoccolatura", { ...config.elementi.zoccolatura, azione: value as ConfigurazioneFacciata["elementi"]["zoccolatura"]["azione"] })}
                   >
                     <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mantieni">Mantieni</SelectItem>
-                      <SelectItem value="aggiungi">Aggiungi</SelectItem>
-                      <SelectItem value="rimuovi">Rimuovi</SelectItem>
+                      <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                      <SelectItem value="aggiungi">{t("Aggiungi")}</SelectItem>
+                      <SelectItem value="rimuovi">{t("Rimuovi")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Gronde e pluviali</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Gronde e pluviali")}</Label>
                   <Select
                     value={config.elementi.gronde.azione}
                     onValueChange={(value) => {
@@ -620,8 +620,8 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   >
                     <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mantieni">Mantieni</SelectItem>
-                      <SelectItem value="sostituisci">Sostituisci</SelectItem>
+                      <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                      <SelectItem value="sostituisci">{t("Sostituisci")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -630,23 +630,23 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
               {config.elementi.davanzali.azione === "sostituisci" && (
                 <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
                   <div>
-                    <Label className="text-xs max-md:text-[11px]">Materiale davanzali</Label>
+                    <Label className="text-xs max-md:text-[11px]">{t("Materiale davanzali")}</Label>
                     <Select
                       value={config.elementi.davanzali.materiale}
                       onValueChange={(value) => setElemento("davanzali", { ...config.elementi.davanzali, materiale: value as MaterialeDavanzale })}
                     >
-                      <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue placeholder="Materiale" /></SelectTrigger>
+                      <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue placeholder={t("Materiale")} /></SelectTrigger>
                       <SelectContent>
-                        {SILL_MATERIALS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                        {SILL_MATERIALS.map((m) => <SelectItem key={m.value} value={m.value}>{t(m.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs max-md:text-[11px]">Colore davanzali</Label>
+                    <Label className="text-xs max-md:text-[11px]">{t("Colore davanzali")}</Label>
                     <Input
                       value={config.elementi.davanzali.colore_hex ?? ""}
                       onChange={(e) => setElemento("davanzali", { ...config.elementi.davanzali, colore_hex: e.target.value })}
-                      placeholder="Es. bianco Carrara"
+                      placeholder={t("Es. bianco Carrara")}
                       className="mt-1 h-10 text-sm"
                     />
                   </div>
@@ -656,19 +656,19 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
               {config.elementi.zoccolatura.azione === "aggiungi" && (
                 <div className="grid gap-3 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
                   <div>
-                    <Label className="text-xs max-md:text-[11px]">Materiale zoccolatura</Label>
+                    <Label className="text-xs max-md:text-[11px]">{t("Materiale zoccolatura")}</Label>
                     <Select
                       value={config.elementi.zoccolatura.tipo}
                       onValueChange={(value) => setElemento("zoccolatura", { ...config.elementi.zoccolatura, tipo: value as MaterialeZoccolatura })}
                     >
-                      <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue placeholder="Materiale" /></SelectTrigger>
+                      <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue placeholder={t("Materiale")} /></SelectTrigger>
                       <SelectContent>
-                        {BASE_COURSE_MATERIALS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                        {BASE_COURSE_MATERIALS.map((m) => <SelectItem key={m.value} value={m.value}>{t(m.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs max-md:text-[11px]">Altezza (cm)</Label>
+                    <Label className="text-xs max-md:text-[11px]">{t("Altezza (cm)")}</Label>
                     <Input
                       value={String(config.elementi.zoccolatura.altezza_cm ?? "")}
                       onChange={(e) => setElemento("zoccolatura", { ...config.elementi.zoccolatura, altezza_cm: e.target.value ? Number(e.target.value) : undefined })}
@@ -678,11 +678,11 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                     />
                   </div>
                   <div>
-                    <Label className="text-xs max-md:text-[11px]">Colore zoccolatura</Label>
+                    <Label className="text-xs max-md:text-[11px]">{t("Colore zoccolatura")}</Label>
                     <Input
                       value={config.elementi.zoccolatura.colore_hex ?? ""}
                       onChange={(e) => setElemento("zoccolatura", { ...config.elementi.zoccolatura, colore_hex: e.target.value })}
-                      placeholder="Es. grigio pietra"
+                      placeholder={t("Es. grigio pietra")}
                       className="mt-1 h-10 text-sm"
                     />
                   </div>
@@ -692,7 +692,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
               {config.elementi.gronde.azione === "sostituisci" && (
                 <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
                   <div>
-                    <Label className="text-xs max-md:text-[11px]">Materiale gronde</Label>
+                    <Label className="text-xs max-md:text-[11px]">{t("Materiale gronde")}</Label>
                     <div className="mt-1 flex items-center gap-2">
                       {config.elementi.gronde.materiale && FACADE_GUTTER_PHOTOS[config.elementi.gronde.materiale] && (
                         <ReferenceThumb
@@ -705,22 +705,22 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                         value={config.elementi.gronde.materiale}
                         onValueChange={(value) => setElemento("gronde", { ...config.elementi.gronde, materiale: value as MaterialeGronde })}
                       >
-                        <SelectTrigger className="h-10 min-w-0 text-sm"><SelectValue placeholder="Materiale" /></SelectTrigger>
+                        <SelectTrigger className="h-10 min-w-0 text-sm"><SelectValue placeholder={t("Materiale")} /></SelectTrigger>
                         <SelectContent>
-                          {GUTTER_MATERIALS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                          {GUTTER_MATERIALS.map((m) => <SelectItem key={m.value} value={m.value}>{t(m.label)}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                   {config.elementi.gronde.materiale && GUTTER_NATURAL_METALS.includes(config.elementi.gronde.materiale) ? (
-                    <p className="self-end pb-2 text-xs text-muted-foreground max-md:text-[11px]">Colore naturale del metallo</p>
+                    <p className="self-end pb-2 text-xs text-muted-foreground max-md:text-[11px]">{t("Colore naturale del metallo")}</p>
                   ) : (
                     <div>
-                      <Label className="text-xs max-md:text-[11px]">Colore gronde</Label>
+                      <Label className="text-xs max-md:text-[11px]">{t("Colore gronde")}</Label>
                       <Input
                         value={config.elementi.gronde.colore_hex ?? ""}
                         onChange={(e) => setElemento("gronde", { ...config.elementi.gronde, colore_hex: e.target.value })}
-                        placeholder="Es. testa di moro"
+                        placeholder={t("Es. testa di moro")}
                         className="mt-1 h-10 text-sm"
                       />
                     </div>
@@ -731,23 +731,23 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           </div>
 
           <div className="rounded-xl border p-4 space-y-3 max-md:p-3">
-            <p className="text-sm font-semibold max-md:text-[13px]">Balconi, ringhiere e persiane</p>
+            <p className="text-sm font-semibold max-md:text-[13px]">{t("Balconi, ringhiere e persiane")}</p>
             <div className="grid gap-3 sm:grid-cols-[220px,1fr]">
               <div>
-                <Label className="text-xs max-md:text-[11px]">Azione ringhiere</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Azione ringhiere")}</Label>
                 <Select
                   value={config.elementi.balconi_ringhiere.azione}
                   onValueChange={(value) => setElemento("balconi_ringhiere", { ...config.elementi.balconi_ringhiere, azione: value as ConfigurazioneFacciata["elementi"]["balconi_ringhiere"]["azione"] })}
                 >
                   <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mantieni">Mantieni</SelectItem>
-                    <SelectItem value="vernicia">Vernicia</SelectItem>
+                    <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                    <SelectItem value="vernicia">{t("Vernicia")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Colore ringhiere</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Colore ringhiere")}</Label>
                 <Input
                   value={config.elementi.balconi_ringhiere.colore_hex ?? ""}
                   onChange={(e) => setElemento("balconi_ringhiere", { ...config.elementi.balconi_ringhiere, colore_hex: e.target.value })}
@@ -759,25 +759,25 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
             {/* Persiane esistenti: solo riverniciatura, stesso modello (cambiarle è il render persiane). */}
             <div className="grid gap-3 sm:grid-cols-[220px,1fr]">
               <div>
-                <Label className="text-xs max-md:text-[11px]">Persiane e scuri</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Persiane e scuri")}</Label>
                 <Select
                   value={config.elementi.persiane?.azione ?? "mantieni"}
                   onValueChange={(value) => setElemento("persiane", { ...(config.elementi.persiane ?? {}), azione: value as NonNullable<ConfigurazioneFacciata["elementi"]["persiane"]>["azione"] })}
                 >
                   <SelectTrigger className="mt-1 h-10 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mantieni">Mantieni</SelectItem>
-                    <SelectItem value="vernicia">Vernicia (stesso modello)</SelectItem>
+                    <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                    <SelectItem value="vernicia">{t("Vernicia (stesso modello)")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {config.elementi.persiane?.azione === "vernicia" && (
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Colore persiane</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Colore persiane")}</Label>
                   <Input
                     value={config.elementi.persiane.colore_hex ?? ""}
                     onChange={(e) => setElemento("persiane", { ...config.elementi.persiane!, colore_hex: e.target.value })}
-                    placeholder="Es. verde vagone RAL 6009"
+                    placeholder={t("Es. verde vagone RAL 6009")}
                     className="mt-1 h-10 text-sm"
                   />
                 </div>
@@ -792,7 +792,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
         <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
           <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
             <Ruler className="h-4 w-4 text-orange-600" />
-            Note operative e vincoli
+            {t("Note operative e vincoli")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 max-md:p-3 max-md:pt-0">
@@ -801,18 +801,18 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
             onChange={(e) => update({ note_libere: e.target.value })}
             rows={4}
             placeholder={isMobile
-              ? "Es. rivestimento solo al piano terra, ringhiere solo verniciate…"
-              : "Esempio: rivestimento solo al piano terra, facciata superiore invariata; cornici sottili e pulite; ringhiere solo verniciate, senza cambiare disegno."}
+              ? t("Es. rivestimento solo al piano terra, ringhiere solo verniciate…")
+              : t("Esempio: rivestimento solo al piano terra, facciata superiore invariata; cornici sottili e pulite; ringhiere solo verniciate, senza cambiare disegno.")}
             className="max-md:min-h-[88px] max-md:placeholder:text-[13px]"
           />
           {/* Telefono: la spiegazione del prompt resta al computer. */}
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-sm text-emerald-900 max-md:hidden">
             <div className="flex items-center gap-2 font-medium">
               <ShieldCheck className="h-4 w-4" />
-              Cosa proteggerà il prompt
+              {t("Cosa proteggerà il prompt")}
             </div>
             <p className="mt-2 text-sm">
-              Geometria edificio, aperture, cielo, strada, vegetazione, edifici vicini, proporzioni, prospettiva e tutte le zone non esplicitamente coinvolte.
+              {t("Geometria edificio, aperture, cielo, strada, vegetazione, edifici vicini, proporzioni, prospettiva e tutte le zone non esplicitamente coinvolte.")}
             </p>
           </div>
         </CardContent>

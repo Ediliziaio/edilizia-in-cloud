@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import type { SrProgettoDetail, SrMediaRow } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   progettoId: string;
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function StepAccessori({ progettoId, detail }: Props) {
+  const t = useT();
   const uploadMediaMut = useUploadMedia(progettoId);
   const deleteMediaMut = useDeleteMedia(progettoId);
   const importRenderMut = useImportRender(progettoId);
@@ -62,7 +64,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
           {
             onSuccess: () => {
               setBuilderDialogOpen(false);
-              toast.success("Render generato e importato nel preventivo");
+              toast.success(t("Render generato e importato nel preventivo"));
             },
           },
         );
@@ -71,8 +73,8 @@ export function StepAccessori({ progettoId, detail }: Props) {
       // NON chiudo il Dialog (cosi' l'utente puo' eventualmente riprovare
       // dallo stesso wizard, o chiudere quando vuole).
       if (data?.type === "sr-render-failed") {
-        toast.error("Render fallito", {
-          description: data.error ?? "Generazione del render non riuscita. Riprova o contatta il supporto.",
+        toast.error(t("Render fallito"), {
+          description: data.error ?? t("Generazione del render non riuscita. Riprova o contatta il supporto."),
         });
       }
     };
@@ -110,18 +112,18 @@ export function StepAccessori({ progettoId, detail }: Props) {
     });
     if (skippedNonImage.length > 0) {
       toast.warning(
-        `${skippedNonImage.length} file non sono immagini — saltati`,
+        t("{n} file non sono immagini — saltati", { n: skippedNonImage.length }),
         { description: skippedNonImage.slice(0, 3).join(", ") + (skippedNonImage.length > 3 ? "…" : "") },
       );
     }
     if (skippedTooBig.length > 0) {
       toast.warning(
-        `${skippedTooBig.length} file > 10 MB — saltati`,
+        t("{n} file > 10 MB — saltati", { n: skippedTooBig.length }),
         { description: skippedTooBig.slice(0, 3).join(", ") + (skippedTooBig.length > 3 ? "…" : "") },
       );
     }
     if (accepted === 0 && (skippedNonImage.length > 0 || skippedTooBig.length > 0)) {
-      toast.error("Nessun file caricato");
+      toast.error(t("Nessun file caricato"));
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -141,16 +143,16 @@ export function StepAccessori({ progettoId, detail }: Props) {
           della loro finestra, in «Composizione offerta»: questo passo ha solo foto
           del cantiere e render. */}
       {accessori.length > 0 && (
-        <SrCallout variant="info" icon={<ImageIcon className="h-3.5 w-3.5" />} title="Complementi" className="max-md:hidden">
-          Tapparelle, zanzariere e cassonetti si aggiungono nel box di ogni finestra, in{" "}
-          <strong>Composizione offerta</strong>: prendono le sue misure e il modello già usato.
+        <SrCallout variant="info" icon={<ImageIcon className="h-3.5 w-3.5" />} title={t("Complementi")} className="max-md:hidden">
+          {t("Tapparelle, zanzariere e cassonetti si aggiungono nel box di ogni finestra, in")}{" "}
+          <strong>{t("Composizione offerta")}</strong>{t(": prendono le sue misure e il modello già usato.")}
         </SrCallout>
       )}
 
       {/* Render foto-realistici */}
       <SrCard
-        title="Render foto-realistici AI"
-        description="Mostra al cliente come saranno i nuovi serramenti nella sua casa: collegamento al modulo Render Infissi."
+        title={t("Render foto-realistici AI")}
+        description={t("Mostra al cliente come saranno i nuovi serramenti nella sua casa: collegamento al modulo Render Infissi.")}
         icon={<Sparkles className="h-4 w-4" />}
         variant="highlight"
       >
@@ -161,7 +163,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
             className="flex-1 gap-2 border-orange-300 hover:bg-orange-50"
           >
             <Sparkles className="h-4 w-4 text-orange-600" />
-            Importa<span className="max-md:hidden"> render esistente</span>
+            {t("Importa")}<span className="max-md:hidden"> {t("render esistente")}</span>
           </Button>
           {/* Genera nuovo render: apre il builder Render Infissi DENTRO un
               Dialog (iframe verso /azienda/render/infissi/embed). Al
@@ -171,8 +173,8 @@ export function StepAccessori({ progettoId, detail }: Props) {
             className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600"
           >
             <Sparkles className="h-4 w-4" />
-            <span className="max-md:hidden">Genera nuovo render</span>
-            <span className="md:hidden">Nuovo render</span>
+            <span className="max-md:hidden">{t("Genera nuovo render")}</span>
+            <span className="md:hidden">{t("Nuovo render")}</span>
           </Button>
         </div>
 
@@ -197,33 +199,33 @@ export function StepAccessori({ progettoId, detail }: Props) {
                     {/* PRIMA — foto originale */}
                     <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
                       {prima?.url ? (
-                        <img loading="lazy" src={prima.url} alt="prima" className="w-full h-full object-cover" />
+                        <img loading="lazy" src={prima.url} alt={t("prima")} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground italic">
-                          Foto originale mancante
+                          {t("Foto originale mancante")}
                         </div>
                       )}
                       <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 text-white text-[10px] px-2 py-0.5 font-semibold uppercase tracking-wide">
-                        Prima
+                        {t("Prima")}
                       </div>
                     </div>
                     {/* DOPO — render AI */}
                     <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
                       {render.url ? (
-                        <img loading="lazy" src={render.url} alt={render.caption ?? "render"} className="w-full h-full object-cover" />
+                        <img loading="lazy" src={render.url} alt={render.caption ?? t("render")} className="w-full h-full object-cover" />
                       ) : (
                         <Sparkles className="h-6 w-6 mx-auto text-orange-300 mt-8" />
                       )}
                       <button
                         onClick={() => setMediaToDelete(render)}
                         className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center tap-compact max-md:h-7 max-md:w-7 max-md:opacity-100"
-                        title="Rimuovi"
-                        aria-label="Rimuovi render"
+                        title={t("Rimuovi")}
+                        aria-label={t("Rimuovi render")}
                       >
                         <X className="h-3 w-3" />
                       </button>
                       <div className="absolute bottom-0 left-0 right-0 bg-orange-500/90 text-white text-[10px] px-2 py-0.5 font-semibold uppercase tracking-wide">
-                        Dopo · Render AI
+                        {t("Dopo · Render AI")}
                       </div>
                     </div>
                   </div>
@@ -237,16 +239,16 @@ export function StepAccessori({ progettoId, detail }: Props) {
                 })
                 .map((m) => (
                   <div key={m.id} className="relative group rounded-md overflow-hidden border bg-muted aspect-video max-w-xs">
-                    {m.url && <img loading="lazy" src={m.url} alt="prima" className="w-full h-full object-cover" />}
+                    {m.url && <img loading="lazy" src={m.url} alt={t("prima")} className="w-full h-full object-cover" />}
                     <button
                       onClick={() => setMediaToDelete(m)}
                       className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center tap-compact max-md:h-7 max-md:w-7 max-md:opacity-100"
-                      title="Rimuovi"
+                      title={t("Rimuovi")}
                     >
                       <X className="h-3 w-3" />
                     </button>
                     <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 text-white text-[10px] px-2 py-0.5 font-semibold uppercase tracking-wide">
-                      Prima · senza render
+                      {t("Prima · senza render")}
                     </div>
                   </div>
                 ))}
@@ -255,15 +257,14 @@ export function StepAccessori({ progettoId, detail }: Props) {
         })()}
 
         <SrCallout variant="info" className="mt-3 max-md:hidden">
-          💡 I render compaiono nella pagina 3 del PDF cliente come confronto <strong>prima / dopo</strong>.
-          Massimo 4 coppie visibili nel PDF.
+          {t("💡 I render compaiono nella pagina 3 del PDF cliente come confronto")} <strong>{t("prima / dopo")}</strong>{t(". Massimo 4 coppie visibili nel PDF.")}
         </SrCallout>
       </SrCard>
 
       {/* Foto cantiere */}
       <SrCard
-        title="Foto cantiere"
-        description="Carica foto della situazione attuale o cantieri simili. Utili per il backoffice e per il PDF."
+        title={t("Foto cantiere")}
+        description={t("Carica foto della situazione attuale o cantieri simili. Utili per il backoffice e per il PDF.")}
         icon={<ImageIcon className="h-4 w-4" />}
       >
         <input
@@ -281,7 +282,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
           disabled={uploadMediaMut.isPending}
         >
           {uploadMediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          Carica foto<span className="max-md:hidden"> (multipla supportata, max 10 MB ciascuna)</span>
+          {t("Carica foto")}<span className="max-md:hidden"> {t("(multipla supportata, max 10 MB ciascuna)")}</span>
         </Button>
 
         {detail.media.filter((m) => m.kind !== "render").length > 0 && (
@@ -289,7 +290,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
             {detail.media.filter((m) => m.kind !== "render").map((m) => (
               <div key={m.id} className="relative group aspect-square rounded-md overflow-hidden border bg-muted">
                 {m.url ? (
-                  <img loading="lazy" src={m.url} alt={m.caption ?? "foto"} className="w-full h-full object-cover" />
+                  <img loading="lazy" src={m.url} alt={m.caption ?? t("foto")} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
@@ -298,8 +299,8 @@ export function StepAccessori({ progettoId, detail }: Props) {
                 <button
                   onClick={() => setMediaToDelete(m)}
                   className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center tap-compact max-md:h-7 max-md:w-7 max-md:opacity-100"
-                  title="Elimina"
-                  aria-label="Elimina foto"
+                  title={t("Elimina")}
+                  aria-label={t("Elimina foto")}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -328,18 +329,17 @@ export function StepAccessori({ progettoId, detail }: Props) {
           <DialogHeader className="px-4 py-3 border-b flex flex-row items-center justify-between space-y-0">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-orange-600" />
-              <DialogTitle className="text-base">Genera nuovo render</DialogTitle>
+              <DialogTitle className="text-base">{t("Genera nuovo render")}</DialogTitle>
             </div>
             <DialogDescription className="sr-only">
-              Render builder Infissi caricato in modalita' embed.
-              Al completamento si chiude automaticamente e importa nel BOM.
+              {t("Render builder Infissi caricato in modalita' embed. Al completamento si chiude automaticamente e importa nel BOM.")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 bg-slate-50">
             {builderDialogOpen && (
               <iframe
                 src="/azienda/render/infissi/embed?embed=1"
-                title="Render Infissi builder"
+                title={t("Render Infissi builder")}
                 className="w-full h-full border-0"
                 // sandbox impostato per consentire script + same-origin
                 // (necessario per postMessage e auth via cookies).
@@ -348,10 +348,10 @@ export function StepAccessori({ progettoId, detail }: Props) {
             )}
           </div>
           <div className="px-4 py-2 border-t bg-white flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-            <span>Al termine del render il dialog si chiude e l'immagine viene importata automaticamente.</span>
+            <span>{t("Al termine del render il dialog si chiude e l'immagine viene importata automaticamente.")}</span>
             {importRenderMut.isPending && (
               <span className="flex items-center gap-1 text-orange-700">
-                <Loader2 className="h-3 w-3 animate-spin" /> Importazione in corso…
+                <Loader2 className="h-3 w-3 animate-spin" /> {t("Importazione in corso…")}
               </span>
             )}
           </div>
@@ -363,23 +363,23 @@ export function StepAccessori({ progettoId, detail }: Props) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {mediaToDelete?.kind === "render" ? "Eliminare il render?" : "Eliminare la foto?"}
+              {mediaToDelete?.kind === "render" ? t("Eliminare il render?") : t("Eliminare la foto?")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {mediaToDelete?.kind === "render"
-                ? "Il render AI verrà rimosso dal preventivo. Per averlo di nuovo dovrai rigenerarlo dal modulo Render Infissi."
-                : "La foto verrà rimossa dal preventivo. Questa azione non può essere annullata."}
+                ? t("Il render AI verrà rimosso dal preventivo. Per averlo di nuovo dovrai rigenerarlo dal modulo Render Infissi.")
+                : t("La foto verrà rimossa dal preventivo. Questa azione non può essere annullata.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMediaMut.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMediaMut.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteMedia}
               disabled={deleteMediaMut.isPending}
               className="bg-rose-600 hover:bg-rose-700"
             >
               {deleteMediaMut.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -398,33 +398,34 @@ function ImportRenderDialog({
   onSelect: (renderSessionId: string, resultIndex: number) => void;
   importing: boolean;
 }) {
+  const t = useT();
   const { data: sessions = [], isLoading } = useRenderSessions();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] max-w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Importa render esistente</DialogTitle>
+          <DialogTitle>{t("Importa render esistente")}</DialogTitle>
           <DialogDescription>
-            Scegli un render già generato nel modulo Render Infissi. Apparirà nella pagina 3 del PDF cliente.
+            {t("Scegli un render già generato nel modulo Render Infissi. Apparirà nella pagina 3 del PDF cliente.")}
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-            Caricamento render...
+            {t("Caricamento render...")}
           </div>
         ) : sessions.length === 0 ? (
           <div className="py-8 text-center">
             <Sparkles className="h-10 w-10 mx-auto text-orange-300 mb-2" />
             <p className="text-sm text-muted-foreground mb-3">
-              Non hai ancora generato nessun render. Vai al modulo Render Infissi per crearne uno.
+              {t("Non hai ancora generato nessun render. Vai al modulo Render Infissi per crearne uno.")}
             </p>
             <Button asChild className="bg-orange-500 hover:bg-orange-600">
               <a href="/azienda/render/infissi/new" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-1" />
-                Apri modulo Render
+                {t("Apri modulo Render")}
               </a>
             </Button>
           </div>
@@ -441,13 +442,13 @@ function ImportRenderDialog({
                   onClick={() => onSelect(s.id, 0)}
                   className="group relative rounded-md overflow-hidden border bg-muted aspect-video text-left hover:ring-2 hover:ring-orange-500 transition disabled:opacity-50"
                 >
-                  <img loading="lazy" src={url0} alt="render" className="w-full h-full object-cover" />
+                  <img loading="lazy" src={url0} alt={t("render")} className="w-full h-full object-cover" />
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] px-2 py-1.5">
                     <p className="font-semibold">
-                      {new Date(s.created_at).toLocaleDateString("it-IT")}
+                      {new Date(s.created_at).toLocaleDateString(intlCampo())}
                     </p>
                     {urls.length > 1 && (
-                      <p className="opacity-80">+{urls.length - 1} varianti</p>
+                      <p className="opacity-80">{t("+{n} varianti", { n: urls.length - 1 })}</p>
                     )}
                   </div>
                   {importing && (

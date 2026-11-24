@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Mail, RefreshCw, Settings2, AlertTriangle, Loader2 } from "lucide-react";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface BrokenConnection {
   id: string;
@@ -42,6 +43,7 @@ function oauthProvider(p: string): "gmail" | "outlook" | null {
  * redirect a Google/Microsoft). Per le caselle IMAP/SMTP rimanda alle impostazioni.
  */
 export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConnections, settingsPath }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
 
   const reconnect = useMutation({
@@ -70,7 +72,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
       sessionStorage.setItem("email_oauth_return_to", `${window.location.pathname}${window.location.search}`);
       window.location.href = data.auth_url;
     },
-    onError: (e) => toast.error("Riconnessione non riuscita", { description: (e as Error).message }),
+    onError: (e) => toast.error(t("Riconnessione non riuscita"), { description: (e as Error).message }),
   });
 
   const pendingId = reconnect.isPending ? (reconnect.variables as BrokenConnection | undefined)?.id : null;
@@ -81,17 +83,17 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-rose-600" />
-            Caselle da riconnettere
+            {t("Caselle da riconnettere")}
           </DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            Una casella non riceve più le email perché il collegamento si è interrotto. Premi «Riconnetti» e conferma l'accesso: ci vuole un minuto.
+            {t("Una casella non riceve più le email perché il collegamento si è interrotto. Premi «Riconnetti» e conferma l'accesso: ci vuole un minuto.")}
           </DialogDescription>
         </DialogHeader>
 
         {brokenConnections.some((conn) => oauthProvider(conn.provider) === "gmail") && <GoogleEmailPrivacyNotice />}
         <div className="space-y-2.5">
           {brokenConnections.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Nessuna casella da riconnettere.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">{t("Nessuna casella da riconnettere.")}</p>
           ) : (
             brokenConnections.map((conn) => {
               const canOAuth = !!oauthProvider(conn.provider);
@@ -118,12 +120,12 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
                       disabled={reconnect.isPending}
                     >
                       {isThisPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Riconnetti {conn.email_address.split("@")[0]}
+                      {t("Riconnetti")} {conn.email_address.split("@")[0]}
                     </Button>
                   ) : (
                     <Button asChild size="sm" variant="outline" className="w-full gap-1.5">
                       <Link to={settingsPath} onClick={() => onOpenChange(false)}>
-                        <Settings2 className="h-4 w-4" />Reinserisci la password
+                        <Settings2 className="h-4 w-4" />{t("Reinserisci la password")}
                       </Link>
                     </Button>
                   )}
@@ -137,7 +139,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
         <div className="pt-1 max-sm:hidden">
           <Button asChild variant="ghost" size="sm" className="w-full text-muted-foreground gap-1.5">
             <Link to={settingsPath} onClick={() => onOpenChange(false)}>
-              <Settings2 className="h-4 w-4" />Apri tutte le impostazioni email
+              <Settings2 className="h-4 w-4" />{t("Apri tutte le impostazioni email")}
             </Link>
           </Button>
         </div>

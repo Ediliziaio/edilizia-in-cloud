@@ -7,8 +7,10 @@
 import { Sun, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDigest } from "@/lib/email-ai/hooks";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DigestCard() {
+  const t = useT();
   const { data: digest, isLoading, isError, refetch, isFetching } = useDigest();
 
   return (
@@ -16,17 +18,17 @@ export function DigestCard() {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sun className="h-5 w-5 text-amber-600" />
-          <h3 className="text-base font-semibold text-amber-900">{digest?.titolo || "La tua giornata"}</h3>
+          <h3 className="text-base font-semibold text-amber-900">{digest?.titolo || t("La tua giornata")}</h3>
         </div>
-        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => refetch()} disabled={isFetching} aria-label="Aggiorna">
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => refetch()} disabled={isFetching} aria-label={t("Aggiorna")}>
           <RefreshCw className={isFetching ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-amber-800"><Loader2 className="h-4 w-4 animate-spin" /> Preparo il riepilogo…</div>
+        <div className="flex items-center gap-2 text-sm text-amber-800"><Loader2 className="h-4 w-4 animate-spin" /> {t("Preparo il riepilogo…")}</div>
       ) : isError ? (
-        <p className="text-sm text-rose-700">Impossibile generare il digest ora. Riprova.</p>
+        <p className="text-sm text-rose-700">{t("Impossibile generare il digest ora. Riprova.")}</p>
       ) : (
         <ul className="space-y-2">
           {(digest?.righe ?? []).map((r, i) => (
@@ -35,7 +37,7 @@ export function DigestCard() {
               <span>{r}</span>
             </li>
           ))}
-          {(digest?.righe ?? []).length === 0 && <li className="text-sm text-muted-foreground">Nessuna voce per oggi.</li>}
+          {(digest?.righe ?? []).length === 0 && <li className="text-sm text-muted-foreground">{t("Nessuna voce per oggi.")}</li>}
         </ul>
       )}
     </div>

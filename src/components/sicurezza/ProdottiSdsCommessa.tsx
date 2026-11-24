@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ModuloProdotto, StoricoProdotto } from "./ProdottoSdsDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function ProdottiSdsCommessa({
   companyId,
   orderId,
@@ -34,6 +35,7 @@ export function ProdottiSdsCommessa({
   contestoNonDisponibile?: boolean;
   inizialmenteAperto?: boolean;
 }) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(inizialmenteAperto);
   const [cerca, setCerca] = useState("");
@@ -81,7 +83,7 @@ export function ProdottiSdsCommessa({
   );
   const nomeFase = (id: string | null) =>
     fasi.find((f) => f.id === id)?.name ||
-    (id ? "Fase non disponibile" : "Comune a più fasi");
+    (id ? t("Fase non disponibile") : t("Comune a più fasi"));
   return (
     <section
       className="rounded-lg border bg-card p-4"
@@ -92,7 +94,7 @@ export function ProdottiSdsCommessa({
           href="/azienda/sicurezza-cantiere?tab=sds"
           className="text-sm text-primary underline"
         >
-          Libreria SDS aziendali
+          {t("Libreria SDS aziendali")}
         </a>
         <Button
           variant="ghost"
@@ -100,7 +102,7 @@ export function ProdottiSdsCommessa({
           aria-expanded={aperto}
           onClick={() => setAperto((v) => !v)}
         >
-          Prodotti e schede di sicurezza {aperto ? "−" : "+"}
+          {t("Prodotti e schede di sicurezza")} {aperto ? "−" : "+"}
         </Button>
         {aperto && (
           <div className="flex gap-2">
@@ -110,7 +112,7 @@ export function ProdottiSdsCommessa({
               disabled={q.isFetching || contestoNonDisponibile}
               onClick={() => void q.refetch()}
             >
-              Aggiorna prodotti
+              {t("Aggiorna prodotti")}
             </Button>
             {scrive && (
               <Button
@@ -118,55 +120,42 @@ export function ProdottiSdsCommessa({
                 disabled={!r || q.isFetching}
                 onClick={() => prepara()}
               >
-                Registra prodotto
+                {t("Registra prodotto")}
               </Button>
             )}
           </div>
         )}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Materiali e prodotti effettivamente impiegati, SDS per singolo prodotto
-        e revisioni da riesaminare.
+        {t("Materiali e prodotti effettivamente impiegati, SDS per singolo prodotto e revisioni da riesaminare.")}
       </p>
       {aperto && (
         <div className="mt-3 space-y-3">
           {contestoNonDisponibile ? (
             <p role="alert">
-              Contesto della fase non disponibile: attendi prima di consultare i
-              prodotti.
+              {t("Contesto della fase non disponibile: attendi prima di consultare i prodotti.")}
             </p>
           ) : q.isLoading ? (
-            <p role="status">Caricamento prodotti e SDS…</p>
+            <p role="status">{t("Caricamento prodotti e SDS…")}</p>
           ) : q.isError || !r ? (
             <p role="alert" className="text-sm text-destructive">
-              Inventario prodotti non disponibile: non è possibile confermare
-              assenza o completezza delle SDS.
+              {t("Inventario prodotti non disponibile: non è possibile confermare assenza o completezza delle SDS.")}
             </p>
           ) : (
             <>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">
-                  {
-                    r.impieghi.filter((v) => v.pertinente && !v.annullato)
-                      .length
-                  }{" "}
-                  impieghi nel contesto
-                </Badge>
-                <Badge variant="outline">
-                  {materialiDaValutare.length} materiali ancora da esaminare
-                </Badge>
+                <Badge variant="outline">{t("{n} impieghi nel contesto", { n: r.impieghi.filter((v) => v.pertinente && !v.annullato)
+                      .length })}</Badge>
+                <Badge variant="outline">{t("{n} materiali ancora da esaminare", { n: materialiDaValutare.length })}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                La distinta propone i materiali; non stabilisce quali richiedano
-                una SDS. Aggiungi anche i prodotti consumabili non presenti
-                nella distinta. La data/fase limita gli impieghi mostrati; gli
-                stati documentali sono quelli attualmente conosciuti.
+                {t("La distinta propone i materiali; non stabilisce quali richiedano una SDS. Aggiungi anche i prodotti consumabili non presenti nella distinta. La data/fase limita gli impieghi mostrati; gli stati documentali sono quelli attualmente conosciuti.")}
               </p>
               <div className="flex flex-wrap gap-3">
                 <Input
                   className="max-w-md"
-                  aria-label="Cerca prodotto"
-                  placeholder="Cerca prodotto, codice, produttore o impiego…"
+                  aria-label={t("Cerca prodotto")}
+                  placeholder={t("Cerca prodotto, codice, produttore o impiego…")}
                   value={cerca}
                   onChange={(e) => setCerca(e.target.value)}
                 />
@@ -176,7 +165,7 @@ export function ProdottiSdsCommessa({
                     checked={altri}
                     onChange={(e) => setAltri(e.target.checked)}
                   />
-                  Includi altri periodi, fasi e annullati
+                  {t("Includi altri periodi, fasi e annullati")}
                 </label>
                 <Button
                   variant="link"
@@ -187,13 +176,12 @@ export function ProdottiSdsCommessa({
                       ?.scrollIntoView({ behavior: "smooth" })
                   }
                 >
-                  Vai al fascicolo per caricare una SDS
+                  {t("Vai al fascicolo per caricare una SDS")}
                 </Button>
               </div>
               {righe.length === 0 ? (
                 <p className="rounded border border-dashed p-4 text-sm text-muted-foreground">
-                  Nessun impiego registrato con questi filtri. Questo non
-                  conferma che non siano usati prodotti pericolosi.
+                  {t("Nessun impiego registrato con questi filtri. Questo non conferma che non siano usati prodotti pericolosi.")}
                 </p>
               ) : (
                 <div className="overflow-x-auto rounded-lg border">
@@ -206,9 +194,9 @@ export function ProdottiSdsCommessa({
                           "Periodo",
                           "SDS e riesame",
                           "Azioni",
-                        ].map((t) => (
-                          <th key={t} className="p-3 font-medium">
-                            {t}
+                        ].map((colonna) => (
+                          <th key={colonna} className="p-3 font-medium">
+                            {t(colonna)}
                           </th>
                         ))}
                       </tr>
@@ -221,7 +209,7 @@ export function ProdottiSdsCommessa({
                             <td className="min-w-48 p-3">
                               <p className="font-medium">{v.nome}</p>
                               <p className="text-xs text-muted-foreground">
-                                {v.produttore || "Produttore non indicato"}
+                                {v.produttore || t("Produttore non indicato")}
                                 {v.codice ? ` · ${v.codice}` : ""}
                               </p>
                               <p>{v.impiego}</p>
@@ -232,8 +220,8 @@ export function ProdottiSdsCommessa({
                                 (s) => s.id === v.subappaltatore_id,
                               )?.ragione_sociale ||
                                 (v.subappaltatore_id
-                                  ? "Impresa non più collegata"
-                                  : "La propria impresa")}
+                                  ? t("Impresa non più collegata")
+                                  : t("La propria impresa"))}
                               <p className="text-xs text-muted-foreground">
                                 {nomeFase(v.fase_id)}
                               </p>
@@ -241,9 +229,9 @@ export function ProdottiSdsCommessa({
                             <td className="whitespace-nowrap p-3">
                               {v.dal}
                               <br />
-                              {v.al || "Senza fine indicata"}
+                              {v.al || t("Senza fine indicata")}
                               {!v.pertinente && (
-                                <p className="text-xs">Fuori contesto</p>
+                                <p className="text-xs">{t("Fuori contesto")}</p>
                               )}
                             </td>
                             <td className="min-w-56 p-3">
@@ -255,7 +243,7 @@ export function ProdottiSdsCommessa({
                                 </ul>
                               ) : (
                                 <p className="text-xs">
-                                  SDS collegata e corrispondenza riesaminata
+                                  {t("SDS collegata e corrispondenza riesaminata")}
                                 </p>
                               )}
                               {v.motivo_non_necessaria && (
@@ -265,9 +253,9 @@ export function ProdottiSdsCommessa({
                               )}
                               {v.documento_corrente && (
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                  {v.documento_corrente.titolo} · rev.{" "}
+                                  {v.documento_corrente.titolo} {t("· rev.")}{" "}
                                   {v.documento_corrente.revisione ||
-                                    "non indicata"}
+                                    t("non indicata")}
                                 </p>
                               )}
                             </td>
@@ -279,7 +267,7 @@ export function ProdottiSdsCommessa({
                                     size="sm"
                                     onClick={() => prepara(v)}
                                   >
-                                    Rettifica prodotto
+                                    {t("Rettifica prodotto")}
                                   </Button>
                                 )}
                                 <Button
@@ -292,7 +280,7 @@ export function ProdottiSdsCommessa({
                                     })
                                   }
                                 >
-                                  Storico prodotto
+                                  {t("Storico prodotto")}
                                 </Button>
                                 {v.documento_pertinente &&
                                   v.documento_corrente && (
@@ -308,12 +296,12 @@ export function ProdottiSdsCommessa({
                                           toast.error(
                                             e instanceof Error
                                               ? e.message
-                                              : "Apertura SDS non riuscita",
+                                              : t("Apertura SDS non riuscita"),
                                           ),
                                         )
                                       }
                                     >
-                                      Apri SDS corrente
+                                      {t("Apri SDS corrente")}
                                     </Button>
                                   )}
                               </div>
@@ -327,10 +315,7 @@ export function ProdottiSdsCommessa({
               )}
               {materialiDaValutare.length > 0 && (
                 <details className="rounded border p-3">
-                  <summary className="cursor-pointer text-sm font-medium">
-                    Materiali della distinta da esaminare (
-                    {materialiDaValutare.length})
-                  </summary>
+                  <summary className="cursor-pointer text-sm font-medium">{t("Materiali della distinta da esaminare ({n})", { n: materialiDaValutare.length })}</summary>
                   <div className="mt-2 max-h-72 divide-y overflow-auto">
                     {materialiDaValutare.map((m) => (
                       <div
@@ -342,9 +327,7 @@ export function ProdottiSdsCommessa({
                             {m.nome}
                             {m.codice ? ` · ${m.codice}` : ""}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {nomeFase(m.fase_id)} · origine {m.id.slice(0, 8)}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{t("{fase_id} · origine {id}", { fase_id: String(nomeFase(m.fase_id) ?? ""), id: m.id.slice(0, 8) })}</p>
                         </div>
                         {scrive && (
                           <Button
@@ -352,7 +335,7 @@ export function ProdottiSdsCommessa({
                             size="sm"
                             onClick={() => prepara(undefined, m)}
                           >
-                            Valuta prodotto
+                            {t("Valuta prodotto")}
                           </Button>
                         )}
                       </div>
@@ -361,9 +344,7 @@ export function ProdottiSdsCommessa({
                 </details>
               )}
               <p className="text-xs text-muted-foreground">
-                Il collegamento alla SDS non valuta esposizione, compatibilità o
-                misure di prevenzione e non aggiorna automaticamente i POS già
-                salvati o emessi.
+                {t("Il collegamento alla SDS non valuta esposizione, compatibilità o misure di prevenzione e non aggiorna automaticamente i POS già salvati o emessi.")}
               </p>
             </>
           )}

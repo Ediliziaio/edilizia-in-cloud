@@ -42,6 +42,7 @@ import {
   type ExternalWizardProps,
 } from "./IntegrationsCatalog";
 import { PallinoStato, type Tono } from "./StatoCollegamento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type IntegrationConnectionStatus = "connected" | "disconnected" | "error" | "pending" | "warning";
 
@@ -119,6 +120,7 @@ export default function IntegrationsGrid({
   popup: popupDaFuori,
   onPopupChange,
 }: IntegrationsGridProps) {
+  const t = useT();
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState<IntegrationCategory | "tutte">("tutte");
   // Popup: un solo item alla volta. Comandato da fuori se c'è onPopupChange.
@@ -147,7 +149,7 @@ export default function IntegrationsGrid({
 
   const handleAction = (item: IntegrationItem) => {
     if (!canManage) {
-      toast.error("Solo un amministratore aziendale può gestire le integrazioni.");
+      toast.error(t("Solo un amministratore aziendale può gestire le integrazioni."));
       return;
     }
     // Un collegamento chiuso dal fornitore si ricollega con un clic.
@@ -168,7 +170,7 @@ export default function IntegrationsGrid({
     }
     if (item.gestisciMode === "external-wizard") {
       if (!externalWizardRegistry[item.id]) {
-        toast.error("Wizard non disponibile per questa integrazione.");
+        toast.error(t("Wizard non disponibile per questa integrazione."));
         return;
       }
       setExternalWizardId(item.id);
@@ -214,7 +216,7 @@ export default function IntegrationsGrid({
                   : "bg-background text-muted-foreground hover:bg-muted",
               )}
             >
-              {CATEGORY_LABELS[cat]}
+              {t(CATEGORY_LABELS[cat])}
               <span
                 className={cn(
                   "rounded-full px-1.5 text-[10px] tabular-nums",
@@ -227,7 +229,7 @@ export default function IntegrationsGrid({
           );
         })}
         <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-          <span className="font-medium text-foreground">{collegate}</span> di {items.length} collegate
+          <span className="font-medium text-foreground">{collegate}</span> {t("di")} {items.length} {t("collegate")}
         </span>
       </div>
 
@@ -235,7 +237,7 @@ export default function IntegrationsGrid({
       {filteredItems.length === 0 ? (
         <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
           <Plug className="mx-auto mb-2 h-6 w-6 opacity-50" />
-          Nessuna integrazione in questa categoria.
+          {t("Nessuna integrazione in questa categoria.")}
         </div>
       ) : (
         <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -275,7 +277,7 @@ export default function IntegrationsGrid({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground"
-                          aria-label={`Altre azioni per ${item.name}`}
+                          aria-label={t("Altre azioni per {name}", { name: String(item.name ?? "") })}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
@@ -284,19 +286,19 @@ export default function IntegrationsGrid({
                         {item.pageHref && (
                           <DropdownMenuItem onClick={() => navigate(item.pageHref!)}>
                             <ExternalLink className="mr-2 h-4 w-4" />
-                            {item.pageLabel ?? "Vai alla pagina"}
+                            {item.pageLabel ? t(item.pageLabel) : t("Vai alla pagina")}
                           </DropdownMenuItem>
                         )}
                         {connected && item.leadFormsMenu && onManageForms && (
                           <DropdownMenuItem onClick={() => onManageForms(item)}>
                             <ListChecks className="mr-2 h-4 w-4" />
-                            Moduli lead
+                            {t("Moduli lead")}
                           </DropdownMenuItem>
                         )}
                         {item.troubleshoot && onTroubleshoot && (
                           <DropdownMenuItem onClick={() => onTroubleshoot(item)}>
                             <Wrench className="mr-2 h-4 w-4" />
-                            Risolvi problemi
+                            {t("Risolvi problemi")}
                           </DropdownMenuItem>
                         )}
                         {conDisconnetti && (
@@ -307,7 +309,7 @@ export default function IntegrationsGrid({
                               onClick={() => onDisconnect!(item)}
                               disabled={!canManage}
                             >
-                              Disconnetti
+                              {t("Disconnetti")}
                             </DropdownMenuItem>
                           </>
                         )}
@@ -321,19 +323,19 @@ export default function IntegrationsGrid({
                   {renderLogo(item.Logo)}
                   <div className="min-w-0 flex-1 pt-0.5">
                     <h3 className="text-sm font-semibold leading-snug line-clamp-2">{item.name}</h3>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{CATEGORY_LABELS[item.category]}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{t(CATEGORY_LABELS[item.category])}</p>
                   </div>
                 </div>
 
                 {/* Descrizione */}
                 <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                  {item.description}
+                  {t(item.description)}
                 </p>
 
                 {/* Stato + azione in basso */}
                 <div className="mt-auto flex items-end justify-between gap-3 pt-4">
                   <div className="min-w-0">
-                    <PallinoStato tono={stato.tono}>{stato.label}</PallinoStato>
+                    <PallinoStato tono={stato.tono}>{t(stato.label)}</PallinoStato>
                     {detail && (
                       <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={detail}>
                         {detail}
@@ -350,7 +352,7 @@ export default function IntegrationsGrid({
                     onClick={() => handleAction(item)}
                     disabled={!canManage}
                   >
-                    {ctaLabel}
+                    {t(ctaLabel)}
                   </Button>
                 </div>
               </Card>

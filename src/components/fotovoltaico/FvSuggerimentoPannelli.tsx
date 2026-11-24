@@ -4,9 +4,10 @@ import type { ArticoloFv } from "@/lib/fotovoltaico/componentiConfigurazione";
 import { stimaProduzioneFv } from "@/lib/fotovoltaico/anteprima";
 import { leggiDisegnoCommerciale } from "../../../supabase/functions/_shared/fvDisegnoCommerciale";
 import { leggiPiano } from "../../../supabase/functions/_shared/fvPianoTetto";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const numero = (n: number, decimali = 0) =>
-  n.toLocaleString("it-IT", { maximumFractionDigits: decimali, useGrouping: "always" });
+  n.toLocaleString(intlCampo(), { maximumFractionDigits: decimali, useGrouping: "always" });
 const positivo = (n: number) => Number.isFinite(n) && n > 0;
 
 /** Prima indicazione energetica; la posa e gli scenari verificano il tetto e gli orari. */
@@ -21,6 +22,7 @@ export function FvSuggerimentoPannelli({
   modificabile: boolean;
   onApplica: (p: Pick<WizardData, "numero_pannelli_scelti" | "potenza_kwp">) => void;
 }) {
+  const t = useT();
   const consumo = Number(data.consumo_annuo_kwh);
   const aumento = data.analisi_consumi?.profilo.aumentoConsumiPct ?? 0;
   const fabbisogno = consumo * (1 + aumento / 100);
@@ -40,16 +42,16 @@ export function FvSuggerimentoPannelli({
 
   return (
     <section
-      aria-label="Suggerimento automatico pannelli dai consumi"
+      aria-label={t("Suggerimento automatico pannelli dai consumi")}
       className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4"
     >
-      <h3 className="font-semibold text-slate-900">Riferimento dai consumi annuali</h3>
+      <h3 className="font-semibold text-slate-900">{t("Riferimento dai consumi annuali")}</h3>
       {!pronto
         ? (
           <p role="status" className="mt-2 text-sm text-slate-700">
             {!positivo(consumo) || !positivo(fabbisogno)
-              ? "Conferma i consumi della bolletta nella fase Consumi: il suggerimento si calcola automaticamente."
-              : "Calcola la stima solare nella fase Tetto per ottenere il suggerimento. Puoi usare PVGIS anche senza disegnare le falde."}
+              ? t("Conferma i consumi della bolletta nella fase Consumi: il suggerimento si calcola automaticamente.")
+              : t("Calcola la stima solare nella fase Tetto per ottenere il suggerimento. Puoi usare PVGIS anche senza disegnare le falde.")}
           </p>
         )
         : (
@@ -57,30 +59,29 @@ export function FvSuggerimentoPannelli({
             <p className="mt-2 text-lg text-slate-900">
               <strong>
                 {quantita != null
-                  ? `${numero(quantita)} pannelli da ${numero(watt)} Wp`
-                  : `${numero(potenza, 2)} kWp indicativi`}
+                  ? t("{quantita} pannelli da {watt} Wp", { quantita: String(numero(quantita) ?? ""), watt: String(numero(watt) ?? "") })
+                  : t("{potenza} kWp indicativi", { potenza: String(numero(potenza, 2) ?? "") })}
               </strong>
-              {quantita != null && ` · ${numero(quantita * watt / 1000, 2)} kWp`}
+              {quantita != null && <>{" · "}{t("{valore} kWp", { valore: String(numero(quantita * watt / 1000, 2) ?? "") })}</>}
             </p>
             <p className="mt-1 text-sm text-slate-700">
-              Per produrre in un anno l’equivalente di {numero(fabbisogno)} kWh
-              {aumento > 0 && " (compresi i nuovi consumi previsti)"}.
-              {" "}Resa da {fonte}: {numero(resa)} kWh per kWp all’anno.
+              {aumento > 0
+                ? t("Per produrre in un anno l’equivalente di {fabbisogno} kWh (compresi i nuovi consumi previsti).", { fabbisogno: numero(fabbisogno) })
+                : t("Per produrre in un anno l’equivalente di {fabbisogno} kWh.", { fabbisogno: numero(fabbisogno) })}
+              {" "}{t("Resa da {fonte}: {resa} kWh per kWp all’anno.", { fonte: String(fonte ?? ""), resa: numero(resa) })}
             </p>
             {quantita == null && (
               <p role="status" className="mt-2 text-sm text-slate-700">
-                Scegli il modello di pannello dal catalogo per calcolare anche il numero di moduli.
+                {t("Scegli il modello di pannello dal catalogo per calcolare anche il numero di moduli.")}
               </p>
             )}
             <p className="mt-2 text-sm text-slate-600">
-              È una prima indicazione energetica: non significa azzerare la bolletta.
-              Spazio sul tetto, ombre, orari dei consumi e accumulo vanno verificati
-              nella disposizione e negli scenari.
+              {t("È una prima indicazione energetica: non significa azzerare la bolletta. Spazio sul tetto, ombre, orari dei consumi e accumulo vanno verificati nella disposizione e negli scenari.")}
             </p>
             {data.kit_bundle_id
-              ? <p className="mt-2 text-sm text-slate-700">Confronta questa potenza con il kit scelto. Quantità e prezzo del kit restano quelli del catalogo.</p>
+              ? <p className="mt-2 text-sm text-slate-700">{t("Confronta questa potenza con il kit scelto. Quantità e prezzo del kit restano quelli del catalogo.")}</p>
               : disegno
-              ? <p className="mt-2 text-sm text-slate-700">Usa gli scenari qui sotto per verificare quanti moduli entrano e applicare una disposizione al tetto.</p>
+              ? <p className="mt-2 text-sm text-slate-700">{t("Usa gli scenari qui sotto per verificare quanti moduli entrano e applicare una disposizione al tetto.")}</p>
               : quantita != null && quantita <= 2000 && (
                 <Button
                   type="button"
@@ -91,9 +92,7 @@ export function FvSuggerimentoPannelli({
                     numero_pannelli_scelti: quantita,
                     potenza_kwp: quantita * watt / 1000,
                   })}
-                >
-                  Usa {numero(quantita)} pannelli nel preventivo
-                </Button>
+                >{t("Usa {quantita} pannelli nel preventivo", { quantita: String(numero(quantita) ?? "") })}</Button>
               )}
           </>
         )}

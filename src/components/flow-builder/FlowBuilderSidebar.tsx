@@ -10,6 +10,7 @@ import { WorkflowNotesPanel } from "./panels/WorkflowNotesPanel";
 import { WorkflowErrorsPanel, type WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { WorkflowVersionsPanel } from "./panels/WorkflowVersionsPanel";
 import type { RestoredAutomationGraph } from "@/types/automationBuilder";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type LeftPanel = "none" | "search" | "notes" | "errors" | "versions" | "history" | "stats" | "ai";
 
@@ -34,16 +35,17 @@ interface FlowBuilderSidebarProps {
 }
 
 export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [], readinessChecks = [], onVersionRestored, isSaving, companyId, nodes = [], onFocusNode }: FlowBuilderSidebarProps) {
+  const t = useT();
   const toggle = (key: LeftPanel) => onPanelChange(activePanel === key ? "none" : key);
 
   const erroriCount = errors.filter(e => e.tipo === "errore").length;
 
   const ITEMS: SidebarItem[] = [
-    { key: "search", icon: <Search className="h-4 w-4" />, label: "Cerca passi" },
-    { key: "notes", icon: <MessageSquare className="h-4 w-4" />, label: "Note" },
-    { key: "errors", icon: <AlertCircle className="h-4 w-4" />, label: "Errori", badgeCount: erroriCount },
-    { key: "versions", icon: <Clock className="h-4 w-4" />, label: "Versioni" },
-    { key: "stats", icon: <BarChart2 className="h-4 w-4" />, label: "Statistiche" },
+    { key: "search", icon: <Search className="h-4 w-4" />, label: t("Cerca passi") },
+    { key: "notes", icon: <MessageSquare className="h-4 w-4" />, label: t("Note") },
+    { key: "errors", icon: <AlertCircle className="h-4 w-4" />, label: t("Errori"), badgeCount: erroriCount },
+    { key: "versions", icon: <Clock className="h-4 w-4" />, label: t("Versioni") },
+    { key: "stats", icon: <BarChart2 className="h-4 w-4" />, label: t("Statistiche") },
     { key: "ai", icon: <Sparkles className="h-4 w-4" />, label: "AI" },
   ];
 
@@ -82,7 +84,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
             <h3 className="text-sm font-semibold">
               {ITEMS.find((i) => i.key === activePanel)?.label}
             </h3>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onPanelChange("none")} aria-label="Chiudi pannello">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onPanelChange("none")} aria-label={t("Chiudi pannello")}>
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -104,24 +106,24 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
               <div className="rounded-lg border bg-primary/5 p-3">
                 <div className="mb-1 flex items-center gap-2 font-semibold text-primary">
                   <Sparkles className="h-4 w-4" />
-                  Assistente workflow
+                  {t("Assistente workflow")}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Usa questo pannello come checklist mentre costruisci il flusso: trigger, condizioni, azioni e controlli finali.
+                  {t("Usa questo pannello come checklist mentre costruisci il flusso: trigger, condizioni, azioni e controlli finali.")}
                 </p>
               </div>
               <div className="space-y-2 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">Sequenza consigliata</p>
+                <p className="font-medium text-foreground">{t("Sequenza consigliata")}</p>
                 <ol className="list-decimal space-y-1 pl-4">
-                  <li>Scegli un solo trigger chiaro.</li>
-                  <li>Aggiungi condizioni prima delle azioni critiche.</li>
-                  <li>Configura mittenti, template e variabili.</li>
-                  <li>Controlla il pannello Errori prima di pubblicare.</li>
-                  <li>Verifica i filtri in anteprima. Collauda gli invii separatamente, con destinatari di prova.</li>
+                  <li>{t("Scegli un solo trigger chiaro.")}</li>
+                  <li>{t("Aggiungi condizioni prima delle azioni critiche.")}</li>
+                  <li>{t("Configura mittenti, template e variabili.")}</li>
+                  <li>{t("Controlla il pannello Errori prima di pubblicare.")}</li>
+                  <li>{t("Verifica i filtri in anteprima. Collauda gli invii separatamente, con destinatari di prova.")}</li>
                 </ol>
               </div>
               <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-                Per generare un intero flusso da una descrizione, usa il pulsante “Crea tramite AI” nella lista automazioni: l’AI prepara una bozza completa che poi rifinisci qui.
+                {t("Per generare un intero flusso da una descrizione, usa il pulsante “Crea tramite AI” nella lista automazioni: l’AI prepara una bozza completa che poi rifinisci qui.")}
               </div>
             </div>
           )}
@@ -129,7 +131,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
           {(activePanel === "notes" || activePanel === "versions") && !flowId && (
             <div className="flex-1 flex items-center justify-center p-4">
               <p className="text-xs text-muted-foreground text-center">
-                Salva il flusso per accedere a questa funzione.
+                {t("Salva il flusso per accedere a questa funzione.")}
               </p>
             </div>
           )}

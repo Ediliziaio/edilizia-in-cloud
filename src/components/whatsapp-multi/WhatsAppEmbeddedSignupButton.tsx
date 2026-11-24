@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Sparkles, AlertCircle } from "lucide-react";
 import { useWhatsAppEmbeddedSignup, isEmbeddedSignupSupported } from "@/hooks/whatsapp/useWhatsAppEmbeddedSignup";
 import type { WAPurpose } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   purpose: WAPurpose;
@@ -34,17 +35,18 @@ export function WhatsAppEmbeddedSignupButton({
   size = "default",
   className,
 }: Props) {
+  const t = useT();
   const { connect, phase } = useWhatsAppEmbeddedSignup();
 
   // Etichette dettagliate per ogni fase — l'utente capisce sempre dove siamo.
   const label =
     phase === "loading-sdk"
-      ? "1/3 Caricamento Facebook SDK…"
+      ? t("1/3 Caricamento Facebook SDK…")
       : phase === "popup"
-        ? "2/3 Completa onboarding nel popup Meta…"
+        ? t("2/3 Completa onboarding nel popup Meta…")
         : phase === "connecting"
-          ? "3/3 Registrazione numero…"
-          : "Collega con Meta (rapido)";
+          ? t("3/3 Registrazione numero…")
+          : t("Collega con Meta (rapido)");
 
   const isBusy = connect.isPending || phase !== "idle";
   const errorMessage = connect.error instanceof Error ? connect.error.message : null;
@@ -59,7 +61,7 @@ export function WhatsAppEmbeddedSignupButton({
         disabled={disabled || isBusy || !isEmbeddedSignupSupported}
         title={
           !isEmbeddedSignupSupported
-            ? "Embedded Signup non disponibile su mobile — usa il flusso manuale"
+            ? t("Embedded Signup non disponibile su mobile — usa il flusso manuale")
             : undefined
         }
         onClick={() => {
@@ -82,16 +84,13 @@ export function WhatsAppEmbeddedSignupButton({
           Spiega esplicitamente cosa controllare se la barra resta appesa. */}
       {phase === "loading-sdk" && (
         <p className="text-xs text-muted-foreground text-center">
-          Sto scaricando connect.facebook.net… se si blocca per più di 10s c'è
-          un blocco di rete (ad-blocker, CSP, firewall aziendale).
+          {t("Sto scaricando connect.facebook.net… se si blocca per più di 10s c'è un blocco di rete (ad-blocker, CSP, firewall aziendale).")}
         </p>
       )}
 
       {phase === "popup" && (
         <p className="text-xs text-muted-foreground text-center">
-          Si è aperta una finestra popup di Meta — completa il login e la
-          selezione del numero WhatsApp. Se non vedi popup, il browser l'ha
-          bloccata: cerca l'icona "popup bloccato" nella barra indirizzi.
+          {t("Si è aperta una finestra popup di Meta — completa il login e la selezione del numero WhatsApp. Se non vedi popup, il browser l'ha bloccata: cerca l'icona \"popup bloccato\" nella barra indirizzi.")}
         </p>
       )}
 
@@ -100,11 +99,10 @@ export function WhatsAppEmbeddedSignupButton({
         <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-medium">Errore Embedded Signup</p>
+            <p className="font-medium">{t("Errore Embedded Signup")}</p>
             <p className="opacity-90 break-words">{errorMessage}</p>
             <p className="text-[10px] opacity-70">
-              Apri la Console del browser (F12 → Console) per i log dettagliati
-              prefissati con [wa-embedded].
+              {t("Apri la Console del browser (F12 → Console) per i log dettagliati prefissati con [wa-embedded].")}
             </p>
           </div>
         </div>

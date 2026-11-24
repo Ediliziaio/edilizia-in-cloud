@@ -9,6 +9,7 @@ import {
 } from "@/lib/reporting/callCenterOperations";
 import type { CallCenterKPI } from "@/hooks/useCallCenterReport";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SEVERITY_STYLES: Record<CallCenterDiagnosisSeverity, { badge: string; icon: string; border: string }> = {
   good: {
@@ -40,6 +41,7 @@ export function CallCenterOperationalDiagnosis({
   kpi: CallCenterKPI | null;
   isLoading: boolean;
 }) {
+  const t = useT();
   if (isLoading) {
     return (
       <Card>
@@ -48,31 +50,31 @@ export function CallCenterOperationalDiagnosis({
             <div>
               <CardTitle className="flex items-center gap-2 text-lg max-sm:text-sm">
                 <ListChecks className="h-5 w-5 text-sky-600 max-sm:hidden" />
-                Diagnosi operativa chiamate
+                {t("Diagnosi operativa chiamate")}
               </CardTitle>
               <CardDescription className="max-sm:hidden">
-                Lettura immediata di backlog, SLA e priorità da correggere prima dei grafici.
+                {t("Lettura immediata di backlog, SLA e priorità da correggere prima dei grafici.")}
               </CardDescription>
             </div>
             <Badge variant="outline" className="w-fit border-border bg-card text-muted-foreground">
-              Caricamento
+              {t("Caricamento")}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
-            <LoadingTile label="Lead da lavorare" />
-            <LoadingTile label="Lavorati senza risposta" />
-            <LoadingTile label="Lead non contattati" />
-            <LoadingTile label="Rischio principale" />
+            <LoadingTile label={t("Lead da lavorare")} />
+            <LoadingTile label={t("Lavorati senza risposta")} />
+            <LoadingTile label={t("Lead non contattati")} />
+            <LoadingTile label={t("Rischio principale")} />
           </div>
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-lg border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Azioni consigliate</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">{t("Azioni consigliate")}</h3>
               <Skeleton className="h-16 rounded-md" />
             </div>
             <div className="rounded-lg border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">SLA operativo consigliato</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">{t("SLA operativo consigliato")}</h3>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-11/12" />
@@ -96,14 +98,14 @@ export function CallCenterOperationalDiagnosis({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg max-sm:text-sm">
               <ListChecks className={cn("h-5 w-5 max-sm:hidden", healthStyle.icon)} />
-              Diagnosi operativa chiamate
+              {t("Diagnosi operativa chiamate")}
             </CardTitle>
             <CardDescription className="max-sm:hidden">
-              Lettura immediata di backlog, SLA e priorità da correggere prima dei grafici.
+              {t("Lettura immediata di backlog, SLA e priorità da correggere prima dei grafici.")}
             </CardDescription>
           </div>
           <Badge variant="outline" className={cn("w-fit", healthStyle.badge)}>
-            {diagnosis.healthLabel} · {diagnosis.healthScore}/100
+            {t(diagnosis.healthLabel)} · {diagnosis.healthScore}/100
           </Badge>
         </div>
       </CardHeader>
@@ -112,30 +114,30 @@ export function CallCenterOperationalDiagnosis({
         <div className="grid gap-3 md:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
           <DiagnosisTile
             icon={PhoneOff}
-            label="Lead da lavorare"
+            label={t("Lead da lavorare")}
             value={String(diagnosis.unworkedLeads)}
-            detail="Assegnati senza chiamata"
+            detail={t("Assegnati senza chiamata")}
             severity={diagnosis.unworkedLeads > 0 ? "warning" : "good"}
           />
           <DiagnosisTile
             icon={Target}
-            label="Lavorati senza risposta"
+            label={t("Lavorati senza risposta")}
             value={String(diagnosis.workedNoAnswerLeads)}
-            detail="Serve richiamo mirato"
+            detail={t("Serve richiamo mirato")}
             severity={diagnosis.workedNoAnswerLeads > 0 ? "warning" : "good"}
           />
           <DiagnosisTile
             icon={Clock}
-            label="Lead non contattati"
+            label={t("Lead non contattati")}
             value={String(diagnosis.missedContactLeads)}
-            detail="Gap sul tasso contatto"
+            detail={t("Gap sul tasso contatto")}
             severity={diagnosis.missedContactLeads > 0 ? "warning" : "good"}
           />
           <DiagnosisTile
             icon={TimerReset}
-            label="Rischio principale"
-            value={diagnosis.healthLabel}
-            detail={diagnosis.primaryRisk}
+            label={t("Rischio principale")}
+            value={t(diagnosis.healthLabel)}
+            detail={t(diagnosis.primaryRisk)}
             severity={diagnosis.healthSeverity}
           />
         </div>
@@ -144,7 +146,7 @@ export function CallCenterOperationalDiagnosis({
           <div className="rounded-lg border bg-card p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
             <div className="mb-3 flex items-center gap-2 max-sm:mb-1.5">
               <AlertTriangle className="h-4 w-4 text-amber-600 max-sm:hidden" />
-              <h3 className="text-sm font-semibold text-foreground max-sm:text-[13px]">Azioni consigliate</h3>
+              <h3 className="text-sm font-semibold text-foreground max-sm:text-[13px]">{t("Azioni consigliate")}</h3>
             </div>
             <div className="space-y-2 max-sm:space-y-1.5">
               {diagnosis.actions.map((action) => {
@@ -154,12 +156,12 @@ export function CallCenterOperationalDiagnosis({
                     <CheckCircle2 className={cn("mt-0.5 h-4 w-4 shrink-0", style.icon)} />
                     <div className="max-sm:min-w-0 max-sm:flex-1">
                       <div className="flex flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:justify-between">
-                        <p className="text-sm font-medium text-foreground max-sm:text-[13px] max-sm:leading-tight">{action.title}</p>
+                        <p className="text-sm font-medium text-foreground max-sm:text-[13px] max-sm:leading-tight">{t(action.title)}</p>
                         <Badge variant="outline" className={cn("text-[11px] max-sm:shrink-0 max-sm:px-1.5", style.badge)}>
-                          {severityLabel(action.severity)}
+                          {t(severityLabel(action.severity))}
                         </Badge>
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{action.detail}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{t(action.detail)}</p>
                     </div>
                   </div>
                 );
@@ -168,23 +170,23 @@ export function CallCenterOperationalDiagnosis({
           </div>
 
           <div className="rounded-lg border bg-card p-4 max-sm:hidden">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">SLA operativo consigliato</h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">{t("SLA operativo consigliato")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="mt-2 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Prima chiamata entro 5 minuti dal lead.
+                {t("Prima chiamata entro 5 minuti dal lead.")}
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-2 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Almeno 3 tentativi nelle prime 24 ore.
+                {t("Almeno 3 tentativi nelle prime 24 ore.")}
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-2 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Tasso contatto sopra il 60%.
+                {t("Tasso contatto sopra il 60%.")}
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-2 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Appuntamenti sopra il 20% dei contattati.
+                {t("Appuntamenti sopra il 20% dei contattati.")}
               </li>
             </ul>
           </div>

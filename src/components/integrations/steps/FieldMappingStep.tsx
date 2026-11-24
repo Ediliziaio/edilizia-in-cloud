@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useMetaCompanyId } from "../metaCompanyContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FieldMappingStepProps {
   hook: any;
@@ -100,6 +101,7 @@ const EXAMPLE_BY_CRM: Record<string, string> = {
 };
 
 export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProps) {
+  const tr = useT();
   const { callProxy, mappings, saveMapping } = hook;
   const companyId = useMetaCompanyId();
 
@@ -202,7 +204,7 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
         setFieldMap(buildAutoMap(qs));
       }
     } catch (error: any) {
-      toast.error(`Errore caricamento campi: ${error.message}`);
+      toast.error(tr("Errore caricamento campi: {message}", { message: String(error.message ?? "") }));
     } finally {
       setLoading(false);
     }
@@ -223,28 +225,28 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
       for (const k in auto) if (!next[k]) next[k] = auto[k];
       return next;
     });
-    toast.success(added > 0 ? `${added} campi mappati automaticamente` : "Campi standard già mappati");
+    toast.success(added > 0 ? tr("{added} campi mappati automaticamente", { added: String(added ?? "") }) : tr("Campi standard già mappati"));
   };
 
   const handleSave = () => {
     const mappedValues = Object.values(fieldMap).filter(Boolean);
     const hasContactKey = mappedValues.some((value) => ["email", "phone", "full_name", "first_name", "last_name"].includes(value));
     if (!hasContactKey) {
-      toast.error("Mappa almeno un campo identificativo", {
-        description: "Email, telefono o nome servono per deduplicare e creare contatti affidabili.",
+      toast.error(tr("Mappa almeno un campo identificativo"), {
+        description: tr("Email, telefono o nome servono per deduplicare e creare contatti affidabili."),
       });
       return;
     }
     if (dedupePolicy === "email" && !mappedValues.includes("email")) {
-      toast.error("La deduplica per email richiede il campo Email mappato.");
+      toast.error(tr("La deduplica per email richiede il campo Email mappato."));
       return;
     }
     if (dedupePolicy === "phone" && !mappedValues.includes("phone")) {
-      toast.error("La deduplica per telefono richiede il campo Telefono mappato.");
+      toast.error(tr("La deduplica per telefono richiede il campo Telefono mappato."));
       return;
     }
     if (dedupePolicy === "email_or_phone" && !mappedValues.includes("email") && !mappedValues.includes("phone")) {
-      toast.error("La deduplica email/telefono richiede Email o Telefono mappati.");
+      toast.error(tr("La deduplica email/telefono richiede Email o Telefono mappati."));
       return;
     }
 
@@ -302,7 +304,7 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
     return (
       <div className="text-center py-8">
         <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">Caricamento campi del modulo...</p>
+        <p className="text-sm text-muted-foreground">{tr("Caricamento campi del modulo...")}</p>
       </div>
     );
   }
@@ -312,11 +314,11 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Associa ogni campo del modulo Meta al campo CRM corrispondente.
+        {tr("Associa ogni campo del modulo Meta al campo CRM corrispondente.")}
       </p>
 
       <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-        Prima di attivare il modulo, mappa almeno un identificativo stabile del contatto. La deduplica userà la regola selezionata nelle opzioni avanzate.
+        {tr("Prima di attivare il modulo, mappa almeno un identificativo stabile del contatto. La deduplica userà la regola selezionata nelle opzioni avanzate.")}
       </div>
 
       <div className="flex justify-end">
@@ -328,15 +330,15 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
           disabled={questions.length === 0}
         >
           <Wand2 className="h-3.5 w-3.5" />
-          Mappa automaticamente
+          {tr("Mappa automaticamente")}
         </Button>
       </div>
 
       {/* Field mapping table */}
       <div className="border rounded-lg divide-y max-h-[250px] overflow-y-auto">
         <div className="grid grid-cols-2 gap-4 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground sticky top-0">
-          <span>Campo modulo (Meta)</span>
-          <span>Campo CRM</span>
+          <span>{tr("Campo modulo (Meta)")}</span>
+          <span>{tr("Campo CRM")}</span>
         </div>
         {questions.map((q) => (
           <div key={q.key} className="grid grid-cols-2 gap-4 px-4 py-2 items-center">
@@ -359,10 +361,10 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
               }
             >
               <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="Non mappare" />
+                <SelectValue placeholder={tr("Non mappare")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__skip__">— Non mappare —</SelectItem>
+                <SelectItem value="__skip__">{tr("— Non mappare —")}</SelectItem>
                 {allCrmFields.map((f) => (
                   <SelectItem key={f.key} value={f.key}>
                     {f.label}
@@ -379,14 +381,14 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
         <CollapsibleTrigger asChild>
           <Button variant="outline" size="sm" className="text-xs gap-1">
             <Eye className="h-3 w-3" />
-            Anteprima risultato
+            {tr("Anteprima risultato")}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-2">
           {preview && (
             <div className="border rounded-lg p-3 bg-muted/30 space-y-3 text-sm">
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Contatto risultante:</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1">{tr("Contatto risultante:")}</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                   {Object.entries(preview.contact).map(([key, val]) => (
                     <div key={key} className="contents">
@@ -398,14 +400,14 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
               </div>
               {preview.pipeline && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Opportunità:</p>
-                  <p className="text-xs">Pipeline: <span className="font-medium">{preview.pipeline}</span></p>
-                  {preview.stage && <p className="text-xs">Fase: <span className="font-medium">{preview.stage}</span></p>}
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{tr("Opportunità:")}</p>
+                  <p className="text-xs">{tr("Pipeline:")} <span className="font-medium">{preview.pipeline}</span></p>
+                  {preview.stage && <p className="text-xs">{tr("Fase:")} <span className="font-medium">{preview.stage}</span></p>}
                 </div>
               )}
               {preview.unmapped.length > 0 && (
                 <div>
-                  <p className="text-xs text-muted-foreground">Campi non mappati: {preview.unmapped.join(", ")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Campi non mappati: {unmapped}", { unmapped: preview.unmapped.join(", ") })}</p>
                 </div>
               )}
             </div>
@@ -418,19 +420,19 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" className="text-xs gap-1">
             <Wand2 className="h-3 w-3" />
-            Impostazioni avanzate
+            {tr("Impostazioni avanzate")}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-3 pt-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Pipeline</Label>
+              <Label className="text-xs">{tr("Pipeline")}</Label>
               <Select value={pipelineId} onValueChange={setPipelineId}>
                 <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Nessuna" />
+                  <SelectValue placeholder={tr("Nessuna")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nessuna</SelectItem>
+                  <SelectItem value="__none__">{tr("Nessuna")}</SelectItem>
                   {pipelines.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -438,10 +440,10 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Fase</Label>
+              <Label className="text-xs">{tr("Fase")}</Label>
               <Select value={stageId} onValueChange={setStageId} disabled={!pipelineId || pipelineId === "__none__"}>
                 <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Seleziona" />
+                  <SelectValue placeholder={tr("Seleziona")} />
                 </SelectTrigger>
                 <SelectContent>
                   {stages.map((s: any) => (
@@ -454,35 +456,35 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Deduplica per</Label>
+              <Label className="text-xs">{tr("Deduplica per")}</Label>
               <Select value={dedupePolicy} onValueChange={setDedupePolicy}>
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="phone">Telefono</SelectItem>
-                  <SelectItem value="email_or_phone">Email o Telefono</SelectItem>
+                  <SelectItem value="phone">{tr("Telefono")}</SelectItem>
+                  <SelectItem value="email_or_phone">{tr("Email o Telefono")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Policy aggiornamento</Label>
+              <Label className="text-xs">{tr("Policy aggiornamento")}</Label>
               <Select value={updatePolicy} onValueChange={setUpdatePolicy}>
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="create_only">Solo creazione</SelectItem>
-                  <SelectItem value="upsert">Crea o aggiorna</SelectItem>
-                  <SelectItem value="overwrite_non_empty">Sovrascrivi non vuoti</SelectItem>
+                  <SelectItem value="create_only">{tr("Solo creazione")}</SelectItem>
+                  <SelectItem value="upsert">{tr("Crea o aggiorna")}</SelectItem>
+                  <SelectItem value="overwrite_non_empty">{tr("Sovrascrivi non vuoti")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">Tag (separati da virgola)</Label>
+            <Label className="text-xs">{tr("Tag (separati da virgola)")}</Label>
             <Input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -492,7 +494,7 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">Fonte</Label>
+            <Label className="text-xs">{tr("Fonte")}</Label>
             <Input
               value={source}
               onChange={(e) => setSource(e.target.value)}
@@ -504,7 +506,7 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
 
       <Button onClick={handleSave} disabled={saveMapping.isPending} className="w-full">
         {saveMapping.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-        Salva mappatura
+        {tr("Salva mappatura")}
       </Button>
     </div>
   );

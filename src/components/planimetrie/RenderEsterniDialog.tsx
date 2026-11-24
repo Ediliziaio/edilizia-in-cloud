@@ -26,6 +26,7 @@ import { caricaFotogramma } from "@/components/planimetrie/Vista3DPigra";
 import { costruisciScena, limitiDi, scenaEdificio, vistaDalGiardino, vistaGiroIntorno, type LatoEsterno, type PiantaPer3D, type PianoPer3D } from "@/lib/planimetrie/tred";
 import { lasciaFotoDaPianta, MODULI_ESTERNI, MOMENTI_ESTERNI, type ModuloEsterno } from "@/lib/planimetrie/render/fotoDaPianta";
 import { descriviAspetto, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, leggiAspetto, salvaAspetto, type OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Inquadratura = LatoEsterno | "tre_quarti";
 
@@ -54,6 +55,7 @@ interface Props {
 }
 
 export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, moduloIniziale, piani, documento }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   // finché non se ne sceglie un altro vale quello proposto (con una piscina disegnata: «Piscina»)
   const [scelto, setScelto] = useState<ModuloEsterno | null>(null);
@@ -95,7 +97,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
         const nome = `${titolo.replace(/[^\w-]+/g, "-").slice(0, 40) || "pianta"}-esterno.png`;
         setAnteprima({ url, file: new File([f.png], nome, { type: "image/png" }), per: inquadratura, chiave });
       } catch (e) {
-        if (!annullato) setErrore({ testo: e instanceof Error ? e.message : "Vista non creata.", per: inquadratura });
+        if (!annullato) setErrore({ testo: e instanceof Error ? e.message : t("Vista non creata."), per: inquadratura });
       }
     })(), 350);
     return () => {
@@ -103,7 +105,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
       clearTimeout(attesa);
       if (url) URL.revokeObjectURL(url);
     };
-  }, [aperto, inquadratura, limiti, casa, localeId, pianta, piani, titolo, vista, asp, chiaveAspetto, documento]);
+  }, [aperto, inquadratura, limiti, casa, localeId, pianta, piani, titolo, vista, asp, chiaveAspetto, documento, t]);
 
   // con l'aspetto cambiato l'anteprima vecchia resta finché non arriva la nuova
   const carico = !!localeId && ((anteprima?.per !== inquadratura && errore?.per !== inquadratura) || (anteprima?.chiave !== chiaveAspetto && errore?.per !== inquadratura));
@@ -117,7 +119,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
     const nota = ["La sorgente è una vista 3D del progetto: trasformala in una fotografia realistica mantenendo edificio, aperture e inquadratura.", MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto({ ...asp, infissi: infissi?.colore ?? asp.infissi }, pianta.tetto), notaInfissi].filter(Boolean).join(" ");
     lasciaFotoDaPianta(modulo, anteprima.file, nota || undefined);
     onChiudi();
-    toast.success("Vista 3D caricata come foto di partenza");
+    toast.success(t("Vista 3D caricata come foto di partenza"));
     navigate(m.percorso);
   };
 
@@ -125,14 +127,14 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
     <Dialog open={aperto} onOpenChange={(v) => !v && onChiudi()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Render degli esterni</DialogTitle>
+          <DialogTitle>{t("Render degli esterni")}</DialogTitle>
           <DialogDescription>
-            La vista 3D della pianta, presa da fuori, diventa la foto di partenza del render. Piscine, pergole e alberi disegnati nella pianta ci sono già.
+            {t("La vista 3D della pianta, presa da fuori, diventa la foto di partenza del render. Piscine, pergole e alberi disegnati nella pianta ci sono già.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Cosa vuoi vedere</Label>
+            <Label>{t("Cosa vuoi vedere")}</Label>
             <div className="grid gap-2 sm:grid-cols-2">
               {MODULI_ESTERNI.map((m) => (
                 <button
@@ -148,14 +150,14 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Da dove</Label>
+            <Label>{t("Da dove")}</Label>
             <ToggleGroup type="single" value={inquadratura} onValueChange={(v) => v && setInquadratura(v as Inquadratura)} variant="outline" size="sm" className="flex-wrap justify-start">
-              {INQUADRATURE.map((i) => <ToggleGroupItem key={i.valore} value={i.valore}>{i.nome}</ToggleGroupItem>)}
+              {INQUADRATURE.map((i) => <ToggleGroupItem key={i.valore} value={i.valore}>{t(i.nome)}</ToggleGroupItem>)}
             </ToggleGroup>
-            <p className="text-xs text-muted-foreground">Sud è il lato in basso della pianta.</p>
+            <p className="text-xs text-muted-foreground">{t("Sud è il lato in basso della pianta.")}</p>
           </div>
           <div className="space-y-2">
-            <Label>Luce e stagione</Label>
+            <Label>{t("Luce e stagione")}</Label>
             <ToggleGroup type="single" value={momento} onValueChange={(v) => v && scegliMomento(v)} variant="outline" size="sm" className="flex-wrap justify-start">
               {MOMENTI_ESTERNI.map((m) => <ToggleGroupItem key={m.id} value={m.id}>{m.nome}</ToggleGroupItem>)}
             </ToggleGroup>
@@ -163,35 +165,35 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Switch id="esterni-realistico" checked={asp.realistico} onCheckedChange={(v) => cambiaAsp({ realistico: v })} />
-              <Label htmlFor="esterni-realistico">Aspetto della casa come nel 3D</Label>
+              <Label htmlFor="esterni-realistico">{t("Aspetto della casa come nel 3D")}</Label>
             </div>
             {asp.realistico && (
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={asp.facciata} onValueChange={(v) => cambiaAsp({ facciata: v as OpzioniAspetto["facciata"] })}>
-                  <SelectTrigger className="h-8 w-48" aria-label="Facciata"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-48" aria-label={t("Facciata")}><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{FACCIATE[id].nome}</SelectItem>)}</SelectContent>
                 </Select>
                 <Select disabled={!!pianta.infissiProgetto} value={pianta.infissiProgetto?.colore ?? asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
-                  <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? "Infissi comuni del progetto" : "Infissi"}><SelectValue /></SelectTrigger>
-                  <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>Infissi: {INFISSI[id].nome.toLowerCase()}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? t("Infissi comuni del progetto") : t("Infissi")}><SelectValue /></SelectTrigger>
+                  <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>{t("Infissi: {nome}", { nome: t(INFISSI[id].nome).toLowerCase() })}</SelectItem>)}</SelectContent>
                 </Select>
                 <div className="flex items-center gap-2">
                   <Switch id="esterni-alberi" checked={asp.alberi} onCheckedChange={(v) => cambiaAsp({ alberi: v })} />
-                  <Label htmlFor="esterni-alberi">Alberi</Label>
+                  <Label htmlFor="esterni-alberi">{t("Alberi")}</Label>
                 </div>
               </div>
             )}
           </div>
           <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border bg-muted">
-            {anteprima && <img src={anteprima.url} alt="Vista 3D da fuori" className="h-full w-full object-cover" />}
+            {anteprima && <img src={anteprima.url} alt={t("Vista 3D da fuori")} className="h-full w-full object-cover" />}
             {carico && <Loader2 className="absolute h-6 w-6 animate-spin text-muted-foreground" />}
             {erroreOra && <p className="p-4 text-sm text-destructive">{erroreOra}</p>}
-            {!localeId && <p className="p-4 text-sm text-muted-foreground">La pianta non ha stanze: disegnale prima.</p>}
+            {!localeId && <p className="p-4 text-sm text-muted-foreground">{t("La pianta non ha stanze: disegnale prima.")}</p>}
           </div>
         </div>
         <ControlloUsoBloccato documento={documento} uso="render" /><DialogFooter>
-          <Button variant="outline" onClick={onChiudi}>Annulla</Button>
-          <Button onClick={continua} disabled={!anteprima || carico || anteprima.chiave !== chiaveAspetto || !controlloPrimaDellUso(documento, "render").ok} className="bg-primary hover:bg-primary/90">Continua col render</Button>
+          <Button variant="outline" onClick={onChiudi}>{t("Annulla")}</Button>
+          <Button onClick={continua} disabled={!anteprima || carico || anteprima.chiave !== chiaveAspetto || !controlloPrimaDellUso(documento, "render").ok} className="bg-primary hover:bg-primary/90">{t("Continua col render")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

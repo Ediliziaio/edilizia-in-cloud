@@ -39,6 +39,7 @@ import { calcRigaImporto } from "@/lib/pavimenti/calcoli";
 import type { PavComputoVoce, PavUnitaMisura } from "@/types/pavimenti";
 import { VoceDettagli } from "@/components/computo/VoceDettagli";
 import { MenuVoceComputoTelefono } from "@/components/computo/MenuVoceComputoTelefono";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Unità di misura selezionabili (allineate a `PavUnitaMisura`). */
 const UM_OPTIONS: PavUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
@@ -67,6 +68,7 @@ function margineTone(pct: number): string {
 }
 
 export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine, conCosti }: Props) {
+  const t = useT();
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const sortable = useSortable({ id: voce.id });
@@ -118,7 +120,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
         {/* Drag handle */}
         <button
           type="button"
-          aria-label="Trascina per riordinare"
+          aria-label={t("Trascina per riordinare")}
           className="hidden shrink-0 cursor-grab touch-none items-center self-stretch rounded-md px-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-muted-foreground active:cursor-grabbing sm:flex"
           {...attributes}
           {...listeners}
@@ -134,8 +136,8 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
             <Input
               value={voce.descrizione}
               onChange={(e) => onChange({ descrizione: e.target.value })}
-              placeholder="Descrizione lavorazione…"
-              aria-label="Descrizione lavorazione"
+              placeholder={t("Descrizione lavorazione…")}
+              aria-label={t("Descrizione lavorazione")}
               className="h-8 flex-1 border-transparent bg-transparent px-1.5 text-sm font-medium shadow-none hover:bg-muted/50 focus-visible:bg-background focus-visible:ring-1 max-sm:order-1 max-sm:h-9 max-sm:min-w-0 max-sm:text-base"
             />
             <Select
@@ -143,7 +145,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
               onValueChange={(v) => onChange({ unita_misura: v as PavUnitaMisura })}
             >
               {/* tap-compact: sul telefono la regola dei 44px gonfiava ogni bottone della riga. */}
-              <SelectTrigger aria-label="Unità di misura" className="tap-compact h-7 w-[74px] shrink-0 rounded-full border-dashed px-2 text-[11px] font-medium tabular-nums max-sm:order-5 max-sm:h-9 max-sm:w-[60px] max-sm:px-1.5">
+              <SelectTrigger aria-label={t("Unità di misura")} className="tap-compact h-7 w-[74px] shrink-0 rounded-full border-dashed px-2 text-[11px] font-medium tabular-nums max-sm:order-5 max-sm:h-9 max-sm:w-[60px] max-sm:px-1.5">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -160,7 +162,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-1.5 sm:gap-x-3 max-sm:contents">
             {/* Quantità */}
             <label className="flex items-center gap-1 text-[11px] text-muted-foreground max-sm:order-4">
-              <span>Qtà</span>
+              <span>{t("Qtà")}</span>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -198,11 +200,11 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                   )}
                 >
                   <Percent className="h-3 w-3" />
-                  {hasSconto ? `−${voce.sconto_pct}%` : "Sconto"}
+                  {hasSconto ? `−${voce.sconto_pct}%` : t("Sconto")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-52">
-                <Label className="text-xs font-medium">Sconto riga (%)</Label>
+                <Label className="text-xs font-medium">{t("Sconto riga (%)")}</Label>
                 <div className="mt-2 flex items-center gap-2">
                   <Input
                     type="number"
@@ -222,7 +224,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                     onClick={() => onChange({ sconto_pct: 0 })}
                     className="mt-2 text-[11px] text-muted-foreground underline-offset-2 hover:underline"
                   >
-                    Rimuovi sconto
+                    {t("Rimuovi sconto")}
                   </button>
                 )}
               </PopoverContent>
@@ -240,9 +242,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                       {formatCurrency(margineEur)} · {marginePct.toFixed(0)}%
                     </Badge>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    Margine = ricavo {formatCurrency(importo)} − costo {formatCurrency(costoTot)}
-                  </TooltipContent>
+                  <TooltipContent side="top" className="text-xs">{t("Margine = ricavo {ricavo} − costo {costo}", { ricavo: formatCurrency(importo), costo: formatCurrency(costoTot) })}</TooltipContent>
                 </Tooltip>
               )}
               <span className="min-w-[88px] text-right text-base font-bold tabular-nums text-slate-900 max-sm:min-w-0 max-sm:text-sm">
@@ -266,10 +266,10 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 >
                   <ChevronDown className={cn("h-3 w-3 transition-transform", breakdownOpen && "rotate-180")} />
                   {hasCosto
-                    ? `Costo unitario ${formatCurrency(costoUnit)} · margine ${marginePct.toFixed(0)}%`
+                    ? t("Costo unitario {costo} · margine {margine}%", { costo: formatCurrency(costoUnit), margine: marginePct.toFixed(0) })
                     : importo > 0
-                      ? "Aggiungi il costo: serve al margine"
-                      : "Costo"}
+                      ? t("Aggiungi il costo: serve al margine")
+                      : t("Costo")}
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
@@ -277,14 +277,14 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                   {/* Barra proporzionale materiali/manodopera (solo se c'è un costo) */}
                   {hasCosto && (
                     <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-                      <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
-                      <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title="Manodopera" />
+                      <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title={t("Materiali")} />
+                      <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title={t("Manodopera")} />
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex items-center gap-1.5 text-[11px]">
                       <Package className="h-3 w-3 text-sky-500" />
-                      <span className="text-muted-foreground">Materiali</span>
+                      <span className="text-muted-foreground">{t("Materiali")}</span>
                       <Input
                         type="number"
                         inputMode="decimal"
@@ -297,7 +297,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                     </label>
                     <label className="flex items-center gap-1.5 text-[11px]">
                       <HardHat className="h-3 w-3 text-violet-500" />
-                      <span className="text-muted-foreground">Manodopera</span>
+                      <span className="text-muted-foreground">{t("Manodopera")}</span>
                       <Input
                         type="number"
                         inputMode="decimal"
@@ -329,7 +329,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 <Copy className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left" className="text-xs">Duplica</TooltipContent>
+            <TooltipContent side="left" className="text-xs">{t("Duplica")}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -342,7 +342,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left" className="text-xs">Elimina</TooltipContent>
+            <TooltipContent side="left" className="text-xs">{t("Elimina")}</TooltipContent>
           </Tooltip>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Apre il documento da firmare. Il preventivo fotovoltaico e quello dei
@@ -46,6 +47,7 @@ export async function apriDocumento(evento: { preventDefault: () => void }, url:
  * l'aspetto (il riquadro di default ha bordo e angoli arrotondati).
  */
 export function AnteprimaDocumento({ url, classeIframe }: { url: string; classeIframe?: string }) {
+  const t = useT();
   const [html, setHtml] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [errore, setErrore] = useState(false);
@@ -82,13 +84,13 @@ export function AnteprimaDocumento({ url, classeIframe }: { url: string; classeI
   if ((eHtml ? html : pdfUrl) === null) {
     return (
       <div className="h-40 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin mr-2" />Carico il preventivo…
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />{t("Carico il preventivo…")}
       </div>
     );
   }
   return (
     <iframe
-      title="Anteprima del documento"
+      title={t("Anteprima del documento")}
       {...(eHtml ? { srcDoc: html ?? '', sandbox: '' } : { src: pdfUrl ?? undefined })}
       className={classeIframe ?? 'w-full h-[70vh] min-h-[420px] rounded-xl border border-slate-200 bg-white'}
     />

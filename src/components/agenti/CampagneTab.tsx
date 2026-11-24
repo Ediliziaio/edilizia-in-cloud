@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Campaign {
   id: string;
@@ -55,6 +55,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 };
 
 export function CampagneTab() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { solaLettura } = usePermissions();
   const queryClient = useQueryClient();
@@ -85,7 +86,7 @@ export function CampagneTab() {
   const dispatchEnabled = !Array.isArray(campaignResult) && campaignResult?.dispatch_enabled === true;
   const controlMutation = useMutation({
     mutationFn: async ({ campaign, action }: { campaign: Campaign; action: "start_campaign" | "pause_campaign" }) => {
-      if (!companyId || solaLettura) throw new Error("Modifica non consentita");
+      if (!companyId || solaLettura) throw new Error(t("Modifica non consentita"));
       await campaignPreparationRequest(companyId, action, { campaign_id: campaign.id, updated_at: campaign.aggiornato_il });
       return { savedCompany: companyId, action };
     },
@@ -93,7 +94,7 @@ export function CampagneTab() {
       queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2", savedCompany] });
       if (savedCompany !== activeCompany.current) return;
       setConfirmCampaign(null);
-      toast.success(action === "start_campaign" ? "Campagna in coda: le chiamate partiranno negli orari previsti" : "Campagna in pausa: eventuali chiamate già avviate termineranno normalmente");
+      toast.success(action === "start_campaign" ? t("Campagna in coda: le chiamate partiranno negli orari previsti") : t("Campagna in pausa: eventuali chiamate già avviate termineranno normalmente"));
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -110,9 +111,9 @@ export function CampagneTab() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || !form.agent_id || !form.nome.trim()) throw new Error("Inserisci nome e agente");
-      if (!agents.some(a => a.id === form.agent_id)) throw new Error("Seleziona un agente vocale dell'azienda");
-      if (!draftId.current) throw new Error("Riapri la creazione campagna");
+      if (!companyId || !form.agent_id || !form.nome.trim()) throw new Error(t("Inserisci nome e agente"));
+      if (!agents.some(a => a.id === form.agent_id)) throw new Error(t("Seleziona un agente vocale dell'azienda"));
+      if (!draftId.current) throw new Error(t("Riapri la creazione campagna"));
       await campaignPreparationRequest(companyId, "create_campaign", {
         id: draftId.current,
         nome: form.nome.trim(),
@@ -124,24 +125,24 @@ export function CampagneTab() {
     onSuccess: savedCompany => {
       queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2", savedCompany] });
       if (activeCompany.current !== savedCompany) return;
-      toast.success("Campagna creata");
+      toast.success(t("Campagna creata"));
       draftId.current = null;
       setShowCreateDialog(false);
       setCreateStep(1);
       setForm({ nome: "", descrizione: "", agent_id: "", tipo: "chiamata" });
     },
-    onError: (err: Error) => toast.error(err.message || "Errore nella creazione"),
+    onError: (err: Error) => toast.error(err.message || t("Errore nella creazione")),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (campaign: Campaign) => {
-      if (!companyId) throw new Error("Nessuna azienda associata");
+      if (!companyId) throw new Error(t("Nessuna azienda associata"));
       await campaignPreparationRequest(companyId, "delete_campaign", { campaign_id: campaign.id, updated_at: campaign.aggiornato_il });
       return companyId;
     },
     onSuccess: savedCompany => {
       queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2", savedCompany] });
-      toast.success("Campagna eliminata");
+      toast.success(t("Campagna eliminata"));
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -159,26 +160,26 @@ export function CampagneTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Campagne Outbound</h2>
-          <p className="text-sm text-muted-foreground">Gestisci campagne di chiamate in uscita con i tuoi agenti AI</p>
+          <h2 className="text-xl font-bold text-foreground">{t("Campagne Outbound")}</h2>
+          <p className="text-sm text-muted-foreground">{t("Gestisci campagne di chiamate in uscita con i tuoi agenti AI")}</p>
         </div>
         <Button disabled={!companyId || isError || solaLettura} onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" /> Nuova Campagna
+          <Plus className="h-4 w-4 mr-2" /> {t("Nuova Campagna")}
         </Button>
       </div>
-      {solaLettura && <p className="text-sm text-muted-foreground">Accesso in sola lettura: non puoi creare o modificare campagne.</p>}
+      {solaLettura && <p className="text-sm text-muted-foreground">{t("Accesso in sola lettura: non puoi creare o modificare campagne.")}</p>}
       <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-        {dispatchEnabled ? "Avvio su conferma, una chiamata alla volta per azienda, negli orari previsti. Consenso, esclusioni e saldo vengono ricontrollati prima di ogni chiamata. Nessun richiamo automatico dopo un esito incerto."
-          : "Qui puoi preparare bozze e selezionare destinatari CRM. L'esecutore massivo non è ancora attivo: nessuna chiamata parte da questa scheda."}
+        {dispatchEnabled ? t("Avvio su conferma, una chiamata alla volta per azienda, negli orari previsti. Consenso, esclusioni e saldo vengono ricontrollati prima di ogni chiamata. Nessun richiamo automatico dopo un esito incerto.")
+          : t("Qui puoi preparare bozze e selezionare destinatari CRM. L'esecutore massivo non è ancora attivo: nessuna chiamata parte da questa scheda.")}
       </div>
 
       {/* Stats */}
       {!isLoading && !isError && <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Attive", value: statsActive, icon: Megaphone, color: "text-primary" },
-          { label: "Completate", value: statsCompleted, icon: CheckCircle2, color: "text-primary/70" },
-          { label: "Chiamate Totali", value: statsCalls, icon: Phone, color: "text-primary/60" },
-          { label: "Tasso Risposta", value: `${statsRate}%`, icon: BarChart3, color: "text-primary/50" },
+          { label: t("Attive"), value: statsActive, icon: Megaphone, color: "text-primary" },
+          { label: t("Completate"), value: statsCompleted, icon: CheckCircle2, color: "text-primary/70" },
+          { label: t("Chiamate Totali"), value: statsCalls, icon: Phone, color: "text-primary/60" },
+          { label: t("Tasso Risposta"), value: `${statsRate}%`, icon: BarChart3, color: "text-primary/50" },
         ].map((s) => (
           <Card key={s.label}>
             <CardHeader className="pb-2">
@@ -193,20 +194,20 @@ export function CampagneTab() {
           </Card>
         ))}
       </div>}
-      {!isError && !isLoading && campaigns.length >= 500 && <p className="text-sm text-muted-foreground">Sono mostrate le 500 campagne più recenti. I contatori si riferiscono alle campagne caricate.</p>}
+      {!isError && !isLoading && campaigns.length >= 500 && <p className="text-sm text-muted-foreground">{t("Sono mostrate le 500 campagne più recenti. I contatori si riferiscono alle campagne caricate.")}</p>}
 
       {/* Filter */}
       <Select value={statusFilter} onValueChange={setStatusFilter}>
         <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Filtra per stato" />
+          <SelectValue placeholder={t("Filtra per stato")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Tutti gli stati</SelectItem>
-          <SelectItem value="bozza">Bozza</SelectItem>
-          <SelectItem value="in_corso">In corso</SelectItem>
-          <SelectItem value="completata">Completata</SelectItem>
-          <SelectItem value="pausa">In pausa</SelectItem>
-          <SelectItem value="archiviata">Archiviata</SelectItem>
+          <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+          <SelectItem value="bozza">{t("Bozza")}</SelectItem>
+          <SelectItem value="in_corso">{t("In corso")}</SelectItem>
+          <SelectItem value="completata">{t("Completata")}</SelectItem>
+          <SelectItem value="pausa">{t("In pausa")}</SelectItem>
+          <SelectItem value="archiviata">{t("Archiviata")}</SelectItem>
         </SelectContent>
       </Select>
 
@@ -216,15 +217,15 @@ export function CampagneTab() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : isError ? (
-        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare le campagne. {error?.message}</p>
-          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
+        <div role="alert" className="rounded-lg border p-4"><p>{t("Impossibile caricare le campagne. {message}", { message: String(error?.message ?? "") })}</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>{t("Riprova")}</Button></div>
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <Megaphone className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>Nessuna campagna trovata</p>
+            <p>{t("Nessuna campagna trovata")}</p>
             <Button variant="outline" className="mt-4" disabled={!companyId || (solaLettura && statusFilter === "all")} onClick={statusFilter !== "all" ? () => setStatusFilter("all") : openCreate}>
-              {statusFilter !== "all" ? "Mostra tutte le campagne" : <><Plus className="h-4 w-4 mr-2" /> Crea la prima campagna</>}
+              {statusFilter !== "all" ? t("Mostra tutte le campagne") : <><Plus className="h-4 w-4 mr-2" /> {t("Crea la prima campagna")}</>}
             </Button>
           </CardContent>
         </Card>
@@ -241,7 +242,7 @@ export function CampagneTab() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-base">{c.nome}</CardTitle>
-                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                    <Badge variant={badge.variant}>{t(badge.label)}</Badge>
                   </div>
                   {c.descrizione && (
                     <p className="text-xs text-muted-foreground line-clamp-2">{c.descrizione}</p>
@@ -249,34 +250,34 @@ export function CampagneTab() {
                   {c.metadata?.errore_esecuzione && <p role="alert" className="text-xs text-amber-700">{c.metadata.errore_esecuzione}</p>}
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {c.stato === "bozza" && <div className="text-xs text-muted-foreground">{prepared?.recipients.length || 0} destinatari preparati · nessun invio
-                    {!!prepared?.excluded.length && <span className="block text-amber-700">{prepared.excluded.length} esclusi dall'ultima selezione</span>}</div>}
+                  {c.stato === "bozza" && <div className="text-xs text-muted-foreground">{t("{n} destinatari preparati · nessun invio", { n: prepared?.recipients.length || 0 })}
+                    {!!prepared?.excluded.length && <span className="block text-amber-700">{t("{n} esclusi dall'ultima selezione", { n: prepared.excluded.length })}</span>}</div>}
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
                     <div>
                       <p className="font-mono font-bold text-foreground">{c.totale_contatti}</p>
-                      <p className="text-muted-foreground">Contatti</p>
+                      <p className="text-muted-foreground">{t("Contatti")}</p>
                     </div>
                     <div>
                       <p className="font-mono font-bold text-foreground">{c.chiamate_completate}</p>
-                      <p className="text-muted-foreground">Risposte</p>
+                      <p className="text-muted-foreground">{t("Risposte")}</p>
                     </div>
                     <div>
                       <p className="font-mono font-bold text-foreground">{Math.round(c.tasso_risposta)}%</p>
-                      <p className="text-muted-foreground">Risposta</p>
+                      <p className="text-muted-foreground">{t("Risposta")}</p>
                     </div>
                   </div>
 
                   {c.totale_contatti > 0 && (
                     <div className="space-y-1">
                       <Progress value={progress} className="h-2" />
-                      <p className="text-[10px] text-muted-foreground text-right">{c.chiamate_effettuate} chiamate registrate / {c.totale_contatti} contatti</p>
+                      <p className="text-[10px] text-muted-foreground text-right">{t("{chiamate_effettuate} chiamate registrate / {totale_contatti} contatti", { chiamate_effettuate: String(c.chiamate_effettuate ?? ""), totale_contatti: String(c.totale_contatti ?? "") })}</p>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between pt-2 border-t border-border">
                     <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {Number.isFinite(Date.parse(c.creato_il)) ? format(new Date(c.creato_il), "dd MMM yyyy", { locale: it }) : "Data non disponibile"}
+                      {Number.isFinite(Date.parse(c.creato_il)) ? format(new Date(c.creato_il), "dd MMM yyyy", { locale: dateFnsCampo() }) : t("Data non disponibile")}
                     </span>
                     <div className="flex gap-1">
                       {(c.stato === "bozza" || c.stato === "pausa") && (
@@ -285,8 +286,8 @@ export function CampagneTab() {
                           variant="ghost"
                           className="h-7 w-7"
                           disabled={!dispatchEnabled || solaLettura || controlMutation.isPending || (c.stato === "bozza" && !prepared?.recipients.length)}
-                          aria-label={dispatchEnabled ? "Avvia campagna" : "Avvio massivo non disponibile"}
-                          title={dispatchEnabled ? "Conferma avvio" : "Esecutore non attivo"}
+                          aria-label={dispatchEnabled ? t("Avvia campagna") : t("Avvio massivo non disponibile")}
+                          title={dispatchEnabled ? t("Conferma avvio") : t("Esecutore non attivo")}
                           onClick={() => setConfirmCampaign(c)}
                         >
                           <Play className="h-3.5 w-3.5" />
@@ -298,28 +299,28 @@ export function CampagneTab() {
                           variant="ghost"
                           className="h-7 w-7"
                           disabled={!dispatchEnabled || solaLettura || controlMutation.isPending}
-                          aria-label={dispatchEnabled ? "Metti in pausa" : "Pausa massiva non disponibile"}
-                          title="Blocca le prossime chiamate"
+                          aria-label={dispatchEnabled ? t("Metti in pausa") : t("Pausa massiva non disponibile")}
+                          title={t("Blocca le prossime chiamate")}
                           onClick={() => controlMutation.mutate({ campaign: c, action: "pause_campaign" })}
                         >
                           <Pause className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      {c.stato === "bozza" && !solaLettura && <Button size="sm" variant="outline" onClick={() => setRecipientCampaign(c)}><Users className="h-3.5 w-3.5 mr-1" />Destinatari</Button>}
+                      {c.stato === "bozza" && !solaLettura && <Button size="sm" variant="outline" onClick={() => setRecipientCampaign(c)}><Users className="h-3.5 w-3.5 mr-1" />{t("Destinatari")}</Button>}
                       {c.stato === "bozza" && !solaLettura && Number(c.chiamate_effettuate || 0) === 0 && <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button aria-label={`Elimina bozza ${c.nome}`} disabled={deleteMutation.isPending} size="icon" variant="ghost" className="h-7 w-7">
+                          <Button aria-label={t("Elimina bozza {nome}", { nome: String(c.nome ?? "") })} disabled={deleteMutation.isPending} size="icon" variant="ghost" className="h-7 w-7">
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminare la campagna?</AlertDialogTitle>
-                            <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+                            <AlertDialogTitle>{t("Eliminare la campagna?")}</AlertDialogTitle>
+                            <AlertDialogDescription>{t("Questa azione non può essere annullata.")}</AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteMutation.mutate(c)}>Elimina</AlertDialogAction>
+                            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(c)}>{t("Elimina")}</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>}
@@ -335,38 +336,38 @@ export function CampagneTab() {
       {/* Create Dialog — 3-step wizard */}
       <Dialog open={!!confirmCampaign} onOpenChange={open => { if (!open && !controlMutation.isPending) setConfirmCampaign(null); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Avviare {confirmCampaign?.nome}?</DialogTitle></DialogHeader>
-          <p className="text-sm">Le chiamate consumano credito e partono una alla volta. Fascia {confirmCampaign?.orario_inizio?.slice(0,5) || "09:00"}–{confirmCampaign?.orario_fine?.slice(0,5) || "18:00"} ({confirmCampaign?.fuso_orario || "Europe/Rome"}), nei giorni configurati; per le nuove campagne, dal lunedì al venerdì.</p>
-          <p className="text-sm text-muted-foreground">Puoi mettere in pausa le chiamate successive. I contatti non più idonei vengono esclusi; i timeout incerti bloccano la campagna per verifica, senza richiamare automaticamente.</p>
-          <DialogFooter><Button variant="outline" disabled={controlMutation.isPending} onClick={() => setConfirmCampaign(null)}>Annulla</Button>
+          <DialogHeader><DialogTitle>{t("Avviare {nome}?", { nome: String(confirmCampaign?.nome ?? "") })}</DialogTitle></DialogHeader>
+          <p className="text-sm">{t("Le chiamate consumano credito e partono una alla volta. Fascia {inizio}–{fine} ({fuso}), nei giorni configurati; per le nuove campagne, dal lunedì al venerdì.", { inizio: confirmCampaign?.orario_inizio?.slice(0,5) || "09:00", fine: confirmCampaign?.orario_fine?.slice(0,5) || "18:00", fuso: confirmCampaign?.fuso_orario || "Europe/Rome" })}</p>
+          <p className="text-sm text-muted-foreground">{t("Puoi mettere in pausa le chiamate successive. I contatti non più idonei vengono esclusi; i timeout incerti bloccano la campagna per verifica, senza richiamare automaticamente.")}</p>
+          <DialogFooter><Button variant="outline" disabled={controlMutation.isPending} onClick={() => setConfirmCampaign(null)}>{t("Annulla")}</Button>
             <Button disabled={controlMutation.isPending || solaLettura || !dispatchEnabled} onClick={() => confirmCampaign && controlMutation.mutate({campaign:confirmCampaign,action:"start_campaign"})}>
-              {controlMutation.isPending ? "Avvio..." : "Conferma e avvia"}</Button></DialogFooter>
+              {controlMutation.isPending ? t("Avvio...") : t("Conferma e avvia")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       {recipientCampaign && companyId && <CampaignRecipientsDialog key={`${companyId}:${recipientCampaign.id}`} companyId={companyId} campaign={recipientCampaign} onClose={() => setRecipientCampaign(null)} />}
       <Dialog open={showCreateDialog} onOpenChange={open => { if (!createMutation.isPending) setShowCreateDialog(open); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuova Campagna — Step {createStep}/3</DialogTitle>
+            <DialogTitle>{t("Nuova Campagna — Step {createStep}/3", { createStep: String(createStep ?? "") })}</DialogTitle>
           </DialogHeader>
 
           {createStep === 1 && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Nome campagna</Label>
+                <Label>{t("Nome campagna")}</Label>
                 <Input
                   maxLength={160}
                   value={form.nome}
                   onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                  placeholder="Es. Richiamo lead freddi"
+                  placeholder={t("Es. Richiamo lead freddi")}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Descrizione (opzionale)</Label>
+                <Label>{t("Descrizione (opzionale)")}</Label>
                 <Textarea
                   value={form.descrizione}
                   onChange={(e) => setForm({ ...form, descrizione: e.target.value })}
-                  placeholder="Obiettivo della campagna..."
+                  placeholder={t("Obiettivo della campagna...")}
                   rows={3}
                   maxLength={2000}
                 />
@@ -376,14 +377,14 @@ export function CampagneTab() {
 
           {createStep === 2 && (
             <div className="space-y-4">
-              {agentsError && <div role="alert">Impossibile caricare gli agenti. <Button variant="outline" onClick={() => reloadAgents()}>Riprova</Button></div>}
-              {agentsLoading && <p>Caricamento agenti…</p>}
-              {!agentsLoading && !agentsError && !agents.length && <p className="text-sm text-muted-foreground">Crea prima un agente vocale nella scheda Agenti.</p>}
+              {agentsError && <div role="alert">{t("Impossibile caricare gli agenti.")} <Button variant="outline" onClick={() => reloadAgents()}>{t("Riprova")}</Button></div>}
+              {agentsLoading && <p>{t("Caricamento agenti…")}</p>}
+              {!agentsLoading && !agentsError && !agents.length && <p className="text-sm text-muted-foreground">{t("Crea prima un agente vocale nella scheda Agenti.")}</p>}
               <div className="space-y-2">
-                <Label>Agente AI</Label>
+                <Label>{t("Agente AI")}</Label>
                 <Select value={form.agent_id} onValueChange={(v) => setForm({ ...form, agent_id: v })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleziona agente" />
+                    <SelectValue placeholder={t("Seleziona agente")} />
                   </SelectTrigger>
                   <SelectContent>
                     {agents.map((a) => (
@@ -395,13 +396,13 @@ export function CampagneTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Tipo campagna</Label>
+                <Label>{t("Tipo campagna")}</Label>
                 <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="chiamata">Chiamate in uscita</SelectItem>
+                    <SelectItem value="chiamata">{t("Chiamate in uscita")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -413,39 +414,39 @@ export function CampagneTab() {
               <Card className="bg-muted/50">
                 <CardContent className="p-4 space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Nome</span>
+                    <span className="text-muted-foreground">{t("Nome")}</span>
                     <span className="font-medium">{form.nome}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Agente</span>
+                    <span className="text-muted-foreground">{t("Agente")}</span>
                     <span className="font-medium">{agents.find((a) => a.id === form.agent_id)?.nome || "—"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tipo</span>
+                    <span className="text-muted-foreground">{t("Tipo")}</span>
                     <span className="font-medium capitalize">{form.tipo.replace("_", " ")}</span>
                   </div>
                 </CardContent>
               </Card>
               <p className="text-xs text-muted-foreground">
-                La campagna verrà salvata come bozza, senza effettuare chiamate. Potrai selezionare i destinatari CRM dalla sua scheda. L'avvio massivo resta disabilitato.
+                {t("La campagna verrà salvata come bozza, senza effettuare chiamate. Potrai selezionare i destinatari CRM dalla sua scheda. L'avvio massivo resta disabilitato.")}
               </p>
             </div>
           )}
 
           <DialogFooter className="gap-2">
             {createStep > 1 && (
-              <Button variant="outline" disabled={createMutation.isPending} onClick={() => setCreateStep(createStep - 1)}>Indietro</Button>
+              <Button variant="outline" disabled={createMutation.isPending} onClick={() => setCreateStep(createStep - 1)}>{t("Indietro")}</Button>
             )}
             {createStep < 3 ? (
               <Button
                 onClick={() => setCreateStep(createStep + 1)}
                 disabled={createStep === 1 ? !form.nome.trim() : agentsError || agentsLoading || !agents.some(a => a.id === form.agent_id)}
               >
-                Avanti
+                {t("Avanti")}
               </Button>
             ) : (
               <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creazione..." : "Crea Campagna"}
+                {createMutation.isPending ? t("Creazione...") : t("Crea Campagna")}
               </Button>
             )}
           </DialogFooter>

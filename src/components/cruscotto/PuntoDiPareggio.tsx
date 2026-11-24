@@ -13,19 +13,18 @@ import { useBreakEvenHistorical } from "@/hooks/useBreakEvenHistorical";
 import { useId } from "react";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { format } from "date-fns";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const MONTH_NAMES = [
-  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
-];
-const MONTH_SHORT = [
-  "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-  "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
-];
-
+/** Nome del mese (1-12) nella lingua di chi guarda. */
 function monthLabel(m: number): string {
   if (m <= 0 || m > 12) return "—";
-  return MONTH_NAMES[m - 1];
+  const nome = format(new Date(2000, m - 1, 1), "LLLL", { locale: dateFnsCampo() });
+  return nome.charAt(0).toUpperCase() + nome.slice(1);
+}
+function monthShort(m: number): string {
+  const nome = format(new Date(2000, m - 1, 1), "LLL", { locale: dateFnsCampo() }).replace(/\.$/, "");
+  return nome.charAt(0).toUpperCase() + nome.slice(1);
 }
 
 // ─── BreakdownCostiFissi ──────────────────────────────────────────────────────
@@ -41,30 +40,31 @@ function BreakdownCostiFissi({
   avgMarginPercent: number;
   totalFixedCostsMonthly: number;
 }) {
+  const t = useT();
   return (
     <div className="space-y-2">
       {salariesMonthly > 0 && (
         <div className="flex items-center justify-between text-sm py-1 border-b">
           <span className="flex items-center gap-1.5 text-muted-foreground">
-            👥 Stipendi dipendenti
+            {t("👥 Stipendi dipendenti")}
           </span>
-          <span className="font-medium">{formatCurrency(salariesMonthly)}/mese</span>
+          <span className="font-medium">{t("{importo}/mese", { importo: formatCurrency(salariesMonthly) })}</span>
         </div>
       )}
       {fixedCosts.map(fc => (
         <div key={fc.category} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
           <span className="text-muted-foreground">{fc.category}</span>
-          <span className="font-medium">{formatCurrency(fc.amount)}/mese</span>
+          <span className="font-medium">{t("{importo}/mese", { importo: formatCurrency(fc.amount) })}</span>
         </div>
       ))}
       <div className="flex items-center justify-between text-sm py-2 bg-muted/30 rounded-lg px-3 mt-1">
-        <span className="font-semibold">Totale costi fissi</span>
-        <span className="font-bold text-base">{formatCurrency(totalFixedCostsMonthly)}/mese</span>
+        <span className="font-semibold">{t("Totale costi fissi")}</span>
+        <span className="font-bold text-base">{t("{importo}/mese", { importo: formatCurrency(totalFixedCostsMonthly) })}</span>
       </div>
       <p className="text-xs text-muted-foreground pt-1">
-        Margine lordo usato per il calcolo:{" "}
+        {t("Margine lordo usato per il calcolo:")}{" "}
         <strong>{avgMarginPercent.toFixed(1)}%</strong>
-        {" "}(commesse con costi registrati · al netto di merce e squadre esterne)
+        {" "}{t("(commesse con costi registrati · al netto di merce e squadre esterne)")}
       </p>
     </div>
   );
@@ -83,10 +83,11 @@ function StoricoAnniChart({
     reachedBreakEven: boolean;
   }[];
 }) {
+  const t = useT();
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-        Nessun dato storico disponibile.
+        {t("Nessun dato storico disponibile.")}
       </div>
     );
   }
@@ -101,7 +102,7 @@ function StoricoAnniChart({
     "Break-Even": Math.round(d.breakEvenAnnual),
     reachedBreakEven: d.reachedBreakEven,
     meseLabel: d.breakEvenMonthOfYear <= 12
-      ? `${MONTH_SHORT[d.breakEvenMonthOfYear - 1]}`
+      ? monthShort(d.breakEvenMonthOfYear)
       : "—",
   }));
 
@@ -127,9 +128,9 @@ function StoricoAnniChart({
             y={maxBE}
             stroke="hsl(var(--destructive))"
             strokeDasharray="4 3"
-            label={{ value: "Pareggio", position: "right", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            label={{ value: t("Pareggio"), position: "right", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
-          <Bar dataKey="Fatturato" radius={[6, 6, 2, 2]} maxBarSize={56} isAnimationActive={!fermo} animationDuration={800}>
+          <Bar dataKey="Fatturato" name={t("Fatturato")} radius={[6, 6, 2, 2]} maxBarSize={56} isAnimationActive={!fermo} animationDuration={800}>
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
@@ -147,13 +148,13 @@ function StoricoAnniChart({
       <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 rounded-sm bg-primary" />
-          Pareggio raggiunto
+          {t("Pareggio raggiunto")}
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 rounded-sm bg-destructive/70" />
-          Sotto il punto di pareggio
+          {t("Sotto il punto di pareggio")}
         </span>
-        <span className="text-[11px]">Etichetta = mese di pareggio di quell'anno</span>
+        <span className="text-[11px]">{t("Etichetta = mese di pareggio di quell'anno")}</span>
       </div>
     </div>
   );
@@ -162,6 +163,7 @@ function StoricoAnniChart({
 // ─── PuntoDiPareggio (main export) ───────────────────────────────────────────
 
 export function PuntoDiPareggio() {
+  const t = useT();
   const {
     isLoading,
     avgMarginPercent,
@@ -205,43 +207,43 @@ export function PuntoDiPareggio() {
       <Card className={noData ? "" : isAboveBreakEven ? "border-emerald-200" : "border-red-200"}>
         <CardHeader className="p-4 pb-2">
           <CardTitle className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm font-semibold">
-            <span>Punto di pareggio</span>
-            <span className="text-[11px] font-medium text-muted-foreground/80">Al mese · media degli ultimi 12 mesi</span>
+            <span>{t("Punto di pareggio")}</span>
+            <span className="text-[11px] font-medium text-muted-foreground/80">{t("Al mese · media degli ultimi 12 mesi")}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0">
           {noData ? (
-            <p className="text-sm text-muted-foreground">Dati insufficienti.</p>
+            <p className="text-sm text-muted-foreground">{t("Dati insufficienti.")}</p>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da fatturare per coprire i costi fissi</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Da fatturare per coprire i costi fissi")}</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{formatCurrency(breakEvenRevenue)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Fatturato medio</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Fatturato medio")}</p>
                   <p className={`mt-1 text-2xl font-bold tabular-nums ${isAboveBreakEven ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>{formatCurrency(currentMonthlyRevenue)}</p>
                 </div>
               </div>
               <div>
-                <div className="relative h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Costi fissi coperti al ${coperturaPct}%`}>
+                <div className="relative h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={t("Costi fissi coperti al {coperturaPct}%", { coperturaPct: String(coperturaPct ?? "") })}>
                   <div
                     className={`cg-barra-cresce h-full rounded-full bg-gradient-to-r ${isAboveBreakEven ? "from-emerald-400 to-emerald-600" : "from-red-400 to-red-600"}`}
                     style={{ width: `${Math.min(100, coperturaPct)}%` }}
                   />
                 </div>
                 <p className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
-                  <span>Costi fissi coperti al <strong className="tabular-nums">{coperturaPct}%</strong></span>
+                  <span>{t("Costi fissi coperti al {pct}%", { pct: coperturaPct })}</span>
                   <span className={isAboveBreakEven ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}>{deltaLabel}</span>
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
                 {breakEvenMonthOfYear > 12
-                  ? "Con questo ritmo i costi fissi dell'anno non vengono coperti."
+                  ? t("Con questo ritmo i costi fissi dell'anno non vengono coperti.")
                   : profitFromMonth
-                    ? <>Pareggio a {monthLabel(breakEvenMonthOfYear).toLowerCase()}: da {monthLabel(profitFromMonth).toLowerCase()} si guadagna.</>
-                    : "Pareggio a dicembre."}
+                    ? <>{t("Pareggio a {valore}: da {valore2} si guadagna.", { valore: monthLabel(breakEvenMonthOfYear).toLowerCase(), valore2: monthLabel(profitFromMonth).toLowerCase() })}</>
+                    : t("Pareggio a dicembre.")}
               </p>
             </>
           )}
@@ -253,7 +255,7 @@ export function PuntoDiPareggio() {
           <CardContent className="p-3 pt-0 py-6 text-center">
             <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
-              Per calcolare il punto di pareggio sono necessari ordini con i costi di acquisto e costi fissi aziendali configurati.
+              {t("Per calcolare il punto di pareggio sono necessari ordini con i costi di acquisto e costi fissi aziendali configurati.")}
             </p>
           </CardContent>
         </Card>
@@ -262,14 +264,14 @@ export function PuntoDiPareggio() {
       {!noData && (
         <>
           <details className="rounded-lg border bg-background">
-            <summary className="cursor-pointer px-3 py-3 text-sm font-medium">Costi fissi, calcolo e storico degli anni · {formatCurrency(totalFixedCostsMonthly)}/mese di costi fissi</summary>
+            <summary className="cursor-pointer px-3 py-3 text-sm font-medium">{t("Costi fissi, calcolo e storico degli anni · {totalFixedCostsMonthly}/mese di costi fissi", { totalFixedCostsMonthly: formatCurrency(totalFixedCostsMonthly) })}</summary>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* ── Sezione C: Breakdown Costi Fissi ──────────────────────── */}
             <Card>
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-primary" />
-                  Struttura dei Costi Fissi
+                  {t("Struttura dei Costi Fissi")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0">
@@ -286,38 +288,38 @@ export function PuntoDiPareggio() {
             <Card className="bg-muted/20">
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  🧮 Come viene calcolato
+                  {t("🧮 Come viene calcolato")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0 space-y-3 text-sm text-muted-foreground">
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <span>Costi fissi mensili</span>
+                    <span>{t("Costi fissi mensili")}</span>
                     <strong className="text-foreground">{formatCurrency(totalFixedCostsMonthly)}</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span>Margine lordo medio %</span>
+                    <span>{t("Margine lordo medio %")}</span>
                     <strong className="text-foreground">{avgMarginPercent.toFixed(1)}%</strong>
                   </div>
                   <Separator />
                   <div className="flex justify-between font-medium text-foreground">
-                    <span>Break-even mensile</span>
+                    <span>{t("Break-even mensile")}</span>
                     <span>{formatCurrency(breakEvenRevenue)}</span>
                   </div>
                   <div className="flex justify-between font-medium text-foreground">
-                    <span>Break-even annuale</span>
+                    <span>{t("Break-even annuale")}</span>
                     <span>{formatCurrency(breakEvenAnnual)}</span>
                   </div>
                 </div>
                 <div className="pt-1 border-t text-xs space-y-1">
                   <p>
-                    <strong>Margine lordo</strong> = Fatturato − (Acquisto merce + Squadre esterne)
+                    <strong>{t("Margine lordo")}</strong> {t("= Fatturato − (Acquisto merce + Squadre esterne)")}
                   </p>
                   <p>
-                    <strong>Costi fissi</strong> includono gli stipendi dei dipendenti interni (anche quelli che fanno posa): sono un costo fisso indipendentemente dal volume di lavoro.
+                    <strong>{t("Costi fissi")}</strong> {t("includono gli stipendi dei dipendenti interni (anche quelli che fanno posa): sono un costo fisso indipendentemente dal volume di lavoro.")}
                   </p>
                   <p>
-                    <strong>Formula</strong>: Break-even = Costi Fissi ÷ Margine%
+                    <strong>{t("Formula")}</strong>{t(": Break-even = Costi Fissi ÷ Margine%")}
                   </p>
                 </div>
               </CardContent>
@@ -328,10 +330,10 @@ export function PuntoDiPareggio() {
             <CardHeader className="p-3 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                Storico Annuale — Fatturato vs Punto di Pareggio
+                {t("Storico Annuale — Fatturato vs Punto di Pareggio")}
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                L'etichetta sopra ogni barra indica il mese in cui quell'anno hai raggiunto il pareggio.
+                {t("L'etichetta sopra ogni barra indica il mese in cui quell'anno hai raggiunto il pareggio.")}
               </p>
             </CardHeader>
             <CardContent className="p-3 pt-0">

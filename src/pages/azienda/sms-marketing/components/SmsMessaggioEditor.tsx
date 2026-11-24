@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { calcolaPartiSms } from "@/lib/sms-utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_SMS_CHARS = 1530;
 
@@ -36,6 +37,7 @@ function interpolaVariabili(msg: string, nome: string): string {
 }
 
 export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", error }: SmsMessaggioEditorProps) {
+  const t = useT();
   const smsInfo = calcolaPartiSms(value);
   const charCount = smsInfo.caratteriUsati;
   const smsParts = smsInfo.parti;
@@ -55,7 +57,7 @@ export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", err
 
   return (
     <div className="space-y-3">
-      <Label htmlFor="messaggio" className="text-sm font-medium">Messaggio</Label>
+      <Label htmlFor="messaggio" className="text-sm font-medium">{t("Messaggio")}</Label>
 
       {/* Variabili rapide */}
       <div className="flex flex-wrap gap-1.5">
@@ -67,7 +69,7 @@ export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", err
             size="sm"
             className="h-6 text-xs px-2"
             onClick={() => insertVariabile(v.label)}
-            title={v.desc}
+            title={t(v.desc)}
           >
             {v.label}
           </Button>
@@ -81,7 +83,7 @@ export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", err
           value={value}
           onChange={(e) => onChange(e.target.value.slice(0, MAX_SMS_CHARS))}
           rows={4}
-          placeholder="Scrivi il tuo messaggio SMS..."
+          placeholder={t("Scrivi il tuo messaggio SMS...")}
           className={`resize-none pr-14 ${error ? "border-destructive" : ""}`}
         />
         <span className={`absolute bottom-2 right-2 text-xs ${counterColor}`}>
@@ -91,19 +93,17 @@ export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", err
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{smsInfo.tipoCharset}</span>
-        <span>{smsParts} SMS stimati</span>
-        <span>{Math.max(0, smsInfo.caratteriRimanenti)} caratteri residui nella parte corrente</span>
+        <span>{t("{n} SMS stimati", { n: smsParts })}</span>
+        <span>{t("{n} caratteri residui nella parte corrente", { n: Math.max(0, smsInfo.caratteriRimanenti) })}</span>
       </div>
 
       {smsParts > 1 && (
-        <p className="text-xs text-amber-600">
-          Il testo verra' inviato come {smsParts} SMS concatenati. Controlla costo e anteprima prima dell'invio.
-        </p>
+        <p className="text-xs text-amber-600">{t("Il testo verra' inviato come {n} SMS concatenati. Controlla costo e anteprima prima dell'invio.", { n: smsParts })}</p>
       )}
 
       {hardLimitReached && (
         <p className="text-xs text-destructive">
-          Limite massimo raggiunto: accorcia il messaggio prima di salvarlo.
+          {t("Limite massimo raggiunto: accorcia il messaggio prima di salvarlo.")}
         </p>
       )}
 
@@ -114,7 +114,7 @@ export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", err
         <div className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
           <Smartphone className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground mb-1">Preview SMS</p>
+            <p className="text-xs text-muted-foreground mb-1">{t("Preview SMS")}</p>
             <div className="bg-background rounded-md border px-3 py-2">
               <p className="text-sm break-words whitespace-pre-wrap">{preview}</p>
             </div>

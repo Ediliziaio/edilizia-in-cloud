@@ -17,6 +17,7 @@ import {
 import { ConditionValueInput } from "./ConditionValueInput";
 import { filterConditionError, filterErrors } from "../../../../supabase/functions/_shared/automationFilters";
 import { CUSTOM_TRIGGER_OBJECTS,customFilterType } from "../../../../supabase/functions/_shared/automationFieldContract";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   triggerCategory: string;
@@ -36,6 +37,7 @@ function mapCustomFieldType(fieldType: string): TriggerFieldDef["type"] {
 }
 
 export function TriggerConditionBuilder({ triggerCategory, filters, onChange, errors, companyId }: Props) {
+  const t = useT();
   const baseFields = getFieldsForCategory(triggerCategory);
   const {data:definitions=[],isError:customError}=useAutomationFieldDefinitions(companyId,CUSTOM_TRIGGER_OBJECTS[triggerCategory]);
   const customFields:TriggerFieldDef[]=definitions.map(f=>({key:`custom_field.${f.id}`,label:f.name,type:mapCustomFieldType(f.field_type),group:"Campi personalizzati",options:f.options?.map(v=>({value:v,label:v}))}));
@@ -96,14 +98,14 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
   if (filters.conditions.length === 0) {
     return (
       <div className="space-y-2">
-        {customError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.</p>}
-        <p className="text-xs text-muted-foreground">Nessun filtro configurato. Aggiungi una condizione per filtrare quando il trigger si attiva.</p>
+        {customError&&<p role="alert" className="text-xs text-destructive">{t("Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.")}</p>}
+        <p className="text-xs text-muted-foreground">{t("Nessun filtro configurato. Aggiungi una condizione per filtrare quando il trigger si attiva.")}</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="text-xs h-7" onClick={addCondition}>
-            <Plus className="h-3 w-3 mr-1" /> Aggiungi Filtro
+            <Plus className="h-3 w-3 mr-1" /> {t("Aggiungi Filtro")}
           </Button>
           <Button variant="outline" size="sm" className="text-xs h-7" onClick={addGroup}>
-            <FolderPlus className="h-3 w-3 mr-1" /> Aggiungi Gruppo
+            <FolderPlus className="h-3 w-3 mr-1" /> {t("Aggiungi Gruppo")}
           </Button>
         </div>
       </div>
@@ -112,12 +114,12 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
 
   return (
     <div className="space-y-2">
-      {customError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.</p>}
+      {customError&&<p role="alert" className="text-xs text-destructive">{t("Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.")}</p>}
       <p className="text-xs text-muted-foreground">
-        {filters.logic === "OR" ? "Il flusso parte se almeno una condizione è vera." : "Il flusso parte solo se tutte le condizioni sono vere."}
-        {" "}Date e giorni sono valutati nel fuso orario del flusso (predefinito: Italia).
+        {filters.logic === "OR" ? t("Il flusso parte se almeno una condizione è vera.") : t("Il flusso parte solo se tutte le condizioni sono vere.")}
+        {" "}{t("Date e giorni sono valutati nel fuso orario del flusso (predefinito: Italia).")}
       </p>
-      {filterErrors(filters).length > 0 && <p role="status" className="text-xs text-amber-700">Completa i filtri evidenziati prima di pubblicare.</p>}
+      {filterErrors(filters).length > 0 && <p role="status" className="text-xs text-amber-700">{t("Completa i filtri evidenziati prima di pubblicare.")}</p>}
       {filters.conditions.map((item, index) => (
         <div key={isConditionGroup(item) ? item.id : (item as TriggerCondition).id}>
           {index > 0 && (
@@ -150,10 +152,10 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
       ))}
       <div className="flex gap-2 pt-1">
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={addCondition}>
-          <Plus className="h-3 w-3 mr-1" /> Aggiungi Filtro
+          <Plus className="h-3 w-3 mr-1" /> {t("Aggiungi Filtro")}
         </Button>
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={addGroup}>
-          <FolderPlus className="h-3 w-3 mr-1" /> Aggiungi Gruppo
+          <FolderPlus className="h-3 w-3 mr-1" /> {t("Aggiungi Gruppo")}
         </Button>
       </div>
     </div>
@@ -162,19 +164,20 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
 
 // ── Logic Toggle ──
 function LogicToggle({ value, onChange }: { value: "AND" | "OR"; onChange: (v: "AND" | "OR") => void }) {
+  const t = useT();
   return (
     <div className="inline-flex rounded-md border border-border overflow-hidden text-[10px]">
       <button
         className={cn("px-2 py-0.5 transition-colors", value === "AND" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
         onClick={() => onChange("AND")}
       >
-        Tutte (E)
+        {t("Tutte (E)")}
       </button>
       <button
         className={cn("px-2 py-0.5 transition-colors", value === "OR" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
         onClick={() => onChange("OR")}
       >
-        Almeno una (O)
+        {t("Almeno una (O)")}
       </button>
     </div>
   );
@@ -196,6 +199,7 @@ function ConditionRow({
   onRemove: () => void;
   errors?: Set<string>;
 }) {
+  const t = useT();
   const legacyField = condition.field?.startsWith("custom_field.")
     ? fields.find(f => f.group === "Campi personalizzati" && f.label === condition.field.slice(13)) : undefined;
   const selectedField = fields.find((f) => f.key === condition.field) ?? (legacyField ? { ...legacyField, key: condition.field } : undefined);
@@ -222,7 +226,7 @@ function ConditionRow({
           size="icon"
           className={cn("h-7 w-7 shrink-0 text-[9px] font-bold", !condition.negate && "text-muted-foreground")}
           onClick={() => onUpdate({ ...condition, negate: !condition.negate })}
-          title={condition.negate ? "Rimuovi negazione" : "Nega condizione (NOT)"}
+          title={condition.negate ? t("Rimuovi negazione") : t("Nega condizione (NOT)")}
         >
           <Ban className="h-3 w-3" />
         </Button>
@@ -236,7 +240,7 @@ function ConditionRow({
           }}
         >
           <SelectTrigger className={cn("h-8 text-xs flex-1 min-w-0", hasFieldErr && "border-destructive")}>
-            <SelectValue placeholder="Campo..." />
+            <SelectValue placeholder={t("Campo...")} />
           </SelectTrigger>
           <SelectContent>
             {Object.entries(grouped).map(([group, gFields]) => (
@@ -250,7 +254,7 @@ function ConditionRow({
           </SelectContent>
         </Select>
 
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onRemove} aria-label="Rimuovi condizione">
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onRemove} aria-label={t("Rimuovi condizione")}>
           <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
       </div>
@@ -269,11 +273,11 @@ function ConditionRow({
           }}
         >
           <SelectTrigger className={cn("h-8 text-xs", hasOpErr && "border-destructive")}>
-            <SelectValue placeholder="Operatore..." />
+            <SelectValue placeholder={t("Operatore...")} />
           </SelectTrigger>
           <SelectContent>
             {operators.map((op) => (
-              <SelectItem key={op.value} value={op.value} className="text-xs">{selectedField?.type === "tags" ? (op.value === "contains" ? "Contiene tutti i tag selezionati" : "Non contiene nessuno dei tag selezionati") : op.label}</SelectItem>
+              <SelectItem key={op.value} value={op.value} className="text-xs">{selectedField?.type === "tags" ? (op.value === "contains" ? t("Contiene tutti i tag selezionati") : t("Non contiene nessuno dei tag selezionati")) : op.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -314,6 +318,7 @@ function GroupRow({
   onDuplicate: () => void;
   errors?: Set<string>;
 }) {
+  const t = useT();
   const addCondition = () => {
     onUpdate({
       ...group,
@@ -349,12 +354,12 @@ function GroupRow({
   return (
     <div className="border-l-2 border-primary/40 pl-3 py-1 space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Gruppo</span>
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t("Gruppo")}</span>
         <div className="flex gap-0.5">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onDuplicate} title="Duplica gruppo">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onDuplicate} title={t("Duplica gruppo")}>
             <Copy className="h-3 w-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRemove} title="Elimina gruppo">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRemove} title={t("Elimina gruppo")}>
             <Trash2 className="h-3 w-3 text-destructive" />
           </Button>
         </div>
@@ -400,10 +405,10 @@ function GroupRow({
 
       <div className="flex gap-2 pt-0.5">
         <Button variant="ghost" size="sm" className="text-[10px] h-6 px-2" onClick={addCondition}>
-          <Plus className="h-3 w-3 mr-0.5" /> Condizione
+          <Plus className="h-3 w-3 mr-0.5" /> {t("Condizione")}
         </Button>
         <Button variant="ghost" size="sm" className="text-[10px] h-6 px-2" onClick={addSubGroup}>
-          <FolderPlus className="h-3 w-3 mr-0.5" /> Sotto-gruppo
+          <FolderPlus className="h-3 w-3 mr-0.5" /> {t("Sotto-gruppo")}
         </Button>
       </div>
     </div>

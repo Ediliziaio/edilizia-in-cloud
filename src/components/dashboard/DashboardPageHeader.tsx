@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from "react";
 import { useState } from "react";
 import { ChevronDown, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type DashboardPageHeaderProps = {
   title: string;
@@ -32,6 +33,7 @@ export function DashboardPageHeader({
   compactTitle = false,
   density = "default",
 }: DashboardPageHeaderProps) {
+  const t = useT();
   const hasControls = Boolean(toolbar || actions);
   // Su mobile filtri+azioni sono pesanti e occupavano troppo spazio verticale
   // (più righe che spingono giù i dati). Li collassiamo dietro un toggle "Filtri
@@ -81,7 +83,7 @@ export function DashboardPageHeader({
               className="tap-compact inline-flex items-center gap-1.5 self-start rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-muted-foreground sm:hidden dark:border-slate-700 dark:bg-slate-800/60"
             >
               <Filter className="h-3.5 w-3.5" />
-              Filtri
+              {t("Filtri")}
               <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", mobileControlsOpen && "rotate-180")} />
             </button>
 

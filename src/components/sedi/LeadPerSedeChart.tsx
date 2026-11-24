@@ -11,8 +11,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSediAnalytics } from '@/hooks/useSediAnalytics'
 import { useSedeFilter } from '@/store/sedeFilterStore'
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function LeadPerSedeChart() {
+  const t = useT();
   const { sediSelezionate, periodo, tipoSede } = useSedeFilter()
   const { data, isLoading } = useSediAnalytics({
     da:        periodo.da,
@@ -37,11 +39,11 @@ export function LeadPerSedeChart() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-eic-navy text-base">Lead & CPL per Sede</CardTitle>
+          <CardTitle className="text-eic-navy text-base">{t("Lead & CPL per Sede")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
-            Nessun dato disponibile
+            {t("Nessun dato disponibile")}
           </div>
         </CardContent>
       </Card>
@@ -51,7 +53,7 @@ export function LeadPerSedeChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-eic-navy text-base">Lead & CPL per Sede</CardTitle>
+        <CardTitle className="text-eic-navy text-base">{t("Lead & CPL per Sede")}</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={280}>

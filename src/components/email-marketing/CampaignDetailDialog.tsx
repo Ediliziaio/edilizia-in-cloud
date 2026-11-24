@@ -28,12 +28,12 @@ import {
   MousePointerClick, MailX, UserMinus, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 interface RecipientRow {
   log_id: string;
   email: string;
@@ -71,6 +71,7 @@ interface CampaignDetailDialogProps {
 }
 
 export function CampaignDetailDialog({ campaignId, campaignName, onClose }: CampaignDetailDialogProps) {
+  const t = useT();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -135,16 +136,16 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
     const unsub = Number(kpiRaw?.unsubscribed ?? 0);
     const pct = (n: number, d: number) => (d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "—");
     return [
-      { icon: <MailCheck className="h-4 w-4 text-sky-600" />, label: "Consegnate", value: delivered.toLocaleString("it-IT"), sub: pct(delivered, total) },
-      { icon: <MailOpen className="h-4 w-4 text-emerald-600" />, label: "Aperture", value: opened.toLocaleString("it-IT"), sub: pct(opened, delivered) },
-      { icon: <MousePointerClick className="h-4 w-4 text-violet-600" />, label: "Click", value: clicked.toLocaleString("it-IT"), sub: pct(clicked, delivered) },
-      { icon: <MailX className="h-4 w-4 text-red-600" />, label: "Bounce", value: bounced.toLocaleString("it-IT"), sub: pct(bounced, total) },
-      { icon: <UserMinus className="h-4 w-4 text-amber-600" />, label: "Disiscritti", value: unsub.toLocaleString("it-IT"), sub: pct(unsub, delivered) },
+      { icon: <MailCheck className="h-4 w-4 text-sky-600" />, label: t("Consegnate"), value: delivered.toLocaleString(intlCampo()), sub: pct(delivered, total) },
+      { icon: <MailOpen className="h-4 w-4 text-emerald-600" />, label: t("Aperture"), value: opened.toLocaleString(intlCampo()), sub: pct(opened, delivered) },
+      { icon: <MousePointerClick className="h-4 w-4 text-violet-600" />, label: t("Click"), value: clicked.toLocaleString(intlCampo()), sub: pct(clicked, delivered) },
+      { icon: <MailX className="h-4 w-4 text-red-600" />, label: t("Bounce"), value: bounced.toLocaleString(intlCampo()), sub: pct(bounced, total) },
+      { icon: <UserMinus className="h-4 w-4 text-amber-600" />, label: t("Disiscritti"), value: unsub.toLocaleString(intlCampo()), sub: pct(unsub, delivered) },
     ];
   }, [kpiRaw]);
 
   const fmtDate = (d: string | null) =>
-    d ? format(new Date(d), "dd MMM yyyy HH:mm", { locale: it }) : "—";
+    d ? format(new Date(d), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() }) : "—";
 
   const handleExportCsv = async () => {
     if (!companyId || !campaignId || !canExportClients) return;
@@ -192,7 +193,7 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
       a.download = `campagna-destinatari-${(campaignName ?? campaignId).replace(/[^a-zA-Z0-9-_]/g, "_")}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(`Esportati ${all.length.toLocaleString("it-IT")} destinatari`);
+      toast.success(t("Esportati {n} destinatari", { n: all.length.toLocaleString(intlCampo()) }));
     } catch (e) {
       toast.error(messaggioEsportazioneNonRiuscita(e));
     } finally {
@@ -204,9 +205,9 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{campaignName ?? "Dettaglio campagna"}</DialogTitle>
+          <DialogTitle>{campaignName ?? t("Dettaglio campagna")}</DialogTitle>
           <DialogDescription>
-            Risultati per destinatario: consegna, aperture, click, bounce e disiscrizioni.
+            {t("Risultati per destinatario: consegna, aperture, click, bounce e disiscrizioni.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -229,7 +230,7 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Cerca email o nome…"
+              placeholder={t("Cerca email o nome…")}
               className="pl-8 h-9"
               value={searchInput}
               onChange={(e) => { setSearchInput(e.target.value); setPage(0); }}
@@ -240,21 +241,21 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="delivered">Consegnate</SelectItem>
-              <SelectItem value="opened">Aperte</SelectItem>
-              <SelectItem value="clicked">Cliccate</SelectItem>
-              <SelectItem value="bounced">Bounce</SelectItem>
-              <SelectItem value="unsubscribed">Disiscritti</SelectItem>
-              <SelectItem value="spam">Spam</SelectItem>
-              <SelectItem value="failed">Fallite</SelectItem>
+              <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+              <SelectItem value="delivered">{t("Consegnate")}</SelectItem>
+              <SelectItem value="opened">{t("Aperte")}</SelectItem>
+              <SelectItem value="clicked">{t("Cliccate")}</SelectItem>
+              <SelectItem value="bounced">{t("Bounce")}</SelectItem>
+              <SelectItem value="unsubscribed">{t("Disiscritti")}</SelectItem>
+              <SelectItem value="spam">{t("Spam")}</SelectItem>
+              <SelectItem value="failed">{t("Fallite")}</SelectItem>
             </SelectContent>
           </Select>
           {/* Niente export su telefono, né senza «Esporta Clienti». */}
           {!isMobile && canExportClients && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCsv} disabled={exporting || totalRows === 0}>
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Esporta CSV
+              {t("Esporta CSV")}
             </Button>
           )}
         </div>
@@ -268,17 +269,17 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
           </div>
         ) : rows.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            Nessun destinatario trovato con questi filtri.
+            {t("Nessun destinatario trovato con questi filtri.")}
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Destinatario</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead>Consegnata</TableHead>
-                <TableHead>Aperta</TableHead>
-                <TableHead>Cliccata</TableHead>
+                <TableHead>{t("Destinatario")}</TableHead>
+                <TableHead>{t("Stato")}</TableHead>
+                <TableHead>{t("Consegnata")}</TableHead>
+                <TableHead>{t("Aperta")}</TableHead>
+                <TableHead>{t("Cliccata")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -290,11 +291,11 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
                       <div className="font-medium">{r.email}</div>
                       <div className="text-xs text-muted-foreground">
                         {r.full_name ?? ""}
-                        {r.ab_variant ? ` · Variante ${r.ab_variant}` : ""}
+                        {r.ab_variant ? t(" · Variante {ab_variant}", { ab_variant: String(r.ab_variant ?? "") }) : ""}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={badge.className}>{badge.label}</Badge>
+                      <Badge variant="secondary" className={badge.className}>{t(badge.label)}</Badge>
                       {(r.status === "bounced" || r.status === "failed") && (r.bounce_type || r.error_message) ? (
                         <div className="text-xs text-muted-foreground mt-0.5 max-w-[180px] truncate" title={r.error_message ?? r.bounce_type ?? ""}>
                           {r.bounce_type ?? r.error_message}
@@ -314,14 +315,12 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
         {/* Paginazione */}
         {totalRows > PER_PAGE && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              {totalRows.toLocaleString("it-IT")} destinatari · pagina {page + 1} di {totalPages}
-            </span>
+            <span>{t("{totalRows} destinatari · pagina {page} di {totalPages}", { totalRows: totalRows.toLocaleString(intlCampo()), page: page + 1, totalPages: String(totalPages ?? "") })}</span>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)} aria-label="Pagina precedente">
+              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)} aria-label={t("Pagina precedente")}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} aria-label="Pagina successiva">
+              <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} aria-label={t("Pagina successiva")}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>

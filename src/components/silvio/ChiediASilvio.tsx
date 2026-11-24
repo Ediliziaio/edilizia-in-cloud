@@ -11,13 +11,14 @@ import { useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type BtnVariant = React.ComponentProps<typeof Button>["variant"];
 type BtnSize = React.ComponentProps<typeof Button>["size"];
 
 export function ChiediASilvio({
   ask,
-  label = "Chiedi a Silvio",
+  label,
   variant = "outline",
   size = "sm",
   className,
@@ -31,6 +32,7 @@ export function ChiediASilvio({
   className?: string;
   soloIcona?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const handle = () => {
     const q = ask.trim();
@@ -47,11 +49,11 @@ export function ChiediASilvio({
       size={size}
       onClick={handle}
       className={cn("gap-1.5", className)}
-      title="Apri Silvio AI con questa domanda già pronta"
-      aria-label={soloIcona ? label : undefined}
+      title={t("Apri Silvio AI con questa domanda già pronta")}
+      aria-label={soloIcona ? (label ?? t("Chiedi a Silvio")) : undefined}
     >
       <Sparkles className="h-4 w-4 text-orange-500" />
-      {!soloIcona && label}
+      {!soloIcona && (label ?? t("Chiedi a Silvio"))}
     </Button>
   );
 }

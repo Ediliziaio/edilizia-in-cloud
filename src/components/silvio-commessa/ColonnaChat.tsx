@@ -27,6 +27,7 @@ import {
 } from "./presentazione";
 import type { FonteNelPopup, Messaggio } from "./useBozzaSilvio";
 import { useDettatura, type Dettatura } from "./useDettatura";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** I file che il popup sa leggere: gli stessi della colonna Fonti. */
 export const FILE_LEGGIBILI = ".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,.xls,application/pdf,image/jpeg,image/png,image/webp,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel";
@@ -72,10 +73,11 @@ export interface ColonnaChatProps {
 }
 
 function Microfono({ d }: { d: Dettatura }) {
+  const t = useT();
   return (
     <button type="button" onClick={d.tocca} disabled={d.trascrive || d.avviando} aria-pressed={d.registra}
-      aria-label={d.registra ? `Ferma la dettatura (${d.secondi} s)` : d.avviando ? "Apro il microfono…" : d.trascrive ? "Trascrivo…" : `Detta a Silvio (circa ${euroAI(STIMA_DETTATURA_EUR)})`}
-      title={d.registra ? "Ferma" : `Detta · circa ${euroAI(STIMA_DETTATURA_EUR)}`}
+      aria-label={d.registra ? t("Ferma la dettatura ({secondi} s)", { secondi: String(d.secondi ?? "") }) : d.avviando ? t("Apro il microfono…") : d.trascrive ? t("Trascrivo…") : t("Detta a Silvio (circa {costo})", { costo: euroAI(STIMA_DETTATURA_EUR) })}
+      title={d.registra ? t("Ferma") : t("Detta · circa {costo}", { costo: euroAI(STIMA_DETTATURA_EUR) })}
       className={cn("grid h-11 w-11 place-items-center rounded-full transition-colors lg:h-9 lg:w-9",
         d.registra ? "bg-red-600 text-white" : "bg-orange-50 text-orange-700 hover:bg-orange-100")}>
       {d.trascrive || d.avviando ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : d.registra ? <Square className="h-4 w-4" fill="currentColor" aria-hidden /> : <Mic className="h-5 w-5" aria-hidden />}
@@ -84,20 +86,20 @@ function Microfono({ d }: { d: Dettatura }) {
 }
 
 /** I passi della lettura per `ThinkingProgress`: cosa ha letto, cosa sta leggendo, cosa aspetta. */
-function passiDellaLettura(fonti: FonteNelPopup[]): ThinkingStep[] {
+function passiDellaLettura(fonti: FonteNelPopup[], t: (testo: string, valori?: Record<string, string | number>) => string): ThinkingStep[] {
   const nome = (f: FonteNelPopup) => (f.tipo === "testo" && f.testo
-    ? `quello che hai scritto («${f.testo.length > 60 ? `${f.testo.slice(0, 57)}…` : f.testo}»)` : f.etichetta);
+    ? t("quello che hai scritto («{testo}»)", { testo: f.testo.length > 60 ? `${f.testo.slice(0, 57)}…` : f.testo }) : f.etichetta);
   return fonti
     .filter((f) => f.stato !== "da_confermare" && f.tipo !== "commessa" && f.tipo !== "ripresa")
     .map((f) => ({ ...f, etichetta: nome(f) }))
     .map((f) => ({
       id: f.id,
       status: f.stato === "in_lettura" ? "active" : f.stato === "in_coda" ? "pending" : f.stato === "errore" ? "stopped" : "complete",
-      text: f.stato === "in_lettura" ? `Leggo ${f.etichetta}${f.stimaEur ? ` (circa ${euroAI(f.stimaEur)})` : ""}…`
-        : f.stato === "in_coda" ? `Poi ${f.etichetta}`
-          : f.stato === "errore" ? `${f.etichetta}: non sono riuscito a leggerlo`
-            : f.stato === "da_collegare" ? `${f.etichetta}: da collegare alla sua richiesta d'offerta`
-              : `${f.etichetta}: ${f.valori ? `${f.valori} ${f.valori === 1 ? "dato preso" : "dati presi"}` : "letto"}`,
+      text: f.stato === "in_lettura" ? (f.stimaEur ? t("Leggo {etichetta} (circa {costo})…", { etichetta: f.etichetta, costo: euroAI(f.stimaEur) }) : t("Leggo {etichetta}…", { etichetta: f.etichetta }))
+        : f.stato === "in_coda" ? t("Poi {etichetta}", { etichetta: f.etichetta })
+          : f.stato === "errore" ? t("{etichetta}: non sono riuscito a leggerlo", { etichetta: f.etichetta })
+            : f.stato === "da_collegare" ? t("{etichetta}: da collegare alla sua richiesta d'offerta", { etichetta: f.etichetta })
+              : f.valori ? t(f.valori === 1 ? "{etichetta}: {n} dato preso" : "{etichetta}: {n} dati presi", { etichetta: f.etichetta, n: f.valori }) : t("{etichetta}: letto", { etichetta: f.etichetta }),
     }));
 }
 
@@ -128,6 +130,7 @@ export function ColonnaChat({
   messaggi, domanda, legge, onModifica, onApri, onScrivi, scrivendo = false, onVedi, annullabile = false, passiStoria, onAnnulla, trascrivi, primaDiDettare,
   fonti = [], onAllega, onConferma, suggerimenti = [], daDecidere = null, mancano = [], onFonti, tastiera = false,
 }: ColonnaChatProps) {
+  const tr = useT();
   const fondo = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLTextAreaElement | null>(null);
   const inputFile = useRef<HTMLInputElement>(null);
@@ -135,7 +138,7 @@ export function ColonnaChat({
   const [cosaManca, setCosaManca] = useState(false);
   const daLeggere = fonti.filter((f) => f.stato === "da_confermare");
   const stima = daLeggere.reduce((s, f) => s + f.stimaEur, 0);
-  const passi = passiDellaLettura(fonti);
+  const passi = passiDellaLettura(fonti, tr);
   const secondi = useSecondi(legge);
   const vuota = !messaggi.length && !fonti.length;
   // Al primo ingresso si legge dall'alto: in fondo non c'è ancora niente da inseguire.
@@ -162,26 +165,26 @@ export function ColonnaChat({
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1" role="log" aria-label="Messaggi con Silvio" aria-live="off">
+      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1" role="log" aria-label={tr("Messaggi con Silvio")} aria-live="off">
         {vuota && (
           <div className="rounded-2xl border border-orange-100 bg-white p-3.5 shadow-sm">
             <p className="flex items-start gap-2 text-[15px] font-medium leading-relaxed text-slate-900 lg:text-[13px]">
               <Sparkles className="mt-1 h-4 w-4 shrink-0 text-orange-600" aria-hidden />
-              Carica un preventivo, un contratto o una foto, oppure scrivimi il lavoro in due righe: la commessa la compongo io.
+              {tr("Carica un preventivo, un contratto o una foto, oppure scrivimi il lavoro in due righe: la commessa la compongo io.")}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {onAllega && (
                 <Pillola primaria onClick={() => inputFile.current?.click()}>
-                  <span className="inline-flex items-center gap-1.5"><Paperclip className="h-4 w-4" aria-hidden />Carica un file</span>
+                  <span className="inline-flex items-center gap-1.5"><Paperclip className="h-4 w-4" aria-hidden />{tr("Carica un file")}</span>
                 </Pillola>
               )}
               {onFonti && (
                 <Pillola onClick={onFonti}>
-                  <span className="inline-flex items-center gap-1.5"><FileText className="h-4 w-4" aria-hidden />Parti da un preventivo</span>
+                  <span className="inline-flex items-center gap-1.5"><FileText className="h-4 w-4" aria-hidden />{tr("Parti da un preventivo")}</span>
                 </Pillola>
               )}
             </div>
-            <p className="mt-3 text-xs font-medium text-slate-500">Oppure tocca un esempio e cambialo:</p>
+            <p className="mt-3 text-xs font-medium text-slate-500">{tr("Oppure tocca un esempio e cambialo:")}</p>
             <div className="mt-1.5 flex flex-col gap-2">
               {ESEMPI_PRIMO_INGRESSO.map((e) => (
                 <Pillola key={e} onClick={() => { setTesto(e); campo.current?.focus(); }}>«{e}»</Pillola>
@@ -191,7 +194,7 @@ export function ColonnaChat({
         )}
         {!vuota && !messaggi.length && !legge && (
           <p className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
-            Compongo la commessa qui accanto mentre leggo. Poi correggi a parole: «sposta tutto di una settimana».
+            {tr("Compongo la commessa qui accanto mentre leggo. Poi correggi a parole: «sposta tutto di una settimana».")}
           </p>
         )}
         {messaggi.map((m) => (
@@ -205,12 +208,12 @@ export function ColonnaChat({
                 <div className="mt-2 flex flex-wrap gap-2">
                   {onVedi && (
                     <Button type="button" size="sm" variant="outline" className="h-11 gap-1 bg-white lg:h-8" onClick={() => onVedi(m.chiavi!)}>
-                      <Eye className="h-4 w-4" aria-hidden />Vedi
+                      <Eye className="h-4 w-4" aria-hidden />{tr("Vedi")}
                     </Button>
                   )}
                   {onAnnulla && annullabile && m.id === ultimaConModifiche && (
                     <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={onAnnulla}>
-                      <Undo2 className="h-4 w-4" aria-hidden />Annulla
+                      <Undo2 className="h-4 w-4" aria-hidden />{tr("Annulla")}
                     </Button>
                   )}
                 </div>
@@ -220,23 +223,23 @@ export function ColonnaChat({
         ))}
         {legge && passi.length > 0 && (
           <div className="rounded-2xl bg-white px-3.5 py-1 shadow-sm">
-            <ThinkingProgress status="thinking" steps={passi} elapsedSeconds={secondi} busyLabel="Sto leggendo" />
+            <ThinkingProgress status="thinking" steps={passi} elapsedSeconds={secondi} busyLabel={tr("Sto leggendo")} />
           </div>
         )}
-        {legge && !passi.length && <p className="px-1 text-sm text-slate-500" role="status">Sto leggendo…</p>}
+        {legge && !passi.length && <p className="px-1 text-sm text-slate-500" role="status">{tr("Sto leggendo…")}</p>}
         {scrivendo && (
           <p className="flex items-center gap-1.5 px-1 text-sm text-slate-500" role="status">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />Silvio sta cambiando la bozza…
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />{tr("Silvio sta cambiando la bozza…")}
           </p>
         )}
         {daLeggere.length > 0 && onConferma && (
-          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3" role="group" aria-label="Da leggere">
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3" role="group" aria-label={tr("Da leggere")}>
             <p className="text-[15px] text-slate-800 lg:text-[13px]">
-              {daLeggere.length === 1 ? `Leggo ${daLeggere[0].etichetta}?` : `Leggo questi ${daLeggere.length} documenti?`}
-              {" "}Costa circa <strong>{euroAI(stima)}</strong>.
+              {daLeggere.length === 1 ? tr("Leggo {etichetta}?", { etichetta: String(daLeggere[0].etichetta ?? "") }) : tr("Leggo questi {n} documenti?", { n: daLeggere.length })}
+              {" "}{tr("Costa circa {costo}.", { costo: euroAI(stima) })}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Pillola primaria onClick={onConferma}>{daLeggere.length === 1 ? "Sì, leggilo" : "Sì, leggili"}</Pillola>
+              <Pillola primaria onClick={onConferma}>{daLeggere.length === 1 ? tr("Sì, leggilo") : tr("Sì, leggili")}</Pillola>
             </div>
           </div>
         )}
@@ -259,22 +262,22 @@ export function ColonnaChat({
         {cosaManca && (
           <div className="rounded-2xl rounded-bl-md bg-white p-3 text-[15px] text-slate-700 shadow-sm lg:text-[13px]" role="status">
             {!daDecidere?.totale && !mancano.length
-              ? <p>Non manca niente: puoi creare la commessa.</p>
+              ? <p>{tr("Non manca niente: puoi creare la commessa.")}</p>
               : (
                 <>
                   {daDecidere && daDecidere.totale > 0 && (
-                    <p>Prima di creare: {[
-                      daDecidere.conflitti.length ? `${daDecidere.conflitti.length === 1 ? "un valore" : `${daDecidere.conflitti.length} valori`} su cui i documenti non sono d'accordo` : "",
-                      daDecidere.nonDisponibili.length ? `${daDecidere.nonDisponibili.map((n) => n.nome).join(", ")} non ${daDecidere.nonDisponibili.length === 1 ? "è libero" : "sono liberi"}` : "",
-                      daDecidere.nonTornano.length ? `${daDecidere.nonTornano.length === 1 ? "un conto che non torna" : `${daDecidere.nonTornano.length} conti che non tornano`}` : "",
-                      daDecidere.domande.length ? `${daDecidere.domande.length} ${daDecidere.domande.length === 1 ? "dato da chiedere" : "dati da chiedere"}` : "",
-                      daDecidere.proposte.length ? `${daDecidere.proposte.length} ${daDecidere.proposte.length === 1 ? "mia proposta" : "mie proposte"} da guardare` : "",
+                    <p>{tr("Prima di creare:")} {[
+                      daDecidere.conflitti.length ? tr(daDecidere.conflitti.length === 1 ? "un valore su cui i documenti non sono d'accordo" : "{n} valori su cui i documenti non sono d'accordo", { n: daDecidere.conflitti.length }) : "",
+                      daDecidere.nonDisponibili.length ? tr(daDecidere.nonDisponibili.length === 1 ? "{nomi} non è libero" : "{nomi} non sono liberi", { nomi: daDecidere.nonDisponibili.map((n) => n.nome).join(", ") }) : "",
+                      daDecidere.nonTornano.length ? tr(daDecidere.nonTornano.length === 1 ? "un conto che non torna" : "{n} conti che non tornano", { n: daDecidere.nonTornano.length }) : "",
+                      daDecidere.domande.length ? tr(daDecidere.domande.length === 1 ? "{n} dato da chiedere" : "{n} dati da chiedere", { n: daDecidere.domande.length }) : "",
+                      daDecidere.proposte.length ? tr(daDecidere.proposte.length === 1 ? "{n} mia proposta da guardare" : "{n} mie proposte da guardare", { n: daDecidere.proposte.length }) : "",
                     ].filter(Boolean).join(", ")}.
-                      {" "}Le trovi in cima a «La commessa».</p>
+                      {" "}{tr("Le trovi in cima a «La commessa».")}</p>
                   )}
                   {mancano.length > 0 && (
                     <>
-                      <p className="mt-2">Mancano ancora, ma puoi aggiungerli anche dopo:</p>
+                      <p className="mt-2">{tr("Mancano ancora, ma puoi aggiungerli anche dopo:")}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {mancano.slice(0, 6).map((m) => <Pillola key={m.chiave} onClick={() => onApri(m.chiave)}>{m.etichetta}</Pillola>)}
                       </div>
@@ -288,7 +291,7 @@ export function ColonnaChat({
       </div>
 
       {suggerimenti.length > 0 && !vuota && !tastiera && (
-        <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible max-lg:[@media(max-height:600px)]:hidden" role="group" aria-label="Suggerimenti">
+        <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible max-lg:[@media(max-height:600px)]:hidden" role="group" aria-label={tr("Suggerimenti")}>
           {suggerimenti.map((s) => (
             <button key={s.etichetta} type="button" disabled={scrivendo || !onScrivi} onClick={() => suggerisci(s)}
               className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-slate-300 bg-white px-3.5 text-sm text-slate-700 lg:min-h-8 lg:px-3 lg:text-[13px] hover:border-orange-300 hover:bg-orange-50 disabled:opacity-50 lg:min-h-9">
@@ -302,12 +305,12 @@ export function ColonnaChat({
       <div onMouseDown={(e) => { if ((e.target as HTMLElement).closest("button")) e.preventDefault(); }}
         className="mt-2 [&_.thinking-composer]:rounded-2xl [&_.thinking-composer]:border-slate-300 [&_.thinking-composer]:p-2 focus-within:[&_.thinking-composer]:border-orange-500 [&_.thinking-composer_textarea]:text-base [&_.thinking-composer_textarea:focus-visible]:shadow-none lg:[&_.thinking-composer_textarea]:text-sm max-sm:[&_.thinking-composer]:flex max-sm:[&_.thinking-composer]:items-end max-sm:[&_.thinking-composer]:gap-1 max-lg:[&_.thinking-composer_textarea]:!min-h-11 max-sm:[&_.thinking-composer_textarea]:min-w-0 max-sm:[&_.thinking-composer_textarea]:flex-1 max-sm:[&_.thinking-composer_textarea]:py-2.5 max-sm:[&_.thinking-composer-actions]:mt-0 max-sm:[&_.thinking-composer-actions]:shrink-0 max-sm:[&_.thinking-composer-send-tools]:gap-0.5 [&_.thinking-composer-send-tools>button[data-busy]]:h-11 [&_.thinking-composer-send-tools>button[data-busy]]:w-11 [&_.thinking-composer-send-tools>button[data-busy]]:rounded-full [&_.thinking-composer-send-tools>button[data-busy]]:bg-orange-700 lg:[&_.thinking-composer-send-tools>button[data-busy]]:h-9 lg:[&_.thinking-composer-send-tools>button[data-busy]]:w-9">
         <ThinkingPromptInput compact inline value={testo} onValueChange={setTesto} onSubmit={() => void manda()} onStop={() => {}}
-          busy={false} disabled={!onScrivi} maxLength={MAX_MESSAGGIO_CHAT} label="Scrivi a Silvio"
-          placeholder={dettatura.registra ? "Ti ascolto…" : vuota ? "Scrivi il lavoro…" : "Scrivi una correzione…"}
+          busy={false} disabled={!onScrivi} maxLength={MAX_MESSAGGIO_CHAT} label={tr("Scrivi a Silvio")}
+          placeholder={dettatura.registra ? tr("Ti ascolto…") : vuota ? tr("Scrivi il lavoro…") : tr("Scrivi una correzione…")}
           textareaRef={(el) => { campo.current = el; }}
           trailingTools={<>
             {onAllega && (
-              <button type="button" onClick={() => inputFile.current?.click()} aria-label="Allega un documento" title="Allega un documento"
+              <button type="button" onClick={() => inputFile.current?.click()} aria-label={tr("Allega un documento")} title={tr("Allega un documento")}
                 className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 lg:h-9 lg:w-9">
                 <Paperclip className="h-5 w-5" aria-hidden />
               </button>
@@ -321,9 +324,9 @@ export function ColonnaChat({
         <p className={cn("mt-1 px-1 text-xs text-slate-500", !dettatura.errore && !dettatura.registra && (tastiera ? "hidden" : "max-lg:[@media(max-height:600px)]:hidden"))}>
           {dettatura.errore
             ? <span className="text-red-700">{dettatura.errore}</span>
-            : dettatura.registra ? `Ti ascolto… ${dettatura.secondi} s (tocca ■ quando hai finito)`
-              : vuota ? <>Circa {euroAI(0.005)} per leggere quello che scrivi</>
-                : <>Circa {euroAI(STIMA_CHAT_EUR)} a messaggio · «annulla» è gratis</>}
+            : dettatura.registra ? tr("Ti ascolto… {secondi} s (tocca ■ quando hai finito)", { secondi: String(dettatura.secondi ?? "") })
+              : vuota ? <>{tr("Circa {costo} per leggere quello che scrivi", { costo: euroAI(0.005) })}</>
+                : <>{tr("Circa {costo} a messaggio · «annulla» è gratis", { costo: euroAI(STIMA_CHAT_EUR) })}</>}
         </p>
       </div>
     </div>

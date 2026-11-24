@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Props = {
   documento: DocumentoOperativo;
@@ -16,6 +17,7 @@ export function DestinazioneDocumento({
   onChange,
   commessaId,
 }: Props) {
+  const t = useT();
   const { warehouses, isLoading, error } = useWarehouses();
   const inizializzata = useRef(false);
   const tipo =
@@ -43,7 +45,7 @@ export function DestinazioneDocumento({
   }, [isLoading, error, warehouses, tipo, d.magazzinoId, d.luogo, onChange]);
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
-      <Label htmlFor="doc-destinazione-tipo">Dove consegnare / ritirare</Label>
+      <Label htmlFor="doc-destinazione-tipo">{t("Dove consegnare / ritirare")}</Label>
       <div className="grid gap-3 sm:grid-cols-2">
         <UniformSelect
           id="doc-destinazione-tipo"
@@ -82,16 +84,16 @@ export function DestinazioneDocumento({
               });
           }}
         >
-          <option value="magazzino">Nostro magazzino</option>
-          <option value="cantiere">Cantiere della commessa</option>
+          <option value="magazzino">{t("Nostro magazzino")}</option>
+          <option value="cantiere">{t("Cantiere della commessa")}</option>
           <option value="ritiro" disabled={!d.fornitoreId}>
-            Ritiro dal fornitore
+            {t("Ritiro dal fornitore")}
           </option>
-          <option value="altro">Altro indirizzo</option>
+          <option value="altro">{t("Altro indirizzo")}</option>
         </UniformSelect>
         {tipo === "magazzino" && (
           <UniformSelect
-            aria-label="Magazzino di destinazione"
+            aria-label={t("Magazzino di destinazione")}
             value={d.magazzinoId || ""}
             disabled={isLoading}
             className="h-10 rounded-md border bg-white px-2 text-sm"
@@ -108,12 +110,12 @@ export function DestinazioneDocumento({
             }}
           >
             <option value="">
-              {isLoading ? "Caricamento…" : "Scegli magazzino"}
+              {isLoading ? t("Caricamento…") : t("Scegli magazzino")}
             </option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}
-                {w.is_default ? " (predefinito)" : ""}
+                {w.is_default ? ` ${t("(predefinito)")}` : ""}
               </option>
             ))}
           </UniformSelect>
@@ -121,37 +123,36 @@ export function DestinazioneDocumento({
       </div>
       {error && tipo === "magazzino" && (
         <p role="alert" className="text-xs text-red-700">
-          Magazzini non disponibili. Puoi indicare un altro indirizzo.
+          {t("Magazzini non disponibili. Puoi indicare un altro indirizzo.")}
         </p>
       )}
       {tipo === "cantiere" && (
         <p className="text-xs text-slate-500">
-          Seleziona la commessa per riportare il suo indirizzo di cantiere.
+          {t("Seleziona la commessa per riportare il suo indirizzo di cantiere.")}
         </p>
       )}
       {tipo === "ritiro" && !d.ritiroIndirizzo && (
         <p className="text-xs text-amber-700">
-          Completa l’indirizzo di ritiro: non è presente nell’anagrafica del
-          fornitore.
+          {t("Completa l’indirizzo di ritiro: non è presente nell’anagrafica del fornitore.")}
         </p>
       )}
       <Label htmlFor="doc-luogo">
-        Indirizzo completo di destinazione / ritiro
+        {t("Indirizzo completo di destinazione / ritiro")}
       </Label>
       <CampoIndirizzo
         id="doc-luogo"
         value={d.luogo ?? ""}
         onChange={(luogo) => onChange({ luogo })}
-        placeholder="Via, numero civico, CAP, città e provincia"
+        placeholder={t("Via, numero civico, CAP, città e provincia")}
       />
       <Label htmlFor="doc-referente-consegna">
-        Referente per la consegna / accesso
+        {t("Referente per la consegna / accesso")}
       </Label>
       <Input
         id="doc-referente-consegna"
         value={d.referenteConsegna ?? ""}
         onChange={(e) => onChange({ referenteConsegna: e.target.value })}
-        placeholder="Nome, telefono ed eventuale email"
+        placeholder={t("Nome, telefono ed eventuale email")}
       />
     </div>
   );

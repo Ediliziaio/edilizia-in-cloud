@@ -10,6 +10,7 @@ import {
 import { getCategoryColor } from "@/components/flow-builder/nodes/nodeStyles";
 import { getActionIcon } from "@/components/flow-builder/nodes/nodeIcons";
 import { CatalogItemRow } from "./CatalogItemRow";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COMPANY_CATEGORY_ORDER = ["comunicazione", "crm", "task", "ordini", "fatturazione", "preventivi", "assistenza", "cantieri", "generale"];
 const ADMIN_CATEGORY_ORDER = ["comunicazione", "crm", "task", "generale", "piattaforma"];
@@ -49,6 +50,7 @@ interface ActionCatalogListProps {
 }
 
 export function ActionCatalogList({ search, onSelect, onDragStart, includeConditions = true, onlyConditions = false, isAdmin = false }: ActionCatalogListProps) {
+  const t = useT();
   const CATEGORY_ORDER = useMemo(() => {
     const preferred = isAdmin ? ADMIN_CATEGORY_ORDER : COMPANY_CATEGORY_ORDER;
     return [...preferred, ...Object.keys(ACTIONS_BY_CATEGORY).filter(cat => !preferred.includes(cat) && cat !== "logica" && cat !== "piattaforma")];
@@ -138,7 +140,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
       {recentItems.length > 0 && (
         <div className="mb-1">
           <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Recenti
+            {t("Recenti")}
           </p>
           {recentItems.map(item => (
             <CatalogItemRow key={item.id} item={item} onSelect={handleSelect} onDragStart={onDragStart} />
@@ -163,7 +165,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
                 <CatIcon className={`h-3 w-3 ${colors.text}`} />
               </div>
               <span className="text-xs font-medium text-foreground flex-1 text-left">
-                {CATEGORY_LABELS[category] ?? category}
+                {CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : category}
               </span>
               <span className="text-[10px] text-muted-foreground mr-1">{items.length}</span>
               {isOpen
@@ -179,7 +181,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
       })}
 
       {filteredByCategory.length === 0 && (
-        <p className="py-8 text-center text-xs text-muted-foreground">Nessun risultato</p>
+        <p className="py-8 text-center text-xs text-muted-foreground">{t("Nessun risultato")}</p>
       )}
     </div>
   );

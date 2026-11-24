@@ -11,6 +11,7 @@ import {
   type Supplier,
 } from "@/lib/suppliers/anagraficaFornitore";
 import type { ReactNode } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Pannello({
   titolo,
@@ -32,11 +33,12 @@ function Pannello({
   );
 }
 function Dato({ nome, valore }: { nome: string; valore?: ReactNode }) {
+  const t = useT();
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{nome}</dt>
       <dd className="mt-1 break-words text-sm">
-        {valore || <span className="text-muted-foreground">Non indicato</span>}
+        {valore || <span className="text-muted-foreground">{t("Non indicato")}</span>}
       </dd>
     </div>
   );
@@ -48,6 +50,7 @@ function Recapiti({
   email?: string | null;
   phone?: string | null;
 }) {
+  const t = useT();
   return (
     <dl className="space-y-3">
       <Dato
@@ -64,7 +67,7 @@ function Recapiti({
         }
       />
       <Dato
-        nome="Telefono"
+        nome={t("Telefono")}
         valore={
           phone && (
             <a
@@ -87,21 +90,22 @@ export function SchedaFornitore({
   supplier: Supplier;
   onModifica?: () => void;
 }) {
+  const t = useT();
   const sito = sitoFornitore(s.website);
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-3">
       <Pannello
-        titolo="Referente / responsabile"
+        titolo={t("Referente / responsabile")}
         icona={<UserRound className="h-4 w-4 text-primary" />}
       >
         <dl className="grid gap-3">
-          <Dato nome="Nome e cognome" valore={s.contact_name} />
-          <Dato nome="Ruolo / reparto" valore={s.contact_role} />
+          <Dato nome={t("Nome e cognome")} valore={s.contact_name} />
+          <Dato nome={t("Ruolo / reparto")} valore={s.contact_role} />
         </dl>
         <Recapiti email={s.contact_email} phone={s.contact_phone} />
         {!s.contact_name && onModifica && (
           <Button size="sm" variant="outline" onClick={onModifica}>
-            Aggiungi referente
+            {t("Aggiungi referente")}
           </Button>
         )}
         {referentiDi(s.altri_referenti).length > 0 && (
@@ -126,16 +130,16 @@ export function SchedaFornitore({
         )}
       </Pannello>
       <Pannello
-        titolo="Contatti"
+        titolo={t("Contatti")}
         icona={<Building2 className="h-4 w-4 text-primary" />}
       >
         <p className="text-xs text-muted-foreground">
-          Recapiti generali dell’azienda
+          {t("Recapiti generali dell’azienda")}
         </p>
         <Recapiti email={s.email} phone={s.phone} />
         <dl className="space-y-3">
           <Dato
-            nome="Email per gli ordini"
+            nome={t("Email per gli ordini")}
             valore={
               s.email_ordini && (
                 <a className="break-all text-primary hover:underline" href={`mailto:${encodeURIComponent(s.email_ordini)}`}>
@@ -145,7 +149,7 @@ export function SchedaFornitore({
             }
           />
           <Dato
-            nome="Sito web"
+            nome={t("Sito web")}
             valore={
               sito ? (
                 <a
@@ -164,36 +168,36 @@ export function SchedaFornitore({
         </dl>
       </Pannello>
       <Pannello
-        titolo="Sede e dati fiscali"
+        titolo={t("Sede e dati fiscali")}
         icona={<MapPin className="h-4 w-4 text-primary" />}
       >
         <dl className="space-y-3">
           <Dato
-            nome="Indirizzo"
+            nome={t("Indirizzo")}
             valore={[s.address, s.postal_code, s.city, s.province, s.country]
               .filter(Boolean)
               .join(", ")}
           />
           <Dato nome="P.IVA" valore={s.vat_number} />
-          <Dato nome="Codice fiscale" valore={s.fiscal_code} />
-          <Dato nome="Categorie merceologiche" valore={categorieFornitore(s).join(" · ")} />
+          <Dato nome={t("Codice fiscale")} valore={s.fiscal_code} />
+          <Dato nome={t("Categorie merceologiche")} valore={categorieFornitore(s).join(" · ")} />
           <Dato nome="PEC" valore={s.pec} />
-          <Dato nome="Codice destinatario SDI" valore={s.codice_sdi} />
+          <Dato nome={t("Codice destinatario SDI")} valore={s.codice_sdi} />
           <Dato
-            nome="Aliquota IVA"
+            nome={t("Aliquota IVA")}
             valore={s.vat_rate == null ? undefined : `${s.vat_rate}%`}
           />
-          {s.inversione_contabile && <Dato nome="Reverse charge" valore="Sì, sui nuovi ordini" />}
+          {s.inversione_contabile && <Dato nome={t("Reverse charge")} valore={t("Sì, sui nuovi ordini")} />}
         </dl>
       </Pannello>
       <div className="xl:col-span-2">
         <Pannello
-          titolo="Pagamenti e condizioni d’acquisto"
+          titolo={t("Pagamenti e condizioni d’acquisto")}
           icona={<CreditCard className="h-4 w-4 text-primary" />}
         >
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Dato
-              nome="Modalità di pagamento"
+              nome={t("Modalità di pagamento")}
               valore={
                 s.payment_method
                   ? etichettaPagamentoFornitore(s.payment_method)
@@ -208,23 +212,23 @@ export function SchedaFornitore({
                 )
               }
             />
-            <Dato nome="Banca" valore={s.bank_name} />
-            <Dato nome="Termini di pagamento" valore={terminiPagamentoTesto(s) ?? undefined} />
-            <Dato nome="Il nostro codice cliente" valore={s.codice_cliente} />
+            <Dato nome={t("Banca")} valore={s.bank_name} />
+            <Dato nome={t("Termini di pagamento")} valore={terminiPagamentoTesto(s) ?? undefined} />
+            <Dato nome={t("Il nostro codice cliente")} valore={s.codice_cliente} />
             <Dato
-              nome="Sconto concordato"
+              nome={t("Sconto concordato")}
               valore={s.sconto_percentuale == null ? undefined : `${String(s.sconto_percentuale).replace(".", ",")}%`}
             />
             <Dato
-              nome="Consegna indicativa"
+              nome={t("Consegna indicativa")}
               valore={
                 s.lead_time_days == null
                   ? undefined
-                  : `${s.lead_time_days} giorni`
+                  : t(s.lead_time_days === 1 ? "{n} giorno" : "{n} giorni", { n: s.lead_time_days })
               }
             />
             <Dato
-              nome="Ordine minimo"
+              nome={t("Ordine minimo")}
               valore={
                 s.min_order_amount == null
                   ? undefined
@@ -232,7 +236,7 @@ export function SchedaFornitore({
               }
             />
             <Dato
-              nome="Fido concordato"
+              nome={t("Fido concordato")}
               valore={
                 s.credit_limit == null
                   ? undefined
@@ -241,28 +245,27 @@ export function SchedaFornitore({
             />
           </dl>
           <p className="text-xs text-muted-foreground">
-            Dati di riferimento: le condizioni effettive si concordano nel
-            singolo ordine d’acquisto.
+            {t("Dati di riferimento: le condizioni effettive si concordano nel singolo ordine d’acquisto.")}
           </p>
         </Pannello>
       </div>
       {(s.ritiro_indirizzo || s.ritiro_citta || s.ritiro_note) && (
         <Pannello
-          titolo="Ritiro merce / magazzino"
+          titolo={t("Ritiro merce / magazzino")}
           icona={<MapPin className="h-4 w-4 text-primary" />}
         >
           <dl className="space-y-3">
-            <Dato nome="Indirizzo" valore={[s.ritiro_indirizzo, s.ritiro_citta].filter(Boolean).join(", ")} />
-            <Dato nome="Orari e note" valore={s.ritiro_note} />
+            <Dato nome={t("Indirizzo")} valore={[s.ritiro_indirizzo, s.ritiro_citta].filter(Boolean).join(", ")} />
+            <Dato nome={t("Orari e note")} valore={s.ritiro_note} />
           </dl>
         </Pannello>
       )}
       <Pannello
-        titolo="Note"
+        titolo={t("Note")}
         icona={<Building2 className="h-4 w-4 text-primary" />}
       >
         <p className="whitespace-pre-wrap break-words text-sm">
-          {s.notes || "Nessuna nota"}
+          {s.notes || t("Nessuna nota")}
         </p>
       </Pannello>
     </div>

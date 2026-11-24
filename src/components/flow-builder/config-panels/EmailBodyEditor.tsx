@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildVariableCategories, type PickerVariable, type PickerCategory } from "./emailVariableCatalog";
 import { emailCustomFieldKey } from "../../../../supabase/functions/_shared/automationEmail";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface EmailVariable {
   key: string;
@@ -44,6 +45,7 @@ interface EmailBodyEditorProps {
 export function EmailBodyEditor({
   value, onChange, variables = [], triggerItemId, companyId: explicitCompanyId, allowCustomFields = true, placeholder, minHeight = 200,
 }: EmailBodyEditorProps) {
+  const t = useT();
   const editorRef = useRef<RichTextEditorHandle>(null);
   const [search, setSearch] = useState("");
   const [variablesOpen, setVariablesOpen] = useState(false);
@@ -100,13 +102,13 @@ export function EmailBodyEditor({
           <PopoverTrigger asChild>
             <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs">
               <Variable className="h-3.5 w-3.5" />
-              Variabile
+              {t("Variabile")}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-72 p-2" align="end">
             <Input
               autoFocus
-              placeholder="Cerca variabile o campo…"
+              placeholder={t("Cerca variabile o campo…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 text-xs mb-2"
@@ -116,13 +118,13 @@ export function EmailBodyEditor({
                 /* Ricerca: risultati piatti su tutte le categorie */
                 <div className="space-y-0.5">
                   {searchHits.length === 0 && (
-                    <p className="px-2 py-3 text-center text-xs text-muted-foreground">Nessun risultato</p>
+                    <p className="px-2 py-3 text-center text-xs text-muted-foreground">{t("Nessun risultato")}</p>
                   )}
                   {searchHits.map(({ cat, v }) => (
                     <button key={v.key} type="button" onClick={() => insertVariable(v.key)}
                       className="w-full text-left px-2 py-1.5 rounded hover:bg-muted text-xs">
-                      <span className="font-medium">{v.label}</span>
-                      <span className="ml-1 text-[10px] text-muted-foreground">· {cat}</span>
+                      <span className="font-medium">{t(v.label)}</span>
+                      <span className="ml-1 text-[10px] text-muted-foreground">· {t(cat)}</span>
                       <span className="block text-[10px] text-muted-foreground font-mono">{`{{${v.key}}}`}</span>
                     </button>
                   ))}
@@ -138,7 +140,7 @@ export function EmailBodyEditor({
                           onClick={() => setExpanded((s) => ({ ...s, [c.id]: !s[c.id] }))}
                           className="w-full flex items-center gap-1 px-2 py-1.5 rounded hover:bg-muted text-xs font-medium">
                           {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-                          <span className="flex-1 text-left">{c.label}</span>
+                          <span className="flex-1 text-left">{t(c.label)}</span>
                           <span className="text-[10px] text-muted-foreground">{c.variables.length}</span>
                         </button>
                         {open && (
@@ -146,7 +148,7 @@ export function EmailBodyEditor({
                             {c.variables.map((v) => (
                               <button key={v.key} type="button" onClick={() => insertVariable(v.key)}
                                 className="w-full text-left px-2 py-1 rounded hover:bg-muted text-xs">
-                                <span>{v.label}</span>
+                                <span>{t(v.label)}</span>
                                 <span className="block text-[10px] text-muted-foreground font-mono">{`{{${v.key}}}`}</span>
                               </button>
                             ))}
@@ -165,7 +167,7 @@ export function EmailBodyEditor({
         ref={editorRef}
         value={value}
         onChange={onChange}
-        placeholder={placeholder ?? "Scrivi l'email… usa la barra per formattare e il bottone Variabile per personalizzare."}
+        placeholder={placeholder ?? t("Scrivi l'email… usa la barra per formattare e il bottone Variabile per personalizzare.")}
         minHeight={minHeight}
       />
     </div>

@@ -3,6 +3,7 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { logger } from "@/utils/logger";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RequireSuperAdminProps {
   children: React.ReactNode;
@@ -22,6 +23,7 @@ interface RequireSuperAdminProps {
  * sales / marketing / implementation: quelle restano sotto `ADMIN_PLATFORM_ROLES`.
  */
 export function RequireSuperAdmin({ children }: RequireSuperAdminProps) {
+  const t = useT();
   const { user, role, isLoading } = useAuth();
   const location = useLocation();
 
@@ -30,7 +32,7 @@ export function RequireSuperAdmin({ children }: RequireSuperAdminProps) {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Caricamento...</p>
+          <p className="text-muted-foreground">{t("Caricamento...")}</p>
         </div>
       </div>
     );
@@ -56,10 +58,9 @@ export function RequireSuperAdmin({ children }: RequireSuperAdminProps) {
           <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
             <ShieldAlert className="h-8 w-8 text-destructive" />
           </div>
-          <h1 className="text-2xl font-semibold">Accesso riservato</h1>
+          <h1 className="text-2xl font-semibold">{t("Accesso riservato")}</h1>
           <p className="text-muted-foreground">
-            Questa sezione è riservata al Super Admin della piattaforma. Il tuo
-            ruolo attuale non dispone dei permessi necessari.
+            {t("Questa sezione è riservata al Super Admin della piattaforma. Il tuo ruolo attuale non dispone dei permessi necessari.")}
           </p>
         </div>
       </div>

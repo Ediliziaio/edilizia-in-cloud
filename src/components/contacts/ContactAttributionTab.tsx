@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Globe, MousePointerClick, Clock, Hash, Monitor, Smartphone, Tablet, ExternalLink, Search, Route } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const SOURCE_COLORS: Record<string, string> = {
   google: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -83,7 +83,7 @@ function TouchCard({ label, icon, source, medium, campaign, content, term, landi
       )}
       {touchAt && (
         <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-          {format(new Date(touchAt), "dd MMM yyyy, HH:mm", { locale: it })}
+          {format(new Date(touchAt), "dd MMM yyyy, HH:mm", { locale: dateFnsCampo() })}
         </p>
       )}
     </div>
@@ -96,6 +96,7 @@ interface Props {
 }
 
 export function ContactAttributionTab({ contactId, companyId }: Props) {
+  const t = useT();
   const { attribution, sessions, pageviews, isLoading } = useContactAttribution(contactId, companyId);
 
   if (isLoading) {
@@ -105,7 +106,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
   if (!attribution && sessions.length === 0) {
     return (
       <p className="text-[10px] text-muted-foreground px-1 py-2 max-md:text-[11px]">
-        Nessun dato di attribuzione disponibile per questo contatto.
+        {t("Nessun dato di attribuzione disponibile per questo contatto.")}
       </p>
     );
   }
@@ -115,7 +116,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
       {/* First Touch */}
       {attribution?.first_source && (
         <TouchCard
-          label="FIRST TOUCH"
+          label={t("FIRST TOUCH")}
           icon={<MousePointerClick className="h-3 w-3" />}
           source={attribution.first_source}
           medium={attribution.first_medium}
@@ -133,7 +134,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
       {/* Last Touch */}
       {attribution?.last_touch_at && attribution.last_touch_at !== attribution.first_touch_at && (
         <TouchCard
-          label="LAST TOUCH"
+          label={t("LAST TOUCH")}
           icon={<Globe className="h-3 w-3" />}
           source={attribution.last_source}
           medium={attribution.last_medium}
@@ -152,7 +153,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
       {attribution?.total_sessions && attribution.total_sessions > 0 && (
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-1 max-md:text-[11px]">
           <Hash className="h-3 w-3" />
-          {attribution.total_sessions} session{attribution.total_sessions > 1 ? "i" : "e"} tracciate
+          {(attribution.total_sessions > 1 ? t("{n} sessioni tracciate", { n: attribution.total_sessions }) : t("{n} sessione tracciate", { n: attribution.total_sessions }))}
         </div>
       )}
 
@@ -160,7 +161,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
       {sessions.length > 0 && (
         <div className="space-y-1">
           <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 max-md:text-[11px]">
-            <Clock className="h-3 w-3" /> Ultime sessioni
+            <Clock className="h-3 w-3" /> {t("Ultime sessioni")}
           </p>
           {sessions.slice(0, 5).map((s) => (
             <div key={s.id} className="text-[10px] border rounded px-2 py-1 space-y-0.5 max-md:text-[11px]">
@@ -170,7 +171,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
                 {s.utm_campaign && <span className="text-muted-foreground">/ {s.utm_campaign}</span>}
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <span>{format(new Date(s.started_at), "dd/MM/yy HH:mm", { locale: it })}</span>
+                <span>{format(new Date(s.started_at), "dd/MM/yy HH:mm", { locale: dateFnsCampo() })}</span>
                 <DeviceIcon type={s.device_type} />
                 {(s as any).landing_url && (
                   <span className="truncate max-w-[120px]" title={(s as any).landing_url}>{(s as any).landing_url}</span>
@@ -187,7 +188,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
       {pageviews.length > 0 && (
         <div className="space-y-1">
           <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 max-md:text-[11px]">
-            <Route className="h-3 w-3" /> Pagine visitate ({pageviews.length})
+            <Route className="h-3 w-3" /> {t("Pagine visitate ({n})", { n: pageviews.length })}
           </p>
           <div className="border rounded divide-y max-h-64 overflow-y-auto">
             {pageviews.map((p, i) => {
@@ -195,13 +196,11 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
               return (
                 <div key={p.id} className="px-2 py-1 text-[10px] max-md:text-[11px]">
                   {nuovaVisita && (
-                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground pb-0.5 max-md:text-[11px]">
-                      Visita del {format(new Date(p.viewed_at), "dd/MM/yy", { locale: it })}
-                    </p>
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground pb-0.5 max-md:text-[11px]">{t("Visita del {valore}", { valore: format(new Date(p.viewed_at), "dd/MM/yy", { locale: dateFnsCampo() }) })}</p>
                   )}
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground tabular-nums shrink-0">
-                      {format(new Date(p.viewed_at), "HH:mm", { locale: it })}
+                      {format(new Date(p.viewed_at), "HH:mm", { locale: dateFnsCampo() })}
                     </span>
                     <span className="truncate" title={p.title ?? p.path}>{p.path}</span>
                   </div>

@@ -95,6 +95,7 @@ import {
 
 import { useOfferteSerramento } from "@/hooks/useOfferteSerramento";
 import { calcolaFornituraSerramento, type FornituraSerramento } from "@/lib/serramenti/fornitureConfigurazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -164,8 +165,9 @@ const MODALITA_LABEL: Record<string, string> = {
   pz: "a pezzo", mq: "a m²", misura_libera: "a corpo", griglia: "da griglia misure",
 };
 
-const PERCENTUALE = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 });
-const EURO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 });
+// Creati a ogni uso: seguono il cambio di lingua.
+const PERCENTUALE = () => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 1 });
+const EURO = () => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 0 });
 
 type Step = "tipologia" | "linea" | "prodotto" | "misure";
 
@@ -218,6 +220,7 @@ export function ListinoPickerDialog({
   open, onOpenChange, onSelect, tipo = "principale", preferenzeAssi, partenza,
   testoConferma = "Aggiungi al preventivo", modelId,
 }: Props) {
+  const tr = useT();
   const isMobile = useIsMobile();
   const [showAllTypes, setShowAllTypes] = useState(false);
   const [step, setStep] = useState<Step>("tipologia");
@@ -610,31 +613,31 @@ export function ListinoPickerDialog({
   };
 
   // ─── Testi della testata ─────────────────────────────────────────────────
-  const nomeArea = area?.nome ?? "Serramenti";
+  const nomeArea = area?.nome ?? tr("Serramenti");
   const titolo =
-    vista === "tipologia" ? (tipo === "accessorio" ? "Complemento della finestra" : `Listino ${nomeArea}`)
-    : vista === "linea" ? (tipologia?.nome ?? "Scegli la linea")
-    : vista === "prodotto" ? ([tipologia?.nome, piuLinee ? linea?.nome : null].filter(Boolean).join(" · ") || "Scegli il prodotto")
-    : vista === "risultati" ? `Ricerca: "${debounced}"`
-    : (selectedFamily?.nome ?? "Misure");
+    vista === "tipologia" ? (tipo === "accessorio" ? tr("Complemento della finestra") : tr("Listino {area}", { area: nomeArea }))
+    : vista === "linea" ? (tipologia?.nome ?? tr("Scegli la linea"))
+    : vista === "prodotto" ? ([tipologia?.nome, piuLinee ? linea?.nome : null].filter(Boolean).join(" · ") || tr("Scegli il prodotto"))
+    : vista === "risultati" ? tr("Ricerca: \"{testo}\"", { testo: debounced })
+    : (selectedFamily?.nome ?? tr("Misure"));
   const sottotitolo =
     vista === "tipologia"
       ? (tipo === "accessorio"
-        ? "Tapparelle, zanzariere, persiane, cassonetti da legare a una finestra: ne possono prendere le misure"
-        : "Scegli la tipologia: finestre, persiane, tapparelle, zanzariere… anche un ordine di sole persiane")
-    : vista === "linea" ? "Scegli la linea: la ritrovi già scelta nelle variabili del prodotto"
-    : vista === "prodotto" ? "Scegli il prodotto"
-    : vista === "risultati" ? `Nome, codice o linea, fra i prodotti dell'area ${nomeArea}`
-    : articoloDaPrezzare ? "Inserisci le misure. Il prezzo va compilato nel listino o nella riga del preventivo."
-    : "Inserisci le misure: il prezzo è calcolato automaticamente";
+        ? tr("Tapparelle, zanzariere, persiane, cassonetti da legare a una finestra: ne possono prendere le misure")
+        : tr("Scegli la tipologia: finestre, persiane, tapparelle, zanzariere… anche un ordine di sole persiane"))
+    : vista === "linea" ? tr("Scegli la linea: la ritrovi già scelta nelle variabili del prodotto")
+    : vista === "prodotto" ? tr("Scegli il prodotto")
+    : vista === "risultati" ? tr("Nome, codice o linea, fra i prodotti dell'area {area}", { area: nomeArea })
+    : articoloDaPrezzare ? tr("Inserisci le misure. Il prezzo va compilato nel listino o nella riga del preventivo.")
+    : tr("Inserisci le misure: il prezzo è calcolato automaticamente");
   const percorso = vista === "risultati"
-    ? `Ricerca nell'area ${nomeArea}`
+    ? tr("Ricerca nell'area {area}", { area: nomeArea })
     : [nomeArea, tipologia?.nome, piuLinee ? linea?.nome : null, vista === "misure" ? selectedFamily?.nome : null]
       .filter(Boolean)
       .join(" › ");
   const testoVuoto = area
-    ? `Le tipologie dell'area ${nomeArea} non sono collegate al preventivatore: cerca il prodotto per nome, oppure collegale da Impostazioni → Listino.`
-    : "Nel listino non c'è ancora niente da proporre nei preventivi serramenti: servono prodotti dell'area Serramenti accesi e proposti nei preventivi (Impostazioni → Listino).";
+    ? tr("Le tipologie dell'area {area} non sono collegate al preventivatore: cerca il prodotto per nome, oppure collegale da Impostazioni → Listino.", { area: nomeArea })
+    : tr("Nel listino non c'è ancora niente da proporre nei preventivi serramenti: servono prodotti dell'area Serramenti accesi e proposti nei preventivi (Impostazioni → Listino).");
   const macroScheda = familyWithAxes?.macrocategoria_id ?? tipologia?.macrocategoriaId ?? null;
 
   return (
@@ -643,7 +646,7 @@ export function ListinoPickerDialog({
         <DialogHeader className="space-y-1.5">
           <DialogTitle className="flex items-center gap-2 text-base">
             {vista !== "tipologia" && (
-              <Button size="icon" variant="ghost" onClick={handleBack} className="h-7 w-7 shrink-0" aria-label="Indietro">
+              <Button size="icon" variant="ghost" onClick={handleBack} className="h-7 w-7 shrink-0" aria-label={tr("Indietro")}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             )}
@@ -655,18 +658,18 @@ export function ListinoPickerDialog({
           </DialogTitle>
           <DialogDescription className="text-xs">{sottotitolo}</DialogDescription>
           {modelId && step === "tipologia" && !partenza && <div className="space-y-2">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Prodotti per il modello">
-              <Button type="button" size="sm" variant={!showAllTypes && suggested.length > 0 ? "default" : "outline"} disabled={suggested.length === 0} aria-pressed={!showAllTypes && suggested.length > 0} onClick={() => { setShowAllTypes(false); setSearch(""); }}>Suggeriti per il modello ({suggested.length})</Button>
-              <Button type="button" size="sm" variant={showAllTypes || suggested.length === 0 ? "default" : "outline"} aria-pressed={showAllTypes || suggested.length === 0} onClick={() => setShowAllTypes(true)}>Tutto il listino dell'area</Button>
+            <div className="flex flex-wrap gap-2" role="group" aria-label={tr("Prodotti per il modello")}>
+              <Button type="button" size="sm" variant={!showAllTypes && suggested.length > 0 ? "default" : "outline"} disabled={suggested.length === 0} aria-pressed={!showAllTypes && suggested.length > 0} onClick={() => { setShowAllTypes(false); setSearch(""); }}>{tr("Suggeriti per il modello ({n})", { n: suggested.length })}</Button>
+              <Button type="button" size="sm" variant={showAllTypes || suggested.length === 0 ? "default" : "outline"} aria-pressed={showAllTypes || suggested.length === 0} onClick={() => setShowAllTypes(true)}>{tr("Tutto il listino dell'area")}</Button>
             </div>
-            <p className="text-xs text-muted-foreground">{suggested.length === 0 ? "Nessuna tipologia suggerita associata: puoi scegliere dal listino dell'area o aggiungere una voce manuale nel preventivo." : "Categorie suggerite dal modello. Con «Tutto il listino» o la ricerca trovi anche gli altri prodotti (porte, zanzariere…), senza modificare il listino."}</p>
+            <p className="text-xs text-muted-foreground">{suggested.length === 0 ? tr("Nessuna tipologia suggerita associata: puoi scegliere dal listino dell'area o aggiungere una voce manuale nel preventivo.") : tr("Categorie suggerite dal modello. Con «Tutto il listino» o la ricerca trovi anche gli altri prodotti (porte, zanzariere…), senza modificare il listino.")}</p>
           </div>}
           {partenza?.contesto && (
             <p className="text-[11px] font-medium text-orange-700">{partenza.contesto}</p>
           )}
           {vista !== "tipologia" && percorso && (
             <div className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap pt-0.5">
-              <span className="font-semibold uppercase tracking-wide">Percorso:</span>
+              <span className="font-semibold uppercase tracking-wide">{tr("Percorso:")}</span>
               <span className="truncate max-w-full">{percorso}</span>
             </div>
           )}
@@ -679,7 +682,7 @@ export function ListinoPickerDialog({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca per nome, codice o linea…"
+              placeholder={tr("Cerca per nome, codice o linea…")}
               className="pl-9 h-10"
             />
             {isSearching && (
@@ -688,7 +691,7 @@ export function ListinoPickerDialog({
                 onClick={() => { setSearch(""); setDebounced(""); }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground hover:text-foreground"
               >
-                Pulisci
+                {tr("Pulisci")}
               </button>
             )}
           </div>
@@ -710,8 +713,8 @@ export function ListinoPickerDialog({
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 text-sm font-semibold leading-tight text-slate-900 transition-colors group-hover:text-orange-700">{t.nome}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {t.articoli} {t.articoli === 1 ? "prodotto" : "prodotti"}
-                          {t.linee.length > 1 ? ` · ${t.linee.length} linee` : ""}
+                          {tr(t.articoli === 1 ? "{n} prodotto" : "{n} prodotti", { n: t.articoli })}
+                          {t.linee.length > 1 ? ` · ${tr("{n} linee", { n: t.linee.length })}` : ""}
                         </p>
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-orange-600" />
@@ -743,11 +746,11 @@ export function ListinoPickerDialog({
                         {dati && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{dati}</p>}
                         <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
-                            {prodotti} {prodotti === 1 ? "prodotto" : "prodotti"}
+                            {tr(prodotti === 1 ? "{n} prodotto" : "{n} prodotti", { n: prodotti })}
                           </span>
                           {l.scostamentoPct != null && l.scostamentoPct !== 0 && (
                             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">
-                              {l.scostamentoPct > 0 ? "+" : ""}{PERCENTUALE.format(l.scostamentoPct)}% sul prezzo
+                              {tr("{valore}% sul prezzo", { valore: `${l.scostamentoPct > 0 ? "+" : ""}${PERCENTUALE().format(l.scostamentoPct)}` })}
                             </span>
                           )}
                         </div>
@@ -767,7 +770,7 @@ export function ListinoPickerDialog({
             {!tipologia || !linea || linea.righe.length === 0 ? (
               <EmptyState
                 icon={<Package className="h-10 w-10" />}
-                text={`Nessun prodotto in "${tipologia?.nome ?? "questa tipologia"}".`}
+                text={tr("Nessun prodotto in \"{nome}\".", { nome: tipologia?.nome ?? tr("questa tipologia") })}
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -787,7 +790,7 @@ export function ListinoPickerDialog({
             ) : risultati.length === 0 ? (
               <EmptyState
                 icon={<Package className="h-10 w-10" />}
-                text={`Nessun prodotto dell'area ${nomeArea} per "${debounced}".`}
+                text={tr("Nessun prodotto dell'area {area} per \"{testo}\".", { area: nomeArea, testo: debounced })}
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -809,41 +812,39 @@ export function ListinoPickerDialog({
           <div className={anteprimaDisegno ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_200px]" : ""}>
           <div className="min-w-0 space-y-3">
             <Card className="bg-orange-50/30 border-orange-200 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-1">
-                Listino: {MODALITA_LABEL[selectedFamily.modalita_prezzo_base ?? "pz"]}
-              </p>
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-1">{tr("Listino: {modalita}", { modalita: tr(MODALITA_LABEL[selectedFamily.modalita_prezzo_base ?? "pz"] ?? "") })}</p>
               <p className="text-xs text-orange-900">
-                {articoloDaPrezzare && "Prezzo da definire nella riga del preventivo o nel listino. Le misure non determinano un prezzo finché manca la tariffa."}
-                {!articoloDaPrezzare && selectedFamily.modalita_prezzo_base === "pz" && "Prezzo fisso a pezzo. Le misure sono solo descrittive."}
-                {!articoloDaPrezzare && selectedFamily.modalita_prezzo_base === "mq" && "Il prezzo si calcola sui m² → larghezza × altezza × prezzo/m²."}
-                {selectedFamily.modalita_prezzo_base === "griglia" && "Listino a griglia: viene letto il prezzo della misura ≥ inserita."}
-                {selectedFamily.modalita_prezzo_base === "misura_libera" && "Prezzo a corpo, misure solo informative."}
+                {articoloDaPrezzare && tr("Prezzo da definire nella riga del preventivo o nel listino. Le misure non determinano un prezzo finché manca la tariffa.")}
+                {!articoloDaPrezzare && selectedFamily.modalita_prezzo_base === "pz" && tr("Prezzo fisso a pezzo. Le misure sono solo descrittive.")}
+                {!articoloDaPrezzare && selectedFamily.modalita_prezzo_base === "mq" && tr("Il prezzo si calcola sui m² → larghezza × altezza × prezzo/m².")}
+                {selectedFamily.modalita_prezzo_base === "griglia" && tr("Listino a griglia: viene letto il prezzo della misura ≥ inserita.")}
+                {selectedFamily.modalita_prezzo_base === "misura_libera" && tr("Prezzo a corpo, misure solo informative.")}
               </p>
             </Card>
 
             <div className="grid grid-cols-12 gap-3">
               <div className={richiedeMisure ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
-                <Label className="text-xs">Larghezza (mm)</Label>
+                <Label className="text-xs">{tr("Larghezza (mm)")}</Label>
                 <Input
                   type="number" min={0}
                   value={larghezza}
                   onChange={(e) => setLarghezza(e.target.value)}
-                  placeholder="es. 1200"
+                  placeholder={tr("es. 1200")}
                   className="h-9"
                 />
               </div>
               <div className={richiedeMisure ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
-                <Label className="text-xs">Altezza (mm)</Label>
+                <Label className="text-xs">{tr("Altezza (mm)")}</Label>
                 <Input
                   type="number" min={0}
                   value={altezza}
                   onChange={(e) => setAltezza(e.target.value)}
-                  placeholder="es. 1400"
+                  placeholder={tr("es. 1400")}
                   className="h-9"
                 />
               </div>
               <div className="col-span-12 sm:col-span-4">
-                <Label className="text-xs">Quantità</Label>
+                <Label className="text-xs">{tr("Quantità")}</Label>
                 <Input
                   type="number" min={1}
                   value={quantita}
@@ -855,17 +856,17 @@ export function ListinoPickerDialog({
 
             {selectedFamily.modalita_prezzo_base === "griglia" && availableSupplierProductLineIds.length > 0 && (
               <Card className="border-blue-200 bg-blue-50/50 p-3">
-                <Label className="text-xs text-blue-900 font-semibold">Linea prodotto fornitore</Label>
+                <Label className="text-xs text-blue-900 font-semibold">{tr("Linea prodotto fornitore")}</Label>
                 <p className="text-[11px] text-blue-800 mt-0.5 mb-2">
-                  Serve per evitare prezzi mescolati quando la stessa famiglia ha più listini.
+                  {tr("Serve per evitare prezzi mescolati quando la stessa famiglia ha più listini.")}
                 </p>
                 {loadingSupplierLines ? (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Caricamento linee fornitore…
+                    <Loader2 className="h-3 w-3 animate-spin" /> {tr("Caricamento linee fornitore…")}
                   </p>
                 ) : availableSupplierLines.length === 0 ? (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                    Linea fornitore non trovata: aggiorna i listini prima di aggiungere l'articolo.
+                    {tr("Linea fornitore non trovata: aggiorna i listini prima di aggiungere l'articolo.")}
                   </p>
                 ) : (
                   <Select
@@ -874,13 +875,11 @@ export function ListinoPickerDialog({
                     disabled={availableSupplierLines.length === 1}
                   >
                     <SelectTrigger className="h-9 text-xs bg-white">
-                      <SelectValue placeholder="Scegli linea prodotto…" />
+                      <SelectValue placeholder={tr("Scegli linea prodotto…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {availableSupplierLines.map((line) => (
-                        <SelectItem key={line.id} value={line.id} className="text-xs">
-                          {line.nome} · ricarico +{Math.round(Number(line.ricarico_default ?? 0) * 100)}%
-                        </SelectItem>
+                        <SelectItem key={line.id} value={line.id} className="text-xs">{tr("{nome} · ricarico +{valore}%", { nome: String(line.nome ?? ""), valore: Math.round(Number(line.ricarico_default ?? 0) * 100) })}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -890,7 +889,7 @@ export function ListinoPickerDialog({
 
             {!offertaId && loadingGriglia && selectedFamily.modalita_prezzo_base === "griglia" && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> Caricamento griglia prezzi…
+                <Loader2 className="h-3 w-3 animate-spin" /> {tr("Caricamento griglia prezzi…")}
               </p>
             )}
 
@@ -900,7 +899,7 @@ export function ListinoPickerDialog({
             {!offertaId && macroScheda && Object.keys(selectedFamily.custom_field_values ?? {}).length > 0 && (
               <Card className="bg-slate-50 border-slate-200 p-3">
                 <p className="text-[11px] uppercase tracking-wide text-slate-600 font-semibold mb-2">
-                  Caratteristiche prodotto
+                  {tr("Caratteristiche prodotto")}
                 </p>
                 <DynamicFieldsRenderer
                   macroId={macroScheda}
@@ -914,7 +913,7 @@ export function ListinoPickerDialog({
                 anche prima di inserire misure. */}
             {selectedFamily.modalita_prezzo_base === "griglia" && calcolo?.range && calcolo.range.minL != null && (
               <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
-                <span className="font-semibold">Misure disponibili:</span> da {calcolo.range.minL}×{calcolo.range.minH} mm a {calcolo.range.maxL}×{calcolo.range.maxH} mm
+                <span className="font-semibold">{tr("Misure disponibili:")}</span> {tr("da {minimo} mm a {massimo} mm", { minimo: `${calcolo.range.minL}×${calcolo.range.minH}`, massimo: `${calcolo.range.maxL}×${calcolo.range.maxH}` })}
               </p>
             )}
 
@@ -930,7 +929,7 @@ export function ListinoPickerDialog({
             )}
             {avvisiDisegno.length > 0 && <div role="status" className="space-y-1 rounded-md border bg-amber-50 p-2 text-xs text-amber-900">{avvisiDisegno.map((a) => <p key={a.codice}>{a.testo}</p>)}</div>}
             {selectedFamily?.custom_field_values?.configurazione_standard === true && (
-              <p className="rounded-md bg-blue-50 p-2 text-xs text-blue-900">Schema standard: verifica gamma, misure ammesse e prezzi con il fornitore. Non è una certificazione di fattibilità.</p>
+              <p className="rounded-md bg-blue-50 p-2 text-xs text-blue-900">{tr("Schema standard: verifica gamma, misure ammesse e prezzi con il fornitore. Non è una certificazione di fattibilità.")}</p>
             )}
 
             {/* Variabili Prodotto (axes): la linea parte già scelta, gli altri
@@ -938,7 +937,7 @@ export function ListinoPickerDialog({
             {axes.length > 0 && (
               <Card className="border-slate-200 bg-white p-3">
                 <p className="text-[11px] uppercase tracking-wide text-slate-700 font-semibold mb-2">
-                  Variabili Prodotto
+                  {tr("Variabili Prodotto")}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {axes.map((axis) => {
@@ -981,7 +980,7 @@ export function ListinoPickerDialog({
                             setAxisSelection(ordinate.valori);
                             setVociScelte(ordinate.voci);
                           }}
-                          placeholder={isMissing ? "Da scegliere…" : "Seleziona…"}
+                          placeholder={isMissing ? tr("Da scegliere…") : tr("Seleziona…")}
                           aria-label={axis.nome}
                           className={"h-9 text-xs " + (isMissing ? "border-rose-300" : "")}
                         />
@@ -996,12 +995,12 @@ export function ListinoPickerDialog({
             {!offertaId && famigliaRiga && <VariantiTecnicheProdotto famiglia={famigliaRiga} selezione={axisSelection} specifiche={specificheTecniche} onChange={setSpecificheTecniche} />}
 
             {(offerte.length > 0 || offertaId) && (
-              <section className="space-y-2 rounded-md border bg-muted/25 p-3" aria-label="Listino fornitore">
-                <Label className="text-xs font-semibold">Listino fornitore</Label>
+              <section className="space-y-2 rounded-md border bg-muted/25 p-3" aria-label={tr("Listino fornitore")}>
+                <Label className="text-xs font-semibold">{tr("Listino fornitore")}</Label>
                 <Select value={offertaId ?? "aziendale"} onValueChange={(v) => setOffertaId(v === "aziendale" ? null : v)}>
-                  <SelectTrigger aria-label="Scegli listino fornitore"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={tr("Scegli listino fornitore")}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="aziendale">Prezzo del listino aziendale</SelectItem>
+                    <SelectItem value="aziendale">{tr("Prezzo del listino aziendale")}</SelectItem>
                     {offerte.map((offerta) => (
                       <SelectItem key={offerta.id} value={offerta.id}>
                         {offerta.fornitore} · {offerta.configurazione.serie} · {offerta.codice}
@@ -1011,23 +1010,23 @@ export function ListinoPickerDialog({
                   </SelectContent>
                 </Select>
                 {offertaScelta && <p className="whitespace-pre-line text-xs text-muted-foreground">{offertaScelta.configurazione.specifiche}</p>}
-                {fornitura && <p className="text-xs text-muted-foreground">La tariffa include la configurazione descritta dal fornitore. Verifica che le opzioni scelte corrispondano.</p>}
-                {offertaId && !fornitura && <p role="alert" className="text-xs text-amber-800">Scegli una voce disponibile per larghezza e altezza inserite.</p>}
+                {fornitura && <p className="text-xs text-muted-foreground">{tr("La tariffa include la configurazione descritta dal fornitore. Verifica che le opzioni scelte corrispondano.")}</p>}
+                {offertaId && !fornitura && <p role="alert" className="text-xs text-amber-800">{tr("Scegli una voce disponibile per larghezza e altezza inserite.")}</p>}
               </section>
             )}
-            {erroreOfferte && <p className="text-xs text-amber-800">Listini fornitori temporaneamente indisponibili.</p>}
+            {erroreOfferte && <p className="text-xs text-amber-800">{tr("Listini fornitori temporaneamente indisponibili.")}</p>}
 
             {/* La scheda della linea scelta: cosa si sta proponendo al cliente. */}
             {!offertaId && schedaLinea && <SchedaLineaCompatta scheda={schedaLinea} />}
 
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
             {(statoColori?.blocca || catalogoNonValido) && <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              {catalogoNonValido ? "Catalogo colori non valido: correggilo nel listino prima di aggiungere il prodotto." : "Prezzo da quotare: verifica i colori e configura una combinazione disponibile nel listino."}
+              {catalogoNonValido ? tr("Catalogo colori non valido: correggilo nel listino prima di aggiungere il prodotto.") : tr("Prezzo da quotare: verifica i colori e configura una combinazione disponibile nel listino.")}
             </p>}
             {calcolo && !calcolo.fuoriRange && !statoColori?.blocca && !catalogoNonValido && (
               <Card className="border-orange-300 bg-orange-50/50 p-4">
                 <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-2 flex items-center gap-1">
-                  <Calculator className="h-3.5 w-3.5" /> {articoloDaPrezzare ? "Prezzo da definire" : "Calcolo prezzo"}
+                  <Calculator className="h-3.5 w-3.5" /> {articoloDaPrezzare ? tr("Prezzo da definire") : tr("Calcolo prezzo")}
                 </p>
                 <div className="space-y-1 text-xs">
                   {calcolo.note && (
@@ -1035,21 +1034,19 @@ export function ListinoPickerDialog({
                   )}
                   {calcolo.extra_assi !== 0 && (
                     <p className="text-[10px] text-blue-800">
-                      Variabili prodotto: <span className="font-semibold">
-                        {calcolo.extra_assi > 0 ? "+" : ""}€ {calcolo.extra_assi.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
+                      {tr("Variabili prodotto:")} <span className="font-semibold">
+                        {calcolo.extra_assi > 0 ? "+" : ""}€ {calcolo.extra_assi.toLocaleString(intlCampo(), { minimumFractionDigits: 2, useGrouping: true })}
                       </span>
                     </p>
                   )}
-                  {articoloDaPrezzare ? <p className="text-sm text-orange-900">Aggiungi l’articolo e inserisci il prezzo nella riga del preventivo, oppure completa il listino. Questo articolo non ha ancora una tariffa: non è gratuito.</p> : <>
+                  {articoloDaPrezzare ? <p className="text-sm text-orange-900">{tr("Aggiungi l’articolo e inserisci il prezzo nella riga del preventivo, oppure completa il listino. Questo articolo non ha ancora una tariffa: non è gratuito.")}</p> : <>
                   <div className="border-t border-orange-300 pt-2 mt-2 flex justify-between items-center">
-                    <span className="font-bold text-orange-900">Totale posizione</span>
+                    <span className="font-bold text-orange-900">{tr("Totale posizione")}</span>
                     <span className="text-xl font-bold text-orange-600 tabular-nums">
-                      € {calcolo.totale.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
+                      € {calcolo.totale.toLocaleString(intlCampo(), { minimumFractionDigits: 2, useGrouping: true })}
                     </span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-right">
-                    Prezzo unitario: € {calcolo.unitario.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} × {calcolo.quantita} pz
-                  </p>
+                  <p className="text-[10px] text-muted-foreground text-right">{tr("Prezzo unitario: € {unitario} × {quantita} pz", { unitario: calcolo.unitario.toLocaleString(intlCampo(), { minimumFractionDigits: 2, useGrouping: true }), quantita: String(calcolo.quantita ?? "") })}</p>
                   </>}
                 </div>
               </Card>
@@ -1059,12 +1056,12 @@ export function ListinoPickerDialog({
             {calcolo?.fuoriRange && (
               <Card className="border-rose-300 bg-rose-50 p-4">
                 <p className="text-sm font-bold text-rose-800 mb-1 flex items-center gap-1.5">
-                  <AlertCircle className="h-4 w-4" /> {griglia.length === 0 ? "Griglia prezzi mancante" : "Misura non producibile"}
+                  <AlertCircle className="h-4 w-4" /> {griglia.length === 0 ? tr("Griglia prezzi mancante") : tr("Misura non producibile")}
                 </p>
                 <p className="text-xs text-rose-700 leading-relaxed">
                   {griglia.length === 0
-                    ? "Non è presente una griglia prezzi per questo articolo. Il prezzo non è determinabile: completa il listino prima di aggiungerlo al preventivo. Questo non indica che la misura non sia producibile."
-                    : <>La misura inserita ({calcolo.larghezza}×{calcolo.altezza} mm) è fuori dal range disponibile per questo articolo. Modifica le misure entro l'intervallo indicato sopra.</>}
+                    ? tr("Non è presente una griglia prezzi per questo articolo. Il prezzo non è determinabile: completa il listino prima di aggiungerlo al preventivo. Questo non indica che la misura non sia producibile.")
+                    : <>{tr("La misura inserita ({larghezza}×{altezza} mm) è fuori dal range disponibile per questo articolo. Modifica le misure entro l'intervallo indicato sopra.", { larghezza: String(calcolo.larghezza ?? ""), altezza: String(calcolo.altezza ?? "") })}</>}
                 </p>
               </Card>
             )}
@@ -1072,10 +1069,10 @@ export function ListinoPickerDialog({
             {(calcolo?.requiresSupplierLine || calcolo?.missingSupplierLinePricing) && (
               <Card className="border-amber-300 bg-amber-50 p-4">
                 <p className="text-sm font-bold text-amber-900 mb-1 flex items-center gap-1.5">
-                  <AlertCircle className="h-4 w-4" /> Prezzo non ancora determinabile
+                  <AlertCircle className="h-4 w-4" /> {tr("Prezzo non ancora determinabile")}
                 </p>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  {calcolo.note ?? "Seleziona la linea prodotto fornitore corretta per calcolare il prezzo."}
+                  {calcolo.note ?? tr("Seleziona la linea prodotto fornitore corretta per calcolare il prezzo.")}
                 </p>
               </Card>
             )}
@@ -1095,17 +1092,17 @@ export function ListinoPickerDialog({
         <div className="sticky -bottom-4 z-10 -mx-4 mt-1 flex flex-col gap-2 border-t bg-background px-4 pb-4 pt-3 sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:px-0 sm:pb-0">
           <div className="text-[11px] text-muted-foreground">
             {vista === "misure" && richiedeMisure && (!larghezza || !altezza) && (
-              <span>Inserisci larghezza e altezza per calcolare il prezzo.</span>
+              <span>{tr("Inserisci larghezza e altezza per calcolare il prezzo.")}</span>
             )}
             {vista === "misure" && calcolo?.requiresSupplierLine && (
-              <span>Scegli la linea prodotto fornitore prima di aggiungere.</span>
+              <span>{tr("Scegli la linea prodotto fornitore prima di aggiungere.")}</span>
             )}
             {vista === "misure" && numeriNonValidi && (
-              <span>Misure in millimetri interi e quantità da 1 in su.</span>
+              <span>{tr("Misure in millimetri interi e quantità da 1 in su.")}</span>
             )}
           </div>
           <div className="flex w-full shrink-0 flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">Annulla</Button>
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">{tr("Annulla")}</Button>
             {vista === "misure" && (
               <Button
                 onClick={handleConferma}
@@ -1133,7 +1130,7 @@ export function ListinoPickerDialog({
                   || axes.some((a) => a.obbligatorio && !selezione[a.codice])
                 }
               >
-                {testoConferma}
+                {tr(testoConferma)}
               </Button>
             )}
           </div>
@@ -1147,6 +1144,7 @@ export function ListinoPickerDialog({
 
 /** Il prodotto nella griglia: foto, nome e prezzo nella linea della riga. */
 function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contesto?: string; onClick: () => void }) {
+  const t = useT();
   const f = riga.famiglia;
   const prezzo = prezzoIndicativo(riga);
   return (
@@ -1176,14 +1174,14 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
         )}
         <div className="flex flex-wrap gap-1 mt-auto pt-1 text-[9px]">
           <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">
-            {MODALITA_LABEL[f.modalita_prezzo_base ?? "pz"]}
+            {t(MODALITA_LABEL[f.modalita_prezzo_base ?? "pz"])}
           </span>
           {prezzo && (
             <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium tabular-nums">
-              € {EURO.format(prezzo.prezzo)}{prezzo.alMetroQuadro ? "/m²" : ""}
+              € {EURO().format(prezzo.prezzo)}{prezzo.alMetroQuadro ? "/m²" : ""}
             </span>
           )}
-          {!prezzo && f.custom_field_values?.configurazione_standard === true && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">Prezzo da definire</span>}
+          {!prezzo && f.custom_field_values?.configurazione_standard === true && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">{t("Prezzo da definire")}</span>}
         </div>
       </div>
     </button>
@@ -1196,14 +1194,15 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
  * preventivo resta dov'è.
  */
 function DaCompletare({ elenco }: { elenco: TipologiaDaCompletare[] }) {
+  const t = useT();
   return (
     <div className="mt-4 space-y-2">
       <div className="space-y-0.5">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Nel listino, ma non ancora nei preventivi
+          {t("Nel listino, ma non ancora nei preventivi")}
         </p>
         <p className="text-[11px] text-muted-foreground">
-          Hanno prodotti senza prezzo di vendita: aggiungi i prezzi nel listino per poterle proporre.
+          {t("Hanno prodotti senza prezzo di vendita: aggiungi i prezzi nel listino per poterle proporre.")}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
@@ -1222,7 +1221,7 @@ function DaCompletare({ elenco }: { elenco: TipologiaDaCompletare[] }) {
                 rel="noopener noreferrer"
                 className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-orange-700 hover:underline"
               >
-                Completa nel listino <ExternalLink className="h-3 w-3" />
+                {t("Completa nel listino")} <ExternalLink className="h-3 w-3" />
               </a>
             </div>
           </div>
@@ -1233,10 +1232,11 @@ function DaCompletare({ elenco }: { elenco: TipologiaDaCompletare[] }) {
 }
 
 function LoadingState() {
+  const t = useT();
   return (
     <div className="py-8 text-center text-sm text-muted-foreground">
       <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-      Caricamento…
+      {t("Caricamento…")}
     </div>
   );
 }

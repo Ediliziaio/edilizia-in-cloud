@@ -6,14 +6,15 @@ import { AlertTriangle } from "lucide-react";
 import type { DailyPoint } from "@/lib/metaInsightsNormalizer";
 import type { ReportKpis } from "@/lib/metaAdsReportModel";
 import { DeltaPercentuale } from "@/components/reporting/shared/DeltaPercentuale";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const fmtNum = (n: number) =>
-  new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 0 }).format(n);
 const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 const fmtPct = (n: number) =>
-  new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
-const fmtDec = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
+  new Intl.NumberFormat(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
+const fmtDec = (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 }).format(n);
 
 interface Props {
   kpis: ReportKpis;
@@ -87,6 +88,7 @@ const SmallCard = ({ label, value, delta, isLoading, aiuto }: { label: string; v
 );
 
 const KPIGrid = ({ kpis, kpisPrev, dailySeries, isLoading, isLoadingCrm, ambito }: Props) => {
+  const t = useT();
   const p = kpisPrev;
   const spesaData = dailySeries.map((d) => ({ v: d.spend }));
   const leadData = dailySeries.map((d) => ({ v: d.conversions }));
@@ -99,12 +101,12 @@ const KPIGrid = ({ kpis, kpisPrev, dailySeries, isLoading, isLoadingCrm, ambito 
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Stai guardando: <span className="font-medium text-foreground">{ambito}</span>
-        {p ? " · le percentuali confrontano con il periodo precedente di pari durata" : ""}
+        {t("Stai guardando:")} <span className="font-medium text-foreground">{ambito}</span>
+        {p ? ` ${t("· le percentuali confrontano con il periodo precedente di pari durata")}` : ""}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <BigCard
-          label="Spesa"
+          label={t("Spesa")}
           value={fmtCurrency(kpis.spend)}
           delta={<Delta ora={kpis.spend} prima={p?.spend} meglio="neutro" />}
           sotto={<>CPM {fmtCurrency(kpis.cpm)}</>}
@@ -113,12 +115,12 @@ const KPIGrid = ({ kpis, kpisPrev, dailySeries, isLoading, isLoadingCrm, ambito 
           isLoading={isLoading}
         />
         <BigCard
-          label="Lead Meta"
+          label={t("Lead Meta")}
           value={fmtNum(kpis.leads)}
           delta={<Delta ora={kpis.leads} prima={p?.leads} meglio="su" />}
           sotto={
             <span className="inline-flex items-center gap-1.5">
-              Costo per lead <span className="font-medium text-foreground">{kpis.leads > 0 ? fmtCurrency(kpis.cpl) : "—"}</span>
+              {t("Costo per lead")} <span className="font-medium text-foreground">{kpis.leads > 0 ? fmtCurrency(kpis.cpl) : "—"}</span>
               <Delta ora={kpis.cpl} prima={p && p.leads > 0 ? p.cpl : null} meglio="giu" />
             </span>
           }
@@ -127,28 +129,28 @@ const KPIGrid = ({ kpis, kpisPrev, dailySeries, isLoading, isLoadingCrm, ambito 
           isLoading={isLoading}
         />
         <BigCard
-          label="Lead nel CRM"
+          label={t("Lead nel CRM")}
           value={fmtNum(kpis.lead_crm)}
           sotto={
             <>
-              {kpis.lead_crm > 0 ? <>Costo per lead CRM <span className="font-medium text-foreground">{fmtCurrency(kpis.costo_lead_crm)}</span> · </> : null}
-              {fmtNum(kpis.opportunita)} trattative
+              {kpis.lead_crm > 0 ? <>{t("Costo per lead CRM")} <span className="font-medium text-foreground">{fmtCurrency(kpis.costo_lead_crm)}</span> · </> : null}
+              {t("{n} trattative", { n: fmtNum(kpis.opportunita) })}
             </>
           }
           color="hsl(199, 89%, 48%)"
           isLoading={crmLoading}
         />
         <BigCard
-          label="Contratti"
+          label={t("Contratti")}
           value={fmtNum(kpis.vinte)}
           sotto={
             kpis.vinte > 0 ? (
               <>
-                Costo per contratto <span className="font-medium text-foreground">{fmtCurrency(kpis.costo_vinta)}</span>
-                {kpis.valore_vinto > 0 && <> · valore {fmtCurrency(kpis.valore_vinto)}</>}
+                {t("Costo per contratto")} <span className="font-medium text-foreground">{fmtCurrency(kpis.costo_vinta)}</span>
+                {kpis.valore_vinto > 0 && <>{" "}{t("· valore {valore_vinto}", { valore_vinto: fmtCurrency(kpis.valore_vinto) })}</>}
               </>
             ) : (
-              "Nessun contratto ancora dai lead del periodo"
+              t("Nessun contratto ancora dai lead del periodo")
             )
           }
           color="hsl(142, 71%, 45%)"
@@ -159,26 +161,22 @@ const KPIGrid = ({ kpis, kpisPrev, dailySeries, isLoading, isLoadingCrm, ambito 
       {mostraMancanti && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>
-            Meta conta {fmtNum(kpis.leads)} lead, nel CRM ne risultano {fmtNum(kpis.lead_crm)} collegati a un'inserzione.
-            I {fmtNum(mancanti)} mancanti possono essere lead arrivati prima del collegamento dei moduli, inseriti a mano
-            senza provenienza o non arrivati: controlla la sincronizzazione dei moduli in Integrazioni.
-          </span>
+          <span>{t("Meta conta {leads} lead, nel CRM ne risultano {lead_crm} collegati a un'inserzione. I {mancanti} mancanti possono essere lead arrivati prima del collegamento dei moduli, inseriti a mano senza provenienza o non arrivati: controlla la sincronizzazione dei moduli in Integrazioni.", { leads: fmtNum(kpis.leads), lead_crm: fmtNum(kpis.lead_crm), mancanti: fmtNum(mancanti) })}</span>
         </div>
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        <SmallCard label="Impressioni" value={fmtNum(kpis.impressions)} delta={<Delta ora={kpis.impressions} prima={p?.impressions} meglio="neutro" />} isLoading={isLoading} />
-        <SmallCard label="Copertura" value={fmtNum(kpis.reach)} aiuto="Persone diverse raggiunte" isLoading={isLoading} />
-        <SmallCard label="Frequenza" value={kpis.reach > 0 ? fmtDec(kpis.frequency) : "N/D"} aiuto="Volte in media che la stessa persona ha visto gli annunci" isLoading={isLoading} />
-        <SmallCard label="Clic sul link" value={fmtNum(kpis.link_clicks)} delta={<Delta ora={kpis.link_clicks} prima={p?.link_clicks} meglio="su" />} isLoading={isLoading} />
-        <SmallCard label="CTR (link)" value={kpis.impressions > 0 ? fmtPct(kpis.ctr) : "N/D"} delta={<Delta ora={kpis.ctr} prima={p?.ctr} meglio="su" />} isLoading={isLoading} />
-        <SmallCard label="CPC (link)" value={kpis.link_clicks > 0 ? fmtCurrency(kpis.cpc) : "N/D"} delta={<Delta ora={kpis.cpc} prima={p && p.link_clicks > 0 ? p.cpc : null} meglio="giu" />} isLoading={isLoading} />
-        <SmallCard label="Valore contratti" value={kpis.valore_vinto > 0 ? fmtCurrency(kpis.valore_vinto) : "—"} isLoading={crmLoading} />
+        <SmallCard label={t("Impressioni")} value={fmtNum(kpis.impressions)} delta={<Delta ora={kpis.impressions} prima={p?.impressions} meglio="neutro" />} isLoading={isLoading} />
+        <SmallCard label={t("Copertura")} value={fmtNum(kpis.reach)} aiuto={t("Persone diverse raggiunte")} isLoading={isLoading} />
+        <SmallCard label={t("Frequenza")} value={kpis.reach > 0 ? fmtDec(kpis.frequency) : "N/D"} aiuto={t("Volte in media che la stessa persona ha visto gli annunci")} isLoading={isLoading} />
+        <SmallCard label={t("Clic sul link")} value={fmtNum(kpis.link_clicks)} delta={<Delta ora={kpis.link_clicks} prima={p?.link_clicks} meglio="su" />} isLoading={isLoading} />
+        <SmallCard label={t("CTR (link)")} value={kpis.impressions > 0 ? fmtPct(kpis.ctr) : "N/D"} delta={<Delta ora={kpis.ctr} prima={p?.ctr} meglio="su" />} isLoading={isLoading} />
+        <SmallCard label={t("CPC (link)")} value={kpis.link_clicks > 0 ? fmtCurrency(kpis.cpc) : "N/D"} delta={<Delta ora={kpis.cpc} prima={p && p.link_clicks > 0 ? p.cpc : null} meglio="giu" />} isLoading={isLoading} />
+        <SmallCard label={t("Valore contratti")} value={kpis.valore_vinto > 0 ? fmtCurrency(kpis.valore_vinto) : "—"} isLoading={crmLoading} />
         <SmallCard
-          label="ROAS reale"
+          label={t("ROAS reale")}
           value={kpis.valore_vinto > 0 && kpis.spend > 0 ? `${fmtDec(kpis.roas)}x` : "N/D"}
-          aiuto="Valore dei contratti nati dai lead del periodo, diviso la spesa"
+          aiuto={t("Valore dei contratti nati dai lead del periodo, diviso la spesa")}
           isLoading={crmLoading}
         />
       </div>

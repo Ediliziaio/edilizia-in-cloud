@@ -8,6 +8,7 @@ import { RotateCcw } from "lucide-react";
 import { useWhatIfMutation, type PianoResult } from "@/hooks/controlloGestione/usePianoIndustriale";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AssumptionEditorProps {
   scenarioId: string | null;
@@ -35,6 +36,7 @@ const DEFAULTS: Assunzioni = {
 };
 
 export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = false, annoPartenza = null }: AssumptionEditorProps) {
+  const t = useT();
   const [val, setVal] = useState<Assunzioni>(DEFAULTS);
   const mutation = useWhatIfMutation();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,7 +64,7 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
         },
         {
           onSuccess: (data) => onResult(data),
-          onError: (err) => toast.error((err as Error).message ?? "Errore simulazione"),
+          onError: (err) => toast.error((err as Error).message ?? t("Errore simulazione")),
         },
       );
     }, 300);
@@ -82,34 +84,33 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
     <Card className={`rounded-2xl ${disabled ? "opacity-50 pointer-events-none select-none" : ""}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base">Assunzioni piano</CardTitle>
+          <CardTitle className="text-base">{t("Assunzioni piano")}</CardTitle>
           {touched && !disabled && (
             <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleReset}>
               <RotateCcw className="h-3.5 w-3.5" />
-              Torna allo scenario
+              {t("Torna allo scenario")}
             </Button>
           )}
         </div>
         {disabled ? (
           <p className="text-xs text-muted-foreground">
-            Disponibile dopo aver creato uno scenario di base.
+            {t("Disponibile dopo aver creato uno scenario di base.")}
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Muovi un cursore per provare un'ipotesi diversa dallo scenario: i numeri sopra si aggiornano. Il margine
-            obiettivo cresce (o scende) in linea retta dall'anno di partenza all'ultimo anno.
+            {t("Muovi un cursore per provare un'ipotesi diversa dallo scenario: i numeri sopra si aggiornano. Il margine obiettivo cresce (o scende) in linea retta dall'anno di partenza all'ultimo anno.")}
           </p>
         )}
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Crescita dei ricavi ogni anno</Label>
+            <Label className="text-sm">{t("Crescita dei ricavi ogni anno")}</Label>
             <span className="text-sm font-semibold tabular-nums">{val.crescita}%</span>
           </div>
           <Slider
             min={0} max={30} step={1}
-            aria-label="Crescita dei ricavi ogni anno"
+            aria-label={t("Crescita dei ricavi ogni anno")}
             aria-valuetext={`${val.crescita}%`}
             value={[val.crescita]}
             onValueChange={([v]) => bump({ crescita: v })}
@@ -119,12 +120,12 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Margine operativo lordo obiettivo (ultimo anno)</Label>
+            <Label className="text-sm">{t("Margine operativo lordo obiettivo (ultimo anno)")}</Label>
             <span className="text-sm font-semibold tabular-nums">{val.margine}%</span>
           </div>
           <Slider
             min={5} max={30} step={1}
-            aria-label="Margine operativo lordo obiettivo (ultimo anno)"
+            aria-label={t("Margine operativo lordo obiettivo (ultimo anno)")}
             aria-valuetext={`${val.margine}%`}
             value={[val.margine]}
             onValueChange={([v]) => bump({ margine: v })}
@@ -134,14 +135,14 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Investimenti ogni anno</Label>
+            <Label className="text-sm">{t("Investimenti ogni anno")}</Label>
             <span className="text-sm font-semibold tabular-nums">
               {formatCurrency(val.investimento)}
             </span>
           </div>
           <Slider
             min={0} max={1_000_000} step={25_000}
-            aria-label="Investimenti ogni anno"
+            aria-label={t("Investimenti ogni anno")}
             aria-valuetext={formatCurrency(val.investimento)}
             value={[val.investimento]}
             onValueChange={([v]) => bump({ investimento: v })}
@@ -150,7 +151,7 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sm">Orizzonte</Label>
+          <Label className="text-sm">{t("Orizzonte")}</Label>
           <ToggleGroup
             type="single"
             value={String(val.orizzonte)}
@@ -158,14 +159,14 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
             className="justify-start"
             disabled={disabled}
           >
-            <ToggleGroupItem value="3" variant="outline" size="sm">3 anni</ToggleGroupItem>
-            <ToggleGroupItem value="5" variant="outline" size="sm">5 anni</ToggleGroupItem>
-            <ToggleGroupItem value="7" variant="outline" size="sm">7 anni</ToggleGroupItem>
+            <ToggleGroupItem value="3" variant="outline" size="sm">{t("3 anni")}</ToggleGroupItem>
+            <ToggleGroupItem value="5" variant="outline" size="sm">{t("5 anni")}</ToggleGroupItem>
+            <ToggleGroupItem value="7" variant="outline" size="sm">{t("7 anni")}</ToggleGroupItem>
           </ToggleGroup>
         </div>
 
         {!disabled && mutation.isPending && (
-          <p className="text-xs text-muted-foreground">Ricalcolo in corso…</p>
+          <p className="text-xs text-muted-foreground">{t("Ricalcolo in corso…")}</p>
         )}
       </CardContent>
     </Card>

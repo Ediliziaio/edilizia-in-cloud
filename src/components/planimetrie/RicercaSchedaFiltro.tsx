@@ -19,6 +19,7 @@ import {
   type TipoCollegamento,
   type SceltaCollegamento,
 } from "@/lib/planimetrie/collegamenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   tipo: TipoCollegamento;
@@ -36,6 +37,7 @@ export function RicercaSchedaFiltro({
   scelta,
   className,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const debounced = useDebounce(search, 250);
@@ -85,10 +87,10 @@ export function RicercaSchedaFiltro({
   const caption = !value
     ? label
     : value === "presenti"
-      ? `Con ${label.toLocaleLowerCase("it")}`
+      ? t("Con {label}", { label: label.toLocaleLowerCase("it") })
       : value === "nessuno"
-        ? `Senza ${label.toLocaleLowerCase("it")}`
-        : name || `${label} selezionato`;
+        ? t("Senza {label}", { label: label.toLocaleLowerCase("it") })
+        : name || t("{label} selezionato", { label });
   return (
     <Popover
       open={open}
@@ -101,7 +103,7 @@ export function RicercaSchedaFiltro({
         <Button
           variant="outline"
           role="combobox"
-          aria-label={`Filtra per ${label.toLocaleLowerCase("it")}`}
+          aria-label={t("Filtra per {label}", { label: label.toLocaleLowerCase("it") })}
           aria-expanded={open}
           disabled={!companyId}
           className={`h-9 min-w-0 justify-between px-3 text-xs font-normal shadow-none ${className || "w-full"}`}
@@ -113,50 +115,50 @@ export function RicercaSchedaFiltro({
         </Button>
       </PopoverTrigger>
       <PopoverPrimitive.Content
-        aria-label={`Ricerca ${label.toLocaleLowerCase("it")}`}
+        aria-label={t("Ricerca {label}", { label: label.toLocaleLowerCase("it") })}
         align="start"
         sideOffset={4}
         className="z-50 w-[--radix-popover-trigger-width] min-w-[260px] max-w-[calc(100vw-2rem)] rounded-md border bg-popover p-0 text-popover-foreground shadow-md outline-none"
       >
         <Command
           shouldFilter={false}
-          label={`Cerca ${label.toLocaleLowerCase("it")}`}
+          label={t("Cerca {label}", { label: label.toLocaleLowerCase("it") })}
         >
           <CommandInput
             value={search}
             onValueChange={setSearch}
-            placeholder={`Cerca ${label.toLocaleLowerCase("it")} per nome…`}
-            aria-label={`Cerca ${label.toLocaleLowerCase("it")}`}
+            placeholder={t("Cerca {label} per nome…", { label: label.toLocaleLowerCase("it") })}
+            aria-label={t("Cerca {label}", { label: label.toLocaleLowerCase("it") })}
           />
           <CommandList className="max-h-72">
             <CommandGroup>
               <CommandItem onSelect={() => choose("")}>
-                Qualsiasi {label.toLocaleLowerCase("it")}
+                {t("Qualsiasi {label}", { label: label.toLocaleLowerCase("it") })}
                 {!value && <Check className="ml-auto h-4 w-4" />}
               </CommandItem>
               <CommandItem onSelect={() => choose("nessuno")}>
-                Senza {label.toLocaleLowerCase("it")}
+                {t("Senza {label}", { label: label.toLocaleLowerCase("it") })}
                 {value === "nessuno" && <Check className="ml-auto h-4 w-4" />}
               </CommandItem>
             </CommandGroup>
-            <CommandGroup heading="Schede esistenti">
+            <CommandGroup heading={t("Schede esistenti")}>
               {results.isFetching || search !== debounced ? (
                 <div
                   role="status"
                   className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground"
                 >
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Ricerca…
+                  {t("Ricerca…")}
                 </div>
               ) : results.isError ? (
                 <div role="alert" className="p-3 text-xs">
-                  Ricerca non disponibile.
+                  {t("Ricerca non disponibile.")}
                   <Button
                     variant="link"
                     size="sm"
                     onClick={() => void results.refetch()}
                   >
-                    Riprova
+                    {t("Riprova")}
                   </Button>
                 </div>
               ) : !results.data?.length ? (
@@ -164,7 +166,7 @@ export function RicercaSchedaFiltro({
                   role="status"
                   className="px-3 py-4 text-center text-xs text-muted-foreground"
                 >
-                  Nessun risultato. Prova un altro nome.
+                  {t("Nessun risultato. Prova un altro nome.")}
                 </div>
               ) : (
                 results.data.map((option) => (

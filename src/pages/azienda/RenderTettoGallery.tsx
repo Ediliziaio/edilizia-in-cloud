@@ -12,6 +12,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type TettoConfig = {
   manto?: { tipo?: string; colore?: string; finitura?: string };
@@ -37,6 +38,7 @@ const compact = (values: Array<string | null | undefined>) =>
   values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
 
 export default function RenderTettoGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -72,7 +74,7 @@ export default function RenderTettoGallery() {
     ]);
     return {
       id: item.id,
-      title: item.config?.manto?.tipo ? `Tetto ${item.config.manto.tipo.replace(/_/g, " ")}` : "Render tetto",
+      title: item.config?.manto?.tipo ? t("Tetto {tipo}", { tipo: item.config.manto.tipo.replace(/_/g, " ") }) : t("Render tetto"),
       date: item.created_at,
       detailPath: `/azienda/render/tetto/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -93,14 +95,14 @@ export default function RenderTettoGallery() {
       opportunityId: item.opportunity_id,
       opportunityName: item.meta.opportunityName,
     };
-  }), [sessions]);
+  }), [sessions, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Tetto"
-      badgeLabel="Galleria tetti"
-      title="Render tetto salvati, con lettura tecnica e CRM."
-      description="Filtra per manto, fotovoltaico, autore, contatto, opportunita o data e apri il dettaglio commerciale del tetto generato."
+      moduleName={t("Tetto")}
+      badgeLabel={t("Galleria tetti")}
+      title={t("Render tetto salvati, con lettura tecnica e CRM.")}
+      description={t("Filtra per manto, fotovoltaico, autore, contatto, opportunita o data e apri il dettaglio commerciale del tetto generato.")}
       backPath="/azienda/render/tetto"
       newPath="/azienda/render/tetto/new"
       items={items}
@@ -108,9 +110,9 @@ export default function RenderTettoGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render del tetto completati appariranno qui."
-      searchPlaceholder="Cerca tetto, manto, fotovoltaico, autore..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render del tetto completati appariranno qui.")}
+      searchPlaceholder={t("Cerca tetto, manto, fotovoltaico, autore...")}
       emptyIcon={Home}
       accentClassName="text-red-600"
     />

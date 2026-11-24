@@ -45,6 +45,7 @@ import { formatPct } from "@/lib/controlloGestione/formatCG";
 import { etichettaVoce, spiegazioneImposte } from "@/lib/controlloGestione/contoEconomico";
 import { useImposte } from "@/hooks/controlloGestione/useImposte";
 import { useMarginalitaCommesse } from "@/hooks/controlloGestione/useMarginalitaCommesse";
+import { useT, intlCampo, sostituisci } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TabCERiclassificatoProps {
   anno: number;
@@ -86,7 +87,7 @@ function findVoce(voci: { codice: string; valore: number }[], codice: string) {
 
 function formatPctDelta(delta: number): string {
   const sign = delta >= 0 ? "+" : "";
-  return `${sign}${new Intl.NumberFormat("it-IT", {
+  return `${sign}${new Intl.NumberFormat(intlCampo(), {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(delta)}%`;
@@ -107,6 +108,7 @@ const SPIEGAZIONI_MARGINI: Record<string, string> = {
 };
 
 export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificatoProps) {
+  const tr = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const vista = parseVista(searchParams.get("ceView"));
   const [consuntivoDrill, setConsuntivoDrill] = useState<{
@@ -185,13 +187,13 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
       className="justify-start overflow-x-auto"
     >
       <ToggleGroupItem value="consuntivo" variant="outline" size="sm">
-        Consuntivo
+        {tr("Consuntivo")}
       </ToggleGroupItem>
       <ToggleGroupItem value="mensile" variant="outline" size="sm">
-        Mensile
+        {tr("Mensile")}
       </ToggleGroupItem>
       <ToggleGroupItem value="confronto" variant="outline" size="sm">
-        Confronto
+        {tr("Confronto")}
       </ToggleGroupItem>
     </ToggleGroup>
   );
@@ -234,8 +236,8 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
         <div className="space-y-4">
           {ViewSwitcher}
           <EmptyState
-            title="Nessun dato di conto economico"
-            description={`Per il periodo selezionato (${anno}) non ci sono movimenti registrati. Inserisci le scritture in Prima Nota per popolare il CE riclassificato.`}
+            title={tr("Nessun dato di conto economico")}
+            description={tr("Per il periodo selezionato ({anno}) non ci sono movimenti registrati. Inserisci le scritture in Prima Nota per popolare il CE riclassificato.", { anno: String(anno ?? "") })}
             ctaLabel="Vai a Prima Nota"
             onCta={() => { window.location.href = "/azienda/prima-nota"; }}
           />
@@ -259,7 +261,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
     const costoMaterie = findVoce(ce.data.voci, "B");
     const costoPersonale = findVoce(ce.data.voci, "06");
     const costiNonClassificati = findVoce(ce.data.voci, "08b");
-    const qualityChecks = buildQualityChecks({
+    const datiControlli = {
       hasCedolini: ce.data.meta.has_cedolini,
       periodoLabel,
       ebitdaPctPil,
@@ -273,9 +275,12 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
       senzaImponibile: provenienza.data?.fatture_senza_imponibile_righe
         ? { righe: provenienza.data.fatture_senza_imponibile_righe, totale: Number(provenienza.data.fatture_senza_imponibile_totale ?? 0) }
         : null,
-    });
+    };
+    // In italiano per i file scaricati; tradotti per lo schermo.
+    const qualityChecks = buildQualityChecks(datiControlli);
+    const controlliSchermo = buildQualityChecks(datiControlli, tr);
     const spiegazioni: Record<string, string | null> = {
-      ...SPIEGAZIONI_MARGINI,
+      ...Object.fromEntries(Object.entries(SPIEGAZIONI_MARGINI).map(([k, v]) => [k, tr(v)])),
       "15": spiegazioneImposte(ce.data.voci, imposte.data?.aliquote),
     };
     const annoInCorso = anno === new Date().getFullYear() && meseA === 12;
@@ -288,7 +293,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
             open
             onOpenChange={(v) => { if (!v) setStampaCE(null); }}
             htmlContent={stampaCE}
-            title="Conto economico — anteprima di stampa"
+            title={tr("Conto economico — anteprima di stampa")}
             fileName={`conto-economico-${anno}`}
             soloPdf
           />
@@ -297,7 +302,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
           {ViewSwitcher}
           <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setStampaCE(htmlCE())}>
-            <Printer className="mr-2 h-4 w-4" />Stampa
+            <Printer className="mr-2 h-4 w-4" />{tr("Stampa")}
           </Button>
           <EsportaMenu anno={anno} sezioni={["ce", "ce_mensile", "bep", "imposte", "ricavi", "lavori_in_corso"]} titolo="Conto economico" />
           <ExportButton
@@ -357,19 +362,19 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
           ebitda={ebitda}
           utile={utile}
           ebitdaPctPil={ebitdaPctPil}
-          qualityChecks={qualityChecks}
+          qualityChecks={controlliSchermo}
         />
         {/* La voce 02 si capisce col lavoro in corso dietro: a portata, ma chiuso. */}
         <details className="rounded-2xl border bg-card p-3 text-sm">
-          <summary className="cursor-pointer font-medium">Lavori in corso (voce 02)</summary>
+          <summary className="cursor-pointer font-medium">{tr("Lavori in corso (voce 02)")}</summary>
           <div className="mt-3"><LavoriInCorsoCard anno={anno} /></div>
         </details>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card className="rounded-2xl lg:col-span-2">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Conto Economico Riclassificato</CardTitle>
+              <CardTitle className="text-base">{tr("Conto Economico Riclassificato")}</CardTitle>
               {!canDrillConsuntivo && (
-                <p className="text-xs text-muted-foreground">Le fonti di ogni voce: vista Mensile.</p>
+                <p className="text-xs text-muted-foreground">{tr("Le fonti di ogni voce: vista Mensile.")}</p>
               )}
             </CardHeader>
             <CardContent>
@@ -394,52 +399,52 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
             {/* Ricavi, EBITDA e utile stanno nella sintesi in alto: qui solo
                 quello che la sintesi non dice. */}
             <KPIBox
-              label="EBIT (risultato operativo)"
+              label={tr("EBIT (risultato operativo)")}
               value={formatCurrency(ebit)}
-              sub={ebitPctPil != null ? `${formatPct(ebitPctPil)} dei ricavi` : "% n.d.: nessun ricavo"}
+              sub={ebitPctPil != null ? tr("{valore} dei ricavi", { valore: formatPct(ebitPctPil) }) : tr("% n.d.: nessun ricavo")}
               tone="neutral"
-              spiegazione={SPIEGAZIONI_MARGINI.F}
+              spiegazione={tr(SPIEGAZIONI_MARGINI.F)}
             />
             <KPIBox
-              label="Leva operativa"
-              spiegazione="Quanto si muove l'utile operativo quando si muovono i ricavi: più costi fissi hai, più è alta."
-              value={dol !== null ? `×${dol.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` : "—"}
-              sub={dol !== null ? `ricavi −10% → EBIT −${Math.round(dol * 10)}%` : "n.d. con EBIT a zero o negativo"}
+              label={tr("Leva operativa")}
+              spiegazione={tr("Quanto si muove l'utile operativo quando si muovono i ricavi: più costi fissi hai, più è alta.")}
+              value={dol !== null ? `×${dol.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}` : "—"}
+              sub={dol !== null ? tr("ricavi −10% → EBIT −{valore}%", { valore: Math.round(dol * 10) }) : tr("n.d. con EBIT a zero o negativo")}
               tone="blue"
             />
             <KPIBox
-              label="Punto di pareggio"
-              spiegazione="Il giorno in cui i ricavi dell'anno coprono tutti i costi fissi: da lì in avanti ogni vendita porta utile."
+              label={tr("Punto di pareggio")}
+              spiegazione={tr("Il giorno in cui i ricavi dell'anno coprono tutti i costi fissi: da lì in avanti ogni vendita porta utile.")}
               value={
                 bep.isLoading
                   ? "…"
                   : bep.data?.bep_data
                     ? formatDate(bep.data.bep_data)
-                    : "Non raggiunto"
+                    : tr("Non raggiunto")
               }
               sub={
                 bep.data?.gia_raggiunto
-                  ? "Già raggiunto: i costi fissi dell'anno sono coperti"
+                  ? tr("Già raggiunto: i costi fissi dell'anno sono coperti")
                   : bep.data?.giorni_residui != null
-                    ? `Mancano ${bep.data.giorni_residui} giorni`
+                    ? tr("Mancano {n} giorni", { n: bep.data.giorni_residui })
                     : undefined
               }
               tone={bep.data?.gia_raggiunto ? "green" : "neutral"}
             />
             {costiNonClassificati > 0 && (
               <KPIBox
-                label="Costi da classificare"
+                label={tr("Costi da classificare")}
                 value={formatCurrency(costiNonClassificati)}
-                sub={<Link className="underline underline-offset-2" to="/azienda/controllo-gestione/configurazione">Assegnali a una voce</Link>}
+                sub={<Link className="underline underline-offset-2" to="/azienda/controllo-gestione/configurazione">{tr("Assegnali a una voce")}</Link>}
                 tone="neutral"
-                spiegazione={SPIEGAZIONI_MARGINI["08b"]}
+                spiegazione={tr(SPIEGAZIONI_MARGINI["08b"])}
               />
             )}
           </div>
 
           <Card className="rounded-2xl lg:col-span-3">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Ricavi e costi progressivi: quando si va in utile</CardTitle>
+              <CardTitle className="text-base">{tr("Ricavi e costi progressivi: quando si va in utile")}</CardTitle>
             </CardHeader>
             <CardContent>
               <BEPChart anno={anno} />
@@ -494,6 +499,7 @@ function CEExecutiveSummary({
   ebitdaPctPil: number | null;
   qualityChecks: QualityCheck[];
 }) {
+  const t = useT();
   const daControllare = qualityChecks.filter((c) => c.tone !== "ok");
   // Le fatture ricevute non registrate cambiano l'utile: si vedono subito, non nel riquadro chiuso.
   const inEvidenza = daControllare.filter((c) => c.id === "da-registrare" || c.id === "senza-imponibile");
@@ -502,7 +508,7 @@ function CEExecutiveSummary({
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
-            {periodoLabel} · IVA esclusa{notaAnnoInCorso ? " · costi programmati fino a dicembre compresi" : ""}
+            {t(periodoLabel)} {t("· IVA esclusa")}{notaAnnoInCorso ? ` ${t("· costi programmati fino a dicembre compresi")}` : ""}
           </p>
           <span
             className={cn(
@@ -513,18 +519,18 @@ function CEExecutiveSummary({
             )}
           >
             {daControllare.length ? <FileSearch className="h-3.5 w-3.5" aria-hidden /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
-            {daControllare.length ? `Da controllare: ${daControllare.length}` : "Dati completi"}
+            {daControllare.length ? t("Da controllare: {n}", { n: daControllare.length }) : t("Dati completi")}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MiniMetric label="Ricavi" value={formatCurrency(ricavi)} />
+          <MiniMetric label={t("Ricavi")} value={formatCurrency(ricavi)} />
           <MiniMetric label="EBITDA" value={formatCurrency(ebitda)} />
           <MiniMetric
-            label="Margine EBITDA"
+            label={t("Margine EBITDA")}
             value={ebitdaPctPil == null ? "n.d." : formatPct(ebitdaPctPil)}
-            title={ebitdaPctPil == null ? "Non disponibile: nel periodo non ci sono ricavi." : "EBITDA diviso valore della produzione."}
+            title={ebitdaPctPil == null ? t("Non disponibile: nel periodo non ci sono ricavi.") : t("EBITDA diviso valore della produzione.")}
           />
-          <MiniMetric label="Utile" value={formatCurrency(utile)} />
+          <MiniMetric label={t("Utile")} value={formatCurrency(utile)} />
         </div>
         {inEvidenza.map((c) => (
           <p key={c.id} role="status" className="text-xs text-amber-700 dark:text-amber-300">
@@ -534,7 +540,7 @@ function CEExecutiveSummary({
         ))}
         {daControllare.length > 0 && (
           <details className="rounded-lg border bg-background p-3">
-            <summary className="cursor-pointer text-sm font-medium">Cosa controllare ({daControllare.length})</summary>
+            <summary className="cursor-pointer text-sm font-medium">{t("Cosa controllare ({n})", { n: daControllare.length })}</summary>
             <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
               {daControllare.map((c) => (
                 <li key={c.id}>
@@ -588,74 +594,75 @@ export function buildQualityChecks({
   commesseInPerdita?: number | null;
   daRegistrare?: { righe: number; imponibile: number } | null;
   senzaImponibile?: { righe: number; totale: number } | null;
-}): QualityCheck[] {
+}, tr: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): QualityCheck[] {
   const checks: QualityCheck[] = [];
   // I costi arrivano dalle fatture ricevute solo dopo la registrazione: quelle
   // ancora da registrare non ci sono, e l'utile risulta più alto del vero.
   if (daRegistrare && daRegistrare.righe > 0)
     checks.push({
       id: "da-registrare",
-      label: `${daRegistrare.righe} ${daRegistrare.righe === 1 ? "fattura ricevuta" : "fatture ricevute"} da registrare (${formatCurrency(daRegistrare.imponibile)})`,
-      description: "Non sono tra i costi: se non le hai inserite a mano, l'utile è più alto del vero.",
+      label: (daRegistrare.righe === 1 ? tr("{n} fattura ricevuta da registrare ({importo})", { n: daRegistrare.righe, importo: formatCurrency(daRegistrare.imponibile) }) : tr("{n} fatture ricevute da registrare ({importo})", { n: daRegistrare.righe, importo: formatCurrency(daRegistrare.imponibile) })),
+      description: tr("Non sono tra i costi: se non le hai inserite a mano, l'utile è più alto del vero."),
       tone: "danger",
       href: "/azienda/documenti/fatture-ricevute?filtro=da_contabilizzare",
-      cta: "Registrale",
+      cta: tr("Registrale"),
     });
   // Fatture emesse arrivate col solo totale: il ricavo comprende l'IVA.
   if (senzaImponibile && senzaImponibile.righe > 0)
     checks.push({
       id: "senza-imponibile",
-      label: `${senzaImponibile.righe} ${senzaImponibile.righe === 1 ? "fattura emessa" : "fatture emesse"} senza imponibile (${formatCurrency(senzaImponibile.totale)})`,
-      description: "Hanno solo il totale: i ricavi le contano IVA compresa, quindi sono più alti del vero.",
+      label: (senzaImponibile.righe === 1 ? tr("{n} fattura emessa senza imponibile ({importo})", { n: senzaImponibile.righe, importo: formatCurrency(senzaImponibile.totale) }) : tr("{n} fatture emesse senza imponibile ({importo})", { n: senzaImponibile.righe, importo: formatCurrency(senzaImponibile.totale) })),
+      description: tr("Hanno solo il totale: i ricavi le contano IVA compresa, quindi sono più alti del vero."),
       tone: "danger",
       href: "/azienda/documenti",
-      cta: "Correggi le fatture",
+      cta: tr("Correggi le fatture"),
     });
   if (periodoLabel !== "Anno completo")
-    checks.push({ id: "periodo", label: "Periodo parziale", description: "Confrontalo con lo stesso periodo dell'anno prima, non con un anno intero.", tone: "warning" });
+    checks.push({ id: "periodo", label: tr("Periodo parziale"), description: tr("Confrontalo con lo stesso periodo dell'anno prima, non con un anno intero."), tone: "warning" });
   if (!hasCedolini)
-    checks.push({ id: "cedolini", label: "Cedolini non caricati", description: "Il costo del personale viene dai costi registrati e può essere incompleto.", tone: "warning", href: "/azienda/personale", cta: "Apri il personale" });
+    checks.push({ id: "cedolini", label: tr("Cedolini non caricati"), description: tr("Il costo del personale viene dai costi registrati e può essere incompleto."), tone: "warning", href: "/azienda/personale", cta: tr("Apri il personale") });
   if (ebitdaPctPil == null)
-    checks.push({ id: "ricavi", label: "Nessun ricavo nel periodo", description: "Le percentuali non sono disponibili.", tone: "warning" });
+    checks.push({ id: "ricavi", label: tr("Nessun ricavo nel periodo"), description: tr("Le percentuali non sono disponibili."), tone: "warning" });
   else if (ebitdaPctPil > 45)
     checks.push({
       id: "margine",
-      label: `Margine EBITDA al ${formatPct(ebitdaPctPil)}`,
-      description: "Molto alto per l'edilizia: controlla che costi, paghe e ammortamenti ci siano tutti.",
+      label: tr("Margine EBITDA al {valore}", { valore: formatPct(ebitdaPctPil) }),
+      description: tr("Molto alto per l'edilizia: controlla che costi, paghe e ammortamenti ci siano tutti."),
       tone: ebitdaPctPil > 60 ? "danger" : "warning",
     });
   if (costoMaterie === 0 || costoPersonale === 0)
     checks.push({
       id: "costi",
-      label: costoMaterie === 0 ? "Materiali a zero" : "Personale a zero",
-      description: "Una voce di costo principale manca: controlla le classificazioni.",
+      label: costoMaterie === 0 ? tr("Materiali a zero") : tr("Personale a zero"),
+      description: tr("Una voce di costo principale manca: controlla le classificazioni."),
       tone: "warning",
       href: "/azienda/controllo-gestione/configurazione",
-      cta: "Configura le voci",
+      cta: tr("Configura le voci"),
     });
   if (commesseInPerdita != null && commesseInPerdita > 0)
     checks.push({
       id: "commesse-perdita",
-      label: `${commesseInPerdita} ${commesseInPerdita === 1 ? "commessa" : "commesse"} in perdita`,
-      description: "Margine atteso a fine lavori sotto zero.",
+      label: (commesseInPerdita === 1 ? tr("{n} commessa in perdita", { n: commesseInPerdita }) : tr("{n} commesse in perdita", { n: commesseInPerdita })),
+      description: tr("Margine atteso a fine lavori sotto zero."),
       tone: "warning",
       href: "/azienda/controllo-gestione/commesse",
-      cta: "Vedi le commesse",
+      cta: tr("Vedi le commesse"),
     });
   if (costiNonClassificati > 0)
     checks.push({
       id: "non-classificati",
-      label: `${formatCurrency(costiNonClassificati)} di costi senza voce`,
-      description: "Contano tra i costi generali e abbassano l'EBITDA.",
+      label: tr("{importo} di costi senza voce", { importo: formatCurrency(costiNonClassificati) }),
+      description: tr("Contano tra i costi generali e abbassano l'EBITDA."),
       tone: "warning",
       href: "/azienda/controllo-gestione/configurazione",
-      cta: "Assegnali a una voce",
+      cta: tr("Assegnali a una voce"),
     });
   return checks;
 }
 
 // ── Vista Mensile ──────────────────────────────────────────────────────────
 function CEMensileView({ anno }: { anno: number }) {
+  const t = useT();
   const q = useCEMensileDettaglio(anno);
   const [drill, setDrill] = useState<{
     mese: number;
@@ -682,8 +689,8 @@ function CEMensileView({ anno }: { anno: number }) {
   if (schema.length === 0) {
     return (
       <EmptyState
-        title="Nessun dato mensile"
-        description={`Per il ${anno} non ci sono movimenti distribuiti per mese.`}
+        title={t("Nessun dato mensile")}
+        description={t("Per il {anno} non ci sono movimenti distribuiti per mese.", { anno: String(anno ?? "") })}
       />
     );
   }
@@ -703,8 +710,8 @@ function CEMensileView({ anno }: { anno: number }) {
     <>
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">CE Mensile · {anno}</CardTitle>
-          <p className="text-xs text-muted-foreground">Clicca un importo per vedere da cosa è fatto.</p>
+          <CardTitle className="text-base">{t("CE Mensile · {anno}", { anno: String(anno ?? "") })}</CardTitle>
+          <p className="text-xs text-muted-foreground">{t("Clicca un importo per vedere da cosa è fatto.")}</p>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-xl border">
@@ -712,21 +719,21 @@ function CEMensileView({ anno }: { anno: number }) {
               <thead className="bg-muted/40">
                 <tr>
                   <th className="sticky left-0 z-10 w-12 bg-muted/40 px-2 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Cod
+                    {t("Cod")}
                   </th>
                   <th className="sticky left-12 z-10 min-w-[200px] bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Voce
+                    {t("Voce")}
                   </th>
                   {MESI_LABELS.map((m) => (
                     <th
                       key={m}
                       className="w-[80px] px-2 py-2 text-right text-xs font-medium text-muted-foreground"
                     >
-                      {m}
+                      {t(m)}
                     </th>
                   ))}
                   <th className="w-[100px] bg-primary/5 px-2 py-2 text-right text-xs font-semibold text-foreground">
-                    Totale
+                    {t("Totale")}
                   </th>
                 </tr>
               </thead>
@@ -785,8 +792,8 @@ function CEMensileView({ anno }: { anno: number }) {
                               <button
                                 type="button"
                                 className="block w-full px-2 py-2 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                                aria-label={`Apri il dettaglio di ${etichettaVoce(v.codice, v.label)} · ${MESI_LABELS[i]} ${anno}`}
-                                title={`Apri il dettaglio di ${etichettaVoce(v.codice, v.label)} · ${MESI_LABELS[i]}`}
+                                aria-label={t("Apri il dettaglio di {codice} · {valore} {anno}", { codice: String(etichettaVoce(v.codice, v.label) ?? ""), valore: String(MESI_LABELS[i] ?? ""), anno: String(anno ?? "") })}
+                                title={t("Apri il dettaglio di {codice} · {valore}", { codice: String(etichettaVoce(v.codice, v.label) ?? ""), valore: String(MESI_LABELS[i] ?? "") })}
                                 onClick={() => setDrill({ mese, codice: v.codice, label: etichettaVoce(v.codice, v.label) })}
                               >
                                 {formatCurrencyCompact(val)}
@@ -828,6 +835,7 @@ function CEMensileView({ anno }: { anno: number }) {
 
 // ── Vista Confronto ────────────────────────────────────────────────────────
 function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: string }) {
+  const t = useT();
   const anni = useMemo(() => [anno - 2, anno - 1, anno], [anno]);
   const q = useCEMultiAnno(anni);
 
@@ -861,22 +869,20 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">
-          Confronto multi-anno · {anni[0]} → {anni[2]}
-        </CardTitle>
+        <CardTitle className="text-base">{t("Confronto multi-anno · {valore} → {valore2}", { valore: String(anni[0] ?? ""), valore2: String(anni[2] ?? "") })}</CardTitle>
         {periodoLabel !== "Anno completo" && (
-          <p className="text-xs text-muted-foreground">Anni interi, anche se in alto hai scelto {periodoLabel.toLowerCase()}.</p>
+          <p className="text-xs text-muted-foreground">{t("Anni interi, anche se in alto hai scelto {periodoLabel}.", { periodoLabel: t(periodoLabel).toLowerCase() })}</p>
         )}
       </CardHeader>
       <CardContent>
         {anniIndisponibili.length > 0 && (
           <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            <span>Dati non disponibili per {anniIndisponibili.join(", ")}.</span>
-            <Button size="sm" variant="outline" disabled={q.isFetching} onClick={() => void q.refetch()}>Riprova</Button>
+            <span>{t("Dati non disponibili per {anniIndisponibili}.", { anniIndisponibili: anniIndisponibili.join(", ") })}</span>
+            <Button size="sm" variant="outline" disabled={q.isFetching} onClick={() => void q.refetch()}>{t("Riprova")}</Button>
           </div>
         )}
         {schema.size === 0 && mappa.size > 0 && (
-          <EmptyState title="Nessun dato di confronto" description="Gli anni caricati non contengono voci di conto economico." />
+          <EmptyState title={t("Nessun dato di confronto")} description={t("Gli anni caricati non contengono voci di conto economico.")} />
         )}
         {schema.size > 0 && (
         <div className="overflow-x-auto rounded-xl border">
@@ -884,10 +890,10 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
             <thead className="bg-muted/40">
               <tr>
                 <th className="w-12 px-2 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Cod
+                  {t("Cod")}
                 </th>
                 <th className="min-w-[200px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Voce
+                  {t("Voce")}
                 </th>
                 {anni.map((a) => (
                   <th
@@ -895,14 +901,14 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
                     className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
                   >
                     {a}
-                    {anniIndisponibili.includes(a) && <span className="block">Non disponibile</span>}
+                    {anniIndisponibili.includes(a) && <span className="block">{t("Non disponibile")}</span>}
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                  Variazione sull'anno prima
+                  {t("Variazione sull'anno prima")}
                 </th>
                 <th className="w-12 px-2 py-2 text-center text-xs font-medium text-muted-foreground">
-                  Trend
+                  {t("Trend")}
                 </th>
               </tr>
             </thead>
@@ -946,7 +952,7 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
                     {valori.map((val, i) => (
                       <td
                         key={anni[i]}
-                        aria-label={val === undefined ? "Dato non disponibile" : val === 0 ? "Zero euro" : undefined}
+                        aria-label={val === undefined ? t("Dato non disponibile") : val === 0 ? t("Zero euro") : undefined}
                         className={cn(
                           "px-3 py-2 text-right tabular-nums",
                           val !== undefined && val < 0 && "font-medium",

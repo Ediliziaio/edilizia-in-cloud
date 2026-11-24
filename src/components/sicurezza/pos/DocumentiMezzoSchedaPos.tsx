@@ -16,6 +16,7 @@ import {
   type DocumentazioneMezzoPos,
 } from "../../../../supabase/functions/_shared/posDocumentiMezzi";
 import type { SceltaMezzoPos } from "../../../../supabase/functions/_shared/posMezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DocumentiMezzoSchedaPos({
   companyId,
@@ -34,6 +35,7 @@ export function DocumentiMezzoSchedaPos({
   onChange: (v: DocumentazioneMezzoPos) => void;
   ro: boolean;
 }) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState("");
@@ -76,11 +78,11 @@ export function DocumentiMezzoSchedaPos({
     : [];
   return (
     <section
-      aria-label="Documenti e controlli dell’attrezzatura"
+      aria-label={t("Documenti e controlli dell’attrezzatura")}
       className="space-y-3 rounded-md border bg-slate-50 p-3"
     >
       <Label htmlFor={`${id}-modo`}>
-        Documentazione della specifica attrezzatura
+        {t("Documentazione della specifica attrezzatura")}
       </Label>
       <UniformSelect
         id={`${id}-modo`}
@@ -93,18 +95,18 @@ export function DocumentiMezzoSchedaPos({
           })
         }
       >
-        <option value="da_verificare">Da scegliere e riesaminare</option>
+        <option value="da_verificare">{t("Da scegliere e riesaminare")}</option>
         <option value="documenti">
-          Originali tecnici dell’attrezzatura in inventario
+          {t("Originali tecnici dell’attrezzatura in inventario")}
         </option>
         <option value="altra_gestione">
-          Altra gestione documentale, da motivare
+          {t("Altra gestione documentale, da motivare")}
         </option>
       </UniformSelect>
       {v.modalita === "altra_gestione" && (
         <>
           <Label htmlFor={`${id}-motivo`}>
-            Motivazione e fonti della diversa gestione documentale
+            {t("Motivazione e fonti della diversa gestione documentale")}
           </Label>
           <Textarea
             id={`${id}-motivo`}
@@ -113,9 +115,7 @@ export function DocumentiMezzoSchedaPos({
             onChange={(e) => edit({ motivazione: e.target.value })}
           />
           <p className="text-xs text-amber-900">
-            È una dichiarazione del compilatore: indica gli originali pertinenti
-            e dove sono conservati. Non attesta un’esenzione o la disponibilità
-            di file non collegati.
+            {t("È una dichiarazione del compilatore: indica gli originali pertinenti e dove sono conservati. Non attesta un’esenzione o la disponibilità di file non collegati.")}
           </p>
         </>
       )}
@@ -127,31 +127,25 @@ export function DocumentiMezzoSchedaPos({
           onClick={() => setAperto((x) => !x)}
         >
           {aperto
-            ? "Chiudi documenti e controlli"
-            : "Leggi documenti e controlli della macchina"}
+            ? t("Chiudi documenti e controlli")
+            : t("Leggi documenti e controlli della macchina")}
         </Button>
       ) : (
         <p className="text-xs">
-          Collega prima l’attrezzatura nell’inventario per leggerne i documenti
-          nativi e i controlli registrati.
+          {t("Collega prima l’attrezzatura nell’inventario per leggerne i documenti nativi e i controlli registrati.")}
         </p>
       )}
       {aperto && mezzo && (
         <div className="space-y-2">
-          {q.isLoading && <p role="status">Lettura documenti e controlli…</p>}
+          {q.isLoading && <p role="status">{t("Lettura documenti e controlli…")}</p>}
           {q.isError && (
             <p role="alert">
-              Documenti o controlli non disponibili. I riferimenti già
-              selezionati restano conservati.
+              {t("Documenti o controlli non disponibili. I riferimenti già selezionati restano conservati.")}
             </p>
           )}
           {q.data && !q.isError && (
             <>
-              <p className="text-xs">
-                {q.data.documenti.length} documenti tecnici nell’archivio della
-                macchina. Documenti economici e allegati delle manutenzioni non
-                vengono importati automaticamente.
-              </p>
+              <p className="text-xs">{t("{n} documenti tecnici nell’archivio della macchina. Documenti economici e allegati delle manutenzioni non vengono importati automaticamente.", { n: q.data.documenti.length })}</p>
               {!sola && (
                 <Button
                   type="button"
@@ -162,13 +156,13 @@ export function DocumentiMezzoSchedaPos({
                     edit({ controlli: structuredClone(q.data!.controlli) })
                   }
                 >
-                  Acquisisci quadro dei controlli da riesaminare
+                  {t("Acquisisci quadro dei controlli da riesaminare")}
                 </Button>
               )}
               {v.modalita === "documenti" && (
                 <>
                   <Label htmlFor={`${id}-documento`}>
-                    Documento tecnico della macchina
+                    {t("Documento tecnico della macchina")}
                   </Label>
                   <UniformSelect
                     id={`${id}-documento`}
@@ -177,7 +171,7 @@ export function DocumentiMezzoSchedaPos({
                     disabled={sola || q.isFetching}
                     onChange={(e) => setScelto(e.target.value)}
                   >
-                    <option value="">Seleziona un originale tecnico</option>
+                    <option value="">{t("Seleziona un originale tecnico")}</option>
                     {q.data.documenti.map((d) => (
                       <option
                         key={d.id}
@@ -190,9 +184,9 @@ export function DocumentiMezzoSchedaPos({
                         {d.titolo || d.file_name || d.categoria} · {d.categoria}{" "}
                         ·{" "}
                         {d.data_scadenza
-                          ? `scadenza ${d.data_scadenza}`
-                          : "scadenza non indicata"}
-                        {!d.disponibile ? " · originale non disponibile" : ""}
+                          ? t("scadenza {data}", { data: String(d.data_scadenza ?? "") })
+                          : t("scadenza non indicata")}
+                        {!d.disponibile ? ` ${t("· originale non disponibile")}` : ""}
                       </option>
                     ))}
                   </UniformSelect>
@@ -221,7 +215,7 @@ export function DocumentiMezzoSchedaPos({
                           });
                       }}
                     >
-                      Collega originale della macchina
+                      {t("Collega originale della macchina")}
                     </Button>
                   )}
                 </>
@@ -235,13 +229,11 @@ export function DocumentiMezzoSchedaPos({
             disabled={q.isFetching}
             onClick={() => void q.refetch()}
           >
-            Rileggi documenti e controlli
+            {t("Rileggi documenti e controlli")}
           </Button>
           {(cambiati || fonteCambiata) && (
             <p role="alert" className="text-xs text-amber-900">
-              Documenti o controlli cambiati. Rileggi e acquisisci
-              esplicitamente le nuove fonti: il riesame precedente non vale per
-              la situazione aggiornata.
+              {t("Documenti o controlli cambiati. Rileggi e acquisisci esplicitamente le nuove fonti: il riesame precedente non vale per la situazione aggiornata.")}
             </p>
           )}
         </div>
@@ -255,8 +247,7 @@ export function DocumentiMezzoSchedaPos({
             {d.titolo || d.file_name} · {d.categoria}
           </p>
           <p>
-            {d.file_name} · dal {d.data_inizio || "non indicato"} · scadenza{" "}
-            {d.data_scadenza || "non indicata"}
+            {d.file_name} {t("· dal {dal} · scadenza {scadenza}", { dal: d.data_inizio || t("non indicato"), scadenza: d.data_scadenza || t("non indicata") })}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -271,13 +262,11 @@ export function DocumentiMezzoSchedaPos({
                   setErrore(
                     e instanceof Error
                       ? e.message
-                      : "Originale non disponibile",
+                      : t("Originale non disponibile"),
                   );
                 }
               }}
-            >
-              Apri originale {i + 1}
-            </Button>
+            >{t("Apri originale {i}", { i: i + 1 })}</Button>
             {!sola && (
               <Button
                 type="button"
@@ -286,19 +275,15 @@ export function DocumentiMezzoSchedaPos({
                 onClick={() =>
                   edit({ documenti: v.documenti.filter((x) => x.id !== d.id) })
                 }
-              >
-                Rimuovi originale {i + 1}
-              </Button>
+              >{t("Rimuovi originale {i}", { i: i + 1 })}</Button>
             )}
           </div>
-          <Label htmlFor={`${id}-rev-${i}`}>
-            Revisione letta nell’originale {i + 1}
-          </Label>
+          <Label htmlFor={`${id}-rev-${i}`}>{t("Revisione letta nell’originale {i}", { i: i + 1 })}</Label>
           <Input
             id={`${id}-rev-${i}`}
             value={d.revisione_dichiarata}
             readOnly={sola}
-            placeholder="Revisione, data/versione o non riportata"
+            placeholder={t("Revisione, data/versione o non riportata")}
             onChange={(e) =>
               edit({
                 documenti: v.documenti.map((x, j) =>
@@ -326,27 +311,21 @@ export function DocumentiMezzoSchedaPos({
                 })
               }
             />
-            Ho letto l’originale {i + 1} e verificato revisione e pertinenza
-            alla macchina e all’uso dichiarati
+            {t("Ho letto l’originale {i} e verificato revisione e pertinenza alla macchina e all’uso dichiarati", { i: i + 1 })}
           </label>
         </div>
       ))}
       {v.controlli && (
         <div className="space-y-2 rounded border bg-white p-3 text-xs">
-          <p className="font-medium">
-            Quadro registrato da riesaminare: {v.controlli.manutenzioni.length}{" "}
-            manutenzioni · {v.controlli.segnalazioni.length} segnalazioni
-          </p>
+          <p className="font-medium">{t("Quadro registrato da riesaminare: {n} manutenzioni · {n2} segnalazioni", { n: v.controlli.manutenzioni.length, n2: v.controlli.segnalazioni.length })}</p>
           <details>
             <summary className="cursor-pointer">
-              Date, contatori e stati registrati
+              {t("Date, contatori e stati registrati")}
             </summary>
             <ul className="mt-2 space-y-1">
               {v.controlli.manutenzioni.map((m) => (
                 <li key={m.id}>
-                  {m.tipo} · {m.data} · prossimo controllo{" "}
-                  {m.prossima_data || "data non indicata"} · soglia contatore{" "}
-                  {m.prossimo_contatore || "non indicata"}
+                  {m.tipo} · {m.data} {t("· prossimo controllo {data} · soglia contatore {soglia}", { data: m.prossima_data || t("data non indicata"), soglia: m.prossimo_contatore || t("non indicata") })}
                 </li>
               ))}
               {v.controlli.segnalazioni.map((s) => (
@@ -368,20 +347,18 @@ export function DocumentiMezzoSchedaPos({
               variant="outline"
               onClick={() => edit({ controlli: null })}
             >
-              Rimuovi quadro dei controlli
+              {t("Rimuovi quadro dei controlli")}
             </Button>
           )}
           <p>
-            Questi dati non costituiscono un esito di idoneità. Consulta
-            nell’inventario gli interventi e le segnalazioni prima di formulare
-            il riesame.
+            {t("Questi dati non costituiscono un esito di idoneità. Consulta nell’inventario gli interventi e le segnalazioni prima di formulare il riesame.")}
           </p>
         </div>
       )}
       {v.modalita !== "da_verificare" && (
         <>
           <Label htmlFor={`${id}-riesame`}>
-            Riesame dei controlli, criticità e azioni necessarie
+            {t("Riesame dei controlli, criticità e azioni necessarie")}
           </Label>
           <Textarea
             id={`${id}-riesame`}
@@ -396,8 +373,7 @@ export function DocumentiMezzoSchedaPos({
               disabled={sola || !!cambiati || !!fonteCambiata}
               onChange={(e) => edit({ confermata: e.target.checked })}
             />
-            Ho riesaminato i documenti e i controlli selezionati per questa
-            attrezzatura e questo impiego
+            {t("Ho riesaminato i documenti e i controlli selezionati per questa attrezzatura e questo impiego")}
           </label>
         </>
       )}

@@ -35,6 +35,7 @@ import { ACTION_MAP, TRIGGER_MAP } from "@/lib/flow-node-catalog";
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 import { AutomazioniCestinoDialog } from "./AutomazioniCestinoDialog";
 import { filterErrors } from "../../../../supabase/functions/_shared/automationFilters";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 type AutomationNodeRow = {
   flow_id?: string;
   node_type: string;
@@ -176,38 +177,39 @@ type NodeSummary = ReturnType<typeof summarizeNodes>;
 function descriviFlusso(
   flow: AutomationFlow,
   summary: NodeSummary | null,
+  t: ReturnType<typeof useT>,
 ): { testo: string; problema: boolean } | null {
   // «Messaggio programmato»: niente nodi per costruzione, non è un flusso vuoto.
   if ((flow as unknown as { bulk_trigger_config?: unknown }).bulk_trigger_config) {
-    return { testo: "Messaggio programmato", problema: false };
+    return { testo: t("Messaggio programmato"), problema: false };
   }
   if (!summary) return null;
   if (summary.issueCount > 0 && flow.status !== "archived") {
-    return { testo: summary.firstIssue ?? "Da completare prima di pubblicare", problema: true };
+    return { testo: summary.firstIssue ? t(summary.firstIssue) : t("Da completare prima di pubblicare"), problema: true };
   }
-  const avvio = summary.avvio ?? "Da un'altra automazione";
+  const avvio = summary.avvio ?? t("Da un'altra automazione");
   const cosaFa = summary.azioni
-    ?? `${summary.actionCount} passagg${summary.actionCount === 1 ? "io" : "i"}`;
+    ?? t(summary.actionCount === 1 ? "{n} passaggio" : "{n} passaggi", { n: summary.actionCount });
   return { testo: `${avvio} → ${cosaFa}`, problema: false };
 }
 
 // «oggi, 13:06», «ieri, 18:40», «12 set», «12 set 2025»: si legge prima di
 // «19 set 2026» ripetuto su ogni riga. La data completa va nel title.
-function quando(iso: string, adessoMs: number): string {
+function quando(iso: string, adessoMs: number, t: ReturnType<typeof useT>): string {
   const d = new Date(iso);
   const adesso = new Date(adessoMs);
   const ieri = new Date(adessoMs);
   ieri.setDate(ieri.getDate() - 1);
-  const ora = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-  if (d.toDateString() === adesso.toDateString()) return `oggi, ${ora}`;
-  if (d.toDateString() === ieri.toDateString()) return `ieri, ${ora}`;
-  return d.toLocaleDateString("it-IT", d.getFullYear() === adesso.getFullYear()
+  const ora = d.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === adesso.toDateString()) return t("oggi, {ora}", { ora });
+  if (d.toDateString() === ieri.toDateString()) return t("ieri, {ora}", { ora });
+  return d.toLocaleDateString(intlCampo(), d.getFullYear() === adesso.getFullYear()
     ? { day: "numeric", month: "short" }
     : { day: "numeric", month: "short", year: "numeric" });
 }
 
 function dataCompleta(iso: string): string {
-  return new Date(iso).toLocaleString("it-IT", {
+  return new Date(iso).toLocaleString(intlCampo(), {
     day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
@@ -254,6 +256,7 @@ interface Props {
 }
 
 export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery = "", folderId = null, onNavigateFolder, categoryFilter = null, onResetFilters }: Props) {
+  const t = useT();
   const { effectiveCompany, user, role } = useAuth();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -472,10 +475,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     onSuccess: () => {
       invalidateAutomationData();
-      toast({ title: "Spostata nel cestino", description: "La ritrovi in Cestino: da lì si ripristina con un clic." });
+      toast({ title: t("Spostata nel cestino"), description: t("La ritrovi in Cestino: da lì si ripristina con un clic.") });
       setDeleteId(null);
     },
-    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   const deleteFolderMutation = useMutation({
@@ -496,10 +499,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automation-folders-all"] });
       queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
-      toast({ title: "Cartella eliminata" });
+      toast({ title: t("Cartella eliminata") });
       setDeleteFolderId(null);
     },
-    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   const duplicateMutation = useMutation({
@@ -559,9 +562,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     onSuccess: () => {
       invalidateAutomationData();
-      toast({ title: "Automazione duplicata" });
+      toast({ title: t("Automazione duplicata") });
     },
-    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   useEffect(() => {
@@ -612,7 +615,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       }
     },
     onSuccess: () => invalidateAutomationData(),
-    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   const bulkDeleteMutation = useMutation({
@@ -632,11 +635,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     onSuccess: () => {
       invalidateAutomationData();
-      toast({ title: "Spostate nel cestino", description: "Le ritrovi in Cestino: da lì si ripristinano con un clic." });
+      toast({ title: t("Spostate nel cestino"), description: t("Le ritrovi in Cestino: da lì si ripristinano con un clic.") });
       setSelectedIds(new Set());
       setBulkDeleteOpen(false);
     },
-    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: t("Errore"), description: err.message, variant: "destructive" }),
   });
 
   // Folder lookup map
@@ -756,12 +759,12 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const esecuzioneDi = (flow: AutomationFlow) => {
     if (!attivita) return null;
     const a = attivita[flow.id];
-    const passaggi = a ? `${a.esecuzioni7} passagg${a.esecuzioni7 === 1 ? "io" : "i"} in 7 giorni` : "";
+    const passaggi = a ? t(a.esecuzioni7 === 1 ? "{n} passaggio in 7 giorni" : "{n} passaggi in 7 giorni", { n: a.esecuzioni7 }) : "";
     return {
-      testo: a?.ultima ? quando(a.ultima, adessoMs) : flow.status === "published" ? "Mai" : "—",
+      testo: a?.ultima ? quando(a.ultima, adessoMs, t) : flow.status === "published" ? t("Mai") : "—",
       titolo: a?.ultima
         ? `${dataCompleta(a.ultima)} · ${passaggi}`
-        : flow.status === "published" ? "Pubblicata, ma non ha ancora eseguito nessun passaggio" : undefined,
+        : flow.status === "published" ? t("Pubblicata, ma non ha ancora eseguito nessun passaggio") : undefined,
       mai: !a?.ultima,
       errori: a?.errori7 ?? 0,
       ultimoErrore: a?.ultimoErrore ?? null,
@@ -774,7 +777,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
   const hasContent = (allFolders && allFolders.length > 0) || (allFlows && allFlows.length > 0);
   const inErrore = flowsError || foldersError;
-  const messaggioErrore = (flowsQueryError as Error | null)?.message || (foldersQueryError as Error | null)?.message || "Impossibile caricare le automazioni.";
+  const messaggioErrore = (flowsQueryError as Error | null)?.message || (foldersQueryError as Error | null)?.message || t("Impossibile caricare le automazioni.");
   const inAggiornamento = flowsFetching || foldersFetching;
   const riprova = () => {
     void refetchFlows();
@@ -801,7 +804,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     return (
       <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 text-center">
         <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
-        <h3 className="font-semibold">Automazioni non caricate</h3>
+        <h3 className="font-semibold">{t("Automazioni non caricate")}</h3>
         <p className="mx-auto mt-1 max-w-xl text-sm text-muted-foreground">
           {messaggioErrore}
         </p>
@@ -812,7 +815,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           onClick={riprova}
         >
           <RefreshCw className={cn("mr-2 h-4 w-4", inAggiornamento && "animate-spin")} />
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     );
@@ -820,22 +823,22 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
   if (!hasContent) {
     if (categoryFilter) return <div className="py-12 text-center space-y-3">
-      <h3 className="text-sm font-medium">Nessuna automazione in questa categoria</h3>
-      <p className="text-sm text-muted-foreground">Rimuovi il filtro per vedere gli altri flussi.</p>
-      {onResetFilters && <Button variant="outline" onClick={onResetFilters}>Azzera filtri</Button>}
+      <h3 className="text-sm font-medium">{t("Nessuna automazione in questa categoria")}</h3>
+      <p className="text-sm text-muted-foreground">{t("Rimuovi il filtro per vedere gli altri flussi.")}</p>
+      {onResetFilters && <Button variant="outline" onClick={onResetFilters}>{t("Azzera filtri")}</Button>}
     </div>;
     return (
       <div className="text-center py-16">
         <Zap className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
-        <h3 className="text-lg font-medium mb-1 max-md:text-sm">Nessuna automazione</h3>
-        <p className="text-sm text-muted-foreground mb-4 max-md:hidden">Crea la tua prima automazione visuale.</p>
-        {isMobile && <p className="text-[11px] text-muted-foreground">si crea da computer o tablet</p>}
+        <h3 className="text-lg font-medium mb-1 max-md:text-sm">{t("Nessuna automazione")}</h3>
+        <p className="text-sm text-muted-foreground mb-4 max-md:hidden">{t("Crea la tua prima automazione visuale.")}</p>
+        {isMobile && <p className="text-[11px] text-muted-foreground">{t("si crea da computer o tablet")}</p>}
         <div className="flex items-center justify-center gap-2 max-md:hidden">
           <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
-            <Plus className="h-4 w-4 mr-2" /> Crea Automazione
+            <Plus className="h-4 w-4 mr-2" /> {t("Crea Automazione")}
           </Button>
           <Button variant="outline" onClick={() => setCestinoOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-2" /> Cestino
+            <Trash2 className="h-4 w-4 mr-2" /> {t("Cestino")}
           </Button>
         </div>
         <AutomazioniCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={effectiveCompany?.id} />
@@ -851,7 +854,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     // non un falso "0 trigger · 0 passaggi". Se la query è risolta ma il flusso
     // non ha nodi, summarizeNodes([]) dà il vero stato ("Aggiungi un trigger…").
     const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
-    const dettaglio = descriviFlusso(flow, summary);
+    const dettaglio = descriviFlusso(flow, summary, t);
     const esecuzione = esecuzioneDi(flow);
 
     return (
@@ -884,12 +887,12 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           </div>
         </TableCell>
         <TableCell className="py-2">
-          <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
+          <Badge className={cn("text-xs", badge.className)}>{t(badge.label)}</Badge>
         </TableCell>
         <TableCell className="whitespace-nowrap py-2 text-right tabular-nums">
-          {counts.total > 0 ? counts.total.toLocaleString("it-IT") : <span className="text-muted-foreground/60">0</span>}
+          {counts.total > 0 ? counts.total.toLocaleString(intlCampo()) : <span className="text-muted-foreground/60">0</span>}
           {counts.active > 0 && (
-            <span className="ml-1 text-xs text-muted-foreground">· {counts.active.toLocaleString("it-IT")} attivi</span>
+            <span className="ml-1 text-xs text-muted-foreground">{`· ${t("{n} attivi", { n: counts.active.toLocaleString(intlCampo()) })}`}</span>
           )}
         </TableCell>
         <TableCell className="whitespace-nowrap py-2 text-sm">
@@ -900,7 +903,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
               </span>
               {esecuzione.errori > 0 && (
                 <p className="text-xs text-destructive" title={esecuzione.ultimoErrore ?? undefined}>
-                  {esecuzione.errori} error{esecuzione.errori === 1 ? "e" : "i"} in 7 giorni
+                  {t(esecuzione.errori === 1 ? "{n} errore in 7 giorni" : "{n} errori in 7 giorni", { n: esecuzione.errori })}
                 </p>
               )}
             </>
@@ -910,7 +913,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           className="hidden whitespace-nowrap py-2 text-sm text-muted-foreground xl:table-cell"
           title={dataCompleta(flow.updated_at)}
         >
-          {quando(flow.updated_at, adessoMs)}
+          {quando(flow.updated_at, adessoMs, t)}
         </TableCell>
         <TableCell className="py-2" onClick={e => e.stopPropagation()}>
           <DropdownMenu>
@@ -921,23 +924,23 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}>
-                <Pencil className="h-3.5 w-3.5 mr-2" /> Modifica
+                <Pencil className="h-3.5 w-3.5 mr-2" /> {t("Modifica")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => duplicateMutation.mutate(flow)}>
-                <Copy className="h-3.5 w-3.5 mr-2" /> Duplica
+                <Copy className="h-3.5 w-3.5 mr-2" /> {t("Duplica")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => toggleStatusMutation.mutate({
                 id: flow.id,
                 status: flow.status === "published" ? "draft" : "published"
               })}>
                 {flow.status === "published" ? <Pause className="h-3.5 w-3.5 mr-2" /> : <Play className="h-3.5 w-3.5 mr-2" />}
-                {flow.status === "published" ? "Metti in Bozza" : "Pubblica"}
+                {flow.status === "published" ? t("Metti in Bozza") : t("Pubblica")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => toggleStatusMutation.mutate({ id: flow.id, status: "archived" })}>
-                <Archive className="h-3.5 w-3.5 mr-2" /> Archivia
+                <Archive className="h-3.5 w-3.5 mr-2" /> {t("Archivia")}
               </DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(flow.id)}>
-                <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina
+                <Trash2 className="h-3.5 w-3.5 mr-2" /> {t("Elimina")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -952,7 +955,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
     // Stessa semantica della riga tabella: null = struttura non disponibile.
     const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
-    const dettaglio = descriviFlusso(flow, summary);
+    const dettaglio = descriviFlusso(flow, summary, t);
     const esecuzione = esecuzioneDi(flow);
     return (
       <div
@@ -968,7 +971,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
             <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             {flow.name}
           </h3>
-          <Badge className={cn("shrink-0 text-xs", badge.className)}>{badge.label}</Badge>
+          <Badge className={cn("shrink-0 text-xs", badge.className)}>{t(badge.label)}</Badge>
         </div>
         {dettaglio && (
           <p className={cn(
@@ -981,21 +984,19 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         )}
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>
-            {counts.total.toLocaleString("it-IT")} iscritti
-            {counts.active > 0 && ` · ${counts.active.toLocaleString("it-IT")} attivi`}
+            {t("{n} iscritti", { n: counts.total.toLocaleString(intlCampo()) })}
+            {counts.active > 0 && ` · ${t("{n} attivi", { n: counts.active.toLocaleString(intlCampo()) })}`}
           </span>
           {esecuzione && esecuzione.errori > 0 ? (
             <span className="ml-auto text-destructive" title={esecuzione.ultimoErrore ?? undefined}>
-              {esecuzione.errori} error{esecuzione.errori === 1 ? "e" : "i"} in 7 giorni
+              {t(esecuzione.errori === 1 ? "{n} errore in 7 giorni" : "{n} errori in 7 giorni", { n: esecuzione.errori })}
             </span>
           ) : esecuzione && !esecuzione.mai ? (
-            <span className="ml-auto" title={esecuzione.titolo}>Eseguita {esecuzione.testo}</span>
+            <span className="ml-auto" title={esecuzione.titolo}>{t("Eseguita {quando}", { quando: esecuzione.testo })}</span>
           ) : esecuzione && flow.status === "published" ? (
-            <span className="ml-auto" title={esecuzione.titolo}>Mai eseguita</span>
+            <span className="ml-auto" title={esecuzione.titolo}>{t("Mai eseguita")}</span>
           ) : (
-            <span className="ml-auto" title={dataCompleta(flow.updated_at)}>
-              Modificata {quando(flow.updated_at, adessoMs)}
-            </span>
+            <span className="ml-auto" title={dataCompleta(flow.updated_at)}>{t("Modificata {quando}", { quando: quando(flow.updated_at, adessoMs, t) })}</span>
           )}
         </div>
       </div>
@@ -1007,10 +1008,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       {inErrore && (
         <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">Elenco non aggiornato: {messaggioErrore}</span>
+          <span className="min-w-0 flex-1 truncate">{t("Elenco non aggiornato: {errore}", { errore: messaggioErrore })}</span>
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" disabled={inAggiornamento} onClick={riprova}>
             <RefreshCw className={cn("mr-1 h-3 w-3", inAggiornamento && "animate-spin")} />
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       )}
@@ -1034,7 +1035,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                 )}
               >
                 {chip.icon}
-                {chip.label}
+                {t(chip.label)}
                 {/* Il numero su ogni pastiglia: si vede subito quante bozze o
                     quante da sistemare ci sono, senza doverle aprire una a una. */}
                 <span className={cn("ml-0.5 tabular-nums", !isActive && "text-muted-foreground/70")}>{count}</span>
@@ -1045,14 +1046,14 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
         <div className="flex items-center gap-2 max-md:hidden">
         <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setCestinoOpen(true)}>
-          <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Cestino
+          <Trash2 className="h-3.5 w-3.5 mr-1.5" /> {t("Cestino")}
         </Button>
         {/* View toggle */}
         <div className="flex items-center border rounded-md overflow-hidden">
           <button
             onClick={() => setViewMode("list")}
-            aria-label="Vista elenco"
-            title="Vista elenco"
+            aria-label={t("Vista elenco")}
+            title={t("Vista elenco")}
             aria-pressed={viewMode === "list"}
             className={cn("p-1.5 transition-colors", viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
           >
@@ -1060,8 +1061,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           </button>
           <button
             onClick={() => setViewMode("grid")}
-            aria-label="Vista a schede"
-            title="Vista a schede"
+            aria-label={t("Vista a schede")}
+            title={t("Vista a schede")}
             aria-pressed={viewMode === "grid"}
             className={cn("p-1.5 transition-colors", viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
           >
@@ -1074,9 +1075,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       {/* Bulk actions */}
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 border rounded-lg bg-muted/30">
-          <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
+          <span className="text-sm font-medium">{t(selectedIds.size === 1 ? "{n} selezionato" : "{n} selezionati", { n: selectedIds.size })}</span>
           <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkDeleteOpen(true)}>
-            <Trash2 className="h-3.5 w-3.5 mr-1" /> Elimina selezionati
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("Elimina selezionati")}
           </Button>
         </div>
       )}
@@ -1093,12 +1094,12 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
               <TableHeader>
                 <TableRow className="bg-muted/20">
                   <TableHead className="h-9 w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} /></TableHead>
-                  <TableHead className="h-9">Nome</TableHead>
-                  <TableHead className="h-9 w-28">Stato</TableHead>
-                  <TableHead className="h-9 w-24 text-right">Iscritti</TableHead>
+                  <TableHead className="h-9">{t("Nome")}</TableHead>
+                  <TableHead className="h-9 w-28">{t("Stato")}</TableHead>
+                  <TableHead className="h-9 w-24 text-right">{t("Iscritti")}</TableHead>
                   {/* Su una riga: andando a capo alzava tutta l'intestazione. */}
-                  <TableHead className="h-9 w-40 whitespace-nowrap">Ultima esecuzione</TableHead>
-                  <TableHead className="hidden h-9 w-28 whitespace-nowrap xl:table-cell">Modificata</TableHead>
+                  <TableHead className="h-9 w-40 whitespace-nowrap">{t("Ultima esecuzione")}</TableHead>
+                  <TableHead className="hidden h-9 w-28 whitespace-nowrap xl:table-cell">{t("Modificata")}</TableHead>
                   <TableHead className="h-9 w-14"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1128,7 +1129,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                             <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{folderFlows.length}</span>
                             {pubblicate > 0 && (
                               <span className="text-xs text-muted-foreground">
-                                {pubblicate} pubblicat{pubblicate === 1 ? "a" : "e"}
+                                {t(pubblicate === 1 ? "{n} pubblicata" : "{n} pubblicate", { n: pubblicate })}
                               </span>
                             )}
                           </div>
@@ -1143,7 +1144,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteFolderId(folder.id)}>
-                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina cartella
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> {t("Elimina cartella")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1162,7 +1163,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-12">
                       <Zap className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                      <p className="text-sm text-muted-foreground">Nessuna automazione con questi filtri</p>
+                      <p className="text-sm text-muted-foreground">{t("Nessuna automazione con questi filtri")}</p>
                     </TableCell>
                     <TableCell className="hidden xl:table-cell" />
                   </TableRow>
@@ -1174,13 +1175,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           {/* Pagination */}
           {unfolderedFlows.length > pageSize && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-4 py-2">
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {primoDellaPagina}–{ultimoDellaPagina} di {unfolderedFlows.length}
-              </span>
+              <span className="text-xs tabular-nums text-muted-foreground">{t("{da}–{a} di {totale}", { da: primoDellaPagina, a: ultimoDellaPagina, totale: unfolderedFlows.length })}</span>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs" disabled={safePage <= 1} onClick={() => setPage(p => p - 1)}>
-                    <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prec
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" /> {t("Prec")}
                   </Button>
                   {pagineVisibili.map(p => (
                     <Button key={p} variant={safePage === p ? "default" : "outline"} size="sm" className="h-7 w-7 text-xs p-0" onClick={() => setPage(p)}>
@@ -1188,15 +1187,15 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                     </Button>
                   ))}
                   <Button variant="outline" size="sm" className="h-7 text-xs" disabled={safePage >= totalPages} onClick={() => setPage(p => p + 1)}>
-                    Succ <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    {t("Succ")} <ChevronRight className="h-3.5 w-3.5 ml-1" />
                   </Button>
                 </div>
                 <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1); }}>
                   <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="10">10 / pagina</SelectItem>
-                    <SelectItem value="25">25 / pagina</SelectItem>
-                    <SelectItem value="50">50 / pagina</SelectItem>
+                    <SelectItem value="10">{t("10 / pagina")}</SelectItem>
+                    <SelectItem value="25">{t("25 / pagina")}</SelectItem>
+                    <SelectItem value="50">{t("50 / pagina")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1212,7 +1211,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           {filtered.length === 0 && (
             <div className="col-span-full text-center py-12">
               <Zap className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Nessuna automazione con questi filtri</p>
+              <p className="text-sm text-muted-foreground">{t("Nessuna automazione con questi filtri")}</p>
             </div>
           )}
         </div>
@@ -1223,12 +1222,12 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       <AlertDialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina automazione</AlertDialogTitle>
-            <AlertDialogDescription>Finisce nel cestino e si ferma. Da lì si ripristina com'era, passaggi e contatti compresi.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Elimina automazione")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Finisce nel cestino e si ferma. Da lì si ripristina com'era, passaggi e contatti compresi.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)}>Elimina</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)}>{t("Elimina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1236,14 +1235,14 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       <AlertDialog open={!!deleteFolderId} onOpenChange={o => !o && setDeleteFolderId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina cartella</AlertDialogTitle>
+            <AlertDialogTitle>{t("Elimina cartella")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Verrà eliminata solo la cartella. I flussi contenuti resteranno salvati e verranno spostati fuori cartella.
+              {t("Verrà eliminata solo la cartella. I flussi contenuti resteranno salvati e verranno spostati fuori cartella.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteFolderId && deleteFolderMutation.mutate(deleteFolderId)}>Elimina</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteFolderId && deleteFolderMutation.mutate(deleteFolderId)}>{t("Elimina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1251,12 +1250,12 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina {selectedIds.size} automazion{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
-            <AlertDialogDescription>Finiscono nel cestino e si fermano. Da lì si ripristinano com'erano.</AlertDialogDescription>
+            <AlertDialogTitle>{t(selectedIds.size === 1 ? "Elimina {n} automazione" : "Elimina {n} automazioni", { n: selectedIds.size })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Finiscono nel cestino e si fermano. Da lì si ripristinano com'erano.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <ConfermaQuantita stato={confermaBulk} cosa="automazioni" />
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!confermaBulk.valida}
               onClick={(e) => {
@@ -1264,7 +1263,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                 bulkDeleteMutation.mutate(Array.from(selectedIds));
               }}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

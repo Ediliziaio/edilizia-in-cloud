@@ -12,16 +12,17 @@ import type { useMetaAdsReport, ReportLevel } from "@/hooks/useMetaAdsReport";
 import type { NormalizedCampaignRow } from "@/lib/metaInsightsNormalizer";
 import { RANKING_ETICHETTA, STATO_ETICHETTA } from "@/lib/metaAdsReportModel";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   report: ReturnType<typeof useMetaAdsReport>;
 }
 
-const fmtNum = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);
-const fmtCurrency = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
-const fmtPct = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
-const fmtDec = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-const fmtX = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(n) + "x";
+const fmtNum = (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 0 }).format(n);
+const fmtCurrency = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
+const fmtPct = (n: number) => new Intl.NumberFormat(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
+const fmtDec = (n: number) => new Intl.NumberFormat(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const fmtX = (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 1 }).format(n) + "x";
 
 export interface ColonnaReport {
   key: string;
@@ -36,8 +37,10 @@ export interface ColonnaReport {
 
 const budget = (r: NormalizedCampaignRow) => {
   if (r.budget_da_campagna) return "Budget campagna";
-  if (r.budget_daily) return `${fmtCurrency(r.budget_daily)}/giorno`;
-  if (r.budget_lifetime) return `${fmtCurrency(r.budget_lifetime)} totale`;
+  // Testo per l'esportazione: resta in italiano (a schermo lo traduce `cella`).
+  const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
+  if (r.budget_daily) return `${euro(r.budget_daily)}/giorno`;
+  if (r.budget_lifetime) return `${euro(r.budget_lifetime)} totale`;
   return "—";
 };
 
@@ -83,12 +86,14 @@ const toni = {
 };
 
 const StatusBadge = ({ status }: { status?: string }) => {
+  const t = useT();
   if (!status) return <span className="text-muted-foreground text-xs">—</span>;
   const s = STATO_ETICHETTA[status.toUpperCase()];
-  return <Badge className={cn("text-xs font-medium whitespace-nowrap", toni[s?.tono ?? "grigio"])}>{s?.testo ?? status}</Badge>;
+  return <Badge className={cn("text-xs font-medium whitespace-nowrap", toni[s?.tono ?? "grigio"])}>{s ? t(s.testo) : status}</Badge>;
 };
 
 const QualitaBadge = ({ row }: { row: NormalizedCampaignRow }) => {
+  const t = useT();
   const q = RANKING_ETICHETTA[row.quality_ranking ?? ""];
   if (!q) return <span className="text-muted-foreground text-xs">—</span>;
   const righe = [
@@ -99,11 +104,11 @@ const QualitaBadge = ({ row }: { row: NormalizedCampaignRow }) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge className={cn("text-xs font-medium whitespace-nowrap cursor-help", toni[q.tono])}>{q.testo.split(" (")[0]}</Badge>
+        <Badge className={cn("text-xs font-medium whitespace-nowrap cursor-help", toni[q.tono])}>{t(q.testo).split(" (")[0]}</Badge>
       </TooltipTrigger>
       <TooltipContent className="text-xs space-y-0.5">
         {righe.map(([etichetta, v]) => (
-          <p key={etichetta}>{etichetta}: {RANKING_ETICHETTA[v ?? ""]?.testo ?? "dato non disponibile"}</p>
+          <p key={etichetta}>{t(etichetta)}: {RANKING_ETICHETTA[v ?? ""] ? t(RANKING_ETICHETTA[v ?? ""].testo) : t("dato non disponibile")}</p>
         ))}
       </TooltipContent>
     </Tooltip>
@@ -119,6 +124,7 @@ function tonoCosto(valore: number, media: number): string {
 }
 
 const CampaignTable = ({ report }: Props) => {
+  const tr = useT();
   const navigate = useNavigate();
   const level = report.level;
   const multiAccount = report.adAccounts.length > 1;
@@ -181,9 +187,9 @@ const CampaignTable = ({ report }: Props) => {
     const apribile = level !== "ad";
     const sotto =
       level === "campaign"
-        ? row.figli ? `${row.figli} ${row.figli === 1 ? "gruppo" : "gruppi"} di inserzioni` : row.objective ? row.objective.replace("OUTCOME_", "").toLowerCase() : ""
+        ? row.figli ? tr(row.figli === 1 ? "{n} gruppo di inserzioni" : "{n} gruppi di inserzioni", { n: row.figli }) : row.objective ? row.objective.replace("OUTCOME_", "").toLowerCase() : ""
         : level === "adset"
-          ? [report.drill.campaignId ? null : row.campaign_name, row.figli ? `${row.figli} inserzion${row.figli === 1 ? "e" : "i"}` : null].filter(Boolean).join(" · ")
+          ? [report.drill.campaignId ? null : row.campaign_name, row.figli ? tr(row.figli === 1 ? "{n} inserzione" : "{n} inserzioni", { n: row.figli }) : null].filter(Boolean).join(" · ")
           : [report.drill.adsetId ? null : row.adset_name, row.creative_title].filter(Boolean).join(" · ");
     return (
       <div className="flex items-center gap-3 min-w-[220px] max-w-[360px]">
@@ -194,7 +200,7 @@ const CampaignTable = ({ report }: Props) => {
               target="_blank"
               rel="noreferrer"
               className={cn("shrink-0", !row.preview_link && "pointer-events-none")}
-              title={row.preview_link ? "Apri l'anteprima su Facebook" : undefined}
+              title={row.preview_link ? tr("Apri l'anteprima su Facebook") : undefined}
             >
               <img src={row.thumbnail_url} alt="" loading="lazy" className="h-11 w-11 rounded-md object-cover border" />
             </a>
@@ -210,7 +216,7 @@ const CampaignTable = ({ report }: Props) => {
               type="button"
               onClick={() => (level === "campaign" ? report.apriCampagna(row) : report.apriGruppo(row))}
               className="group/nome flex items-center gap-1 text-left font-medium text-primary hover:underline"
-              title={level === "campaign" ? "Vedi i gruppi di inserzioni" : "Vedi le inserzioni"}
+              title={level === "campaign" ? tr("Vedi i gruppi di inserzioni") : tr("Vedi le inserzioni")}
             >
               <span className="truncate">{row.name || "—"}</span>
               <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50 group-hover/nome:opacity-100" />
@@ -219,7 +225,7 @@ const CampaignTable = ({ report }: Props) => {
             <div className="flex items-center gap-1 font-medium">
               <span className="truncate" title={row.name}>{row.name || "—"}</span>
               {row.preview_link && (
-                <a href={row.preview_link} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" title="Anteprima su Facebook">
+                <a href={row.preview_link} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" title={tr("Anteprima su Facebook")}>
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
@@ -235,6 +241,17 @@ const CampaignTable = ({ report }: Props) => {
     if (col.key === "name") return cellaNome(row);
     if (col.key === "status") return <StatusBadge status={row.status} />;
     if (col.key === "quality_ranking") return <QualitaBadge row={row} />;
+    if (col.key === "budget") {
+      // COLONNE.format resta in italiano per l'esportazione: a schermo il budget si traduce qui.
+      const testoBudget = row.budget_da_campagna
+        ? tr("Budget campagna")
+        : row.budget_daily
+          ? tr("{importo}/giorno", { importo: fmtCurrency(row.budget_daily) })
+          : row.budget_lifetime
+            ? tr("{importo} totale", { importo: fmtCurrency(row.budget_lifetime) })
+            : "—";
+      return <span className="text-sm">{testoBudget}</span>;
+    }
     const tono =
       col.key === "cpl" && row.leads > 0 ? tonoCosto(row.cpl, mediaCpl)
         : col.key === "costo_vinta" && (row.vinte ?? 0) > 0 ? tonoCosto(row.costo_vinta ?? 0, mediaCostoVinta)
@@ -243,7 +260,7 @@ const CampaignTable = ({ report }: Props) => {
     return <span className={cn("text-sm", tono)}>{col.format(row)}</span>;
   };
 
-  const unita = level === "ad" ? "inserzioni" : level === "adset" ? "gruppi di inserzioni" : "campagne";
+  const unita = level === "ad" ? tr("inserzioni") : level === "adset" ? tr("gruppi di inserzioni") : tr("campagne");
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -260,7 +277,7 @@ const CampaignTable = ({ report }: Props) => {
                 level === l.value ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {l.label}
+              {tr(l.label)}
               <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] tabular-nums", level === l.value ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
                 {report.isLoading ? "…" : report.conteggi[l.value]}
               </span>
@@ -272,7 +289,7 @@ const CampaignTable = ({ report }: Props) => {
         {(report.drill.campaignId || report.drill.adsetId) && level !== "campaign" && (
           <div className="flex flex-wrap items-center gap-1 border-b bg-primary/5 px-4 py-2 text-xs">
             <button type="button" className="text-primary hover:underline" onClick={() => report.setLevel("campaign")}>
-              Tutte le campagne
+              {tr("Tutte le campagne")}
             </button>
             {report.drill.campaignId && (
               <>
@@ -300,7 +317,7 @@ const CampaignTable = ({ report }: Props) => {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder={`Cerca ${unita}...`}
+              placeholder={tr("Cerca {unita}...", { unita })}
               value={report.filters.search}
               onChange={(e) => report.setFilters({ ...report.filters, search: e.target.value })}
               className="pl-8 h-8 text-xs"
@@ -315,9 +332,9 @@ const CampaignTable = ({ report }: Props) => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="ACTIVE">Attive</SelectItem>
-              <SelectItem value="PAUSED">In pausa</SelectItem>
+              <SelectItem value="all">{tr("Tutti gli stati")}</SelectItem>
+              <SelectItem value="ACTIVE">{tr("Attive")}</SelectItem>
+              <SelectItem value="PAUSED">{tr("In pausa")}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -327,10 +344,10 @@ const CampaignTable = ({ report }: Props) => {
               onValueChange={(v) => report.setFilters({ ...report.filters, objective: v === "all" ? "" : v })}
             >
               <SelectTrigger className="w-[160px] h-8 text-xs">
-                <SelectValue placeholder="Obiettivo" />
+                <SelectValue placeholder={tr("Obiettivo")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti gli obiettivi</SelectItem>
+                <SelectItem value="all">{tr("Tutti gli obiettivi")}</SelectItem>
                 {report.objectives.map((o) => (
                   <SelectItem key={o} value={o!}>{o!.replace("OUTCOME_", "").toLowerCase()}</SelectItem>
                 ))}
@@ -340,14 +357,14 @@ const CampaignTable = ({ report }: Props) => {
 
           <Input
             type="number"
-            placeholder="Spesa min"
+            placeholder={tr("Spesa min")}
             value={report.filters.minSpend ?? ""}
             onChange={(e) => report.setFilters({ ...report.filters, minSpend: e.target.value ? Number(e.target.value) : null })}
             className="w-[90px] h-8 text-xs"
           />
           <Input
             type="number"
-            placeholder="Spesa max"
+            placeholder={tr("Spesa max")}
             value={report.filters.maxSpend ?? ""}
             onChange={(e) => report.setFilters({ ...report.filters, maxSpend: e.target.value ? Number(e.target.value) : null })}
             className="w-[90px] h-8 text-xs"
@@ -359,7 +376,7 @@ const CampaignTable = ({ report }: Props) => {
               onCheckedChange={(v) => report.setFilters({ ...report.filters, onlyWithLeads: v })}
               className="h-4 w-7"
             />
-            <span className="text-xs text-muted-foreground whitespace-nowrap">Solo con lead</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{tr("Solo con lead")}</span>
           </div>
         </div>
 
@@ -379,10 +396,10 @@ const CampaignTable = ({ report }: Props) => {
                       col.key === "name" && "sticky left-0 z-[3] bg-muted",
                     )}
                     onClick={() => report.toggleSort(col.key)}
-                    title={col.aiuto}
+                    title={col.aiuto ? tr(col.aiuto) : undefined}
                   >
                     <span className="inline-flex items-center gap-1">
-                      {col.label}
+                      {tr(col.label)}
                       <SortIcon col={col.key} />
                     </span>
                   </th>
@@ -405,7 +422,7 @@ const CampaignTable = ({ report }: Props) => {
               ) : report.rows.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length + 1} className="text-center py-12 text-muted-foreground text-sm">
-                    Nessun{level === "campaign" ? "a campagna" : level === "adset" ? " gruppo di inserzioni" : "a inserzione"} con dati nel periodo selezionato
+                    {level === "campaign" ? tr("Nessuna campagna con dati nel periodo selezionato") : level === "adset" ? tr("Nessun gruppo di inserzioni con dati nel periodo selezionato") : tr("Nessuna inserzione con dati nel periodo selezionato")}
                   </td>
                 </tr>
               ) : (
@@ -430,7 +447,7 @@ const CampaignTable = ({ report }: Props) => {
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              aria-label={`Vedi lead CRM per ${row.campaign_name}`}
+                              aria-label={tr("Vedi lead CRM per {campaign_name}", { campaign_name: String(row.campaign_name ?? "") })}
                               className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 flex items-center justify-center rounded hover:bg-primary/10 text-primary"
                               onClick={() => navigate(`/azienda/marketing/contatti?q=${encodeURIComponent(row.campaign_name!)}`)}
                             >
@@ -438,7 +455,7 @@ const CampaignTable = ({ report }: Props) => {
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Vedi lead CRM per "{row.campaign_name}"</p>
+                            <p>{tr("Vedi lead CRM per \"{campaign_name}\"", { campaign_name: String(row.campaign_name ?? "") })}</p>
                           </TooltipContent>
                         </Tooltip>
                       )}
@@ -459,7 +476,7 @@ const CampaignTable = ({ report }: Props) => {
                         col.key === "name" && "sticky left-0 z-[2] bg-muted",
                       )}
                     >
-                      {col.key === "name" ? `Totale · ${report.rows.length} ${unita}` : totali[col.key] ?? ""}
+                      {col.key === "name" ? tr("Totale · {n} {unita}", { n: report.rows.length, unita }) : totali[col.key] ?? ""}
                     </td>
                   ))}
                   <td />

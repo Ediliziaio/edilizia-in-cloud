@@ -28,6 +28,7 @@ import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useRstTemplatePdf } from "@/hooks/useRistrutturazioneProgetto";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   form: Partial<RstProgetto>;
@@ -47,6 +48,7 @@ const toPct = (raw: string): number => {
 };
 
 export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: Props) {
+  const t = useT();
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useRstTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
@@ -104,9 +106,9 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
       {/* Header */}
       {/* Telefono: il titolo lo dice già il passo in alto. */}
       <div className="max-sm:hidden">
-        <h2 className="text-sm font-semibold text-slate-900">Economia</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t("Economia")}</h2>
         <p className="text-[11px] text-muted-foreground max-sm:hidden">
-          Sconto, IVA ed eventuale detrazione fiscale. I totali sono nell'anteprima del preventivo.
+          {t("Sconto, IVA ed eventuale detrazione fiscale. I totali sono nell'anteprima del preventivo.")}
         </p>
       </div>
 
@@ -114,9 +116,8 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
           <p className="flex-1 text-[11px] text-amber-900">
-            <span className="max-sm:hidden">Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
-            aggiungere le lavorazioni.</span>
-            <span className="sm:hidden">Computo vuoto: le lavorazioni si aggiungono nel passo Computo.</span>
+            <span className="max-sm:hidden">{t("Il computo è ancora vuoto: torna allo step Computo per aggiungere le lavorazioni.")}</span>
+            <span className="sm:hidden">{t("Computo vuoto: le lavorazioni si aggiungono nel passo Computo.")}</span>
           </p>
           {onVaiAlPasso && (
             <Button
@@ -126,7 +127,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               className="h-7 shrink-0 self-center border-amber-200 bg-white px-2.5 text-[11px] text-amber-900 hover:bg-amber-50"
               onClick={() => onVaiAlPasso("computo")}
             >
-              Vai al Computo
+              {t("Vai al Computo")}
             </Button>
           )}
         </div>
@@ -138,7 +139,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
-              <Percent className="h-4 w-4 text-orange-600" /> Parametri
+              <Percent className="h-4 w-4 text-orange-600" /> {t("Parametri")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -165,7 +166,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                 label="IVA"
                 value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
-                hint="In edilizia spesso 10% (ristrutturazione) o 4% (prima casa)."
+                hint={t("In edilizia spesso 10% (ristrutturazione) o 4% (prima casa).")}
               />
             </div>
             {/* Beni significativi (DM 29/12/1999): solo con l'IVA al 10% della manutenzione. */}
@@ -180,22 +181,20 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                     onChange={(e) => onChange("iva_beni_significativi", e.target.checked)}
                   />
                   <span>
-                    <span className="font-medium">Applica le regole dei beni significativi</span>
+                    <span className="font-medium">{t("Applica le regole dei beni significativi")}</span>
                     <span className="block text-[11px] text-muted-foreground">
-                      Infissi, caldaie, sanitari e rubinetteria, climatizzatori, ascensori… hanno il 10% solo fino al
-                      valore del resto dei lavori: la parte che lo supera va al 22% (DM 29/12/1999). Segna le voci nel
-                      Computo, in «Dettagli voce».
+                      {t("Infissi, caldaie, sanitari e rubinetteria, climatizzatori, ascensori… hanno il 10% solo fino al valore del resto dei lavori: la parte che lo supera va al 22% (DM 29/12/1999). Segna le voci nel Computo, in «Dettagli voce».")}
                     </span>
                   </span>
                 </label>
                 {form.iva_beni_significativi === true && (
                   <p className="mt-2 text-[11px] text-slate-700">
                     {vociBeniSignificativi === 0
-                      ? "Nessuna voce segnata come bene significativo: l'IVA resta tutta al 10%."
+                      ? t("Nessuna voce segnata come bene significativo: l'IVA resta tutta al 10%.")
                       : totali.ivaRipartita
                         ? totali.ivaRipartita.imponibile22 > 0
-                          ? `Beni significativi ${formatCurrency(totali.ivaRipartita.beniSignificativi)}: al 10% ${formatCurrency(totali.ivaRipartita.imponibile10)}, al 22% ${formatCurrency(totali.ivaRipartita.imponibile22)}. IVA ${formatCurrency(totali.iva)}.`
-                          : `Beni significativi ${formatCurrency(totali.ivaRipartita.beniSignificativi)}: non superano il resto dei lavori, tutto resta al 10%.`
+                          ? t("Beni significativi {beniSignificativi}: al 10% {imponibile10}, al 22% {imponibile22}. IVA {iva}.", { beniSignificativi: formatCurrency(totali.ivaRipartita.beniSignificativi), imponibile10: formatCurrency(totali.ivaRipartita.imponibile10), imponibile22: formatCurrency(totali.ivaRipartita.imponibile22), iva: formatCurrency(totali.iva) })
+                          : t("Beni significativi {beniSignificativi}: non superano il resto dei lavori, tutto resta al 10%.", { beniSignificativi: formatCurrency(totali.ivaRipartita.beniSignificativi) })
                         : ""}
                   </p>
                 )}
@@ -242,15 +241,15 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">
               <PctField
                 id="rst-detrazione"
-                label="Detrazione / bonus"
+                label={t("Detrazione / bonus")}
                 value={form.detrazione_pct ?? 0}
                 onCommit={(v) => onChange("detrazione_pct", v)}
-                hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
+                hint={t("Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo.")}
                 icon={BadgePercent}
               />
               {/* Preset incentivi ristrutturazione: 1-click → imposta detrazione + massimale di spesa */}
               <div>
-                <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">Incentivi rapidi (con massimale):</p>
+                <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">{t("Incentivi rapidi (con massimale):")}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {INCENTIVI_RISTRUTTURAZIONE.map((inc) => {
                     const active =
@@ -260,7 +259,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                       <button
                         key={inc.key}
                         type="button"
-                        title={inc.hint}
+                        title={t(inc.hint)}
                         onClick={() => {
                           onChange("detrazione_pct", inc.pct);
                           onChange("massimale_detrazione", inc.massimale);
@@ -272,7 +271,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                             : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
                         )}
                       >
-                        {inc.label}
+                        {t(inc.label)}
                       </button>
                     );
                   })}
@@ -289,7 +288,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
         <Card className="max-w-3xl max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
-              <MapPin className="h-4 w-4 text-orange-600" /> Riepilogo per ambiente
+              <MapPin className="h-4 w-4 text-orange-600" /> {t("Riepilogo per ambiente")}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -297,15 +296,15 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               <tbody>
                 {perAmbiente.map((a) => (
                   <tr key={a.ambiente} className="border-b last:border-0">
-                    <td className="px-4 py-2 font-medium text-slate-800">{a.ambiente}</td>
-                    <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{a.voci} {a.voci === 1 ? "voce" : "voci"}</td>
+                    <td className="px-4 py-2 font-medium text-slate-800" dir="auto">{a.ambiente === "Non assegnato" ? t("Non assegnato") : a.ambiente}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{t(a.voci === 1 ? "{n} voce" : "{n} voci", { n: a.voci })}</td>
                     <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">{formatCurrency(a.importo)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="px-4 py-2 text-[10px] text-muted-foreground max-sm:hidden">
-              Importi lordi per ambiente (pre sconto globale). Assegna l'ambiente alle voci nello step Computo (dettagli voce).
+              {t("Importi lordi per ambiente (pre sconto globale). Assegna l'ambiente alle voci nello step Computo (dettagli voce).")}
             </p>
           </CardContent>
         </Card>

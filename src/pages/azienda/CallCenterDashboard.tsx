@@ -29,6 +29,8 @@ import {
 import { formattaMinuti, indicatori } from "@/lib/reporting/callCenterNumeri";
 import { AnelloPercentuale, PillolaVariazione } from "@/components/charts/grafici/comune";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import type { Traduttore } from "@/lib/campo/lingua/traduttore";
 
 const GRUPPI: { id: CategoriaCoda; titolo: string; descrizione: string }[] = [
   { id: "richiamo", titolo: "Richiami", descrizione: "Scaduti o fissati per oggi" },
@@ -52,28 +54,28 @@ function giornoItalia(indietro = 0): string {
 }
 
 const dataIt = (valore: string) =>
-  new Date(valore.length === 10 ? `${valore}T12:00:00` : valore).toLocaleDateString("it-IT", {
+  new Date(valore.length === 10 ? `${valore}T12:00:00` : valore).toLocaleDateString(intlCampo(), {
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
     timeZone: "Europe/Rome",
   });
 
-const percento = (v: number | null) => (v == null ? "—" : `${v.toLocaleString("it-IT")}%`);
-const numero = (v: number | null) => (v == null ? "—" : v.toLocaleString("it-IT"));
+const percento = (v: number | null) => (v == null ? "—" : `${v.toLocaleString(intlCampo())}%`);
+const numero = (v: number | null) => (v == null ? "—" : v.toLocaleString(intlCampo()));
 
 function nomeRiga(r: { nome: string | null; azienda: string | null; telefono: string }) {
   return r.nome || r.azienda || r.telefono;
 }
 
-function dettaglioRiga(r: RigaCoda): string {
+function dettaglioRiga(r: RigaCoda, t: Traduttore): string {
   const esito = CALL_OUTCOMES.find((o) => o.value === r.ultimo_esito)?.label;
   const parti = [
-    r.categoria === "richiamo" && r.richiamo_il ? `Richiamo del ${dataIt(r.richiamo_il)}` : null,
-    r.categoria === "richiamo" && !r.richiamo_il ? "Da richiamare, senza data" : null,
-    r.tentativi > 0 ? `${r.tentativi} ${r.tentativi === 1 ? "tentativo" : "tentativi"}` : null,
-    esito && r.ultima_chiamata_at ? `${esito} il ${dataIt(r.ultima_chiamata_at)}` : null,
-    r.tentativi === 0 ? `Arrivato il ${dataIt(r.arrivato_il)}` : null,
+    r.categoria === "richiamo" && r.richiamo_il ? t("Richiamo del {data}", { data: dataIt(r.richiamo_il) }) : null,
+    r.categoria === "richiamo" && !r.richiamo_il ? t("Da richiamare, senza data") : null,
+    r.tentativi > 0 ? t(r.tentativi === 1 ? "{n} tentativo" : "{n} tentativi", { n: r.tentativi }) : null,
+    esito && r.ultima_chiamata_at ? t("{esito} il {data}", { esito: t(esito), data: dataIt(r.ultima_chiamata_at) }) : null,
+    r.tentativi === 0 ? t("Arrivato il {data}", { data: dataIt(r.arrivato_il) }) : null,
     r.fase,
   ];
   return parti.filter(Boolean).join(" · ");
@@ -102,6 +104,7 @@ function Riquadro({
   /** Percentuale da disegnare nell'anello accanto al numero. */
   anello?: number | null;
 }) {
+  const t = useT();
   return (
     <div className="flex h-full min-w-0 items-start justify-between gap-2 rounded-xl border bg-card p-2.5 shadow-sm sm:p-3 transition-shadow hover:shadow-md motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500 motion-safe:fill-mode-both">
       <div className="min-w-0">
@@ -113,7 +116,7 @@ function Riquadro({
               pct={variazione.valore}
               piuEMeglio={variazione.piuEMeglio ?? true}
               unita={variazione.unita}
-              titolo="Rispetto al periodo precedente, della stessa durata"
+              titolo={t("Rispetto al periodo precedente, della stessa durata")}
             />
           )}
         </div>
@@ -129,6 +132,7 @@ function Riquadro({
  * numero rispetto alle chiamate, con la percentuale sul passaggio prima.
  */
 function PercorsoChiamate({ numeri }: { numeri: NumeriCallCenter }) {
+  const t = useT();
   const passi = [
     { nome: "Chiamate fatte", n: numeri.chiamate, colore: "from-blue-500 to-sky-400" },
     { nome: "Contatti chiamati", n: numeri.contatti_chiamati, colore: "from-sky-500 to-cyan-400" },
@@ -144,7 +148,7 @@ function PercorsoChiamate({ numeri }: { numeri: NumeriCallCenter }) {
         const quota = prima ? Math.round((p.n / prima) * 100) : null;
         return (
           <li key={p.nome} className="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2 text-xs sm:grid-cols-[150px_minmax(0,1fr)_auto] sm:gap-3">
-            <span className="truncate text-muted-foreground">{p.nome}</span>
+            <span className="truncate text-muted-foreground">{t(p.nome)}</span>
             <span className="h-5 overflow-hidden rounded-md bg-muted">
               <span
                 className={cn("cg-barra-cresce block h-full rounded-md bg-gradient-to-r", p.colore)}
@@ -152,7 +156,7 @@ function PercorsoChiamate({ numeri }: { numeri: NumeriCallCenter }) {
               />
             </span>
             <span className="text-right tabular-nums sm:w-24">
-              <strong className="text-sm text-foreground">{p.n.toLocaleString("it-IT")}</strong>
+              <strong className="text-sm text-foreground">{p.n.toLocaleString(intlCampo())}</strong>
               {quota != null && <span className="ml-1.5 text-muted-foreground">{quota}%</span>}
             </span>
           </li>
@@ -175,6 +179,7 @@ function RigaContatto({
   companyId: string | null | undefined;
   userId: string | undefined;
 }) {
+  const t = useT();
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -184,11 +189,11 @@ function RigaContatto({
         >
           {nomeRiga(riga)}
         </Link>
-        <p className="truncate text-xs text-muted-foreground">{dettaglioRiga(riga)}</p>
+        <p className="truncate text-xs text-muted-foreground">{dettaglioRiga(riga, t)}</p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Button asChild size="sm">
-          <a href={`tel:${riga.telefono.replace(/\s+/g, "")}`} aria-label={`Chiama ${nomeRiga(riga)}`}>
+          <a href={`tel:${riga.telefono.replace(/\s+/g, "")}`} aria-label={t("Chiama {nome}", { nome: nomeRiga(riga) })}>
             <Phone className="mr-1.5 h-4 w-4" />
             {riga.telefono}
           </a>
@@ -202,8 +207,8 @@ function RigaContatto({
         />
         <Button type="button" variant="outline" size="sm" onClick={() => onFissa(riga)}>
           <CalendarPlus className="h-4 w-4 sm:mr-1.5" />
-          <span className="hidden sm:inline">Fissa appuntamento</span>
-          <span className="sr-only sm:hidden">Fissa appuntamento</span>
+          <span className="hidden sm:inline">{t("Fissa appuntamento")}</span>
+          <span className="sr-only sm:hidden">{t("Fissa appuntamento")}</span>
         </Button>
       </div>
     </li>
@@ -211,6 +216,7 @@ function RigaContatto({
 }
 
 function NumeriPeriodo({ numeri, prima }: { numeri: NumeriCallCenter; prima?: NumeriCallCenter }) {
+  const t = useT();
   const i = indicatori(numeri);
   const p = prima ? indicatori(prima) : null;
   const conEsito = numeri.svolti_presentati + numeri.svolti_assenti;
@@ -220,69 +226,69 @@ function NumeriPeriodo({ numeri, prima }: { numeri: NumeriCallCenter; prima?: Nu
     <div className="space-y-4">
     {numeri.chiamate > 0 && (
       <div className="rounded-xl border bg-muted/30 p-3">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Dalla chiamata all'appuntamento</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("Dalla chiamata all'appuntamento")}</p>
         <PercorsoChiamate numeri={numeri} />
       </div>
     )}
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Riquadro
-        etichetta="Conversione sui raggiunti"
+        etichetta={t("Conversione sui raggiunti")}
         valore={percento(i.appSuRaggiunti)}
         anello={i.appSuRaggiunti}
         variazione={v(i.appSuRaggiunti, p?.appSuRaggiunti)}
-        nota={`${numeri.appuntamenti_fissati} appuntamenti, ${numeri.contatti_raggiunti} contatti raggiunti`}
+        nota={t("{appuntamenti_fissati} appuntamenti, {contatti_raggiunti} contatti raggiunti", { appuntamenti_fissati: String(numeri.appuntamenti_fissati ?? ""), contatti_raggiunti: String(numeri.contatti_raggiunti ?? "") })}
       />
       <Riquadro
-        etichetta="Conversione sui lead assegnati"
+        etichetta={t("Conversione sui lead assegnati")}
         valore={percento(i.appSuAssegnati)}
         anello={i.appSuAssegnati}
         variazione={v(i.appSuAssegnati, p?.appSuAssegnati)}
-        nota={`${numeri.lead_con_appuntamento} su ${numeri.lead_assegnati} lead arrivati nel periodo`}
+        nota={t("{lead_con_appuntamento} su {lead_assegnati} lead arrivati nel periodo", { lead_con_appuntamento: String(numeri.lead_con_appuntamento ?? ""), lead_assegnati: String(numeri.lead_assegnati ?? "") })}
       />
       <Riquadro
-        etichetta="Prima chiamata (mediana)"
+        etichetta={t("Prima chiamata (mediana)")}
         valore={formattaMinuti(numeri.mediana_minuti)}
         variazione={v(numeri.mediana_minuti, prima?.mediana_minuti, false, false)}
         nota={
           numeri.lead_assegnati
-            ? `${numeri.lead_chiamati} chiamati su ${numeri.lead_assegnati} lead arrivati`
-            : "Nessun lead arrivato nel periodo"
+            ? t("{lead_chiamati} chiamati su {lead_assegnati} lead arrivati", { lead_chiamati: String(numeri.lead_chiamati ?? ""), lead_assegnati: String(numeri.lead_assegnati ?? "") })
+            : t("Nessun lead arrivato nel periodo")
         }
       />
       <Riquadro
-        etichetta="Chiamati entro 5 minuti"
+        etichetta={t("Chiamati entro 5 minuti")}
         valore={percento(i.entro5Min)}
         anello={i.entro5Min}
         variazione={v(i.entro5Min, p?.entro5Min)}
-        nota={numeri.lead_chiamati ? `${numeri.entro_5_min} su ${numeri.lead_chiamati} lead chiamati` : "Nessun lead chiamato"}
+        nota={numeri.lead_chiamati ? t("{entro_5_min} su {lead_chiamati} lead chiamati", { entro_5_min: String(numeri.entro_5_min ?? ""), lead_chiamati: String(numeri.lead_chiamati ?? "") }) : t("Nessun lead chiamato")}
       />
       <Riquadro
-        etichetta="Chiamate al giorno"
+        etichetta={t("Chiamate al giorno")}
         valore={numero(i.chiamateAlGiorno)}
         variazione={v(i.chiamateAlGiorno, p?.chiamateAlGiorno, false)}
-        nota={`${numeri.chiamate} chiamate in ${numeri.giorni_attivi} giorni di lavoro`}
+        nota={t("{chiamate} chiamate in {giorni_attivi} giorni di lavoro", { chiamate: String(numeri.chiamate ?? ""), giorni_attivi: String(numeri.giorni_attivi ?? "") })}
       />
       <Riquadro
-        etichetta="Tentativi per contatto"
+        etichetta={t("Tentativi per contatto")}
         valore={numero(i.tentativiPerContatto)}
-        nota={`${numeri.contatti_chiamati} contatti chiamati`}
+        nota={t("{contatti_chiamati} contatti chiamati", { contatti_chiamati: String(numeri.contatti_chiamati ?? "") })}
       />
       <Riquadro
-        etichetta="Contatti raggiunti"
+        etichetta={t("Contatti raggiunti")}
         valore={percento(i.contatto)}
         anello={i.contatto}
         variazione={v(i.contatto, p?.contatto)}
-        nota={`${numeri.contatti_raggiunti} su ${numeri.contatti_chiamati} chiamati`}
+        nota={t("{contatti_raggiunti} su {contatti_chiamati} chiamati", { contatti_raggiunti: String(numeri.contatti_raggiunti ?? ""), contatti_chiamati: String(numeri.contatti_chiamati ?? "") })}
       />
       <Riquadro
-        etichetta="Presenza agli appuntamenti"
+        etichetta={t("Presenza agli appuntamenti")}
         valore={percento(i.presenza)}
         anello={i.presenza}
         variazione={v(i.presenza, p?.presenza)}
         nota={
           numeri.svolti_totale
-            ? `Esito segnato su ${conEsito} appuntamenti di ${numeri.svolti_totale}`
-            : "Nessun appuntamento a calendario nel periodo"
+            ? t("Esito segnato su {conEsito} appuntamenti di {svolti_totale}", { conEsito: String(conEsito ?? ""), svolti_totale: String(numeri.svolti_totale ?? "") })
+            : t("Nessun appuntamento a calendario nel periodo")
         }
       />
     </div>
@@ -291,6 +297,7 @@ function NumeriPeriodo({ numeri, prima }: { numeri: NumeriCallCenter; prima?: Nu
 }
 
 export default function CallCenterDashboard() {
+  const t = useT();
   const { user } = useAuth();
   const companyId = useEffectiveCompanyId();
   const permissions = usePermissions();
@@ -332,7 +339,7 @@ export default function CallCenterDashboard() {
 
   const appuntamentoIniziale: AppointmentData | null = perAppuntamento
     ? {
-        title: `Appuntamento ${nomeRiga(perAppuntamento)}`,
+        title: t("Appuntamento {nome}", { nome: nomeRiga(perAppuntamento) }),
         description: null,
         appointment_date: "",
         appointment_time: null,
@@ -346,24 +353,24 @@ export default function CallCenterDashboard() {
 
   return (
     <div className="space-y-4 p-3 sm:p-6">
-      <DashboardSelectorBar title="Dashboard Call Center" />
+      <DashboardSelectorBar title={t("Dashboard Call Center")} />
 
       <DashboardPageHeader
-        title="Dashboard Call Center"
-        subtitle="Chi chiamare adesso, gli appuntamenti fissati e i numeri del tuo lavoro"
+        title={t("Dashboard Call Center")}
+        subtitle={t("Chi chiamare adesso, gli appuntamenti fissati e i numeri del tuo lavoro")}
         icon={Headphones}
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
             {puoScegliere && (
               <Select value={operatore} onValueChange={setOperatore}>
-                <SelectTrigger className="w-[200px]" aria-label="Operatore">
+                <SelectTrigger className="w-[200px]" aria-label={t("Operatore")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={TUTTI}>{permissions.isAdmin ? "Tutto il team" : "I miei numeri"}</SelectItem>
+                  <SelectItem value={TUTTI}>{permissions.isAdmin ? t("Tutto il team") : t("I miei numeri")}</SelectItem>
                   {(operatori.data ?? []).map((o) => (
                     <SelectItem key={o.operatore_id} value={o.operatore_id}>
-                      {o.nome || "Senza nome"}
+                      {o.nome || t("Senza nome")}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -376,19 +383,19 @@ export default function CallCenterDashboard() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
-            Da chiamare adesso{coda.data ? ` (${totaleUrgenti.toLocaleString("it-IT")})` : ""}
+            {t("Da chiamare adesso")}{coda.data ? ` (${totaleUrgenti.toLocaleString(intlCampo())})` : ""}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {coda.isLoading && <Skeleton className="h-32 w-full" />}
           {coda.isError && (
             <p className="text-sm text-destructive">
-              Non riesco a caricare la lista. Ricarica la pagina; se capita ancora, avvisa l'amministratore.
+              {t("Non riesco a caricare la lista. Ricarica la pagina; se capita ancora, avvisa l'amministratore.")}
             </p>
           )}
           {coda.data && coda.data.righe.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Nessun contatto da chiamare: non ci sono contatti assegnati in attesa di una chiamata.
+              {t("Nessun contatto da chiamare: non ci sono contatti assegnati in attesa di una chiamata.")}
             </p>
           )}
           {GRUPPI.map((gruppo) => {
@@ -396,11 +403,11 @@ export default function CallCenterDashboard() {
             const totale = coda.data?.conteggi[gruppo.id] ?? 0;
             if (!totale) return null;
             return (
-              <section key={gruppo.id} aria-label={gruppo.titolo}>
+              <section key={gruppo.id} aria-label={t(gruppo.titolo)}>
                 <h3 className="text-sm font-semibold">
-                  {gruppo.titolo} <span className="font-normal text-muted-foreground">({totale.toLocaleString("it-IT")})</span>
+                  {t(gruppo.titolo)} <span className="font-normal text-muted-foreground">({totale.toLocaleString(intlCampo())})</span>
                 </h3>
-                <p className="text-xs text-muted-foreground">{gruppo.descrizione}</p>
+                <p className="text-xs text-muted-foreground">{t(gruppo.descrizione)}</p>
                 <ul className="mt-1 divide-y">
                   {righe.map((r) => (
                     <RigaContatto
@@ -414,9 +421,7 @@ export default function CallCenterDashboard() {
                   ))}
                 </ul>
                 {totale > righe.length && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Mostrati i primi {righe.length} su {totale.toLocaleString("it-IT")}.
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("Mostrati i primi {n} su {totale}.", { n: righe.length, totale: totale.toLocaleString(intlCampo()) })}</p>
                 )}
               </section>
             );
@@ -427,16 +432,16 @@ export default function CallCenterDashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Oggi</CardTitle>
+            <CardTitle className="text-base">{t("Oggi")}</CardTitle>
           </CardHeader>
           <CardContent>
             {numeriOggi.isLoading && <Skeleton className="h-20 w-full" />}
-            {numeriOggi.isError && <p className="text-sm text-destructive">Non riesco a caricare i numeri di oggi.</p>}
+            {numeriOggi.isError && <p className="text-sm text-destructive">{t("Non riesco a caricare i numeri di oggi.")}</p>}
             {numeriOggi.data && (
               <div className="grid grid-cols-3 gap-3">
-                <Riquadro etichetta="Chiamate" valore={numero(numeriOggi.data.chiamate)} />
-                <Riquadro etichetta="Raggiunti" valore={numero(numeriOggi.data.contatti_raggiunti)} />
-                <Riquadro etichetta="Fissati" valore={numero(numeriOggi.data.appuntamenti_fissati)} nota="appuntamenti" />
+                <Riquadro etichetta={t("Chiamate")} valore={numero(numeriOggi.data.chiamate)} />
+                <Riquadro etichetta={t("Raggiunti")} valore={numero(numeriOggi.data.contatti_raggiunti)} />
+                <Riquadro etichetta={t("Fissati")} valore={numero(numeriOggi.data.appuntamenti_fissati)} nota={t("appuntamenti")} />
               </div>
             )}
           </CardContent>
@@ -444,22 +449,22 @@ export default function CallCenterDashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Appuntamenti in arrivo</CardTitle>
+            <CardTitle className="text-base">{t("Appuntamenti in arrivo")}</CardTitle>
           </CardHeader>
           <CardContent>
             {appuntamenti.isLoading && <Skeleton className="h-20 w-full" />}
-            {appuntamenti.isError && <p className="text-sm text-destructive">Non riesco a caricare gli appuntamenti.</p>}
+            {appuntamenti.isError && <p className="text-sm text-destructive">{t("Non riesco a caricare gli appuntamenti.")}</p>}
             {appuntamenti.data?.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nessun appuntamento a calendario fissato da te.</p>
+              <p className="text-sm text-muted-foreground">{t("Nessun appuntamento a calendario fissato da te.")}</p>
             )}
             <ul className="divide-y">
               {(appuntamenti.data ?? []).map((a) => (
                 <li key={a.id} className="py-2 text-sm">
                   <p className="font-medium">
                     {dataIt(a.data)}
-                    {a.ora ? ` alle ${a.ora.slice(0, 5)}` : ""} · {a.contatto || a.titolo || "Appuntamento"}
+                    {a.ora ? ` ${t("alle {ora}", { ora: a.ora.slice(0, 5) })}` : ""} · {a.contatto || a.titolo || t("Appuntamento")}
                   </p>
-                  {a.assegnato_a && <p className="text-xs text-muted-foreground">Con {a.assegnato_a}</p>}
+                  {a.assegnato_a && <p className="text-xs text-muted-foreground">{t("Con {nome}", { nome: String(a.assegnato_a ?? "") })}</p>}
                 </li>
               ))}
             </ul>
@@ -469,15 +474,15 @@ export default function CallCenterDashboard() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-          <CardTitle className="text-base">I numeri del periodo</CardTitle>
+          <CardTitle className="text-base">{t("I numeri del periodo")}</CardTitle>
           <Select value={periodo} onValueChange={setPeriodo}>
-            <SelectTrigger className="w-[170px]" aria-label="Periodo">
+            <SelectTrigger className="w-[170px]" aria-label={t("Periodo")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {PERIODI.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.label}
+                  {t(p.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -485,10 +490,10 @@ export default function CallCenterDashboard() {
         </CardHeader>
         <CardContent>
           {numeriPeriodo.isLoading && <Skeleton className="h-40 w-full" />}
-          {numeriPeriodo.isError && <p className="text-sm text-destructive">Non riesco a caricare i numeri del periodo.</p>}
+          {numeriPeriodo.isError && <p className="text-sm text-destructive">{t("Non riesco a caricare i numeri del periodo.")}</p>}
           {numeriPeriodo.data && <NumeriPeriodo numeri={numeriPeriodo.data} prima={numeriPrima.data} />}
           {numeriPeriodo.data?.chiamate === 0 && (
-            <p className="mt-3 text-sm text-muted-foreground">Nessuna chiamata registrata in questo periodo.</p>
+            <p className="mt-3 text-sm text-muted-foreground">{t("Nessuna chiamata registrata in questo periodo.")}</p>
           )}
         </CardContent>
       </Card>

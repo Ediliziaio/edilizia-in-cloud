@@ -4,7 +4,6 @@
  * @param campagna - Campagna da visualizzare
  */
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { CheckCircle2, XCircle, Clock, Send, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSmsLog } from "@/hooks/useSmsLog";
 import { SmsStatsBadge } from "./SmsStatsBadge";
 import type { SmsCampagna } from "@/types/sms-marketing";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const STATO_ICON: Record<string, React.ElementType> = {
   pending: Clock,
@@ -34,6 +34,7 @@ interface SmsCampagnaDetailProps {
 }
 
 export function SmsCampagnaDetail({ campagna }: SmsCampagnaDetailProps) {
+  const t = useT();
   const { logs, stats, isLoading, error } = useSmsLog(campagna.id);
 
   return (
@@ -47,14 +48,14 @@ export function SmsCampagnaDetail({ campagna }: SmsCampagnaDetailProps) {
       {/* KPI */}
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: "Inviati", value: campagna.inviati },
-          { label: "Consegnati", value: campagna.consegnati },
-          { label: "Errori", value: campagna.errori },
-          { label: "Tasso", value: `${stats.tasso_consegna.toFixed(1).replace(".", ",")}%` },
+          { label: t("Inviati"), value: campagna.inviati },
+          { label: t("Consegnati"), value: campagna.consegnati },
+          { label: t("Errori"), value: campagna.errori },
+          { label: t("Tasso"), value: `${stats.tasso_consegna.toFixed(1).replace(".", ",")}%` },
         ].map((k) => (
           <Card key={k.label}>
             <CardContent className="p-3 text-center">
-              <div className="text-lg font-bold tabular-nums">{typeof k.value === "number" ? k.value.toLocaleString("it-IT") : k.value}</div>
+              <div className="text-lg font-bold tabular-nums">{typeof k.value === "number" ? k.value.toLocaleString(intlCampo()) : k.value}</div>
               <div className="text-xs text-muted-foreground">{k.label}</div>
             </CardContent>
           </Card>
@@ -63,13 +64,13 @@ export function SmsCampagnaDetail({ campagna }: SmsCampagnaDetailProps) {
 
       {/* Messaggio */}
       <div className="rounded-md border p-3 bg-muted/20">
-        <p className="text-xs text-muted-foreground mb-1">Testo inviato · mittente: <strong>{campagna.mittente}</strong></p>
+        <p className="text-xs text-muted-foreground mb-1">{t("Testo inviato · mittente:")} <strong>{campagna.mittente}</strong></p>
         <p className="text-sm">{campagna.messaggio}</p>
       </div>
 
       {/* Log invii */}
       <div>
-        <h4 className="text-sm font-medium mb-2">Log invii ({logs.length.toLocaleString("it-IT")})</h4>
+        <h4 className="text-sm font-medium mb-2">{t("Log invii ({n})", { n: logs.length.toLocaleString(intlCampo()) })}</h4>
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
@@ -77,7 +78,7 @@ export function SmsCampagnaDetail({ campagna }: SmsCampagnaDetailProps) {
         ) : error ? (
           <p role="alert" className="text-sm text-destructive">{error}</p>
         ) : logs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun log disponibile.</p>
+          <p className="text-sm text-muted-foreground">{t("Nessun log disponibile.")}</p>
         ) : (
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {logs.map((log) => {
@@ -87,11 +88,11 @@ export function SmsCampagnaDetail({ campagna }: SmsCampagnaDetailProps) {
                   <Icon className={`h-3.5 w-3.5 shrink-0 ${STATO_COLOR[log.stato]}`} />
                   <span className="font-mono w-28 shrink-0">{log.telefono}</span>
                   <Badge variant="outline" className={`text-xs ${STATO_COLOR[log.stato]}`}>
-                    {log.stato}
+                    {t(log.stato)}
                   </Badge>
                   {log.inviato_at && (
                     <span className="text-muted-foreground ml-auto">
-                      {format(new Date(log.inviato_at), "HH:mm d MMM", { locale: it })}
+                      {format(new Date(log.inviato_at), "HH:mm d MMM", { locale: dateFnsCampo() })}
                     </span>
                   )}
                   {log.errore_dettaglio && (

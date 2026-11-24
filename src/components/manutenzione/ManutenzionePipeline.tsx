@@ -6,13 +6,13 @@
  */
 import { Calendar, User, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   STATI_MANUTENZIONE, STATO_MANUT_META, type StatoManutenzione,
 } from "@/lib/manutenzione/statoManutenzione";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type PrioritaManutenzione = "alta" | "media" | "bassa" | null;
 
@@ -43,6 +43,7 @@ function Card({ im, onOpen, onPianifica, onCompleta, busy, solaLettura }: {
   busy: boolean;
   solaLettura: boolean;
 }) {
+  const t = useT();
   const meta = STATO_MANUT_META[im.stato];
   const cliente = [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" ");
   return (
@@ -57,7 +58,7 @@ function Card({ im, onOpen, onPianifica, onCompleta, busy, solaLettura }: {
           <Badge className={cn("text-[10px]", meta.badge)}>{meta.label}</Badge>
           {im.prossimaScadenza && (
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Calendar className="h-3 w-3" />{format(new Date(im.prossimaScadenza), "d MMM yyyy", { locale: it })}
+              <Calendar className="h-3 w-3" />{format(new Date(im.prossimaScadenza), "d MMM yyyy", { locale: dateFnsCampo() })}
             </span>
           )}
         </div>
@@ -66,11 +67,11 @@ function Card({ im, onOpen, onPianifica, onCompleta, busy, solaLettura }: {
         <div className="mt-2 flex gap-1.5">
           <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" disabled={busy || solaLettura}
                   onClick={() => onPianifica(im.id)}>
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Pianifica"}
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("Pianifica")}
           </Button>
           <Button size="sm" className="h-7 flex-1 text-xs" disabled={busy || solaLettura}
                   onClick={() => onCompleta(im.id)}>
-            Completa
+            {t("Completa")}
           </Button>
         </div>
       )}
@@ -88,6 +89,7 @@ export function ManutenzionePipeline({
   busy?: boolean;
   solaLettura?: boolean;
 }) {
+  const t = useT();
   const perStato: Record<StatoManutenzione, ImpiantoStato[]> = {
     scaduta: [], in_scadenza: [], in_regola: [], senza_piano: [],
   };
@@ -108,7 +110,7 @@ export function ManutenzionePipeline({
             </div>
             <div className="flex-1 space-y-2">
               {lista.length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">Niente qui</p>
+                <p className="py-8 text-center text-xs text-muted-foreground">{t("Niente qui")}</p>
               ) : (
                 lista.map((im) => (
                   <Card key={im.id} im={im} onOpen={onOpen} onPianifica={onPianifica} onCompleta={onCompleta} busy={busy} solaLettura={solaLettura} />

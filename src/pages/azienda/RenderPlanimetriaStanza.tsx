@@ -49,6 +49,7 @@ import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
 import { metri, riepilogoStanza, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 import type { PartenzaRender } from "../../../shared/render-planimetria/prompt.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Passo = 1 | 2 | 3 | 4;
 
@@ -72,6 +73,7 @@ export default function RenderPlanimetriaStanza() {
 }
 
 function EditorRenderStanza() {
+  const t = useT();
   const { id = "", localeId: localeParam = "" } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -162,7 +164,7 @@ function EditorRenderStanza() {
     e.target.value = "";
     if (!f) return;
     if (f.size > 20 * 1024 * 1024) {
-      toast.error("Foto troppo pesante: massimo 20 MB.");
+      toast.error(t("Foto troppo pesante: massimo 20 MB."));
       return;
     }
     setFoto(f);
@@ -173,7 +175,7 @@ function EditorRenderStanza() {
   const usaVista = (f: Fotogramma) => {
     if (!documento) return;
     if (f.metadati.vista === "confronto") {
-      toast.info("Per il render scegli «Stato di fatto» o «Progetto»: i colori di demolizioni e nuovo finirebbero nell'immagine.");
+      toast.info(t("Per il render scegli «Stato di fatto» o «Progetto»: i colori di demolizioni e nuovo finirebbero nell'immagine."));
       return;
     }
     // Il 3D dice quale stanza e quale stato si stanno guardando.
@@ -182,11 +184,11 @@ function EditorRenderStanza() {
     const ambito = f.metadati.vista === "fatto" || !proposta ? "fatto" : `progetto:${proposta}`;
     if (f.metadati.locale.id !== scelta.localeId || ambito !== scelta.ambito) {
       if (!vincoliDellaStanza(documento, { livello_id: livelloId, ambito, locale_id: f.metadati.locale.id })) {
-        toast.error("Questa stanza non si trova nella pianta: scegline un'altra nel 3D.");
+        toast.error(t("Questa stanza non si trova nella pianta: scegline un'altra nel 3D."));
         return;
       }
       setScelta({ ambito, localeId: f.metadati.locale.id });
-      toast.info(`Il render sarà di «${f.metadati.locale.nome}», la stanza che hai inquadrato.`);
+      toast.info(t("Il render sarà di «{nome}», la stanza che hai inquadrato.", { nome: String(f.metadati.locale.nome ?? "") }));
     }
     setFotogramma(f);
     setFoto(null);
@@ -209,7 +211,7 @@ function EditorRenderStanza() {
         fermaAttesa();
         setInCorso(false);
         setPasso(2);
-        toast.error("Il render ci sta mettendo troppo: riprova tra qualche minuto.");
+        toast.error(t("Il render ci sta mettendo troppo: riprova tra qualche minuto."));
         return;
       }
       const { data: s } = await supabase.from("render_stanza_sessions").select("status, result_urls, error_message").eq("id", sid).single();
@@ -231,13 +233,13 @@ function EditorRenderStanza() {
         setPasso(2);
         const errore = r.error_message ?? "";
         const esitoControllo = /^(?:Il render non rispetta la pianta|Il render ha un’inquadratura|Il controllo di porte, finestre)/.test(errore);
-        toast.error(esitoControllo || errore.includes("insufficient_credits") ? fraseErroreRender(errore) : "Il render non è riuscito: il credito è stato restituito. Riprova.");
+        toast.error(esitoControllo || errore.includes("insufficient_credits") ? fraseErroreRender(errore) : t("Il render non è riuscito: il credito è stato restituito. Riprova."));
         return;
       }
       timer.current = setTimeout(giro, ATTESE[Math.min(giri++, ATTESE.length - 1)]);
     };
     void giro();
-  }, [companyId, fermaAttesa, id, queryClient]);
+  }, [companyId, fermaAttesa, id, queryClient, t]);
 
   const genera = useCallback(async () => {
     if (!companyId || !user || !data || !vincoli || inCorso) return;
@@ -287,7 +289,7 @@ function EditorRenderStanza() {
           })
           .select("id")
           .single();
-        if (errSessione || !nuova) throw new Error("Render non avviato: riprova.");
+        if (errSessione || !nuova) throw new Error(t("Render non avviato: riprova."));
         sid = (nuova as { id: string }).id;
         setSessione(sid);
       } else {
@@ -297,7 +299,7 @@ function EditorRenderStanza() {
           .from("render_stanza_sessions")
           .update({ config: { ...configRender, planimetria: rif } as never, status: "pending", result_urls: null, error_message: null })
           .eq("id", sid);
-        if (errAggiornamento) throw new Error("Non riesco a salvare la vista e le impostazioni della stanza. Riprova.");
+        if (errAggiornamento) throw new Error(t("Non riesco a salvare la vista e le impostazioni della stanza. Riprova."));
       }
 
       const dim = anteprima ? await dimensioniImmagine(anteprima) : null;
@@ -311,12 +313,12 @@ function EditorRenderStanza() {
         headers,
       });
       if (errFn || risposta?.error) {
-        const msg = await resolveEdgeFunctionErrorMessage({ error: errFn, data: risposta, fallback: "Render non avviato" });
+        const msg = await resolveEdgeFunctionErrorMessage({ error: errFn, data: risposta, fallback: t("Render non avviato") });
         if (/idle timeout|timeout limit|150s/i.test(msg)) return; // il render va avanti: si continua a controllare
         fermaAttesa();
         setInCorso(false);
         setPasso(2);
-        toast.error(msg.includes("insufficient_credits") ? "Crediti render finiti: ricaricali per continuare." : msg);
+        toast.error(msg.includes("insufficient_credits") ? t("Crediti render finiti: ricaricali per continuare.") : msg);
       }
     } catch (e) {
       fermaAttesa();
@@ -325,7 +327,7 @@ function EditorRenderStanza() {
       setPasso(2);
       toast.error(fraseErroreRender(e instanceof Error ? e.message : ""));
     }
-  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, materiali, materialiAmbito, partenza, scelta, sessione, user, vincoli]);
+  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, materiali, materialiAmbito, partenza, scelta, sessione, user, vincoli, t]);
 
   const salvaInGalleria = async () => {
     if (!sessione) return;
@@ -334,13 +336,13 @@ function EditorRenderStanza() {
       .update({ saved_to_gallery: true, config_summary: { tipo_stanza: config.tipo_stanza, stile_target: config.stile_target, intensita: config.intensita, stanza: vincoli?.locale.nome } })
       .eq("id", sessione);
     if (e) {
-      toast.error("Non salvato: riprova.");
+      toast.error(t("Non salvato: riprova."));
       return;
     }
     setSalvato(true);
     void queryClient.invalidateQueries({ queryKey: chiaviRenderPianta.dellaPianta(id) });
-    toast.success(`Salvato nella galleria di «${vincoli?.locale.nome ?? "questa stanza"}»`, {
-      action: { label: "Apri", onClick: () => navigate(`${tornaAllaPianta}&galleria=${encodeURIComponent(scelta.localeId)}`) },
+    toast.success(t("Salvato nella galleria di «{nome}»", { nome: vincoli?.locale.nome ?? t("questa stanza") }), {
+      action: { label: t("Apri"), onClick: () => navigate(`${tornaAllaPianta}&galleria=${encodeURIComponent(scelta.localeId)}`) },
     });
   };
 
@@ -357,9 +359,9 @@ function EditorRenderStanza() {
       <div className="mx-auto max-w-3xl space-y-4">
         <Card>
           <CardContent className="space-y-3 p-6 text-sm">
-            <p>{error instanceof Error ? error.message : "Questa stanza non si trova nella pianta: forse è stata cambiata."}</p>
+            <p>{error instanceof Error ? error.message : t("Questa stanza non si trova nella pianta: forse è stata cambiata.")}</p>
             <Button asChild variant="outline" size="sm">
-              <Link to={tornaAllaPianta}>Torna alla pianta</Link>
+              <Link to={tornaAllaPianta}>{t("Torna alla pianta")}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -368,7 +370,7 @@ function EditorRenderStanza() {
   }
 
   const renderDaVerificare = !controlloPrimaDellUso(documento, "render").ok;
-  if (renderDaVerificare && !inquadratura) return <div className="mx-auto max-w-3xl space-y-4"><ControlloUsoBloccato documento={documento} uso="render" modifica={percorsiPlanimetrie.modifica(id,livelloId)} /><Button asChild variant="outline"><Link to={tornaAllaPianta}>Torna alla pianta</Link></Button></div>;
+  if (renderDaVerificare && !inquadratura) return <div className="mx-auto max-w-3xl space-y-4"><ControlloUsoBloccato documento={documento} uso="render" modifica={percorsiPlanimetrie.modifica(id,livelloId)} /><Button asChild variant="outline"><Link to={tornaAllaPianta}>{t("Torna alla pianta")}</Link></Button></div>;
 
   const misureStimate = vincoli.locale.stimata || vincoli.aperture.some((a) => a.stimata);
 
@@ -379,45 +381,45 @@ function EditorRenderStanza() {
           if (passo === 2 && !inCorso) setPasso(1);
           else if (passo !== 3) navigate(tornaAllaPianta);
         }}
-        eyebrow={`${data.riga.titolo} · Versione ${data.versione.numero}`}
-        title={`Render: ${vincoli.locale.nome}`}
+        eyebrow={t("{titolo} · Versione {numero}", { titolo: String(data.riga.titolo ?? ""), numero: String(data.versione.numero ?? "") })}
+        title={t("Render: {nome}", { nome: String(vincoli.locale.nome ?? "") })}
         mobileTitle={vincoli.locale.nome}
-        description="Il render rispetta le misure della stanza e tiene porte e finestre dove sono nella pianta."
-        badgeLabel="Render AI — Planimetrie"
-        stepLabels={["Da dove parti", "Stile", "Elaborazione", "Risultato"]}
+        description={t("Il render rispetta le misure della stanza e tiene porte e finestre dove sono nella pianta.")}
+        badgeLabel={t("Render AI — Planimetrie")}
+        stepLabels={[t("Da dove parti"), t("Stile"), t("Elaborazione"), t("Risultato")]}
         currentStep={passo}
         accent="blue"
       />
       {renderDaVerificare && <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-        L’inquadratura è pronta da esplorare. Verifica la tavola prima di generare il render.{" "}
-        <Link to={percorsoPianta + "&sezione=verifica"} className="font-semibold underline underline-offset-2">Apri le verifiche</Link>
+        {t("L’inquadratura è pronta da esplorare. Verifica la tavola prima di generare il render.")}{" "}
+        <Link to={percorsoPianta + "&sezione=verifica"} className="font-semibold underline underline-offset-2">{t("Apri le verifiche")}</Link>
       </p>}
 
       {/* La stanza come la vede il render: misure e aperture con i loro nomi. */}
       {passo <= 2 && (
         <Card>
           <CardContent className="flex gap-4 p-4 max-md:gap-3 max-md:p-3">
-            <img src={svgUrl(svgPiantaStanza(vincoli, { lato: 360 }))} alt={`Pianta di ${vincoli.locale.nome}`} className="h-40 w-40 shrink-0 rounded border bg-white object-contain max-md:h-20 max-md:w-20" />
+            <img src={svgUrl(svgPiantaStanza(vincoli, { lato: 360 }))} alt={t("Pianta di {nome}", { nome: String(vincoli.locale.nome ?? "") })} className="h-40 w-40 shrink-0 rounded border bg-white object-contain max-md:h-20 max-md:w-20" />
             <div className="min-w-0 space-y-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{vincoli.locale.nome}</p>
-                {misureStimate && <Badge variant="outline" className="border-primary/40 text-primary">Misure stimate</Badge>}
+                {misureStimate && <Badge variant="outline" className="border-primary/40 text-primary">{t("Misure stimate")}</Badge>}
               </div>
               <p className="text-muted-foreground">{riepilogoStanza(vincoli)}</p>
               {vincoli.aperture.length > 0 && (
                 <ul className="space-y-0.5 text-xs text-muted-foreground max-md:hidden">
                   {vincoli.aperture.map((a) => (
                     <li key={a.id}>
-                      <span className="font-medium text-foreground">{a.etichetta}</span> sulla parete {a.parete}: {metri(a.larghezza_cm)} × {metri(a.altezza_cm)}
-                      {a.davanzale_cm > 0 ? `, da terra ${metri(a.davanzale_cm)}` : ""}
-                      {a.stimata ? " (stimata)" : ""}
+                      <span className="font-medium text-foreground">{a.etichetta}</span> {t("sulla parete")} {a.parete}: {metri(a.larghezza_cm)} × {metri(a.altezza_cm)}
+                      {a.davanzale_cm > 0 ? t(", da terra {davanzale_cm}", { davanzale_cm: String(metri(a.davanzale_cm) ?? "") }) : ""}
+                      {a.stimata ? ` ${t("(stimata)")}` : ""}
                     </li>
                   ))}
                 </ul>
               )}
               {misureStimate && (
                 <p className="text-xs text-primary">
-                  Alcune quote della stanza e delle aperture sono indicative. Confrontale con la tavola originale o il rilievo prima di confermarle nell’editor.
+                  {t("Alcune quote della stanza e delle aperture sono indicative. Confrontale con la tavola originale o il rilievo prima di confermarle nell’editor.")}
                 </p>
               )}
             </div>
@@ -427,22 +429,22 @@ function EditorRenderStanza() {
 
       {passo === 1 && (
         <div className="space-y-4 max-md:space-y-3">
-          <ToggleGroup type="single" value={partenza} onValueChange={(v) => v && setPartenza(v as PartenzaRender)} variant="outline" className="justify-start" aria-label="Da dove parti">
+          <ToggleGroup type="single" value={partenza} onValueChange={(v) => v && setPartenza(v as PartenzaRender)} variant="outline" className="justify-start" aria-label={t("Da dove parti")}>
             <ToggleGroupItem value="vista_3d">
               <Box className="mr-1.5 h-4 w-4" />
-              Dalla vista 3D
+              {t("Dalla vista 3D")}
             </ToggleGroupItem>
             <ToggleGroupItem value="foto">
               <Camera className="mr-1.5 h-4 w-4" />
-              Da una foto
+              {t("Da una foto")}
             </ToggleGroupItem>
           </ToggleGroup>
 
           {partenza === "vista_3d" ? (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Scegli l'inquadratura</CardTitle>
-                <p className="text-sm text-muted-foreground">Sei dentro la stanza: trascina per guardarti intorno, frecce o rotella per camminare. Quando ti piace, premi «Usa questa vista per il render».</p>
+                <CardTitle className="text-base">{t("Scegli l'inquadratura")}</CardTitle>
+                <p className="text-sm text-muted-foreground">{t("Sei dentro la stanza: trascina per guardarti intorno, frecce o rotella per camminare. Quando ti piace, premi «Usa questa vista per il render».")}</p>
               </CardHeader>
               <CardContent>
                 <Vista3DPigra
@@ -459,12 +461,12 @@ function EditorRenderStanza() {
                 />
                 {fotogramma && anteprima && (
                   <div className="mt-3 flex items-center gap-3 rounded-lg border bg-muted/30 p-2">
-                    <img src={anteprima} alt="Vista scelta" className="h-16 w-24 rounded object-cover" />
+                    <img src={anteprima} alt={t("Vista scelta")} className="h-16 w-24 rounded object-cover" />
                     <p className="text-sm">
-                      Vista scelta
+                      {t("Vista scelta")}
                       {fotogramma.metadati.aperture_visibili.length > 0
-                        ? ` · si vedono ${fotogramma.metadati.aperture_visibili.length === 1 ? "1 apertura" : `${fotogramma.metadati.aperture_visibili.length} aperture`}`
-                        : " · nessuna porta o finestra inquadrata"}
+                        ? ` ${fotogramma.metadati.aperture_visibili.length === 1 ? t("· si vedono 1 apertura") : t("· si vedono {n} aperture", { n: fotogramma.metadati.aperture_visibili.length })}`
+                        : ` ${t("· nessuna porta o finestra inquadrata")}`}
                     </p>
                   </div>
                 )}
@@ -475,10 +477,10 @@ function EditorRenderStanza() {
               <CardContent className="p-4">
                 {anteprima && foto ? (
                   <div className="relative overflow-hidden rounded-lg">
-                    <img src={anteprima} alt="Foto della stanza" className="max-h-80 w-full object-cover" />
+                    <img src={anteprima} alt={t("Foto della stanza")} className="max-h-80 w-full object-cover" />
                     <Button variant="secondary" size="sm" className="absolute right-3 top-3 gap-1.5" onClick={() => fileRef.current?.click()}>
                       <RefreshCw className="h-3.5 w-3.5" />
-                      Cambia foto
+                      {t("Cambia foto")}
                     </Button>
                   </div>
                 ) : (
@@ -488,8 +490,8 @@ function EditorRenderStanza() {
                     onClick={() => fileRef.current?.click()}
                   >
                     <Upload className="h-8 w-8 text-primary/70" />
-                    <span className="font-semibold">Carica una foto di questa stanza</span>
-                    <span className="text-sm text-muted-foreground">JPG, PNG o WEBP fino a 20 MB. Meglio frontale e luminosa.</span>
+                    <span className="font-semibold">{t("Carica una foto di questa stanza")}</span>
+                    <span className="text-sm text-muted-foreground">{t("JPG, PNG o WEBP fino a 20 MB. Meglio frontale e luminosa.")}</span>
                   </button>
                 )}
                 <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={scegliFoto} />
@@ -499,7 +501,7 @@ function EditorRenderStanza() {
 
           <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={!pronto} onClick={() => setPasso(2)}>
             <Wand2 className="h-4 w-4" />
-            Avanti: scegli lo stile
+            {t("Avanti: scegli lo stile")}
           </Button>
         </div>
       )}
@@ -508,13 +510,13 @@ function EditorRenderStanza() {
         <div className="space-y-4 max-md:space-y-3">
           {anteprima && (
             <div className="relative h-40 overflow-hidden rounded-xl">
-              <img src={anteprima} alt="Partenza" className="h-full w-full object-cover" />
+              <img src={anteprima} alt={t("Partenza")} className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-xs font-medium text-white">{partenza === "foto" ? "Foto caricata" : daCycles?.fotogramma === fotogramma ? "Render fotorealistico della pianta" : "Vista del 3D"}</div>
+              <div className="absolute bottom-2 left-3 text-xs font-medium text-white">{partenza === "foto" ? t("Foto caricata") : daCycles?.fotogramma === fotogramma ? t("Render fotorealistico della pianta") : t("Vista del 3D")}</div>
               {partenza === "vista_3d" && daCycles?.fotogramma === fotogramma && (
                 <Button asChild variant="secondary" size="sm" className="absolute right-2 top-2 gap-1.5">
                   <a href={anteprima} download={`cycles-${vincoli.locale.id.replace(/[^a-z0-9_-]+/gi, "-")}.png`}>
-                    <Download className="size-4" aria-hidden="true" />Scarica il render
+                    <Download className="size-4" aria-hidden="true" />{t("Scarica il render")}
                   </a>
                 </Button>
               )}
@@ -524,60 +526,60 @@ function EditorRenderStanza() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sofa className="h-4 w-4" />
-                Stile e materiali
+                {t("Stile e materiali")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
-              {(materiali.pavimento || materiali.infissi) && <div className="mb-4 space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-semibold">Materiali dalla planimetria</p>{materiali.pavimento && <><p>{descrizionePavimento(materiali.pavimento)}</p><label className="flex items-center gap-2"><input type="checkbox" checked={eccezionePavimento} onChange={(e) => setEccezionePavimento(e.target.checked)} />Usa un pavimento diverso solo per questo render</label></>}{materiali.infissi && <p>Infissi {PROFILI_PROGETTO[materiali.infissi.profilo]} · {COLORI_INFISSI_PROGETTO[materiali.infissi.colore].nome}</p>}<Link className="inline-block underline" to={tornaAllaPianta}>Apri la planimetria</Link></div>}
+              {(materiali.pavimento || materiali.infissi) && <div className="mb-4 space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-semibold">{t("Materiali dalla planimetria")}</p>{materiali.pavimento && <><p>{descrizionePavimento(materiali.pavimento)}</p><label className="flex items-center gap-2"><input type="checkbox" checked={eccezionePavimento} onChange={(e) => setEccezionePavimento(e.target.checked)} />{t("Usa un pavimento diverso solo per questo render")}</label></>}{materiali.infissi && <p>{t("Infissi {valore} · {nome}", { valore: String(PROFILI_PROGETTO[materiali.infissi.profilo] ?? ""), nome: String(COLORI_INFISSI_PROGETTO[materiali.infissi.colore].nome ?? "") })}</p>}<Link className="inline-block underline" to={tornaAllaPianta}>{t("Apri la planimetria")}</Link></div>}
               <StanzaConfigForm value={configEffettiva} onChange={setConfig} pavimentoBloccato={!!materiali.pavimento && !eccezionePavimento} companyId={companyId} />
-              {partenza === "vista_3d" && fotogramma && config.tende.attivo && !fotogramma.metadati.aperture_visibili.some((a) => a.tipo === "finestra" || a.tipo === "portafinestra") && <p className="mt-3 rounded-lg bg-muted p-3 text-sm text-muted-foreground">Le finestre sono fuori campo: le tende non saranno applicate a questa inquadratura. Porte e finestre restano quelle della pianta.</p>}
+              {partenza === "vista_3d" && fotogramma && config.tende.attivo && !fotogramma.metadati.aperture_visibili.some((a) => a.tipo === "finestra" || a.tipo === "portafinestra") && <p className="mt-3 rounded-lg bg-muted p-3 text-sm text-muted-foreground">{t("Le finestre sono fuori campo: le tende non saranno applicate a questa inquadratura. Porte e finestre restano quelle della pianta.")}</p>}
             </CardContent>
           </Card>
           {/* Senza crediti avvisa e blocca, come negli altri render. */}
           <RenderCreditGate hardBlock>
             <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={inCorso || renderDaVerificare} onClick={genera}>
               {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-              {preparo ? "Preparo il render…" : "Genera il render"}
+              {preparo ? t("Preparo il render…") : t("Genera il render")}
             </Button>
           </RenderCreditGate>
         </div>
       )}
 
       {passo === 3 && (
-        <RenderProcessingCard photoPreview={anteprima} elapsedSec={trascorsi} dots={puntini} accent="blue" subjectLabel={`L'AI sta facendo il render di «${vincoli.locale.nome}»`} />
+        <RenderProcessingCard photoPreview={anteprima} elapsedSec={trascorsi} dots={puntini} accent="blue" subjectLabel={t("L'AI sta facendo il render di «{nome}»", { nome: String(vincoli.locale.nome ?? "") })} />
       )}
 
       {passo === 4 && risultato && (
         <div className="space-y-4 max-md:space-y-3">
           <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4 max-md:hidden">
             <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-            <p className="text-sm font-semibold text-green-800">Render pronto. Salvalo nella galleria della stanza per ritrovarlo nella scheda della pianta.</p>
+            <p className="text-sm font-semibold text-green-800">{t("Render pronto. Salvalo nella galleria della stanza per ritrovarlo nella scheda della pianta.")}</p>
           </div>
           <Card className="overflow-hidden">
             <CardContent className="p-0">
-              {anteprima ? <BeforeAfterSlider beforeUrl={anteprima} afterUrl={risultato} /> : <img src={risultato} alt="Render" className="w-full" />}
+              {anteprima ? <BeforeAfterSlider beforeUrl={anteprima} afterUrl={risultato} /> : <img src={risultato} alt={t("Render")} className="w-full" />}
             </CardContent>
           </Card>
           <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => downloadRenderImage(risultato, `render-${vincoli.locale.nome.replace(/\W+/g, "-").toLowerCase()}.png`).catch(() => toast.error("Download non riuscito: tieni premuto sull'immagine per salvarla."))}>
+            <Button variant="outline" className="gap-2" onClick={() => downloadRenderImage(risultato, `render-${vincoli.locale.nome.replace(/\W+/g, "-").toLowerCase()}.png`).catch(() => toast.error(t("Download non riuscito: tieni premuto sull'immagine per salvarla.")))}>
               <Download className="h-4 w-4" />
-              Scarica
+              {t("Scarica")}
             </Button>
             <Button variant={salvato ? "secondary" : "default"} className="gap-2" disabled={salvato} onClick={salvaInGalleria}>
               <CheckCircle2 className="h-4 w-4" />
-              {salvato ? "Salvato nella galleria" : `Salva nella galleria di ${vincoli.locale.nome}`}
+              {salvato ? t("Salvato nella galleria") : t("Salva nella galleria di {nome}", { nome: String(vincoli.locale.nome ?? "") })}
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Button variant="outline" className="gap-2" onClick={() => setPasso(2)}>
               <ImagePlus className="h-4 w-4" />
-              Un'altra variante
+              {t("Un'altra variante")}
             </Button>
             <Button asChild variant="outline">
-              <Link to={salvato ? `${tornaAllaPianta}&galleria=${encodeURIComponent(scelta.localeId)}` : tornaAllaPianta}>{salvato ? "Apri la galleria della stanza" : "Torna alla pianta"}</Link>
+              <Link to={salvato ? `${tornaAllaPianta}&galleria=${encodeURIComponent(scelta.localeId)}` : tornaAllaPianta}>{salvato ? t("Apri la galleria della stanza") : t("Torna alla pianta")}</Link>
             </Button>
           </div>
-          <Button asChild className="w-full gap-2"><Link to={`${tornaAllaPianta}&esporta=fascicolo`}><Download className="h-4 w-4" />Prepara il fascicolo completo della casa</Link></Button>
+          <Button asChild className="w-full gap-2"><Link to={`${tornaAllaPianta}&esporta=fascicolo`}><Download className="h-4 w-4" />{t("Prepara il fascicolo completo della casa")}</Link></Button>
         </div>
       )}
     </div>

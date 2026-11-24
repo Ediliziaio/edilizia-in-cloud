@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { TrackingStatus } from "@/types/fleet";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface FleetStatusBarProps {
   status: TrackingStatus;
@@ -44,6 +45,7 @@ export function FleetStatusBar({
   onStop,
   className,
 }: FleetStatusBarProps) {
+  const t = useT();
   const cfg = STATUS_CONFIG[status];
   const Icon = cfg.icon;
   const isActive = status === "active";
@@ -53,11 +55,9 @@ export function FleetStatusBar({
       <Icon className={cn("h-4 w-4 shrink-0", isActive && "animate-pulse")} />
 
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold leading-none">{cfg.label}</p>
+        <p className="text-xs font-semibold leading-none">{t(cfg.label)}</p>
         {lastRecordedAt && (
-          <p className="text-[10px] mt-0.5 opacity-75">
-            Ultimo aggiornamento: {formatRelative(lastRecordedAt)}
-          </p>
+          <p className="text-[10px] mt-0.5 opacity-75">{t("Ultimo aggiornamento: {data}", { data: formatRelative(lastRecordedAt) })}</p>
         )}
       </div>
 
@@ -75,7 +75,7 @@ export function FleetStatusBar({
           className="h-7 text-xs shrink-0 border-current"
           onClick={onStop}
         >
-          Ferma
+          {t("Ferma")}
         </Button>
       ) : (
         <Button
@@ -84,7 +84,7 @@ export function FleetStatusBar({
           onClick={onStart}
           disabled={status === "denied"}
         >
-          Avvia
+          {t("Avvia")}
         </Button>
       )}
     </div>

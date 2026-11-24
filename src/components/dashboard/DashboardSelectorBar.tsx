@@ -51,6 +51,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Dashboard predefinite di sistema ─────────────────────────────────────────
 interface SystemDash {
@@ -104,6 +105,7 @@ function PickerItem({
   isDefaultPending: boolean;
   isDeletePending: boolean;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -127,7 +129,7 @@ function PickerItem({
           <p className="text-sm font-medium truncate leading-tight">
             {dash.is_default && (
               <span className="text-[10px] font-medium text-muted-foreground italic mr-1">
-                (Predefinita)
+                {t("(Predefinita)")}
               </span>
             )}
             {dash.name}
@@ -145,8 +147,8 @@ function PickerItem({
             "flex h-9 w-9 items-center justify-center rounded hover:bg-background/80 transition-colors disabled:cursor-default sm:h-8 sm:w-8",
             dash.is_default && "!opacity-100",
           )}
-          title={dash.is_default ? "Dashboard predefinita" : "Imposta come predefinita"}
-          aria-label={dash.is_default ? "Dashboard predefinita" : `Imposta ${dash.name} come predefinita`}
+          title={dash.is_default ? t("Dashboard predefinita") : t("Imposta come predefinita")}
+          aria-label={dash.is_default ? t("Dashboard predefinita") : t("Imposta {name} come predefinita", { name: String(dash.name ?? "") })}
         >
           <Star className={cn(
             "h-3.5 w-3.5 transition-all",
@@ -163,8 +165,8 @@ function PickerItem({
             disabled={isDeletePending}
             onClick={(e) => { e.stopPropagation(); onDelete(e); }}
             className="flex h-9 w-9 items-center justify-center rounded hover:bg-destructive/10 transition-colors disabled:cursor-wait disabled:opacity-60 sm:h-8 sm:w-8"
-            title="Elimina dashboard"
-            aria-label={`Elimina ${dash.name}`}
+            title={t("Elimina dashboard")}
+            aria-label={t("Elimina {name}", { name: String(dash.name ?? "") })}
           >
             <Trash2 className={cn(
               "h-3.5 w-3.5 stroke-muted-foreground/60 hover:stroke-destructive transition-colors",
@@ -239,6 +241,7 @@ export function DashboardSelectorBar({
   actions,
   soloSelettore = false,
 }: DashboardSelectorBarProps) {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -286,8 +289,8 @@ export function DashboardSelectorBar({
   const handleSetDefault = (e: React.MouseEvent, dashId: string) => {
     e.stopPropagation();
     setDefault.mutate(dashId, {
-      onSuccess: () => toast.success("Dashboard impostata come predefinita"),
-      onError: () => toast.error("Non sono riuscito a impostare la dashboard predefinita"),
+      onSuccess: () => toast.success(t("Dashboard impostata come predefinita")),
+      onError: () => toast.error(t("Non sono riuscito a impostare la dashboard predefinita")),
     });
   };
 
@@ -307,14 +310,14 @@ export function DashboardSelectorBar({
     const target = deleteTarget;
     deleteDash.mutate(target.id, {
       onSuccess: () => {
-        toast.success(`"${target.name}" eliminata`);
+        toast.success(t("\"{name}\" eliminata", { name: String(target.name ?? "") }));
         setDeleteTarget(null);
         if (target.id === activeDashId) {
           navigate(getSmartCruscottoPath(permissions, role), { replace: true });
         }
       },
       onError: (err) => {
-        toast.error((err as Error).message || "Non sono riuscito a eliminare la dashboard");
+        toast.error((err as Error).message || t("Non sono riuscito a eliminare la dashboard"));
         setDeleteTarget(null);
       },
     });
@@ -327,7 +330,7 @@ export function DashboardSelectorBar({
           variant="outline"
           size="sm"
           className="h-9 gap-2 font-normal shrink-0"
-          aria-label="Seleziona dashboard"
+          aria-label={t("Seleziona dashboard")}
         >
           <LayoutGrid className="h-4 w-4 text-muted-foreground" />
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -339,8 +342,8 @@ export function DashboardSelectorBar({
         <div className="relative mb-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
-            aria-label="Cerca dashboard personalizzate"
-            placeholder="Cerca dashboard personalizzate"
+            aria-label={t("Cerca dashboard personalizzate")}
+            placeholder={t("Cerca dashboard personalizzate")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-9 text-sm"
@@ -355,7 +358,7 @@ export function DashboardSelectorBar({
           className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 rounded-md transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Aggiungi dashboard
+          {t("Aggiungi dashboard")}
         </button>
 
         <div className="my-1.5 border-t" />
@@ -364,12 +367,12 @@ export function DashboardSelectorBar({
           {/* Dashboard di sistema */}
           {permissions.isLoading ? (
             <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-              Caricamento dashboard…
+              {t("Caricamento dashboard…")}
             </p>
           ) : visibleSystem.length > 0 && (
             <div>
               <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Predefinite
+                {t("Predefinite")}
               </p>
               {visibleSystem.map((s) => {
                 const Icon = s.icon;
@@ -391,7 +394,7 @@ export function DashboardSelectorBar({
                     )}>
                       <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
                     </div>
-                    <span className="text-sm font-medium truncate">{s.label}</span>
+                    <span className="text-sm font-medium truncate">{t(s.label)}</span>
                   </Link>
                 );
               })}
@@ -406,24 +409,22 @@ export function DashboardSelectorBar({
           {/* Dashboard personalizzate */}
           {dashboardsError ? (
             <p className="px-3 py-3 text-sm text-center text-destructive">
-              Non riesco a caricare le dashboard. Riapri il menu tra qualche secondo.
+              {t("Non riesco a caricare le dashboard. Riapri il menu tra qualche secondo.")}
             </p>
           ) : dashboardsLoading ? (
             <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-              Caricamento personalizzate…
+              {t("Caricamento personalizzate…")}
             </p>
           ) : dashboards.length === 0 ? (
             <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-              Nessuna dashboard personalizzata
+              {t("Nessuna dashboard personalizzata")}
             </p>
           ) : mine.length === 0 && shared.length === 0 && search ? (
-            <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-              Nessun risultato per "{search}"
-            </p>
+            <p className="px-3 py-3 text-sm text-center text-muted-foreground">{t("Nessun risultato per \"{search}\"", { search: String(search ?? "") })}</p>
           ) : (
             <>
               <PickerSection
-                title="Le mie dashboard"
+                title={t("Le mie dashboard")}
                 items={mine}
                 activeDashId={activeDashId}
                 onSelect={handleSelectCustom}
@@ -433,7 +434,7 @@ export function DashboardSelectorBar({
                 deletePendingId={deletePendingId}
               />
               <PickerSection
-                title="Condiviso con me"
+                title={t("Condiviso con me")}
                 items={shared}
                 activeDashId={activeDashId}
                 onSelect={handleSelectCustom}
@@ -454,7 +455,7 @@ export function DashboardSelectorBar({
             className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
           >
             <Settings className="h-3.5 w-3.5" />
-            Gestisci dashboard
+            {t("Gestisci dashboard")}
           </button>
         </div>
       </PopoverContent>
@@ -481,21 +482,19 @@ export function DashboardSelectorBar({
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina dashboard</AlertDialogTitle>
+            <AlertDialogTitle>{t("Elimina dashboard")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare{" "}
-              <span className="font-semibold text-foreground">"{deleteTarget?.name}"</span>?
-              Questa azione non può essere annullata.
+              {t("Sei sicuro di voler eliminare \"{nome}\"? Questa azione non può essere annullata.", { nome: deleteTarget?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDeleteConfirm}
               disabled={deleteDash.isPending}
             >
-              {deleteDash.isPending ? "Eliminazione…" : "Elimina"}
+              {deleteDash.isPending ? t("Eliminazione…") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

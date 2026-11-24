@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * UpgradePage — fallback mostrato da `FeatureRoute` quando l'utente tenta
@@ -19,13 +20,14 @@ import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta"
  * anche al ritorno da Stripe (`?addon=whatsapp&pagamento=ok|annullato`).
  */
 export default function UpgradePage() {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentPlan } = useSubscriptionLimits();
 
   const deniedFeature = (location.state as { deniedFeature?: string } | null)?.deniedFeature;
-  const planName = currentPlan?.name ?? "Piano corrente";
+  const planName = currentPlan?.name ?? t("Piano corrente");
   const addonWhatsApp = deniedFeature === "whatsapp" || searchParams.get("addon") === "whatsapp";
   const pagamento = searchParams.get("pagamento");
 
@@ -41,14 +43,14 @@ export default function UpgradePage() {
               <div>
                 <CardTitle>WhatsApp Business</CardTitle>
                 <CardDescription>
-                  Piano attivo: <strong>{planName}</strong>
+                  {t("Piano attivo:")} <strong>{planName}</strong>
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {pagamento === "annullato" && (
-              <p className="text-sm text-muted-foreground">Pagamento annullato: nessun addebito.</p>
+              <p className="text-sm text-muted-foreground">{t("Pagamento annullato: nessun addebito.")}</p>
             )}
             <AddonWhatsAppOfferta
               inAttesaDiAttivazione={pagamento === "ok"}
@@ -69,9 +71,9 @@ export default function UpgradePage() {
               <Lock className="h-5 w-5 text-warning" />
             </div>
             <div>
-              <CardTitle>Funzionalità non inclusa</CardTitle>
+              <CardTitle>{t("Funzionalità non inclusa")}</CardTitle>
               <CardDescription>
-                Piano attivo: <strong>{planName}</strong>
+                {t("Piano attivo:")} <strong>{planName}</strong>
               </CardDescription>
             </div>
           </div>
@@ -79,31 +81,31 @@ export default function UpgradePage() {
         <CardContent className="space-y-4">
           {deniedFeature ? (
             <p className="text-sm text-muted-foreground">
-              La sezione richiesta (<code className="px-1.5 py-0.5 rounded bg-muted text-foreground">{deniedFeature}</code>)
-              non è attiva sul tuo piano o è stata disabilitata per la tua azienda.
+              {t("La sezione richiesta ({sezione}) non è attiva sul tuo piano o è stata disabilitata per la tua azienda.", { sezione: "\u0000" }).split("\u0000").map((pezzo, i) => (
+                <span key={i}>{i > 0 && <code className="px-1.5 py-0.5 rounded bg-muted text-foreground">{deniedFeature}</code>}{pezzo}</span>
+              ))}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              La sezione richiesta non è attualmente disponibile per la tua azienda.
+              {t("La sezione richiesta non è attualmente disponibile per la tua azienda.")}
             </p>
           )}
 
           <p className="text-sm text-muted-foreground">
-            Contatta il commerciale per attivare la funzionalità, oppure consulta i
-            piani disponibili dalla sezione abbonamento.
+            {t("Contatta il commerciale per attivare la funzionalità, oppure consulta i piani disponibili dalla sezione abbonamento.")}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-2 pt-2">
             <Button asChild variant="default">
               <Link to="/azienda/impostazioni/abbonamento">
-                Vedi piani e abbonamento
+                {t("Vedi piani e abbonamento")}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline">
               <a href="mailto:commerciale@ediliziaincloud.com?subject=Richiesta%20attivazione%20funzionalità">
                 <Mail className="mr-2 h-4 w-4" />
-                Contatta commerciale
+                {t("Contatta commerciale")}
               </a>
             </Button>
           </div>

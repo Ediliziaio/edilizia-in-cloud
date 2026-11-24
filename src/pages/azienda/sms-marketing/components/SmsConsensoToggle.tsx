@@ -8,6 +8,7 @@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Shield } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsConsensoToggleProps {
   value: boolean;
@@ -16,15 +17,16 @@ interface SmsConsensoToggleProps {
 }
 
 export function SmsConsensoToggle({ value, onChange, disabled }: SmsConsensoToggleProps) {
+  const t = useT();
   return (
     <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/20">
       <Shield className={`h-4 w-4 mt-0.5 shrink-0 ${value ? "text-emerald-600" : "text-muted-foreground"}`} />
       <div className="flex-1 space-y-0.5">
         <Label className="text-sm font-medium cursor-pointer" htmlFor="consenso-toggle">
-          Consenso marketing GDPR
+          {t("Consenso marketing GDPR")}
         </Label>
         <p className="text-xs text-muted-foreground">
-          Il contatto ha fornito consenso esplicito alla ricezione di comunicazioni promozionali via SMS.
+          {t("Il contatto ha fornito consenso esplicito alla ricezione di comunicazioni promozionali via SMS.")}
         </p>
       </div>
       <Switch

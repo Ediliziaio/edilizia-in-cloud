@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface LinkImpostazioneProps {
   /** L'indirizzo, con l'àncora o la scheda se serve: «/azienda/impostazioni/margini#prezzo». */
@@ -18,6 +19,7 @@ interface LinkImpostazioneProps {
 }
 
 export function LinkImpostazione({ to, children, className, nuovaScheda = true }: LinkImpostazioneProps) {
+  const t = useT();
   if (!nuovaScheda) {
     return (
       <Link to={to} className={className}>
@@ -28,7 +30,7 @@ export function LinkImpostazione({ to, children, className, nuovaScheda = true }
   return (
     <a href={to} target="_blank" rel="noopener noreferrer" className={className}>
       {children}
-      <span className="sr-only"> (si apre in una nuova scheda)</span>
+      <span className="sr-only"> {t("(si apre in una nuova scheda)")}</span>
     </a>
   );
 }

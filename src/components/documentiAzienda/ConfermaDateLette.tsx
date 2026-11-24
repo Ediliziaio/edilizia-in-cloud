@@ -32,6 +32,7 @@ import {
   type LetturaCarta,
 } from '@/lib/documentiAzienda/letturaAI';
 import { ETICHETTA_CATEGORIA, type CartaDaLeggere, type DatiDocumento } from '@/types/documentiAzienda';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Due alla volta: leggere un PDF costa qualche secondo, venti in fila sono due minuti. */
 const INSIEME = 2;
@@ -44,13 +45,13 @@ type Esito =
   | { stato: 'errore'; motivo: string };
 
 /** Cosa cambierà sulla carta, detto in italiano e senza nomi di campi. */
-function descrivi(dati: Partial<DatiDocumento>): string[] {
+function descrivi(dati: Partial<DatiDocumento>, t: (testo: string, valori?: Record<string, string | number>) => string): string[] {
   const righe: string[] = [];
-  if (dati.titolo) righe.push(`si chiamerà «${dati.titolo}»`);
-  if (dati.categoria) righe.push(`va in ${ETICHETTA_CATEGORIA[dati.categoria]}`);
-  if (dati.ente) righe.push(`rilasciato da ${dati.ente}`);
-  if (dati.numero) righe.push(`numero ${dati.numero}`);
-  if (dati.data_documento) righe.push(`del ${dati.data_documento.split('-').reverse().join('/')}`);
+  if (dati.titolo) righe.push(t("si chiamerà «{titolo}»", { titolo: dati.titolo }));
+  if (dati.categoria) righe.push(t("va in {categoria}", { categoria: t(ETICHETTA_CATEGORIA[dati.categoria]) }));
+  if (dati.ente) righe.push(t("rilasciato da {ente}", { ente: dati.ente }));
+  if (dati.numero) righe.push(t("numero {numero}", { numero: dati.numero }));
+  if (dati.data_documento) righe.push(t("del {data}", { data: dati.data_documento.split('-').reverse().join('/') }));
   return righe;
 }
 
@@ -63,6 +64,7 @@ export default function ConfermaDateLette({ carte, onChiudi }: {
   carte: CartaDaLeggere[];
   onChiudi: () => void;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const applica = useApplicaLettureDocumenti();
   // Un .doc o un .heic il modello non li legge: si sa subito, senza chiedere.
@@ -137,20 +139,17 @@ export default function ConfermaDateLette({ carte, onChiudi }: {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            {carte.length === 1 ? 'Ho letto il file' : 'Ho letto i file'}
+            {carte.length === 1 ? t("Ho letto il file") : t("Ho letto i file")}
           </DialogTitle>
           <DialogDescription>
-            Le scadenze che ho trovato sul documento. Controllale: le metto solo quelle
-            che spunti, e quelle che correggi le scrivo come le hai corrette.
+            {t("Le scadenze che ho trovato sul documento. Controllale: le metto solo quelle che spunti, e quelle che correggi le scrivo come le hai corrette.")}
           </DialogDescription>
         </DialogHeader>
 
         {leggendo && (
           <div className="space-y-2">
             <Progress value={carte.length > 0 ? (finite / carte.length) * 100 : 0} />
-            <p className="text-xs text-muted-foreground tabular-nums">
-              Leggo: {finite} di {carte.length}
-            </p>
+            <p className="text-xs text-muted-foreground tabular-nums">{t("Leggo: {finite} di {n}", { finite: String(finite ?? ""), n: carte.length })}</p>
           </div>
         )}
 
@@ -160,7 +159,7 @@ export default function ConfermaDateLette({ carte, onChiudi }: {
               const e = esiti[i];
               const dati = e.stato === 'letto' ? campiDaScrivere(carta, e.lettura, scadenze[i]) : {};
               const proponibile = e.stato === 'letto' && qualcosaDaProporre(carta, e.lettura);
-              const altro = descrivi({ ...dati, data_scadenza: undefined });
+              const altro = descrivi({ ...dati, data_scadenza: undefined }, t);
               return (
                 <div key={carta.documentoId} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start">
                   <div className="min-w-0 flex-1">
@@ -170,23 +169,23 @@ export default function ConfermaDateLette({ carte, onChiudi }: {
                     <p className="truncate text-xs text-muted-foreground">{carta.nomeFile}</p>
                     {e.stato === 'leggo' && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Leggo il documento…
+                        <Loader2 className="h-3 w-3 animate-spin" /> {t("Leggo il documento…")}
                       </p>
                     )}
-                    {e.stato === 'attesa' && <p className="mt-1 text-xs text-muted-foreground">In coda</p>}
+                    {e.stato === 'attesa' && <p className="mt-1 text-xs text-muted-foreground">{t("In coda")}</p>}
                     {e.stato === 'nonLeggibile' && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Questo non so leggerlo: la data va messa a mano.
+                        {t("Questo non so leggerlo: la data va messa a mano.")}
                       </p>
                     )}
                     {e.stato === 'errore' && (
-                      <p className="mt-1 text-xs text-destructive">Non sono riuscito a leggerlo.</p>
+                      <p className="mt-1 text-xs text-destructive">{t("Non sono riuscito a leggerlo.")}</p>
                     )}
                     {e.stato === 'letto' && !proponibile && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         {e.lettura.senza_scadenza
-                          ? 'Il documento dice di non scadere: lascio vuota la scadenza.'
-                          : 'Sul documento non ho trovato una scadenza.'}
+                          ? t("Il documento dice di non scadere: lascio vuota la scadenza.")
+                          : t("Sul documento non ho trovato una scadenza.")}
                       </p>
                     )}
                     {e.stato === 'letto' && proponibile && altro.length > 0 && (
@@ -198,7 +197,7 @@ export default function ConfermaDateLette({ carte, onChiudi }: {
                     <div className="flex items-center gap-2 sm:w-64">
                       <Checkbox
                         checked={scelti[i]}
-                        aria-label={`Metti quello che ho letto su ${carta.titolo}`}
+                        aria-label={t("Metti quello che ho letto su {titolo}", { titolo: String(carta.titolo ?? "") })}
                         onCheckedChange={(v) =>
                           setScelti((prima) => prima.map((s, k) => (k === i ? v === true : s)))
                         }
@@ -221,13 +220,13 @@ export default function ConfermaDateLette({ carte, onChiudi }: {
 
         <DialogFooter>
           <Button variant="outline" onClick={onChiudi} disabled={applica.isPending}>
-            Lascia stare
+            {t("Lascia stare")}
           </Button>
           <Button onClick={salva} disabled={applica.isPending || daScrivere.length === 0}>
             <CalendarCheck className="mr-2 h-4 w-4" />
             {applica.isPending
-              ? 'Metto…'
-              : daScrivere.length === 1 ? 'Metti la data' : `Metti ${daScrivere.length} date`}
+              ? t("Metto…")
+              : daScrivere.length === 1 ? t("Metti la data") : t("Metti {n} date", { n: daScrivere.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

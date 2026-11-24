@@ -34,6 +34,7 @@ import { SelezionaCliente } from "@/components/preventivatore/SelezionaCliente";
 import type { ClienteScelto } from "@/lib/preventivatore/selezionaCliente";
 import { useAggiornaContattoDalPreventivo } from "@/lib/preventivatore/aggiornaContatto";
 import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactLite {
   id: string;
@@ -63,6 +64,7 @@ interface Props {
 
 
 export default function StepCliente({ form, onChange }: Props) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const [oppPickerOpen, setOppPickerOpen] = useState(false);
   const [oppSearch, setOppSearch] = useState("");
@@ -130,10 +132,10 @@ export default function StepCliente({ form, onChange }: Props) {
             <User className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Cliente</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{tr("Cliente")}</h2>
             {/* Telefono no: spiegazioni sotto i titoli. */}
             <p className="text-[11px] text-muted-foreground max-sm:hidden">
-              Collega un contatto CRM o compila i dati. Verranno usati nel preventivo PDF.
+              {tr("Collega un contatto CRM o compila i dati. Verranno usati nel preventivo PDF.")}
             </p>
           </div>
         </div>
@@ -146,27 +148,27 @@ export default function StepCliente({ form, onChange }: Props) {
         <SceltaTipoCliente className="max-sm:order-3 max-sm:col-span-2" valore={form.cliente_tipo} onChange={(t) => onChange("cliente_tipo", t)} />
         <div className="grid grid-cols-12 gap-3 max-sm:order-3 max-sm:col-span-2 max-sm:gap-2">
           <div className="col-span-6">
-            <Label className="flex h-4 items-center gap-1 text-xs"><User className="h-3 w-3" /> Nome</Label>
+            <Label className="flex h-4 items-center gap-1 text-xs"><User className="h-3 w-3" /> {tr("Nome")}</Label>
             <Input
               value={form.cliente_nome ?? ""}
               onChange={(e) => onChange("cliente_nome", e.target.value || null)}
-              placeholder="Mario"
+              placeholder={tr("Mario")}
               className="h-9"
             />
           </div>
           <div className="col-span-6">
-            <Label className="flex h-4 items-center gap-1 text-xs"><User className="h-3 w-3" /> Cognome</Label>
+            <Label className="flex h-4 items-center gap-1 text-xs"><User className="h-3 w-3" /> {tr("Cognome")}</Label>
             <Input
               value={form.cliente_cognome ?? ""}
               onChange={(e) => onChange("cliente_cognome", e.target.value || null)}
-              placeholder="Rossi"
+              placeholder={tr("Rossi")}
               className="h-9"
             />
           </div>
           {/* Telefono: email e telefono a tutta riga, a metà l'email non si leggeva. */}
           <div className="col-span-12 sm:col-span-6">
             <Label className="flex h-4 items-center gap-1 text-xs">
-              <Mail className="h-3 w-3" /> Email
+              <Mail className="h-3 w-3" /> {tr("Email")}
             </Label>
             <Input
               type="email"
@@ -178,7 +180,7 @@ export default function StepCliente({ form, onChange }: Props) {
           </div>
           <div className="col-span-12 sm:col-span-6">
             <Label className="flex h-4 items-center gap-1 text-xs">
-              <Phone className="h-3 w-3" /> Telefono
+              <Phone className="h-3 w-3" /> {tr("Telefono")}
             </Label>
             <Input
               value={form.cliente_telefono ?? ""}
@@ -197,7 +199,7 @@ export default function StepCliente({ form, onChange }: Props) {
         <IndirizzoDeiLavori
           className="max-sm:order-4 max-sm:col-span-2"
           conSpunta={indirizzo.conSpunta}
-          etichettaUguale="Lavori allo stesso indirizzo del contatto"
+          etichettaUguale={tr("Lavori allo stesso indirizzo del contatto")}
           altrove={indirizzo.altrove}
           onAltrove={indirizzo.scegliAltrove}
           lavori={indirizzo.lavori}
@@ -211,22 +213,22 @@ export default function StepCliente({ form, onChange }: Props) {
             <div className="min-w-0 max-sm:hidden">
               <p className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
                 <Briefcase className="h-3.5 w-3.5 text-slate-500" />
-                Opportunità<span className="max-sm:hidden"> CRM (opzionale)</span>
+                {tr("Opportunità")}<span className="max-sm:hidden"> {tr("CRM (opzionale)")}</span>
               </p>
               <p className="truncate text-[11px] text-slate-500 max-sm:hidden">
-                Collega il progetto a un'opportunità per il tracking nel pipeline.
+                {tr("Collega il progetto a un'opportunità per il tracking nel pipeline.")}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2 max-sm:w-full">
               {form.opportunita_id ? (
                 <Badge variant="secondary" className="gap-1.5 py-1 pl-2.5 pr-1 max-sm:h-8 max-sm:w-full max-sm:justify-between max-sm:rounded-md">
-                  <span className="max-sm:hidden">Collegata</span>
-                  <span className="truncate sm:hidden">Opportunità collegata</span>
+                  <span className="max-sm:hidden">{tr("Collegata")}</span>
+                  <span className="truncate sm:hidden">{tr("Opportunità collegata")}</span>
                   <button
                     type="button"
                     onClick={() => onChange("opportunita_id", null)}
                     className="tap-compact ml-0.5 rounded-full p-0.5 hover:bg-background/60 max-sm:p-1.5"
-                    aria-label="Rimuovi collegamento opportunità"
+                    aria-label={tr("Rimuovi collegamento opportunità")}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -236,18 +238,18 @@ export default function StepCliente({ form, onChange }: Props) {
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="tap-compact h-8 gap-1.5 text-xs max-sm:w-full max-sm:px-2">
                       <Briefcase className="h-3.5 w-3.5" />
-                      Collega opportunità
+                      {tr("Collega opportunità")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-72 p-0" align="end">
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Cerca opportunità..."
+                        placeholder={tr("Cerca opportunità...")}
                         value={oppSearch}
                         onValueChange={setOppSearch}
                       />
                       <CommandList>
-                        <CommandEmpty>Nessuna opportunità trovata</CommandEmpty>
+                        <CommandEmpty>{tr("Nessuna opportunità trovata")}</CommandEmpty>
                         <CommandGroup>
                           {opportunities.map((o) => (
                             <CommandItem
@@ -259,7 +261,7 @@ export default function StepCliente({ form, onChange }: Props) {
                               }}
                             >
                               <Check className="mr-2 h-4 w-4 opacity-0" />
-                              <span className="truncate">{o.name || "Senza nome"}</span>
+                              <span className="truncate">{o.name || tr("Senza nome")}</span>
                             </CommandItem>
                           ))}
                         </CommandGroup>

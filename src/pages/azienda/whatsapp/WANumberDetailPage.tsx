@@ -35,6 +35,7 @@ import {
   type WAOperationalSettings,
   type WAPurpose,
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** I campi della pagina, tutti insieme: quelli del numero con sopra le modifiche fatte qui. */
 interface CampiNumero {
@@ -49,7 +50,7 @@ const uguali = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(
 
 /** «0,00 €»; per cifre piccolissime (la spesa AI di un giorno) qualche decimale in più, così non sembra zero. */
 function euro(valore: number): string {
-  return valore.toLocaleString("it-IT", {
+  return valore.toLocaleString(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: valore > 0 && valore < 0.01 ? 4 : 2,
@@ -62,6 +63,7 @@ function TitoloSezione({ children }: { children: string }) {
 }
 
 export default function WANumberDetailPage() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { base: waBase } = useWhatsAppBase();
@@ -104,17 +106,17 @@ export default function WANumberDetailPage() {
       <div className="space-y-6 p-4 md:p-6 max-w-3xl mx-auto">
         <Button variant="ghost" size="sm" onClick={() => navigate(`${waBase}?tab=numeri`)}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Torna ai numeri
+          {t("Torna ai numeri")}
         </Button>
         <Card className="p-8 text-center border-destructive/20 bg-destructive/5">
           <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
-          <h1 className="font-semibold">Numero non caricato</h1>
+          <h1 className="font-semibold">{t("Numero non caricato")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {(error as Error)?.message || "Non riesco a caricare il dettaglio del numero."}
+            {(error as Error)?.message || t("Non riesco a caricare il dettaglio del numero.")}
           </p>
           <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            Riprova
+            {t("Riprova")}
           </Button>
         </Card>
       </div>
@@ -122,7 +124,7 @@ export default function WANumberDetailPage() {
   }
 
   if (!number || !campi) {
-    return <div className="p-6 text-sm text-muted-foreground">Numero non trovato.</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("Numero non trovato.")}</div>;
   }
 
   const purpose = number.purpose as WAPurpose;
@@ -157,19 +159,19 @@ export default function WANumberDetailPage() {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(`${waBase}?tab=numeri`)}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Torna ai numeri
+          {t("Torna ai numeri")}
         </Button>
       </div>
 
       <div>
         <h1 className="text-2xl font-semibold">{number.display_name ?? number.numero}</h1>
         <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-          <Badge variant="outline">{PURPOSE_LABELS[purpose]}</Badge>
+          <Badge variant="outline">{t(PURPOSE_LABELS[purpose])}</Badge>
           <span className="font-mono">{number.numero}</span>
         </p>
       </div>
 
-      {!isAdmin && <AvvisoSolaLettura>{SOLO_AMMINISTRATORI_WA}</AvvisoSolaLettura>}
+      {!isAdmin && <AvvisoSolaLettura>{t(SOLO_AMMINISTRATORI_WA)}</AvvisoSolaLettura>}
 
       {/* disabled su un fieldset spegne ogni campo e pulsante che contiene (anche le tendine). */}
       <fieldset disabled={!isAdmin || update.isPending} className="m-0 min-w-0 space-y-6 border-0 p-0">
@@ -183,12 +185,12 @@ export default function WANumberDetailPage() {
               dirty && !update.isPending && "font-medium text-amber-700 dark:text-amber-400",
             )}
           >
-            {update.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}
+            {update.isPending ? t("Salvataggio…") : dirty ? t("Modifiche non salvate") : t("Nessuna modifica da salvare")}
           </p>
           <div className="ml-auto flex items-center gap-2">
             {dirty && (
               <Button variant="outline" size="sm" className="h-11 sm:h-9" onClick={() => setModifiche({})} disabled={update.isPending}>
-                Annulla modifiche
+                {t("Annulla modifiche")}
               </Button>
             )}
             <Button onClick={save} disabled={!isAdmin || update.isPending} size="sm" className="h-11 sm:h-9">
@@ -197,18 +199,18 @@ export default function WANumberDetailPage() {
               ) : (
                 <Save className="mr-2 h-4 w-4" />
               )}
-              Salva impostazioni
+              {t("Salva impostazioni")}
             </Button>
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <TitoloSezione>Nome e spesa</TitoloSezione>
+            <TitoloSezione>{t("Nome e spesa")}</TitoloSezione>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <Label htmlFor="display-name">Nome visualizzato</Label>
+              <Label htmlFor="display-name">{t("Nome visualizzato")}</Label>
               <Input
                 id="display-name"
                 value={campi.displayName}
@@ -217,7 +219,7 @@ export default function WANumberDetailPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="budget">Spesa massima AI al giorno (€)</Label>
+              <Label htmlFor="budget">{t("Spesa massima AI al giorno (€)")}</Label>
               <Input
                 id="budget"
                 type="number"
@@ -227,9 +229,7 @@ export default function WANumberDetailPage() {
                 onChange={(e) => setCampo("budget", e.target.value)}
                 aria-describedby="budget-speso"
               />
-              <p id="budget-speso" className="text-xs text-muted-foreground">
-                Speso oggi: {euro(Number(number.current_day_spend_eur ?? 0))}
-              </p>
+              <p id="budget-speso" className="text-xs text-muted-foreground">{t("Speso oggi: {importo}", { importo: euro(Number(number.current_day_spend_eur ?? 0)) })}</p>
             </div>
           </CardContent>
         </Card>
@@ -237,12 +237,12 @@ export default function WANumberDetailPage() {
         {isOperativo && (
           <Card>
             <CardHeader>
-              <TitoloSezione>Come lavora Silvio sui cantieri</TitoloSezione>
+              <TitoloSezione>{t("Come lavora Silvio sui cantieri")}</TitoloSezione>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-xl border bg-muted/30 p-3">
-                  <Label htmlFor="ai-mode" className="text-sm font-semibold">Quanto fa Silvio da solo</Label>
+                  <Label htmlFor="ai-mode" className="text-sm font-semibold">{t("Quanto fa Silvio da solo")}</Label>
                   <Select
                     value={operationalSettings.ai_mode}
                     onValueChange={(value: WAOperationalSettings["ai_mode"]) =>
@@ -253,21 +253,21 @@ export default function WANumberDetailPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="draft_only">Solo bozze</SelectItem>
-                      <SelectItem value="confirm_critical">Chiede conferma per i dati importanti</SelectItem>
-                      <SelectItem value="auto_with_review">Fa da solo e poi controlli tu</SelectItem>
+                      <SelectItem value="draft_only">{t("Solo bozze")}</SelectItem>
+                      <SelectItem value="confirm_critical">{t("Chiede conferma per i dati importanti")}</SelectItem>
+                      <SelectItem value="auto_with_review">{t("Fa da solo e poi controlli tu")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Decide quanto Silvio può scrivere su rapportini, presenze, DDT e diario.
+                    {t("Decide quanto Silvio può scrivere su rapportini, presenze, DDT e diario.")}
                   </p>
                 </div>
 
                 <div className="rounded-xl border bg-muted/30 p-3">
-                  <p className="text-sm font-semibold">Promemoria del rapportino</p>
+                  <p className="text-sm font-semibold">{t("Promemoria del rapportino")}</p>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <Label htmlFor="daily-rapportino" className="text-xs text-muted-foreground">
-                      Manda il promemoria ogni giorno
+                      {t("Manda il promemoria ogni giorno")}
                     </Label>
                     <Switch
                       id="daily-rapportino"
@@ -280,7 +280,7 @@ export default function WANumberDetailPage() {
                   <Input
                     className="mt-3"
                     type="time"
-                    aria-label="A che ora"
+                    aria-label={t("A che ora")}
                     value={operationalSettings.daily_rapportino_time}
                     onChange={(e) => updateOperationalSettings("daily_rapportino_time", e.target.value)}
                     disabled={!operationalSettings.daily_rapportino_enabled}
@@ -292,22 +292,22 @@ export default function WANumberDetailPage() {
                     }
                     disabled={!operationalSettings.daily_rapportino_enabled}
                   >
-                    <SelectTrigger className="mt-3" aria-label="A chi">
+                    <SelectTrigger className="mt-3" aria-label={t("A chi")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="assigned_workers">Solo operai assegnati</SelectItem>
-                      <SelectItem value="all_field_workers">Tutti gli operativi</SelectItem>
+                      <SelectItem value="assigned_workers">{t("Solo operai assegnati")}</SelectItem>
+                      <SelectItem value="all_field_workers">{t("Tutti gli operativi")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="rounded-xl border bg-muted/30 p-3">
-                  <p className="text-sm font-semibold">DDT e conferme</p>
+                  <p className="text-sm font-semibold">{t("DDT e conferme")}</p>
                   <div className="mt-3 space-y-3">
                     <ToggleLine
                       id="ddt-conferma"
-                      label="Conferma prima di registrare"
+                      label={t("Conferma prima di registrare")}
                       checked={operationalSettings.ddt_requires_confirmation}
                       onCheckedChange={(checked) =>
                         updateOperationalSettings("ddt_requires_confirmation", checked)
@@ -315,24 +315,24 @@ export default function WANumberDetailPage() {
                     />
                     <ToggleLine
                       id="ddt-avvisa"
-                      label="Avvisa amministrazione"
+                      label={t("Avvisa amministrazione")}
                       checked={operationalSettings.ddt_notify_admin}
                       onCheckedChange={(checked) => updateOperationalSettings("ddt_notify_admin", checked)}
                     />
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Una foto DDT diventa proposta controllabile, non un dato salvato alla cieca.
+                    {t("Una foto DDT diventa proposta controllabile, non un dato salvato alla cieca.")}
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-xl border bg-background p-3">
-                  <p className="text-sm font-semibold">Foto, documenti e diario</p>
+                  <p className="text-sm font-semibold">{t("Foto, documenti e diario")}</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <ToggleLine
                       id="foto-riconosci"
-                      label="Riconosci foto e documenti da solo"
+                      label={t("Riconosci foto e documenti da solo")}
                       checked={operationalSettings.media_auto_classify}
                       onCheckedChange={(checked) =>
                         updateOperationalSettings("media_auto_classify", checked)
@@ -340,7 +340,7 @@ export default function WANumberDetailPage() {
                     />
                     <ToggleLine
                       id="foto-diario"
-                      label="Salva nel diario della commessa"
+                      label={t("Salva nel diario della commessa")}
                       checked={operationalSettings.media_save_to_diary}
                       onCheckedChange={(checked) =>
                         updateOperationalSettings("media_save_to_diary", checked)
@@ -350,11 +350,11 @@ export default function WANumberDetailPage() {
                 </div>
 
                 <div className="rounded-xl border bg-background p-3">
-                  <p className="text-sm font-semibold">Presenze e sicurezza</p>
+                  <p className="text-sm font-semibold">{t("Presenze e sicurezza")}</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <ToggleLine
                       id="presenze-timbrature"
-                      label="Accetta le timbrature da WhatsApp"
+                      label={t("Accetta le timbrature da WhatsApp")}
                       checked={operationalSettings.attendance_enabled}
                       onCheckedChange={(checked) =>
                         updateOperationalSettings("attendance_enabled", checked)
@@ -362,7 +362,7 @@ export default function WANumberDetailPage() {
                     />
                     <ToggleLine
                       id="sicurezza-avvisa"
-                      label="Avvisa il responsabile se c'è un rischio per la sicurezza"
+                      label={t("Avvisa il responsabile se c'è un rischio per la sicurezza")}
                       checked={operationalSettings.safety_escalation_enabled}
                       onCheckedChange={(checked) =>
                         updateOperationalSettings("safety_escalation_enabled", checked)
@@ -370,7 +370,7 @@ export default function WANumberDetailPage() {
                     />
                   </div>
                   <Label htmlFor="numero-sconosciuto" className="mt-4 block text-xs text-muted-foreground">
-                    Se scrive un numero sconosciuto
+                    {t("Se scrive un numero sconosciuto")}
                   </Label>
                   <Select
                     value={operationalSettings.unknown_worker_mode}
@@ -382,21 +382,21 @@ export default function WANumberDetailPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="block">Non rispondere e chiedi di registrarsi</SelectItem>
-                      <SelectItem value="create_review_ticket">Apri una richiesta per l'ufficio</SelectItem>
+                      <SelectItem value="block">{t("Non rispondere e chiedi di registrarsi")}</SelectItem>
+                      <SelectItem value="create_review_ticket">{t("Apri una richiesta per l'ufficio")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="handoff-note">Istruzioni in più per Silvio</Label>
+                <Label htmlFor="handoff-note">{t("Istruzioni in più per Silvio")}</Label>
                 <Textarea
                   id="handoff-note"
                   value={operationalSettings.handoff_note}
                   onChange={(e) => updateOperationalSettings("handoff_note", e.target.value)}
                   rows={3}
-                  placeholder="Quando deve chiedere conferma o passare al responsabile?"
+                  placeholder={t("Quando deve chiedere conferma o passare al responsabile?")}
                 />
               </div>
             </CardContent>
@@ -405,11 +405,11 @@ export default function WANumberDetailPage() {
 
         <Card>
           <CardHeader>
-            <TitoloSezione>Messaggi automatici</TitoloSezione>
+            <TitoloSezione>{t("Messaggi automatici")}</TitoloSezione>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <Label htmlFor="msg-welcome">Messaggio di benvenuto</Label>
+              <Label htmlFor="msg-welcome">{t("Messaggio di benvenuto")}</Label>
               <Textarea
                 id="msg-welcome"
                 value={campi.msgBenvenuto}
@@ -419,7 +419,7 @@ export default function WANumberDetailPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="msg-offhours">Messaggio fuori orario</Label>
+              <Label htmlFor="msg-offhours">{t("Messaggio fuori orario")}</Label>
               <Textarea
                 id="msg-offhours"
                 value={campi.msgFuoriOrario}
@@ -435,22 +435,22 @@ export default function WANumberDetailPage() {
       {/* A cosa serve questo numero: si legge una volta, sta chiuso (prima apriva la pagina con tre riquadri). */}
       <details className="rounded-lg border bg-card">
         <summary className="cursor-pointer px-6 py-4 text-lg font-semibold leading-none tracking-tight">
-          <h2 className="inline">A cosa serve questo numero</h2>
+          <h2 className="inline">{t("A cosa serve questo numero")}</h2>
         </summary>
         <div className="space-y-3 px-6 pb-6">
           <div className="rounded-xl border bg-muted/40 p-3">
-            <p className="text-sm font-semibold text-foreground">{group.label}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
+            <p className="text-sm font-semibold text-foreground">{t(group.label)}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t(group.description)}</p>
           </div>
           <div>
-            <p className="text-sm font-semibold">{PURPOSE_LABELS[purpose]}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{PURPOSE_DESCRIPTIONS[purpose]}</p>
-            <p className="mt-2 text-xs font-semibold text-primary">{PURPOSE_AUTONOMY[purpose]}</p>
+            <p className="text-sm font-semibold">{t(PURPOSE_LABELS[purpose])}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t(PURPOSE_DESCRIPTIONS[purpose])}</p>
+            <p className="mt-2 text-xs font-semibold text-primary">{t(PURPOSE_AUTONOMY[purpose])}</p>
           </div>
           <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
             {PURPOSE_EXAMPLES[purpose].map((example) => (
               <li key={example} className="rounded-lg border bg-background p-3">
-                {example}
+                {t(example)}
               </li>
             ))}
           </ul>

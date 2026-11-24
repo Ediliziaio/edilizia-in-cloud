@@ -86,6 +86,7 @@ import {
   type PrefillTariffaOption,
 } from "@/hooks/useBagniListino";
 import { ImportaPrezzarioDialog } from "@/components/bagni/ImportaPrezzarioDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const UNITA_OPZIONI: BgnUnitaMisura[] = [
   "mq",
@@ -111,6 +112,7 @@ interface VoceEditRowProps {
  * la voce è garantito dal `key={voce.id}` impostato dal parent.
  */
 function VoceEditRow({ voce, onCommit, onDelete }: VoceEditRowProps) {
+  const t = useT();
   const [codice, setCodice] = useState(voce.codice ?? "");
   const [descrizione, setDescrizione] = useState(voce.descrizione);
   const [unita, setUnita] = useState<BgnUnitaMisura>(voce.unita_misura);
@@ -147,7 +149,7 @@ function VoceEditRow({ voce, onCommit, onDelete }: VoceEditRowProps) {
           value={codice}
           onChange={(e) => setCodice(e.target.value)}
           onBlur={() => commit()}
-          placeholder="cod."
+          placeholder={t("cod.")}
           className="h-8 text-xs"
         />
       </TableCell>
@@ -156,7 +158,7 @@ function VoceEditRow({ voce, onCommit, onDelete }: VoceEditRowProps) {
           value={descrizione}
           onChange={(e) => setDescrizione(e.target.value)}
           onBlur={() => commit()}
-          placeholder="Descrizione lavorazione"
+          placeholder={t("Descrizione lavorazione")}
           className="h-8 text-sm"
         />
       </TableCell>
@@ -221,7 +223,7 @@ function VoceEditRow({ voce, onCommit, onDelete }: VoceEditRowProps) {
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-destructive"
           onClick={onDelete}
-          aria-label="Elimina voce"
+          aria-label={t("Elimina voce")}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -247,6 +249,7 @@ function PrefillDialog({
   onPickArticolo,
   onPickTariffa,
 }: PrefillDialogProps) {
+  const tr = useT();
   const [term, setTerm] = useState("");
   const isArticolo = kind === "articolo";
   // Entrambe le query sono montate ma `enabled` solo quella attiva via il termine.
@@ -268,12 +271,12 @@ function PrefillDialog({
             ) : (
               <Wrench className="h-4 w-4 text-primary" />
             )}
-            {isArticolo ? "Da listino prodotti" : "Da listino manodopera"}
+            {isArticolo ? tr("Da listino prodotti") : tr("Da listino manodopera")}
           </DialogTitle>
           <DialogDescription>
             {isArticolo
-              ? "Cerca un prodotto: il costo d'acquisto verrà inserito nel costo materiali della nuova voce."
-              : "Cerca una tariffa: il costo interno verrà inserito nel costo manodopera della nuova voce."}
+              ? tr("Cerca un prodotto: il costo d'acquisto verrà inserito nel costo materiali della nuova voce.")
+              : tr("Cerca una tariffa: il costo interno verrà inserito nel costo manodopera della nuova voce.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -283,7 +286,7 @@ function PrefillDialog({
             autoFocus
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder={isArticolo ? "Nome, SKU o marca…" : "Nome tariffa…"}
+            placeholder={isArticolo ? tr("Nome, SKU o marca…") : tr("Nome tariffa…")}
             className="pl-8"
           />
         </div>
@@ -291,11 +294,11 @@ function PrefillDialog({
         <div className="max-h-[48vh] overflow-y-auto rounded-md border">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Caricamento…
+              <Loader2 className="h-4 w-4 animate-spin" /> {tr("Caricamento…")}
             </div>
           ) : isEmpty ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              Nessun risultato. {isArticolo ? "Aggiungi prodotti dal listino articoli." : "Aggiungi tariffe dal listino manodopera."}
+              {tr("Nessun risultato.")} {isArticolo ? tr("Aggiungi prodotti dal listino articoli.") : tr("Aggiungi tariffe dal listino manodopera.")}
             </div>
           ) : isArticolo ? (
             <ul className="divide-y">
@@ -316,7 +319,7 @@ function PrefillDialog({
                       <span className="block text-sm font-semibold tabular-nums">
                         {formatCurrency(a.costo)}
                       </span>
-                      <span className="block text-[11px] text-muted-foreground">costo materiali</span>
+                      <span className="block text-[11px] text-muted-foreground">{tr("costo materiali")}</span>
                     </span>
                   </button>
                 </li>
@@ -341,7 +344,7 @@ function PrefillDialog({
                       <span className="block text-sm font-semibold tabular-nums">
                         {formatCurrency(t.costo)}
                       </span>
-                      <span className="block text-[11px] text-muted-foreground">costo manodopera</span>
+                      <span className="block text-[11px] text-muted-foreground">{tr("costo manodopera")}</span>
                     </span>
                   </button>
                 </li>
@@ -371,6 +374,7 @@ function CapitoloAccordionItem({
   onAddVoce,
   onOpenPrefill,
 }: CapitoloAccordionItemProps) {
+  const tr = useT();
   const { data: voci = [], isLoading } = useListinoVoci(capitolo.id);
   const upsertVoce = useUpsertVoce();
   const deleteVoce = useDeleteVoce();
@@ -401,15 +405,15 @@ function CapitoloAccordionItem({
         ordine: voce.ordine,
         ...patch,
       },
-      { onError: (e) => toast.error("Salvataggio voce non riuscito", { description: (e as Error).message }) },
+      { onError: (e) => toast.error(tr("Salvataggio voce non riuscito"), { description: (e as Error).message }) },
     );
   };
 
   const handleDeleteVoce = async (voce: BgnListinoVoce) => {
     const ok = await confirm({
-      title: "Eliminare la voce?",
+      title: tr("Eliminare la voce?"),
       description: voce.descrizione,
-      confirmLabel: "Elimina",
+      confirmLabel: tr("Elimina"),
       variant: "destructive",
     });
     if (ok) deleteVoce.mutate(voce.id, { onError: (e) => toast.error((e as Error).message) });
@@ -444,7 +448,7 @@ function CapitoloAccordionItem({
             <span className="flex min-w-0 flex-wrap items-center gap-2 text-left">
               <span className="font-semibold">{capitolo.nome}</span>
               <Badge variant="secondary" className="font-normal">
-                {voci.length} {voci.length === 1 ? "voce" : "voci"}
+                {tr(voci.length === 1 ? "{n} voce" : "{n} voci", { n: voci.length })}
               </Badge>
               {subtotale > 0 && (
                 <span className="text-xs text-muted-foreground tabular-nums">
@@ -465,7 +469,7 @@ function CapitoloAccordionItem({
                 setNomeDraft(capitolo.nome);
                 setEditingNome(true);
               }}
-              aria-label="Rinomina capitolo"
+              aria-label={tr("Rinomina capitolo")}
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -475,7 +479,7 @@ function CapitoloAccordionItem({
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-destructive"
               onClick={onDelete}
-              aria-label="Elimina capitolo"
+              aria-label={tr("Elimina capitolo")}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -486,24 +490,24 @@ function CapitoloAccordionItem({
       <AccordionContent className="pt-1">
         {isLoading ? (
           <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Caricamento voci…
+            <Loader2 className="h-4 w-4 animate-spin" /> {tr("Caricamento voci…")}
           </div>
         ) : voci.length === 0 ? (
           <div className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
-            Nessuna voce in questo capitolo.
+            {tr("Nessuna voce in questo capitolo.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-9 text-xs">Codice</TableHead>
-                  <TableHead className="h-9 text-xs">Descrizione</TableHead>
-                  <TableHead className="h-9 text-xs">UdM</TableHead>
-                  <TableHead className="h-9 text-right text-xs">Materiali €</TableHead>
-                  <TableHead className="h-9 text-right text-xs">Manodopera €</TableHead>
-                  <TableHead className="h-9 text-right text-xs">Ricarico %</TableHead>
-                  <TableHead className="h-9 text-right text-xs">Prezzo</TableHead>
+                  <TableHead className="h-9 text-xs">{tr("Codice")}</TableHead>
+                  <TableHead className="h-9 text-xs">{tr("Descrizione")}</TableHead>
+                  <TableHead className="h-9 text-xs">{tr("UdM")}</TableHead>
+                  <TableHead className="h-9 text-right text-xs">{tr("Materiali €")}</TableHead>
+                  <TableHead className="h-9 text-right text-xs">{tr("Manodopera €")}</TableHead>
+                  <TableHead className="h-9 text-right text-xs">{tr("Ricarico %")}</TableHead>
+                  <TableHead className="h-9 text-right text-xs">{tr("Prezzo")}</TableHead>
                   <TableHead className="h-9" />
                 </TableRow>
               </TableHeader>
@@ -523,7 +527,7 @@ function CapitoloAccordionItem({
 
         <div className="mt-3 flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onAddVoce}>
-            <Plus className="mr-1.5 h-4 w-4" /> Aggiungi voce
+            <Plus className="mr-1.5 h-4 w-4" /> {tr("Aggiungi voce")}
           </Button>
           <Button
             type="button"
@@ -531,7 +535,7 @@ function CapitoloAccordionItem({
             size="sm"
             onClick={() => onOpenPrefill("articolo")}
           >
-            <Package className="mr-1.5 h-4 w-4" /> Da listino prodotti
+            <Package className="mr-1.5 h-4 w-4" /> {tr("Da listino prodotti")}
           </Button>
           <Button
             type="button"
@@ -539,7 +543,7 @@ function CapitoloAccordionItem({
             size="sm"
             onClick={() => onOpenPrefill("tariffa")}
           >
-            <Wrench className="mr-1.5 h-4 w-4" /> Da listino manodopera
+            <Wrench className="mr-1.5 h-4 w-4" /> {tr("Da listino manodopera")}
           </Button>
         </div>
       </AccordionContent>
@@ -554,6 +558,7 @@ export interface ListinoLavorazioniEditorProps {
 }
 
 export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditorProps) {
+  const t = useT();
   const { data: capitoli = [], isLoading } = useListinoCapitoli();
   const upsertCapitolo = useUpsertCapitolo();
   const deleteCapitolo = useDeleteCapitolo();
@@ -572,7 +577,7 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
     upsertCapitolo.mutate(
       { nome: "Nuovo capitolo", ordine: capitoli.length },
       {
-        onSuccess: () => toast.success("Capitolo aggiunto"),
+        onSuccess: () => toast.success(t("Capitolo aggiunto")),
         onError: (e) => toast.error((e as Error).message),
       },
     );
@@ -587,14 +592,14 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
 
   const handleDeleteCapitolo = async (cap: BgnListinoCapitolo) => {
     const ok = await confirm({
-      title: "Eliminare il capitolo?",
-      description: `"${cap.nome}" e tutte le sue voci verranno rimossi. L'operazione non può essere annullata.`,
-      confirmLabel: "Elimina capitolo",
+      title: t("Eliminare il capitolo?"),
+      description: t("\"{nome}\" e tutte le sue voci verranno rimossi. L'operazione non può essere annullata.", { nome: String(cap.nome ?? "") }),
+      confirmLabel: t("Elimina capitolo"),
       variant: "destructive",
     });
     if (ok)
       deleteCapitolo.mutate(cap.id, {
-        onSuccess: () => toast.success("Capitolo eliminato"),
+        onSuccess: () => toast.success(t("Capitolo eliminato")),
         onError: (e) => toast.error((e as Error).message),
       });
   };
@@ -613,24 +618,24 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
         tariffa_id: payload?.tariffa_id ?? null,
         ordine: 0,
       },
-      { onError: (e) => toast.error("Aggiunta voce non riuscita", { description: (e as Error).message }) },
+      { onError: (e) => toast.error(t("Aggiunta voce non riuscita"), { description: (e as Error).message }) },
     );
   };
 
   const handleImportSeed = async () => {
     const ok = await confirm({
-      title: "Importare il set standard?",
+      title: t("Importare il set standard?"),
       description:
-        "Verranno aggiunti capitoli e voci edili tipiche (demolizioni, murature, impianti, finiture…) con costi indicativi modificabili. Le voci già presenti non vengono toccate.",
-      confirmLabel: "Importa",
+        t("Verranno aggiunti capitoli e voci edili tipiche (demolizioni, murature, impianti, finiture…) con costi indicativi modificabili. Le voci già presenti non vengono toccate."),
+      confirmLabel: t("Importa"),
     });
     if (!ok) return;
     importSeed.mutate(undefined, {
       onSuccess: (r) =>
-        toast.success("Set standard importato", {
-          description: `${r.capitoli} capitoli, ${r.voci} voci aggiunte al listino.`,
+        toast.success(t("Set standard importato"), {
+          description: t("{capitoli} capitoli, {voci} voci aggiunte al listino.", { capitoli: String(r.capitoli ?? ""), voci: String(r.voci ?? "") }),
         }),
-      onError: (e) => toast.error("Import non riuscito", { description: (e as Error).message }),
+      onError: (e) => toast.error(t("Import non riuscito"), { description: (e as Error).message }),
     });
   };
 
@@ -654,7 +659,7 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
         codice: opt.sku,
         articolo_id: opt.id,
       });
-      toast.success("Voce creata dal prodotto", { description: opt.name });
+      toast.success(t("Voce creata dal prodotto"), { description: opt.name });
     }
     closePrefill();
   };
@@ -668,7 +673,7 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
         costo_manodopera: opt.costo,
         tariffa_id: opt.id,
       });
-      toast.success("Voce creata dalla tariffa", { description: opt.nome });
+      toast.success(t("Voce creata dalla tariffa"), { description: opt.nome });
     }
     closePrefill();
   };
@@ -682,9 +687,9 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
             <Hammer className="h-5 w-5" />
           </span>
           <div>
-            <h3 className="text-base font-semibold leading-tight">Listino lavorazioni</h3>
+            <h3 className="text-base font-semibold leading-tight">{t("Listino lavorazioni")}</h3>
             <p className="text-xs text-muted-foreground">
-              Capitoli e voci con prezzo calcolato da materiali, manodopera e ricarico.
+              {t("Capitoli e voci con prezzo calcolato da materiali, manodopera e ricarico.")}
             </p>
           </div>
         </div>
@@ -696,7 +701,7 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
             className="max-md:hidden"
             onClick={() => setPrezzarioOpen(true)}
           >
-            <Library className="mr-1.5 h-4 w-4" /> Importa da prezzario regionale
+            <Library className="mr-1.5 h-4 w-4" /> {t("Importa da prezzario regionale")}
           </Button>
           <Button
             type="button"
@@ -711,10 +716,10 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
             ) : (
               <Download className="mr-1.5 h-4 w-4" />
             )}
-            Importa set standard
+            {t("Importa set standard")}
           </Button>
           <Button type="button" size="sm" onClick={handleAddCapitolo} disabled={upsertCapitolo.isPending}>
-            <FolderPlus className="mr-1.5 h-4 w-4" /> Aggiungi capitolo
+            <FolderPlus className="mr-1.5 h-4 w-4" /> {t("Aggiungi capitolo")}
           </Button>
         </div>
       </div>
@@ -722,7 +727,7 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
       {/* Body */}
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Caricamento listino…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento listino…")}
         </div>
       ) : capitoli.length === 0 ? (
         <EmptyState
@@ -768,15 +773,15 @@ function EmptyState({
   onImportSeed: () => void;
   importing: boolean;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 px-6 py-14 text-center">
       <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
         <Hammer className="h-7 w-7" />
       </span>
-      <h3 className="text-lg font-semibold">Costruisci il tuo listino lavorazioni</h3>
+      <h3 className="text-lg font-semibold">{t("Costruisci il tuo listino lavorazioni")}</h3>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Parti dal set standard di capitoli e voci edili (demolizioni, murature, impianti,
-        finiture…) e personalizza costi e ricarichi, oppure crea il tuo da zero.
+        {t("Parti dal set standard di capitoli e voci edili (demolizioni, murature, impianti, finiture…) e personalizza costi e ricarichi, oppure crea il tuo da zero.")}
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <Button type="button" onClick={onImportSeed} disabled={importing}>
@@ -785,10 +790,10 @@ function EmptyState({
           ) : (
             <Download className="mr-1.5 h-4 w-4" />
           )}
-          Importa set standard
+          {t("Importa set standard")}
         </Button>
         <Button type="button" variant="outline" onClick={onAddCapitolo}>
-          <FolderPlus className="mr-1.5 h-4 w-4" /> Crea capitolo vuoto
+          <FolderPlus className="mr-1.5 h-4 w-4" /> {t("Crea capitolo vuoto")}
         </Button>
       </div>
     </div>

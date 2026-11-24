@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { messaggioErroreOperai, useSalvaOperaio, type DatiOperaio } from "@/hooks/useOperai";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MANSIONI = [
   "Muratore", "Manovale", "Carpentiere", "Capocantiere", "Elettricista", "Idraulico",
@@ -62,6 +63,7 @@ export function OperaioDialog({
   iniziali?: Partial<ValoriOperaio>;
   onSalvato?: (id: string) => void;
 }) {
+  const t = useT();
   const salva = useSalvaOperaio();
   const [v, setV] = useState<ValoriOperaio>(VUOTO);
 
@@ -81,7 +83,7 @@ export function OperaioDialog({
   const invia = (e: FormEvent) => {
     e.preventDefault();
     if (!v.nome.trim() || !v.cognome.trim()) {
-      toast.error("Scrivi nome e cognome dell'operaio.");
+      toast.error(t("Scrivi nome e cognome dell'operaio."));
       return;
     }
     const dati: DatiOperaio = {
@@ -97,7 +99,7 @@ export function OperaioDialog({
       { id: operaioId, dati },
       {
         onSuccess: (id) => {
-          toast.success(nuovo ? `${v.nome} ${v.cognome} è fra gli operai` : "Operaio aggiornato");
+          toast.success(nuovo ? t("{nome} {cognome} è fra gli operai", { nome: String(v.nome ?? ""), cognome: String(v.cognome ?? "") }) : t("Operaio aggiornato"));
           onAperto(false);
           onSalvato?.(id);
         },
@@ -110,50 +112,50 @@ export function OperaioDialog({
     <Dialog open={aperto} onOpenChange={(o) => !salva.isPending && onAperto(o)}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{nuovo ? "Nuovo operaio" : "Modifica operaio"}</DialogTitle>
+          <DialogTitle>{nuovo ? t("Nuovo operaio") : t("Modifica operaio")}</DialogTitle>
           <DialogDescription>
             {nuovo
-              ? "Lo trovi subito nel Personale e lo puoi mettere al lavoro nelle commesse."
-              : "Le modifiche valgono anche nel Personale."}
+              ? t("Lo trovi subito nel Personale e lo puoi mettere al lavoro nelle commesse.")
+              : t("Le modifiche valgono anche nel Personale.")}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={invia} className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="operaio-nome">Nome</Label>
+              <Label htmlFor="operaio-nome">{t("Nome")}</Label>
               <Input {...campo("nome")} autoComplete="off" required autoFocus />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="operaio-cognome">Cognome</Label>
+              <Label htmlFor="operaio-cognome">{t("Cognome")}</Label>
               <Input {...campo("cognome")} autoComplete="off" required />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="operaio-telefono">Telefono</Label>
+              <Label htmlFor="operaio-telefono">{t("Telefono")}</Label>
               <Input {...campo("telefono")} type="tel" inputMode="tel" autoComplete="off" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="operaio-email">Email</Label>
               <Input {...campo("email")} type="email" autoComplete="off" />
-              <p className="text-xs text-muted-foreground">Serve per dargli l'app di cantiere.</p>
+              <p className="text-xs text-muted-foreground">{t("Serve per dargli l'app di cantiere.")}</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="operaio-mansione">Mansione</Label>
-              <Input {...campo("mansione")} list="operaio-mansioni" placeholder="Es. Muratore" autoComplete="off" />
+              <Label htmlFor="operaio-mansione">{t("Mansione")}</Label>
+              <Input {...campo("mansione")} list="operaio-mansioni" placeholder={t("Es. Muratore")} autoComplete="off" />
               <datalist id="operaio-mansioni">
                 {MANSIONI.map((m) => <option key={m} value={m} />)}
               </datalist>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="operaio-data_assunzione">Assunto il</Label>
+              <Label htmlFor="operaio-data_assunzione">{t("Assunto il")}</Label>
               <Input {...campo("data_assunzione")} type="date" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="operaio-contratto">Contratto</Label>
+              <Label htmlFor="operaio-contratto">{t("Contratto")}</Label>
               <Select value={v.tipo_contratto} onValueChange={(x) => setV((s) => ({ ...s, tipo_contratto: x }))}>
                 <SelectTrigger id="operaio-contratto"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CONTRATTI.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  {CONTRATTI.map((c) => <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -161,7 +163,7 @@ export function OperaioDialog({
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onAperto(false)} disabled={salva.isPending}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               type="submit"
@@ -169,7 +171,7 @@ export function OperaioDialog({
               className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600"
             >
               {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
-              {nuovo ? "Aggiungi operaio" : "Salva"}
+              {nuovo ? t("Aggiungi operaio") : t("Salva")}
             </Button>
           </DialogFooter>
         </form>

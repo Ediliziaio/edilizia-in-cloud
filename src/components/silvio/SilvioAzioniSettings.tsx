@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useSilvioCatalogo, useSilvioOverrideSet } from "@/lib/silvio/hooks";
 import { etichettaAutorizzazione, etichettaRischio } from "@/lib/silvio/permessi";
 import { etichettaAmbito } from "@/lib/silvio/ambiti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const RISCHIO_CLS: Record<string, string> = {
   interno: "border-slate-200 bg-slate-50 text-slate-600",
@@ -29,6 +30,7 @@ const MODULO_LABEL: Record<string, string> = {
 };
 
 export function SilvioAzioniSettings() {
+  const t = useT();
   const { data: catalogo, isLoading } = useSilvioCatalogo();
   const override = useSilvioOverrideSet();
 
@@ -46,20 +48,18 @@ export function SilvioAzioniSettings() {
       <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
         <p className="text-xs text-blue-900">
-          Qui decidi <b>cosa può fare Silvio da solo</b> e cosa deve farti approvare. Le azioni che
-          toccano denaro, invii o cose irreversibili restano <b>sempre con conferma</b>: non è
-          modificabile, per la tua sicurezza. Puoi solo rendere un'azione <i>più</i> prudente.
+          {t("Qui decidi")} <b>{t("cosa può fare Silvio da solo")}</b> {t("e cosa deve farti approvare. Le azioni che toccano denaro, invii o cose irreversibili restano")} <b>{t("sempre con conferma")}</b>{t(": non è modificabile, per la tua sicurezza. Puoi solo rendere un'azione")} <i>{t("più")}</i> {t("prudente.")}
         </p>
       </div>
 
       {isLoading ? (
-        <p className="text-xs text-muted-foreground">Caricamento…</p>
+        <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>
       ) : (catalogo?.length ?? 0) === 0 ? (
-        <p className="text-xs text-muted-foreground">Nessuna azione disponibile.</p>
+        <p className="text-xs text-muted-foreground">{t("Nessuna azione disponibile.")}</p>
       ) : (
         perModulo.map(([modulo, azioni]) => (
           <section key={modulo} className="space-y-2">
-            <h3 className="text-sm font-semibold text-slate-800">{MODULO_LABEL[modulo] ?? modulo}</h3>
+            <h3 className="text-sm font-semibold text-slate-800">{MODULO_LABEL[modulo] ? t(MODULO_LABEL[modulo]) : modulo}</h3>
             <div className="space-y-1.5">
               {azioni.map((a) => {
                 const ferrea = a.categoria_rischio === "denaro" || a.categoria_rischio === "esterno" || a.reversibilita === "irreversibile";
@@ -84,7 +84,7 @@ export function SilvioAzioniSettings() {
                           </Badge>
                           {ferrea && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                              <Lock className="h-3 w-3" /> bloccata su conferma
+                              <Lock className="h-3 w-3" /> {t("bloccata su conferma")}
                             </span>
                           )}
                         </div>
@@ -96,12 +96,12 @@ export function SilvioAzioniSettings() {
                         {eff === "autonoma" && (
                           <Button size="sm" variant="outline" className="h-7 text-xs" disabled={override.isPending}
                             onClick={() => override.mutate({ chiave: a.chiave, autorizzazione: "conferma" })}>
-                            Richiedi conferma
+                            {t("Richiedi conferma")}
                           </Button>
                         )}
                         <Button size="sm" variant="outline" className="h-7 gap-1 text-xs text-rose-600" disabled={override.isPending}
                           onClick={() => override.mutate({ chiave: a.chiave, attiva: false })}>
-                          <Ban className="h-3 w-3" /> Disattiva
+                          <Ban className="h-3 w-3" /> {t("Disattiva")}
                         </Button>
                       </div>
                     )}
@@ -109,7 +109,7 @@ export function SilvioAzioniSettings() {
                       <div className="mt-2">
                         <Button size="sm" variant="outline" className="h-7 text-xs" disabled={override.isPending}
                           onClick={() => override.mutate({ chiave: a.chiave, attiva: true, autorizzazione: a.autorizzazione_default })}>
-                          Riattiva (con conferma)
+                          {t("Riattiva (con conferma)")}
                         </Button>
                       </div>
                     )}

@@ -13,6 +13,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Brain, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MemoryLite {
   id: string;
@@ -47,6 +48,7 @@ const STORAGE_KEY = "eic_brain_mascot_dismissed_session";
 const ROTATE_MS = 8000;
 
 export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick, className }: Props) {
+  const tr = useT();
   // Auto-genera 3-5 messaggi rilevanti
   const messages = useMemo<Message[]>(() => {
     const list: Message[] = [];
@@ -59,7 +61,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
     if (todayCount > 0) {
       list.push({
         emoji: "✨",
-        text: `Oggi ho imparato ${todayCount} ${todayCount === 1 ? "cosa nuova" : "cose nuove"}!`,
+        text: tr(todayCount === 1 ? "Oggi ho imparato {n} cosa nuova!" : "Oggi ho imparato {n} cose nuove!", { n: todayCount }),
       });
     }
 
@@ -75,7 +77,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
       const nameB = personaMap.get(topPair.pB)?.display_name ?? topPair.pB;
       list.push({
         emoji: "🔗",
-        text: `${nameA} e ${nameB} pensano sempre alle stesse cose — ${topPair.count} memorie comuni.`,
+        text: tr("{nomeA} e {nomeB} pensano sempre alle stesse cose — {n} memorie comuni.", { nomeA: String(nameA), nomeB: String(nameB), n: topPair.count }),
       });
     }
 
@@ -87,7 +89,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
       const preview = top.content.length > 60 ? top.content.slice(0, 57) + "…" : top.content;
       list.push({
         emoji: "🔥",
-        text: `Questa la chiediamo sempre — ${persona}: "${preview}"`,
+        text: tr("Questa la chiediamo sempre — {persona}: \"{anteprima}\"", { persona: String(persona), anteprima: preview }),
         nodeId: `m_${top.id}`,
       });
     }
@@ -106,7 +108,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
         const days = Math.floor((now - last) / dayMs);
         list.push({
           emoji: "💤",
-          text: `${p.display_name} è dormiente da ${days} giorni. Vuoi parlarci?`,
+          text: tr("{nome} è dormiente da {n} giorni. Vuoi parlarci?", { nome: String(p.display_name ?? ""), n: days }),
           nodeId: `p_${p.persona_key}`,
         });
         break; // un solo dormiente alla volta
@@ -117,7 +119,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
     if (enabledMems.length < 10) {
       list.push({
         emoji: "🧠",
-        text: `Ho solo ${enabledMems.length} memorie. Parlami di più nella tab Chat — imparerò!`,
+        text: tr("Ho solo {n} memorie. Parlami di più nella tab Chat — imparerò!", { n: enabledMems.length }),
       });
     } else {
       // Insight: distribuzione personas
@@ -125,13 +127,13 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
       if (activePerPersona.size >= 5) {
         list.push({
           emoji: "🌐",
-          text: `Conosco ${activePerPersona.size} reparti diversi della tua azienda. Sono "in rete".`,
+          text: tr("Conosco {n} reparti diversi della tua azienda. Sono \"in rete\".", { n: activePerPersona.size }),
         });
       }
     }
 
     return list;
-  }, [memories, personas, crossPersonaLinks]);
+  }, [memories, personas, crossPersonaLinks, tr]);
 
   const [idx, setIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -205,7 +207,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
         <button
           onClick={(e) => { e.stopPropagation(); handleClose(); }}
           className="absolute top-1.5 right-1.5 text-white/60 hover:text-white transition-colors"
-          aria-label="Chiudi"
+          aria-label={tr("Chiudi")}
         >
           <X className="h-3 w-3" />
         </button>
@@ -217,7 +219,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-[9px] uppercase tracking-wider text-white/80 font-semibold">Il tuo cervello dice</span>
+              <span className="text-[9px] uppercase tracking-wider text-white/80 font-semibold">{tr("Il tuo cervello dice")}</span>
               <span className="text-[10px]">{msg.emoji}</span>
             </div>
             <p className={cn(
@@ -228,7 +230,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
             </p>
             {msg.nodeId && (
               <div className="flex items-center gap-0.5 mt-1 text-[9px] text-white/80 group-hover:text-white">
-                <span>Click per vedere</span>
+                <span>{tr("Click per vedere")}</span>
                 <ArrowRight className="h-2.5 w-2.5" />
               </div>
             )}

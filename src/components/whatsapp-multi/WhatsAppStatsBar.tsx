@@ -5,12 +5,14 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWAMetrics } from "@/hooks/whatsapp/useWAMetrics";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function WhatsAppStatsBar() {
+  const t = useT();
   const { data: m, isLoading } = useWAMetrics();
 
   if (isLoading) {
-    return <Skeleton className="h-5 w-80 max-w-full" aria-label="Caricamento del riepilogo WhatsApp" />;
+    return <Skeleton className="h-5 w-80 max-w-full" aria-label={t("Caricamento del riepilogo WhatsApp")} />;
   }
 
   if (!m) return null;
@@ -19,22 +21,22 @@ export function WhatsAppStatsBar() {
   // all'inglese) sembrava un codice. Sotto il centesimo si dice «< 0,01 €».
   const spesa = m.total_spend_today > 0 && m.total_spend_today < 0.01
     ? "< 0,01 €"
-    : m.total_spend_today.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+    : m.total_spend_today.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" });
 
   return (
-    <p className="text-sm text-muted-foreground" role="region" aria-label="Riepilogo WhatsApp">
+    <p className="text-sm text-muted-foreground" role="region" aria-label={t("Riepilogo WhatsApp")}>
       <span className="font-medium text-foreground">{m.active_numbers}</span>{" "}
-      {m.active_numbers === 1 ? "numero attivo" : "numeri attivi"} ·{" "}
+      {m.active_numbers === 1 ? t("numero attivo") : t("numeri attivi")} ·{" "}
       <span className="font-medium text-foreground">{m.messages_last_24h}</span>{" "}
-      {m.messages_last_24h === 1 ? "messaggio" : "messaggi"} nelle ultime 24 ore ·{" "}
+      {m.messages_last_24h === 1 ? t("messaggio") : t("messaggi")} {t("nelle ultime 24 ore ·")}{" "}
       <span className="font-medium text-foreground">{m.tool_calls_last_24h}</span>{" "}
-      {m.tool_calls_last_24h === 1 ? "azione" : "azioni"} dell'AI · spesa di oggi{" "}
+      {m.tool_calls_last_24h === 1 ? t("azione") : t("azioni")} {t("dell'AI · spesa di oggi")}{" "}
       <span className="font-medium text-foreground">{spesa}</span>
       {m.errors_last_24h > 0 && (
         <>
           {" "}·{" "}
           <span className="font-medium text-red-600">
-            {m.errors_last_24h} {m.errors_last_24h === 1 ? "errore" : "errori"} nelle ultime 24 ore
+            {m.errors_last_24h} {m.errors_last_24h === 1 ? t("errore") : t("errori")} {t("nelle ultime 24 ore")}
           </span>
         </>
       )}

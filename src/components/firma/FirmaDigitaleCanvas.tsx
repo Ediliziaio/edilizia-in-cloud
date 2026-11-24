@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Eraser, PenTool, Check, X } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   onFirmaCompleta: (dataUrl: string) => void;
@@ -20,6 +21,7 @@ export function FirmaDigitaleCanvas({
   nomeTecnico,
   fullscreen = false,
 }: Props) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const hasPixelsRef = useRef(false);
@@ -151,7 +153,7 @@ export function FirmaDigitaleCanvas({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
           <PenTool className="h-4 w-4 text-eic-navy" />
-          Firma del tecnico
+          {t("Firma del tecnico")}
         </div>
         <Button
           type="button"
@@ -161,7 +163,7 @@ export function FirmaDigitaleCanvas({
           className="gap-1 text-xs h-7 text-gray-500 hover:text-red-600"
         >
           <Eraser className="h-3 w-3" />
-          Cancella
+          {t("Cancella")}
         </Button>
       </div>
 
@@ -179,27 +181,27 @@ export function FirmaDigitaleCanvas({
           onTouchStart={startDraw}
           onTouchMove={draw}
           onTouchEnd={endDraw}
-          aria-label="Area firma tecnico"
+          aria-label={t("Area firma tecnico")}
         />
       </div>
 
       {/* Tecnico name */}
       {nomeTecnico && (
         <p className="text-center text-sm text-gray-500">
-          Firma di: <span className="font-semibold text-gray-700">{nomeTecnico}</span>
+          {t("Firma di: {nome}", { nome: String(nomeTecnico ?? "") })}
         </p>
       )}
 
       {/* Helper text */}
       <p className="text-xs text-center text-gray-400">
-        Firma nello spazio sopra con il dito o il mouse. Assicurati che la firma sia leggibile.
+        {t("Firma nello spazio sopra con il dito o il mouse. Assicurati che la firma sia leggibile.")}
       </p>
 
       {/* Actions */}
       <div className="flex gap-3 justify-end pt-2 border-t">
         <Button type="button" variant="outline" onClick={onAnnulla} className="gap-2">
           <X className="h-4 w-4" />
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button
           ref={confirmBtnRef}
@@ -209,7 +211,7 @@ export function FirmaDigitaleCanvas({
           className="gap-2 bg-eic-navy hover:bg-[#162d4a] opacity-50 cursor-not-allowed"
         >
           <Check className="h-4 w-4" />
-          Conferma firma
+          {t("Conferma firma")}
         </Button>
       </div>
     </div>

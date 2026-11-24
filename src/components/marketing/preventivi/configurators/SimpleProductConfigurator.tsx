@@ -9,9 +9,10 @@ import {
   configuraProdottoSemplice,
   descrizioneCommerciale,
 } from "@/lib/preventivi/configurazioneSemplice";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const euro = (value: number) =>
-  value.toLocaleString("it-IT", {
+  value.toLocaleString(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 4,
@@ -32,6 +33,7 @@ export function SimpleProductConfigurator({
   confirmLabel?: string;
   inserimentoContinuo?: boolean;
 }) {
+  const t = useT();
   const [quantita, setQuantita] = useState("1");
   const [prezzo, setPrezzo] = useState(
     item.prezzo_base_vendita > 0 ? String(item.prezzo_base_vendita) : "",
@@ -63,12 +65,10 @@ export function SimpleProductConfigurator({
         onClick={onBack}
         className="-ml-2 text-muted-foreground max-sm:h-8"
       >
-        <ArrowLeft className="mr-2 h-4 w-4" /> Cambia prodotto
+        <ArrowLeft className="mr-2 h-4 w-4" /> {t("Cambia prodotto")}
       </Button>
       {codice && (
-        <p className="text-xs text-muted-foreground">
-          Codice {codice} · Unità: {item.unit_of_measure}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("Codice {codice} · Unità: {unit_of_measure}", { codice: String(codice ?? ""), unit_of_measure: String(item.unit_of_measure ?? "") })}</p>
       )}
       {descrizione && descrizione !== item.nome && (
         <p className="max-h-24 overflow-y-auto whitespace-pre-wrap text-sm text-muted-foreground">
@@ -77,9 +77,7 @@ export function SimpleProductConfigurator({
       )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_2fr]">
         <div className="space-y-2">
-          <Label htmlFor="prodotto-quantita">
-            Quantità ({item.unit_of_measure})
-          </Label>
+          <Label htmlFor="prodotto-quantita">{t("Quantità ({unita})", { unita: String(item.unit_of_measure ?? "") })}</Label>
           <Input
             id="prodotto-quantita"
             inputMode="decimal"
@@ -89,17 +87,17 @@ export function SimpleProductConfigurator({
         </div>
         <div className="space-y-2">
           <Label htmlFor="prodotto-vendita">
-            Prezzo di vendita unitario (€)
+            {t("Prezzo di vendita unitario (€)")}
           </Label>
           <Input
             id="prodotto-vendita"
             inputMode="decimal"
-            placeholder="Inserisci il prezzo cliente"
+            placeholder={t("Inserisci il prezzo cliente")}
             value={prezzo}
             onChange={(e) => setPrezzo(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            IVA esclusa · solo per questo preventivo
+            {t("IVA esclusa · solo per questo preventivo")}
           </p>
         </div>
       </div>
@@ -108,26 +106,25 @@ export function SimpleProductConfigurator({
       riepilogo=
         <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         <LockKeyhole className="h-3.5 w-3.5 shrink-0" />
-        Costo d’acquisto · solo interno:{" "}
-        {costo != null ? euro(costo) : "non disponibile"}
+        {t("Costo d’acquisto · solo interno:")}{" "}
+        {costo != null ? euro(costo) : t("non disponibile")}
       </div>
       
       azioni={
         <>
       {!prezzo.trim() && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Il listino contiene i costi, non i prezzi cliente. Inserisci il prezzo
-          di vendita per aggiungere il prodotto.
+          {t("Il listino contiene i costi, non i prezzi cliente. Inserisci il prezzo di vendita per aggiungere il prodotto.")}
         </p>
       )}
       {prezzo.trim() && !valido && (
         <p role="alert" className="text-sm text-destructive">
-          Quantità e prezzo devono essere numeri maggiori di zero.
+          {t("Quantità e prezzo devono essere numeri maggiori di zero.")}
         </p>
       )}
       <div className="flex items-center justify-between border-t pt-3">
         <span className="text-sm text-muted-foreground">
-          Totale vendita <span className="block text-xs">IVA esclusa</span>
+          {t("Totale vendita")} <span className="block text-xs">{t("IVA esclusa")}</span>
         </span>
         <strong className="text-2xl tabular-nums">
           {valido ? euro(qty * vendita) : "—"}
@@ -135,7 +132,7 @@ export function SimpleProductConfigurator({
       </div>
       <AzioniProdotto
         disabled={!valido}
-        confirmLabel={confirmLabel ?? "Aggiungi al preventivo"}
+        confirmLabel={confirmLabel ?? t("Aggiungi al preventivo")}
         inserimentoContinuo={inserimentoContinuo}
         onConferma={aggiungi}
       />

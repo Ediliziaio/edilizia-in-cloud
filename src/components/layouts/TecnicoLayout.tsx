@@ -3,18 +3,20 @@ import { Clock, Wrench, Truck, User, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function TecnicoLayout() {
+  const t = useT();
   const { profile } = useAuth();
   const { isOnline, queue } = useOfflineQueue();
   const location = useLocation();
   const navigate = useNavigate();
 
   const tabs = [
-    { label: "Oggi", icon: Clock, path: "/tecnico", exact: true },
-    { label: "Interventi", icon: Wrench, path: "/tecnico/interventi", exact: false },
-    { label: "Furgone", icon: Truck, path: "/tecnico/furgone", exact: false },
-    { label: "Profilo", icon: User, path: "/tecnico/profilo", exact: false },
+    { label: t("Oggi"), icon: Clock, path: "/tecnico", exact: true },
+    { label: t("Interventi"), icon: Wrench, path: "/tecnico/interventi", exact: false },
+    { label: t("Furgone"), icon: Truck, path: "/tecnico/furgone", exact: false },
+    { label: t("Profilo"), icon: User, path: "/tecnico/profilo", exact: false },
   ];
 
   const isActive = (path: string, exact?: boolean) => {
@@ -35,17 +37,15 @@ export default function TecnicoLayout() {
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">
-              {profile?.first_name ?? "Tecnico"}
+              {profile?.first_name ?? t("Tecnico")}
             </p>
-            <p className="text-slate-400 text-xs leading-tight">App Tecnico</p>
+            <p className="text-slate-400 text-xs leading-tight">{t("App Tecnico")}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {queue.length > 0 && (
-            <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              {queue.length} in attesa
-            </span>
+            <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{t("{n} in attesa", { n: queue.length })}</span>
           )}
           <div className="flex items-center gap-1">
             {isOnline ? (
@@ -54,7 +54,7 @@ export default function TecnicoLayout() {
               <WifiOff className="h-4 w-4 text-red-400" />
             )}
             <span className={`text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
-              {isOnline ? "Online" : "Offline"}
+              {isOnline ? t("Online") : t("Offline")}
             </span>
           </div>
         </div>
@@ -62,7 +62,7 @@ export default function TecnicoLayout() {
 
       {/* Contenuto */}
       <main className="flex-1 overflow-y-auto">
-        <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
+        <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
           <Outlet />
         </ErrorBoundary>
       </main>

@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   disabled?: boolean;
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function SSOButtons({ disabled = false, onError }: Props) {
+  const t = useT();
   // 2026-05-27: rimosso login Microsoft per scelta prodotto — la quota di
   // imprese edili italiane con Microsoft 365 personale è marginale, complica UX
   // senza beneficio. L'account Microsoft resta usabile per la sincronizzazione
@@ -70,7 +72,7 @@ export function SSOButtons({ disabled = false, onError }: Props) {
           <span className="w-full border-t" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-background px-2 text-muted-foreground">oppure continua con</span>
+          <span className="bg-background px-2 text-muted-foreground">{t("oppure continua con")}</span>
         </div>
       </div>
 
@@ -86,7 +88,7 @@ export function SSOButtons({ disabled = false, onError }: Props) {
         ) : (
           <GoogleIcon className="h-4 w-4 mr-2" />
         )}
-        Accedi con Google
+        {t("Accedi con Google")}
       </Button>
     </div>
   );

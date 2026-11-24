@@ -25,6 +25,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
 import { perOgniLotto, raccogliALotti } from "@/lib/lottiDiId";
 import { improntaOpportunitaInBlocco, salvaOpportunitaInBlocco } from "@/lib/marketing/opportunitaInBlocco";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Quanti contatti si leggono per proporre i tag da rimuovere. */
 const TAG_DA_LEGGERE = 5000;
@@ -32,6 +33,7 @@ const TAG_DA_LEGGERE = 5000;
 // ── Modifica tag in blocco ──────────────────────────────────────────────────
 
 export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -111,7 +113,7 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
         // A lotti si può fallire a metà: i tag già scritti restano scritti.
         const causa = errore instanceof Error ? errore.message : String(errore);
         throw new Error(
-          aggiornati > 0 ? `Tag aggiornati su ${aggiornati} contatti, poi si è fermato: ${causa}` : causa,
+          aggiornati > 0 ? tr("Tag aggiornati su {n} contatti, poi si è fermato: {causa}", { n: aggiornati, causa }) : causa,
           { cause: errore },
         );
       }
@@ -119,38 +121,38 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
     },
     onSuccess: (n) => {
       void refreshCrmContacts(qc, effectiveCompany?.id);
-      toast.success(n === 0 ? "Nessun contatto da aggiornare: avevano già questi tag" : `Tag aggiornati su ${n} contatti`);
+      toast.success(n === 0 ? tr("Nessun contatto da aggiornare: avevano già questi tag") : tr("Tag aggiornati su {n} contatti", { n }));
       setOpen(false);
       setTagsToAdd([]);
       setTagsToRemove([]);
     },
-    onError: (e) => toast.error("Errore aggiornamento tag", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Errore aggiornamento tag"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   return (
     <>
       <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-        <Tags className="h-3.5 w-3.5" /> Modifica tag
+        <Tags className="h-3.5 w-3.5" /> {tr("Modifica tag")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">Modifica tag in blocco</DialogTitle>
+            <DialogTitle className="text-base">{tr("Modifica tag in blocco")}</DialogTitle>
             <DialogDescription className="text-xs">
-              {ids.length} contatt{ids.length === 1 ? "o" : "i"} selezionat{ids.length === 1 ? "o" : "i"}
+              {(ids.length === 1 ? tr("{n} contatto selezionato", { n: ids.length }) : tr("{n} contatti selezionati", { n: ids.length }))}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Aggiungi tag</Label>
+              <Label className="text-xs font-medium">{tr("Aggiungi tag")}</Label>
               <TagSelector selectedTags={tagsToAdd} onTagsChange={setTagsToAdd} />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Rimuovi tag</Label>
+              <Label className="text-xs font-medium">{tr("Rimuovi tag")}</Label>
               {existingTags.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nessun tag presente sui contatti selezionati.</p>
+                <p className="text-xs text-muted-foreground">{tr("Nessun tag presente sui contatti selezionati.")}</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {existingTags.map((t) => {
@@ -174,25 +176,23 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
                 </div>
               )}
               {tagTroncati && (
-                <p className="text-[11px] text-muted-foreground">
-                  Tag visti nei primi {TAG_DA_LEGGERE.toLocaleString("it-IT")} contatti selezionati; la rimozione vale comunque su tutti e {ids.length.toLocaleString("it-IT")}.
-                </p>
+                <p className="text-[11px] text-muted-foreground">{tr("Tag visti nei primi {max} contatti selezionati; la rimozione vale comunque su tutti e {n}.", { max: TAG_DA_LEGGERE.toLocaleString(intlCampo()), n: ids.length.toLocaleString(intlCampo()) })}</p>
               )}
               {tagsToRemove.length > 0 && (
-                <p className="text-[11px] text-red-600">{tagsToRemove.length} tag verranno rimossi dai contatti selezionati.</p>
+                <p className="text-[11px] text-red-600">{tr("{n} tag verranno rimossi dai contatti selezionati.", { n: tagsToRemove.length })}</p>
               )}
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Annulla</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{tr("Annulla")}</Button>
             <Button
               onClick={() => mutation.mutate()}
               disabled={mutation.isPending || (tagsToAdd.length === 0 && tagsToRemove.length === 0)}
               className="gap-1.5"
             >
               {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Applica a {ids.length} contatti
+              {tr("Applica a {n} contatti", { n: ids.length })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -204,6 +204,7 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
 // ── Crea opportunità in blocco ──────────────────────────────────────────────
 
 export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Set<string> }) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -250,8 +251,8 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || !user?.id) throw new Error("Sessione aziendale non disponibile");
-      if (!pipelineId || !stageId) throw new Error("Seleziona pipeline e fase");
+      if (!companyId || !user?.id) throw new Error(t("Sessione aziendale non disponibile"));
+      if (!pipelineId || !stageId) throw new Error(t("Seleziona pipeline e fase"));
       const contacts = await raccogliALotti(ids, async (lotto) => {
         const { data, error } = await supabase
           .from("marketing_contacts")
@@ -296,46 +297,44 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
       qc.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       qc.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       qc.invalidateQueries({ queryKey: queryKeys.marketing.all });
-      if (confermate < richieste) toast.info(`${confermate} opportunità create su ${richieste} contatti`);
-      else toast.success(`${confermate} opportunità create`, { description: "Le trovi nella pipeline selezionata." });
+      if (confermate < richieste) toast.info(t("{confermate} opportunità create su {richieste} contatti", { confermate: String(confermate ?? ""), richieste: String(richieste ?? "") }));
+      else toast.success(t("{confermate} opportunità create", { confermate: String(confermate ?? "") }), { description: t("Le trovi nella pipeline selezionata.") });
       setOpen(false);
     },
-    onError: (e) => toast.error("Salvataggio interrotto", {
+    onError: (e) => toast.error(t("Salvataggio interrotto"), {
       description: e && typeof e === "object" && "message" in e && typeof e.message === "string"
-        ? `${e.message} Puoi riprovare con gli stessi dati.`
-        : "Puoi riprovare con gli stessi dati.",
+        ? t("{message} Puoi riprovare con gli stessi dati.", { message: String(e.message ?? "") })
+        : t("Puoi riprovare con gli stessi dati."),
     }),
   });
 
   return (
     <>
       <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-        <DollarSign className="h-3.5 w-3.5" /> Crea opportunità
+        <DollarSign className="h-3.5 w-3.5" /> {t("Crea opportunità")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">Crea opportunità in blocco</DialogTitle>
-            <DialogDescription className="text-xs">
-              Una nuova opportunità per ognuno dei {ids.length} contatti selezionati.
-            </DialogDescription>
+            <DialogTitle className="text-base">{t("Crea opportunità in blocco")}</DialogTitle>
+            <DialogDescription className="text-xs">{t("Una nuova opportunità per ognuno dei {n} contatti selezionati.", { n: ids.length })}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Pipeline <span className="text-destructive">*</span></Label>
+                <Label className="text-xs">{t("Pipeline")} <span className="text-destructive">*</span></Label>
                 <Select value={pipelineId} onValueChange={(v) => { setPipelineId(v); setStageId(""); }}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona…" /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={t("Seleziona…")} /></SelectTrigger>
                   <SelectContent>
                     {pipelines.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Fase <span className="text-destructive">*</span></Label>
+                <Label className="text-xs">{t("Fase")} <span className="text-destructive">*</span></Label>
                 <Select value={stageId} onValueChange={setStageId} disabled={!pipelineId}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona…" /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={t("Seleziona…")} /></SelectTrigger>
                   <SelectContent>
                     {stages.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
@@ -345,22 +344,22 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Fonte</Label>
-                <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Es: facebook" className="h-9 text-sm" />
+                <Label className="text-xs">{t("Fonte")}</Label>
+                <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder={t("Es: facebook")} className="h-9 text-sm" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Valore (€)</Label>
+                <Label className="text-xs">{t("Valore (€)")}</Label>
                 <Input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="0" className="h-9 text-sm" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Venditore</Label>
+                <Label className="text-xs">{t("Venditore")}</Label>
                 <Select value={assignedTo || "__none__"} onValueChange={(v) => setAssignedTo(v === "__none__" ? "" : v)}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={t("Nessuno")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Nessuno</SelectItem>
+                    <SelectItem value="__none__">{t("Nessuno")}</SelectItem>
                     {staffUsers.map((u: any) => (
                       <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || u.id}</SelectItem>
                     ))}
@@ -368,11 +367,11 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Call center</Label>
+                <Label className="text-xs">{t("Call center")}</Label>
                 <Select value={callCenterId || "__none__"} onValueChange={(v) => setCallCenterId(v === "__none__" ? "" : v)}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={t("Nessuno")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Nessuno</SelectItem>
+                    <SelectItem value="__none__">{t("Nessuno")}</SelectItem>
                     {staffUsers.map((u: any) => (
                       <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || u.id}</SelectItem>
                     ))}
@@ -382,19 +381,19 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
             </div>
 
             <p className="text-[11px] text-muted-foreground">
-              Il nome di ogni opportunità sarà il nome del contatto.
+              {t("Il nome di ogni opportunità sarà il nome del contatto.")}
             </p>
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Annulla</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{t("Annulla")}</Button>
             <Button
               onClick={() => mutation.mutate()}
               disabled={mutation.isPending || !pipelineId || !stageId}
               className="gap-1.5"
             >
               {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Crea {ids.length} opportunità
+              {t("Crea {n} opportunità", { n: ids.length })}
             </Button>
           </DialogFooter>
         </DialogContent>

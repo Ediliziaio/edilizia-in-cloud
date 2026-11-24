@@ -7,6 +7,7 @@ import { normalizzaPos } from "../../../../supabase/functions/_shared/posModello
 import { costruisciHtmlPos, type RevisionePos } from "@/lib/sicurezza/posHtml";
 import { Button } from "@/components/ui/button";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Copia = {
   id: string;
@@ -30,6 +31,7 @@ export function StoricoContenutiPos({
   posId: string;
   codiceCommessa?: string | null;
 }) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(false);
   const [stampa, setStampa] = useState<{ html: string; rev: number } | null>(
@@ -59,26 +61,24 @@ export function StoricoContenutiPos({
       onToggle={(e) => setAperto(e.currentTarget.open)}
     >
       <summary className="cursor-pointer text-sm font-semibold">
-        Storico dei contenuti approvati
+        {t("Storico dei contenuti approvati")}
       </summary>
       <p className="mt-2 text-xs text-muted-foreground">
-        Copie non modificabili del contenuto salvato per revisione. L’anteprima
-        ricostruisce il documento da quei dati; non rappresenta l’originale PDF
-        firmato né conserva i byte degli allegati.
+        {t("Copie non modificabili del contenuto salvato per revisione. L’anteprima ricostruisce il documento da quei dati; non rappresenta l’originale PDF firmato né conserva i byte degli allegati.")}
       </p>
       {aperto &&
         (q.isError ? (
           <p role="alert" className="mt-3 text-sm text-destructive">
-            Storico non disponibile.{" "}
+            {t("Storico non disponibile.")}{" "}
             <Button variant="link" onClick={() => void q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </p>
         ) : q.isLoading ? (
-          <p className="mt-3 text-sm">Caricamento storico…</p>
+          <p className="mt-3 text-sm">{t("Caricamento storico…")}</p>
         ) : !q.data?.length ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            Nessuna copia approvata archiviata per questo POS.
+            {t("Nessuna copia approvata archiviata per questo POS.")}
           </p>
         ) : (
           <ul className="mt-3 divide-y">
@@ -88,18 +88,15 @@ export function StoricoContenutiPos({
                 className="flex flex-wrap items-center justify-between gap-2 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium">Revisione {c.revisione}</p>
+                  <p className="text-sm font-medium">{t("Revisione {revisione}", { revisione: String(c.revisione ?? "") })}</p>
                   <p className="text-xs text-muted-foreground">
-                    Acquisita il{" "}
-                    {new Date(c.acquisito_il).toLocaleString("it-IT")}
+                    {t("Acquisita il {data}", { data: new Date(c.acquisito_il).toLocaleString(intlCampo()) })}
                     {c.fonte === "stato_corrente_precedente"
-                      ? " · stato disponibile all’attivazione dello storico"
+                      ? ` ${t("· stato disponibile all’attivazione dello storico")}`
                       : ""}
                   </p>
                   {c.snapshot.approvato_da_nome && (
-                    <p className="text-xs text-muted-foreground">
-                      Approvazione interna: {c.snapshot.approvato_da_nome}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("Approvazione interna: {approvato_da_nome}", { approvato_da_nome: String(c.snapshot.approvato_da_nome ?? "") })}</p>
                   )}
                 </div>
                 <Button
@@ -121,7 +118,7 @@ export function StoricoContenutiPos({
                     })
                   }
                 >
-                  Consulta contenuto
+                  {t("Consulta contenuto")}
                 </Button>
               </li>
             ))}
@@ -131,7 +128,7 @@ export function StoricoContenutiPos({
         <PrintPreviewModal
           htmlContent={stampa.html}
           fileName={`POS-${codiceCommessa ?? posId}-rev${stampa.rev}-contenuto-archiviato`}
-          title={`Contenuto archiviato · revisione ${stampa.rev}`}
+          title={t("Contenuto archiviato · revisione {rev}", { rev: String(stampa.rev ?? "") })}
           open
           onOpenChange={(o) => !o && setStampa(null)}
         />

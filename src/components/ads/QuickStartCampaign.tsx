@@ -53,6 +53,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ParsedBrief {
   name: string;
@@ -148,6 +149,7 @@ export function QuickStartCampaign({
   onCustomize,
   onCancel,
 }: Props) {
+  const tr = useT();
   // Form fields strutturati
   const [sector, setSector] = useState<string>("serramenti");
   const [serviceDetail, setServiceDetail] = useState<string>("");
@@ -202,12 +204,12 @@ export function QuickStartCampaign({
     : selectedZones.length > 0 && offer.trim().length >= 10;
 
   const handleParse = async () => {
-    if (!companyId) { toast.error("Azienda non selezionata"); return; }
+    if (!companyId) { toast.error(tr("Azienda non selezionata")); return; }
     if (!briefValid) {
-      toast.error("Brief incompleto", {
+      toast.error(tr("Brief incompleto"), {
         description: mode === "guided"
-          ? "Aggiungi almeno una zona e un'offerta concreta."
-          : "Scrivi almeno 20 caratteri descrittivi.",
+          ? tr("Aggiungi almeno una zona e un'offerta concreta.")
+          : tr("Scrivi almeno 20 caratteri descrittivi."),
       });
       return;
     }
@@ -231,11 +233,11 @@ export function QuickStartCampaign({
         }
       }
       setParsed(result);
-      toast.success("Campagna pronta!", {
+      toast.success(tr("Campagna pronta!"), {
         description: result.reasoning?.slice(0, 100),
       });
     } catch (e) {
-      toast.error("Errore AI", {
+      toast.error(tr("Errore AI"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -251,23 +253,23 @@ export function QuickStartCampaign({
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-950">
             <Zap className="h-6 w-6 text-yellow-500" />
-            Quick Start — campagna pronta in 60 secondi
+            {tr("Quick Start — campagna pronta in 60 secondi")}
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Compila i campi guidati, l'AI prepara pubblico, copy e budget in 3 secondi.
+            {tr("Compila i campi guidati, l'AI prepara pubblico, copy e budget in 3 secondi.")}
           </p>
         </div>
-        <Button variant="ghost" onClick={onCancel}>Annulla</Button>
+        <Button variant="ghost" onClick={onCancel}>{tr("Annulla")}</Button>
       </div>
 
       {/* TABS modalità */}
       <Tabs value={mode} onValueChange={(v) => setMode(v as "guided" | "free")}>
         <TabsList className="grid w-full grid-cols-2 lg:w-auto">
           <TabsTrigger value="guided">
-            ✅ Form guidato (consigliato)
+            {tr("✅ Form guidato (consigliato)")}
           </TabsTrigger>
           <TabsTrigger value="free">
-            ✍️ Scrivi tutto libero
+            {tr("✍️ Scrivi tutto libero")}
           </TabsTrigger>
         </TabsList>
 
@@ -277,8 +279,8 @@ export function QuickStartCampaign({
           {/* 1. SETTORE */}
           <FieldCard
             icon={<Target className="h-4 w-4 text-blue-600" />}
-            title="Cosa vendi?"
-            description="Settore principale + dettaglio del servizio specifico."
+            title={tr("Cosa vendi?")}
+            description={tr("Settore principale + dettaglio del servizio specifico.")}
           >
             <div className="grid gap-2 sm:grid-cols-4">
               {SECTORS.map((s) => (
@@ -299,7 +301,7 @@ export function QuickStartCampaign({
                   )}
                 >
                   <p className="font-semibold text-slate-950">
-                    {s.emoji} {s.label}
+                    {s.emoji} {tr(s.label)}
                   </p>
                 </button>
               ))}
@@ -307,7 +309,7 @@ export function QuickStartCampaign({
             <Input
               value={serviceDetail}
               onChange={(e) => setServiceDetail(e.target.value.slice(0, 200))}
-              placeholder="Dettaglio (opzionale): es. solo PVC, materiali in legno, bagni di lusso, impianti residenziali..."
+              placeholder={tr("Dettaglio (opzionale): es. solo PVC, materiali in legno, bagni di lusso, impianti residenziali...")}
               className="mt-2"
             />
           </FieldCard>
@@ -315,8 +317,8 @@ export function QuickStartCampaign({
           {/* 2. ZONA */}
           <FieldCard
             icon={<MapPin className="h-4 w-4 text-emerald-600" />}
-            title="Dove vuoi vendere?"
-            description="Aggiungi regioni, città o zone in cui sei operativo. Multi-selezione."
+            title={tr("Dove vuoi vendere?")}
+            description={tr("Aggiungi regioni, città o zone in cui sei operativo. Multi-selezione.")}
           >
             <div className="flex flex-wrap gap-1.5">
               {selectedZones.map((z) => (
@@ -330,11 +332,11 @@ export function QuickStartCampaign({
                 </Badge>
               ))}
               {selectedZones.length === 0 && (
-                <p className="text-xs italic text-slate-400">Nessuna zona selezionata</p>
+                <p className="text-xs italic text-slate-400">{tr("Nessuna zona selezionata")}</p>
               )}
             </div>
             <div className="mt-3">
-              <Label className="mb-1 block text-[11px]">Aggiungi velocemente:</Label>
+              <Label className="mb-1 block text-[11px]">{tr("Aggiungi velocemente:")}</Label>
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
                 {ZONES.map((z) => {
                   const active = selectedZones.includes(z.v);
@@ -355,7 +357,7 @@ export function QuickStartCampaign({
                       )}
                     >
                       {z.label}
-                      <span className="ml-1 text-[9px] text-slate-400 max-md:text-[11px]">{z.type}</span>
+                      <span className="ml-1 text-[9px] text-slate-400 max-md:text-[11px]">{tr(z.type)}</span>
                     </button>
                   );
                 })}
@@ -365,7 +367,7 @@ export function QuickStartCampaign({
               <Input
                 value={zoneInput}
                 onChange={(e) => setZoneInput(e.target.value)}
-                placeholder="Altra zona (es. Como, Lecco, Varese)..."
+                placeholder={tr("Altra zona (es. Como, Lecco, Varese)...")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && zoneInput.trim()) {
                     e.preventDefault();
@@ -385,7 +387,7 @@ export function QuickStartCampaign({
                   }
                 }}
               >
-                Aggiungi
+                {tr("Aggiungi")}
               </Button>
             </div>
           </FieldCard>
@@ -394,8 +396,8 @@ export function QuickStartCampaign({
           <div className="grid gap-4 md:grid-cols-2">
             <FieldCard
               icon={<Users className="h-4 w-4 text-violet-600" />}
-              title="Fascia di età"
-              description={`Da ${ageRange[0]} a ${ageRange[1]} anni`}
+              title={tr("Fascia di età")}
+              description={tr("Da {valore} a {valore2} anni", { valore: String(ageRange[0] ?? ""), valore2: String(ageRange[1] ?? "") })}
             >
               <Slider
                 value={ageRange}
@@ -406,25 +408,25 @@ export function QuickStartCampaign({
                 className="mt-2"
               />
               <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                <span>{ageRange[0]} anni</span>
-                <span className="font-semibold text-slate-700">{ageRange[1] - ageRange[0]} anni di range</span>
-                <span>{ageRange[1]} anni</span>
+                <span>{tr("{valore} anni", { valore: String(ageRange[0] ?? "") })}</span>
+                <span className="font-semibold text-slate-700">{tr("{valore} anni di range", { valore: ageRange[1] - ageRange[0] })}</span>
+                <span>{tr("{valore} anni", { valore: String(ageRange[1] ?? "") })}</span>
               </div>
               <p className="mt-2 text-[10px] text-slate-500 max-md:text-[11px]">
-                💡 Per edilizia consigliato 35-65. Per fotovoltaico 30-65. Per arredo 25-50.
+                {tr("💡 Per edilizia consigliato 35-65. Per fotovoltaico 30-65. Per arredo 25-50.")}
               </p>
             </FieldCard>
 
             <FieldCard
               icon={<Users className="h-4 w-4 text-fuchsia-600" />}
-              title="Genere target"
-              description="Di solito 'tutti'. Restringi solo se sei sicuro."
+              title={tr("Genere target")}
+              description={tr("Di solito 'tutti'. Restringi solo se sei sicuro.")}
             >
               <div className="grid grid-cols-3 gap-2">
                 {([
-                  { v: "all" as const, label: "Tutti", emoji: "👥" },
-                  { v: "men" as const, label: "Uomini", emoji: "👨" },
-                  { v: "women" as const, label: "Donne", emoji: "👩" },
+                  { v: "all" as const, label: tr("Tutti"), emoji: "👥" },
+                  { v: "men" as const, label: tr("Uomini"), emoji: "👨" },
+                  { v: "women" as const, label: tr("Donne"), emoji: "👩" },
                 ]).map((g) => (
                   <button
                     key={g.v}
@@ -447,27 +449,25 @@ export function QuickStartCampaign({
           {/* 4. OFFERTA */}
           <FieldCard
             icon={<Sparkles className="h-4 w-4 text-amber-600" />}
-            title="La tua offerta"
-            description="Sconti, detrazioni, garanzie, materiali, tempi. Ingredienti reali per l'AI."
+            title={tr("La tua offerta")}
+            description={tr("Sconti, detrazioni, garanzie, materiali, tempi. Ingredienti reali per l'AI.")}
           >
             <Textarea
               value={offer}
               onChange={(e) => setOffer(e.target.value.slice(0, 600))}
-              placeholder={offerPlaceholder}
+              placeholder={tr(offerPlaceholder)}
               className="min-h-20"
               maxLength={600}
             />
-            <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">
-              {offer.length}/600 — più sei specifico, più l'AI scrive una campagna forte.
-            </p>
+            <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">{tr("{n}/600 — più sei specifico, più l'AI scrive una campagna forte.", { n: offer.length })}</p>
           </FieldCard>
 
           {/* 5. BUDGET + GOAL + TONO */}
           <div className="grid gap-4 lg:grid-cols-3">
             <FieldCard
               icon={<Euro className="h-4 w-4 text-emerald-600" />}
-              title="Budget giornaliero"
-              description={`${budget * 30} €/mese stimato`}
+              title={tr("Budget giornaliero")}
+              description={tr("{budget} €/mese stimato", { budget: budget * 30 })}
             >
               <div className="flex items-center gap-2">
                 <Input
@@ -499,37 +499,37 @@ export function QuickStartCampaign({
 
             <FieldCard
               icon={<TrendingUp className="h-4 w-4 text-blue-600" />}
-              title="Obiettivo"
-              description="Cosa vuoi ottenere?"
+              title={tr("Obiettivo")}
+              description={tr("Cosa vuoi ottenere?")}
             >
               <Select value={goal} onValueChange={setGoal}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CONVERSION_GOALS.map((g) => (
-                    <SelectItem key={g.v} value={g.v}>{g.label}</SelectItem>
+                    <SelectItem key={g.v} value={g.v}>{tr(g.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">
-                {CONVERSION_GOALS.find((g) => g.v === goal)?.desc}
+                {tr(CONVERSION_GOALS.find((g) => g.v === goal)?.desc ?? "")}
               </p>
             </FieldCard>
 
             <FieldCard
               icon={<Volume2 className="h-4 w-4 text-rose-600" />}
-              title="Tono comunicativo"
-              description="Come parli al cliente?"
+              title={tr("Tono comunicativo")}
+              description={tr("Come parli al cliente?")}
             >
               <Select value={tone} onValueChange={setTone}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TONES.map((t) => (
-                    <SelectItem key={t.v} value={t.v}>{t.label}</SelectItem>
+                    <SelectItem key={t.v} value={t.v}>{tr(t.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">
-                {TONES.find((t) => t.v === tone)?.desc}
+                {tr(TONES.find((t) => t.v === tone)?.desc ?? "")}
               </p>
             </FieldCard>
           </div>
@@ -537,7 +537,7 @@ export function QuickStartCampaign({
           {/* PREVIEW BRIEF */}
           <div className="rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/30 p-3">
             <p className="mb-1 text-[10px] font-semibold uppercase text-violet-700 max-md:text-[11px]">
-              📝 Brief che l'AI riceverà
+              {tr("📝 Brief che l'AI riceverà")}
             </p>
             <p className="text-xs leading-relaxed text-slate-700">{consolidatedBrief}</p>
           </div>
@@ -546,12 +546,12 @@ export function QuickStartCampaign({
         <TabsContent value="free" className="mt-4">
           <div className="rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
             <Label className="mb-2 block text-sm font-semibold">
-              📝 Scrivi tutto in italiano libero
+              {tr("📝 Scrivi tutto in italiano libero")}
             </Label>
             <Textarea
               value={freeText}
               onChange={(e) => setFreeText(e.target.value)}
-              placeholder="Es. Voglio una campagna in Lombardia, età fino a 65, per la vendita di serramenti con offerta sconto 30% + bonus 65% + made in Italy"
+              placeholder={tr("Es. Voglio una campagna in Lombardia, età fino a 65, per la vendita di serramenti con offerta sconto 30% + bonus 65% + made in Italy")}
               className="min-h-32 bg-white text-base"
               maxLength={1500}
             />
@@ -564,12 +564,12 @@ export function QuickStartCampaign({
       <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-blue-200 bg-white p-4 shadow-lg">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <p>
-            📍 <strong>{companyName ?? "Azienda"}</strong>
+            📍 <strong>{companyName ?? tr("Azienda")}</strong>
             {companyCity && <> · {companyCity}</>}
           </p>
           {!briefValid && (
             <Badge variant="outline" className="border-amber-300 text-[10px] text-amber-700 max-md:text-[11px]">
-              {mode === "guided" ? "Aggiungi zona + offerta" : "Almeno 20 char"}
+              {mode === "guided" ? tr("Aggiungi zona + offerta") : tr("Almeno 20 char")}
             </Badge>
           )}
         </div>
@@ -580,9 +580,9 @@ export function QuickStartCampaign({
           className="bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-md hover:from-blue-700 hover:to-violet-700"
         >
           {parsing ? (
-            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI sta preparando…</>
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {tr("AI sta preparando…")}</>
           ) : (
-            <><Sparkles className="mr-2 h-4 w-4" /> Genera campagna con AI</>
+            <><Sparkles className="mr-2 h-4 w-4" /> {tr("Genera campagna con AI")}</>
           )}
         </Button>
       </div>
@@ -593,37 +593,37 @@ export function QuickStartCampaign({
           <Alert className="border-emerald-300 bg-emerald-50">
             <Bot className="h-4 w-4 text-emerald-700" />
             <AlertDescription className="text-sm">
-              <strong>Logica AI:</strong> {parsed.reasoning}
+              <strong>{tr("Logica AI:")}</strong> {parsed.reasoning}
             </AlertDescription>
           </Alert>
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="space-y-3 lg:col-span-2">
-              <ResultCard icon={<Megaphone className="h-4 w-4 text-blue-600" />} title="Nome campagna" value={parsed.name} />
+              <ResultCard icon={<Megaphone className="h-4 w-4 text-blue-600" />} title={tr("Nome campagna")} value={parsed.name} />
               <ResultCard
                 icon={<MapPin className="h-4 w-4 text-emerald-600" />}
-                title="Dove mostrare"
-                value={`${parsed.suggestedCities.length} città`}
+                title={tr("Dove mostrare")}
+                value={tr("{n} città", { n: parsed.suggestedCities.length })}
                 detail={parsed.suggestedCities.join(" · ")}
               />
               <ResultCard
                 icon={<Users className="h-4 w-4 text-violet-600" />}
-                title="Pubblico"
-                value={`${parsed.ageMin}-${parsed.ageMax} anni · ${parsed.gender === "all" ? "tutti" : parsed.gender === "men" ? "uomini" : "donne"}`}
-                detail={`Interessi: ${parsed.suggestedInterests.slice(0, 4).join(", ")}`}
+                title={tr("Pubblico")}
+                value={tr("{min}-{max} anni · {genere}", { min: parsed.ageMin, max: parsed.ageMax, genere: parsed.gender === "all" ? tr("tutti") : parsed.gender === "men" ? tr("uomini") : tr("donne") })}
+                detail={tr("Interessi: {elenco}", { elenco: parsed.suggestedInterests.slice(0, 4).join(", ") })}
               />
               <ResultCard
                 icon={<Euro className="h-4 w-4 text-rose-600" />}
-                title="Budget"
-                value={`${parsed.dailyBudget} €/giorno`}
-                detail={`${parsed.dailyBudget * 30} €/mese`}
+                title={tr("Budget")}
+                value={tr("{n} €/giorno", { n: parsed.dailyBudget })}
+                detail={tr("{n} €/mese", { n: parsed.dailyBudget * 30 })}
               />
               <div className="rounded-xl border bg-white p-3">
-                <p className="mb-1 text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Copy principale</p>
+                <p className="mb-1 text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">{tr("Copy principale")}</p>
                 <p className="text-sm leading-relaxed text-slate-800">{parsed.copy}</p>
                 {parsed.hooks?.length > 0 && (
                   <div className="mt-2 border-t pt-2">
-                    <p className="text-[9px] font-semibold uppercase text-fuchsia-700 max-md:text-[11px]">Hook alternativi</p>
+                    <p className="text-[9px] font-semibold uppercase text-fuchsia-700 max-md:text-[11px]">{tr("Hook alternativi")}</p>
                     <ul className="text-xs text-slate-600">
                       {parsed.hooks.map((h, i) => <li key={i}>• {h}</li>)}
                     </ul>
@@ -636,7 +636,7 @@ export function QuickStartCampaign({
               <div className="rounded-xl border bg-white p-3">
                 <div className="mb-2 flex items-center gap-1">
                   <Eye className="h-3.5 w-3.5 text-slate-500" />
-                  <p className="text-xs font-semibold text-slate-700">Anteprima ad</p>
+                  <p className="text-xs font-semibold text-slate-700">{tr("Anteprima ad")}</p>
                   <div className="ml-auto flex gap-1">
                     <button onClick={() => setPreviewPlatform("facebook")} className={cn("rounded px-2 py-1", previewPlatform === "facebook" ? "bg-blue-100 text-blue-700" : "text-slate-500")}>
                       <Facebook className="h-3 w-3" />
@@ -659,16 +659,16 @@ export function QuickStartCampaign({
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               <div>
-                <p className="text-sm font-semibold text-slate-950">Pronta da rivedere</p>
-                <p className="text-[11px] text-slate-500">Salvi una bozza PAUSED. Niente parte automaticamente.</p>
+                <p className="text-sm font-semibold text-slate-950">{tr("Pronta da rivedere")}</p>
+                <p className="text-[11px] text-slate-500">{tr("Salvi una bozza PAUSED. Niente parte automaticamente.")}</p>
               </div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => onCustomize(parsed)}>
-                Personalizza prima
+                {tr("Personalizza prima")}
               </Button>
               <Button onClick={() => onConfirm(parsed)} className="bg-emerald-600 text-white hover:bg-emerald-700">
-                <Send className="mr-2 h-4 w-4" /> Salva bozza
+                <Send className="mr-2 h-4 w-4" /> {tr("Salva bozza")}
               </Button>
             </div>
           </div>
@@ -733,6 +733,7 @@ function ResultCard({
 }
 
 function FacebookPreview({ companyName, copy, hook, cta }: { companyName?: string; copy: string; hook?: string; cta: string }) {
+  const t = useT();
   const name = companyName ?? "La Tua Azienda";
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white text-xs">
@@ -742,7 +743,7 @@ function FacebookPreview({ companyName, copy, hook, cta }: { companyName?: strin
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold text-slate-900">{name}</p>
-          <p className="text-[9px] text-slate-500 max-md:text-[11px]">Sponsorizzato</p>
+          <p className="text-[9px] text-slate-500 max-md:text-[11px]">{t("Sponsorizzato")}</p>
         </div>
       </div>
       <div className="px-2 pb-2">
@@ -750,12 +751,12 @@ function FacebookPreview({ companyName, copy, hook, cta }: { companyName?: strin
         <p className="text-[10px] leading-snug text-slate-700 line-clamp-3 max-md:text-[11px]">{copy}</p>
       </div>
       <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-blue-100 via-violet-50 to-amber-50">
-        <p className="text-[10px] text-slate-400 max-md:text-[11px]">🖼️ Immagine</p>
+        <p className="text-[10px] text-slate-400 max-md:text-[11px]">{t("🖼️ Immagine")}</p>
       </div>
       <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-3 py-2">
         <div>
           <p className="text-[9px] uppercase text-slate-500 max-md:text-[11px]">{name.slice(0, 12).toUpperCase()}.IT</p>
-          <p className="text-[10px] font-semibold text-slate-900 max-md:text-[11px]">Inizia ora</p>
+          <p className="text-[10px] font-semibold text-slate-900 max-md:text-[11px]">{t("Inizia ora")}</p>
         </div>
         <button className="rounded bg-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-900 max-md:text-[11px]">{cta}</button>
       </div>
@@ -764,6 +765,7 @@ function FacebookPreview({ companyName, copy, hook, cta }: { companyName?: strin
 }
 
 function InstagramPreview({ companyName, copy, hook, cta }: { companyName?: string; copy: string; hook?: string; cta: string }) {
+  const t = useT();
   const name = companyName ?? "La Tua Azienda";
   return (
     <div className="relative mx-auto aspect-[9/16] w-44 overflow-hidden rounded-xl border-2 border-fuchsia-200 bg-gradient-to-b from-fuchsia-100 via-purple-50 to-amber-50">
@@ -776,7 +778,7 @@ function InstagramPreview({ companyName, copy, hook, cta }: { companyName?: stri
             {name.slice(0, 1).toUpperCase()}
           </div>
           <p className="text-[10px] font-semibold text-white drop-shadow max-md:text-[11px]">{name}</p>
-          <span className="text-[9px] text-white/80 max-md:text-[11px]">Sponsorizzato</span>
+          <span className="text-[9px] text-white/80 max-md:text-[11px]">{t("Sponsorizzato")}</span>
         </div>
       </div>
       <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 text-center">

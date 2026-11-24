@@ -1,6 +1,7 @@
 import { Building2, HardHat, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Coppia di indirizzi del cliente: fatturazione + cantiere.
@@ -102,6 +103,7 @@ interface Props {
 }
 
 export function CustomerAddressFields({ value, onChange }: Props) {
+  const t = useT();
   const copyBillingToSite = () => {
     onChange({
       ...value,
@@ -118,11 +120,11 @@ export function CustomerAddressFields({ value, onChange }: Props) {
       <div className="rounded-lg border p-3 space-y-1">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Building2 className="h-3.5 w-3.5" />
-          Dati anagrafici / fatturazione
+          {t("Dati anagrafici / fatturazione")}
         </div>
         <AddressAutocomplete
-          label="Indirizzo di fatturazione"
-          searchPlaceholder="Cerca indirizzo fatturazione..."
+          label={t("Indirizzo di fatturazione")}
+          searchPlaceholder={t("Cerca indirizzo fatturazione...")}
           value={value.billing}
           onChange={(billing) => onChange({ ...value, billing })}
         />
@@ -133,7 +135,7 @@ export function CustomerAddressFields({ value, onChange }: Props) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <HardHat className="h-3.5 w-3.5" />
-            Cantiere / luogo dei lavori
+            {t("Cantiere / luogo dei lavori")}
           </div>
           {hasAnyAddress(value.billing) && (
             <Button
@@ -144,13 +146,13 @@ export function CustomerAddressFields({ value, onChange }: Props) {
               onClick={copyBillingToSite}
             >
               <Copy className="h-3 w-3" />
-              Uguale a fatturazione
+              {t("Uguale a fatturazione")}
             </Button>
           )}
         </div>
         <AddressAutocomplete
-          label="Indirizzo cantiere"
-          searchPlaceholder="Cerca indirizzo cantiere..."
+          label={t("Indirizzo cantiere")}
+          searchPlaceholder={t("Cerca indirizzo cantiere...")}
           value={value.site}
           onChange={(site) => onChange({ ...value, site })}
         />

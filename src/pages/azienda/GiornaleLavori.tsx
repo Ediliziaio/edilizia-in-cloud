@@ -51,6 +51,7 @@ import {
 } from "../../../supabase/functions/_shared/eventiGiornale";
 import { EventiGiornale, chiaveEventi } from "@/components/giornale/EventiGiornale";
 import { InviaDirezioneLavori } from "@/components/giornale/InviaDirezioneLavori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Tabelle e RPC nuove (giornale_annotazioni, giornale_firma) non ancora nei tipi generati. */
 const dbSenzaTipi = supabase as unknown as SupabaseClient;
@@ -126,13 +127,13 @@ interface EsitoBozza {
   avvisi: string[];
 }
 
-const conteggio = (n: number, uno: string, molti: string) => `${n} ${n === 1 ? uno : molti}`;
 
 /**
  * Il giornale: dal menu su tutte le commesse, dentro la commessa (`orderIdFisso`)
  * solo sulle sue pagine e senza i selettori della commessa.
  */
 export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: string }) {
+  const tr = useT();
   const formId = useId();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -211,7 +212,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       if (error) throw error;
       if (paginaDaAprire && !(data ?? []).some((r) => r.id === paginaDaAprire) && (!selectedOrderId || selectedOrderId === searchParams.get("ordine"))) {
         const pagina = await leggiPaginaGiornale(companyId!, paginaDaAprire, selectedOrderId || undefined, signal);
-        if (!pagina) throw new Error("La pagina richiesta non è disponibile per questa commessa.");
+        if (!pagina) throw new Error(tr("La pagina richiesta non è disponibile per questa commessa."));
         return [...(data ?? []), pagina];
       }
       return data || [];
@@ -491,13 +492,13 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
     if (!files.length) return;
     const giaPresenti = fotoSalvate.length + fotoPreview.length;
     if (postiLiberi(giaPresenti) === 0) {
-      toast.error(`Questo report ha già ${MAX_FOTO_PER_RAPPORTINO} foto: togline una per aggiungerne altre.`);
+      toast.error(tr("Questo report ha già {n} foto: togline una per aggiungerne altre.", { n: MAX_FOTO_PER_RAPPORTINO }));
       return;
     }
     try {
       const esito = await preparaFoto(files, {
         giaPresenti,
-        onProgresso: (i, n) => setFotoProgresso(`Preparo le foto ${i} di ${n}…`),
+        onProgresso: (i, n) => setFotoProgresso(tr("Preparo le foto {i} di {n}…", { i, n })),
       });
       setFotoPreview((prev) => [...prev, ...esito.pronte.map((f) => ({ ...f, preview: URL.createObjectURL(f.blob) }))]);
       avvisiPreparazione(esito).forEach((a) => toast.error(a));
@@ -516,25 +517,25 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
   /** Toglie una foto già salvata: prima il file, poi la riga (un file orfano è meglio di una riga che punta al vuoto). */
   const eliminaFotoSalvata = useMutation({
     mutationFn: async (foto: FotoSalvata) => {
-      if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
+      if (!canEditGiornale) throw new Error(tr("Permesso di modifica del Giornale non attivo"));
       if (foto.storage_path) await supabase.storage.from(BUCKET_FOTO_GIORNALE).remove([foto.storage_path]);
       const { error } = await supabase.from("giornale_foto").delete().eq("id", foto.id);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Foto tolta dal report");
+      toast.success(tr("Foto tolta dal report"));
       queryClient.invalidateQueries({ queryKey: ["giornale-foto-salvate", editingId] });
       queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
     },
-    onError: (err: Error) => toast.error("Impossibile togliere la foto", { description: err.message }),
+    onError: (err: Error) => toast.error(tr("Impossibile togliere la foto"), { description: err.message }),
   });
 
   // Save mutation
   const saveEntry = useMutation({
     mutationFn: async () => {
-      if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
-      if (!selectedOrderId) throw new Error("Seleziona un ordine");
-      if (!formData.lavorazioni_eseguite.trim()) throw new Error("Le lavorazioni eseguite sono obbligatorie");
+      if (!canEditGiornale) throw new Error(tr("Permesso di modifica del Giornale non attivo"));
+      if (!selectedOrderId) throw new Error(tr("Seleziona un ordine"));
+      if (!formData.lavorazioni_eseguite.trim()) throw new Error(tr("Le lavorazioni eseguite sono obbligatorie"));
 
       // Get firma as base64 if present
       let firmaBase64: string | undefined;
@@ -607,7 +608,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       let caricate = 0;
       const caricateIdx: number[] = [];
       for (const [i, foto] of fotoPreview.entries()) {
-        setFotoProgresso(`Carico le foto ${i + 1} di ${fotoPreview.length}…`);
+        setFotoProgresso(tr("Carico le foto {i} di {n}…", { i: i + 1, n: fotoPreview.length }));
         // Bucket privato delle foto di cantiere: azienda/commessa sono le cartelle che la policy controlla.
         const fileName = percorsoFotoGiornale(companyId!, selectedOrderId, foto.nomeFile);
         const { error: uploadError } = await supabase.storage
@@ -653,7 +654,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
           if (error) {
             // La pagina c'è già: il prossimo salvataggio deve aggiornarla, non crearne un'altra.
             setEditingEntry(entry);
-            throw new Error(`Pagina salvata, ma gli eventi proposti no: ${messaggioErroreGiornale(error)}`);
+            throw new Error(tr("Pagina salvata, ma gli eventi proposti no: {motivo}", { motivo: messaggioErroreGiornale(error) }));
           }
         }
         setEventiProposti(null);
@@ -663,7 +664,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       return entry;
     },
     onSuccess: (entry) => {
-      toast.success(editingEntry?.id ? "Report corretto" : "Report giornaliero salvato!");
+      toast.success(editingEntry?.id ? tr("Report corretto") : tr("Report giornaliero salvato!"));
       queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
       // Keep sheet open to allow filling in custom fields for the newly saved entry
       setEditingEntry(entry);
@@ -686,10 +687,10 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
    */
   const eliminaEntry = useMutation({
     mutationFn: async (entry: { id: string }) => {
-      if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!canEditGiornale) throw new Error(tr("Permesso di modifica del Giornale non attivo"));
+      if (!companyId) throw new Error(tr("Azienda non disponibile"));
       if (regoleGiornale(entry as RigaGiornale, true).stato === "firmata") {
-        throw new Error("Questa pagina del giornale è firmata: non si può eliminare.");
+        throw new Error(tr("Questa pagina del giornale è firmata: non si può eliminare."));
       }
 
       const { data: foto } = await supabase
@@ -714,15 +715,15 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       return percorsi.length;
     },
     onSuccess: (nFoto) => {
-      toast.success("Rapportino eliminato", {
-        description: nFoto > 0 ? `Rimosse anche ${nFoto} foto.` : undefined,
+      toast.success(tr("Rapportino eliminato"), {
+        description: nFoto > 0 ? tr("Rimosse anche {n} foto.", { n: nFoto }) : undefined,
       });
       setDaCancellare(null);
       setSheetOpen(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
     },
-    onError: (err: Error) => toast.error("Impossibile eliminare", { description: err.message }),
+    onError: (err: Error) => toast.error(tr("Impossibile eliminare"), { description: err.message }),
   });
 
   /** Mette la proposta nel modulo: niente arriva nel database finché non si salva. */
@@ -744,7 +745,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
   const preparaBozza = useMutation({
     mutationFn: async () => {
-      if (!regole.puoModificare) throw new Error("Permesso di modifica del Giornale non attivo");
+      if (!regole.puoModificare) throw new Error(tr("Permesso di modifica del Giornale non attivo"));
       const orderId = orderDelGiorno;
       const data = formData.data_lavori;
       const letta = await leggiBozzaGiornale(dbSenzaTipi, {
@@ -768,20 +769,20 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       if (testoGiaScritto(formData)) setBozzaDaScegliere(letta);
       else applicaProposta(letta, "aggiungi");
     },
-    onError: (err: Error) => toast.error("Non sono riuscito a preparare la pagina", { description: err.message }),
+    onError: (err: Error) => toast.error(tr("Non sono riuscito a preparare la pagina"), { description: err.message }),
   });
 
   /** Firma: prima si salva quel che c'è nel modulo (testo e foto), poi si firma la pagina salvata. */
   const firmaPagina = useMutation({
     mutationFn: async () => {
-      if (!regole.puoFirmare) throw new Error("Questa pagina non si può firmare.");
+      if (!regole.puoFirmare) throw new Error(tr("Questa pagina non si può firmare."));
       const salvata = await saveEntry.mutateAsync();
       const { data, error } = await dbSenzaTipi.rpc("giornale_firma", { p_giornale_id: salvata.id });
       if (error) throw new Error(messaggioErroreGiornale(error));
       return data as { stato: string; pm_signed_at: string | null; pm_signed_by: string | null } | null;
     },
     onSuccess: (esito) => {
-      toast.success("Giornale firmato: da ora si possono solo aggiungere annotazioni.");
+      toast.success(tr("Giornale firmato: da ora si possono solo aggiungere annotazioni."));
       setFirmaDaConfermare(false);
       setEditingEntry((e: RigaGiornale | null) => (e ? {
         ...e, stato: "firmata", pm_signed_at: esito?.pm_signed_at ?? null, pm_signed_by: esito?.pm_signed_by ?? null,
@@ -790,15 +791,15 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
     },
     onError: (err: Error) => {
       setFirmaDaConfermare(false);
-      toast.error("Firma non riuscita", { description: err.message });
+      toast.error(tr("Firma non riuscita"), { description: err.message });
     },
   });
 
   const aggiungiAnnotazione = useMutation({
     mutationFn: async () => {
       const testo = nuovaAnnotazione.trim();
-      if (!testo) throw new Error("Scrivi il testo dell'annotazione.");
-      if (!editingEntry?.id || !regole.puoAnnotare) throw new Error("Le annotazioni si aggiungono alle pagine firmate.");
+      if (!testo) throw new Error(tr("Scrivi il testo dell'annotazione."));
+      if (!editingEntry?.id || !regole.puoAnnotare) throw new Error(tr("Le annotazioni si aggiungono alle pagine firmate."));
       // L'autore lo mette il database (auth.uid()).
       const { error } = await dbSenzaTipi
         .from("giornale_annotazioni")
@@ -806,11 +807,11 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       if (error) throw new Error(messaggioErroreGiornale(error));
     },
     onSuccess: () => {
-      toast.success("Annotazione aggiunta");
+      toast.success(tr("Annotazione aggiunta"));
       setNuovaAnnotazione("");
       queryClient.invalidateQueries({ queryKey: ["giornale-annotazioni", editingId] });
     },
-    onError: (err: Error) => toast.error("Annotazione non salvata", { description: err.message }),
+    onError: (err: Error) => toast.error(tr("Annotazione non salvata"), { description: err.message }),
   });
 
   const handleExportPdf = async () => {
@@ -822,12 +823,12 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       });
       if (error) {
         const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
-        throw new Error(detail?.error || error.message || "Errore nella generazione del PDF");
+        throw new Error(detail?.error || error.message || tr("Errore nella generazione del PDF"));
       }
-      if (!data?.html) throw new Error("Nessun contenuto generato");
+      if (!data?.html) throw new Error(tr("Nessun contenuto generato"));
       setPrintHtml(data.html);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
+      toast.error(err instanceof Error ? err.message : tr("Errore nell'esportazione"));
     } finally {
       setIsExporting(false);
     }
@@ -847,8 +848,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
               <NotebookPen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <Titolo className="truncate text-xl font-bold text-slate-950 sm:text-2xl">Giornale dei Lavori</Titolo>
-              <p className="text-xs text-slate-600 sm:text-sm">{orderIdFisso ? "Una pagina per ogni giorno di questa commessa" : "Diario ufficiale del cantiere"}</p>
+              <Titolo className="truncate text-xl font-bold text-slate-950 sm:text-2xl">{tr("Giornale dei Lavori")}</Titolo>
+              <p className="text-xs text-slate-600 sm:text-sm">{orderIdFisso ? tr("Una pagina per ogni giorno di questa commessa") : tr("Diario ufficiale del cantiere")}</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -861,13 +862,13 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                <span className="ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
+                <span className="ml-1">{isExporting ? tr("Generazione...") : tr("Esporta PDF")}</span>
               </Button>
             )}
             {canEditGiornale && (
               <Button size="sm" className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline ml-1">Report</span>
+                <span className="hidden sm:inline ml-1">{tr("Report")}</span>
               </Button>
             )}
           </div>
@@ -881,10 +882,10 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
           onValueChange={(v) => setSelectedOrderId(v === "__all__" ? "" : v)}
         >
           <SelectTrigger className="flex-1 sm:max-w-xs">
-            <SelectValue placeholder="Tutti gli ordini" />
+            <SelectValue placeholder={tr("Tutti gli ordini")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tutti gli ordini</SelectItem>
+            <SelectItem value="__all__">{tr("Tutti gli ordini")}</SelectItem>
             {orders.map((o: any) => (
               <SelectItem key={o.id} value={o.id}>
                 {o.order_code ? `#${o.order_code} — ` : ""}{o.description}
@@ -895,7 +896,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
         {gpsStatus === "success" && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3 text-green-500" />
-            <span>GPS attivo</span>
+            <span>{tr("GPS attivo")}</span>
           </div>
         )}
       </div>}
@@ -903,7 +904,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       {/* Errore di caricamento — non mascherare con l'empty-state "Nessun report" */}
       {(entriesError || ordersError) && (
         <Alert variant="destructive">
-          <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+          <AlertDescription>{tr("Errore nel caricamento. Riprova.")}</AlertDescription>
         </Alert>
       )}
 
@@ -919,14 +920,14 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
           <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
             <NotebookPen className="h-16 w-16 text-muted-foreground/40" />
             <div>
-              <p className="font-semibold text-lg">Nessun report giornaliero</p>
+              <p className="font-semibold text-lg">{tr("Nessun report giornaliero")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {selectedOrderId ? "Nessun report per questo ordine." : "Seleziona un ordine e aggiungi il primo report."}
+                {selectedOrderId ? tr("Nessun report per questo ordine.") : tr("Seleziona un ordine e aggiungi il primo report.")}
               </p>
             </div>
             {canEditGiornale && (
               <Button onClick={openNew}>
-                <Plus className="h-4 w-4 mr-2" /> Aggiungi report
+                <Plus className="h-4 w-4 mr-2" /> {tr("Aggiungi report")}
               </Button>
             )}
           </CardContent>
@@ -949,13 +950,13 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
           <SheetHeader className="pb-4">
             <SheetTitle className="flex items-center gap-2">
               <NotebookPen className="h-5 w-5" />
-              {!editingEntry?.id ? "Report Giornaliero" : solaLettura ? "Pagina del giornale" : "Correggi il report"}
+              {!editingEntry?.id ? tr("Report Giornaliero") : solaLettura ? tr("Pagina del giornale") : tr("Correggi il report")}
               {editingEntry?.id && (regole.stato === "firmata" ? (
                 <Badge variant="secondary" className="bg-green-100 text-green-700">
-                  <Lock className="mr-1 h-3 w-3" aria-hidden="true" />Firmata
+                  <Lock className="mr-1 h-3 w-3" aria-hidden="true" />{tr("Firmata")}
                 </Badge>
               ) : (
-                <Badge variant="outline">Bozza</Badge>
+                <Badge variant="outline">{tr("Bozza")}</Badge>
               ))}
             </SheetTitle>
           </SheetHeader>
@@ -965,9 +966,10 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
               <Alert>
                 <Lock className="h-4 w-4" />
                 <AlertDescription>
-                  Firmata il {dataOra(editingEntry?.pm_signed_at)}
-                  {editingEntry?.pm_signed_by && nomi[editingEntry.pm_signed_by] ? ` da ${nomi[editingEntry.pm_signed_by]}` : ""}.
-                  {" "}Non si può più modificare: si possono solo aggiungere annotazioni.
+                  {editingEntry?.pm_signed_by && nomi[editingEntry.pm_signed_by]
+                    ? tr("Firmata il {data} da {nome}.", { data: dataOra(editingEntry?.pm_signed_at), nome: nomi[editingEntry.pm_signed_by] })
+                    : tr("Firmata il {data}.", { data: dataOra(editingEntry?.pm_signed_at) })}
+                  {" "}{tr("Non si può più modificare: si possono solo aggiungere annotazioni.")}
                 </AlertDescription>
               </Alert>
             )}
@@ -976,8 +978,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
             {paginaGiaScritta && (
               <Alert>
                 <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-                  <span>Per questo cantiere c'è già la pagina del {format(new Date(`${formData.data_lavori}T00:00:00`), "dd/MM/yyyy")}.</span>
-                  <Button size="sm" variant="outline" onClick={() => openEdit(paginaGiaScritta)}>Apri la pagina</Button>
+                  <span>{tr("Per questo cantiere c'è già la pagina del {data}.", { data: format(new Date(`${formData.data_lavori}T00:00:00`), "dd/MM/yyyy") })}</span>
+                  <Button size="sm" variant="outline" onClick={() => openEdit(paginaGiaScritta)}>{tr("Apri la pagina")}</Button>
                 </AlertDescription>
               </Alert>
             )}
@@ -988,21 +990,21 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 <div className="flex items-center justify-between gap-2">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    Presenze dai rapportini
+                    {tr("Presenze dai rapportini")}
                   </p>
                   {rapportiniGiorno.length > 0 && (
                     <Link
                       to={`/azienda/ordini/${orderDelGiorno}?tab=cantiere&vista_cantiere=diario`}
                       className="text-xs text-primary underline-offset-2 hover:underline"
                     >
-                      {rapportiniGiorno.length === 1 ? "Apri il rapportino" : `Apri i ${rapportiniGiorno.length} rapportini`}
+                      {rapportiniGiorno.length === 1 ? tr("Apri il rapportino") : tr("Apri i {n} rapportini", { n: rapportiniGiorno.length })}
                     </Link>
                   )}
                 </div>
                 {personeGiorno.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nessun rapportino per questo giorno su questo cantiere.</p>
+                  <p className="text-xs text-muted-foreground">{tr("Nessun rapportino per questo giorno su questo cantiere.")}</p>
                 ) : (
-                  <ul className="flex flex-wrap gap-1.5" aria-label="Persone presenti">
+                  <ul className="flex flex-wrap gap-1.5" aria-label={tr("Persone presenti")}>
                     {personeGiorno.map((p) => (
                       <li key={p.chiave} className="rounded-full bg-muted px-2.5 py-1 text-xs">
                         {p.nome} · <span className="tabular-nums">{oreLeggibili(p.ore)}</span>
@@ -1015,32 +1017,32 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {editingEntry?.aggiornamento_disponibile_il && (
               <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Dopo che questa pagina è stata modificata a mano sono cambiati dei rapportini. Il testo non è stato toccato: usa «Prepara dalla giornata» per riprenderli.
+                {tr("Dopo che questa pagina è stata modificata a mano sono cambiati dei rapportini. Il testo non è stato toccato: usa «Prepara dalla giornata» per riprenderli.")}
               </p>
             )}
             {/* Proposta dai dati del giorno, senza AI: riempie il modulo, si salva solo quando lo decide chi scrive. */}
             {regole.puoModificare && orderDelGiorno && formData.data_lavori && !paginaGiaScritta && (
               <div className="rounded-lg border p-3 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">Riporta rapportini, bolle e segnalazioni del giorno. Controlla il testo prima di salvare.</p>
+                  <p className="text-xs text-muted-foreground">{tr("Riporta rapportini, bolle e segnalazioni del giorno. Controlla il testo prima di salvare.")}</p>
                   <Button type="button" size="sm" variant="outline" onClick={() => preparaBozza.mutate()} disabled={preparaBozza.isPending || saveEntry.isPending}>
                     {preparaBozza.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" aria-hidden="true" />}
-                    Prepara dalla giornata
+                    {tr("Prepara dalla giornata")}
                   </Button>
                 </div>
                 {esitoBozza?.orderId === orderDelGiorno && esitoBozza.data === formData.data_lavori && (
                   <div role="status" className="space-y-1 text-xs">
                     {esitoBozza.vuota ? (
-                      <p className="font-medium">In questa giornata non c'è niente da riportare: nessun rapportino con del testo, nessuna bolla, nessuna segnalazione.</p>
+                      <p className="font-medium">{tr("In questa giornata non c'è niente da riportare: nessun rapportino con del testo, nessuna bolla, nessuna segnalazione.")}</p>
                     ) : (
                       <p>
-                        Proposta presa da{" "}
+                        {tr("Proposta presa da")}{" "}
                         <Link to={`/azienda/ordini/${orderDelGiorno}?tab=cantiere&vista_cantiere=diario`} className="text-primary underline-offset-2 hover:underline">
-                          {conteggio(esitoBozza.fonti.source_rapportini_ids.length, "rapportino", "rapportini")}
+                          {tr(esitoBozza.fonti.source_rapportini_ids.length === 1 ? "{n} rapportino" : "{n} rapportini", { n: esitoBozza.fonti.source_rapportini_ids.length })}
                         </Link>
-                        {" · "}{conteggio(esitoBozza.fonti.source_ddt_ids.length, "bolla", "bolle")}
-                        {" · "}{conteggio(esitoBozza.fonti.source_segnalazioni_ids.length, "segnalazione", "segnalazioni")}
-                        {" · "}{conteggio(esitoBozza.fonti.source_foto_ids.length, "foto", "foto")}.
+                        {" · "}{tr(esitoBozza.fonti.source_ddt_ids.length === 1 ? "{n} bolla" : "{n} bolle", { n: esitoBozza.fonti.source_ddt_ids.length })}
+                        {" · "}{tr(esitoBozza.fonti.source_segnalazioni_ids.length === 1 ? "{n} segnalazione" : "{n} segnalazioni", { n: esitoBozza.fonti.source_segnalazioni_ids.length })}
+                        {" · "}{tr("{n} foto", { n: esitoBozza.fonti.source_foto_ids.length })}.
                       </p>
                     )}
                     {esitoBozza.avvisi.map((a) => <p key={a} className="text-amber-700 dark:text-amber-400">{a}</p>)}
@@ -1054,9 +1056,9 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
             {/* Ordine (se non già selezionato) */}
             {!selectedOrderId && (
               <div className="space-y-2">
-                <Label htmlFor={`${formId}-commessa`}>Cantiere / Ordine *</Label>
+                <Label htmlFor={`${formId}-commessa`}>{tr("Cantiere / Ordine *")}</Label>
                 <Select value={selectedOrderId || undefined} onValueChange={setSelectedOrderId}>
-                  <SelectTrigger id={`${formId}-commessa`}><SelectValue placeholder="Seleziona ordine" /></SelectTrigger>
+                  <SelectTrigger id={`${formId}-commessa`}><SelectValue placeholder={tr("Seleziona ordine")} /></SelectTrigger>
                   <SelectContent>
                     {orders.map((o: any) => (
                       <SelectItem key={o.id} value={o.id}>
@@ -1070,7 +1072,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Data */}
             <div className="space-y-2">
-              <Label htmlFor={`${formId}-data`}>Data lavori</Label>
+              <Label htmlFor={`${formId}-data`}>{tr("Data lavori")}</Label>
               <Input id={`${formId}-data`}
                 type="date"
                 value={formData.data_lavori}
@@ -1080,7 +1082,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Meteo */}
             <div className="space-y-2">
-              <Label>Condizioni meteo</Label>
+              <Label>{tr("Condizioni meteo")}</Label>
               <div className="flex flex-wrap gap-2">
                 {METEO_OPTIONS.map((m) => {
                   const Icon = m.icon;
@@ -1097,7 +1099,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                       }`}
                     >
                       <Icon className={`h-4 w-4 ${m.color}`} />
-                      {m.label}
+                      {tr(m.label)}
                     </button>
                   );
                 })}
@@ -1106,9 +1108,9 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Temperatura */}
             <div className="space-y-2">
-              <Label htmlFor={`${formId}-temperatura`}>Temperatura (opzionale)</Label>
+              <Label htmlFor={`${formId}-temperatura`}>{tr("Temperatura (opzionale)")}</Label>
               <Input id={`${formId}-temperatura`}
-                placeholder="es. 18°C"
+                placeholder={tr("es. 18°C")}
                 value={formData.temperatura}
                 onChange={(e) => setFormData((p) => ({ ...p, temperatura: e.target.value }))}
               />
@@ -1116,23 +1118,23 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Lavorazioni */}
             <div className="space-y-2">
-              <Label htmlFor={`${formId}-lavorazioni`}>Lavorazioni eseguite oggi *</Label>
+              <Label htmlFor={`${formId}-lavorazioni`}>{tr("Lavorazioni eseguite oggi *")}</Label>
               <Textarea id={`${formId}-lavorazioni`}
-                placeholder="Descrivi le attività svolte nella giornata..."
+                placeholder={tr("Descrivi le attività svolte nella giornata...")}
                 value={formData.lavorazioni_eseguite}
                 onChange={(e) => setFormData((p) => ({ ...p, lavorazioni_eseguite: e.target.value }))}
                 rows={4}
                 className="resize-none"
               />
               {/* Detta: il testo pulito si aggiunge in fondo, chi scrive lo rivede prima di salvare. */}
-              <DettaTesto value={formData.lavorazioni_eseguite} onChange={(t) => setFormData((p) => ({ ...p, lavorazioni_eseguite: t }))} companyId={companyId} contesto="giornale" campo="lavorazioni" etichetta="Lavorazioni eseguite" disabled={saveEntry.isPending} />
+              <DettaTesto value={formData.lavorazioni_eseguite} onChange={(t) => setFormData((p) => ({ ...p, lavorazioni_eseguite: t }))} companyId={companyId} contesto="giornale" campo="lavorazioni" etichetta={tr("Lavorazioni eseguite")} disabled={saveEntry.isPending} />
             </div>
 
             {/* Materiali */}
             <div className="space-y-2">
-              <Label htmlFor={`${formId}-materiali`}>Materiali utilizzati</Label>
+              <Label htmlFor={`${formId}-materiali`}>{tr("Materiali utilizzati")}</Label>
               <Textarea id={`${formId}-materiali`}
-                placeholder="Cemento, ferro, laterizi..."
+                placeholder={tr("Cemento, ferro, laterizi...")}
                 value={formData.materiali_utilizzati}
                 onChange={(e) => setFormData((p) => ({ ...p, materiali_utilizzati: e.target.value }))}
                 rows={2}
@@ -1142,7 +1144,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Personale */}
             <div className="space-y-2">
-              <Label htmlFor={`${formId}-personale`}>N. operai presenti</Label>
+              <Label htmlFor={`${formId}-personale`}>{tr("N. operai presenti")}</Label>
               <Input id={`${formId}-personale`}
                 type="number"
                 inputMode="numeric"
@@ -1157,11 +1159,11 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
             {/* Avanzamento */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Avanzamento lavori</Label>
+                <Label>{tr("Avanzamento lavori")}</Label>
                 <span className="text-sm font-semibold text-primary">{formData.avanzamento_percentuale}%</span>
               </div>
               <Slider
-                aria-label="Avanzamento lavori"
+                aria-label={tr("Avanzamento lavori")}
                 aria-valuetext={`${formData.avanzamento_percentuale}%`}
                 min={0}
                 max={100}
@@ -1175,15 +1177,15 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Note */}
             <div className="space-y-2">
-              <Label htmlFor={`${formId}-note`}>Note aggiuntive</Label>
+              <Label htmlFor={`${formId}-note`}>{tr("Note aggiuntive")}</Label>
               <Textarea id={`${formId}-note`}
-                placeholder="Problemi, osservazioni, comunicazioni..."
+                placeholder={tr("Problemi, osservazioni, comunicazioni...")}
                 value={formData.note}
                 onChange={(e) => setFormData((p) => ({ ...p, note: e.target.value }))}
                 rows={2}
                 className="resize-none"
               />
-              <DettaTesto value={formData.note} onChange={(t) => setFormData((p) => ({ ...p, note: t }))} companyId={companyId} contesto="giornale" campo="note" etichetta="Note aggiuntive" disabled={saveEntry.isPending} />
+              <DettaTesto value={formData.note} onChange={(t) => setFormData((p) => ({ ...p, note: t }))} companyId={companyId} contesto="giornale" campo="note" etichetta={tr("Note aggiuntive")} disabled={saveEntry.isPending} />
             </div>
 
             {/* Visibilità cliente */}
@@ -1196,7 +1198,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 className="h-4 w-4 rounded border-border"
               />
               <Label htmlFor="visibile_cliente" className="text-sm font-normal cursor-pointer">
-                Visibile nel portale cliente
+                {tr("Visibile nel portale cliente")}
               </Label>
             </div>
 
@@ -1205,29 +1207,27 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
               <MapPin className={`h-5 w-5 shrink-0 ${gpsStatus === "success" ? "text-green-500" : "text-muted-foreground"}`} />
               <div className="flex-1 min-w-0">
                 {gpsStatus === "success" ? (
-                  <p className="text-sm text-green-600 font-medium">
-                    GPS: {gpsLat.toFixed(4)}, {gpsLng.toFixed(4)}
-                  </p>
+                  <p className="text-sm text-green-600 font-medium">{tr("GPS: {gpsLat}, {gpsLng}", { gpsLat: gpsLat.toFixed(4), gpsLng: gpsLng.toFixed(4) })}</p>
                 ) : gpsStatus === "loading" ? (
-                  <p className="text-sm text-muted-foreground">Rilevamento posizione...</p>
+                  <p className="text-sm text-muted-foreground">{tr("Rilevamento posizione...")}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Posizione GPS non rilevata</p>
+                  <p className="text-sm text-muted-foreground">{tr("Posizione GPS non rilevata")}</p>
                 )}
               </div>
               {gpsStatus !== "success" && gpsStatus !== "loading" && (
-                <Button variant="outline" size="sm" onClick={requestPosition}>Richiedi GPS</Button>
+                <Button variant="outline" size="sm" onClick={requestPosition}>{tr("Richiedi GPS")}</Button>
               )}
             </div>
 
             {/* Foto: fotocamera e galleria separate. Un input con capture E multiple, sul telefono, apre solo la fotocamera. */}
             <div className="space-y-2">
-              <Label>Foto cantiere</Label>
+              <Label>{tr("Foto cantiere")}</Label>
               <input
                 ref={cameraInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
-                aria-label="Scatta una foto"
+                aria-label={tr("Scatta una foto")}
                 className="hidden"
                 onChange={handleFotoSelect}
               />
@@ -1236,7 +1236,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 type="file"
                 accept="image/*"
                 multiple
-                aria-label="Scegli foto dalla galleria"
+                aria-label={tr("Scegli foto dalla galleria")}
                 className="hidden"
                 onChange={handleFotoSelect}
               />
@@ -1245,12 +1245,12 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                   {fotoSalvate.map((foto, i) => (
                     <div key={foto.id} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
                       {fotoSalvateLink[i]
-                        ? <img loading="lazy" src={fotoSalvateLink[i]} alt={`Foto salvata ${i + 1}`} className="w-full h-full object-cover" />
-                        : <div className="flex h-full items-center justify-center"><Camera className="h-5 w-5 text-muted-foreground" aria-label={`Foto salvata ${i + 1} non disponibile`} /></div>}
+                        ? <img loading="lazy" src={fotoSalvateLink[i]} alt={tr("Foto salvata {i}", { i: i + 1 })} className="w-full h-full object-cover" />
+                        : <div className="flex h-full items-center justify-center"><Camera className="h-5 w-5 text-muted-foreground" aria-label={tr("Foto salvata {i} non disponibile", { i: i + 1 })} /></div>}
                       {regole.puoModificare && (
                         <button
                           type="button"
-                          aria-label={`Togli la foto salvata ${i + 1}`}
+                          aria-label={tr("Togli la foto salvata {i}", { i: i + 1 })}
                           disabled={eliminaFotoSalvata.isPending}
                           onClick={() => eliminaFotoSalvata.mutate(foto)}
                           className="tap-compact absolute top-1 right-1 bg-black/60 rounded-full p-1.5 disabled:opacity-50"
@@ -1262,10 +1262,10 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                   ))}
                   {fotoPreview.map((foto, i) => (
                     <div key={foto.preview} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
-                      <img loading="lazy" src={foto.preview} alt={`Foto da caricare ${i + 1}`} className="w-full h-full object-cover" />
+                      <img loading="lazy" src={foto.preview} alt={tr("Foto da caricare {i}", { i: i + 1 })} className="w-full h-full object-cover" />
                       <button
                         type="button"
-                        aria-label={`Togli la foto ${i + 1}`}
+                        aria-label={tr("Togli la foto {i}", { i: i + 1 })}
                         onClick={() => removeFoto(i)}
                         className="tap-compact absolute top-1 right-1 bg-black/60 rounded-full p-1.5"
                       >
@@ -1283,7 +1283,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                   onClick={() => cameraInputRef.current?.click()}
                 >
                   <Camera className="h-4 w-4 mr-2" />
-                  {fotoSalvate.length + fotoPreview.length > 0 ? "Scatta un'altra" : "Scatta foto"}
+                  {fotoSalvate.length + fotoPreview.length > 0 ? tr("Scatta un'altra") : tr("Scatta foto")}
                 </Button>
                 <Button
                   variant="outline"
@@ -1292,31 +1292,31 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                   onClick={() => galleriaInputRef.current?.click()}
                 >
                   {fotoProgresso ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
-                  Dalla galleria
+                  {tr("Dalla galleria")}
                 </Button>
               </div>
               <p role="status" className="text-xs text-muted-foreground">
                 {fotoProgresso
                   ?? (fotoAlCompleto
-                    ? `${MAX_FOTO_PER_RAPPORTINO} foto: è il massimo per un report.`
-                    : `${fotoSalvate.length + fotoPreview.length} di ${MAX_FOTO_PER_RAPPORTINO} foto${fotoPreview.length > 0 ? ` · ${fotoPreview.length} da caricare al salvataggio` : ""}.`)}
+                    ? tr("{n} foto: è il massimo per un report.", { n: MAX_FOTO_PER_RAPPORTINO })
+                    : fotoPreview.length > 0 ? tr("{n} di {massimo} foto · {nuove} da caricare al salvataggio.", { n: fotoSalvate.length + fotoPreview.length, massimo: MAX_FOTO_PER_RAPPORTINO, nuove: fotoPreview.length }) : tr("{n} di {massimo} foto.", { n: fotoSalvate.length + fotoPreview.length, massimo: MAX_FOTO_PER_RAPPORTINO }))}
               </p>
             </div>
 
             {/* Firma */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Firma capocantiere</Label>
+                <Label>{tr("Firma capocantiere")}</Label>
                 {hasFirma && (
                   <Button variant="ghost" size="sm" className="h-9 md:h-6 text-xs" onClick={clearFirma}>
-                    Cancella
+                    {tr("Cancella")}
                   </Button>
                 )}
               </div>
               <div className="space-y-2">
                 <Input
-                  aria-label="Nome e cognome del firmatario"
-                  placeholder="Nome e cognome firmatario"
+                  aria-label={tr("Nome e cognome del firmatario")}
+                  placeholder={tr("Nome e cognome firmatario")}
                   value={formData.firmato_da}
                   onChange={(e) => setFormData((p) => ({ ...p, firmato_da: e.target.value }))}
                 />
@@ -1339,7 +1339,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 </div>
                 )}
                 {!hasFirma && !solaLettura && (
-                  <p className="text-xs text-muted-foreground text-center">Firma nello spazio sopra</p>
+                  <p className="text-xs text-muted-foreground text-center">{tr("Firma nello spazio sopra")}</p>
                 )}
               </div>
             </div>
@@ -1366,10 +1366,10 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
               <div className="space-y-3 rounded-lg border p-3">
                 <p className="flex items-center gap-1.5 text-sm font-medium">
                   <PenLine className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  Annotazioni
+                  {tr("Annotazioni")}
                 </p>
                 {annotazioni.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nessuna annotazione.</p>
+                  <p className="text-xs text-muted-foreground">{tr("Nessuna annotazione.")}</p>
                 ) : (
                   <ul className="space-y-2">
                     {annotazioni.map((a) => (
@@ -1384,24 +1384,24 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 )}
                 {regole.puoAnnotare && (
                   <div className="space-y-2">
-                    <Label htmlFor="nuova_annotazione">Aggiungi annotazione</Label>
+                    <Label htmlFor="nuova_annotazione">{tr("Aggiungi annotazione")}</Label>
                     <Textarea
                       id="nuova_annotazione"
-                      placeholder="Correzione, precisazione, evento successivo…"
+                      placeholder={tr("Correzione, precisazione, evento successivo…")}
                       value={nuovaAnnotazione}
                       onChange={(e) => setNuovaAnnotazione(e.target.value)}
                       rows={2}
                       maxLength={5000}
                       className="resize-none"
                     />
-                    <DettaTesto value={nuovaAnnotazione} onChange={setNuovaAnnotazione} companyId={companyId} contesto="giornale" campo="note" etichetta="Annotazione" disabled={aggiungiAnnotazione.isPending} />
+                    <DettaTesto value={nuovaAnnotazione} onChange={setNuovaAnnotazione} companyId={companyId} contesto="giornale" campo="note" etichetta={tr("Annotazione")} disabled={aggiungiAnnotazione.isPending} />
                     <Button
                       size="sm"
                       onClick={() => aggiungiAnnotazione.mutate()}
                       disabled={aggiungiAnnotazione.isPending || !nuovaAnnotazione.trim()}
                     >
                       {aggiungiAnnotazione.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                      Aggiungi annotazione
+                      {tr("Aggiungi annotazione")}
                     </Button>
                   </div>
                 )}
@@ -1421,7 +1421,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
             {/* Hint se ordine non selezionato */}
             {!selectedOrderId && !editingEntry?.id && (
               <p className="text-xs text-amber-600 text-center">
-                Seleziona un cantiere prima di salvare.
+                {tr("Seleziona un cantiere prima di salvare.")}
               </p>
             )}
 
@@ -1437,11 +1437,11 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 disabled={saveEntry.isPending || firmaPagina.isPending || !!fotoProgresso || !formData.lavorazioni_eseguite.trim() || !selectedOrderId || !!paginaGiaScritta}
               >
                 {saveEntry.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio in corso...</>
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {tr("Salvataggio in corso...")}</>
                 ) : editingEntry?.id ? (
-                  "Salva correzioni"
+                  tr("Salva correzioni")
                 ) : (
-                  "Salva report giornaliero"
+                  tr("Salva report giornaliero")
                 )}
               </Button>
               )}
@@ -1454,7 +1454,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                   disabled={saveEntry.isPending || firmaPagina.isPending || !!fotoProgresso}
                 >
                   <Lock className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Firma il giornale
+                  {tr("Firma il giornale")}
                 </Button>
               )}
               {regole.stato === "firmata" && editingEntry?.id && canEditGiornale && orderDelGiorno && (
@@ -1479,7 +1479,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                     variant="outline"
                     onClick={() => { setSheetOpen(false); resetForm(); }}
                   >
-                    Chiudi
+                    {tr("Chiudi")}
                   </Button>
                   {regole.puoEliminare && (
                   <Button
@@ -1487,10 +1487,10 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                     variant="outline"
                     className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => setDaCancellare(editingEntry)}
-                    aria-label="Elimina questo rapportino"
+                    aria-label={tr("Elimina questo rapportino")}
                   >
                     <Trash2 className="h-4 w-4" />
-                    <span className="ml-1.5 hidden sm:inline">Elimina</span>
+                    <span className="ml-1.5 hidden sm:inline">{tr("Elimina")}</span>
                   </Button>
                   )}
                 </div>
@@ -1504,7 +1504,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
         <PrintPreviewModal
           htmlContent={printHtml}
           fileName="giornale-lavori"
-          title="Giornale dei Lavori"
+          title={tr("Giornale dei Lavori")}
           open={!!printHtml}
           onOpenChange={(open) => { if (!open) setPrintHtml(null); }}
         />
@@ -1515,7 +1515,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       <button
         onClick={openNew}
         className="md:hidden fixed right-4 z-40 flex items-center justify-center h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
-        aria-label="Nuovo report giornaliero"
+        aria-label={tr("Nuovo report giornaliero")}
         // safe-area sull'OFFSET, non come padding interno: il padding schiacciava
         // il content-box del cerchio h-14 e l'icona finiva decentrata/clippata
         style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
@@ -1527,21 +1527,21 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       <AlertDialog open={!!bozzaDaScegliere} onOpenChange={(o) => { if (!o) setBozzaDaScegliere(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>In questa pagina c'è già del testo</AlertDialogTitle>
+            <AlertDialogTitle>{tr("In questa pagina c'è già del testo")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Puoi aggiungere la proposta in fondo a quello che c'è, oppure sostituirlo. Finché non salvi non cambia niente.
+              {tr("Puoi aggiungere la proposta in fondo a quello che c'è, oppure sostituirlo. Finché non salvi non cambia niente.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="border border-input bg-background text-foreground hover:bg-accent"
               onClick={() => { if (bozzaDaScegliere) applicaProposta(bozzaDaScegliere, "sostituisci"); }}
             >
-              Sostituisci
+              {tr("Sostituisci")}
             </AlertDialogAction>
             <AlertDialogAction onClick={() => { if (bozzaDaScegliere) applicaProposta(bozzaDaScegliere, "aggiungi"); }}>
-              Aggiungi in fondo
+              {tr("Aggiungi in fondo")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1550,19 +1550,18 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       <AlertDialog open={firmaDaConfermare} onOpenChange={(o) => { if (!o && !firmaPagina.isPending) setFirmaDaConfermare(false); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Firmare questa pagina del giornale?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Firmare questa pagina del giornale?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Dopo la firma non si potrà più modificare: si potranno solo aggiungere annotazioni.
-              Prima della firma si salva quello che c'è nel modulo.
+              {tr("Dopo la firma non si potrà più modificare: si potranno solo aggiungere annotazioni. Prima della firma si salva quello che c'è nel modulo.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={firmaPagina.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={firmaPagina.isPending}>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); firmaPagina.mutate(); }}
               disabled={firmaPagina.isPending}
             >
-              {firmaPagina.isPending ? "Firmo..." : "Firma il giornale"}
+              {firmaPagina.isPending ? tr("Firmo...") : tr("Firma il giornale")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1571,26 +1570,25 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       <AlertDialog open={!!daCancellare} onOpenChange={(o) => { if (!o) setDaCancellare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questo rapportino?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare questo rapportino?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {daCancellare?.data_lavori
-                ? `Il report del ${format(new Date(daCancellare.data_lavori), "dd/MM/yyyy")} `
-                : "Il report "}
-              sparisce dal diario del cantiere
-              {(daCancellare?.giornale_foto?.length ?? 0) > 0
-                ? `, insieme alle sue ${daCancellare.giornale_foto.length} foto`
-                : ""}
-              . Non si può annullare.
+                ? ((daCancellare?.giornale_foto?.length ?? 0) > 0
+                  ? tr("Il report del {data} sparisce dal diario del cantiere, insieme alle sue {n} foto. Non si può annullare.", { data: format(new Date(daCancellare.data_lavori), "dd/MM/yyyy"), n: daCancellare.giornale_foto.length })
+                  : tr("Il report del {data} sparisce dal diario del cantiere. Non si può annullare.", { data: format(new Date(daCancellare.data_lavori), "dd/MM/yyyy") }))
+                : ((daCancellare?.giornale_foto?.length ?? 0) > 0
+                  ? tr("Il report sparisce dal diario del cantiere, insieme alle sue {n} foto. Non si può annullare.", { n: daCancellare.giornale_foto.length })
+                  : tr("Il report sparisce dal diario del cantiere. Non si può annullare."))}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(e) => { e.preventDefault(); if (daCancellare) eliminaEntry.mutate(daCancellare); }}
               disabled={eliminaEntry.isPending}
             >
-              {eliminaEntry.isPending ? "Elimino..." : "Elimina"}
+              {eliminaEntry.isPending ? tr("Elimino...") : tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

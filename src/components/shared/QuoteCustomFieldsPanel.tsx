@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { quoteFieldContext } from "@/lib/custom-fields/quoteContext";
 import { EntityCustomFieldsSection } from "./EntityCustomFieldsSection";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Lazy, internal header fields only. No changes to the wizard's native save payload or signed PDF. */
 export function QuoteCustomFieldsPanel() {
@@ -21,6 +22,7 @@ function RoutedQuoteFields() {
   return context ? <SavedQuoteFields key={`${context.entityType}:${context.id}`} {...context} /> : null;
 }
 function SavedQuoteFields({ entityType, id }: { entityType: string; id: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const fields = useEntityCustomFields("quote");
   const { effectiveCompany, user } = useAuth();
@@ -35,9 +37,9 @@ function SavedQuoteFields({ entityType, id }: { entityType: string; id: string }
   });
   if (!fields.isError && !fields.data?.length) return null;
   return <details className="mt-4 rounded-xl border bg-white p-4" open={open} onToggle={e => setOpen(e.currentTarget.open)}>
-    <summary className="cursor-pointer text-sm font-semibold">Campi aggiuntivi del preventivo</summary>
-    <p className="my-2 text-xs text-muted-foreground">Dati interni della testata, salvati separatamente con «Salva campo». Non modificano importi, IVA o documento cliente. Per stamparli serve una mappatura esplicita nel modello.</p>
-    {open && access.isError && <p role="alert" className="text-xs text-destructive">Non è possibile verificare il permesso di scrittura. I campi restano in sola lettura.</p>}
+    <summary className="cursor-pointer text-sm font-semibold">{t("Campi aggiuntivi del preventivo")}</summary>
+    <p className="my-2 text-xs text-muted-foreground">{t("Dati interni della testata, salvati separatamente con «Salva campo». Non modificano importi, IVA o documento cliente. Per stamparli serve una mappatura esplicita nel modello.")}</p>
+    {open && access.isError && <p role="alert" className="text-xs text-destructive">{t("Non è possibile verificare il permesso di scrittura. I campi restano in sola lettura.")}</p>}
     {open && <EntityCustomFieldsSection entityType={entityType} definitionType="quote" entityId={id} disabled={access.data !== true} />}
   </details>;
 }

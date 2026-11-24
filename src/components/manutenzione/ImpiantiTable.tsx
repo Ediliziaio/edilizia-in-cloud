@@ -11,7 +11,6 @@ import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorriment
  * Mobile: righe compatte come le assistenze (pallino, titolo, cliente, stato).
  */
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Calendar, User, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { STATO_MANUT_META, etichettaScadenza, type StatoManutenzione } from "@/lib/manutenzione/statoManutenzione";
 import type { ImpiantoStato, PrioritaManutenzione } from "@/components/manutenzione/ManutenzionePipeline";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Colori del pallino / dell'etichetta a destra su mobile, per stato.
 const DOT: Record<StatoManutenzione, string> = {
@@ -44,20 +44,21 @@ function tipoLabel(tipo: string) {
   return tipo.replace(/_/g, " ");
 }
 
-function garanziaBadge(date: string | null) {
+function garanziaBadge(date: string | null, t: (testo: string, valori?: Record<string, string | number>) => string) {
   if (!date) return null;
   const giorni = Math.ceil((new Date(date).getTime() - Date.now()) / 86400000);
-  if (giorni < 0) return <Badge className="bg-red-100 text-red-700 text-[10px]">Garanzia scaduta</Badge>;
-  if (giorni < 90) return <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Garanzia {giorni}gg</Badge>;
-  return <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Garanzia ok</Badge>;
+  if (giorni < 0) return <Badge className="bg-red-100 text-red-700 text-[10px]">{t("Garanzia scaduta")}</Badge>;
+  if (giorni < 90) return <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">{t("Garanzia {giorni}gg", { giorni })}</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">{t("Garanzia ok")}</Badge>;
 }
 
 function ScadenzaCella({ iso }: { iso: string | null }) {
+  const t = useT();
   if (!iso) return <span className="text-muted-foreground">—</span>;
   const scaduta = new Date(iso).getTime() < Date.now();
-  const testo = format(new Date(iso), "d MMM yyyy", { locale: it });
+  const testo = format(new Date(iso), "d MMM yyyy", { locale: dateFnsCampo() });
   if (scaduta) {
-    return <Badge className="bg-red-100 text-red-700">Scaduta {format(new Date(iso), "dd/MM/yy")}</Badge>;
+    return <Badge className="bg-red-100 text-red-700">{t("Scaduta {valore}", { valore: format(new Date(iso), "dd/MM/yy") })}</Badge>;
   }
   return (
     <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
@@ -76,6 +77,7 @@ export function ImpiantiTable({
   onToggleTutti?: () => void;
   tutteSelezionate?: boolean;
 }) {
+  const t = useT();
   const selezionabile = !!onToggle;
   const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
   return (
@@ -126,18 +128,18 @@ export function ImpiantiTable({
             <TableRow>
               {selezionabile && (
                 <TableHead className="w-10">
-                  <Checkbox checked={!!tutteSelezionate} onCheckedChange={onToggleTutti} aria-label="Seleziona tutti gli impianti" />
+                  <Checkbox checked={!!tutteSelezionate} onCheckedChange={onToggleTutti} aria-label={t("Seleziona tutti gli impianti")} />
                 </TableHead>
               )}
-              <TableHead className="w-32">Tipo</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Marca e modello</TableHead>
-              <TableHead>Contratto</TableHead>
-              <TableHead>Priorità</TableHead>
-              <TableHead>Prossima manutenzione</TableHead>
-              <TableHead>Stato</TableHead>
-              <TableHead>Assegnato</TableHead>
-              <TableHead>Garanzia</TableHead>
+              <TableHead className="w-32">{t("Tipo")}</TableHead>
+              <TableHead>{t("Cliente")}</TableHead>
+              <TableHead>{t("Marca e modello")}</TableHead>
+              <TableHead>{t("Contratto")}</TableHead>
+              <TableHead>{t("Priorità")}</TableHead>
+              <TableHead>{t("Prossima manutenzione")}</TableHead>
+              <TableHead>{t("Stato")}</TableHead>
+              <TableHead>{t("Assegnato")}</TableHead>
+              <TableHead>{t("Garanzia")}</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -150,7 +152,7 @@ export function ImpiantiTable({
                 <TableRow key={im.id} onClick={() => onOpen(im.id)} className={cn("cursor-pointer", im.stato === "scaduta" && "bg-red-50/50 dark:bg-red-950/10")}>
                   {selezionabile && (
                     <TableCell onClick={(event) => event.stopPropagation()}>
-                      <Checkbox checked={sel} onCheckedChange={() => onToggle?.(im.id)} aria-label={`Seleziona ${tipoLabel(im.tipo_impianto)}`} />
+                      <Checkbox checked={sel} onCheckedChange={() => onToggle?.(im.id)} aria-label={t("Seleziona {tipo_impianto}", { tipo_impianto: String(tipoLabel(im.tipo_impianto) ?? "") })} />
                     </TableCell>
                   )}
                   <TableCell>
@@ -161,7 +163,7 @@ export function ImpiantiTable({
                   <TableCell>{im.contrattoNome || "—"}</TableCell>
                   <TableCell>
                     {im.priorita ? (
-                      <Badge variant="outline" className={cn("font-medium", PRIORITA_META[im.priorita].badge)}>{PRIORITA_META[im.priorita].label}</Badge>
+                      <Badge variant="outline" className={cn("font-medium", PRIORITA_META[im.priorita].badge)}>{t(PRIORITA_META[im.priorita].label)}</Badge>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
@@ -176,12 +178,12 @@ export function ImpiantiTable({
                         <User className="h-3.5 w-3.5 text-muted-foreground" />{im.tecnicoNome}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">Non assegnato</span>
+                      <span className="text-muted-foreground">{t("Non assegnato")}</span>
                     )}
                   </TableCell>
-                  <TableCell>{garanziaBadge(im.garanzia_scadenza) ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell>{garanziaBadge(im.garanzia_scadenza, t) ?? <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell onClick={(event) => event.stopPropagation()}>
-                    <Button variant="ghost" size="icon" onClick={() => onOpen(im.id)} aria-label="Apri impianto">
+                    <Button variant="ghost" size="icon" onClick={() => onOpen(im.id)} aria-label={t("Apri impianto")}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </TableCell>

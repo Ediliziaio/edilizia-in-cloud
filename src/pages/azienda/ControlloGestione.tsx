@@ -50,6 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Su telefono tre schede su quattordici: il riepilogo, la cassa e le commesse
@@ -125,6 +126,7 @@ const TAB_TO_URL: Record<CGTab, string> = {
 };
 
 export default function ControlloGestione() {
+  const t = useT();
   const permissions = usePermissions();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const location = useLocation();
@@ -170,7 +172,7 @@ export default function ControlloGestione() {
   if (!isFeatureEnabled("controllo_gestione_v1")) {
     return (
       <div className="flex flex-col h-full">
-        <DashboardSelectorBar title="Controllo di Gestione" />
+        <DashboardSelectorBar title={t("Controllo di Gestione")} />
         <AddonNotActivePlaceholder />
       </div>
     );
@@ -191,17 +193,17 @@ export default function ControlloGestione() {
     <div className="flex flex-col h-full">
       {isMobile ? (
       <DashboardSelectorBar
-        title="Controllo gestione"
+        title={t("Controllo gestione")}
         // Mobile: l'anno sta sulla riga del titolo invece di una riga sua.
         actions={
           <div className="flex items-center gap-1.5">
             <Select value={String(filters.anno)} onValueChange={(v) => setFilters({ ...filters, anno: Number(v) })}>
-              <SelectTrigger className="h-8 w-[84px] text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-[84px] text-xs" aria-label={t("Anno")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {anniDisponibili.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
               </SelectContent>
             </Select>
-            <EsportaMenu anno={filters.anno} sezioni={sezioniScaricabili} titolo="Controllo di gestione" label="" />
+            <EsportaMenu anno={filters.anno} sezioni={sezioniScaricabili} titolo={t("Controllo di gestione")} label="" />
           </div>
         }
       />
@@ -209,10 +211,10 @@ export default function ControlloGestione() {
         // Da tablet: titolo vero come nelle altre pagine e filtri sulla stessa
         // riga, invece di tre fasce una sotto l'altra (barra, filtri, schede).
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3">
-          <DashboardSelectorBar title="Controllo di Gestione" soloSelettore />
+          <DashboardSelectorBar title={t("Controllo di Gestione")} soloSelettore />
           {/* mr-auto e non flex-1+truncate: se i filtri non ci stanno vanno a
               capo loro, il titolo non si taglia («Controllo di Ges…»). */}
-          <h1 className="mr-auto whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900">Controllo di Gestione</h1>
+          <h1 className="mr-auto whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900">{t("Controllo di Gestione")}</h1>
           <FilterBar
             value={filters}
             onChange={setFilters}
@@ -221,7 +223,7 @@ export default function ControlloGestione() {
             // controlli morti. Li mostriamo solo dove filtrano davvero.
             showPeriodo={activeTab === "ce"}
           />
-          <EsportaMenu anno={filters.anno} sezioni={sezioniScaricabili} titolo="Controllo di gestione" label="Scarica tutto" />
+          <EsportaMenu anno={filters.anno} sezioni={sezioniScaricabili} titolo={t("Controllo di gestione")} label={t("Scarica tutto")} />
         </div>
       )}
 
@@ -235,14 +237,14 @@ export default function ControlloGestione() {
               overlap del testo. Desktop: layout flex naturale. */}
           {isMobile ? (
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="dash">Riepilogo</TabsTrigger>
-              <TabsTrigger value="cashflow">Cassa</TabsTrigger>
-              <TabsTrigger value="commesse">Commesse</TabsTrigger>
+              <TabsTrigger value="dash">{t("Riepilogo")}</TabsTrigger>
+              <TabsTrigger value="cashflow">{t("Cassa")}</TabsTrigger>
+              <TabsTrigger value="commesse">{t("Commesse")}</TabsTrigger>
             </TabsList>
           ) : (
           <TabsList className="max-w-full justify-start gap-1">
             {SCHEDE_DESKTOP.filter((s) => s.vis !== "menu").map((s) => (
-              <TabsTrigger key={s.tab} value={s.tab} className={CLASSE_SCHEDA[s.vis]}>{s.label}</TabsTrigger>
+              <TabsTrigger key={s.tab} value={s.tab} className={CLASSE_SCHEDA[s.vis]}>{t(s.label)}</TabsTrigger>
             ))}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -255,10 +257,10 @@ export default function ControlloGestione() {
                     fasciaAttiva === "2xl" && "max-2xl:bg-background max-2xl:text-foreground max-2xl:shadow-sm",
                   )}
                 >
-                  {fasciaAttiva === "menu" ? schedaAttiva?.label
-                    : fasciaAttiva === "xl" ? (<><span className="xl:hidden">{schedaAttiva?.label}</span><span className="hidden xl:inline">Altro</span></>)
-                    : fasciaAttiva === "2xl" ? (<><span className="2xl:hidden">{schedaAttiva?.label}</span><span className="hidden 2xl:inline">Altro</span></>)
-                    : "Altro"}
+                  {fasciaAttiva === "menu" ? t(schedaAttiva?.label ?? "")
+                    : fasciaAttiva === "xl" ? (<><span className="xl:hidden">{t(schedaAttiva?.label ?? "")}</span><span className="hidden xl:inline">{t("Altro")}</span></>)
+                    : fasciaAttiva === "2xl" ? (<><span className="2xl:hidden">{t(schedaAttiva?.label ?? "")}</span><span className="hidden 2xl:inline">{t("Altro")}</span></>)
+                    : t("Altro")}
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
               </DropdownMenuTrigger>
@@ -269,7 +271,7 @@ export default function ControlloGestione() {
                     className={cn(CLASSE_VOCE_ALTRO[s.vis], s.tab === tabVisibile && "font-semibold text-foreground")}
                     onSelect={() => handleTabChange(s.tab)}
                   >
-                    {s.label}
+                    {t(s.label)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -281,7 +283,7 @@ export default function ControlloGestione() {
         {/* Da tablet il margine lo dà il layout: niente p-4 in più. */}
         <div className={isMobile ? "p-3 sm:p-4" : undefined}>
           <TabsContent value="dash" className="mt-0">
-            {permissions.canViewBankBalances ? <TabDashboard anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
+            {permissions.canViewBankBalances ? <TabDashboard anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">{t("Per questa analisi serve il permesso «Saldi bancari e liquidità».")}</p>}
           </TabsContent>
           <TabsContent value="ce" className="mt-0">
             <TabCERiclassificato
@@ -291,13 +293,13 @@ export default function ControlloGestione() {
             />
           </TabsContent>
           <TabsContent value="sp" className="mt-0">
-            {permissions.canViewBankBalances ? <TabStatoPatrimoniale anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
+            {permissions.canViewBankBalances ? <TabStatoPatrimoniale anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">{t("Per questa analisi serve il permesso «Saldi bancari e liquidità».")}</p>}
           </TabsContent>
           <TabsContent value="cashflow" className="mt-0">
-            {permissions.canViewBankBalances ? <TabCashFlow anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
+            {permissions.canViewBankBalances ? <TabCashFlow anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">{t("Per questa analisi serve il permesso «Saldi bancari e liquidità».")}</p>}
           </TabsContent>
           <TabsContent value="pfn" className="mt-0">
-            {permissions.canViewBankBalances ? <TabPFNDebiti anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
+            {permissions.canViewBankBalances ? <TabPFNDebiti anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">{t("Per questa analisi serve il permesso «Saldi bancari e liquidità».")}</p>}
           </TabsContent>
           <TabsContent value="commesse" className="mt-0">
             <TabCommesse anno={filters.anno} />
@@ -309,16 +311,16 @@ export default function ControlloGestione() {
             <TabBudget anno={filters.anno} />
           </TabsContent>
           <TabsContent value="indici" className="mt-0">
-            {permissions.canViewBankBalances ? <TabIndiciAvanzati anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
+            {permissions.canViewBankBalances ? <TabIndiciAvanzati anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">{t("Per questa analisi serve il permesso «Saldi bancari e liquidità».")}</p>}
           </TabsContent>
           <TabsContent value="health" className="mt-0">
-            {permissions.canViewBankBalances ? <TabHealthCheck anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
+            {permissions.canViewBankBalances ? <TabHealthCheck anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">{t("Per questa analisi serve il permesso «Saldi bancari e liquidità».")}</p>}
           </TabsContent>
           <TabsContent value="piano" className="mt-0">
             <TabPianoIndustriale scenarioId={filters.scenarioId} onClearScenarioFilter={() => setFilters(prev => ({ ...prev, scenarioId: null }))} />
           </TabsContent>
           <TabsContent value="rating" className="mt-0">
-            {permissions.canViewBankBalances ? <TabRatingBancario anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
+            {permissions.canViewBankBalances ? <TabRatingBancario anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">{t("Per questa analisi serve il permesso «Saldi bancari e liquidità».")}</p>}
           </TabsContent>
           <TabsContent value="pdf" className="mt-0">
             <TabPacchettoBanca anno={filters.anno} />
@@ -329,8 +331,8 @@ export default function ControlloGestione() {
                 due schede, per non confonderle. */}
             <Tabs defaultValue="cassa" className="space-y-4">
               <TabsList>
-                <TabsTrigger value="cassa">Categorie del cash flow</TabsTrigger>
-                <TabsTrigger value="economico">Voci del conto economico</TabsTrigger>
+                <TabsTrigger value="cassa">{t("Categorie del cash flow")}</TabsTrigger>
+                <TabsTrigger value="economico">{t("Voci del conto economico")}</TabsTrigger>
               </TabsList>
               <TabsContent value="cassa" className="mt-0">
                 <CategorieCassaConfig />

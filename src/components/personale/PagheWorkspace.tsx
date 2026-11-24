@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { oggiRoma } from "@/hooks/useOperai";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 type Workspace = ReturnType<typeof usePayrollWorkspace>;
 type Action = {
   kind:
@@ -63,6 +64,7 @@ const statuses: Record<string, string> = {
 };
 
 export function PagheWorkspace({ area }: { area: "benefit" | "registers" }) {
+  const t = useT();
   const [month, setMonth] = useState(() => oggiRoma().slice(0, 7));
   return (
     <section className="space-y-4">
@@ -70,17 +72,17 @@ export function PagheWorkspace({ area }: { area: "benefit" | "registers" }) {
         <div>
           <h3 className="font-semibold">
             {area === "benefit"
-              ? "Benefit e rimborsi"
-              : "TFR, welfare e altre voci"}
+              ? t("Benefit e rimborsi")
+              : t("TFR, welfare e altre voci")}
           </h3>
           <p className="text-sm text-muted-foreground">
             {area === "benefit"
-              ? "Diritto individuale, maturazioni e verifiche. Nessun ordine di pagamento."
-              : "Registri documentati: non determinano da soli spettanze o trattamento fiscale."}
+              ? t("Diritto individuale, maturazioni e verifiche. Nessun ordine di pagamento.")
+              : t("Registri documentati: non determinano da soli spettanze o trattamento fiscale.")}
           </p>
         </div>
         <div>
-          <Label htmlFor="paghe-period">Periodo</Label>
+          <Label htmlFor="paghe-period">{t("Periodo")}</Label>
           <Input
             id="paghe-period"
             type="month"
@@ -109,6 +111,7 @@ function WorkspaceBody({
   area: "benefit" | "registers";
   month: string;
 }) {
+  const tr = useT();
   const w = usePayrollWorkspace(month, area),
     [person, setPerson] = useState(""),
     [view, setView] = useState<"pasti" | "km" | "diritti">("pasti"),
@@ -119,10 +122,10 @@ function WorkspaceBody({
       new Map(
         (w.people.data || []).map((p) => [
           p.id,
-          `${p.cognome} ${p.nome} · ${p.matricola || p.id.slice(0, 8)}${p.attivo ? "" : " · Storico"}`,
+          `${p.cognome} ${p.nome} · ${p.matricola || p.id.slice(0, 8)}${p.attivo ? "" : ` · ${tr("Storico")}`}`,
         ]),
       ),
-    [w.people.data],
+    [w.people.data, tr],
   );
   const queries =
     area === "benefit"
@@ -131,20 +134,19 @@ function WorkspaceBody({
   if (!w.allowed)
     return (
       <p className="rounded-lg border p-4 text-sm">
-        Registri riservati agli amministratori. Nessun dato paghe viene caricato
-        per utenti non autorizzati.
+        {tr("Registri riservati agli amministratori. Nessun dato paghe viene caricato per utenti non autorizzati.")}
       </p>
     );
   if (queries.some((q) => q.isPending))
     return (
       <p role="status" className="p-6 text-sm">
-        Caricamento dei registri…
+        {tr("Caricamento dei registri…")}
       </p>
     );
   if (queries.some((q) => q.isError))
     return (
       <HrQueryError
-        label="Registri non disponibili: nessun saldo può essere considerato completo"
+        label={tr("Registri non disponibili: nessun saldo può essere considerato completo")}
         onRetry={() => Promise.all(queries.map((q) => q.refetch()))}
       />
     );
@@ -181,7 +183,7 @@ function WorkspaceBody({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-white p-3">
         <div className="min-w-52 flex-1">
-          <Label htmlFor="paghe-person-filter">Persona</Label>
+          <Label htmlFor="paghe-person-filter">{tr("Persona")}</Label>
           <UniformSelect
             id="paghe-person-filter"
             className={selectClass}
@@ -191,7 +193,7 @@ function WorkspaceBody({
               setPage(0);
             }}
           >
-            <option value="">Tutto il personale</option>
+            <option value="">{tr("Tutto il personale")}</option>
             {[...names].map(([id, name]) => (
               <option key={id} value={id}>
                 {name}
@@ -200,7 +202,7 @@ function WorkspaceBody({
           </UniformSelect>
         </div>
         {w.closed && (
-          <Badge variant="outline">Mese HR chiuso · modifiche bloccate</Badge>
+          <Badge variant="outline">{tr("Mese HR chiuso · modifiche bloccate")}</Badge>
         )}
         {area === "benefit" ? (
           <>
@@ -209,13 +211,13 @@ function WorkspaceBody({
               disabled={!w.canEdit || w.change.isPending}
               onClick={() => setAction({ kind: "config" })}
             >
-              Regole aziendali
+              {tr("Regole aziendali")}
             </Button>
             <Button
               disabled={!editable || !w.config.data}
               onClick={() => setAction({ kind: "refresh" })}
             >
-              Riconcilia maturazioni
+              {tr("Riconcilia maturazioni")}
             </Button>
           </>
         ) : (
@@ -225,13 +227,13 @@ function WorkspaceBody({
               onClick={exportCsv}
               disabled={!movements.length}
             >
-              Esporta registro CSV
+              {tr("Esporta registro CSV")}
             </Button>
             <Button
               disabled={!editable}
               onClick={() => setAction({ kind: "movement" })}
             >
-              Registra voce
+              {tr("Registra voce")}
             </Button>
           </>
         )}
@@ -240,22 +242,16 @@ function WorkspaceBody({
         <>
           {!w.config.data && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-              Regole non configurate: nessun valore, soglia ore o tariffa viene
-              inventato. Configurale prima di riconciliare le maturazioni.
+              {tr("Regole non configurate: nessun valore, soglia ore o tariffa viene inventato. Configurale prima di riconciliare le maturazioni.")}
             </p>
           )}
           {overlappingMeals(w.meals.data || []) > 0 && (
             <p
               role="alert"
               className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"
-            >
-              {overlappingMeals(w.meals.data || [])} giornate con buono fisso e
-              ricevuta: possibile doppio conteggio. Verifica e annulla la voce
-              non dovuta prima dell’erogazione; non vengono sommate
-              automaticamente alle paghe.
-            </p>
+            >{tr("{valore} giornate con buono fisso e ricevuta: possibile doppio conteggio. Verifica e annulla la voce non dovuta prima dell’erogazione; non vengono sommate automaticamente alle paghe.", { valore: String(overlappingMeals(w.meals.data || []) ?? "") })}</p>
           )}
-          <div className="flex flex-wrap gap-2" aria-label="Viste benefit">
+          <div className="flex flex-wrap gap-2" aria-label={tr("Viste benefit")}>
             {(
               [
                 ["pasti", "Buoni pasto"],
@@ -272,17 +268,14 @@ function WorkspaceBody({
                   setPage(0);
                 }}
               >
-                {label}
+                {tr(label)}
               </Button>
             ))}
           </div>
           {view === "diritti" ? (
             <div className="rounded-xl border bg-white p-4">
               <p className="mb-3 text-sm text-muted-foreground">
-                Il diritto non è attribuito automaticamente. Le modifiche
-                valgono per le prossime maturazioni; per il mese aperto usa
-                «Riconcilia maturazioni». I movimenti già erogati non vengono
-                riscritti.
+                {tr("Il diritto non è attribuito automaticamente. Le modifiche valgono per le prossime maturazioni; per il mese aperto usa «Riconcilia maturazioni». I movimenti già erogati non vengono riscritti.")}
               </p>
               {paginated(selectedPeople).map((p) => (
                 <div
@@ -305,7 +298,7 @@ function WorkspaceBody({
                           })
                         }
                       />
-                      Buono pasto · {names.get(p.id)}
+                      {tr("Buono pasto")} · {names.get(p.id)}
                     </label>
                     <label className="flex items-center gap-2 text-sm">
                       <input
@@ -321,7 +314,7 @@ function WorkspaceBody({
                           })
                         }
                       />
-                      Rimborso km · {names.get(p.id)}
+                      {tr("Rimborso km")} · {names.get(p.id)}
                     </label>
                   </div>
                 </div>
@@ -336,7 +329,7 @@ function WorkspaceBody({
             <>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
-                  {filtered.length} movimenti · non annullati:{" "}
+                  {tr("{n} movimenti · non annullati:", { n: filtered.length })}{" "}
                   <strong>
                     {formatCurrency(
                       filtered
@@ -352,8 +345,8 @@ function WorkspaceBody({
                   }
                 >
                   {view === "km"
-                    ? "Registra richiesta km"
-                    : "Registra ricevuta pasto"}
+                    ? tr("Registra richiesta km")
+                    : tr("Registra ricevuta pasto")}
                 </Button>
               </div>
               <div className="overflow-x-auto rounded-xl border bg-white">
@@ -369,7 +362,7 @@ function WorkspaceBody({
                         "Verifica",
                       ].map((t) => (
                         <th key={t} className="p-3 font-medium">
-                          {t}
+                          {tr(t)}
                         </th>
                       ))}
                     </tr>
@@ -379,15 +372,15 @@ function WorkspaceBody({
                       <tr key={r.id} className="border-t">
                         <td className="p-3 whitespace-nowrap">{r.giorno}</td>
                         <td className="p-3">
-                          {names.get(r.profilo_id) || "Persona da verificare"}
+                          {names.get(r.profilo_id) || tr("Persona da verificare")}
                         </td>
                         <td className="p-3">
                           {view === "km"
                             ? `${r.km} km × ${r.tariffa_eur_km} €/km`
                             : r.tipo === "fisso"
-                              ? "Da ore registrate"
+                              ? tr("Da ore registrate")
                               : <>
-                                Ricevuta{r.esercente ? ` · ${r.esercente}` : ""}
+                                {tr("Ricevuta")}{r.esercente ? ` · ${r.esercente}` : ""}
                                 {/* Scontrino fotografato dall'operaio dall'app (23/11/2026). */}
                                 {r.foto_url && <ScontrinoLink percorso={r.foto_url} />}
                               </>}
@@ -395,7 +388,7 @@ function WorkspaceBody({
                         <td className="p-3 whitespace-nowrap">
                           {formatCurrency(Number(r.importo))}
                         </td>
-                        <td className="p-3">{statuses[r.stato] || r.stato}</td>
+                        <td className="p-3">{statuses[r.stato] ? tr(statuses[r.stato]) : r.stato}</td>
                         <td className="p-3">
                           <Button
                             size="sm"
@@ -415,7 +408,7 @@ function WorkspaceBody({
                               })
                             }
                           >
-                            Dettagli e storico
+                            {tr("Dettagli e storico")}
                           </Button>
                         </td>
                       </tr>
@@ -424,8 +417,7 @@ function WorkspaceBody({
                 </table>
                 {!filtered.length && (
                   <p className="p-8 text-center text-sm text-muted-foreground">
-                    Nessun movimento nel periodo. Questo non certifica l’assenza
-                    di spettanze.
+                    {tr("Nessun movimento nel periodo. Questo non certifica l’assenza di spettanze.")}
                   </p>
                 )}
               </div>
@@ -454,25 +446,19 @@ function WorkspaceBody({
               ],
             ].map(([label, value], i) => (
               <div key={label} className="rounded-xl border bg-white p-4">
-                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="text-xs text-muted-foreground">{tr(String(label))}</p>
                 <p className="mt-2 text-xl font-semibold">
                   {i === 2
                     ? value
                     : balances.length
                       ? formatCurrency(Number(value))
-                      : "Non caricato"}
+                      : tr("Non caricato")}
                 </p>
               </div>
             ))}
           </div>
           <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
-            Saldi dei soli movimenti registrati: inserisci il saldo iniziale TFR
-            comunicato dal consulente e tutte le variazioni. Il welfare è
-            riepilogato per anno civile, senza determinare esenzioni o
-            disponibilità presso fornitori. Anticipi e utilizzi sono
-            registrazioni di eventi esterni, non pagamenti. La fonte
-            «consulente» è dichiarata dall’operatore; il collegamento a un
-            documento non ne certifica automaticamente il contenuto.
+            {tr("Saldi dei soli movimenti registrati: inserisci il saldo iniziale TFR comunicato dal consulente e tutte le variazioni. Il welfare è riepilogato per anno civile, senza determinare esenzioni o disponibilità presso fornitori. Anticipi e utilizzi sono registrazioni di eventi esterni, non pagamenti. La fonte «consulente» è dichiarata dall’operatore; il collegamento a un documento non ne certifica automaticamente il contenuto.")}
           </p>
           <div className="overflow-x-auto rounded-xl border bg-white">
             <table className="w-full text-left text-sm">
@@ -486,7 +472,7 @@ function WorkspaceBody({
                     "Documento / rettifica",
                   ].map((t) => (
                     <th key={t} className="p-3 font-medium">
-                      {t}
+                      {tr(t)}
                     </th>
                   ))}
                 </tr>
@@ -496,14 +482,14 @@ function WorkspaceBody({
                   <tr key={r.id} className="border-t">
                     <td className="p-3">
                       <p className="font-medium">
-                        {names.get(r.profilo_id) || "Persona da verificare"}
+                        {names.get(r.profilo_id) || tr("Persona da verificare")}
                       </p>
                       <span className="text-xs text-muted-foreground">
                         {r.data}
                       </span>
                     </td>
                     <td className="p-3">
-                      {PAYROLL_TYPES[r.tipo]}
+                      {tr(PAYROLL_TYPES[r.tipo] ?? "")}
                       {r.destinazione && (
                         <p className="text-xs text-muted-foreground">
                           {r.destinazione}
@@ -516,8 +502,8 @@ function WorkspaceBody({
                     <td className="max-w-xs p-3">
                       <p className="text-xs text-muted-foreground">
                         {r.fonte === "consulente"
-                          ? "Dato comunicato dal consulente"
-                          : "Inserito dall’azienda"}
+                          ? tr("Dato comunicato dal consulente")
+                          : tr("Inserito dall’azienda")}
                       </p>
                       <p className="break-words">{r.riferimento}</p>
                     </td>
@@ -531,11 +517,11 @@ function WorkspaceBody({
                               void apriDocumentoPaghe(
                                 linked.get(r.id)!.documento_id,
                               ).catch(() =>
-                                toast.error("Documento non disponibile"),
+                                toast.error(tr("Documento non disponibile")),
                               );
                             }}
                           >
-                            Apri riferimento
+                            {tr("Apri riferimento")}
                           </Button>
                         ) : (
                           <Button
@@ -544,7 +530,7 @@ function WorkspaceBody({
                             disabled={!editable}
                             onClick={() => setAction({ kind: "link", row: r })}
                           >
-                            Collega documento
+                            {tr("Collega documento")}
                           </Button>
                         )}
                         {r.tipo !== "storno" && (
@@ -561,7 +547,7 @@ function WorkspaceBody({
                               setAction({ kind: "reverse", row: r })
                             }
                           >
-                            Storno
+                            {tr("Storno")}
                           </Button>
                         )}
                       </div>
@@ -572,8 +558,7 @@ function WorkspaceBody({
             </table>
             {!movements.length && (
               <p className="p-8 text-center text-sm text-muted-foreground">
-                Nessuna voce registrata nel periodo: non significa TFR o welfare
-                pari a zero.
+                {tr("Nessuna voce registrata nel periodo: non significa TFR o welfare pari a zero.")}
               </p>
             )}
           </div>
@@ -581,9 +566,7 @@ function WorkspaceBody({
         </>
       )}
       <p className="text-xs text-muted-foreground">
-        Modifiche riservate agli amministratori. Nessun dato di questa vista
-        viene aggiunto automaticamente al netto del cedolino, pubblicato o
-        inviato ai dipendenti.
+        {tr("Modifiche riservate agli amministratori. Nessun dato di questa vista viene aggiunto automaticamente al netto del cedolino, pubblicato o inviato ai dipendenti.")}
       </p>
       {action && (
         <EntryDialog
@@ -612,6 +595,7 @@ function EntryDialog({
   person: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const { start, end } = payrollPeriod(month),
     cfg = w.config.data;
   const [draft, setDraft] = useState({
@@ -658,7 +642,7 @@ function EntryDialog({
               buono_pasto_valore: payrollAmount(draft.value),
               buono_pasto_soglia_ore: payrollAmount(
                 draft.threshold,
-                "Soglia ore",
+                t("Soglia ore"),
               ),
               km_tariffa_eur: parseRate(draft.rate),
             },
@@ -669,7 +653,7 @@ function EntryDialog({
         w.change.mutate({ kind: "reconcile" }, finish);
       else if (a.kind === "receipt") {
         if (!draft.person || draft.reference.trim().length < 5)
-          throw Error("Seleziona persona e riferimento");
+          throw Error(t("Seleziona persona e riferimento"));
         w.change.mutate(
           {
             kind: "receipt",
@@ -684,10 +668,10 @@ function EntryDialog({
         );
       } else if (a.kind === "km") {
         if (!draft.person || draft.reference.trim().length < 5)
-          throw Error("Seleziona persona e riferimento");
+          throw Error(t("Seleziona persona e riferimento"));
         const km = payrollAmount(draft.km, "Km");
         if (Math.abs(km * 10 - Math.round(km * 10)) > 0.00001)
-          throw Error("I km supportano al massimo un decimale");
+          throw Error(t("I km supportano al massimo un decimale"));
         w.change.mutate(
           {
             kind: "km",
@@ -702,7 +686,7 @@ function EntryDialog({
         );
       } else if (a.kind === "state") {
         if (!a.table || !a.benefit || draft.reference.trim().length < 5)
-          throw Error("Inserisci il riferimento della verifica");
+          throw Error(t("Inserisci il riferimento della verifica"));
         w.change.mutate(
           {
             kind: "state",
@@ -715,7 +699,7 @@ function EntryDialog({
         );
       } else if (a.kind === "link") {
         if (!a.row || !draft.document || draft.reference.trim().length < 5)
-          throw Error("Scegli il documento e descrivi la verifica");
+          throw Error(t("Scegli il documento e descrivi la verifica"));
         w.change.mutate(
           {
             kind: "link",
@@ -727,7 +711,7 @@ function EntryDialog({
         );
       } else {
         if (!draft.person || draft.reference.trim().length < 5)
-          throw Error("Seleziona persona e riferimento");
+          throw Error(t("Seleziona persona e riferimento"));
         w.change.mutate(
           {
             kind: "movement",
@@ -748,19 +732,19 @@ function EntryDialog({
         );
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Verifica i dati");
+      setError(e instanceof Error ? e.message : t("Verifica i dati"));
     }
   };
   const title = {
-    config: "Regole aziendali dei benefit",
-    refresh: "Conferma riconciliazione maturazioni",
-    km: "Richiesta di rimborso chilometrico",
-    receipt: "Registra spesa pasto documentata",
-    movement: "Registra voce documentata",
-    state: "Registra esito della verifica",
-    history: "Dettagli e storico del movimento",
-    link: "Collega documento del periodo",
-    reverse: "Storno documentato",
+    config: t("Regole aziendali dei benefit"),
+    refresh: t("Conferma riconciliazione maturazioni"),
+    km: t("Richiesta di rimborso chilometrico"),
+    receipt: t("Registra spesa pasto documentata"),
+    movement: t("Registra voce documentata"),
+    state: t("Registra esito della verifica"),
+    history: t("Dettagli e storico del movimento"),
+    link: t("Collega documento del periodo"),
+    reverse: t("Storno documentato"),
   }[a.kind];
   return (
     <Dialog
@@ -774,10 +758,10 @@ function EntryDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {a.kind === "refresh"
-              ? "Ricalcola esplicitamente i soli buoni fissi non erogati del mese, su ore e diritti configurati. Le giornate cancellate o non più idonee annullano la maturazione senza eliminare lo storico. Nessun pagamento o invio."
+              ? t("Ricalcola esplicitamente i soli buoni fissi non erogati del mese, su ore e diritti configurati. Le giornate cancellate o non più idonee annullano la maturazione senza eliminare lo storico. Nessun pagamento o invio.")
               : a.kind === "config"
-                ? "Valori aziendali, non soglie fiscali. Non riscrivono automaticamente mesi passati o movimenti erogati."
-                : "Registrazione amministrativa, non autorizzazione a pagare né calcolo di spettanze. Sono conservati utente, riferimento e storico."}
+                ? t("Valori aziendali, non soglie fiscali. Non riscrivono automaticamente mesi passati o movimenti erogati.")
+                : t("Registrazione amministrativa, non autorizzazione a pagare né calcolo di spettanze. Sono conservati utente, riferimento e storico.")}
           </DialogDescription>
         </DialogHeader>
         {a.kind === "config" ? (
@@ -788,69 +772,65 @@ function EntryDialog({
                 checked={draft.active}
                 onChange={(e) => set("active", e.target.checked)}
               />
-              Buoni pasto attivi
+              {t("Buoni pasto attivi")}
             </label>
-            <Label htmlFor="pay-modality">Modalità</Label>
+            <Label htmlFor="pay-modality">{t("Modalità")}</Label>
             <UniformSelect
               id="pay-modality"
               className={selectClass}
               value={draft.modality}
               onChange={(e) => set("modality", e.target.value)}
             >
-              <option value="fisso">Da ore lavorate</option>
-              <option value="ricevuta">Solo ricevuta</option>
+              <option value="fisso">{t("Da ore lavorate")}</option>
+              <option value="ricevuta">{t("Solo ricevuta")}</option>
               <option value="entrambi">
-                Ore e ricevute (verificare eventuali duplicazioni)
+                {t("Ore e ricevute (verificare eventuali duplicazioni)")}
               </option>
             </UniformSelect>
             <Field
               id="pay-value"
-              label="Valore unitario buono (€)"
+              label={t("Valore unitario buono (€)")}
               value={draft.value}
               onChange={(v) => set("value", v)}
             />
             <Field
               id="pay-threshold"
-              label="Soglia ore lavorate"
+              label={t("Soglia ore lavorate")}
               value={draft.threshold}
               onChange={(v) => set("threshold", v)}
             />
             <Field
               id="pay-rate"
-              label="Tariffa km aziendale (€/km, massimo 3 decimali)"
+              label={t("Tariffa km aziendale (€/km, massimo 3 decimali)")}
               value={draft.rate}
               onChange={(v) => set("rate", v)}
             />
           </div>
         ) : a.kind === "refresh" ? (
-          <p className="rounded-lg bg-blue-50 p-3 text-sm">
-            Periodo {month}. La conferma riguarda tutte le persone dell’azienda,
-            anche se l’elenco è filtrato. Le regole e i diritti individuali
-            devono essere già verificati.
-          </p>
+          <p className="rounded-lg bg-blue-50 p-3 text-sm">{t("Periodo {month}. La conferma riguarda tutte le persone dell’azienda, anche se l’elenco è filtrato. Le regole e i diritti individuali devono essere già verificati.", { month: String(month ?? "") })}</p>
         ) : a.kind === "history" ? (
           <p className="text-sm">
-            Movimento {a.benefit!.giorno}:{" "}
+            {t("Movimento {giorno}:", { giorno: a.benefit!.giorno })}{" "}
             {formatCurrency(Number(a.benefit!.importo))} ·{" "}
-            {statuses[a.benefit!.stato] || a.benefit!.stato}.{" "}
-            {w.closed ? "Il mese HR è chiuso." : ""}
+            {statuses[a.benefit!.stato] ? t(statuses[a.benefit!.stato]) : a.benefit!.stato}.{" "}
+            {w.closed ? t("Il mese HR è chiuso.") : ""}
           </p>
         ) : (
           <div className="space-y-3">
             {["km", "receipt", "movement"].includes(a.kind) && (
               <>
-                <Label htmlFor="pay-person">Persona</Label>
+                <Label htmlFor="pay-person">{t("Persona")}</Label>
                 <UniformSelect
                   id="pay-person"
                   className={selectClass}
                   value={draft.person}
                   onChange={(e) => set("person", e.target.value)}
                 >
-                  <option value="">Seleziona persona</option>
+                  <option value="">{t("Seleziona persona")}</option>
                   {(w.people.data || []).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.cognome} {p.nome} · {p.matricola || p.id.slice(0, 8)}
-                      {!p.attivo ? " · Storico" : ""}
+                      {!p.attivo ? ` · ${t("Storico")}` : ""}
                     </option>
                   ))}
                 </UniformSelect>
@@ -859,7 +839,7 @@ function EntryDialog({
             {["km", "receipt", "movement", "reverse"].includes(a.kind) && (
               <Field
                 id="pay-date"
-                label="Data di registrazione nel periodo"
+                label={t("Data di registrazione nel periodo")}
                 type="date"
                 value={draft.date}
                 min={start}
@@ -869,7 +849,7 @@ function EntryDialog({
             )}
             {a.kind === "movement" && (
               <>
-                <Label htmlFor="pay-type">Voce</Label>
+                <Label htmlFor="pay-type">{t("Voce")}</Label>
                 <UniformSelect
                   id="pay-type"
                   className={selectClass}
@@ -880,7 +860,7 @@ function EntryDialog({
                     .filter(([k]) => k !== "storno")
                     .map(([v, label]) => (
                       <option key={v} value={v}>
-                        {label}
+                        {t(label)}
                       </option>
                     ))}
                 </UniformSelect>
@@ -888,8 +868,8 @@ function EntryDialog({
                   id="pay-amount"
                   label={
                     draft.type.startsWith("tfr_")
-                      ? "Importo TFR lordo da prospetto (€), non netto del bonifico"
-                      : "Importo documentato (€)"
+                      ? t("Importo TFR lordo da prospetto (€), non netto del bonifico")
+                      : t("Importo documentato (€)")
                   }
                   value={draft.amount}
                   onChange={(v) => set("amount", v)}
@@ -905,12 +885,12 @@ function EntryDialog({
                       checked={draft.reduce}
                       onChange={(e) => set("reduce", e.target.checked)}
                     />
-                    Rettifica in diminuzione
+                    {t("Rettifica in diminuzione")}
                   </label>
                 )}
                 <Field
                   id="pay-destination"
-                  label="Fondo, destinazione o piano (facoltativo)"
+                  label={t("Fondo, destinazione o piano (facoltativo)")}
                   value={draft.destination}
                   onChange={(v) => set("destination", v)}
                 />
@@ -920,20 +900,18 @@ function EntryDialog({
               <>
                 <Field
                   id="pay-amount"
-                  label="Importo ricevuta (€)"
+                  label={t("Importo ricevuta (€)")}
                   value={draft.amount}
                   onChange={(v) => set("amount", v)}
                 />
                 <Field
                   id="pay-merchant"
-                  label="Esercente (facoltativo)"
+                  label={t("Esercente (facoltativo)")}
                   value={draft.destination}
                   onChange={(v) => set("destination", v)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Indica dove è conservato il giustificativo. Registrare il
-                  riferimento non verifica il contenuto della ricevuta né
-                  autorizza il rimborso.
+                  {t("Indica dove è conservato il giustificativo. Registrare il riferimento non verifica il contenuto della ricevuta né autorizza il rimborso.")}
                 </p>
               </>
             )}
@@ -941,54 +919,44 @@ function EntryDialog({
               <>
                 <Field
                   id="pay-km"
-                  label="Chilometri effettivi da rimborsare"
+                  label={t("Chilometri effettivi da rimborsare")}
                   value={draft.km}
                   onChange={(v) => set("km", v)}
                 />
                 <Field
                   id="pay-rate"
-                  label="Tariffa approvata (€/km, massimo 3 decimali)"
+                  label={t("Tariffa approvata (€/km, massimo 3 decimali)")}
                   value={draft.rate}
                   onChange={(v) => set("rate", v)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Non vengono dedotti viaggi da indirizzi o GPS. Verifica mezzo
-                  proprio, itinerario e documentazione.
+                  {t("Non vengono dedotti viaggi da indirizzi o GPS. Verifica mezzo proprio, itinerario e documentazione.")}
                 </p>
               </>
             )}
             {["movement", "reverse"].includes(a.kind) && (
               <>
-                <Label htmlFor="pay-source">Fonte dichiarata</Label>
+                <Label htmlFor="pay-source">{t("Fonte dichiarata")}</Label>
                 <UniformSelect
                   id="pay-source"
                   className={selectClass}
                   value={draft.source}
                   onChange={(e) => set("source", e.target.value)}
                 >
-                  <option value="azienda">Inserimento dell’azienda</option>
+                  <option value="azienda">{t("Inserimento dell’azienda")}</option>
                   <option value="consulente">
-                    Dato comunicato dal consulente
+                    {t("Dato comunicato dal consulente")}
                   </option>
                 </UniformSelect>
               </>
             )}
             {a.kind === "reverse" && (
-              <p className="rounded-lg bg-amber-50 p-3 text-sm">
-                Voce originale conservata. Verrà aggiunto uno storno di{" "}
-                {formatCurrency(-Number(a.row!.importo))}, senza cancellare né
-                riscrivere il movimento.
-              </p>
+              <p className="rounded-lg bg-amber-50 p-3 text-sm">{t("Voce originale conservata. Verrà aggiunto uno storno di {valore}, senza cancellare né riscrivere il movimento.", { valore: formatCurrency(-Number(a.row!.importo)) })}</p>
             )}
             {a.kind === "state" && (
               <>
-                <p className="text-sm">
-                  Importo registrato:{" "}
-                  {formatCurrency(Number(a.benefit!.importo))}.
-                  «Erogato/rimborsato» registra soltanto un’operazione già
-                  effettuata fuori dal gestionale.
-                </p>
-                <Label htmlFor="pay-state">Esito</Label>
+                <p className="text-sm">{t("Importo registrato: {valore}. «Erogato/rimborsato» registra soltanto un’operazione già effettuata fuori dal gestionale.", { valore: formatCurrency(Number(a.benefit!.importo)) })}</p>
+                <Label htmlFor="pay-state">{t("Esito")}</Label>
                 <UniformSelect
                   id="pay-state"
                   className={selectClass}
@@ -1006,7 +974,7 @@ function EntryDialog({
                       ]
                   ).map((s) => (
                     <option key={s} value={s}>
-                      {statuses[s]}
+                      {t(statuses[s])}
                     </option>
                   ))}
                 </UniformSelect>
@@ -1015,7 +983,7 @@ function EntryDialog({
             {a.kind === "link" && (
               <>
                 <Label htmlFor="pay-document">
-                  Documento della stessa persona e periodo
+                  {t("Documento della stessa persona e periodo")}
                 </Label>
                 <UniformSelect
                   id="pay-document"
@@ -1023,7 +991,7 @@ function EntryDialog({
                   value={draft.document}
                   onChange={(e) => set("document", e.target.value)}
                 >
-                  <option value="">Scegli documento</option>
+                  <option value="">{t("Scegli documento")}</option>
                   {docs.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.titolo}
@@ -1032,22 +1000,20 @@ function EntryDialog({
                 </UniformSelect>
                 {!docs.length && (
                   <p className="text-sm text-amber-800">
-                    Nessun documento compatibile: caricalo prima da «Carica dal
-                    consulente». Non vengono associati documenti di altre
-                    persone.
+                    {t("Nessun documento compatibile: caricalo prima da «Carica dal consulente». Non vengono associati documenti di altre persone.")}
                   </p>
                 )}
               </>
             )}
             <Label htmlFor="pay-reference">
-              Riferimento e motivo obbligatori
+              {t("Riferimento e motivo obbligatori")}
             </Label>
             <Textarea
               id="pay-reference"
               value={draft.reference}
               maxLength={1000}
               onChange={(e) => set("reference", e.target.value)}
-              placeholder="Riferimento al prospetto, comunicazione o giustificativo verificato"
+              placeholder={t("Riferimento al prospetto, comunicazione o giustificativo verificato")}
             />
           </div>
         )}
@@ -1065,15 +1031,15 @@ function EntryDialog({
         )}
         <DialogFooter>
           <Button variant="outline" disabled={saving} onClick={onClose}>
-            Annulla
+            {t("Annulla")}
           </Button>
           {a.kind !== "history" && (
             <Button disabled={!canSave} onClick={submit}>
               {saving
-                ? "Salvataggio…"
+                ? t("Salvataggio…")
                 : a.kind === "refresh"
-                  ? "Conferma riconciliazione"
-                  : "Conferma registrazione"}
+                  ? t("Conferma riconciliazione")
+                  : t("Conferma registrazione")}
             </Button>
           )}
         </DialogFooter>
@@ -1128,6 +1094,7 @@ function BenefitHistory({
   id: string;
   table: string;
 }) {
+  const t = useT();
   const query = useQuery({
     queryKey: ["payroll-benefit-history", company, id, table],
     queryFn: async () => {
@@ -1153,23 +1120,23 @@ function BenefitHistory({
   if (query.isPending)
     return (
       <p role="status" className="text-xs">
-        Caricamento storico…
+        {t("Caricamento storico…")}
       </p>
     );
   if (query.isError)
     return (
-      <HrQueryError label="Storico non disponibile" onRetry={query.refetch} />
+      <HrQueryError label={t("Storico non disponibile")} onRetry={query.refetch} />
     );
   return (
     <details>
       <summary className="cursor-pointer text-sm">
-        Storico · ultimi 20 eventi
+        {t("Storico · ultimi 20 eventi")}
       </summary>
       <ol className="mt-2 max-h-48 space-y-2 overflow-auto text-xs">
         {(query.data || []).map((e) => (
           <li key={e.id} className="rounded-lg bg-slate-50 p-2">
             <p>
-              {new Date(e.registrato_il).toLocaleString("it-IT")} ·{" "}
+              {new Date(e.registrato_il).toLocaleString(intlCampo())} ·{" "}
               {e.prima?.stato
                 ? `${statuses[e.prima.stato] || e.prima.stato} → `
                 : ""}
@@ -1178,8 +1145,8 @@ function BenefitHistory({
             </p>
             <p className="mt-1 break-all text-muted-foreground">
               {e.attore
-                ? `Utente: ${e.attore}`
-                : "Elaborazione automatica del registro"}
+                ? t("Utente: {attore}", { attore: String(e.attore ?? "") })
+                : t("Elaborazione automatica del registro")}
             </p>
             {e.dopo.note && (
               <p className="mt-1 whitespace-pre-wrap">{e.dopo.note}</p>
@@ -1189,7 +1156,7 @@ function BenefitHistory({
       </ol>
       {!query.data?.length && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Nessun evento registrato dopo l’attivazione dello storico.
+          {t("Nessun evento registrato dopo l’attivazione dello storico.")}
         </p>
       )}
     </details>
@@ -1198,6 +1165,7 @@ function BenefitHistory({
 
 /** Apre la foto dello scontrino caricata dall'operaio (cartella privata: link firmato per un'ora). */
 function ScontrinoLink({ percorso }: { percorso: string }) {
+  const t = useT();
   const [apertura, setApertura] = useState(false);
   async function apri() {
     if (apertura) return;
@@ -1210,7 +1178,7 @@ function ScontrinoLink({ percorso }: { percorso: string }) {
       if (scheda) scheda.location.replace(data.signedUrl);
     } catch {
       scheda?.close();
-      toast.error("Scontrino non disponibile. Riprova.");
+      toast.error(t("Scontrino non disponibile. Riprova."));
     } finally {
       setApertura(false);
     }
@@ -1218,7 +1186,7 @@ function ScontrinoLink({ percorso }: { percorso: string }) {
   return (
     <button type="button" onClick={() => void apri()} disabled={apertura}
       className="ml-1 text-xs font-medium text-primary underline disabled:opacity-50">
-      Vedi scontrino
+      {t("Vedi scontrino")}
     </button>
   );
 }

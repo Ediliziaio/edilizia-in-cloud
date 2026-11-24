@@ -71,6 +71,7 @@ import {
   DocumentiSicurezza,
   type PresetCaricamento,
 } from "./DocumentiSicurezza";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const oggiRoma = () =>
   new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
@@ -99,6 +100,7 @@ export function SicurezzaCommessa({
   orderId: string;
   nomeCommessa?: string;
 }) {
+  const t = useT();
   const [scheda, setScheda] = useState<DestinazioneScheda | null>(null);
   const navigate = (to: string, opzioni?: { state?: unknown }) => {
     setPosCreato(null);
@@ -244,7 +246,7 @@ export function SicurezzaCommessa({
       const completo = stessaVersione && (avvio?.stato === "previsto" ? pscVigente && c?.stato === "positivo" : avvio?.stato === "non_previsto" && c?.stato === "congruo");
       return { ...ditta, ruolo: ruoli.data?.[ditta.id], esitoPos: c ? { completo,
         dettaglio: c.versione_avvio && (!stessaVersione || (avvio?.stato === "previsto" && !pscVigente))
-          ? "Da riesaminare con PSC e POS dell’affidataria correnti." : STATI_POS_ESTERNO[c.stato] } : undefined };
+          ? t("Da riesaminare con PSC e POS dell’affidataria correnti.") : t(STATI_POS_ESTERNO[c.stato]) } : undefined };
     }),
     ponteggiMontati,
   });
@@ -270,7 +272,7 @@ export function SicurezzaCommessa({
           variant="outline"
           onClick={() => setVista("archivio")}
         >
-          Consulta archivio
+          {t("Consulta archivio")}
         </Button>
       );
     if (r.ordineFonte !== orderId && r.subId)
@@ -280,7 +282,7 @@ export function SicurezzaCommessa({
           variant="outline"
           onClick={() => navigate(`/azienda/subappaltatori/${r.subId}`)}
         >
-          Scheda impresa
+          {t("Scheda impresa")}
         </Button>
       );
     return (
@@ -292,7 +294,7 @@ export function SicurezzaCommessa({
           scorriFascicolo();
         }}
       >
-        Consulta nel fascicolo
+        {t("Consulta nel fascicolo")}
       </Button>
     );
   };
@@ -303,11 +305,11 @@ export function SicurezzaCommessa({
 
   const azione = (v: VoceControllo) => {
     if (v.chiave.startsWith("ruolo-") || v.chiave.startsWith("pos-"))
-      return <Button size="sm" variant="outline" onClick={() => setVista("imprese")}>Apri la ditta</Button>;
+      return <Button size="sm" variant="outline" onClick={() => setVista("imprese")}>{t("Apri la ditta")}</Button>;
     if (v.chiave.startsWith("itp-"))
       return (
         <Button size="sm" variant="outline" onClick={() => setVista("imprese")}>
-          Consulta verifica ITP
+          {t("Consulta verifica ITP")}
         </Button>
       );
     if (v.nelPos) {
@@ -318,7 +320,7 @@ export function SicurezzaCommessa({
           className="h-8"
           onClick={() => setVista("pos")}
         >
-          Apri il POS
+          {t("Apri il POS")}
         </Button>
       ) : scrive ? (
         <Button
@@ -327,7 +329,7 @@ export function SicurezzaCommessa({
           onClick={preparaPos}
           disabled={!puoCrearePos}
         >
-          Prepara il POS
+          {t("Prepara il POS")}
         </Button>
       ) : null;
     }
@@ -337,7 +339,7 @@ export function SicurezzaCommessa({
         size="sm"
         variant={v.stato === "manca" ? "default" : "outline"}
         className="h-8 gap-1"
-        aria-label={`${v.stato === "manca" ? "Carica" : "Aggiorna"}: ${v.titolo}`}
+        aria-label={v.stato === "manca" ? t("Carica: {titolo}", { titolo: v.titolo }) : t("Aggiorna: {titolo}", { titolo: v.titolo })}
         onClick={() =>
           setPreset({
             tipo: v.tipo,
@@ -346,44 +348,44 @@ export function SicurezzaCommessa({
         }
       >
         <FileUp className="h-3.5 w-3.5" />
-        {v.stato === "manca" ? "Carica" : "Aggiorna"}
+        {v.stato === "manca" ? t("Carica") : t("Aggiorna")}
       </Button>
     );
   };
 
   const sezioni = [
-    { id: "quadro", gruppo: "Documenti", titolo: "Quadro documentale" },
-    { id: "fascicolo", gruppo: "Documenti", titolo: "Documenti e richieste" },
-    { id: "archivio", gruppo: "Documenti", titolo: "Archivio precedente" },
+    { id: "quadro", gruppo: "Documenti", titolo: t("Quadro documentale") },
+    { id: "fascicolo", gruppo: "Documenti", titolo: t("Documenti e richieste") },
+    { id: "archivio", gruppo: "Documenti", titolo: t("Archivio precedente") },
     {
       id: "incarichi",
       gruppo: "Persone e imprese",
-      titolo: "Figure e responsabilità",
+      titolo: t("Figure e responsabilità"),
     },
     {
       id: "imprese",
       gruppo: "Persone e imprese",
-      titolo: "Imprese e operai esterni",
+      titolo: t("Imprese e operai esterni"),
     },
     {
       id: "qualifiche",
       gruppo: "Persone e imprese",
-      titolo: "Qualifiche degli addetti",
+      titolo: t("Qualifiche degli addetti"),
     },
-    { id: "dpi", gruppo: "Persone e imprese", titolo: "DPI e consegne" },
+    { id: "dpi", gruppo: "Persone e imprese", titolo: t("DPI e consegne") },
     {
       id: "attrezzature",
       gruppo: "Mezzi e prodotti",
-      titolo: "Mezzi e attrezzature",
+      titolo: t("Mezzi e attrezzature"),
     },
-    { id: "prodotti", gruppo: "Mezzi e prodotti", titolo: "Prodotti e SDS" },
+    { id: "prodotti", gruppo: "Mezzi e prodotti", titolo: t("Prodotti e SDS") },
     {
       id: "promemoria",
       gruppo: "Controlli e verbali",
-      titolo: "Promemoria da valutare",
+      titolo: t("Promemoria da valutare"),
     },
-    { id: "verbali", gruppo: "Controlli e verbali", titolo: "Verbali" },
-    { id: "pos", gruppo: "POS", titolo: "POS della commessa" },
+    { id: "verbali", gruppo: "Controlli e verbali", titolo: t("Verbali") },
+    { id: "pos", gruppo: "POS", titolo: t("POS della commessa") },
   ];
   const attiva = sezioni.find((s) => s.id === vista);
   const contestoParziale = fasi.isLoading || fasi.isError;
@@ -391,41 +393,41 @@ export function SicurezzaCommessa({
   const aree = [
     {
       id: "quadro",
-      titolo: "Documenti",
+      titolo: t("Documenti"),
       icona: FolderOpen,
-      descrizione: "Richieste, originali e documenti da verificare.",
+      descrizione: t("Richieste, originali e documenti da verificare."),
       dettaglio: caricamento
-        ? "Caricamento…"
+        ? t("Caricamento…")
         : fontiParziali
-          ? "Fonti da controllare"
-          : `${conta.registrati} requisiti registrati · ${conta.daVerificare} verifiche / integrazioni`,
+          ? t("Fonti da controllare")
+          : t("{n} requisiti registrati · {n2} verifiche / integrazioni", { n: conta.registrati, n2: conta.daVerificare }),
     },
     {
       id: "incarichi",
-      titolo: "Persone e imprese",
+      titolo: t("Persone e imprese"),
       icona: Users,
-      descrizione: "Responsabili, imprese esterne, qualifiche e DPI.",
+      descrizione: t("Responsabili, imprese esterne, qualifiche e DPI."),
       dettaglio: caricoSub
-        ? "Caricamento…"
+        ? t("Caricamento…")
         : imprese.isError
-          ? "Imprese non disponibili"
-          : `${subappaltatori.length} ${subappaltatori.length === 1 ? "impresa collegata" : "imprese collegate"} · ${new Set(addettiIds).size} addetti esterni nel periodo`,
+          ? t("Imprese non disponibili")
+          : t(subappaltatori.length === 1 ? "{n} impresa collegata · {n2} addetti esterni nel periodo" : "{n} imprese collegate · {n2} addetti esterni nel periodo", { n: subappaltatori.length, n2: new Set(addettiIds).size }),
     },
     {
       id: "attrezzature",
-      titolo: "Mezzi e prodotti",
+      titolo: t("Mezzi e prodotti"),
       icona: Wrench,
-      descrizione: "Attrezzature, manutenzioni e schede di sicurezza.",
-      dettaglio: "Dati collegati all’inventario e al POS",
+      descrizione: t("Attrezzature, manutenzioni e schede di sicurezza."),
+      dettaglio: t("Dati collegati all’inventario e al POS"),
     },
     {
       id: "promemoria",
-      titolo: "Controlli e verbali",
+      titolo: t("Controlli e verbali"),
       icona: ClipboardList,
-      descrizione: "Promemoria da valutare e verbali della commessa.",
+      descrizione: t("Promemoria da valutare e verbali della commessa."),
       dettaglio: verbaliQuery.isError
-        ? "Verbali non disponibili: riprova dal dettaglio"
-        : "Applicabilità da confermare per il cantiere",
+        ? t("Verbali non disponibili: riprova dal dettaglio")
+        : t("Applicabilità da confermare per il cantiere"),
     },
   ];
   return (
@@ -435,15 +437,14 @@ export function SicurezzaCommessa({
     }); }}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold">Sicurezza della commessa</h3>
+          <h3 className="text-lg font-semibold">{t("Sicurezza della commessa")}</h3>
           <p className="text-sm text-muted-foreground">
-            Parti dall’avvio sicurezza o scegli un’area. I dettagli si aprono senza lasciare
-            la commessa.
+            {t("Parti dall’avvio sicurezza o scegli un’area. I dettagli si aprono senza lasciare la commessa.")}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs text-muted-foreground">
-            Data di applicabilità
+            {t("Data di applicabilità")}
             <input
               type="date"
               className="mt-1 block h-9 rounded-md border bg-background px-2 text-sm text-foreground"
@@ -455,7 +456,7 @@ export function SicurezzaCommessa({
             />
           </label>
           <label className="text-xs text-muted-foreground">
-            Fase
+            {t("Fase")}
             <UniformSelect
               className="mt-1 block h-9 max-w-64 rounded-md border bg-background px-2 text-sm text-foreground"
               value={faseAttiva}
@@ -464,7 +465,7 @@ export function SicurezzaCommessa({
                 setDocumentoSelezionato(null);
               }}
             >
-              <option value="">Tutte le fasi</option>
+              <option value="">{t("Tutte le fasi")}</option>
               {fasi.data?.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
@@ -480,13 +481,12 @@ export function SicurezzaCommessa({
           role="alert"
           className="rounded-md border border-amber-300 p-3 text-sm text-amber-900"
         >
-          Fasi non disponibili: il contesto è parziale.
+          {t("Fasi non disponibili: il contesto è parziale.")}
         </p>
       )}
       {fontiParziali && (
         <p role="alert" className="text-sm text-amber-900">
-          Alcune fonti non sono disponibili: i riepiloghi non confermano la
-          completezza.
+          {t("Alcune fonti non sono disponibili: i riepiloghi non confermano la completezza.")}
         </p>
       )}
       <ScadenzeCommessa companyId={companyId} orderId={orderId} />
@@ -497,27 +497,27 @@ export function SicurezzaCommessa({
               <FileText className="h-6 w-6" />
             </div>
             <div>
-              <h4 className="font-semibold">Il POS della commessa</h4>
+              <h4 className="font-semibold">{t("Il POS della commessa")}</h4>
               <p className="mt-1 text-sm text-muted-foreground">
                 {caricoPos
-                  ? "Caricamento dei POS…"
+                  ? t("Caricamento dei POS…")
                   : posQuery.isError
-                    ? "Elenco POS non disponibile. Riprova prima di crearne uno."
+                    ? t("Elenco POS non disponibile. Riprova prima di crearne uno.")
                     : pos.length
-                      ? `${pos.length} ${pos.length === 1 ? "documento presente" : "documenti presenti"} · consulta bozze e revisioni`
-                      : "Prepara la bozza con i dati della commessa, poi completa e verifica il documento."}
+                      ? t(pos.length === 1 ? "{n} documento presente · consulta bozze e revisioni" : "{n} documenti presenti · consulta bozze e revisioni", { n: pos.length })
+                      : t("Prepara la bozza con i dati della commessa, poi completa e verifica il documento.")}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {posQuery.isError ? (
-              <Button variant="outline" onClick={() => void posQuery.refetch()}>Ricarica elenco POS</Button>
+              <Button variant="outline" onClick={() => void posQuery.refetch()}>{t("Ricarica elenco POS")}</Button>
             ) : pos.length > 0 && (
               <Button
                 onClick={() => setVista("pos")}
                 disabled={caricoPos || posQuery.isError}
               >
-                Gestisci POS <ArrowRight className="ml-2 h-4 w-4" />
+                {t("Gestisci POS")} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
             {!pos.length && scrive && (
@@ -525,7 +525,7 @@ export function SicurezzaCommessa({
                 onClick={preparaPos}
                 disabled={!puoCrearePos}
               >
-                Prepara il POS
+                {t("Prepara il POS")}
               </Button>
             )}
           </div>
@@ -536,7 +536,7 @@ export function SicurezzaCommessa({
           <button
             type="button"
             key={a.id}
-            aria-label={`Apri ${a.titolo}`}
+            aria-label={t("Apri {nome}", { nome: String(a.titolo ?? "") })}
             onClick={() => setVista(a.id)}
             className="group flex items-start gap-4 rounded-xl border bg-background p-5 text-left shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -558,15 +558,10 @@ export function SicurezzaCommessa({
       </div>
       <details className="text-xs text-muted-foreground">
         <summary className="cursor-pointer">
-          Come leggere questo riepilogo
+          {t("Come leggere questo riepilogo")}
         </summary>
         <p className="mt-2 max-w-3xl">
-          La data filtra requisiti, incarichi, assegnazioni note e attrezzature
-          pianificate; la fase limita le evidenze specifiche. Sono inclusi i
-          documenti non limitati alla fase. Gli esiti e i POS mostrati sono
-          quelli attuali: questa vista non ricostruisce uno stato storico. I
-          conteggi non attestano completezza, idoneità o autorizzazione
-          all’ingresso.
+          {t("La data filtra requisiti, incarichi, assegnazioni note e attrezzature pianificate; la fase limita le evidenze specifiche. Sono inclusi i documenti non limitati alla fase. Gli esiti e i POS mostrati sono quelli attuali: questa vista non ricostruisce uno stato storico. I conteggi non attestano completezza, idoneità o autorizzazione all’ingresso.")}
         </p>
       </details>
       <Dialog
@@ -580,18 +575,18 @@ export function SicurezzaCommessa({
           onPointerDownOutside={(e) => e.preventDefault()}
         >
           <DialogHeader className="shrink-0 border-b p-5 pr-12">
-            <DialogTitle>{attiva?.gruppo}</DialogTitle>
+            <DialogTitle>{attiva ? (attiva.gruppo === "POS" ? attiva.gruppo : t(attiva.gruppo)) : null}</DialogTitle>
             <DialogDescription>
-              Gestisci i dettagli di questa commessa ·{" "}
+              {t("Gestisci i dettagli di questa commessa ·")}{" "}
               {oggi.split("-").reverse().join("/")}
               {faseAttiva
                 ? ` · ${fasi.data?.find((f) => f.id === faseAttiva)?.name}`
-                : " · tutte le fasi"}
+                : ` ${t("· tutte le fasi")}`}
             </DialogDescription>
           </DialogHeader>
           {attiva?.gruppo !== "POS" && (
             <nav
-              aria-label="Sezioni del popup sicurezza"
+              aria-label={t("Sezioni del popup sicurezza")}
               className="flex shrink-0 gap-1 overflow-x-auto border-b bg-muted/30 px-4 py-2"
             >
               {sezioni
@@ -626,7 +621,7 @@ export function SicurezzaCommessa({
                 imprese={Object.fromEntries(
                   subappaltatori.map((s) => [
                     s.id,
-                    s.ragione_sociale || "Impresa collegata",
+                    s.ragione_sociale || t("Impresa collegata"),
                   ]),
                 )}
                 persone={Object.fromEntries(
@@ -720,26 +715,22 @@ export function SicurezzaCommessa({
                   <CardHeader className="pb-2">
                     <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                       <ShieldCheck className="h-5 w-5 text-primary" />
-                      Promemoria orientativi da valutare
+                      {t("Promemoria orientativi da valutare")}
                       {!caricamento &&
                         !fontiParziali &&
                         (aperte ? (
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                            {aperte} da sistemare
-                          </Badge>
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">{t("{n} da sistemare", { n: String(aperte ?? "") })}</Badge>
                         ) : (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                            Controlli documentali registrati
+                            {t("Controlli documentali registrati")}
                           </Badge>
                         ))}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      Promemoria orientativi: conferma nel fascicolo quali
-                      requisiti si applicano. La lista non attesta idoneità
-                      dell’impresa o autorizzazione all’ingresso.{" "}
+                      {t("Promemoria orientativi: conferma nel fascicolo quali requisiti si applicano. La lista non attesta idoneità dell’impresa o autorizzazione all’ingresso.")}{" "}
                       {subappaltatori.length
-                        ? `Ci sono ${subappaltatori.length} imprese collegate. Verifica l’applicabilità dei requisiti e i documenti di ogni impresa.`
-                        : "Nessuna impresa esterna collegata. La lista documentale non sostituisce la verifica tecnica del cantiere."}
+                        ? t("Ci sono {n} imprese collegate. Verifica l’applicabilità dei requisiti e i documenti di ogni impresa.", { n: subappaltatori.length })
+                        : t("Nessuna impresa esterna collegata. La lista documentale non sostituisce la verifica tecnica del cantiere.")}
                     </p>
                   </CardHeader>
                   <CardContent>
@@ -759,7 +750,7 @@ export function SicurezzaCommessa({
                             >
                               <Icona
                                 className={cn("h-5 w-5 shrink-0", s.cls)}
-                                aria-label={s.testo}
+                                aria-label={t(s.testo)}
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium">
@@ -786,11 +777,10 @@ export function SicurezzaCommessa({
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <HardHat className="h-5 w-5 text-primary" />
-                      Archivio documenti
+                      {t("Archivio documenti")}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      Quelli di questa commessa e quelli che valgono per tutta
-                      l'azienda.
+                      {t("Quelli di questa commessa e quelli che valgono per tutta l'azienda.")}
                     </p>
                   </CardHeader>
                   <CardContent>
@@ -808,27 +798,26 @@ export function SicurezzaCommessa({
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <ClipboardList className="h-5 w-5 text-primary" />
-                      Verbali di sicurezza
+                      {t("Verbali di sicurezza")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {verbaliQuery.isLoading ? (
-                      <p role="status">Caricamento verbali…</p>
+                      <p role="status">{t("Caricamento verbali…")}</p>
                     ) : verbaliQuery.isError ? (
                       <p role="alert">
-                        Verbali non disponibili. Riprova il caricamento prima di
-                        considerarli assenti.{" "}
+                        {t("Verbali non disponibili. Riprova il caricamento prima di considerarli assenti.")}{" "}
                         <Button
                           variant="link"
                           size="sm"
                           onClick={() => void verbaliQuery.refetch()}
                         >
-                          Riprova
+                          {t("Riprova")}
                         </Button>
                       </p>
                     ) : verbali.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        Nessun verbale per questa commessa.
+                        {t("Nessun verbale per questa commessa.")}
                       </p>
                     ) : (
                       verbali.map((v) => (
@@ -865,7 +854,7 @@ export function SicurezzaCommessa({
                         navigate("/azienda/sicurezza-cantiere?tab=verbali")
                       }
                     >
-                      Tutti i verbali e le scadenze
+                      {t("Tutti i verbali e le scadenze")}
                     </Button>
                   </CardContent>
                 </Card>
@@ -874,14 +863,14 @@ export function SicurezzaCommessa({
             {vista === "pos" && (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h4 className="font-semibold">Bozze e revisioni del POS</h4>
+                  <h4 className="font-semibold">{t("Bozze e revisioni del POS")}</h4>
                   {scrive && (
                     <Button
                       variant="outline"
                       onClick={preparaPos}
                       disabled={!puoCrearePos}
                     >
-                      Nuova bozza POS
+                      {t("Nuova bozza POS")}
                     </Button>
                   )}
                 </div>
@@ -892,27 +881,21 @@ export function SicurezzaCommessa({
                   >
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">
-                          POS · Revisione {p.revisione}
-                        </p>
+                        <p className="font-medium">{t("POS · Revisione {revisione}", { revisione: String(p.revisione ?? "") })}</p>
                         {i === 0 && (
-                          <Badge variant="outline">Più recente</Badge>
+                          <Badge variant="outline">{t("Più recente")}</Badge>
                         )}
                         <Badge variant="secondary">
                           {p.status === "bozza"
-                            ? "Bozza da completare"
+                            ? t("Bozza da completare")
                             : p.status.replaceAll("_", " ")}
                         </Badge>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Creato il{" "}
-                        {new Date(p.created_at).toLocaleString("it-IT", {
+                      <p className="mt-1 text-xs text-muted-foreground">{t("Creato il {valore} · Rif. {valore2}", { valore: new Date(p.created_at).toLocaleString(intlCampo(), {
                           timeZone: "Europe/Rome",
                           dateStyle: "short",
                           timeStyle: "short",
-                        })}{" "}
-                        · Rif. {p.id.slice(0, 8).toUpperCase()}
-                      </p>
+                        }), valore2: p.id.slice(0, 8).toUpperCase() })}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -920,13 +903,13 @@ export function SicurezzaCommessa({
                         navigate(`/azienda/sicurezza-cantiere/pos/${p.id}`)
                       }
                     >
-                      Apri scheda POS <ArrowRight className="ml-2 h-4 w-4" />
+                      {t("Apri scheda POS")} <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
                 ))}
                 {!pos.length && (
                   <p className="text-sm text-muted-foreground">
-                    Nessun POS presente.
+                    {t("Nessun POS presente.")}
                   </p>
                 )}
               </div>
@@ -937,7 +920,7 @@ export function SicurezzaCommessa({
               variant="outline"
               onClick={() => setVista(null)}
             >
-              Torna al riepilogo
+              {t("Torna al riepilogo")}
             </Button>
           </div>
         </DialogContent>
@@ -959,15 +942,14 @@ export function SicurezzaCommessa({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Bozza POS creata</DialogTitle>
+            <DialogTitle>{t("Bozza POS creata")}</DialogTitle>
             <DialogDescription>
-              Il documento è stato preparato con i dati disponibili della
-              commessa. Apri la scheda per completarlo e verificarlo.
+              {t("Il documento è stato preparato con i dati disponibili della commessa. Apri la scheda per completarlo e verificarlo.")}
             </DialogDescription>
           </DialogHeader>
           {!!posCreato?.avvisi.length && (
             <div className="max-h-52 overflow-y-auto rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
-              <p className="font-medium">Da controllare nella scheda</p>
+              <p className="font-medium">{t("Da controllare nella scheda")}</p>
               <ul className="mt-2 list-disc space-y-1 pl-4">
                 {posCreato.avvisi.map((a, i) => (
                   <li key={i}>{a}</li>
@@ -976,11 +958,11 @@ export function SicurezzaCommessa({
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            La bozza non è approvata, firmata o pronta per l’utilizzo.
+            {t("La bozza non è approvata, firmata o pronta per l’utilizzo.")}
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={() => setPosCreato(null)}>
-              Resta nella commessa
+              {t("Resta nella commessa")}
             </Button>
             <Button
               onClick={() => {
@@ -991,7 +973,7 @@ export function SicurezzaCommessa({
                   );
               }}
             >
-              Apri scheda POS <ArrowRight className="ml-2 h-4 w-4" />
+              {t("Apri scheda POS")} <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </DialogContent>

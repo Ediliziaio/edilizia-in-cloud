@@ -9,6 +9,7 @@ import { useSmsWallet } from "@/hooks/useSmsWallet";
 import { formatCurrency } from "@/lib/formatters";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { safeRedirect } from "@/utils/safeRedirect";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsRicaricaModalProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface SmsRicaricaModalProps {
 }
 
 export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) {
+  const t = useT();
   const { pacchetti, isLoadingPacchetti, errorePacchetti, ricaricaPacchetti, creaRicarica, isRicaricando } = useSmsWallet();
   const tentativo = useRef<{ pacchetto: string; id: string } | null>(null);
   const invioInCorso = useRef(false);
@@ -36,7 +38,7 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
       }
       safeRedirect(url.href);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Impossibile aprire il pagamento. Riprova.");
+      toast.error(err instanceof Error ? err.message : t("Impossibile aprire il pagamento. Riprova."));
     } finally {
       invioInCorso.current = false;
       setPacchettoInAttesa(null);
@@ -53,11 +55,11 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
     <Dialog open={open} onOpenChange={cambiaApertura}>
       <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Ricarica crediti SMS</DialogTitle>
+          <DialogTitle>{t("Ricarica crediti SMS")}</DialogTitle>
           <DialogDescription>
             {isMobileAppRuntime
-              ? "La ricarica dei crediti SMS è disponibile nell’area riservata sul sito web."
-              : "Scegli un pacchetto per pagare su Stripe. Il saldo si aggiorna quando l’accredito è registrato."}
+              ? t("La ricarica dei crediti SMS è disponibile nell’area riservata sul sito web.")
+              : t("Scegli un pacchetto per pagare su Stripe. Il saldo si aggiorna quando l’accredito è registrato.")}
           </DialogDescription>
         </DialogHeader>
         {!isMobileAppRuntime && (
@@ -65,12 +67,12 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
             {isLoadingPacchetti && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-20 w-full" />)}
             {errorePacchetti && (
               <div className="flex items-center justify-between gap-2 text-sm" role="alert">
-                <span>Impossibile caricare i pacchetti SMS.</span>
-                <Button size="sm" variant="outline" onClick={() => void ricaricaPacchetti()}>Riprova</Button>
+                <span>{t("Impossibile caricare i pacchetti SMS.")}</span>
+                <Button size="sm" variant="outline" onClick={() => void ricaricaPacchetti()}>{t("Riprova")}</Button>
               </div>
             )}
             {!isLoadingPacchetti && !errorePacchetti && pacchetti.length === 0 && (
-              <p className="text-sm text-muted-foreground">Al momento non ci sono pacchetti disponibili.</p>
+              <p className="text-sm text-muted-foreground">{t("Al momento non ci sono pacchetti disponibili.")}</p>
             )}
             {pacchetti.map((p) => (
               <button key={p.id} type="button" disabled={isRicaricando} onClick={() => void apriPagamento(p.id)}
@@ -78,19 +80,17 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
                 <span>
                   <span className="block font-semibold">{p.nome}</span>
                   <span className="block text-xs text-muted-foreground">
-                    {p.sms_stimati ? `${p.sms_stimati.toLocaleString("it-IT")} SMS stimati` : "Crediti SMS"}
-                    {p.bonus_percentuale > 0 && ` · +${p.bonus_percentuale}% bonus`}
+                    {p.sms_stimati ? t("{n} SMS stimati", { n: p.sms_stimati.toLocaleString(intlCampo()) }) : t("Crediti SMS")}
+                    {p.bonus_percentuale > 0 && ` · ${t("+{n}% bonus", { n: p.bonus_percentuale })}`}
                   </span>
-                  {p.evidenziato && <Badge variant="secondary" className="mt-1">Consigliato</Badge>}
+                  {p.evidenziato && <Badge variant="secondary" className="mt-1">{t("Consigliato")}</Badge>}
                 </span>
                 <span className="flex flex-col items-end gap-1">
                   <span className="font-semibold">{formatCurrency(p.importo_eur)}</span>
                   {p.sms_stimati && p.sms_stimati > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      Circa {(p.importo_eur / p.sms_stimati).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €/SMS
-                    </span>
+                    <span className="text-xs text-muted-foreground">{t("Circa {prezzo} €/SMS", { prezzo: (p.importo_eur / p.sms_stimati).toLocaleString(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 4 }) })}</span>
                   )}
-                  {pacchettoInAttesa === p.id && <Loader2 className="h-4 w-4 animate-spin" aria-label="Apertura pagamento" />}
+                  {pacchettoInAttesa === p.id && <Loader2 className="h-4 w-4 animate-spin" aria-label={t("Apertura pagamento")} />}
                 </span>
               </button>
             ))}

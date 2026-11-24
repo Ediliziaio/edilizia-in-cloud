@@ -55,7 +55,7 @@ export function InstallationEnvelopePanel({
               >
                 {m.value == null
                   ? t("Da rilevare")
-                  : `${m.value.toLocaleString(intlCampo())} mm`}
+                  : t("{logoLarghezza} mm", { logoLarghezza: m.value.toLocaleString(intlCampo()) })}
               </dd>
             </div>
           ))}

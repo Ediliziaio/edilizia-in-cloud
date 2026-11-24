@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import type { TrendPoint } from "@/hooks/useMarketingDashboard";
 import { format, parseISO, isValid, startOfISOWeek } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   trend: TrendPoint[] | undefined;
@@ -15,17 +15,18 @@ function safeDateLabel(day: string): string {
   try {
     const parsed = parseISO(day);
     if (!isValid(parsed)) return day;
-    return format(parsed, "dd MMM", { locale: it });
+    return format(parsed, "dd MMM", { locale: dateFnsCampo() });
   } catch {
     return day;
   }
 }
 
 export const DashboardTrendChart = memo(function DashboardTrendChart({ trend, isLoading }: Props) {
+  const tr = useT();
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Trend Temporale</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{tr("Trend Temporale")}</CardTitle></CardHeader>
         <CardContent><Skeleton className="h-[250px] w-full" /></CardContent>
       </Card>
     );
@@ -40,18 +41,18 @@ export const DashboardTrendChart = memo(function DashboardTrendChart({ trend, is
         acc[k] ??= { day: k, leads: 0, appointments: 0, won: 0 };
         acc[k].leads += t.leads; acc[k].appointments += t.appointments; acc[k].won += t.won;
         return acc;
-      }, {})).map((t) => ({ ...t, label: `sett. ${safeDateLabel(t.day)}` }))
+      }, {})).map((t) => ({ ...t, label: tr("sett. {day}", { day: String(safeDateLabel(t.day) ?? "") }) }))
     : (trend || []).map(t => ({ ...t, label: safeDateLabel(t.day) }));
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Andamento del periodo</CardTitle>
-        <p className="text-xs text-muted-foreground">{perSettimana ? "Per settimana" : "Giorno per giorno"} · vendite = preventivi firmati e opportunità vinte</p>
+        <CardTitle className="text-base">{tr("Andamento del periodo")}</CardTitle>
+        <p className="text-xs text-muted-foreground">{perSettimana ? tr("Per settimana") : tr("Giorno per giorno")} · {tr("vendite = preventivi firmati e opportunità vinte")}</p>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Nessun dato nel periodo</p>
+          <p className="text-sm text-muted-foreground text-center py-8">{tr("Nessun dato nel periodo")}</p>
         ) : (
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={data}>

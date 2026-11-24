@@ -55,6 +55,7 @@ import {
   useEffectiveCompanyId,
 } from "@/hooks/usePiscineProgetto";
 import type { PisProgettoMedia } from "@/types/piscine";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   progettoId: string;
@@ -79,6 +80,7 @@ const tipoMeta = (tipo: string) =>
 const isPdf = (url: string) => /\.pdf($|\?)/i.test(url);
 
 export default function StepMedia({ progettoId, media }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const confirm = useConfirm();
   const upsertMut = useUpsertMedia(progettoId);
@@ -98,7 +100,7 @@ export default function StepMedia({ progettoId, media }: Props) {
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(t("Azienda non disponibile"));
       return;
     }
     setUploading(true);
@@ -108,13 +110,13 @@ export default function StepMedia({ progettoId, media }: Props) {
     try {
       for (const file of Array.from(files)) {
         if (!ALLOWED_MIMES.has(file.type)) {
-          toast.error(`"${file.name}" non supportato`, {
-            description: "Usa PNG, JPG, WEBP o PDF.",
+          toast.error(t("\"{name}\" non supportato", { name: file.name }), {
+            description: t("Usa PNG, JPG, WEBP o PDF."),
           });
           continue;
         }
         if (file.size > MAX_FILE_BYTES) {
-          toast.error(`"${file.name}" troppo grande`, { description: "Massimo 8 MB per file." });
+          toast.error(t("\"{name}\" troppo grande", { name: file.name }), { description: t("Massimo 8 MB per file.") });
           continue;
         }
         const ext = file.name.includes(".")
@@ -126,7 +128,7 @@ export default function StepMedia({ progettoId, media }: Props) {
           .from(BUCKET)
           .upload(storagePath, file, { contentType: file.type, upsert: false });
         if (upErr) {
-          toast.error(`Upload di "${file.name}" fallito`, { description: upErr.message });
+          toast.error(t("Upload di \"{name}\" fallito", { name: file.name }), { description: upErr.message });
           continue;
         }
         // Nel progetto il riferimento, non un link: il bucket è privato.
@@ -140,13 +142,13 @@ export default function StepMedia({ progettoId, media }: Props) {
         } catch (e) {
           // Rollback del file caricato se la riga DB non viene creata.
           void supabase.storage.from(BUCKET).remove([storagePath]);
-          toast.error(`Registrazione di "${file.name}" fallita`, {
-            description: e instanceof Error ? e.message : "Errore sconosciuto",
+          toast.error(t("Registrazione di \"{name}\" fallita", { name: file.name }), {
+            description: e instanceof Error ? e.message : t("Errore sconosciuto"),
           });
         }
       }
       if (okCount > 0) {
-        toast.success(okCount === 1 ? "File caricato" : `${okCount} file caricati`);
+        toast.success(okCount === 1 ? t("File caricato") : t("{n} file caricati", { n: okCount }));
       }
     } finally {
       setUploading(false);
@@ -168,8 +170,8 @@ export default function StepMedia({ progettoId, media }: Props) {
         ordine: m.ordine,
       });
     } catch (e) {
-      toast.error("Salvataggio non riuscito", {
-        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      toast.error(t("Salvataggio non riuscito"), {
+        description: e instanceof Error ? e.message : t("Errore sconosciuto"),
       });
     }
   };
@@ -188,8 +190,8 @@ export default function StepMedia({ progettoId, media }: Props) {
         upsertMut.mutateAsync({ id: b.id, url: b.url, tipo: b.tipo, caption: b.caption, ordine: aOrd }),
       ]);
     } catch (e) {
-      toast.error("Riordino non riuscito", {
-        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      toast.error(t("Riordino non riuscito"), {
+        description: e instanceof Error ? e.message : t("Errore sconosciuto"),
       });
     }
   };
@@ -197,8 +199,8 @@ export default function StepMedia({ progettoId, media }: Props) {
   // ─── Elimina ───────────────────────────────────────────────────────────────
   const remove = async (m: PisProgettoMedia) => {
     const ok = await confirm({
-      title: "Eliminare questo file?",
-      description: "Verrà rimosso dal progetto. L'operazione non può essere annullata.",
+      title: t("Eliminare questo file?"),
+      description: t("Verrà rimosso dal progetto. L'operazione non può essere annullata."),
       confirmLabel: "Elimina",
       variant: "destructive",
     });
@@ -208,10 +210,10 @@ export default function StepMedia({ progettoId, media }: Props) {
       // Best-effort: rimuovi anche il file dallo Storage.
       const file = riconosciFile(m.url);
       if (file?.bucket === BUCKET) void supabase.storage.from(BUCKET).remove([file.path]);
-      toast.success("File eliminato");
+      toast.success(t("File eliminato"));
     } catch (e) {
-      toast.error("Eliminazione non riuscita", {
-        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      toast.error(t("Eliminazione non riuscita"), {
+        description: e instanceof Error ? e.message : t("Errore sconosciuto"),
       });
     }
   };
@@ -225,15 +227,15 @@ export default function StepMedia({ progettoId, media }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Telefono: il titolo lo dice già il passo in alto. */}
         <div className="max-sm:hidden">
-          <h2 className="text-sm font-semibold text-slate-900">Foto e allegati</h2>
+          <h2 className="text-sm font-semibold text-slate-900">{t("Foto e allegati")}</h2>
           <p className="text-[11px] text-muted-foreground max-sm:hidden">
-            Stato attuale, render di progetto, lavori simili e documenti. Compaiono nel preventivo PDF.
+            {t("Stato attuale, render di progetto, lavori simili e documenti. Compaiono nel preventivo PDF.")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {busy && (
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> Caricamento…
+              <Loader2 className="h-3 w-3 animate-spin" /> {t("Caricamento…")}
             </span>
           )}
           <input
@@ -252,7 +254,7 @@ export default function StepMedia({ progettoId, media }: Props) {
             onClick={() => fileInputRef.current?.click()}
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-            Carica file
+            {t("Carica file")}
           </Button>
         </div>
       </div>
@@ -267,7 +269,7 @@ export default function StepMedia({ progettoId, media }: Props) {
           className="flex h-36 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-200 bg-orange-50/40 text-orange-700 disabled:opacity-60 sm:hidden"
         >
           {uploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <Camera className="h-7 w-7" />}
-          <span className="text-[13px] font-medium">Scatta o carica foto</span>
+          <span className="text-[13px] font-medium">{t("Scatta o carica foto")}</span>
         </button>
       )}
       {ordered.length === 0 ? (
@@ -275,10 +277,10 @@ export default function StepMedia({ progettoId, media }: Props) {
           <CardContent className="p-0">
             <EmptyState
               icon={ImageIcon}
-              title="Nessuna foto o allegato"
-              description="Aggiungi foto dello stato attuale, render del progetto o lavori simili: renderanno il preventivo molto più convincente."
+              title={t("Nessuna foto o allegato")}
+              description={t("Aggiungi foto dello stato attuale, render del progetto o lavori simili: renderanno il preventivo molto più convincente.")}
               action={{
-                label: "Carica il primo file",
+                label: t("Carica il primo file"),
                 icon: Upload,
                 onClick: () => fileInputRef.current?.click(),
                 primary: true,
@@ -308,7 +310,7 @@ export default function StepMedia({ progettoId, media }: Props) {
 
       {ordered.length > 0 && (
         <p className="text-center text-[11px] text-muted-foreground max-sm:hidden">
-          {ordered.length} {ordered.length === 1 ? "file" : "file"} · PNG, JPG, WEBP o PDF · max 8 MB
+          {t("{n} file · PNG, JPG, WEBP o PDF · max 8 MB", { n: ordered.length })}
         </p>
       )}
     </div>
@@ -332,6 +334,7 @@ function MediaCard({
   media, index, total, disabled,
   onChangeTipo, onChangeCaption, onMoveUp, onMoveDown, onDelete,
 }: MediaCardProps) {
+  const tr = useT();
   const meta = tipoMeta(media.tipo);
   const TipoIcon = meta.icon;
   const pdf = isPdf(media.url);
@@ -355,7 +358,7 @@ function MediaCard({
               className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground transition-colors hover:bg-muted/60"
             >
               <FileText className="h-9 w-9 text-amber-500" />
-              <span className="text-[11px] font-medium">Apri PDF</span>
+              <span className="text-[11px] font-medium">{tr("Apri PDF")}</span>
             </a>
           ) : link ? (
             <img
@@ -381,7 +384,7 @@ function MediaCard({
             className="tap-compact absolute right-1 top-1 h-7 w-7 bg-white/90 text-rose-600 shadow-sm hover:bg-white sm:hidden"
             disabled={disabled}
             onClick={onDelete}
-            aria-label="Elimina"
+            aria-label={tr("Elimina")}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -395,7 +398,7 @@ function MediaCard({
           <SelectContent>
             {TIPI_MEDIA.map((t) => (
               <SelectItem key={t.value} value={t.value} className="text-xs">
-                {t.label}
+                {tr(t.label)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -408,7 +411,7 @@ function MediaCard({
           onBlur={() => {
             if ((media.caption ?? "") !== caption) onChangeCaption(caption);
           }}
-          placeholder="Didascalia (opzionale)…"
+          placeholder={tr("Didascalia (opzionale)…")}
           className="h-8 text-xs"
           disabled={disabled}
         />
@@ -423,7 +426,7 @@ function MediaCard({
               className="h-7 w-7"
               disabled={disabled || index === 0}
               onClick={onMoveUp}
-              title="Sposta su"
+              title={tr("Sposta su")}
             >
               <ArrowUp className="h-3.5 w-3.5" />
             </Button>
@@ -434,7 +437,7 @@ function MediaCard({
               className="h-7 w-7"
               disabled={disabled || index === total - 1}
               onClick={onMoveDown}
-              title="Sposta giù"
+              title={tr("Sposta giù")}
             >
               <ArrowDown className="h-3.5 w-3.5" />
             </Button>
@@ -446,7 +449,7 @@ function MediaCard({
             className="h-7 w-7 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
             disabled={disabled}
             onClick={onDelete}
-            title="Elimina"
+            title={tr("Elimina")}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>

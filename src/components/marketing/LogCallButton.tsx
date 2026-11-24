@@ -24,6 +24,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Codici outcome + etichetta IT. Allineati a UnifiedContactTimeline/ContactActivityRegister. */
 export const CALL_OUTCOMES: { value: string; label: string }[] = [
@@ -51,6 +52,7 @@ interface Props {
 }
 
 export function LogCallButton({ companyId, contactId, userId, opportunityId, className, onLogged }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [outcome, setOutcome] = useState("answered");
@@ -69,7 +71,7 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
 
   const handleSave = async () => {
     if (!companyId || !userId) {
-      toast.error("Sessione non valida: riprova ad accedere.");
+      toast.error(t("Sessione non valida: riprova ad accedere."));
       return;
     }
     setSaving(true);
@@ -89,7 +91,7 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
     });
     if (error) {
       setSaving(false);
-      toast.error("Non sono riuscito a registrare la chiamata. Riprova.");
+      toast.error(t("Non sono riuscito a registrare la chiamata. Riprova."));
       return;
     }
 
@@ -104,7 +106,7 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
     }
 
     setSaving(false);
-    toast.success(isCallback && callbackDate ? "Chiamata registrata · richiamo pianificato" : "Chiamata registrata");
+    toast.success(isCallback && callbackDate ? t("Chiamata registrata · richiamo pianificato") : t("Chiamata registrata"));
     // Le due timeline del contatto: UnifiedContactTimeline (["unified_call_logs"])
     // e ContactActivityRegister (["reg-calls"]).
     queryClient.invalidateQueries({
@@ -135,26 +137,26 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
         className={className}
         onClick={() => setOpen(true)}
         disabled={!contactId}
-        aria-label="Registra chiamata"
-        title={contactId ? "Registra una chiamata fatta a questo contatto" : "Contatto non disponibile"}
+        aria-label={t("Registra chiamata")}
+        title={contactId ? t("Registra una chiamata fatta a questo contatto") : t("Contatto non disponibile")}
       >
         <PhoneOutgoing className="h-4 w-4 sm:mr-1.5" />
-        <span className="hidden sm:inline">Registra chiamata</span>
+        <span className="hidden sm:inline">{t("Registra chiamata")}</span>
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => !saving && setOpen(o)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Registra chiamata</DialogTitle>
+            <DialogTitle>{t("Registra chiamata")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-1">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Esito</Label>
+              <Label className="text-xs font-medium">{t("Esito")}</Label>
               <Select value={outcome} onValueChange={setOutcome}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CALL_OUTCOMES.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value}>{t(o.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -162,39 +164,39 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
 
             {isCallback && (
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Richiamami il</Label>
+                <Label className="text-xs font-medium">{t("Richiamami il")}</Label>
                 <input
                   type="date"
                   value={callbackDate}
                   min={todayLocal}
                   onChange={(e) => setCallbackDate(e.target.value)}
-                  aria-label="Data richiamo"
+                  aria-label={t("Data richiamo")}
                   className="h-9 w-full rounded-md border border-slate-200 px-2 text-sm text-slate-700"
                 />
                 {opportunityId && (
                   <p className="text-[11px] text-muted-foreground">
-                    Imposterà la “prossima azione” dell’opportunità a questa data.
+                    {t("Imposterà la “prossima azione” dell’opportunità a questa data.")}
                   </p>
                 )}
               </div>
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Nota (opzionale)</Label>
+              <Label className="text-xs font-medium">{t("Nota (opzionale)")}</Label>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Cosa è emerso dalla chiamata…"
+                placeholder={t("Cosa è emerso dalla chiamata…")}
                 rows={3}
               />
             </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button type="button" onClick={handleSave} disabled={saving}>
-              {saving ? "Salvo…" : "Salva chiamata"}
+              {saving ? t("Salvo…") : t("Salva chiamata")}
             </Button>
           </DialogFooter>
         </DialogContent>

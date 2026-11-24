@@ -29,6 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAdsAi } from "@/hooks/useAdsAi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CampaignCopyState {
   /** Max 5 — appaiono come "headline" sotto l'immagine in Meta */
@@ -70,13 +71,14 @@ export function CampaignCopyEditor({
   value,
   onChange,
 }: Props) {
+  const t = useT();
   const [generating, setGenerating] = useState(false);
   const { generateCopy } = useAdsAi(companyId);
 
   const handleGenerate = useCallback(async () => {
     if (!brief || brief.trim().length < 10) {
-      toast.error("Brief insufficiente", {
-        description: "Compila la sezione 'Offerta' nello step 1 (almeno 10 caratteri).",
+      toast.error(t("Brief insufficiente"), {
+        description: t("Compila la sezione 'Offerta' nello step 1 (almeno 10 caratteri)."),
       });
       return;
     }
@@ -102,12 +104,12 @@ export function CampaignCopyEditor({
         legacyCopyVariants: result.descriptions ?? result.copy_variants,
       });
       if (result.warnings?.length) {
-        toast.warning("Attenzione compliance Meta", {
+        toast.warning(t("Attenzione compliance Meta"), {
           description: result.warnings.slice(0, 3).join(" · "),
         });
       } else {
-        toast.success("Copy generato!", {
-          description: `${result.titles?.length ?? 0} titoli · ${result.descriptions?.length ?? 0} descrizioni · ${result.hooks?.length ?? 0} hook`,
+        toast.success(t("Copy generato!"), {
+          description: t("{titoli} titoli · {descrizioni} descrizioni · {hook} hook", { titoli: result.titles?.length ?? 0, descrizioni: result.descriptions?.length ?? 0, hook: result.hooks?.length ?? 0 }),
         });
       }
     } finally {
@@ -123,11 +125,11 @@ export function CampaignCopyEditor({
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <Sparkles className="h-4 w-4 text-violet-600" />
-              Copy dell'annuncio
+              {t("Copy dell'annuncio")}
             </h3>
             <p className="mt-1 text-xs text-slate-600">
-              3 elementi separati: <strong>Titoli</strong> (cosa vedi sotto l'immagine), <strong>Descrizioni</strong> (testo principale),
-              <strong> Hook</strong> (prime parole stop-scroll). Max {MAX_VARIANTS} varianti per blocco.
+              {t("3 elementi separati:")} <strong>{t("Titoli")}</strong> {t("(cosa vedi sotto l'immagine),")} <strong>{t("Descrizioni")}</strong> {t("(testo principale),")}
+              <strong> {t("Hook")}</strong> {t("(prime parole stop-scroll). Max")} {MAX_VARIANTS} {t("varianti per blocco.")}
             </p>
           </div>
           <Button
@@ -136,23 +138,23 @@ export function CampaignCopyEditor({
             className="bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:from-violet-700 hover:to-fuchsia-700"
           >
             {generating ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI sta scrivendo…</>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("AI sta scrivendo…")}</>
             ) : (
-              <><Sparkles className="mr-2 h-4 w-4" /> Genera tutto con AI</>
+              <><Sparkles className="mr-2 h-4 w-4" /> {t("Genera tutto con AI")}</>
             )}
           </Button>
         </div>
         {(!brief || brief.length < 10) && (
           <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            Per generare con AI compila prima la sezione <strong>"Offerta"</strong> nello step 1.
+            {t("Per generare con AI compila prima la sezione")} <strong>{t("\"Offerta\"")}</strong> {t("nello step 1.")}
           </div>
         )}
       </div>
 
       <BlockSection
-        title="Titoli"
-        subtitle="Headline che appaiono sotto l'immagine. Promessa atomica leggibile in mezzo secondo."
+        title={t("Titoli")}
+        subtitle={t("Headline che appaiono sotto l'immagine. Promessa atomica leggibile in mezzo secondo.")}
         emoji="📌"
         kind="title"
         items={value.titles}
@@ -161,8 +163,8 @@ export function CampaignCopyEditor({
       />
 
       <BlockSection
-        title="Descrizioni (primary text)"
-        subtitle="Il corpo dell'annuncio. Hook + valore concreto + CTA. Mobile-first."
+        title={t("Descrizioni (primary text)")}
+        subtitle={t("Il corpo dell'annuncio. Hook + valore concreto + CTA. Mobile-first.")}
         emoji="📝"
         kind="description"
         items={value.descriptions}
@@ -171,8 +173,8 @@ export function CampaignCopyEditor({
       />
 
       <BlockSection
-        title="Hook (prime righe)"
-        subtitle="Le prime 5-8 parole. Lavorano per fermare lo scroll."
+        title={t("Hook (prime righe)")}
+        subtitle={t("Le prime 5-8 parole. Lavorano per fermare lo scroll.")}
         emoji="🪝"
         kind="hook"
         items={value.hooks}
@@ -203,6 +205,7 @@ function BlockSection({
   ideal: { ideal_min?: number; ideal_max: number; hard_max: number };
   onChange: (items: string[]) => void;
 }) {
+  const t = useT();
   const list = useMemo(() => (items.length > 0 ? items : [""]), [items]);
 
   const update = (idx: number, val: string) => {
@@ -257,7 +260,7 @@ function BlockSection({
         className="mt-3 w-full"
       >
         <Plus className="mr-1 h-3 w-3" />
-        {list.length >= MAX_VARIANTS ? `Massimo ${MAX_VARIANTS} varianti` : "Aggiungi variante"}
+        {list.length >= MAX_VARIANTS ? t("Massimo {MAX_VARIANTS} varianti", { MAX_VARIANTS: String(MAX_VARIANTS ?? "") }) : t("Aggiungi variante")}
       </Button>
     </div>
   );
@@ -283,6 +286,7 @@ function VariantRow({
   onRemove: () => void;
   canRemove: boolean;
 }) {
+  const t = useT();
   const len = value.length;
   const tooShort = ideal.ideal_min ? len > 0 && len < ideal.ideal_min : false;
   const tooLong = len > ideal.ideal_max;
@@ -300,7 +304,7 @@ function VariantRow({
         {kind === "description" ? (
           <Textarea
             value={value}
-            placeholder={`Variante ${index + 1} — ${ideal.ideal_min ?? "?"}-${ideal.ideal_max} caratteri ottimali`}
+            placeholder={t("Variante {index} — {min}-{max} caratteri ottimali", { index: index + 1, min: ideal.ideal_min ?? "?", max: ideal.ideal_max })}
             onChange={(e) => onChange(e.target.value)}
             className="min-h-16 text-sm"
             maxLength={ideal.hard_max}
@@ -308,7 +312,7 @@ function VariantRow({
         ) : (
           <Input
             value={value}
-            placeholder={`Variante ${index + 1} — max ${ideal.ideal_max} caratteri`}
+            placeholder={t("Variante {index} — max {ideal_max} caratteri", { index: index + 1, ideal_max: String(ideal.ideal_max ?? "") })}
             onChange={(e) => onChange(e.target.value)}
             className="text-sm"
             maxLength={ideal.hard_max}
@@ -316,9 +320,9 @@ function VariantRow({
         )}
         <div className="mt-1 flex items-center justify-between text-[10px]">
           <CounterBadge status={status} len={len} ideal={ideal} />
-          {tooShort && <span className="text-amber-600">↑ Troppo corto, aggiungi dettaglio concreto</span>}
-          {tooLong && !overHardMax && <span className="text-amber-600">↑ Sopra il range ottimale — Meta potrebbe troncare</span>}
-          {overHardMax && <span className="text-rose-600">✗ Limite massimo raggiunto</span>}
+          {tooShort && <span className="text-amber-600">{t("↑ Troppo corto, aggiungi dettaglio concreto")}</span>}
+          {tooLong && !overHardMax && <span className="text-amber-600">{t("↑ Sopra il range ottimale — Meta potrebbe troncare")}</span>}
+          {overHardMax && <span className="text-rose-600">{t("✗ Limite massimo raggiunto")}</span>}
         </div>
       </div>
       <TooltipProvider delayDuration={300}>
@@ -335,7 +339,7 @@ function VariantRow({
               <Trash2 className="h-3.5 w-3.5 text-rose-500" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Rimuovi variante</TooltipContent>
+          <TooltipContent>{t("Rimuovi variante")}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>
@@ -351,7 +355,8 @@ function CounterBadge({
   len: number;
   ideal: { ideal_min?: number; ideal_max: number; hard_max: number };
 }) {
-  if (status === "empty") return <span className="text-muted-foreground">0 caratteri</span>;
+  const t = useT();
+  if (status === "empty") return <span className="text-muted-foreground">{t("0 caratteri")}</span>;
   return (
     <span
       className={cn(
@@ -364,7 +369,7 @@ function CounterBadge({
       {status === "ok" && <CheckCircle2 className="h-3 w-3" />}
       {status === "warn" && <AlertTriangle className="h-3 w-3" />}
       {status === "bad" && <AlertTriangle className="h-3 w-3" />}
-      {len} / {ideal.ideal_max} car.
+      {len} / {ideal.ideal_max} {t("car.")}
     </span>
   );
 }

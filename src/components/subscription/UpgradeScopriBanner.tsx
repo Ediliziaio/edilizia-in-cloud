@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type ScopriWallType =
   | "max_orders"
@@ -114,6 +115,7 @@ interface UpgradeScopriWallProps {
 }
 
 export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeScopriWallProps) {
+  const t = useT();
   const navigate = useNavigate();
   const msg = WALL_MESSAGES[type];
   // Dal telefono il piano non si cambia (regola dell'utente, 25/09/2026): lo
@@ -137,10 +139,10 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
         <Lock className={cn("text-orange-600 flex-shrink-0", inline ? "h-6 w-6 mx-auto mb-1" : "h-4 w-4")} />
         <div className={inline ? "" : "flex-1 min-w-0"}>
           <p className="text-sm font-medium text-orange-900 dark:text-orange-200">
-            Funzionalità non inclusa nel tuo piano attuale
+            {t("Funzionalità non inclusa nel tuo piano attuale")}
           </p>
           <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
-            {isMobileAppRuntime ? "Per ampliare il piano contatta l'assistenza." : "Il piano si cambia dal computer."}
+            {isMobileAppRuntime ? t("Per ampliare il piano contatta l'assistenza.") : t("Il piano si cambia dal computer.")}
           </p>
         </div>
       </div>
@@ -153,26 +155,26 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
         <div className="text-4xl">{msg.icon}</div>
         <div>
           <h3 className="font-semibold text-base text-gray-900 dark:text-gray-100 mb-1">
-            {msg.title}
+            {t(msg.title)}
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
-            {msg.desc}
+            {t(msg.desc)}
           </p>
         </div>
         <div className="flex items-center justify-center gap-3">
           <Button onClick={handleUpgrade} className="gap-2 bg-[#E8521A] hover:bg-[#d44714] text-white">
             <Sparkles className="h-4 w-4" />
-            {msg.cta}
+            {t(msg.cta)}
             <ArrowRight className="h-4 w-4" />
           </Button>
           {onDismiss && (
             <Button variant="ghost" size="sm" onClick={onDismiss} className="text-gray-500">
-              Non ora
+              {t("Non ora")}
             </Button>
           )}
         </div>
         <p className="text-xs text-gray-400">
-          Starter a {"\u20ac"}127/mese {"\u00b7"} 31 giorni gratis {"\u00b7"} Nessuna carta per il trial
+          {t("Starter a €127/mese · 31 giorni gratis · Nessuna carta per il trial")}
         </p>
       </div>
     );
@@ -183,10 +185,10 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
       <Lock className="h-4 w-4 text-orange-600 flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-orange-900 dark:text-orange-200">
-          {msg.title}
+          {t(msg.title)}
         </p>
         <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5 truncate">
-          {msg.desc}
+          {t(msg.desc)}
         </p>
       </div>
       <Button
@@ -195,7 +197,7 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
         className="flex-shrink-0 gap-1.5 bg-[#E8521A] hover:bg-[#d44714] text-white"
       >
         <Sparkles className="h-3.5 w-3.5" />
-        Aggiorna
+        {t("Aggiorna")}
       </Button>
     </div>
   );
@@ -209,6 +211,7 @@ interface ScopriProgressBannerProps {
 }
 
 export function ScopriProgressBanner({ usedOrders, maxOrders, planName = "Scopri" }: ScopriProgressBannerProps) {
+  const t = useT();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const remaining = maxOrders - usedOrders;
@@ -228,12 +231,10 @@ export function ScopriProgressBanner({ usedOrders, maxOrders, planName = "Scopri
           <span className={cn(
             "font-medium text-xs",
             isNearLimit ? "text-orange-700 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"
-          )}>
-            {usedOrders}/{maxOrders} cantieri {"\u00b7"} Piano {planName}
-          </span>
+          )}>{t("{usedOrders}/{maxOrders} cantieri · Piano {planName}", { usedOrders, maxOrders, planName })}</span>
           {isNearLimit && (
             <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-700 bg-orange-50">
-              Quasi al limite
+              {t("Quasi al limite")}
             </Badge>
           )}
         </div>
@@ -256,7 +257,7 @@ export function ScopriProgressBanner({ usedOrders, maxOrders, planName = "Scopri
           className="flex-shrink-0 text-xs h-7 border-orange-300 text-orange-700 hover:bg-orange-100"
           onClick={() => navigate("/azienda/impostazioni/abbonamento")}
         >
-          Aggiorna {"\u2192"}
+          {t("Aggiorna")} {"\u2192"}
         </Button>
       )}
     </div>

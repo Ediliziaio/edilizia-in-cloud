@@ -4,6 +4,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function DiscardDocumentDraft({ disabled, onDiscard, etichetta = "Annulla modifiche", descrizione }: {
   disabled?: boolean;
@@ -11,23 +12,24 @@ export function DiscardDocumentDraft({ disabled, onDiscard, etichetta = "Annulla
   etichetta?: string;
   descrizione?: string;
 }) {
+  const t = useT();
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button type="button" size="sm" variant="outline" disabled={disabled}>
-          <Undo2 className="mr-1.5 h-4 w-4" aria-hidden="true" />{etichetta}
+          <Undo2 className="mr-1.5 h-4 w-4" aria-hidden="true" />{t(etichetta)}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Scartare le modifiche alla bozza?</AlertDialogTitle>
+          <AlertDialogTitle>{t("Scartare le modifiche alla bozza?")}</AlertDialogTitle>
           <AlertDialogDescription>
-            {descrizione ?? "Ritroverai i valori con cui hai aperto il modello o quelli dell’ultimo salvataggio."}
+            {descrizione ?? t("Ritroverai i valori con cui hai aperto il modello o quelli dell’ultimo salvataggio.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Continua a modificare</AlertDialogCancel>
-          <AlertDialogAction onClick={onDiscard}>Scarta modifiche</AlertDialogAction>
+          <AlertDialogCancel>{t("Continua a modificare")}</AlertDialogCancel>
+          <AlertDialogAction onClick={onDiscard}>{t("Scarta modifiche")}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

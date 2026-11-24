@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { dataOraNota, firmaNota, type ProfiloAutore } from "@/lib/marketing/autoreNota";
 import { testoNotaDaSalvare } from "@/lib/marketing/modificaNota";
 import { useModificaNota } from "@/hooks/useModificaNota";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface NotaDaMostrare {
   id: string;
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function NotaModificabile({ nota, puoModificare, compatta = false, className, intestazione }: Props) {
+  const t = useT();
   const [inModifica, setInModifica] = useState(false);
   const [testo, setTesto] = useState(nota.content ?? "");
   const modifica = useModificaNota();
@@ -67,7 +69,7 @@ export function NotaModificabile({ nota, puoModificare, compatta = false, classN
             rows={compatta ? 3 : 4}
             className={testoCls}
             autoFocus
-            aria-label="Testo della nota"
+            aria-label={t("Testo della nota")}
             onKeyDown={(e) => {
               if (e.key === "Escape") setInModifica(false);
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") salva();
@@ -82,7 +84,7 @@ export function NotaModificabile({ nota, puoModificare, compatta = false, classN
               onClick={() => setInModifica(false)}
               disabled={modifica.isPending}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               type="button"
@@ -91,7 +93,7 @@ export function NotaModificabile({ nota, puoModificare, compatta = false, classN
               onClick={salva}
               disabled={modifica.isPending || !testo.trim()}
             >
-              {modifica.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Salva"}
+              {modifica.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("Salva")}
             </Button>
           </div>
         </div>
@@ -105,8 +107,8 @@ export function NotaModificabile({ nota, puoModificare, compatta = false, classN
               size="icon"
               className={cn("shrink-0 text-muted-foreground hover:text-foreground", compatta ? "h-5 w-5" : "h-7 w-7")}
               onClick={apri}
-              aria-label="Modifica nota"
-              title="Modifica nota"
+              aria-label={t("Modifica nota")}
+              title={t("Modifica nota")}
             >
               <Pencil className={compatta ? "h-3 w-3" : "h-3.5 w-3.5"} />
             </Button>
@@ -116,7 +118,7 @@ export function NotaModificabile({ nota, puoModificare, compatta = false, classN
       {/* Chi l'ha scritta e quando; se corretta, anche quando. */}
       <p className={cn("text-muted-foreground", compatta ? "text-[10px]" : "mt-2 text-[11px]")}>
         {firmaNota(nota.created_at, nota.profiles)}
-        {nota.updated_at ? ` · modificata ${dataOraNota(nota.updated_at)}` : ""}
+        {nota.updated_at ? ` · ${t("modificata {data}", { data: dataOraNota(nota.updated_at) })}` : ""}
       </p>
     </div>
   );

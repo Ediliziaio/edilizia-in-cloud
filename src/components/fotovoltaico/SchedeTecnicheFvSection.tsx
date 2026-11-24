@@ -13,6 +13,7 @@ import { ExternalLink, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DocRow {
   id: string;
@@ -29,6 +30,7 @@ interface DocRow {
 const db = supabase as any;
 
 export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articoloId: string; puoModificare: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const key = ["articoli-native-documenti", articoloId];
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -50,8 +52,8 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
   });
 
   const carica = async (file: File) => {
-    if (file.type !== "application/pdf") return toast.error("Carica un file PDF");
-    if (file.size > 25 * 1024 * 1024) return toast.error("PDF troppo grande (max 25 MB)");
+    if (file.type !== "application/pdf") return toast.error(t("Carica un file PDF"));
+    if (file.size > 25 * 1024 * 1024) return toast.error(t("PDF troppo grande (max 25 MB)"));
     setUploading(true);
     try {
       const userId = (await supabase.auth.getUser()).data.user?.id;
@@ -63,7 +65,7 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
       const { error: upErr } = await supabase.storage
         .from("article-pdfs")
         .upload(path, file, { contentType: "application/pdf", upsert: false });
-      if (upErr) throw new Error(`Upload fallito: ${upErr.message}`);
+      if (upErr) throw new Error(t("Upload fallito: {errore}", { errore: upErr.message }));
       const { data: pub } = supabase.storage.from("article-pdfs").getPublicUrl(path);
       const { error: insErr } = await db.from("articoli_native_documenti").insert({
         company_id: companyId,
@@ -77,10 +79,10 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
         created_by: userId,
       });
       if (insErr) throw new Error(insErr.message);
-      toast.success("Scheda tecnica caricata");
+      toast.success(t("Scheda tecnica caricata"));
       qc.invalidateQueries({ queryKey: key });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore upload");
+      toast.error(e instanceof Error ? e.message : t("Errore upload"));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -93,7 +95,7 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : t("Errore")),
   });
 
   const elimina = useMutation({
@@ -102,16 +104,16 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Scheda rimossa");
+      toast.success(t("Scheda rimossa"));
       qc.invalidateQueries({ queryKey: key });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : t("Errore")),
   });
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="text-sm font-medium">Schede tecniche (PDF)</label>
+        <label className="text-sm font-medium">{t("Schede tecniche (PDF)")}</label>
         {puoModificare && (
           <>
             <input
@@ -125,18 +127,18 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
               }}
             />
             <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled={uploading} onClick={() => inputRef.current?.click()}>
-              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Carica PDF
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {t("Carica PDF")}
             </Button>
           </>
         )}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Le schede <b>autorizzate</b> («Allega» attivo) vengono accodate come pagine intere nel PDF del preventivo, prima delle condizioni contrattuali.
+        {t("Le schede")} <b>{t("autorizzate")}</b> {t("(«Allega» attivo) vengono accodate come pagine intere nel PDF del preventivo, prima delle condizioni contrattuali.")}
       </p>
       {isLoading ? (
-        <p className="text-xs text-muted-foreground">Caricamento…</p>
+        <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>
       ) : docs.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nessuna scheda tecnica caricata.</p>
+        <p className="text-xs text-muted-foreground">{t("Nessuna scheda tecnica caricata.")}</p>
       ) : (
         <ul className="divide-y rounded-md border">
           {docs.map((d) => (
@@ -145,16 +147,16 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
               <a href={d.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate hover:underline" title={d.nome}>
                 {d.nome}
               </a>
-              <a href={d.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground" title="Apri la scheda">
+              <a href={d.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground" title={t("Apri la scheda")}>
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
-              <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" title="Allega questa scheda al PDF del preventivo">
+              <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" title={t("Allega questa scheda al PDF del preventivo")}>
                 <Switch
                   checked={d.autorizzata}
                   disabled={!puoModificare || toggle.isPending}
                   onCheckedChange={(v) => toggle.mutate({ id: d.id, autorizzata: v })}
                 />
-                Allega
+                {t("Allega")}
               </label>
               {puoModificare && (
                 <Button
@@ -164,7 +166,7 @@ export function SchedeTecnicheFvSection({ articoloId, puoModificare }: { articol
                   className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
                   disabled={elimina.isPending}
                   onClick={() => elimina.mutate(d.id)}
-                  title="Rimuovi scheda"
+                  title={t("Rimuovi scheda")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

@@ -162,10 +162,11 @@ type Props = {
 };
 
 function PreparaPlanimetria({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  const t = useT();
   const { accessLevel } = useFeatureAccess("render_ai");
   if (accessLevel !== "enabled") return null;
   return <Button type="button" variant="outline" className="min-h-10 rounded-xl gap-2" disabled={disabled} onClick={onClick}>
-    <Ruler className="h-4 w-4" /> Prepara planimetria
+    <Ruler className="h-4 w-4" /> {t("Prepara planimetria")}
   </Button>;
 }
 
@@ -463,7 +464,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                 <PreparaPlanimetria disabled={editState.dirty || editState.saving}
                   onClick={() => navigate(() => routeTo(percorsiPlanimetrie.dalSopralluogo(survey.id, survey.order_id)))} />}
               {access.field && access.canEdit && <SurveyFieldHandoff compact={small} detail={detail} disabled={editState.dirty || editState.saving}/>}
-              {!access.field && !solaLettura && ["fotovoltaico", "climatizzazione"].includes(detail.template.category) && <Button variant="outline" className="min-h-11 rounded-xl" disabled={editState.dirty || editState.saving} onClick={()=>navigate(()=>routeTo(energyQuoteHref(detail)))}>Prepara preventivo dal rilievo</Button>}
+              {!access.field && !solaLettura && ["fotovoltaico", "climatizzazione"].includes(detail.template.category) && <Button variant="outline" className="min-h-11 rounded-xl" disabled={editState.dirty || editState.saving} onClick={()=>navigate(()=>routeTo(energyQuoteHref(detail)))}>{tr("Prepara preventivo dal rilievo")}</Button>}
               {!access.field && !solaLettura && <DocumentoDalRilievo detail={detail} disabled={editState.dirty || editState.saving} />}
               {!access.field && <TecnicoDalCommerciale survey={survey} disabled={editState.dirty || editState.saving} />}
               {!access.field && !solaLettura && onEdit && (
@@ -473,7 +474,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   onClick={() => navigate(onEdit)}
                 >
                   <Pencil className="h-4 w-4" />
-                  Modifica
+                  {tr("Modifica")}
                 </Button>
               )}
               {embedded && (
@@ -493,7 +494,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                     }}
                   >
                     <ExternalLink className="h-4 w-4" />
-                    Apri pagina
+                    {tr("Apri pagina")}
                   </Link>
                 </Button>
               )}
@@ -558,7 +559,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   }}
                 >
                   <ClipboardList className="h-3.5 w-3.5" />
-                  Vedi commessa
+                  {tr("Vedi commessa")}
                 </Link>
               )}
             </div>

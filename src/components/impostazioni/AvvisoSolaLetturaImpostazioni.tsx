@@ -1,4 +1,5 @@
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * La frase di chi apre una pagina di impostazioni che può vedere ma non cambiare: è la stessa in tutte le pagine
@@ -6,9 +7,8 @@ import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
  * I comandi della pagina restano spenti o nascosti: questa riga dice perché.
  */
 export function AvvisoSolaLetturaImpostazioni({ permesso }: { permesso: string }) {
+  const t = useT();
   return (
-    <AvvisoSolaLettura>
-      Stai consultando queste impostazioni: le cambia chi ha «{permesso}» in modifica.
-    </AvvisoSolaLettura>
+    <AvvisoSolaLettura>{t("Stai consultando queste impostazioni: le cambia chi ha «{permesso}» in modifica.", { permesso: String(permesso ?? "") })}</AvvisoSolaLettura>
   );
 }

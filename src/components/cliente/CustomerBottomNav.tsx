@@ -12,6 +12,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface NavItem {
   label: string;
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function CustomerBottomNav({ unreadCount = 0 }: Props) {
+  const t = useT();
   const location = useLocation();
 
   const isActive = (item: NavItem) => {
@@ -44,7 +46,7 @@ export function CustomerBottomNav({ unreadCount = 0 }: Props) {
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-t border-border/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      aria-label="Navigazione cliente"
+      aria-label={t("Navigazione cliente")}
     >
       <div className="flex items-stretch h-16">
         {NAV_ITEMS.map((item) => {
@@ -56,7 +58,7 @@ export function CustomerBottomNav({ unreadCount = 0 }: Props) {
               key={item.href}
               to={item.href}
               className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
-              aria-label={item.label}
+              aria-label={t(item.label)}
               aria-current={active ? "page" : undefined}
             >
               <div
@@ -88,7 +90,7 @@ export function CustomerBottomNav({ unreadCount = 0 }: Props) {
                     : "text-muted-foreground font-medium"
                 )}
               >
-                {item.label}
+                {t(item.label)}
               </span>
             </Link>
           );

@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import type { CruscottoFiltersState, CruscottoDatePreset } from "@/hooks/useCruscottoData";
 import { cn } from "@/lib/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   filters: CruscottoFiltersState;
@@ -27,6 +27,7 @@ const DATE_PRESETS: { value: CruscottoDatePreset; label: string }[] = [
 ];
 
 export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpdate, compact, className }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   return (
     <div className={cn("flex min-w-0 flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3", className)}>
@@ -42,7 +43,7 @@ export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpda
             className="h-7 shrink-0 px-2.5 text-xs"
             onClick={() => onUpdate({ datePreset: p.value })}
           >
-            {p.label}
+            {t(p.label)}
           </Button>
         ))}
       </div>
@@ -50,9 +51,9 @@ export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpda
       {filters.datePreset === "custom" && (
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" aria-label={`Intervallo personalizzato: dal ${format(filters.dateFrom, "dd MMM yyyy", { locale: it })} al ${format(filters.dateTo, "dd MMM yyyy", { locale: it })}`}>
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" aria-label={t("Intervallo personalizzato: dal {dateFrom} al {dateTo}", { dateFrom: format(filters.dateFrom, "dd MMM yyyy", { locale: dateFnsCampo() }), dateTo: format(filters.dateTo, "dd MMM yyyy", { locale: dateFnsCampo() }) })}>
               <CalendarDays className="h-3.5 w-3.5" />
-              {format(filters.dateFrom, "dd MMM", { locale: it })} – {format(filters.dateTo, "dd MMM", { locale: it })}
+              {format(filters.dateFrom, "dd MMM", { locale: dateFnsCampo() })} – {format(filters.dateTo, "dd MMM", { locale: dateFnsCampo() })}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="max-h-[var(--radix-popover-content-available-height)] w-auto overflow-y-auto p-0" align="start">
@@ -62,7 +63,7 @@ export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpda
               onSelect={(range) => {
                 if (range?.from) onUpdate({ dateFrom: range.from, dateTo: range.to || range.from });
               }}
-              locale={it}
+              locale={dateFnsCampo()}
               numberOfMonths={isMobile ? 1 : 2}
               className="pointer-events-auto"
             />

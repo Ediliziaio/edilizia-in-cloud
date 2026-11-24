@@ -14,6 +14,7 @@ import {
 import { Calendar, ListChecks, FileText, EyeOff } from "lucide-react";
 import type { SrProgettoRow } from "@/types/serramenti";
 import { SrCard } from "@/lib/serramenti/wizardUI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il campo «datetime-local» mostra e restituisce l'ora locale. Riempirlo con
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function StepConsulenza({ form, onChange }: Props) {
+  const t = useT();
   // Prossimi passi (default + custom)
   const prossimiPassi = (form.prossimi_passi ?? [
     "Ci vediamo per la consulenza tecnica",
@@ -57,13 +59,13 @@ export function StepConsulenza({ form, onChange }: Props) {
     <div className="space-y-3">
       {/* Appuntamento */}
       <SrCard
-        title="Appuntamento di consulenza"
-        description="Data, ora e luogo dell'incontro con il consulente. Compariranno nella pagina 3 del PDF."
+        title={t("Appuntamento di consulenza")}
+        description={t("Data, ora e luogo dell'incontro con il consulente. Compariranno nella pagina 3 del PDF.")}
         icon={<Calendar className="h-4 w-4" />}
       >
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-7 md:col-span-6">
-            <Label className="text-xs">Data e ora</Label>
+            <Label className="text-xs">{t("Data e ora")}</Label>
             <Input
               type="datetime-local"
               defaultValue={perCampoDataOra(form.consulenza_at)}
@@ -72,19 +74,19 @@ export function StepConsulenza({ form, onChange }: Props) {
             />
           </div>
           <div className="col-span-5 md:col-span-6">
-            <Label className="text-xs">Luogo</Label>
+            <Label className="text-xs">{t("Luogo")}</Label>
             <Select
               value={form.consulenza_luogo ?? ""}
               onValueChange={(v) => onChange("consulenza_luogo", v)}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Scegli..." />
+                <SelectValue placeholder={t("Scegli...")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="A casa tua">A casa tua</SelectItem>
-                <SelectItem value="In showroom">In showroom</SelectItem>
-                <SelectItem value="Video-call">Video-call</SelectItem>
-                <SelectItem value="In cantiere">In cantiere</SelectItem>
+                <SelectItem value="A casa tua">{t("A casa tua")}</SelectItem>
+                <SelectItem value="In showroom">{t("In showroom")}</SelectItem>
+                <SelectItem value="Video-call">{t("Video-call")}</SelectItem>
+                <SelectItem value="In cantiere">{t("In cantiere")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -98,8 +100,8 @@ export function StepConsulenza({ form, onChange }: Props) {
       {/* Prossimi passi */}
       {/* Testo del modello, che dal telefono non si ritocca. */}
       <SrCard
-        title="Prossimi passi"
-        description="I 4 step che il cliente vedrà in fondo al PDF (pagina 3)."
+        title={t("Prossimi passi")}
+        description={t("I 4 step che il cliente vedrà in fondo al PDF (pagina 3).")}
         icon={<ListChecks className="h-4 w-4" />}
         className="max-md:hidden"
       >
@@ -112,7 +114,7 @@ export function StepConsulenza({ form, onChange }: Props) {
               <Input
                 value={prossimiPassi[idx] ?? ""}
                 onChange={(e) => updatePasso(idx, e.target.value)}
-                placeholder="Es. Ci vediamo per la consulenza tecnica"
+                placeholder={t("Es. Ci vediamo per la consulenza tecnica")}
                 className="h-9 text-xs flex-1"
               />
             </div>
@@ -125,14 +127,14 @@ export function StepConsulenza({ form, onChange }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Note per il cliente — visibili nel PDF emesso */}
         <SrCard
-          title="Note per il cliente"
-          description="Compaiono nel PDF preventivo. Usale per condizioni speciali, tempi consegna, scelte di stile concordate."
+          title={t("Note per il cliente")}
+          description={t("Compaiono nel PDF preventivo. Usale per condizioni speciali, tempi consegna, scelte di stile concordate.")}
           icon={<FileText className="h-4 w-4 text-orange-600" />}
         >
           <Textarea
             defaultValue={form.note_cliente ?? ""}
             onBlur={(e) => onChange("note_cliente", e.target.value || null)}
-            placeholder="Es: Consegna entro 30 giorni dall'accettazione. Colore RAL custom su misura, eventuali ritocchi inclusi."
+            placeholder={t("Es: Consegna entro 30 giorni dall'accettazione. Colore RAL custom su misura, eventuali ritocchi inclusi.")}
             rows={4}
             // Telefono: il testo scritto resta a 16px (sotto, iOS ingrandisce la pagina al tocco);
             // più piccoli il suggerimento e la casella.
@@ -140,27 +142,27 @@ export function StepConsulenza({ form, onChange }: Props) {
           />
           <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1 max-md:hidden">
             <FileText className="h-3 w-3" />
-            Questo testo apparirà nel PDF inviato al cliente.
+            {t("Questo testo apparirà nel PDF inviato al cliente.")}
           </p>
         </SrCard>
 
         {/* Note interne — solo backoffice, mai esposte */}
         <SrCard
-          title="Note interne"
-          description="Solo per il backoffice — non compaiono nel PDF cliente."
+          title={t("Note interne")}
+          description={t("Solo per il backoffice — non compaiono nel PDF cliente.")}
           icon={<EyeOff className="h-4 w-4" />}
           variant="muted"
         >
           <Textarea
             defaultValue={form.note_interne ?? ""}
             onBlur={(e) => onChange("note_interne", e.target.value || null)}
-            placeholder="Vincoli, ferie cliente, urgenze, eccezioni, promemoria interni..."
+            placeholder={t("Vincoli, ferie cliente, urgenze, eccezioni, promemoria interni...")}
             rows={4}
             className="max-md:h-[72px] max-md:min-h-0 max-md:placeholder:text-[13px]"
           />
           <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1 max-md:hidden">
             <EyeOff className="h-3 w-3" />
-            Visibili solo allo staff. <strong>Mai</strong> esposte al cliente.
+            {t("Visibili solo allo staff.")} <strong>{t("Mai")}</strong> {t("esposte al cliente.")}
           </p>
         </SrCard>
       </div>

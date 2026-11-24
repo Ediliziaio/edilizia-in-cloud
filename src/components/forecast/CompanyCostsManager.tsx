@@ -4,7 +4,6 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths, endOfMonth, startOfMonth } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   AlertTriangle, ArrowRight, CalendarIcon, CheckCircle2, ChevronLeft, ChevronRight, Download, FilterX, Landmark, Link2, ListChecks, MoreHorizontal, Plus, Repeat, Search, Settings2, Upload, Users, WalletCards,
 } from "lucide-react";
@@ -48,6 +47,7 @@ import { CostsTable } from "./CostsTable";
 import { CostFormDialog } from "./CostFormDialog";
 import { CostsDialogs } from "./CostsDialogs";
 import { CostBudgetManager } from "./CostBudgetManager";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const COST_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome", required: true },
@@ -107,6 +107,7 @@ export function CostIntegrationPanel({
   onShowMissingCategories: () => void;
   onShowMissingSuppliers: () => void;
 }) {
+  const t = useT();
   const qualityIssues = missingCategory + missingSupplier + unscheduled;
   // «Fornitori» porta a Impostazioni → Fornitori, che chiede un altro permesso di «Costi» (16 persone vedono i costi,
   // 6 i fornitori): il collegamento si mostra solo a chi ci può entrare. «Categorie» no, usa lo stesso permesso dei costi.
@@ -120,9 +121,9 @@ export function CostIntegrationPanel({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">I costi, in ordine</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t("I costi, in ordine")}</h3>
             <Badge variant={qualityIssues > 0 ? "outline" : "secondary"} className={qualityIssues > 0 ? "border-orange-300 text-orange-700" : ""}>
-              {qualityIssues > 0 ? `${qualityIssues} da sistemare` : "Tutto in ordine"}
+              {qualityIssues > 0 ? t("{qualityIssues} da sistemare", { qualityIssues: String(qualityIssues ?? "") }) : t("Tutto in ordine")}
             </Badge>
           </div>
         </div>
@@ -132,54 +133,48 @@ export function CostIntegrationPanel({
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-border bg-muted/50/70 p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da dove arrivano</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Da dove arrivano")}</span>
             <Landmark className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="mt-2 text-lg font-semibold">{summary.manual + summary.linked} costi registrati</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {summary.manual} inseriti a mano · {summary.linked} arrivati da ordini, personale e provvigioni
-          </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {formatCurrency(summary.totalAmount)} in tutto lo storico, stipendi prossimi 12 mesi inclusi
-          </p>
+          <div className="mt-2 text-lg font-semibold">{t("{manual} costi registrati", { manual: summary.manual + summary.linked })}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{t("{manual} inseriti a mano · {linked} arrivati da ordini, personale e provvigioni", { manual: String(summary.manual ?? ""), linked: String(summary.linked ?? "") })}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t("{totalAmount} in tutto lo storico, stipendi prossimi 12 mesi inclusi", { totalAmount: formatCurrency(summary.totalAmount) })}</p>
           <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-xs" onClick={onShowOrderCosts}>
-            Vedi costi collegati <ArrowRight className="h-3.5 w-3.5" />
+            {t("Vedi costi collegati")} <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
 
         <div className="rounded-xl border border-border bg-muted/50/70 p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da sistemare</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Da sistemare")}</span>
             <ListChecks className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="mt-2 text-lg font-semibold">{qualityIssues > 0 ? `${qualityIssues} costi incompleti` : "Niente da sistemare"}</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {missingCategory} senza categoria · {missingSupplier} senza fornitore · {unscheduled} senza scadenza
-          </p>
+          <div className="mt-2 text-lg font-semibold">{qualityIssues > 0 ? t("{qualityIssues} costi incompleti", { qualityIssues: String(qualityIssues ?? "") }) : t("Niente da sistemare")}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{t("{missingCategory} senza categoria · {missingSupplier} senza fornitore · {unscheduled} senza scadenza", { missingCategory: String(missingCategory ?? ""), missingSupplier: String(missingSupplier ?? ""), unscheduled: String(unscheduled ?? "") })}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {missingCategory > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingCategories}>Categorie</Button>}
-            {missingSupplier > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingSuppliers}>Fornitori</Button>}
-            {unscheduled > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowUnscheduled}>Scadenze</Button>}
-            {qualityIssues === 0 && <span className="text-xs text-emerald-700 dark:text-emerald-400">Tutti i costi hanno categoria, fornitore e scadenza.</span>}
+            {missingCategory > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingCategories}>{t("Categorie")}</Button>}
+            {missingSupplier > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingSuppliers}>{t("Fornitori")}</Button>}
+            {unscheduled > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowUnscheduled}>{t("Scadenze")}</Button>}
+            {qualityIssues === 0 && <span className="text-xs text-emerald-700 dark:text-emerald-400">{t("Tutti i costi hanno categoria, fornitore e scadenza.")}</span>}
           </div>
         </div>
 
         <div className="rounded-xl border border-border bg-muted/50/70 p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Già pagato</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Già pagato")}</span>
             <WalletCards className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="mt-2 text-lg font-semibold">{paidPct}% del totale</div>
+          <div className="mt-2 text-lg font-semibold">{t("{paidPct}% del totale", { paidPct: String(paidPct ?? "") })}</div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
               <Link to="/azienda/impostazioni/categorie-costi">
-                <Settings2 className="h-3.5 w-3.5" /> Categorie
+                <Settings2 className="h-3.5 w-3.5" /> {t("Categorie")}
               </Link>
             </Button>
             {puoVedereFornitori && (
               <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
                 <Link to="/azienda/impostazioni/fornitori">
-                  <Users className="h-3.5 w-3.5" /> Fornitori
+                  <Users className="h-3.5 w-3.5" /> {t("Fornitori")}
                 </Link>
               </Button>
             )}
@@ -223,6 +218,8 @@ export default function CompanyCostsManager({
    */
   typeLock?: "fixed" | "variable";
 }) {
+  const t = useT();
+  const [proiezionePrima, proiezioneDopo = ""] = t("La proiezione di cassa (30/60/90 giorni e 13 settimane) vive nel {link}.").split("{link}");
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -489,7 +486,7 @@ export default function CompanyCostsManager({
       .then(({ data: trovato }) => {
         if (!vivo) return;
         if (trovato) openEdit(trovato as unknown as UnifiedCost);
-        else toast({ title: "Costo non trovato", variant: "destructive" });
+        else toast({ title: t("Costo non trovato"), variant: "destructive" });
         // Si toglie il parametro ma si resta nelle spese: senza «tab» la pagina tornerebbe alla
         // panoramica e chiuderebbe la scheda appena aperta.
         setSearchParams((prev) => {
@@ -568,8 +565,8 @@ export default function CompanyCostsManager({
         // Riga sintetica calcolata dal contratto: non c'è nulla da aggiornare
         // nel DB (prima finiva in UPDATE company_costs con id non-uuid → 22P02).
         toast({
-          title: "Gli stipendi non si registrano da qui",
-          description: "Sono calcolati dal contratto in anagrafica e risultano pagati automaticamente a mese chiuso.",
+          title: t("Gli stipendi non si registrano da qui"),
+          description: t("Sono calcolati dal contratto in anagrafica e risultano pagati automaticamente a mese chiuso."),
         });
         break;
       default:
@@ -618,7 +615,7 @@ export default function CompanyCostsManager({
     if (txError) {
       // Il costo è già segnato pagato: avvisare senza far fallire l'operazione.
       toast({
-        title: "Costo pagato, ma il movimento bancario non è stato marcato",
+        title: t("Costo pagato, ma il movimento bancario non è stato marcato"),
         description: txError.message,
         variant: "destructive",
       });
@@ -761,8 +758,7 @@ export default function CompanyCostsManager({
         {/* Il "Semaforo Cassa 30/60/90" rifaceva qui il lavoro del Previsionale
             (che ha anche le 13 settimane): un rimando basta. */}
         <p className="text-sm text-muted-foreground">
-          La proiezione di cassa (30/60/90 giorni e 13 settimane) vive nel{" "}
-          <Link to="/azienda/previsionale" className="font-medium text-primary underline-offset-2 hover:underline">Previsionale</Link>.
+          {proiezionePrima}<Link to="/azienda/previsionale" className="font-medium text-primary underline-offset-2 hover:underline">{t("Previsionale")}</Link>{proiezioneDopo}
         </p>
       </div>
     );
@@ -770,7 +766,7 @@ export default function CompanyCostsManager({
 
   // ── Vista SPESE: gestione operativa (filtri, tabella, pagamenti) ───────────
   // Numeri della fascia in testata: pochi, nudi, cliccabili. Seguono i filtri.
-  const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
+  const eur0 = (v: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   const vociTipo = getItemsForTab(typeLock) as { amount?: number | string | null; isFromOrder?: boolean; supplier_id?: string | null; supplierName?: string | null }[];
   const sommaVoci = (list: { amount?: number | string | null }[]) => list.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   const perTipo = (list: { cost_type?: string }[]) => list.filter((c) => c.cost_type === typeLock);
@@ -796,14 +792,14 @@ export default function CompanyCostsManager({
               comunque»): la linguetta aperta dice già quali spese sono. */}
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
-              label="Totale"
+              label={t("Totale")}
               value={eur0(sommaVoci(vociTipo))}
               sub={`${vociTipo.length} voci · senza IVA`}
               icon={WalletCards}
               tone="text-orange-100"
             />
             <NavyStatCard
-              label="Scaduti"
+              label={t("Scaduti")}
               value={scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0"}
               sub={scadutiTipo.length > 0 ? `${scadutiTipo.length} da gestire` : "nessuno in ritardo"}
               icon={AlertTriangle}
@@ -813,7 +809,7 @@ export default function CompanyCostsManager({
             />
             {typeLock === "fixed" ? (
               <NavyStatCard
-                label="Ricorrenti"
+                label={t("Ricorrenti")}
                 value={<>{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-sm font-normal text-blue-50/70">/mese</span></>}
                 // 15/11/2026: le voci senza generazione automatica non creano i mesi in Costi
                 sub={`${ricorrentiSintesi.data?.attive ?? 0} voci${ricorrentiSintesi.data?.senzaAuto ? ` · ${ricorrentiSintesi.data.senzaAuto} non si generano` : ""}${soloLettura ? "" : " · gestisci"}`}
@@ -822,7 +818,7 @@ export default function CompanyCostsManager({
               />
             ) : (
               <NavyStatCard
-                label="Da moduli"
+                label={t("Da moduli")}
                 value={String(daModuliTipo.length)}
                 sub="ordini, team, provvigioni"
                 icon={Link2}
@@ -832,7 +828,7 @@ export default function CompanyCostsManager({
             )}
             {typeLock === "fixed" ? (
               <NavyStatCard
-                label="Pagato"
+                label={t("Pagato")}
                 value={eur0(sommaVoci(perTipo(data.statusTabLists.sostenuti) as { amount?: number | string | null }[]))}
                 sub={`${perTipo(data.statusTabLists.sostenuti).length} voci sostenute`}
                 icon={CheckCircle2}
@@ -842,7 +838,7 @@ export default function CompanyCostsManager({
               />
             ) : (
               <NavyStatCard
-                label="Senza fornitore"
+                label={t("Senza fornitore")}
                 value={String(senzaFornitoreTipo.length)}
                 sub={senzaFornitoreTipo.length > 0 ? "da completare" : "tutti assegnati"}
                 icon={Users}
@@ -858,11 +854,9 @@ export default function CompanyCostsManager({
             <Alert className="border-red-200 bg-red-50 text-red-900">
               <AlertTriangle className="h-4 w-4 text-red-600" />
               <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <span>
-                  Alcuni dati dei costi non sono stati caricati: {data.errorMessage}
-                </span>
+                <span>{t("Alcuni dati dei costi non sono stati caricati: {errorMessage}", { errorMessage: String(data.errorMessage ?? "") })}</span>
                 <Button variant="outline" size="sm" onClick={data.refetchAll}>
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -873,10 +867,10 @@ export default function CompanyCostsManager({
           <div className="flex flex-wrap items-center gap-2 max-sm:hidden">
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cerca tra i costi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 pl-9" />
+              <Input placeholder={t("Cerca tra i costi...")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 pl-9" />
             </div>
             <div className="flex items-center gap-0.5">
-              <Button variant="ghost" size="icon" className="h-9 w-7" aria-label="Mese precedente" onClick={() => stepMese(-1)}>
+              <Button variant="ghost" size="icon" className="h-9 w-7" aria-label={t("Mese precedente")} onClick={() => stepMese(-1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Select value={periodFilter} onValueChange={(v) => {
@@ -885,22 +879,22 @@ export default function CompanyCostsManager({
                 if (v !== "custom") setCustomDateRange(null);
               }}>
                 <SelectTrigger className="h-9 w-[150px]">
-                  <SelectValue placeholder="Periodo">
+                  <SelectValue placeholder={t("Periodo")}>
                     {selectedMonth
-                      ? format(selectedMonth, "MMMM yyyy", { locale: it }).replace(/^./, (c) => c.toUpperCase())
+                      ? format(selectedMonth, "MMMM yyyy", { locale: dateFnsCampo() }).replace(/^./, (c) => c.toUpperCase())
                       : undefined}
                   </SelectValue>
                 </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i periodi</SelectItem>
-                <SelectItem value="this_month">Questo mese</SelectItem>
-                <SelectItem value="next_month">Prossimo mese</SelectItem>
-                <SelectItem value="last_3_months">Ultimi 3 mesi</SelectItem>
-                <SelectItem value="this_year">Quest'anno</SelectItem>
-                <SelectItem value="custom">Personalizzato</SelectItem>
+                <SelectItem value="all">{t("Tutti i periodi")}</SelectItem>
+                <SelectItem value="this_month">{t("Questo mese")}</SelectItem>
+                <SelectItem value="next_month">{t("Prossimo mese")}</SelectItem>
+                <SelectItem value="last_3_months">{t("Ultimi 3 mesi")}</SelectItem>
+                <SelectItem value="this_year">{t("Quest'anno")}</SelectItem>
+                <SelectItem value="custom">{t("Personalizzato")}</SelectItem>
               </SelectContent>
               </Select>
-              <Button variant="ghost" size="icon" className="h-9 w-7" aria-label="Mese successivo" onClick={() => stepMese(1)}>
+              <Button variant="ghost" size="icon" className="h-9 w-7" aria-label={t("Mese successivo")} onClick={() => stepMese(1)}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -910,7 +904,7 @@ export default function CompanyCostsManager({
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className={cn("gap-1 text-xs", !customDateRange?.start && "text-muted-foreground")}>
                       <CalendarIcon className="h-3.5 w-3.5" />
-                      {customDateRange?.start ? format(customDateRange.start, "dd/MM/yy") : "Da"}
+                      {customDateRange?.start ? format(customDateRange.start, "dd/MM/yy") : t("Da")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -947,7 +941,7 @@ export default function CompanyCostsManager({
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9 gap-1.5">
                   <FilterX className="h-3.5 w-3.5" />
-                  Filtri
+                  {t("Filtri")}
                   {(supplierFilter !== "all" || categoryFilter !== "all" || methodFilter !== "all") && (
                     <Badge className="h-4 min-w-4 rounded-full bg-orange-500 px-1 text-[10px]">
                       {(supplierFilter !== "all" ? 1 : 0) + (categoryFilter !== "all" ? 1 : 0) + (methodFilter !== "all" ? 1 : 0)}
@@ -957,30 +951,30 @@ export default function CompanyCostsManager({
               </PopoverTrigger>
               <PopoverContent align="start" className="w-64 space-y-2 p-3">
             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Fornitore" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder={t("Fornitore")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i fornitori</SelectItem>
-                <SelectItem value="none">Senza fornitore</SelectItem>
+                <SelectItem value="all">{t("Tutti i fornitori")}</SelectItem>
+                <SelectItem value="none">{t("Senza fornitore")}</SelectItem>
                 {data.suppliers.map((s: { id: string; name: string }) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder={t("Categoria")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte le categorie</SelectItem>
-                <SelectItem value="none">Senza categoria</SelectItem>
+                <SelectItem value="all">{t("Tutte le categorie")}</SelectItem>
+                <SelectItem value="none">{t("Senza categoria")}</SelectItem>
                 {data.dynamicCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={methodFilter} onValueChange={setMethodFilter}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Metodo di pagamento" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder={t("Metodo di pagamento")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i metodi</SelectItem>
-                <SelectItem value="none">Senza metodo</SelectItem>
+                <SelectItem value="all">{t("Tutti i metodi")}</SelectItem>
+                <SelectItem value="none">{t("Senza metodo")}</SelectItem>
                 {METODI_PAGAMENTO_COSTO.map((m) => (
                   <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                 ))}
@@ -990,7 +984,7 @@ export default function CompanyCostsManager({
             </Popover>
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9 gap-1.5 text-muted-foreground">
-                <FilterX className="h-3.5 w-3.5" /> Pulisci
+                <FilterX className="h-3.5 w-3.5" /> {t("Pulisci")}
               </Button>
             )}
             {/* Azioni a destra della stessa riga: la testata navy e' solo numeri. */}
@@ -1002,31 +996,31 @@ export default function CompanyCostsManager({
                   onClick={() => setBankReconcileOpen(true)}
                   className="h-9 gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
                 >
-                  <Landmark className="h-4 w-4" /> Riconcilia banca
+                  <Landmark className="h-4 w-4" /> {t("Riconcilia banca")}
                 </Button>
               )}
               {/* Importa ed Esporta nel menu «⋯»: con Riconcilia e Nuovo erano
                   quattro bottoni e a 768 la riga andava a capo. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altre azioni" title="Altre azioni">
+                  <Button variant="outline" size="icon" className="h-9 w-9" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {!soloLettura && (
                     <DropdownMenuItem className="gap-2" onSelect={() => setImportOpen(true)}>
-                      <Upload className="h-4 w-4" /> Importa
+                      <Upload className="h-4 w-4" /> {t("Importa")}
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem className="gap-2" onSelect={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }}>
-                    <Download className="h-4 w-4" /> Esporta CSV
+                  <DropdownMenuItem className="gap-2" onSelect={() => { data.exportCostsCSV(); toast({ title: t("CSV esportato") }); }}>
+                    <Download className="h-4 w-4" /> {t("Esporta CSV")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               {!soloLettura && (
                 <Button size="sm" onClick={() => openCreate(typeLock)} className="h-9 gap-1 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                  <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
+                  <Plus className="h-4 w-4" /> {typeLock === "fixed" ? t("Nuovo costo fisso") : t("Nuovo costo variabile")}
                 </Button>
               )}
             </div>
@@ -1038,9 +1032,9 @@ export default function CompanyCostsManager({
           <KpiMobili
             className="sm:hidden max-sm:-order-1"
             voci={[
-              { label: "Totale", valore: eur0(sommaVoci(vociTipo)) },
+              { label: t("Totale"), valore: eur0(sommaVoci(vociTipo)) },
               {
-                label: "Scaduti",
+                label: t("Scaduti"),
                 valore: scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0",
                 tono: scadutiTipo.length > 0 ? "text-rose-600" : undefined,
                 onClick: () => (statusTabFilter === "in_ritardo" ? setStatusTabFilter("all") : showOverdueCosts()),
@@ -1053,14 +1047,14 @@ export default function CompanyCostsManager({
           <div className="flex items-center gap-2 sm:hidden max-sm:-order-1">
             <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cerca" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 bg-background pl-9 text-sm" />
+              <Input placeholder={t("Cerca")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 bg-background pl-9 text-sm" />
             </div>
             <BottoneFiltri attivi={nFiltriMobile} onClick={() => setFiltriMobileAperti(true)} />
             {!soloLettura && (
               <Button
                 size="icon"
                 onClick={() => openCreate(typeLock)}
-                aria-label={typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
+                aria-label={typeLock === "fixed" ? t("Nuovo costo fisso") : t("Nuovo costo variabile")}
                 className="tap-compact h-9 w-9 shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600"
               >
                 <Plus className="h-4 w-4" />
@@ -1069,7 +1063,7 @@ export default function CompanyCostsManager({
           </div>
           {soloLettura && (
             <AvvisoSolaLettura>
-              Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
+              {t("Sola lettura: qui serve il permesso «Costi», e chi ce l'ha in «Sola lettura» non può scrivere.")}
             </AvvisoSolaLettura>
           )}
 
@@ -1097,16 +1091,16 @@ export default function CompanyCostsManager({
               <div className="rounded-xl border border-border bg-gradient-to-br from-card to-orange-50/40 p-3 sm:p-4 max-sm:hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase text-muted-foreground">Andamento 12 mesi</p>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Andamento 12 mesi")}</p>
                     <h3 className="mt-0.5 text-base font-semibold text-foreground">
-                      {typeLock === "fixed" ? "Spese fisse e pagamenti" : "Spese variabili e pagamenti"}
+                      {typeLock === "fixed" ? t("Spese fisse e pagamenti") : t("Spese variabili e pagamenti")}
                     </h3>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
-                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-blue-600" /> Spese</span>
-                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-orange-500" /> Pagato</span>
-                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-foreground" /> N. voci</span>
-                    <span className="text-muted-foreground">clicca un mese per filtrarlo</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-blue-600" /> {t("Spese")}</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-orange-500" /> {t("Pagato")}</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-foreground" /> {t("N. voci")}</span>
+                    <span className="text-muted-foreground">{t("clicca un mese per filtrarlo")}</span>
                   </div>
                 </div>
                 <div className="mt-3 h-[220px] rounded-xl border border-border/60 bg-card p-3 shadow-sm">
@@ -1146,13 +1140,13 @@ export default function CompanyCostsManager({
                           boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                         }}
                         formatter={(value, name) => {
-                          if (name === "n") return [Number(value).toLocaleString("it-IT"), "N. voci"];
+                          if (name === "n") return [Number(value).toLocaleString(intlCampo()), t("N. voci")];
                           return [
-                            Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }),
-                            name === "totale" ? "Spese" : "Pagato",
+                            Number(value).toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }),
+                            name === "totale" ? t("Spese") : t("Pagato"),
                           ];
                         }}
-                        labelFormatter={(label) => `Mese: ${label}`}
+                        labelFormatter={(label) => t("Mese: {mese}", { mese: String(label) })}
                       />
                       <Bar
                         yAxisId="money"
@@ -1197,12 +1191,12 @@ export default function CompanyCostsManager({
                   leftSlot={<div className="flex gap-1 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0 [&>button]:shrink-0">
             {([
               // Conteggi del SOLO tipo di questa tab: la tab gemella ha i suoi.
-              { value: "all" as StatusTabFilter, label: "Tutti", count: getItemsForTab(typeLock).length },
-              { value: "sostenuti" as StatusTabFilter, label: "Sostenuti", count: data.statusTabLists.sostenuti.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
-              { value: "previsti" as StatusTabFilter, label: "Previsti", count: data.statusTabLists.previsti.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
-              { value: "in_ritardo" as StatusTabFilter, label: "In ritardo", count: data.statusTabLists.inRitardo.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
-              { value: "in_scadenza" as StatusTabFilter, label: "In scadenza", count: data.statusTabLists.inScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
-              { value: "senza_scadenza" as StatusTabFilter, label: "Senza scadenza", count: data.statusTabLists.senzaScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "all" as StatusTabFilter, label: t("Tutti"), count: getItemsForTab(typeLock).length },
+              { value: "sostenuti" as StatusTabFilter, label: t("Sostenuti"), count: data.statusTabLists.sostenuti.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "previsti" as StatusTabFilter, label: t("Previsti"), count: data.statusTabLists.previsti.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "in_ritardo" as StatusTabFilter, label: t("In ritardo"), count: data.statusTabLists.inRitardo.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "in_scadenza" as StatusTabFilter, label: t("In scadenza"), count: data.statusTabLists.inScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "senza_scadenza" as StatusTabFilter, label: t("Senza scadenza"), count: data.statusTabLists.senzaScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
             ]).filter(tab => tab.count > 0 || tab.value === "all" || tab.value === statusTabFilter).map(tab => (
               <Button
                 key={tab.value}
@@ -1284,7 +1278,7 @@ export default function CompanyCostsManager({
         onTaskDialogChange={(open) => { if (!open) setTaskCostId(null); }}
       />
 
-      <CSVImportDialog open={importOpen} onOpenChange={setImportOpen} title="Importa Costi" fields={COST_IMPORT_FIELDS} onImport={mutations.handleCostsImport} />
+      <CSVImportDialog open={importOpen} onOpenChange={setImportOpen} title={t("Importa Costi")} fields={COST_IMPORT_FIELDS} onImport={mutations.handleCostsImport} />
 
       <PannelloFiltri
         aperto={filtriMobileAperti}
@@ -1294,7 +1288,7 @@ export default function CompanyCostsManager({
         risultati={getItemsForTab(typeLock).length}
       >
         <PilloleFiltro
-          titolo="Periodo"
+          titolo={t("Periodo")}
           valore={selectedMonth ? "custom" : periodFilter}
           onScegli={(v) => {
             setSelectedMonth(null);
@@ -1302,35 +1296,35 @@ export default function CompanyCostsManager({
             setPeriodFilter(v as PeriodFilter);
           }}
           scelte={[
-            { value: "all", label: "Tutti" },
-            { value: "this_month", label: "Questo mese" },
-            { value: "next_month", label: "Prossimo mese" },
-            { value: "last_3_months", label: "Ultimi 3 mesi" },
-            { value: "this_year", label: "Quest'anno" },
-            ...(selectedMonth || periodFilter === "custom" ? [{ value: "custom", label: selectedMonth ? format(selectedMonth, "MMMM yyyy", { locale: it }) : "Personalizzato" }] : []),
+            { value: "all", label: t("Tutti") },
+            { value: "this_month", label: t("Questo mese") },
+            { value: "next_month", label: t("Prossimo mese") },
+            { value: "last_3_months", label: t("Ultimi 3 mesi") },
+            { value: "this_year", label: t("Quest'anno") },
+            ...(selectedMonth || periodFilter === "custom" ? [{ value: "custom", label: selectedMonth ? format(selectedMonth, "MMMM yyyy", { locale: dateFnsCampo() }) : t("Personalizzato") }] : []),
           ]}
         />
         <PilloleFiltro
-          titolo="Stato"
+          titolo={t("Stato")}
           valore={statusTabFilter}
           onScegli={(v) => setStatusTabFilter(v as StatusTabFilter)}
           scelte={[
-            { value: "all", label: "Tutti", n: getItemsForTab(typeLock).length },
-            { value: "sostenuti", label: "Pagati", n: contaStato(data.statusTabLists.sostenuti) },
-            { value: "previsti", label: "Previsti", n: contaStato(data.statusTabLists.previsti) },
-            { value: "in_ritardo", label: "In ritardo", n: contaStato(data.statusTabLists.inRitardo) },
-            { value: "in_scadenza", label: "In scadenza", n: contaStato(data.statusTabLists.inScadenza) },
-            { value: "senza_scadenza", label: "Senza scadenza", n: contaStato(data.statusTabLists.senzaScadenza) },
+            { value: "all", label: t("Tutti"), n: getItemsForTab(typeLock).length },
+            { value: "sostenuti", label: t("Pagati"), n: contaStato(data.statusTabLists.sostenuti) },
+            { value: "previsti", label: t("Previsti"), n: contaStato(data.statusTabLists.previsti) },
+            { value: "in_ritardo", label: t("In ritardo"), n: contaStato(data.statusTabLists.inRitardo) },
+            { value: "in_scadenza", label: t("In scadenza"), n: contaStato(data.statusTabLists.inScadenza) },
+            { value: "senza_scadenza", label: t("Senza scadenza"), n: contaStato(data.statusTabLists.senzaScadenza) },
           ].filter((c) => c.n > 0 || c.value === "all" || c.value === statusTabFilter)}
         />
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Fornitore</p>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Fornitore")}</p>
             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Fornitore" /></SelectTrigger>
+              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder={t("Fornitore")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
-                <SelectItem value="none">Senza fornitore</SelectItem>
+                <SelectItem value="all">{t("Tutti")}</SelectItem>
+                <SelectItem value="none">{t("Senza fornitore")}</SelectItem>
                 {data.suppliers.map((s: { id: string; name: string }) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
@@ -1338,12 +1332,12 @@ export default function CompanyCostsManager({
             </Select>
           </div>
           <div>
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Categoria</p>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Categoria")}</p>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder={t("Categoria")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte</SelectItem>
-                <SelectItem value="none">Senza categoria</SelectItem>
+                <SelectItem value="all">{t("Tutte")}</SelectItem>
+                <SelectItem value="none">{t("Senza categoria")}</SelectItem>
                 {data.dynamicCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
@@ -1351,12 +1345,12 @@ export default function CompanyCostsManager({
             </Select>
           </div>
           <div className="col-span-2">
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Metodo di pagamento</p>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Metodo di pagamento")}</p>
             <Select value={methodFilter} onValueChange={setMethodFilter}>
-              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Metodo" /></SelectTrigger>
+              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder={t("Metodo")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
-                <SelectItem value="none">Senza metodo</SelectItem>
+                <SelectItem value="all">{t("Tutti")}</SelectItem>
+                <SelectItem value="none">{t("Senza metodo")}</SelectItem>
                 {METODI_PAGAMENTO_COSTO.map((m) => (
                   <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                 ))}

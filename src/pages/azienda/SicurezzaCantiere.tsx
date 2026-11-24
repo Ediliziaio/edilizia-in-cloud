@@ -96,6 +96,7 @@ import {
   isPastDate,
 } from "./SicurezzaCantiere/helpers";
 import { NOME_TIPO_SICUREZZA } from "@/lib/sicurezza/scadenzeCommessa";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** «Nomina dei coordinatori», non «nomina coordinatori». */
 const nomeTipoAdempimento = (tipo: string | null | undefined) =>
@@ -114,6 +115,7 @@ const SCHEDE = [
 ];
 
 export default function SicurezzaCantiere() {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const schedaAttiva = SCHEDE.includes(searchParams.get("tab") ?? "")
     ? searchParams.get("tab")!
@@ -319,50 +321,50 @@ export default function SicurezzaCantiere() {
       {
         label: "POS",
         value: posDocs.length,
-        helper: `${posDocs.filter((d) => d.status === "bozza").length} bozze`,
+        helper: t("{n} bozze", { n: posDocs.filter((d) => d.status === "bozza").length }),
         tone: "blue",
         icon: HardHat,
       },
       {
         label: "DUVRI",
         value: duvriDocs.length,
-        helper: `${duvriDocs.filter((d) => d.status === "bozza").length} bozze`,
+        helper: t("{n} bozze", { n: duvriDocs.filter((d) => d.status === "bozza").length }),
         tone: "indigo",
         icon: Users,
       },
       {
-        label: "Subappaltatori",
+        label: t("Subappaltatori"),
         value: subappaltatori.length,
         helper: durcScaduti
-          ? `${durcScaduti} DURC scaduti`
-          : `${subappaltatori.filter((s) => !s.durc_scadenza).length} date DURC mancanti`,
+          ? t("{n} DURC scaduti", { n: durcScaduti })
+          : t("{n} date DURC mancanti", { n: subappaltatori.filter((s) => !s.durc_scadenza).length }),
         tone: durcScaduti ? "red" : "green",
         icon: Building2,
       },
       {
-        label: "Scadenze aperte",
+        label: t("Scadenze aperte"),
         value: adempimentiDaFare,
         helper: adempimentiScaduti
-          ? `${adempimentiScaduti} scadute`
-          : "Nessuna scaduta",
+          ? t("{n} scadute", { n: adempimentiScaduti })
+          : t("Nessuna scaduta"),
         tone: adempimentiScaduti ? "red" : "amber",
         icon: CalendarClock,
       },
     ];
-  }, [adempimenti, duvriDocs, posDocs, subappaltatori]);
+  }, [adempimenti, duvriDocs, posDocs, subappaltatori, t]);
 
   // M3 mutations
   const createVerbaleMutation = useMutation({
     mutationFn: async () => {
       if (!canWrite)
         throw new Error(
-          "Non hai il permesso di modificare la sicurezza cantiere",
+          t("Non hai il permesso di modificare la sicurezza cantiere"),
         );
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata"));
       if (!verbaleForm.esito)
-        throw new Error("Seleziona l’esito del controllo prima di salvare il verbale");
+        throw new Error(t("Seleziona l’esito del controllo prima di salvare il verbale"));
       if (!verbaleForm.note.trim() && !verbaleForm.redatto_da.trim())
-        throw new Error("Inserisci almeno le note o il nome del redattore");
+        throw new Error(t("Inserisci almeno le note o il nome del redattore"));
       const campi = {
         order_id: verbaleForm.order_id || null,
         data: verbaleForm.data,
@@ -383,7 +385,7 @@ export default function SicurezzaCantiere() {
       if (error) throw new Error(getSupabaseErrorMessage(error));
     },
     onSuccess: () => {
-      toast.success(verbaleInModifica ? "Verbale corretto" : "Verbale salvato");
+      toast.success(verbaleInModifica ? t("Verbale corretto") : t("Verbale salvato"));
       queryClient.invalidateQueries({
         queryKey: ["verbali-sicurezza", companyId],
       });
@@ -405,11 +407,11 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!canWrite)
         throw new Error(
-          "Non hai il permesso di modificare la sicurezza cantiere",
+          t("Non hai il permesso di modificare la sicurezza cantiere"),
         );
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata"));
       if (!subappaltatoreForm.ragione_sociale.trim())
-        throw new Error("Ragione sociale obbligatoria");
+        throw new Error(t("Ragione sociale obbligatoria"));
       const campi = {
         order_id: subappaltatoreForm.order_id || null,
         ragione_sociale: subappaltatoreForm.ragione_sociale.trim(),
@@ -434,8 +436,8 @@ export default function SicurezzaCantiere() {
     onSuccess: () => {
       toast.success(
         subappaltatoreInModifica
-          ? "Subappaltatore aggiornato"
-          : "Subappaltatore aggiunto",
+          ? t("Subappaltatore aggiornato")
+          : t("Subappaltatore aggiunto"),
       );
       queryClient.invalidateQueries({
         queryKey: ["subappaltatori-sicurezza", companyId],
@@ -460,11 +462,11 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!canWrite)
         throw new Error(
-          "Non hai il permesso di modificare la sicurezza cantiere",
+          t("Non hai il permesso di modificare la sicurezza cantiere"),
         );
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata"));
       if (!adempimentoForm.titolo.trim())
-        throw new Error("Titolo obbligatorio");
+        throw new Error(t("Titolo obbligatorio"));
       const campi = {
         order_id: adempimentoForm.order_id || null,
         titolo: adempimentoForm.titolo.trim(),
@@ -489,8 +491,8 @@ export default function SicurezzaCantiere() {
     onSuccess: () => {
       toast.success(
         adempimentoInModifica
-          ? "Adempimento aggiornato"
-          : "Adempimento aggiunto",
+          ? t("Adempimento aggiornato")
+          : t("Adempimento aggiunto"),
       );
       queryClient.invalidateQueries({
         queryKey: ["adempimenti-sicurezza", companyId],
@@ -512,12 +514,12 @@ export default function SicurezzaCantiere() {
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       if (!canWrite)
         throw new Error(
-          "Non hai il permesso di modificare la sicurezza cantiere",
+          t("Non hai il permesso di modificare la sicurezza cantiere"),
         );
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata"));
       const prima = adempimenti.find((a) => a.id === id);
       if (!prima || !["da_fare", "completato"].includes(stato))
-        throw new Error("Passaggio non valido");
+        throw new Error(t("Passaggio non valido"));
       const { data, error } = await supabase
         .from("adempimenti_sicurezza")
         .update({ stato })
@@ -528,7 +530,7 @@ export default function SicurezzaCantiere() {
         .single();
       if (error || !data)
         throw new Error(
-          "Stato non aggiornato: la voce è cambiata o non hai i permessi. Aggiorna e riprova.",
+          t("Stato non aggiornato: la voce è cambiata o non hai i permessi. Aggiorna e riprova."),
         );
     },
     onSuccess: () =>
@@ -561,15 +563,15 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!canWrite)
         throw new Error(
-          "Non hai il permesso di modificare la sicurezza cantiere",
+          t("Non hai il permesso di modificare la sicurezza cantiere"),
         );
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata"));
       if (!selectedOrderId)
-        throw new Error("Seleziona una commessa prima di generare il DUVRI");
+        throw new Error(t("Seleziona una commessa prima di generare il DUVRI"));
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
       if (!token)
-        throw new Error("Sessione non valida. Accedi di nuovo e riprova.");
+        throw new Error(t("Sessione non valida. Accedi di nuovo e riprova."));
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-duvri`,
         {
@@ -587,13 +589,13 @@ export default function SicurezzaCantiere() {
       );
       if (!res.ok) {
         throw new Error(
-          await readFunctionError(res, "Errore generazione DUVRI"),
+          await readFunctionError(res, t("Errore generazione DUVRI")),
         );
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("DUVRI generato con successo!");
+      toast.success(t("DUVRI generato con successo!"));
       queryClient.invalidateQueries({
         queryKey: ["duvri-documents", companyId],
       });
@@ -651,9 +653,9 @@ export default function SicurezzaCantiere() {
     mutationFn: async (bersaglio: { tabella: string; id: string }) => {
       if (!canWrite)
         throw new Error(
-          "Non hai il permesso di modificare la sicurezza cantiere",
+          t("Non hai il permesso di modificare la sicurezza cantiere"),
         );
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata"));
       const { error } = await supabase
         .from(bersaglio.tabella as never)
         .delete()
@@ -663,7 +665,7 @@ export default function SicurezzaCantiere() {
       return bersaglio.tabella;
     },
     onSuccess: (tabella) => {
-      toast.success("Eliminato");
+      toast.success(t("Eliminato"));
       const chiavi: Record<string, string> = {
         verbali_sicurezza: "verbali-sicurezza",
         subappaltatori_sicurezza: "subappaltatori-sicurezza",
@@ -679,12 +681,12 @@ export default function SicurezzaCantiere() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!canWrite)
         throw new Error(
-          "Non hai il permesso di modificare la sicurezza cantiere",
+          t("Non hai il permesso di modificare la sicurezza cantiere"),
         );
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata"));
       const prima = duvriDocs.find((d) => d.id === id);
       if (!prima || !["bozza", "firmato", "archiviato"].includes(status))
-        throw new Error("Passaggio non valido");
+        throw new Error(t("Passaggio non valido"));
       const { data, error } = await supabase
         .from("duvri_documents")
         .update({ status })
@@ -695,11 +697,11 @@ export default function SicurezzaCantiere() {
         .single();
       if (error || !data)
         throw new Error(
-          "Stato non aggiornato: il documento è cambiato o non hai i permessi. Aggiorna e riprova.",
+          t("Stato non aggiornato: il documento è cambiato o non hai i permessi. Aggiorna e riprova."),
         );
     },
     onSuccess: () => {
-      toast.success("Stato DUVRI aggiornato");
+      toast.success(t("Stato DUVRI aggiornato"));
       queryClient.invalidateQueries({
         queryKey: ["duvri-documents", companyId],
       });
@@ -752,10 +754,11 @@ export default function SicurezzaCantiere() {
 
   const dataBreve = (value?: string | null) =>
     value ? value.slice(0, 10).split("-").reverse().join("/") : "—";
-  const commessa = (id?: string | null) =>
+  // tradotta = false per il titolo del documento stampato, che resta in italiano
+  const commessa = (id?: string | null, tradotta = true) =>
     id
-      ? (orders.find((o) => o.id === id)?.order_code ?? "Commessa")
-      : "Senza commessa";
+      ? (orders.find((o) => o.id === id)?.order_code ?? (tradotta ? t("Commessa") : "Commessa"))
+      : tradotta ? t("Senza commessa") : "Senza commessa";
   const linkCommessa = (id?: string | null) =>
     id ? (
       <Link
@@ -813,9 +816,9 @@ export default function SicurezzaCantiere() {
   ): SafetyTransition =>
     target === "completato"
       ? {
-          title: "Completa l’adempimento",
-          description: `Confermi di aver completato «${a.titolo}»?`,
-          label: "Conferma completamento",
+          title: t("Completa l’adempimento"),
+          description: t("Confermi di aver completato «{titolo}»?", { titolo: String(a.titolo ?? "") }),
+          label: t("Conferma completamento"),
           run: () =>
             toggleAdempimentoStato.mutateAsync({
               id: a.id,
@@ -824,10 +827,10 @@ export default function SicurezzaCantiere() {
         }
       : target === "da_fare" && faseDurc(a.scadenza_data) !== "scaduto"
         ? {
-            title: "Riapri l’adempimento",
+            title: t("Riapri l’adempimento"),
             description:
-              "L’attività tornerà tra quelle da fare; la scadenza registrata resta invariata.",
-            label: "Riapri",
+              t("L’attività tornerà tra quelle da fare; la scadenza registrata resta invariata."),
+            label: t("Riapri"),
             run: () =>
               toggleAdempimentoStato.mutateAsync({
                 id: a.id,
@@ -835,9 +838,9 @@ export default function SicurezzaCantiere() {
               }),
           }
         : {
-            title: "Verifica la scadenza",
+            title: t("Verifica la scadenza"),
             description:
-              "La colonna Scaduti dipende dalla data registrata. Apri l’attività per controllare scadenza e dettagli, senza inventare un ritardo o un rinnovo.",
+              t("La colonna Scaduti dipende dalla data registrata. Apri l’attività per controllare scadenza e dettagli, senza inventare un ritardo o un rinnovo."),
             run: () => modificaAdempimento(a),
           };
   const transitionDuvri = (
@@ -846,24 +849,24 @@ export default function SicurezzaCantiere() {
   ): SafetyTransition =>
     target === "altro"
       ? {
-          title: "Controlla il documento",
-          description: "Apri il DUVRI per verificare il suo stato registrato.",
+          title: t("Controlla il documento"),
+          description: t("Apri il DUVRI per verificare il suo stato registrato."),
           run: () => setExpandedDuvri(d.id),
         }
       : {
           title:
             target === "firmato"
-              ? "Registra la firma già raccolta"
+              ? t("Registra la firma già raccolta")
               : target === "archiviato"
-                ? "Archivia il DUVRI"
-                : "Riapri il DUVRI",
+                ? t("Archivia il DUVRI")
+                : t("Riapri il DUVRI"),
           description:
             target === "firmato"
-              ? "Confermi che il documento sia già stato firmato? Questo passaggio registra lo stato, senza apporre una firma al documento."
+              ? t("Confermi che il documento sia già stato firmato? Questo passaggio registra lo stato, senza apporre una firma al documento.")
               : target === "archiviato"
-                ? "Il documento resterà consultabile nella colonna Archiviati."
-                : "Il documento tornerà in bozza; controlla che i dati e la versione da usare siano corretti.",
-          label: "Conferma passaggio",
+                ? t("Il documento resterà consultabile nella colonna Archiviati.")
+                : t("Il documento tornerà in bozza; controlla che i dati e la versione da usare siano corretti."),
+          label: t("Conferma passaggio"),
           run: () =>
             updateDuvriStatus.mutateAsync({ id: d.id, status: target }),
         };
@@ -873,10 +876,10 @@ export default function SicurezzaCantiere() {
         size="icon"
         variant="ghost"
         className="h-6 w-6"
-        aria-label="Scarica PDF DUVRI"
-        title="Scarica PDF DUVRI"
+        aria-label={t("Scarica PDF DUVRI")}
+        title={t("Scarica PDF DUVRI")}
         onClick={() => {
-          setPrintTitle(`DUVRI — ${commessa(d.order_id)}`);
+          setPrintTitle(`DUVRI — ${commessa(d.order_id, false)}`);
           setPrintHtml(buildDocHtml(d, "DUVRI"));
         }}
       >
@@ -889,8 +892,8 @@ export default function SicurezzaCantiere() {
   return (
     <div className="space-y-6 max-sm:space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3"><div>
-        <h1 className="text-2xl font-bold tracking-tight">Sicurezza cantiere</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Documenti, verifiche e scadenze collegati alle commesse.</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t("Sicurezza cantiere")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("Documenti, verifiche e scadenze collegati alle commesse.")}</p>
       </div>{companyId&&<PulsanteProfiliRequisiti companyId={companyId}/>}</div>
       {/* Niente fascia gialla col testo normativo: era un avviso fisso, non
           un'azione, e ripeteva a ogni visita cosa sono POS e DUVRI. */}
@@ -900,7 +903,7 @@ export default function SicurezzaCantiere() {
         className="sm:hidden"
         voci={[
           {
-            label: "Scadenze aperte",
+            label: t("Scadenze aperte"),
             valore: String(
               adempimenti.filter((a) => a.stato !== "completato").length,
             ),
@@ -911,7 +914,7 @@ export default function SicurezzaCantiere() {
               : undefined,
           },
           {
-            label: "DURC scaduti",
+            label: t("DURC scaduti"),
             valore: String(
               subappaltatori.filter((s) => isPastDate(s.durc_scadenza)).length,
             ),
@@ -986,33 +989,33 @@ export default function SicurezzaCantiere() {
             <HardHat className="h-4 w-4" /> POS
           </TabsTrigger>
           <TabsTrigger value="documenti" className="shrink-0 gap-1.5">
-            <FileText className="h-4 w-4" /> Documenti
+            <FileText className="h-4 w-4" /> {t("Documenti")}
           </TabsTrigger>
-          <TabsTrigger value="sds" className="shrink-0 gap-1.5"><FileText className="h-4 w-4" /> SDS prodotti</TabsTrigger>
+          <TabsTrigger value="sds" className="shrink-0 gap-1.5"><FileText className="h-4 w-4" /> {t("SDS prodotti")}</TabsTrigger>
           <TabsTrigger
             value="figure"
             className="shrink-0 gap-1.5 max-sm:hidden"
           >
-            <UserCheck className="h-4 w-4" /> Figure
+            <UserCheck className="h-4 w-4" /> {t("Figure")}
           </TabsTrigger>
           <TabsTrigger value="duvri" className="shrink-0 gap-1.5 max-sm:hidden">
             <Users className="h-4 w-4" /> DUVRI
           </TabsTrigger>
           <TabsTrigger value="verbali" className="shrink-0 gap-1.5">
-            <ClipboardList className="h-4 w-4" /> Verbali
+            <ClipboardList className="h-4 w-4" /> {t("Verbali")}
           </TabsTrigger>
           <TabsTrigger
             value="subappaltatori"
             className="shrink-0 gap-1.5 max-sm:hidden"
           >
-            <Building2 className="h-4 w-4" /> Subappaltatori
+            <Building2 className="h-4 w-4" /> {t("Subappaltatori")}
           </TabsTrigger>
           <TabsTrigger value="scadenzario" className="shrink-0 gap-1.5">
-            <CalendarClock className="h-4 w-4" /> Scadenze
+            <CalendarClock className="h-4 w-4" /> {t("Scadenze")}
           </TabsTrigger>
           {/* Infortuni e quasi-incidenti segnalati dagli operai (23/11/2026). */}
           <TabsTrigger value="eventi" className="shrink-0 gap-1.5">
-            <HeartPulse className="h-4 w-4" /> Infortuni
+            <HeartPulse className="h-4 w-4" /> {t("Infortuni")}
           </TabsTrigger>
         </TabsList>
 
@@ -1055,14 +1058,14 @@ export default function SicurezzaCantiere() {
               className="bg-orange-500 text-white hover:bg-orange-600"
             >
               <Plus className="mr-1 h-4 w-4" />
-              Genera DUVRI
+              {t("Genera DUVRI")}
             </Button>
           </div>
           {duvriLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : duvriError || ordersError ? (
             <p role="alert">
-              Documenti DUVRI non disponibili. Aggiorna la pagina e riprova.
+              {t("Documenti DUVRI non disponibili. Aggiorna la pagina e riprova.")}
             </p>
           ) : (
             <SafetyWorkflow<DuvriDocument>
@@ -1085,15 +1088,15 @@ export default function SicurezzaCantiere() {
               }
               canWrite={canWrite}
               onTransition={transitionDuvri}
-              note="La firma va raccolta sul documento. Lo spostamento in Firmati ne registra soltanto l’avvenuta raccolta."
+              note={t("La firma va raccolta sul documento. Lo spostamento in Firmati ne registra soltanto l’avvenuta raccolta.")}
               renderActions={azioniDuvri}
               renderCard={(d) => (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    Committente: {d.committente_nome || "da indicare"}
+                    {t("Committente:")} {d.committente_nome || t("da indicare")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {d.interferenze?.length ?? 0} interferenze ·{" "}
+                    {d.interferenze?.length ?? 0} {t("interferenze ·")}{" "}
                     {dataBreve(d.created_at)}
                   </p>
                   <p className="line-clamp-2 text-xs text-muted-foreground">
@@ -1103,12 +1106,12 @@ export default function SicurezzaCantiere() {
               )}
               columns={[
                 {
-                  label: "Documento",
+                  label: t("Documento"),
                   render: (d) => `DUVRI · ${d.id.slice(0, 8)}`,
                 },
-                { label: "Commessa", render: (d) => linkCommessa(d.order_id) },
+                { label: t("Commessa"), render: (d) => linkCommessa(d.order_id) },
                 {
-                  label: "Cantiere",
+                  label: t("Cantiere"),
                   render: (d) => (
                     <span
                       className="block max-w-64 truncate"
@@ -1119,28 +1122,28 @@ export default function SicurezzaCantiere() {
                   ),
                 },
                 {
-                  label: "Committente",
+                  label: t("Committente"),
                   render: (d) => d.committente_nome || "—",
                 },
                 {
-                  label: "Interferenze",
+                  label: t("Interferenze"),
                   render: (d) => d.interferenze?.length ?? 0,
                 },
                 {
-                  label: "Imprese",
+                  label: t("Imprese"),
                   render: (d) => d.subappaltatori?.length ?? 0,
                 },
                 {
-                  label: "Costi sicurezza",
+                  label: t("Costi sicurezza"),
                   render: (d) =>
                     d.costi_sicurezza == null
                       ? "—"
-                      : Number(d.costi_sicurezza).toLocaleString("it-IT", {
+                      : Number(d.costi_sicurezza).toLocaleString(intlCampo(), {
                           style: "currency",
                           currency: "EUR",
                         }),
                 },
-                { label: "Creazione", render: (d) => dataBreve(d.created_at) },
+                { label: t("Creazione"), render: (d) => dataBreve(d.created_at) },
               ]}
             />
           )}
@@ -1156,18 +1159,18 @@ export default function SicurezzaCantiere() {
               >
                 <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>DUVRI · {commessa(doc.order_id)}</DialogTitle>
+                    <DialogTitle>{t("DUVRI · {order_id}", { order_id: String(commessa(doc.order_id) ?? "") })}</DialogTitle>
                     <DialogDescription>
-                      {doc.committente_nome || "Dettagli del documento"} ·{" "}
+                      {doc.committente_nome || t("Dettagli del documento")} ·{" "}
                       {dataBreve(doc.created_at)}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3 pt-2 border-t">
                     <p className="text-sm">
-                      <strong>Costi sicurezza: </strong>
+                      <strong>{t("Costi sicurezza:")} </strong>
                       {doc.costi_sicurezza == null
-                        ? "Non indicati"
-                        : Number(doc.costi_sicurezza).toLocaleString("it-IT", {
+                        ? t("Non indicati")
+                        : Number(doc.costi_sicurezza).toLocaleString(intlCampo(), {
                             style: "currency",
                             currency: "EUR",
                           })}
@@ -1175,7 +1178,7 @@ export default function SicurezzaCantiere() {
                     {doc.interferenze?.length > 0 && (
                       <div>
                         <p className="text-xs font-semibold mb-1">
-                          Interferenze e misure
+                          {t("Interferenze e misure")}
                         </p>
                         <div className="space-y-1">
                           {doc.interferenze.map((i, idx) => (
@@ -1184,18 +1187,16 @@ export default function SicurezzaCantiere() {
                               className="text-xs p-2 rounded bg-muted/50 space-y-0.5"
                             >
                               <div className="font-medium">
-                                ⚠️ {i.rischio || "Interferenza da verificare"}
+                                ⚠️ {i.rischio || t("Interferenza da verificare")}
                               </div>
                               {i.livello_rischio && (
-                                <div className="text-muted-foreground">
-                                  Livello: {i.livello_rischio}
-                                </div>
+                                <div className="text-muted-foreground">{t("Livello: {livello_rischio}", { livello_rischio: String(i.livello_rischio ?? "") })}</div>
                               )}
                               <div className="text-muted-foreground">
                                 ✅{" "}
                                 {i.misura ||
                                   i.misura_prevenzione ||
-                                  "Misura da completare"}
+                                  t("Misura da completare")}
                               </div>
                               {i.responsabile && (
                                 <div className="text-muted-foreground">
@@ -1210,7 +1211,7 @@ export default function SicurezzaCantiere() {
                     {doc.misure_prevenzione && (
                       <div>
                         <p className="text-xs font-semibold mb-1">
-                          Misure generali
+                          {t("Misure generali")}
                         </p>
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap">
                           {doc.misure_prevenzione}
@@ -1228,7 +1229,7 @@ export default function SicurezzaCantiere() {
                       variant="outline"
                       onClick={() => setExpandedDuvri(null)}
                     >
-                      Chiudi
+                      {t("Chiudi")}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -1246,19 +1247,19 @@ export default function SicurezzaCantiere() {
               className="bg-orange-500 text-white hover:bg-orange-600"
             >
               <Plus className="mr-1 h-4 w-4" />
-              Nuovo verbale
+              {t("Nuovo verbale")}
             </Button>
           </div>
           {verbaliLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : verbaliError ? (
             <p role="alert">
-              Verbali non disponibili. Aggiorna la pagina e riprova.
+              {t("Verbali non disponibili. Aggiorna la pagina e riprova.")}
             </p>
           ) : (
             <SafetyWorkflow<VerbaleSicurezza>
               namespace="verbali"
-              label="Verbali"
+              label={t("Verbali")}
               items={verbali}
               stages={VERBALI_STAGES}
               orders={orders}
@@ -1276,20 +1277,20 @@ export default function SicurezzaCantiere() {
                 ].join(" ")
               }
               canWrite={canWrite}
-              note="Le colonne rappresentano l’esito registrato del verbale. Per modificarlo, rivedi il verbale e salva l’esito effettivo."
+              note={t("Le colonne rappresentano l’esito registrato del verbale. Per modificarlo, rivedi il verbale e salva l’esito effettivo.")}
               onTransition={(v) => ({
-                title: "Rivedi l’esito del verbale",
+                title: t("Rivedi l’esito del verbale"),
                 description:
-                  "Apri il verbale, verifica note e osservazioni e registra l’esito corretto. Il trascinamento non dichiara da solo la conformità del cantiere.",
+                  t("Apri il verbale, verifica note e osservazioni e registra l’esito corretto. Il trascinamento non dichiara da solo la conformità del cantiere."),
                 run: () => modificaVerbale(v),
               })}
               renderCard={(v) => (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    Redatto da: {v.redatto_da || "non indicato"}
+                    {t("Redatto da:")} {v.redatto_da || t("non indicato")}
                   </p>
                   <p className="line-clamp-4 text-xs text-muted-foreground">
-                    {v.note || "Nessuna nota"}
+                    {v.note || t("Nessuna nota")}
                   </p>
                 </>
               )}
@@ -1301,8 +1302,8 @@ export default function SicurezzaCantiere() {
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6"
-                          aria-label="Modifica verbale"
-                          title="Modifica verbale"
+                          aria-label={t("Modifica verbale")}
+                          title={t("Modifica verbale")}
                           onClick={() => modificaVerbale(v)}
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -1311,13 +1312,13 @@ export default function SicurezzaCantiere() {
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6 text-destructive"
-                          aria-label="Elimina verbale"
+                          aria-label={t("Elimina verbale")}
                           onClick={() =>
                             setDaCancellare({
                               tabella: "verbali_sicurezza",
                               id: v.id,
-                              etichetta: "il verbale",
-                              descrizione: `${v.tipo} del ${dataBreve(v.data)}`,
+                              etichetta: t("il verbale"),
+                              descrizione: t("{tipo} del {data}", { tipo: v.tipo, data: dataBreve(v.data) }),
                             })
                           }
                         >
@@ -1329,14 +1330,14 @@ export default function SicurezzaCantiere() {
               }
               columns={[
                 {
-                  label: "Tipo",
+                  label: t("Tipo"),
                   render: (v) => <span className="capitalize">{v.tipo}</span>,
                 },
-                { label: "Commessa", render: (v) => linkCommessa(v.order_id) },
-                { label: "Data", render: (v) => dataBreve(v.data) },
-                { label: "Redatto da", render: (v) => v.redatto_da || "—" },
+                { label: t("Commessa"), render: (v) => linkCommessa(v.order_id) },
+                { label: t("Data"), render: (v) => dataBreve(v.data) },
+                { label: t("Redatto da"), render: (v) => v.redatto_da || "—" },
                 {
-                  label: "Note",
+                  label: t("Note"),
                   render: (v) => (
                     <span
                       className="block max-w-80 truncate"
@@ -1361,20 +1362,20 @@ export default function SicurezzaCantiere() {
               className="bg-orange-500 text-white hover:bg-orange-600"
             >
               <Plus className="mr-1 h-4 w-4" />
-              Aggiungi subappaltatore
+              {t("Aggiungi subappaltatore")}
             </Button>
           </div>
           {subappaltatoriLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : subappaltatoriError ? (
             <p role="alert">
-              Subappaltatori non disponibili. Aggiorna la pagina e riprova.
+              {t("Subappaltatori non disponibili. Aggiorna la pagina e riprova.")}
             </p>
           ) : (
             <SafetyWorkflow<SubappaltatoreSicurezza>
               namespace="subappaltatori"
               defaultView="elenco"
-              label="Subappaltatori"
+              label={t("Subappaltatori")}
               items={subappaltatori}
               stages={DURC_STAGES}
               orders={orders}
@@ -1392,20 +1393,20 @@ export default function SicurezzaCantiere() {
                 ].join(" ")
               }
               canWrite={canWrite}
-              note="Le colonne derivano dalla data DURC registrata; non attestano la verifica del documento. Per un rinnovo aggiorna il documento e la sua data."
+              note={t("Le colonne derivano dalla data DURC registrata; non attestano la verifica del documento. Per un rinnovo aggiorna il documento e la sua data.")}
               onTransition={(r) => ({
-                title: "Aggiorna il DURC del subappaltatore",
+                title: t("Aggiorna il DURC del subappaltatore"),
                 description:
-                  "La fase dipende dalla scadenza registrata. Controlla il documento aggiornato e inserisci la data effettiva; trascinare la scheda non rinnova il DURC.",
+                  t("La fase dipende dalla scadenza registrata. Controlla il documento aggiornato e inserisci la data effettiva; trascinare la scheda non rinnova il DURC."),
                 run: () => modificaSub(r),
               })}
               renderCard={(r) => (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    {r.tipo_lavori || "Lavori non indicati"}
+                    {r.tipo_lavori || t("Lavori non indicati")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Responsabile: {r.responsabile || "da indicare"}
+                    {t("Responsabile:")} {r.responsabile || t("da indicare")}
                   </p>
                   {r.telefono && (
                     <a
@@ -1415,9 +1416,7 @@ export default function SicurezzaCantiere() {
                       {r.telefono}
                     </a>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    Scadenza DURC: {dataBreve(r.durc_scadenza)}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("Scadenza DURC: {scadenza}", { scadenza: String(dataBreve(r.durc_scadenza) ?? "") })}</p>
                 </>
               )}
               renderActions={
@@ -1428,8 +1427,8 @@ export default function SicurezzaCantiere() {
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6"
-                          aria-label="Modifica subappaltatore"
-                          title="Modifica subappaltatore"
+                          aria-label={t("Modifica subappaltatore")}
+                          title={t("Modifica subappaltatore")}
                           onClick={() => modificaSub(r)}
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -1438,12 +1437,12 @@ export default function SicurezzaCantiere() {
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6 text-destructive"
-                          aria-label="Elimina subappaltatore"
+                          aria-label={t("Elimina subappaltatore")}
                           onClick={() =>
                             setDaCancellare({
                               tabella: "subappaltatori_sicurezza",
                               id: r.id,
-                              etichetta: "il subappaltatore",
+                              etichetta: t("il subappaltatore"),
                               descrizione: r.ragione_sociale,
                             })
                           }
@@ -1455,12 +1454,12 @@ export default function SicurezzaCantiere() {
                   : undefined
               }
               columns={[
-                { label: "Impresa", render: (r) => r.ragione_sociale },
-                { label: "Commessa", render: (r) => linkCommessa(r.order_id) },
-                { label: "Lavori", render: (r) => r.tipo_lavori || "—" },
-                { label: "Responsabile", render: (r) => r.responsabile || "—" },
+                { label: t("Impresa"), render: (r) => r.ragione_sociale },
+                { label: t("Commessa"), render: (r) => linkCommessa(r.order_id) },
+                { label: t("Lavori"), render: (r) => r.tipo_lavori || "—" },
+                { label: t("Responsabile"), render: (r) => r.responsabile || "—" },
                 {
-                  label: "Telefono",
+                  label: t("Telefono"),
                   render: (r) =>
                     r.telefono ? (
                       <a className="text-primary" href={`tel:${r.telefono}`}>
@@ -1471,14 +1470,14 @@ export default function SicurezzaCantiere() {
                     ),
                 },
                 {
-                  label: "Scadenza DURC",
+                  label: t("Scadenza DURC"),
                   render: (r) => dataBreve(r.durc_scadenza),
                 },
                 {
-                  label: "Inizio lavori",
+                  label: t("Inizio lavori"),
                   render: (r) => dataBreve(r.data_inizio),
                 },
-                { label: "Fine lavori", render: (r) => dataBreve(r.data_fine) },
+                { label: t("Fine lavori"), render: (r) => dataBreve(r.data_fine) },
               ]}
             />
           )}
@@ -1494,20 +1493,20 @@ export default function SicurezzaCantiere() {
               className="bg-orange-500 text-white hover:bg-orange-600"
             >
               <Plus className="mr-1 h-4 w-4" />
-              Aggiungi adempimento
+              {t("Aggiungi adempimento")}
             </Button>
           </div>
           {adempimentiLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : adempimentiError ? (
             <p role="alert">
-              Scadenzario non disponibile. Aggiorna la pagina e riprova.
+              {t("Scadenzario non disponibile. Aggiorna la pagina e riprova.")}
             </p>
           ) : (
             <SafetyWorkflow<AdempimentoSicurezza>
               namespace="scadenze"
               defaultView="elenco"
-              label="Adempimenti"
+              label={t("Adempimenti")}
               items={[...adempimenti].sort(
                 (a, b) =>
                   Number(a.stato === "completato") -
@@ -1526,15 +1525,13 @@ export default function SicurezzaCantiere() {
               }
               canWrite={canWrite}
               onTransition={transitionAdempimento}
-              note="Sposta in Completati per registrare un’attività svolta. La colonna Scaduti dipende dalla data; per ripianificare modifica la scadenza."
+              note={t("Sposta in Completati per registrare un’attività svolta. La colonna Scaduti dipende dalla data; per ripianificare modifica la scadenza.")}
               renderCard={(a) => (
                 <>
                   <p className="text-xs capitalize text-muted-foreground">
                     {nomeTipoAdempimento(a.tipo)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Scadenza: {dataBreve(a.scadenza_data)}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("Scadenza: {data}", { data: String(dataBreve(a.scadenza_data) ?? "") })}</p>
                   <p className="line-clamp-3 text-xs text-muted-foreground">
                     {a.note}
                   </p>
@@ -1559,13 +1556,13 @@ export default function SicurezzaCantiere() {
                             })
                           }
                         >
-                          {a.stato === "completato" ? "Riapri" : "Completa"}
+                          {a.stato === "completato" ? t("Riapri") : t("Completa")}
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6"
-                          aria-label="Modifica adempimento"
+                          aria-label={t("Modifica adempimento")}
                           onClick={() => modificaAdempimento(a)}
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -1574,12 +1571,12 @@ export default function SicurezzaCantiere() {
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6 text-destructive"
-                          aria-label="Elimina adempimento"
+                          aria-label={t("Elimina adempimento")}
                           onClick={() =>
                             setDaCancellare({
                               tabella: "adempimenti_sicurezza",
                               id: a.id,
-                              etichetta: "l’adempimento",
+                              etichetta: t("l’adempimento"),
                               descrizione: a.titolo,
                             })
                           }
@@ -1591,10 +1588,10 @@ export default function SicurezzaCantiere() {
                   : undefined
               }
               columns={[
-                { label: "Attività", render: (a) => a.titolo },
-                { label: "Commessa", render: (a) => linkCommessa(a.order_id) },
+                { label: t("Attività"), render: (a) => a.titolo },
+                { label: t("Commessa"), render: (a) => linkCommessa(a.order_id) },
                 {
-                  label: "Tipo",
+                  label: t("Tipo"),
                   render: (a) => (
                     <span className="capitalize">
                       {nomeTipoAdempimento(a.tipo) || "—"}
@@ -1602,11 +1599,11 @@ export default function SicurezzaCantiere() {
                   ),
                 },
                 {
-                  label: "Scadenza",
+                  label: t("Scadenza"),
                   render: (a) => dataBreve(a.scadenza_data),
                 },
                 {
-                  label: "Note",
+                  label: t("Note"),
                   render: (a) => (
                     <span
                       className="block max-w-80 truncate"
@@ -1633,22 +1630,21 @@ export default function SicurezzaCantiere() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
-              Genera DUVRI con AI
+              {t("Genera DUVRI con AI")}
             </DialogTitle>
             <DialogDescription className="max-sm:sr-only">
-              Seleziona la commessa, verifica i subappaltatori e genera il
-              documento DUVRI.
+              {t("Seleziona la commessa, verifica i subappaltatori e genera il documento DUVRI.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="duvri-commessa">Ordine / Cantiere</Label>
+              <Label htmlFor="duvri-commessa">{t("Ordine / Cantiere")}</Label>
               <Select
                 value={selectedOrderId || undefined}
                 onValueChange={setSelectedOrderId}
               >
                 <SelectTrigger id="duvri-commessa">
-                  <SelectValue placeholder="Seleziona ordine" />
+                  <SelectValue placeholder={t("Seleziona ordine")} />
                 </SelectTrigger>
                 <SelectContent>
                   {orders.map((o) => (
@@ -1664,14 +1660,12 @@ export default function SicurezzaCantiere() {
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700">
-                  Nessun subappaltatore registrato per questo ordine. Il DUVRI è
-                  richiesto quando ci sono subappaltatori. Puoi comunque
-                  generarlo come documento preventivo.
+                  {t("Nessun subappaltatore registrato per questo ordine. Il DUVRI è richiesto quando ci sono subappaltatori. Puoi comunque generarlo come documento preventivo.")}
                 </p>
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="duvri-costi">Costi sicurezza stimati (€)</Label>
+              <Label htmlFor="duvri-costi">{t("Costi sicurezza stimati (€)")}</Label>
               <Input
                 id="duvri-costi"
                 type="number"
@@ -1687,7 +1681,7 @@ export default function SicurezzaCantiere() {
               variant="outline"
               onClick={() => setDuvriDialogOpen(false)}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={() => generateDuvri.mutate()}
@@ -1697,12 +1691,11 @@ export default function SicurezzaCantiere() {
             >
               {generateDuvri.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generazione
-                  in corso...
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("Generazione in corso...")}
                 </>
               ) : (
                 <>
-                  <Users className="h-4 w-4 mr-2" /> Genera con AI
+                  <Users className="h-4 w-4 mr-2" /> {t("Genera con AI")}
                 </>
               )}
             </Button>
@@ -1722,15 +1715,15 @@ export default function SicurezzaCantiere() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              {verbaleInModifica ? "Correggi il verbale" : "Nuovo Verbale"}
+              {verbaleInModifica ? t("Correggi il verbale") : t("Nuovo Verbale")}
             </DialogTitle>
             <DialogDescription className="max-sm:sr-only">
-              Registra un sopralluogo, una riunione o un'ispezione di sicurezza.
+              {t("Registra un sopralluogo, una riunione o un'ispezione di sicurezza.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label htmlFor="verbale-commessa">Cantiere (opzionale)</Label>
+              <Label htmlFor="verbale-commessa">{t("Cantiere (opzionale)")}</Label>
               <Select
                 value={verbaleForm.order_id || "__none__"}
                 onValueChange={(v) =>
@@ -1741,10 +1734,10 @@ export default function SicurezzaCantiere() {
                 }
               >
                 <SelectTrigger id="verbale-commessa">
-                  <SelectValue placeholder="Tutti i cantieri" />
+                  <SelectValue placeholder={t("Tutti i cantieri")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nessun cantiere</SelectItem>
+                  <SelectItem value="__none__">{t("Nessun cantiere")}</SelectItem>
                   {orders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.description}
@@ -1755,7 +1748,7 @@ export default function SicurezzaCantiere() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="verbale-data">Data</Label>
+                <Label htmlFor="verbale-data">{t("Data")}</Label>
                 <Input id="verbale-data"
                   type="date"
                   value={verbaleForm.data}
@@ -1765,7 +1758,7 @@ export default function SicurezzaCantiere() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="verbale-tipo">Tipo</Label>
+                <Label htmlFor="verbale-tipo">{t("Tipo")}</Label>
                 <Select
                   value={verbaleForm.tipo}
                   onValueChange={(v) =>
@@ -1776,16 +1769,16 @@ export default function SicurezzaCantiere() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sopralluogo">Sopralluogo</SelectItem>
-                    <SelectItem value="riunione">Riunione</SelectItem>
-                    <SelectItem value="ispezione">Ispezione</SelectItem>
-                    <SelectItem value="altro">Altro</SelectItem>
+                    <SelectItem value="sopralluogo">{t("Sopralluogo")}</SelectItem>
+                    <SelectItem value="riunione">{t("Riunione")}</SelectItem>
+                    <SelectItem value="ispezione">{t("Ispezione")}</SelectItem>
+                    <SelectItem value="altro">{t("Altro")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="verbale-esito">Esito</Label>
+              <Label htmlFor="verbale-esito">{t("Esito")}</Label>
               <Select
                 value={verbaleForm.esito}
                 onValueChange={(v) =>
@@ -1793,36 +1786,36 @@ export default function SicurezzaCantiere() {
                 }
               >
                 <SelectTrigger id="verbale-esito">
-                  <SelectValue placeholder="Seleziona l’esito del controllo" />
+                  <SelectValue placeholder={t("Seleziona l’esito del controllo")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="conforme">Conforme</SelectItem>
+                  <SelectItem value="conforme">{t("Conforme")}</SelectItem>
                   <SelectItem value="parzialmente_conforme">
-                    Parzialmente conforme
+                    {t("Parzialmente conforme")}
                   </SelectItem>
-                  <SelectItem value="non_conforme">Non conforme</SelectItem>
+                  <SelectItem value="non_conforme">{t("Non conforme")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="verbale-autore">Redatto da</Label>
+              <Label htmlFor="verbale-autore">{t("Redatto da")}</Label>
               <Input id="verbale-autore"
                 value={verbaleForm.redatto_da}
                 onChange={(e) =>
                   setVerbaleForm((p) => ({ ...p, redatto_da: e.target.value }))
                 }
-                placeholder="Nome e cognome"
+                placeholder={t("Nome e cognome")}
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="verbale-note">Note</Label>
+              <Label htmlFor="verbale-note">{t("Note")}</Label>
               <textarea id="verbale-note"
                 className="w-full border rounded-md p-2 text-sm resize-none min-h-[80px]"
                 value={verbaleForm.note}
                 onChange={(e) =>
                   setVerbaleForm((p) => ({ ...p, note: e.target.value }))
                 }
-                placeholder="Osservazioni, prescrizioni..."
+                placeholder={t("Osservazioni, prescrizioni...")}
               />
             </div>
           </div>
@@ -1834,7 +1827,7 @@ export default function SicurezzaCantiere() {
                 setVerbaleInModifica(null);
               }}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={() => createVerbaleMutation.mutate()}
@@ -1843,9 +1836,9 @@ export default function SicurezzaCantiere() {
               {createVerbaleMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : verbaleInModifica ? (
-                "Salva correzioni"
+                t("Salva correzioni")
               ) : (
-                "Salva verbale"
+                t("Salva verbale")
               )}
             </Button>
           </DialogFooter>
@@ -1865,17 +1858,16 @@ export default function SicurezzaCantiere() {
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
               {subappaltatoreInModifica
-                ? "Modifica subappaltatore"
-                : "Nuovo Subappaltatore"}
+                ? t("Modifica subappaltatore")
+                : t("Nuovo Subappaltatore")}
             </DialogTitle>
             <DialogDescription className="max-sm:sr-only">
-              Collega un subappaltatore alla sicurezza di cantiere e monitora la
-              scadenza DURC.
+              {t("Collega un subappaltatore alla sicurezza di cantiere e monitora la scadenza DURC.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label htmlFor="sub-sicurezza-ragione">Ragione Sociale *</Label>
+              <Label htmlFor="sub-sicurezza-ragione">{t("Ragione Sociale *")}</Label>
               <Input id="sub-sicurezza-ragione"
                 value={subappaltatoreForm.ragione_sociale}
                 onChange={(e) =>
@@ -1884,11 +1876,11 @@ export default function SicurezzaCantiere() {
                     ragione_sociale: e.target.value,
                   }))
                 }
-                placeholder="es. Impianti Rossi Srl"
+                placeholder={t("es. Impianti Rossi Srl")}
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="sub-sicurezza-commessa">Cantiere (opzionale)</Label>
+              <Label htmlFor="sub-sicurezza-commessa">{t("Cantiere (opzionale)")}</Label>
               <Select
                 value={subappaltatoreForm.order_id || "__none__"}
                 onValueChange={(v) =>
@@ -1899,10 +1891,10 @@ export default function SicurezzaCantiere() {
                 }
               >
                 <SelectTrigger id="sub-sicurezza-commessa">
-                  <SelectValue placeholder="Tutti i cantieri" />
+                  <SelectValue placeholder={t("Tutti i cantieri")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nessun cantiere</SelectItem>
+                  <SelectItem value="__none__">{t("Nessun cantiere")}</SelectItem>
                   {orders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.description}
@@ -1913,7 +1905,7 @@ export default function SicurezzaCantiere() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="sub-sicurezza-lavori">Tipo lavori</Label>
+                <Label htmlFor="sub-sicurezza-lavori">{t("Tipo lavori")}</Label>
                 <Input id="sub-sicurezza-lavori"
                   value={subappaltatoreForm.tipo_lavori}
                   onChange={(e) =>
@@ -1922,11 +1914,11 @@ export default function SicurezzaCantiere() {
                       tipo_lavori: e.target.value,
                     }))
                   }
-                  placeholder="es. Impianti elettrici"
+                  placeholder={t("es. Impianti elettrici")}
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="sub-sicurezza-responsabile">Responsabile</Label>
+                <Label htmlFor="sub-sicurezza-responsabile">{t("Responsabile")}</Label>
                 <Input id="sub-sicurezza-responsabile"
                   value={subappaltatoreForm.responsabile}
                   onChange={(e) =>
@@ -1935,13 +1927,13 @@ export default function SicurezzaCantiere() {
                       responsabile: e.target.value,
                     }))
                   }
-                  placeholder="Nome referente"
+                  placeholder={t("Nome referente")}
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="sub-sicurezza-inizio">Data inizio</Label>
+                <Label htmlFor="sub-sicurezza-inizio">{t("Data inizio")}</Label>
                 <Input id="sub-sicurezza-inizio"
                   type="date"
                   value={subappaltatoreForm.data_inizio}
@@ -1954,7 +1946,7 @@ export default function SicurezzaCantiere() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="sub-sicurezza-fine">Data fine</Label>
+                <Label htmlFor="sub-sicurezza-fine">{t("Data fine")}</Label>
                 <Input id="sub-sicurezza-fine"
                   type="date"
                   value={subappaltatoreForm.data_fine}
@@ -1968,7 +1960,7 @@ export default function SicurezzaCantiere() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="sub-sicurezza-durc">Scadenza DURC</Label>
+              <Label htmlFor="sub-sicurezza-durc">{t("Scadenza DURC")}</Label>
               <Input id="sub-sicurezza-durc"
                 type="date"
                 value={subappaltatoreForm.durc_scadenza}
@@ -1989,7 +1981,7 @@ export default function SicurezzaCantiere() {
                 setSubappaltatoreInModifica(null);
               }}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={() => createSubappaltatoreM.mutate()}
@@ -1998,9 +1990,9 @@ export default function SicurezzaCantiere() {
               {createSubappaltatoreM.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : subappaltatoreInModifica ? (
-                "Salva modifiche"
+                t("Salva modifiche")
               ) : (
-                "Aggiungi"
+                t("Aggiungi")
               )}
             </Button>
           </DialogFooter>
@@ -2020,19 +2012,18 @@ export default function SicurezzaCantiere() {
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="h-5 w-5" />
               {adempimentoInModifica
-                ? "Modifica adempimento"
-                : "Nuovo Adempimento"}
+                ? t("Modifica adempimento")
+                : t("Nuovo Adempimento")}
             </DialogTitle>
             <DialogDescription className="max-sm:sr-only">
-              Inserisci una scadenza obbligatoria per formazione, certificati o
-              controlli.
+              {t("Inserisci una scadenza obbligatoria per formazione, certificati o controlli.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             {/* La commessa: prima order_id restava sempre vuoto e la scadenza non
                 si vedeva nel cantiere a cui si riferisce. */}
             <div className="space-y-1">
-              <Label htmlFor="adempimento-commessa">Commessa</Label>
+              <Label htmlFor="adempimento-commessa">{t("Commessa")}</Label>
               <Select
                 value={adempimentoForm.order_id || "nessuna"}
                 onValueChange={(v) =>
@@ -2043,10 +2034,10 @@ export default function SicurezzaCantiere() {
                 }
               >
                 <SelectTrigger id="adempimento-commessa">
-                  <SelectValue placeholder="Tutta l'azienda" />
+                  <SelectValue placeholder={t("Tutta l'azienda")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nessuna">Tutta l'azienda</SelectItem>
+                  <SelectItem value="nessuna">{t("Tutta l'azienda")}</SelectItem>
                   {orders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.order_code ? `${o.order_code} · ` : ""}
@@ -2057,18 +2048,18 @@ export default function SicurezzaCantiere() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="adempimento-titolo">Titolo *</Label>
+              <Label htmlFor="adempimento-titolo">{t("Titolo *")}</Label>
               <Input id="adempimento-titolo"
                 value={adempimentoForm.titolo}
                 onChange={(e) =>
                   setAdempimentoForm((p) => ({ ...p, titolo: e.target.value }))
                 }
-                placeholder="es. Corso di aggiornamento sicurezza"
+                placeholder={t("es. Corso di aggiornamento sicurezza")}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="adempimento-tipo">Tipo</Label>
+                <Label htmlFor="adempimento-tipo">{t("Tipo")}</Label>
                 <Select
                   value={adempimentoForm.tipo}
                   onValueChange={(v) =>
@@ -2080,21 +2071,21 @@ export default function SicurezzaCantiere() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="corso_formazione">
-                      Corso formazione
+                      {t("Corso formazione")}
                     </SelectItem>
-                    <SelectItem value="visita_medica">Visita medica</SelectItem>
+                    <SelectItem value="visita_medica">{t("Visita medica")}</SelectItem>
                     <SelectItem value="manutenzione_dpi">
-                      Manutenzione DPI
+                      {t("Manutenzione DPI")}
                     </SelectItem>
                     <SelectItem value="rinnovo_certificato">
-                      Rinnovo certificato
+                      {t("Rinnovo certificato")}
                     </SelectItem>
-                    <SelectItem value="altro">Altro</SelectItem>
+                    <SelectItem value="altro">{t("Altro")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="adempimento-scadenza">Scadenza</Label>
+                <Label htmlFor="adempimento-scadenza">{t("Scadenza")}</Label>
                 <Input id="adempimento-scadenza"
                   type="date"
                   value={adempimentoForm.scadenza_data}
@@ -2108,13 +2099,13 @@ export default function SicurezzaCantiere() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="adempimento-note">Note</Label>
+              <Label htmlFor="adempimento-note">{t("Note")}</Label>
               <Input id="adempimento-note"
                 value={adempimentoForm.note}
                 onChange={(e) =>
                   setAdempimentoForm((p) => ({ ...p, note: e.target.value }))
                 }
-                placeholder="Opzionale"
+                placeholder={t("Opzionale")}
               />
             </div>
           </div>
@@ -2126,7 +2117,7 @@ export default function SicurezzaCantiere() {
                 setAdempimentoInModifica(null);
               }}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={() => createAdempimentoM.mutate()}
@@ -2135,9 +2126,9 @@ export default function SicurezzaCantiere() {
               {createAdempimentoM.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : adempimentoInModifica ? (
-                "Salva modifiche"
+                t("Salva modifiche")
               ) : (
-                "Aggiungi"
+                t("Aggiungi")
               )}
             </Button>
           </DialogFooter>
@@ -2153,19 +2144,16 @@ export default function SicurezzaCantiere() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Eliminare {daCancellare?.etichetta}?
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare {nome}?", { nome: String(daCancellare?.etichetta ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
               {daCancellare?.descrizione
                 ? `"${daCancellare.descrizione}" `
                 : ""}
-              verrà rimosso definitivamente. Se è un documento che hai già
-              consegnato o citato altrove, meglio correggerlo che cancellarlo.
+              {t("verrà rimosso definitivamente. Se è un documento che hai già consegnato o citato altrove, meglio correggerlo che cancellarlo.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={eliminaRiga.isPending}
@@ -2174,7 +2162,7 @@ export default function SicurezzaCantiere() {
                 if (daCancellare) eliminaRiga.mutate(daCancellare);
               }}
             >
-              {eliminaRiga.isPending ? "Eliminazione..." : "Elimina"}
+              {eliminaRiga.isPending ? t("Eliminazione...") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

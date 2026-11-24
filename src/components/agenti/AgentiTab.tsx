@@ -32,6 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_CHIPS: { value: string; label: string; icon: typeof Bot }[] = [
   { value: "tutti", label: "Tutti", icon: Bot },
@@ -43,6 +44,7 @@ const TIPO_CHIPS: { value: string; label: string; icon: typeof Bot }[] = [
 ];
 
 export function AgentiTab() {
+  const t = useT();
   const [filtroTipo, setFiltroTipo] = useState("tutti");
   const [filtroStato, setFiltroStato] = useState("tutti");
   const [cerca, setCerca] = useState("");
@@ -87,29 +89,29 @@ export function AgentiTab() {
       <div className="mb-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
         <div className="relative col-span-2 sm:w-56">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Cerca per nome agente" value={cerca} onChange={event => setCerca(event.target.value)}
-            placeholder="Cerca agente…" className="pl-9" />
+          <Input aria-label={t("Cerca per nome agente")} value={cerca} onChange={event => setCerca(event.target.value)}
+            placeholder={t("Cerca agente…")} className="pl-9" />
         </div>
         <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger className="min-w-0 sm:w-36" aria-label="Tipo agente"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="min-w-0 sm:w-36" aria-label={t("Tipo agente")}><SelectValue /></SelectTrigger>
           <SelectContent>
             {TIPO_CHIPS.map(({ value, label }) => (
-              <SelectItem key={value} value={value}>{value === "tutti" ? "Tutti i tipi" : label}</SelectItem>
+              <SelectItem key={value} value={value}>{value === "tutti" ? t("Tutti i tipi") : t(label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
-          <SelectTrigger className="min-w-0 sm:w-36" aria-label="Stato agente"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="min-w-0 sm:w-36" aria-label={t("Stato agente")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti gli stati</SelectItem>
-            <SelectItem value="attivo">Attivi</SelectItem>
-            <SelectItem value="pausa">In pausa</SelectItem>
-            <SelectItem value="bozza">Bozza</SelectItem>
-            <SelectItem value="archiviato">Archiviati</SelectItem>
+            <SelectItem value="tutti">{t("Tutti gli stati")}</SelectItem>
+            <SelectItem value="attivo">{t("Attivi")}</SelectItem>
+            <SelectItem value="pausa">{t("In pausa")}</SelectItem>
+            <SelectItem value="bozza">{t("Bozza")}</SelectItem>
+            <SelectItem value="archiviato">{t("Archiviati")}</SelectItem>
           </SelectContent>
         </Select>
         {!isMobile && <Button onClick={() => handleCrea()} className="eic-motion-button ml-auto">
-          <Plus className="mr-1.5 h-4 w-4" /> Nuovo agente
+          <Plus className="mr-1.5 h-4 w-4" /> {t("Nuovo agente")}
         </Button>}
       </div>
 
@@ -121,9 +123,9 @@ export function AgentiTab() {
       ) : isError ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/20 bg-destructive/5 py-16 text-center">
           <AlertTriangle className="mb-3 h-10 w-10 text-destructive" />
-          <p className="text-lg font-semibold text-foreground">Agenti non caricati</p>
+          <p className="text-lg font-semibold text-foreground">{t("Agenti non caricati")}</p>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            {(error as Error)?.message || "Non riesco a leggere gli agenti AI in questo momento."}
+            {(error as Error)?.message || t("Non riesco a leggere gli agenti AI in questo momento.")}
           </p>
           <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             {isFetching ? (
@@ -131,13 +133,13 @@ export function AgentiTab() {
             ) : (
               <RefreshCw className="mr-2 h-4 w-4" />
             )}
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : agenti.length === 0 && (cerca.trim() || filtroStato !== "tutti" || filtroTipo !== "tutti") ? (
         <div className="py-12 text-center">
-          <p>Nessun agente corrisponde ai filtri selezionati.</p>
-          <Button variant="outline" className="mt-3" onClick={() => { setCerca(""); setFiltroStato("tutti"); setFiltroTipo("tutti"); }}>Azzera filtri</Button>
+          <p>{t("Nessun agente corrisponde ai filtri selezionati.")}</p>
+          <Button variant="outline" className="mt-3" onClick={() => { setCerca(""); setFiltroStato("tutti"); setFiltroTipo("tutti"); }}>{t("Azzera filtri")}</Button>
         </div>
       ) : agenti.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 max-md:rounded-xl max-md:px-3 max-md:py-4">
@@ -146,15 +148,15 @@ export function AgentiTab() {
           </div>
           <p className="text-lg font-semibold text-foreground max-md:text-[13px]">
             {filtroTipo !== "tutti"
-              ? `Nessun agente ${TIPO_CHIPS.find((c) => c.value === filtroTipo)?.label?.toLowerCase()}`
-              : "Nessun agente creato"}
+              ? t("Nessun agente {tipo}", { tipo: t(TIPO_CHIPS.find((c) => c.value === filtroTipo)?.label ?? "").toLowerCase() })
+              : t("Nessun agente creato")}
           </p>
           {isMobile ? (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">si crea da computer o tablet</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("si crea da computer o tablet")}</p>
           ) : (
             <>
               <p className="text-sm text-muted-foreground mt-1 text-center max-w-sm">
-                Crea il tuo primo agente AI per gestire conversazioni, qualificare lead e fissare appuntamenti.
+                {t("Crea il tuo primo agente AI per gestire conversazioni, qualificare lead e fissare appuntamenti.")}
               </p>
             </>
           )}
@@ -162,7 +164,7 @@ export function AgentiTab() {
           {filtroTipo === "tutti" && !isMobile && (
             <div className="mt-8 w-full max-w-3xl">
               <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Oppure parti da un tipo
+                {t("Oppure parti da un tipo")}
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               {TIPO_CHIPS.filter((c) => c.value !== "tutti").map((chip) => {
@@ -174,7 +176,7 @@ export function AgentiTab() {
                     className="flex flex-col items-center gap-2 rounded-xl border border-slate-300 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md"
                   >
                     <Icon className="h-6 w-6 text-primary" />
-                    <span className="text-xs font-semibold text-slate-900">{chip.label}</span>
+                    <span className="text-xs font-semibold text-slate-900">{t(chip.label)}</span>
                   </button>
                 );
               })}
@@ -214,13 +216,13 @@ export function AgentiTab() {
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questo agente?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare questo agente?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              L'agente verrà eliminato permanentemente. Questa azione non è reversibile.
+              {t("L'agente verrà eliminato permanentemente. Questa azione non è reversibile.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -228,7 +230,7 @@ export function AgentiTab() {
                 setDeleteId(null);
               }}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -22,10 +22,11 @@ import { Badge } from "@/components/ui/badge";
 import { useAdsPendingApprovals } from "@/hooks/useAdsPendingApprovals";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function formatEuro(cents: number | null) {
   if (cents == null) return "—";
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0, useGrouping: "always" }).format(cents / 100);
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
+  const t = useT();
   const { pending, count, isLoading, decide, isDeciding } = useAdsPendingApprovals(companyId);
   const { role } = useAuth();
   const [expanded, setExpanded] = useState(true);
@@ -63,10 +65,10 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
             </div>
             <div className="text-left">
               <CardTitle className="text-base text-amber-900 max-sm:text-[13px] max-sm:leading-tight">
-                {count} campagn{count === 1 ? "a" : "e"} in attesa della tua approvazione
+                {t(count === 1 ? "{n} campagna in attesa della tua approvazione" : "{n} campagne in attesa della tua approvazione", { n: count })}
               </CardTitle>
               <p className="text-xs text-amber-700 max-sm:hidden">
-                Budget sopra soglia o nuove campagne create dai tuoi operatori.
+                {t("Budget sopra soglia o nuove campagne create dai tuoi operatori.")}
               </p>
             </div>
           </div>
@@ -105,7 +107,7 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
                       {c.created_by && (
                         <span className="flex items-center gap-1 max-sm:hidden">
                           <UserIcon className="h-3 w-3" />
-                          Creata da operatore
+                          {t("Creata da operatore")}
                         </span>
                       )}
                       <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 max-sm:hidden">
@@ -120,7 +122,7 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
                         size="sm"
                         variant="outline"
                         disabled={isDeciding}
-                        aria-label="Rifiuta"
+                        aria-label={t("Rifiuta")}
                         className="tap-compact max-sm:h-9 max-sm:w-9 max-sm:px-0"
                         onClick={() => {
                           setRejectingId(c.id);
@@ -128,7 +130,7 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
                         }}
                       >
                         <X className="h-3.5 w-3.5" />
-                        <span className="max-sm:hidden">Rifiuta</span>
+                        <span className="max-sm:hidden">{t("Rifiuta")}</span>
                       </Button>
                       <Button
                         size="sm"
@@ -143,7 +145,7 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
                         ) : (
                           <Check className="h-3.5 w-3.5" />
                         )}
-                        Approva
+                        {t("Approva")}
                       </Button>
                     </div>
                   )}
@@ -154,7 +156,7 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
                     <Textarea
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
-                      placeholder="Motivazione del rifiuto (opzionale, ma utile per l'operatore)"
+                      placeholder={t("Motivazione del rifiuto (opzionale, ma utile per l'operatore)")}
                       className="min-h-[60px] text-sm"
                     />
                     <div className="flex justify-end gap-2">
@@ -166,7 +168,7 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
                           setReason("");
                         }}
                       >
-                        Annulla
+                        {t("Annulla")}
                       </Button>
                       <Button
                         size="sm"
@@ -187,7 +189,7 @@ export function PendingApprovalsBanner({ companyId, onOpenCampaign }: Props) {
                         ) : (
                           <X className="h-3.5 w-3.5" />
                         )}
-                        Conferma rifiuto
+                        {t("Conferma rifiuto")}
                       </Button>
                     </div>
                   </div>

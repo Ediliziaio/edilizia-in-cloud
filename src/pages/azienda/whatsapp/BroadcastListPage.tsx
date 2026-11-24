@@ -19,6 +19,7 @@ import { Loader2, Plus, Eye } from "lucide-react";
 import { AlertTriangle, RefreshCw, Search } from "lucide-react";
 import { useWABroadcasts } from "@/hooks/whatsapp/useWABroadcasts";
 import { useWhatsAppBase } from "./useWhatsAppBase";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function statusColor(status: string | null): string {
   switch ((status ?? "").toLowerCase()) {
@@ -39,6 +40,7 @@ function statusColor(status: string | null): string {
 
 /** nelHub: dentro la scheda «Broadcast» dell'hub WhatsApp (che c'è solo da 768). */
 export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean }) {
+  const t = useT();
   const { base: waBase } = useWhatsAppBase();
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -55,10 +57,10 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
   }, [broadcasts, search]);
 
   const bottoneNuova = (
-    <Button asChild aria-label="Nuova campagna broadcast">
+    <Button asChild aria-label={t("Nuova campagna broadcast")}>
       <Link to={`${waBase}/broadcast/nuovo`}>
         <Plus className="mr-2 h-4 w-4" />
-        Nuova campagna
+        {t("Nuova campagna")}
       </Link>
     </Button>
   );
@@ -72,9 +74,9 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
       {!nelHub && (
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">Broadcast WhatsApp</h1>
+            <h1 className="text-2xl font-semibold">{t("Broadcast WhatsApp")}</h1>
             <p className="text-sm text-muted-foreground">
-              Campagne inviate o schedulate. Richiede template Meta APPROVED + numero con scopo marketing.
+              {t("Campagne inviate o schedulate. Richiede template Meta APPROVED + numero con scopo marketing.")}
             </p>
           </div>
           {bottoneNuova}
@@ -83,23 +85,23 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
 
       <Card>
         <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
-          {!nelHub && <CardTitle>Campagne</CardTitle>}
+          {!nelHub && <CardTitle>{t("Campagne")}</CardTitle>}
           <div className={`flex flex-col gap-2 sm:flex-row ${nelHub ? "sm:flex-1 sm:items-center" : ""}`}>
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" placeholder="Cerca campagna..." />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" placeholder={t("Cerca campagna...")} />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Stato" />
+                <SelectValue placeholder={t("Stato")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                <SelectItem value="scheduled">Schedulate</SelectItem>
-                <SelectItem value="sending">In invio</SelectItem>
-                <SelectItem value="completed">Completate</SelectItem>
-                <SelectItem value="failed">Fallite</SelectItem>
-                <SelectItem value="cancelled">Annullate</SelectItem>
+                <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+                <SelectItem value="scheduled">{t("Schedulate")}</SelectItem>
+                <SelectItem value="sending">{t("In invio")}</SelectItem>
+                <SelectItem value="completed">{t("Completate")}</SelectItem>
+                <SelectItem value="failed">{t("Fallite")}</SelectItem>
+                <SelectItem value="cancelled">{t("Annullate")}</SelectItem>
               </SelectContent>
             </Select>
             {nelHub && <div className="sm:ml-auto">{bottoneNuova}</div>}
@@ -109,25 +111,25 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
           {isLoading && (
             <div className="flex items-center justify-center py-12" aria-live="polite">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              <span className="sr-only">Caricamento campagne</span>
+              <span className="sr-only">{t("Caricamento campagne")}</span>
             </div>
           )}
           {!isLoading && isError && (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6 text-center">
               <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-destructive" />
-              <p className="font-medium">Campagne non caricate</p>
+              <p className="font-medium">{t("Campagne non caricate")}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {(error as Error)?.message || "Errore nel caricamento dei broadcast WhatsApp."}
+                {(error as Error)?.message || t("Errore nel caricamento dei broadcast WhatsApp.")}
               </p>
               <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-                Riprova
+                {t("Riprova")}
               </Button>
             </div>
           )}
           {!isLoading && !isError && (broadcasts?.length ?? 0) === 0 && (
             <div className="text-center py-12 text-sm text-muted-foreground">
-              Nessuna campagna. Crea la prima con "Nuova campagna".
+              {t("Nessuna campagna. Crea la prima con \"Nuova campagna\".")}
             </div>
           )}
           {!isLoading && !isError && broadcasts && broadcasts.length > 0 && (
@@ -135,12 +137,12 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Template</TableHead>
-                    <TableHead>Schedulata</TableHead>
-                    <TableHead>Destinatari</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="text-right">Dettaglio</TableHead>
+                    <TableHead>{t("Nome")}</TableHead>
+                    <TableHead>{t("Template")}</TableHead>
+                    <TableHead>{t("Schedulata")}</TableHead>
+                    <TableHead>{t("Destinatari")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead className="text-right">{t("Dettaglio")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -152,15 +154,13 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
                       </TableCell>
                       <TableCell className="text-sm">
                         {b.scheduled_at
-                          ? new Date(b.scheduled_at).toLocaleString("it-IT")
+                          ? new Date(b.scheduled_at).toLocaleString(intlCampo())
                           : "—"}
                       </TableCell>
                       <TableCell>
                         {(b.sent_count ?? 0)} / {(b.total_contacts ?? 0)}
                         {(b.failed_count ?? 0) > 0 && (
-                          <span className="text-red-600 text-xs ml-2">
-                            · {b.failed_count} falliti
-                          </span>
+                          <span className="text-red-600 text-xs ml-2">{t("· {n} falliti", { n: b.failed_count ?? 0 })}</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -173,7 +173,7 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
                           asChild
                           variant="ghost"
                           size="sm"
-                          aria-label={`Dettaglio campagna ${b.nome}`}
+                          aria-label={t("Dettaglio campagna {nome}", { nome: b.nome ?? "" })}
                         >
                           <Link to={`${waBase}/broadcast/${b.id}`}>
                             <Eye className="h-4 w-4" />
@@ -186,7 +186,7 @@ export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean
               </Table>
               {filteredBroadcasts.length === 0 && (
                 <div className="py-8 text-center text-sm text-muted-foreground">
-                  Nessuna campagna corrisponde ai filtri.
+                  {t("Nessuna campagna corrisponde ai filtri.")}
                 </div>
               )}
             </div>

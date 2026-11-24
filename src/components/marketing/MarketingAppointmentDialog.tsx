@@ -122,9 +122,10 @@ interface Props {
 }
 
 import { addMinutesToTimeStr as addMinutesToTime, timeToMin } from "@/lib/marketingCalendarConstants";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const formatEuro = (value: number | null | undefined) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(value || 0);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(value || 0);
 
 export default function MarketingAppointmentDialog({
   open,
@@ -141,6 +142,7 @@ export default function MarketingAppointmentDialog({
   defaultTitle,
   contestoScheda,
 }: Props) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!appointment?.id;
@@ -156,7 +158,7 @@ export default function MarketingAppointmentDialog({
     if (!visibile) setViciniAperti(false);
     cambiaApertura(visibile);
   };
-  const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
+  const bloccoTitle = solaLettura ? t("Sei in sola lettura") : undefined;
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"appointment" | "blocked">("appointment");
@@ -230,8 +232,8 @@ export default function MarketingAppointmentDialog({
   }, [calendars, calendarId]);
 
   const timeError = useMemo(() => {
-    if (!startTime || !endTime) return "Inserisci ora di inizio e ora di fine.";
-    if (timeToMin(endTime) <= timeToMin(startTime)) return "L'ora di fine deve essere successiva all'ora di inizio.";
+    if (!startTime || !endTime) return t("Inserisci ora di inizio e ora di fine.");
+    if (timeToMin(endTime) <= timeToMin(startTime)) return t("L'ora di fine deve essere successiva all'ora di inizio.");
     return "";
   }, [endTime, startTime]);
 
@@ -423,20 +425,20 @@ export default function MarketingAppointmentDialog({
     || (appointment?.meeting_provider === "manual" ? appointment.meeting_url?.trim() || "" : "");
 
   const meetingStatusLabel = useMemo(() => {
-    if (meetingProvider === "manual") return meetingUrl ? "Link della videochiamata del calendario" : "Nessun link";
-    if (meetingProvider !== "google_meet") return "Nessuna videocall";
-    if (meetingUrl) return "Link Meet pronto";
-    if (meetingStatus === "error") return "Meet da rigenerare";
-    return "Meet in attesa di sync";
+    if (meetingProvider === "manual") return meetingUrl ? t("Link della videochiamata del calendario") : t("Nessun link");
+    if (meetingProvider !== "google_meet") return t("Nessuna videocall");
+    if (meetingUrl) return t("Link Meet pronto");
+    if (meetingStatus === "error") return t("Meet da rigenerare");
+    return t("Meet in attesa di sync");
   }, [meetingProvider, meetingStatus, meetingUrl]);
 
   const copyMeetingUrl = useCallback(async () => {
     if (!meetingUrl) return;
     try {
       await navigator.clipboard.writeText(meetingUrl);
-      toast({ title: "Link copiato" });
+      toast({ title: t("Link copiato") });
     } catch {
-      toast({ title: "Copia non riuscita", description: "Apri il link e copialo manualmente.", variant: "destructive" });
+      toast({ title: t("Copia non riuscita"), description: t("Apri il link e copialo manualmente."), variant: "destructive" });
     }
   }, [meetingUrl]);
 
@@ -676,27 +678,27 @@ export default function MarketingAppointmentDialog({
     const isBlocked = activeTab === "blocked";
 
     if (!calendarId || calendarId === "none") {
-      toast({ title: "Seleziona un calendario", variant: "destructive" });
+      toast({ title: t("Seleziona un calendario"), variant: "destructive" });
       return;
     }
     if (!title.trim()) {
-      toast({ title: "Inserisci un titolo", variant: "destructive" });
+      toast({ title: t("Inserisci un titolo"), variant: "destructive" });
       return;
     }
     if (!appointmentDate) {
-      toast({ title: "Seleziona una data", variant: "destructive" });
+      toast({ title: t("Seleziona una data"), variant: "destructive" });
       return;
     }
     if (!startTime || !endTime) {
-      toast({ title: "Inserisci orario inizio e fine", variant: "destructive" });
+      toast({ title: t("Inserisci orario inizio e fine"), variant: "destructive" });
       return;
     }
     if (timeToMin(endTime) <= timeToMin(startTime)) {
-      toast({ title: "L'ora di fine deve essere successiva all'ora di inizio", variant: "destructive" });
+      toast({ title: t("L'ora di fine deve essere successiva all'ora di inizio"), variant: "destructive" });
       return;
     }
     if (!isBlocked && (!contactId || contactId === "none")) {
-      toast({ title: "Seleziona un contatto", variant: "destructive" });
+      toast({ title: t("Seleziona un contatto"), variant: "destructive" });
       return;
     }
     if (!companyId || !user) return;
@@ -708,8 +710,8 @@ export default function MarketingAppointmentDialog({
       let followUpCreated = false;
       let followUpWarning: string | null = null;
       const successTitle = isEditing
-        ? isBlocked ? "Tempo bloccato aggiornato" : "Appuntamento aggiornato"
-        : isBlocked ? "Tempo bloccato creato" : "Appuntamento prenotato";
+        ? isBlocked ? t("Tempo bloccato aggiornato") : t("Appuntamento aggiornato")
+        : isBlocked ? t("Tempo bloccato creato") : t("Appuntamento prenotato");
       // Il link fisso senza link non è una videochiamata: resta «in presenza / telefono».
       const effectiveMeetingProvider = isBlocked ? "none"
         : meetingProvider === "manual" ? (meetingUrl.trim() ? "manual" : "none")
@@ -756,7 +758,7 @@ export default function MarketingAppointmentDialog({
           const { data: updated, error } = await supabase.from("appointments").update(patch).eq("id", appointment.id).eq("company_id", companyId!)
             .select("id").single();
           if (error) throw error;
-          if (!updated?.id) throw new Error("Appuntamento non aggiornato: verifica i permessi e riprova. Le modifiche restano aperte.");
+          if (!updated?.id) throw new Error(t("Appuntamento non aggiornato: verifica i permessi e riprova. Le modifiche restano aperte."));
         }
         savedAppointmentId = appointment.id;
         if (!isBlocked && status === "annullato") {
@@ -783,7 +785,7 @@ export default function MarketingAppointmentDialog({
           await createFollowUpTask(savedAppointmentId);
           followUpCreated = true;
         } catch (error) {
-          followUpWarning = error instanceof Error ? error.message : "Task follow-up non creata.";
+          followUpWarning = error instanceof Error ? error.message : t("Task follow-up non creata.");
         }
       }
 
@@ -832,16 +834,16 @@ export default function MarketingAppointmentDialog({
       toast({
         title: successTitle,
         description: followUpWarning
-          ? `Salvato, ma il follow-up non e stato creato: ${followUpWarning}`
+          ? t("Salvato, ma il follow-up non e stato creato: {followUpWarning}", { followUpWarning: String(followUpWarning ?? "") })
           : followUpCreated
-            ? "Task follow-up creata e collegata al contatto."
+            ? t("Task follow-up creata e collegata al contatto.")
             : undefined,
         variant: followUpWarning ? "destructive" : undefined,
       });
       onSaved({ calendar_id: calendarId, assigned_to: payload.assigned_to ?? null, appointment_date: payload.appointment_date! });
       onOpenChange(false);
     } catch (e: any) {
-      toast({ title: "Errore", description: e.message, variant: "destructive" });
+      toast({ title: t("Errore"), description: e.message, variant: "destructive" });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -860,13 +862,13 @@ export default function MarketingAppointmentDialog({
         .update({ status: "annullato", cancelled_at: new Date().toISOString(), cancelled_by: user?.id ?? null })
         .eq("id", appointment.id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
-      if (!cancelled?.id) throw new Error("Appuntamento non annullato: riprova. Il calendario esterno resta invariato.");
+      if (!cancelled?.id) throw new Error(t("Appuntamento non annullato: riprova. Il calendario esterno resta invariato."));
       await syncDeletedAppointment(appointment.id);
-      toast({ title: "Appuntamento annullato", description: "Resta nello storico, segnato come annullato." });
+      toast({ title: t("Appuntamento annullato"), description: t("Resta nello storico, segnato come annullato.") });
       onSaved();
       onOpenChange(false);
     } catch (e: unknown) {
-      toast({ title: "Errore nell'eliminazione", description: e instanceof Error ? e.message : "Problema temporaneo. Riprova.", variant: "destructive" });
+      toast({ title: t("Errore nell'eliminazione"), description: e instanceof Error ? e.message : t("Problema temporaneo. Riprova."), variant: "destructive" });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -883,13 +885,13 @@ export default function MarketingAppointmentDialog({
         <DialogHeader>
           <DialogTitle>
             {isEditing
-              ? isBlocked ? "Modifica tempo bloccato" : "Modifica appuntamento"
-              : isBlocked ? "Aggiungi tempo bloccato" : "Prenota appuntamento"}
+              ? isBlocked ? t("Modifica tempo bloccato") : t("Modifica appuntamento")
+              : isBlocked ? t("Aggiungi tempo bloccato") : t("Prenota appuntamento")}
           </DialogTitle>
           <DialogDescription className="max-sm:sr-only">
             {isBlocked
-              ? "Blocca un periodo sul calendario per impedire prenotazioni"
-              : "Compila i dettagli per prenotare un appuntamento"}
+              ? t("Blocca un periodo sul calendario per impedire prenotazioni")
+              : t("Compila i dettagli per prenotare un appuntamento")}
           </DialogDescription>
         </DialogHeader>
 
@@ -900,10 +902,10 @@ export default function MarketingAppointmentDialog({
         {isEditing && selectedContact && (
           <div className="rounded-lg border bg-muted/30 p-3 sm:hidden">
             <p className="text-sm font-semibold">{`${selectedContact.first_name} ${selectedContact.last_name || ""}`.trim()}</p>
-            {appointmentDate && <p className="text-xs text-muted-foreground">{format(appointmentDate, "EEEE d MMMM", { locale: it })} · {startTime}{endTime ? `–${endTime}` : ""}</p>}
+            {appointmentDate && <p className="text-xs text-muted-foreground">{format(appointmentDate, "EEEE d MMMM", { locale: dateFnsCampo() })} · {startTime}{endTime ? `–${endTime}` : ""}</p>}
             {(selectedContact.phone || selectedContact.email) && (
               <div className="mt-2 flex gap-2 [&>a]:flex [&>a]:h-10 [&>a]:flex-1 [&>a]:items-center [&>a]:justify-center [&>a]:rounded-md [&>a]:border [&>a]:bg-background [&>a]:text-sm [&>a]:font-medium">
-                {selectedContact.phone && <a href={`tel:${selectedContact.phone.replace(/[^\d+]/g, "")}`}>Chiama</a>}
+                {selectedContact.phone && <a href={`tel:${selectedContact.phone.replace(/[^\d+]/g, "")}`}>{t("Chiama")}</a>}
                 {numeroWhatsApp(selectedContact.phone) && <a className="text-emerald-700" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${numeroWhatsApp(selectedContact.phone)}`}>WhatsApp</a>}
                 {!selectedContact.phone && selectedContact.email && <a href={`mailto:${selectedContact.email}`}>Email</a>}
               </div>
@@ -914,11 +916,11 @@ export default function MarketingAppointmentDialog({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="appointment" className="gap-1.5">
               <Clock className="h-3.5 w-3.5" />
-              Appuntamento
+              {t("Appuntamento")}
             </TabsTrigger>
             <TabsTrigger value="blocked" className="gap-1.5">
               <Ban className="h-3.5 w-3.5" />
-              Tempo bloccato
+              {t("Tempo bloccato")}
             </TabsTrigger>
           </TabsList>
 
@@ -931,16 +933,16 @@ export default function MarketingAppointmentDialog({
                   <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                     <div>
-                      <p className="font-medium">Nessun calendario CRM configurato</p>
-                      <p className="text-xs opacity-80">Configura un calendario prima di prenotare appuntamenti o bloccare fasce orarie.</p>
+                      <p className="font-medium">{t("Nessun calendario CRM configurato")}</p>
+                      <p className="text-xs opacity-80">{t("Configura un calendario prima di prenotare appuntamenti o bloccare fasce orarie.")}</p>
                     </div>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label>Calendario *</Label>
+                  <Label>{t("Calendario *")}</Label>
                   <Select value={calendarId} onValueChange={changeCalendar} disabled={calendars.length === 0}>
-                    <SelectTrigger aria-label="Calendario *"><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
+                    <SelectTrigger aria-label={t("Calendario *")}><SelectValue placeholder={t("Seleziona calendario")} /></SelectTrigger>
                     <SelectContent>
                       {calendars.map((c) => (
                         <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -950,17 +952,17 @@ export default function MarketingAppointmentDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="mkt-title">Titolo dell'appuntamento *</Label>
-                  <Input id="mkt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Consulenza iniziale" />
+                  <Label htmlFor="mkt-title">{t("Titolo dell'appuntamento *")}</Label>
+                  <Input id="mkt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("Es. Consulenza iniziale")} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="mkt-desc">Descrizione</Label>
-                  <Textarea id="mkt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} className="max-sm:h-16 max-sm:min-h-0 max-sm:placeholder:text-[13px]" />
+                  <Label htmlFor="mkt-desc">{t("Descrizione")}</Label>
+                  <Textarea id="mkt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("Dettagli aggiuntivi...")} rows={3} className="max-sm:h-16 max-sm:min-h-0 max-sm:placeholder:text-[13px]" />
                 </div>
                 {appointment?.cancelled_reason && (
                   <div className="space-y-1 text-sm">
-                    <p className="text-xs font-medium text-muted-foreground">Motivo della disdetta</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t("Motivo della disdetta")}</p>
                     <p className="whitespace-pre-wrap break-words">{appointment.cancelled_reason}</p>
                   </div>
                 )}
@@ -969,13 +971,13 @@ export default function MarketingAppointmentDialog({
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3 max-sm:p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <Label className="text-sm font-semibold">Modalità incontro</Label>
+                      <Label className="text-sm font-semibold">{t("Modalità incontro")}</Label>
                       <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{meetingStatusLabel}</p>
                     </div>
                     {meetingProvider === "google_meet" && (
                       <Badge variant={meetingUrl ? "default" : "secondary"} className="gap-1">
                         <Video className="h-3.5 w-3.5" />
-                        Google Meet
+                        {t("Google Meet")}
                       </Badge>
                     )}
                   </div>
@@ -996,9 +998,9 @@ export default function MarketingAppointmentDialog({
                       >
                         <span className="inline-flex items-center gap-1.5 font-medium">
                           <Video className="h-4 w-4 text-primary" />
-                          Link del calendario
+                          {t("Link del calendario")}
                         </span>
-                        <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">Sempre lo stesso: arriva al cliente nella conferma e nei promemoria.</span>
+                        <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">{t("Sempre lo stesso: arriva al cliente nella conferma e nei promemoria.")}</span>
                       </button>
                     )}
                     <button
@@ -1013,8 +1015,8 @@ export default function MarketingAppointmentDialog({
                         meetingProvider === "none" && "border-primary bg-primary/5 ring-1 ring-primary/20",
                       )}
                     >
-                      <span className="font-medium">In presenza / telefono</span>
-                      <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">Usa indirizzo, note o telefonata senza link video.</span>
+                      <span className="font-medium">{t("In presenza / telefono")}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">{t("Usa indirizzo, note o telefonata senza link video.")}</span>
                     </button>
                     <button
                       type="button"
@@ -1032,9 +1034,9 @@ export default function MarketingAppointmentDialog({
                     >
                       <span className="inline-flex items-center gap-1.5 font-medium">
                         <Video className="h-4 w-4 text-primary" />
-                        Google Meet
+                        {t("Google Meet")}
                       </span>
-                      <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">Generato dal sync Google Calendar del responsabile.</span>
+                      <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">{t("Generato dal sync Google Calendar del responsabile.")}</span>
                     </button>
                   </div>
 
@@ -1045,17 +1047,17 @@ export default function MarketingAppointmentDialog({
                           <span className="min-w-0 flex-1 truncate">{meetingUrl}</span>
                           <Button type="button" variant="outline" size="sm" className="h-7 gap-1" onClick={copyMeetingUrl}>
                             <Copy className="h-3.5 w-3.5" />
-                            Copia
+                            {t("Copia")}
                           </Button>
                           <Button type="button" variant="outline" size="sm" className="h-7 gap-1" asChild>
                             <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
                               <ExternalLink className="h-3.5 w-3.5" />
-                              Apri
+                              {t("Apri")}
                             </a>
                           </Button>
                         </div>
                       ) : (
-                        "Il link Meet verrà creato appena l'appuntamento viene sincronizzato con Google Calendar."
+                        t("Il link Meet verrà creato appena l'appuntamento viene sincronizzato con Google Calendar.")
                       )}
                     </div>
                   )}
@@ -1065,7 +1067,7 @@ export default function MarketingAppointmentDialog({
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <AddressAutocomplete value={addressData} onChange={setAddressData} />
                   {viciniDaCalendario && canViewMarketingAppointments && companyId && meetingProvider === "none" && (
-                    viciniAperti ? <Suspense fallback={<p role="status" className="text-xs">Caricamento disponibilità…</p>}>
+                    viciniAperti ? <Suspense fallback={<p role="status" className="text-xs">{t("Caricamento disponibilità…")}</p>}>
                       <ViciniAppuntamento key={`${appointmentDate?.toDateString()}:${startTime}:${endTime}:${addressData.formatted_address}:${addressData.address_line}`}
                         company={companyId} giorno={format(appointmentDate ?? new Date(), "yyyy-MM-dd")} inizio={startTime} fine={endTime}
                         indirizzo={addressData.formatted_address || [addressData.address_line, addressData.address_postal_code, addressData.address_city, addressData.address_province].filter(Boolean).join(", ")}
@@ -1073,7 +1075,7 @@ export default function MarketingAppointmentDialog({
                         escludi={appointment?.id} lavori={canViewOrders && canViewCalendar && canViewPersone && canViewAllTeamCalendar && !onlyAssignedWork}
                         puoProporre={(tipo, id) => tipo === "vendite" && !solaLettura && users.some(u => u.id === id) && !!calendarioPersonalePerProposta(id)}
                         onProposta={applicaProposta} onChiudi={() => setViciniAperti(false)} />
-                    </Suspense> : <Button type="button" variant="outline" size="sm" onClick={() => setViciniAperti(true)}>Chi è più vicino?</Button>
+                    </Suspense> : <Button type="button" variant="outline" size="sm" onClick={() => setViciniAperti(true)}>{t("Chi è più vicino?")}</Button>
                   )}
                   {addressData.lat != null && addressData.lng != null && (
                     <>
@@ -1087,7 +1089,7 @@ export default function MarketingAppointmentDialog({
                           <Car className="h-3.5 w-3.5 text-primary" />
                           <span className="font-medium">{baseDistance.duration_text}</span>
                           <span className="text-muted-foreground">- {baseDistance.distance_text}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">dalla base calendario</span>
+                          <span className="text-xs text-muted-foreground ml-auto">{t("dalla base calendario")}</span>
                         </div>
                       )}
                     </>
@@ -1107,7 +1109,7 @@ export default function MarketingAppointmentDialog({
                 {/* Same-day appointments */}
                 {sameDayAppointments.length > 0 && (
                   <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
-                    <p className="text-xs font-semibold text-foreground">Altri appuntamenti del giorno</p>
+                    <p className="text-xs font-semibold text-foreground">{t("Altri appuntamenti del giorno")}</p>
                     {sameDayAppointments.map((a) => {
                       const dist = interDistances[a.id];
                       const hasCoords = a.lat != null && a.lng != null;
@@ -1115,7 +1117,7 @@ export default function MarketingAppointmentDialog({
                         <div key={a.id} className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3 shrink-0" />
                           <span>{a.appointment_time?.substring(0, 5) || "—"}</span>
-                          <span className="truncate">{a.title || a.formatted_address || "Appuntamento"}</span>
+                          <span className="truncate">{a.title || a.formatted_address || t("Appuntamento")}</span>
                           {dist ? (
                             <span className="ml-auto shrink-0 inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-medium">
                               <Car className="h-3 w-3" />
@@ -1135,37 +1137,37 @@ export default function MarketingAppointmentDialog({
                     <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/15 text-primary">
                       <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
                     </span>
-                    Venditore assegnato
-                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">(staff interno)</span>
+                    {t("Venditore assegnato")}
+                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">{t("(staff interno)")}</span>
                   </Label>
                   <Select value={assignedTo} onValueChange={changeAssignee}>
-                    <SelectTrigger aria-label="Venditore assegnato"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                    <SelectTrigger aria-label={t("Venditore assegnato")}><SelectValue placeholder={t("Non assegnato")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Non assegnato</SelectItem>
+                      <SelectItem value="none">{t("Non assegnato")}</SelectItem>
                       {users.map((u) => (
                         <SelectItem key={u.id} value={u.id}>{u.first_name} {u.last_name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <p className="text-[10px] text-muted-foreground max-sm:hidden max-md:text-[11px]">
-                    Scegli il commerciale interno che gestirà l'appuntamento.
+                    {t("Scegli il commerciale interno che gestirà l'appuntamento.")}
                   </p>
                 </div>
 
                 {/* Date & Time card */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-semibold">Data e ora</Label>
-                    <span className="text-xs text-muted-foreground max-sm:hidden">Fuso orario: Europe/Rome</span>
+                    <Label className="text-sm font-semibold">{t("Data e ora")}</Label>
+                    <span className="text-xs text-muted-foreground max-sm:hidden">{t("Fuso orario: Europe/Rome")}</span>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Data *</Label>
+                    <Label>{t("Data *")}</Label>
                     <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !appointmentDate && "text-muted-foreground")}>
                           <CalendarDays className="mr-2 h-4 w-4" />
-                          {appointmentDate ? format(appointmentDate, "EEEE d MMMM yyyy", { locale: it }) : "Seleziona data"}
+                          {appointmentDate ? format(appointmentDate, "EEEE d MMMM yyyy", { locale: dateFnsCampo() }) : t("Seleziona data")}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -1182,7 +1184,7 @@ export default function MarketingAppointmentDialog({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label htmlFor="start-time" className="text-xs">Ora inizio *</Label>
+                      <Label htmlFor="start-time" className="text-xs">{t("Ora inizio *")}</Label>
                       <Input id="start-time" type="time" step={900} value={startTime} onChange={(e) => {
                         setStartTime(e.target.value);
                         if (e.target.value) {
@@ -1192,7 +1194,7 @@ export default function MarketingAppointmentDialog({
                       }} />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="end-time" className="text-xs">Ora fine *</Label>
+                      <Label htmlFor="end-time" className="text-xs">{t("Ora fine *")}</Label>
                       <Input id="end-time" type="time" step={900} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                     </div>
                   </div>
@@ -1209,8 +1211,8 @@ export default function MarketingAppointmentDialog({
                     <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
                       <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
                     </span>
-                    Cliente *
-                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">(contatto CRM)</span>
+                    {t("Cliente *")}
+                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">{t("(contatto CRM)")}</span>
                   </Label>
                   <div>
                     <Popover
@@ -1225,14 +1227,14 @@ export default function MarketingAppointmentDialog({
                           type="button"
                           variant="outline"
                           role="combobox"
-                          aria-label="Cliente (contatto CRM) *"
+                          aria-label={t("Cliente (contatto CRM) *")}
                           aria-expanded={contactPickerOpen}
                           className={cn("w-full justify-between", !selectedContact && "text-muted-foreground")}
                         >
                           <span className="truncate">
                             {selectedContact
                               ? `${selectedContact.first_name} ${selectedContact.last_name || ""}${selectedContact.email ? ` (${selectedContact.email})` : ""}`
-                              : "Cerca e seleziona contatto..."}
+                              : t("Cerca e seleziona contatto...")}
                           </span>
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
@@ -1242,10 +1244,10 @@ export default function MarketingAppointmentDialog({
                           <CommandInput
                             value={cercaContatto}
                             onValueChange={setCercaContatto}
-                            placeholder="Cerca per nome, telefono, email, città..."
+                            placeholder={t("Cerca per nome, telefono, email, città...")}
                           />
                           <CommandList>
-                            <CommandEmpty>{cercandoContatti ? "Cerco..." : "Nessun contatto trovato."}</CommandEmpty>
+                            <CommandEmpty>{cercandoContatti ? t("Cerco...") : t("Nessun contatto trovato.")}</CommandEmpty>
                             <CommandGroup>
                               {contattiTrovati.map((c) => (
                                 <CommandItem
@@ -1273,7 +1275,7 @@ export default function MarketingAppointmentDialog({
                     </Popover>
                   </div>
                   <p className="text-[10px] text-muted-foreground max-sm:hidden max-md:text-[11px]">
-                    Persona esterna per cui è l'appuntamento (prospect o cliente).
+                    {t("Persona esterna per cui è l'appuntamento (prospect o cliente).")}
                   </p>
                 </div>
 
@@ -1283,29 +1285,29 @@ export default function MarketingAppointmentDialog({
                       <div>
                         <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
                           <Sparkles className="h-3.5 w-3.5 text-primary" />
-                          Contesto CRM
+                          {t("Contesto CRM")}
                         </p>
                         {/* Recapiti toccabili: dal campo si chiama o si scrive da qui (collaudo
                             23/11/2026: il numero era solo testo). */}
                         {selectedContact.phone || selectedContact.email ? (
                           <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                            {selectedContact.phone && <a className="font-medium text-primary underline-offset-2 hover:underline" href={`tel:${selectedContact.phone.replace(/[^\d+]/g, "")}`}>Chiama {selectedContact.phone}</a>}
+                            {selectedContact.phone && <a className="font-medium text-primary underline-offset-2 hover:underline" href={`tel:${selectedContact.phone.replace(/[^\d+]/g, "")}`}>{t("Chiama {telefono}", { telefono: selectedContact.phone })}</a>}
                             {numeroWhatsApp(selectedContact.phone) && <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${numeroWhatsApp(selectedContact.phone)}`}>WhatsApp</a>}
                             {selectedContact.email && <a className="font-medium text-primary underline-offset-2 hover:underline" href={`mailto:${selectedContact.email}`}>Email</a>}
                           </p>
-                        ) : <p className="text-xs text-muted-foreground">Nessun recapito salvato</p>}
+                        ) : <p className="text-xs text-muted-foreground">{t("Nessun recapito salvato")}</p>}
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         {(selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score) != null && (
                           <Badge variant="secondary" className="shrink-0">
-                            Score {selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score}
+                            {t("Score")} {selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score}
                           </Badge>
                         )}
                         {canViewMarketingContacts && contestoScheda !== "contatto" && (
                           <Button type="button" variant="outline" size="sm" className="h-7 gap-1" asChild>
                             <Link to={linkContatto(routePrefix, selectedContact.id)} onClick={() => onOpenChange(false)}>
                               <ExternalLink className="h-3.5 w-3.5" />
-                              Apri contatto
+                              {t("Apri contatto")}
                             </Link>
                           </Button>
                         )}
@@ -1314,30 +1316,30 @@ export default function MarketingAppointmentDialog({
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="rounded-md bg-background px-2 py-1.5">
-                        <span className="block text-muted-foreground">Origine</span>
-                        <span className="font-medium">{selectedContact.attr_source || selectedContact.source || "Non indicata"}</span>
+                        <span className="block text-muted-foreground">{t("Origine")}</span>
+                        <span className="font-medium">{selectedContact.attr_source || selectedContact.source || t("Non indicata")}</span>
                       </div>
                       <div className="rounded-md bg-background px-2 py-1.5">
-                        <span className="block text-muted-foreground">Canale</span>
-                        <span className="font-medium">{selectedContact.preferred_channel || selectedContact.attr_medium || "Non indicato"}</span>
+                        <span className="block text-muted-foreground">{t("Canale")}</span>
+                        <span className="font-medium">{selectedContact.preferred_channel || selectedContact.attr_medium || t("Non indicato")}</span>
                       </div>
                     </div>
 
                     {selectedContact.attr_campaign && (
                       <p className="text-xs text-muted-foreground">
-                        Campagna: <span className="font-medium text-foreground">{selectedContact.attr_campaign}</span>
+                        {t("Campagna:")} <span className="font-medium text-foreground">{selectedContact.attr_campaign}</span>
                       </p>
                     )}
 
                     {selectedContact.ai_predicted_value_eur != null && (
                       <p className="text-xs text-muted-foreground">
-                        Valore previsto: <span className="font-medium text-foreground">{formatEuro(selectedContact.ai_predicted_value_eur)}</span>
+                        {t("Valore previsto:")} <span className="font-medium text-foreground">{formatEuro(selectedContact.ai_predicted_value_eur)}</span>
                       </p>
                     )}
 
                     {selectedContact.ai_next_action && (
                       <div className="rounded-md border border-primary/20 bg-primary/5 px-2 py-1.5 text-xs">
-                        <span className="font-medium text-primary">Prossima azione AI: </span>
+                        <span className="font-medium text-primary">{t("Prossima azione AI:")} </span>
                         {selectedContact.ai_next_action}
                       </div>
                     )}
@@ -1353,13 +1355,13 @@ export default function MarketingAppointmentDialog({
                           {selectedOpportunity.probability != null ? ` - ${selectedOpportunity.probability}% probabilita` : ""}
                         </p>
                         {selectedOpportunity.next_action && (
-                          <p className="mt-1 text-muted-foreground">Next: {selectedOpportunity.next_action}</p>
+                          <p className="mt-1 text-muted-foreground">{t("Next: {next_action}", { next_action: String(selectedOpportunity.next_action ?? "") })}</p>
                         )}
                         {canViewMarketingOpportunities && contestoScheda !== "opportunita" && (
                           <Button type="button" variant="outline" size="sm" className="mt-2 h-7 gap-1" asChild>
                             <Link to={linkOpportunita(routePrefix, selectedOpportunity.id)} onClick={() => onOpenChange(false)}>
                               <ExternalLink className="h-3.5 w-3.5" />
-                              Apri opportunità
+                              {t("Apri opportunità")}
                             </Link>
                           </Button>
                         )}
@@ -1379,11 +1381,9 @@ export default function MarketingAppointmentDialog({
                     <div className="min-w-0 flex-1">
                       <Label htmlFor="mkt-create-follow-up" className="flex items-center gap-1.5 text-sm font-semibold">
                         <ListChecks className="h-3.5 w-3.5 text-primary" />
-                        Crea task follow-up
+                        {t("Crea task follow-up")}
                       </Label>
-                      <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">
-                        Stato: {selectedStatusMeta.label}. {selectedStatusMeta.description}
-                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{t("Stato: {stato}. {descrizione}", { stato: t(selectedStatusMeta.label), descrizione: t(selectedStatusMeta.description) })}</p>
                     </div>
                   </div>
 
@@ -1392,7 +1392,7 @@ export default function MarketingAppointmentDialog({
                       <Input
                         value={followUpTitle}
                         onChange={(event) => setFollowUpTitle(event.target.value)}
-                        placeholder="Titolo task follow-up"
+                        placeholder={t("Titolo task follow-up")}
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <Input
@@ -1405,16 +1405,14 @@ export default function MarketingAppointmentDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="bassa">Bassa</SelectItem>
-                            <SelectItem value="normale">Normale</SelectItem>
-                            <SelectItem value="alta">Alta</SelectItem>
+                            <SelectItem value="bassa">{t("Bassa")}</SelectItem>
+                            <SelectItem value="normale">{t("Normale")}</SelectItem>
+                            <SelectItem value="alta">{t("Alta")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       {selectedOpportunity && (
-                        <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                          La task sara collegata anche all'opportunita "{selectedOpportunity.name}".
-                        </p>
+                        <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("La task sara collegata anche all'opportunita \"{name}\".", { name: String(selectedOpportunity.name ?? "") })}</p>
                       )}
                     </div>
                   )}
@@ -1429,16 +1427,16 @@ export default function MarketingAppointmentDialog({
                       onClick={() => setShowInternalNotes(true)}
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Aggiungi nota interna
+                      {t("Aggiungi nota interna")}
                     </Button>
                   ) : (
                     <>
-                      <Label htmlFor="mkt-internal-notes">Note interne</Label>
+                      <Label htmlFor="mkt-internal-notes">{t("Note interne")}</Label>
                       <Textarea
                         id="mkt-internal-notes"
                         value={internalNotes}
                         onChange={(e) => setInternalNotes(e.target.value)}
-                        placeholder="Visibile solo al team..."
+                        placeholder={t("Visibile solo al team...")}
                         rows={4}
                       />
                     </>
@@ -1451,14 +1449,14 @@ export default function MarketingAppointmentDialog({
           {/* ── BLOCKED SLOT TAB ── */}
           <TabsContent value="blocked" className="mt-4">
             <p className="text-sm text-muted-foreground mb-4">
-              Vai in vacanza? Devi bloccare del tempo? Aggiungi qui un periodo di blocco per impedire la prenotazione di appuntamenti.
+              {t("Vai in vacanza? Devi bloccare del tempo? Aggiungi qui un periodo di blocco per impedire la prenotazione di appuntamenti.")}
             </p>
 
             <div className="space-y-4 max-w-md">
               <div className="space-y-2">
-                <Label>Calendario *</Label>
+                <Label>{t("Calendario *")}</Label>
                 <Select value={calendarId} onValueChange={changeCalendar}>
-                  <SelectTrigger aria-label="Calendario *"><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Calendario *")}><SelectValue placeholder={t("Seleziona calendario")} /></SelectTrigger>
                   <SelectContent>
                     {calendars.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -1468,23 +1466,23 @@ export default function MarketingAppointmentDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="blocked-title">Titolo *</Label>
-                <Input id="blocked-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ferie, Pausa pranzo..." />
+                <Label htmlFor="blocked-title">{t("Titolo *")}</Label>
+                <Input id="blocked-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("Es. Ferie, Pausa pranzo...")} />
               </div>
 
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Data e ora</Label>
-                  <span className="text-xs text-muted-foreground max-sm:hidden">Fuso orario: Europe/Rome</span>
+                  <Label className="text-sm font-semibold">{t("Data e ora")}</Label>
+                  <span className="text-xs text-muted-foreground max-sm:hidden">{t("Fuso orario: Europe/Rome")}</span>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Data *</Label>
+                  <Label>{t("Data *")}</Label>
                   <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !appointmentDate && "text-muted-foreground")}>
                         <CalendarDays className="mr-2 h-4 w-4" />
-                        {appointmentDate ? format(appointmentDate, "EEEE d MMMM yyyy", { locale: it }) : "Seleziona data"}
+                        {appointmentDate ? format(appointmentDate, "EEEE d MMMM yyyy", { locale: dateFnsCampo() }) : t("Seleziona data")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1501,14 +1499,14 @@ export default function MarketingAppointmentDialog({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor="blocked-start" className="text-xs">Ora inizio *</Label>
+                    <Label htmlFor="blocked-start" className="text-xs">{t("Ora inizio *")}</Label>
                     <Input id="blocked-start" type="time" step={900} value={startTime} onChange={(e) => {
                       setStartTime(e.target.value);
                       if (e.target.value) setEndTime(addMinutesToTime(e.target.value, 30));
                     }} />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="blocked-end" className="text-xs">Ora fine *</Label>
+                    <Label htmlFor="blocked-end" className="text-xs">{t("Ora fine *")}</Label>
                     <Input id="blocked-end" type="time" step={900} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                   </div>
                 </div>
@@ -1527,22 +1525,22 @@ export default function MarketingAppointmentDialog({
               <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={saving || solaLettura} title={bloccoTitle} size="sm">
                 <Trash2 className="h-4 w-4 mr-1" aria-hidden="true" />
                 {/* «Disdici», non «Annulla»: accanto c'è già «Annulla» che chiude la finestra. */}
-                Disdici
+                {t("Disdici")}
               </Button>
             )}
 
             {!isBlocked && (
               <>
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Stato:</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">{t("Stato:")}</Label>
                 <Select value={status} onValueChange={handleStatusSelect}>
-                  <SelectTrigger aria-label="Stato appuntamento" className="h-8 w-[170px] text-xs">
+                  <SelectTrigger aria-label={t("Stato appuntamento")} className="h-8 w-[170px] text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {MARKETING_APPOINTMENT_STATUS_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         <Badge variant={option.variant} className="text-[10px] max-md:text-[11px]">
-                          {option.label}
+                          {t(option.label)}
                         </Badge>
                       </SelectItem>
                     ))}
@@ -1554,17 +1552,17 @@ export default function MarketingAppointmentDialog({
 
           <div className="flex gap-2 max-sm:w-full">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button onClick={handleSave} disabled={saving || solaLettura || calendars.length === 0 || !!timeError} title={bloccoTitle} className="gap-2 max-sm:flex-1">
               {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
               {saving
-                ? "Salvataggio..."
+                ? t("Salvataggio...")
                 : isEditing
-                  ? "Salva modifiche"
+                  ? t("Salva modifiche")
                   : isBlocked
-                    ? "Blocca tempo"
-                    : "Prenota appuntamento"}
+                    ? t("Blocca tempo")
+                    : t("Prenota appuntamento")}
             </Button>
           </div>
         </DialogFooter>
@@ -1575,20 +1573,19 @@ export default function MarketingAppointmentDialog({
     <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitleComp>Annulla appuntamento</AlertDialogTitleComp>
+          <AlertDialogTitleComp>{t("Annulla appuntamento")}</AlertDialogTitleComp>
           <AlertDialogDesc>
-            L'appuntamento resta nello storico segnato come «annullato» e viene tolto dai
-            calendari collegati (Google, Apple). Lo ritrovi nel filtro «Annullati».
+            {t("L'appuntamento resta nello storico segnato come «annullato» e viene tolto dai calendari collegati (Google, Apple). Lo ritrovi nel filtro «Annullati».")}
           </AlertDialogDesc>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={saving}>Torna indietro</AlertDialogCancel>
+          <AlertDialogCancel disabled={saving}>{t("Torna indietro")}</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={handleDelete}
             disabled={saving}
           >
-            {saving ? "Annullamento..." : "Annulla l'appuntamento"}
+            {saving ? t("Annullamento...") : t("Annulla l'appuntamento")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

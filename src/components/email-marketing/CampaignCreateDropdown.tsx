@@ -22,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, FileText, LayoutTemplate, FolderOpen, Search, Loader2, Palette } from "lucide-react";
 import { toast } from "sonner";
 import { useEmailMarketingBase } from "./useEmailMarketingBase";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CampaignCreateDropdownProps {
   variant?: "default" | "outline";
@@ -29,6 +30,7 @@ interface CampaignCreateDropdownProps {
 }
 
 export function CampaignCreateDropdown({ variant = "default", size = "sm" }: CampaignCreateDropdownProps) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
   const emailBase = useEmailMarketingBase();
@@ -121,25 +123,25 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
         <DropdownMenuTrigger asChild>
           <Button variant={variant} size={size} disabled={createDraftMut.isPending || !effectiveCompany || !user}>
             <Plus className="h-4 w-4 mr-1" />
-            {createDraftMut.isPending ? "Creazione..." : "Crea campagna"}
+            {createDraftMut.isPending ? tr("Creazione...") : tr("Crea campagna")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem onClick={() => { setOpen(false); createDraftMut.mutate({ navigateTo: "editor" }); }}>
             <FileText className="h-4 w-4 mr-2" />
-            Editor standard
+            {tr("Editor standard")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => { setOpen(false); createDraftMut.mutate({ navigateTo: "builder" }); }}>
             <Palette className="h-4 w-4 mr-2" />
-            Progettazione custom
+            {tr("Progettazione custom")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => { setOpen(false); navigate(`${emailBase}?tab=modelli`); }}>
             <LayoutTemplate className="h-4 w-4 mr-2" />
-            Modelli di email marketing
+            {tr("Modelli di email marketing")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => { setOpen(false); setTemplateDialogOpen(true); setTemplateSearch(""); }}>
             <FolderOpen className="h-4 w-4 mr-2" />
-            I tuoi modelli
+            {tr("I tuoi modelli")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -148,13 +150,13 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Scegli un template</DialogTitle>
+            <DialogTitle>{tr("Scegli un template")}</DialogTitle>
           </DialogHeader>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Cerca template..."
+              placeholder={tr("Cerca template...")}
               value={templateSearch}
               onChange={(e) => setTemplateSearch(e.target.value)}
               autoFocus
@@ -167,7 +169,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
               </div>
             ) : filteredTemplates.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                {templates.length === 0 ? "Nessun template creato. Crea un template dalla tab Modelli." : "Nessun risultato"}
+                {templates.length === 0 ? tr("Nessun template creato. Crea un template dalla tab Modelli.") : tr("Nessun risultato")}
               </p>
             ) : (
               <div className="space-y-1">

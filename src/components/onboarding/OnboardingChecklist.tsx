@@ -21,6 +21,7 @@ import { CheckCircle2, Circle, ListChecks, ArrowRight, Sparkles, X } from "lucid
 import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OnboardingStep {
   id: string;
@@ -38,6 +39,7 @@ interface Completion {
 }
 
 export function OnboardingChecklist() {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -192,20 +194,18 @@ export function OnboardingChecklist() {
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-eic-amber to-orange-500 flex items-center justify-center shrink-0">
               {isAllDone ? <Sparkles className="h-4 w-4 text-white" /> : <ListChecks className="h-4 w-4 text-white" />}
             </div>
-            <span>{isAllDone ? "Sei pronto!" : "Inizia in 5 minuti"}</span>
+            <span>{isAllDone ? t("Sei pronto!") : t("Inizia in 5 minuti")}</span>
           </CardTitle>
           <div className="flex items-center gap-1.5 shrink-0">
             <Badge
               variant={isAllDone ? "default" : "secondary"}
               className={isAllDone ? "bg-emerald-600 hover:bg-emerald-700" : ""}
-            >
-              {pct}% completato
-            </Badge>
+            >{t("{pct}% completato", { pct: String(pct ?? "") })}</Badge>
             <button
               type="button"
               onClick={handleDismiss}
-              aria-label="Chiudi"
-              title="Nascondi questa scheda"
+              aria-label={t("Chiudi")}
+              title={t("Nascondi questa scheda")}
               className="rounded-md p-1 text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors"
               data-allow-in-preview="true"
             >
@@ -215,7 +215,7 @@ export function OnboardingChecklist() {
         </div>
         {!isAllDone && nextStep && (
           <p className="text-xs text-muted-foreground mt-1">
-            Prossimo: <strong className="text-foreground">{nextStep.title}</strong>
+            {t("Prossimo:")} <strong className="text-foreground">{nextStep.title}</strong>
           </p>
         )}
       </CardHeader>
@@ -235,7 +235,7 @@ export function OnboardingChecklist() {
                   className="shrink-0 mt-0.5 disabled:opacity-50"
                   onClick={() => toggleStep.mutate(step.id)}
                   disabled={toggleStep.isPending}
-                  aria-label={done ? "Segna come da fare" : "Segna come completato"}
+                  aria-label={done ? t("Segna come da fare") : t("Segna come completato")}
                   type="button"
                   data-allow-in-preview="true"
                 >
@@ -261,7 +261,7 @@ export function OnboardingChecklist() {
                     className="shrink-0 h-7 text-xs border-amber-300 hover:bg-amber-100 hover:text-amber-900"
                   >
                     <Link to={step.action_url} data-allow-in-preview="true">
-                      {step.action_label ?? "Vai"}
+                      {step.action_label ?? t("Vai")}
                       <ArrowRight className="ml-1 h-3 w-3" />
                     </Link>
                   </Button>
@@ -273,7 +273,7 @@ export function OnboardingChecklist() {
         {isAllDone && (
           <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-3 text-center">
             <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-              🎉 Hai completato il setup. Adesso sei operativo al 100%.
+              {t("🎉 Hai completato il setup. Adesso sei operativo al 100%.")}
             </p>
           </div>
         )}

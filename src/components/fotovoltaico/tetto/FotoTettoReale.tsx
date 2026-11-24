@@ -5,6 +5,7 @@ import { limiteModuliDisegno, aggiornaOstacoloConPosa, arrotondaMetro, pannelliD
 import { useRilievo, proiettaFoto } from "./RilievoContext";
 import { pixelMondo } from "./rilievoLocale";
 import { sagomeOstacoliEdificio } from "./tettoReale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 type Vista = {
     x: number;
     y: number;
@@ -38,6 +39,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
     navigazioneMappa?: boolean;
     onScegliStrumento?: () => void;
 }) {
+  const t = useT();
     const { edificio, orto } = useRilievo(), falde = facceConAreePosa(edificio, piano).filter(f => f.tipo === "RoofSurface");
     const puntoFoto = (p: {
         x: number;
@@ -100,15 +102,15 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
         tipo: "ostacolo";
     }>) => ({ x: Math.min(d.start.x, d.end.x), y: Math.min(d.start.y, d.end.y), w: Math.abs(d.end.x - d.start.x), h: Math.abs(d.end.y - d.start.y) });
     if (!orto)
-        return <p className="fv-roof-photo-note">Questo rilievo non contiene un’ortofoto. Usa il modello 3D e la pianta delle falde per disporre i pannelli.</p>;
-    return <><div className="fv-roof-photo-tools" role="group" aria-label="Comandi sulla foto">
-    <button type="button" aria-pressed={!navigazioneMappa && tool === "seleziona"} onClick={() => { onScegliStrumento?.(); setTool("seleziona"); setNota(""); }}>Seleziona e trascina</button>
-    <button type="button" disabled={!modificabile || (!!piano.industriale && piano.industriale.posa !== "aderente")} aria-pressed={!navigazioneMappa && tool === "pannello"} onClick={() => { onScegliStrumento?.(); setTool("pannello"); setNota(""); }}>Aggiungi pannello sulla foto</button>
-    <button type="button" disabled={!modificabile} aria-pressed={!navigazioneMappa && tool === "ostacolo"} onClick={() => { onScegliStrumento?.(); setTool("ostacolo"); setNota(""); }}>Segna ostacolo sulla foto</button>
-    {!mostraImmagineIntera&&<><button type="button" aria-label="Avvicina la foto" onClick={() => zoom(.8)}>+</button><button type="button" aria-label="Allontana la foto" onClick={() => zoom(1.25)}>−</button></>}
+        return <p className="fv-roof-photo-note">{t("Questo rilievo non contiene un’ortofoto. Usa il modello 3D e la pianta delle falde per disporre i pannelli.")}</p>;
+    return <><div className="fv-roof-photo-tools" role="group" aria-label={t("Comandi sulla foto")}>
+    <button type="button" aria-pressed={!navigazioneMappa && tool === "seleziona"} onClick={() => { onScegliStrumento?.(); setTool("seleziona"); setNota(""); }}>{t("Seleziona e trascina")}</button>
+    <button type="button" disabled={!modificabile || (!!piano.industriale && piano.industriale.posa !== "aderente")} aria-pressed={!navigazioneMappa && tool === "pannello"} onClick={() => { onScegliStrumento?.(); setTool("pannello"); setNota(""); }}>{t("Aggiungi pannello sulla foto")}</button>
+    <button type="button" disabled={!modificabile} aria-pressed={!navigazioneMappa && tool === "ostacolo"} onClick={() => { onScegliStrumento?.(); setTool("ostacolo"); setNota(""); }}>{t("Segna ostacolo sulla foto")}</button>
+    {!mostraImmagineIntera&&<><button type="button" aria-label={t("Avvicina la foto")} onClick={() => zoom(.8)}>+</button><button type="button" aria-label={t("Allontana la foto")} onClick={() => zoom(1.25)}>−</button></>}
   </div><div style={sfondoMappa ? {position:"relative",aspectRatio:"640/440",width:"100%",overflow:"hidden",borderRadius:12} : undefined}>
   {sfondoMappa}
-  <svg ref={svg} viewBox={`${vista.x} ${vista.y} ${vista.w} ${vista.h}`} className="fv-roof-photo-canvas" role="group" aria-label="Foto del tetto con pannelli e ostacoli" style={{ cursor: tool === "seleziona" ? "default" : "crosshair", ...(sfondoMappa ? {position:"absolute",inset:0,width:"100%",height:"100%",background:"transparent",clipPath:"inset(0 0 28px 0)",pointerEvents:navigazioneMappa ? "none" : "auto"} : {}) }} onPointerDown={e => {
+  <svg ref={svg} viewBox={`${vista.x} ${vista.y} ${vista.w} ${vista.h}`} className="fv-roof-photo-canvas" role="group" aria-label={t("Foto del tetto con pannelli e ostacoli")} style={{ cursor: tool === "seleziona" ? "default" : "crosshair", ...(sfondoMappa ? {position:"absolute",inset:0,width:"100%",height:"100%",background:"transparent",clipPath:"inset(0 0 28px 0)",pointerEvents:navigazioneMappa ? "none" : "auto"} : {}) }} onPointerDown={e => {
             if (tool === "seleziona") {
                 onSelezione(null);
                 return;
@@ -120,18 +122,18 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
                 return;
             const f = falde.find(f => puntoNelPoligono(mondo, f.anelli[0]));
             if (!f) {
-                setNota("Scegli un punto all’interno di una falda.");
+                setNota(t("Scegli un punto all’interno di una falda."));
                 return;
             }
             const p = dallaFotoAlDisegno(edificio, f.id, mondo);
             if (tool === "pannello") {
                 if (piano.pannelli.length >= limiteModuliDisegno(piano)) {
-                    setNota(`Limite di ${limiteModuliDisegno(piano)} moduli raggiunto.`);
+                    setNota(t("Limite di {n} moduli raggiunto.", { n: limiteModuliDisegno(piano) }));
                     return;
                 }
                 const m = { id: numeroId("foto-modulo-", piano.pannelli.map(m => m.id)), faldaId: f.id, x: arrotondaMetro(p.x - piano.modulo.corto / 2), y: arrotondaMetro(p.y - piano.modulo.lungo / 2), orizzontale: false };
                 if (!posizioneModuloValida(piano, m)) {
-                    setNota("Il pannello qui non entra: rispetta bordo, ingombri e moduli vicini.");
+                    setNota(t("Il pannello qui non entra: rispetta bordo, ingombri e moduli vicini."));
                     return;
                 }
                 onChange({ ...piano, pannelli: [...piano.pannelli, m] });
@@ -176,12 +178,12 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
                     setNota("");
                 }
                 else
-                    setNota("Spostamento annullato: il pannello uscirebbe dal tetto o invaderebbe un altro elemento.");
+                    setNota(t("Spostamento annullato: il pannello uscirebbe dal tetto o invaderebbe un altro elemento."));
                 return;
             }
             const id = numeroId("foto-ostacolo-", piano.ostacoli.map(o => o.id)), next = aggiornaOstacoloConPosa(piano, { id, ...rett(d) });
             if (!next) {
-                setNota("L’ingombro deve misurare almeno 10 cm e restare nella stessa falda, senza sovrapporsi ad altri ostacoli.");
+                setNota(t("L’ingombro deve misurare almeno 10 cm e restare nella stessa falda, senza sovrapporsi ad altri ostacoli."));
                 return;
             }
             onChange(next);
@@ -191,7 +193,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
         }}>
     {orto.url && <image href={orto.url} width={orto.larghezza} height={orto.altezza}/>}
     {falde.map(f => <polygon key={f.id} points={puntiFoto(f.anelli[0])} fill={f.id === inquadratura.faldaId ? "#38bdf815" : "#38bdf805"} stroke="#f8fafc" strokeWidth={1.2}/>)}
-    {pannelli.map((p, i) => { const m = visibile.pannelli[i], scelto = selezione?.tipo === "pannello" && selezione.id === m.id; return <polygon key={m.id} role="button" tabIndex={0} aria-label={`Modulo foto ${i + 1}`} aria-pressed={scelto} points={puntiFoto(p.vertici)} fill={bad.has(m.id) ? "#b93e3e" : "#101b22"} stroke={scelto ? "#fb923c" : "#b6c6ce"} strokeWidth={scelto ? 2.4 : .8} style={{ cursor: tool === "seleziona" ? (modificabile ? "grab" : "pointer") : "inherit" }} onPointerDown={e => cominciaModulo(e, m)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") {
+    {pannelli.map((p, i) => { const m = visibile.pannelli[i], scelto = selezione?.tipo === "pannello" && selezione.id === m.id; return <polygon key={m.id} role="button" tabIndex={0} aria-label={t("Modulo foto {i}", { i: i + 1 })} aria-pressed={scelto} points={puntiFoto(p.vertici)} fill={bad.has(m.id) ? "#b93e3e" : "#101b22"} stroke={scelto ? "#fb923c" : "#b6c6ce"} strokeWidth={scelto ? 2.4 : .8} style={{ cursor: tool === "seleziona" ? (modificabile ? "grab" : "pointer") : "inherit" }} onPointerDown={e => cominciaModulo(e, m)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         onSelezione({ tipo: "pannello", id: m.id });
     } if (modificabile && (e.key === "Delete" || e.key === "Backspace")) {
@@ -199,9 +201,9 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
         onChange({ ...piano, pannelli: piano.pannelli.filter(p => p.id !== m.id) });
         onSelezione(null);
     } }}/>; })}
-    {sagomeOstacoliEdificio(edificio, visibile).map(o => <polygon key={o.id} role="button" tabIndex={0} aria-label={`Ostacolo foto ${o.id}`} aria-pressed={selezione?.tipo === "ostacolo" && selezione.id === o.id} points={puntiFoto(o.vertici)} fill="#fb923c99" stroke={selezione?.id === o.id ? "#facc15" : "#f97316"} strokeWidth={2} onPointerDown={e => { if (tool !== "seleziona")
+    {sagomeOstacoliEdificio(edificio, visibile).map(o => <polygon key={o.id} role="button" tabIndex={0} aria-label={t("Ostacolo foto {id}", { id: String(o.id ?? "") })} aria-pressed={selezione?.tipo === "ostacolo" && selezione.id === o.id} points={puntiFoto(o.vertici)} fill="#fb923c99" stroke={selezione?.id === o.id ? "#facc15" : "#f97316"} strokeWidth={2} onPointerDown={e => { if (tool !== "seleziona")
         return; e.stopPropagation(); onSelezione({ tipo: "ostacolo", id: o.id }); }} onKeyDown={e => { if (e.key === "Enter")
         onSelezione({ tipo: "ostacolo", id: o.id }); }}/>)}
     {disegno?.tipo === "ostacolo" && <polygon points={puntiFoto((() => { const r = rett(disegno); return [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }].map(p => dalDisegnoAlMondo(edificio, disegno.faldaId, p)); })())} fill="#fb923c66" stroke="#fb923c" strokeWidth={2} strokeDasharray="4 2"/>}
-  </svg></div>{nota && <p role="status" className="fv-roof-photo-note">{nota}</p>}<p className="fv-roof-photo-note">Seleziona un modulo qui o nel 3D. Trascinalo sulla foto: rosso indica una posizione non disponibile, rilasciando viene ripristinata la precedente.</p></>;
+  </svg></div>{nota && <p role="status" className="fv-roof-photo-note">{nota}</p>}<p className="fv-roof-photo-note">{t("Seleziona un modulo qui o nel 3D. Trascinalo sulla foto: rosso indica una posizione non disponibile, rilasciando viene ripristinata la precedente.")}</p></>;
 }

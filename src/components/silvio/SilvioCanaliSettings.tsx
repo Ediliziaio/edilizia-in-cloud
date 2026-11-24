@@ -17,8 +17,10 @@ import {
   useScollegaCanale,
   type AvviaVerificaResult,
 } from "@/lib/silvio/hooks";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SilvioCanaliSettings() {
+  const t = useT();
   const { data: canali, isLoading } = useSilvioCanali();
   const avvia = useAvviaVerificaCanale();
   const scollega = useScollegaCanale();
@@ -57,20 +59,18 @@ export function SilvioCanaliSettings() {
       <div className="flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
         <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
         <p className="text-xs text-emerald-900">
-          Collega il tuo <b>WhatsApp</b> a Silvio: dopo la verifica scrivi le tue richieste
-          direttamente su WhatsApp e Silvio prepara tutto — <b>le confermi sempre in app</b>,
-          niente parte da solo.
+          {t("Collega il tuo")} <b>WhatsApp</b> {t("a Silvio: dopo la verifica scrivi le tue richieste direttamente su WhatsApp e Silvio prepara tutto —")} <b>{t("le confermi sempre in app")}</b>{t(", niente parte da solo.")}
         </p>
       </div>
 
       {isLoading ? (
-        <p className="text-xs text-muted-foreground">Caricamento…</p>
+        <p className="text-xs text-muted-foreground">{t("Caricamento…")}</p>
       ) : whatsapp?.verificato ? (
         /* ── Collegato ── */
         <div className="flex items-center gap-3 rounded-md border border-emerald-200 bg-white px-3 py-2.5">
           <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-slate-800">WhatsApp collegato</p>
+            <p className="text-sm font-medium text-slate-800">{t("WhatsApp collegato")}</p>
             <p className="text-[11px] text-muted-foreground">{whatsapp.identificativo}</p>
           </div>
           <Button
@@ -80,7 +80,7 @@ export function SilvioCanaliSettings() {
             disabled={scollega.isPending}
             onClick={() => onScollega(whatsapp.id)}
           >
-            <Unlink className="h-3.5 w-3.5" /> Scollega
+            <Unlink className="h-3.5 w-3.5" /> {t("Scollega")}
           </Button>
         </div>
       ) : whatsapp ? (
@@ -88,12 +88,12 @@ export function SilvioCanaliSettings() {
         <div className="space-y-3">
           <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3 space-y-2.5 dark:border-blue-800 dark:bg-blue-950/30">
             <p className="text-xs text-blue-900 dark:text-blue-100">
-              Per confermare che il numero <b>{whatsapp.identificativo}</b> è tuo,{" "}
-              <b>invia questo codice dal tuo WhatsApp</b>
+              {t("Per confermare che il numero")} <b>{whatsapp.identificativo}</b> {t("è tuo,")}{" "}
+              <b>{t("invia questo codice dal tuo WhatsApp")}</b>
               {numeroAziendale ? (
-                <> al numero <b>{numeroAziendale}</b>:</>
+                <> {t("al numero")} <b>{numeroAziendale}</b>:</>
               ) : (
-                <> al numero WhatsApp della tua azienda:</>
+                <> {t("al numero WhatsApp della tua azienda:")}</>
               )}
             </p>
             {codice ? (
@@ -107,27 +107,26 @@ export function SilvioCanaliSettings() {
                   className="h-7 gap-1 px-2 text-[11px]"
                   onClick={() => {
                     void navigator.clipboard?.writeText(codice);
-                    toast.success("Codice copiato");
+                    toast.success(t("Codice copiato"));
                   }}
                 >
-                  <Copy className="h-3.5 w-3.5" /> Copia
+                  <Copy className="h-3.5 w-3.5" /> {t("Copia")}
                 </Button>
                 {waLink && (
                   <Button asChild size="sm" className="h-7 gap-1 px-2 text-[11px]">
                     <a href={waLink} target="_blank" rel="noopener noreferrer">
-                      <MessageCircle className="h-3.5 w-3.5" /> Apri WhatsApp
+                      <MessageCircle className="h-3.5 w-3.5" /> {t("Apri WhatsApp")}
                     </a>
                   </Button>
                 )}
               </div>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                Codice non più visibile. Generane uno nuovo qui sotto.
+                {t("Codice non più visibile. Generane uno nuovo qui sotto.")}
               </p>
             )}
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> In attesa del messaggio… la pagina si
-              aggiorna da sola.
+              <Loader2 className="h-3 w-3 animate-spin" /> {t("In attesa del messaggio… la pagina si aggiorna da sola.")}
             </div>
           </div>
           <Button
@@ -137,7 +136,7 @@ export function SilvioCanaliSettings() {
             disabled={scollega.isPending}
             onClick={() => onScollega(whatsapp.id)}
           >
-            Annulla e usa un altro numero
+            {t("Annulla e usa un altro numero")}
           </Button>
         </div>
       ) : (
@@ -151,7 +150,7 @@ export function SilvioCanaliSettings() {
               if (e.key === "Enter") onAvvia();
             }}
             inputMode="tel"
-            placeholder="Il tuo numero WhatsApp (es. +39 333 1234567)"
+            placeholder={t("Il tuo numero WhatsApp (es. +39 333 1234567)")}
             className="h-9 flex-1 text-sm"
             disabled={avvia.isPending}
           />
@@ -162,7 +161,7 @@ export function SilvioCanaliSettings() {
             onClick={onAvvia}
           >
             {avvia.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Genera codice
+            {t("Genera codice")}
           </Button>
         </div>
       )}

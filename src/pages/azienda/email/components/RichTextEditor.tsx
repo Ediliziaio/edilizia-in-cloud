@@ -15,6 +15,7 @@ import {
   Quote, Heading1, Heading2, Undo, Redo, AlignLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RichTextEditorProps {
   value: string;             // HTML iniziale
@@ -26,8 +27,9 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({
-  value, onChange, placeholder = "Scrivi…", className, rows = 12, ariaLabel = "Messaggio",
+  value, onChange, placeholder, className, rows = 12, ariaLabel,
 }: RichTextEditorProps) {
+  const t = useT();
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -63,24 +65,24 @@ export function RichTextEditor({
   return (
     <div className={cn("rounded-md border bg-white dark:bg-background overflow-hidden", className)}>
       <div className="flex items-center gap-0.5 px-1 py-1 border-b bg-muted/30 flex-wrap">
-        <ToolbarBtn icon={Bold} title="Grassetto (Ctrl+B)" onClick={() => exec("bold")} />
-        <ToolbarBtn icon={Italic} title="Corsivo (Ctrl+I)" onClick={() => exec("italic")} />
-        <ToolbarBtn icon={Underline} title="Sottolineato (Ctrl+U)" onClick={() => exec("underline")} />
+        <ToolbarBtn icon={Bold} title={t("Grassetto (Ctrl+B)")} onClick={() => exec("bold")} />
+        <ToolbarBtn icon={Italic} title={t("Corsivo (Ctrl+I)")} onClick={() => exec("italic")} />
+        <ToolbarBtn icon={Underline} title={t("Sottolineato (Ctrl+U)")} onClick={() => exec("underline")} />
         {/* Mobile: una riga sola con grassetto/corsivo/sottolineato, elenchi e
             link. Titoli, citazione e annulla/ripeti restano al desktop. */}
         <Divider />
-        <ToolbarBtn icon={Heading1} title="Titolo H1" onClick={() => exec("formatBlock", "<h1>")} className="max-sm:hidden" />
-        <ToolbarBtn icon={Heading2} title="Titolo H2" onClick={() => exec("formatBlock", "<h2>")} className="max-sm:hidden" />
-        <ToolbarBtn icon={AlignLeft} title="Paragrafo" onClick={() => exec("formatBlock", "<p>")} className="max-sm:hidden" />
+        <ToolbarBtn icon={Heading1} title={t("Titolo H1")} onClick={() => exec("formatBlock", "<h1>")} className="max-sm:hidden" />
+        <ToolbarBtn icon={Heading2} title={t("Titolo H2")} onClick={() => exec("formatBlock", "<h2>")} className="max-sm:hidden" />
+        <ToolbarBtn icon={AlignLeft} title={t("Paragrafo")} onClick={() => exec("formatBlock", "<p>")} className="max-sm:hidden" />
         <Divider className="max-sm:hidden" />
-        <ToolbarBtn icon={List} title="Elenco puntato" onClick={() => exec("insertUnorderedList")} />
-        <ToolbarBtn icon={ListOrdered} title="Elenco numerato" onClick={() => exec("insertOrderedList")} />
-        <ToolbarBtn icon={Quote} title="Citazione" onClick={() => exec("formatBlock", "<blockquote>")} className="max-sm:hidden" />
+        <ToolbarBtn icon={List} title={t("Elenco puntato")} onClick={() => exec("insertUnorderedList")} />
+        <ToolbarBtn icon={ListOrdered} title={t("Elenco numerato")} onClick={() => exec("insertOrderedList")} />
+        <ToolbarBtn icon={Quote} title={t("Citazione")} onClick={() => exec("formatBlock", "<blockquote>")} className="max-sm:hidden" />
         <Divider />
-        <ToolbarBtn icon={LinkIcon} title="Inserisci link" onClick={handleLink} />
+        <ToolbarBtn icon={LinkIcon} title={t("Inserisci link")} onClick={handleLink} />
         <Divider className="max-sm:hidden" />
-        <ToolbarBtn icon={Undo} title="Annulla (Ctrl+Z)" onClick={() => exec("undo")} className="max-sm:hidden" />
-        <ToolbarBtn icon={Redo} title="Ripeti (Ctrl+Shift+Z)" onClick={() => exec("redo")} className="max-sm:hidden" />
+        <ToolbarBtn icon={Undo} title={t("Annulla (Ctrl+Z)")} onClick={() => exec("undo")} className="max-sm:hidden" />
+        <ToolbarBtn icon={Redo} title={t("Ripeti (Ctrl+Shift+Z)")} onClick={() => exec("redo")} className="max-sm:hidden" />
       </div>
 
       <div className="relative">
@@ -88,7 +90,7 @@ export function RichTextEditor({
           ref={editorRef}
           contentEditable
           role="textbox"
-          aria-label={ariaLabel}
+          aria-label={ariaLabel ?? t("Messaggio")}
           aria-multiline="true"
           onInput={handleInput}
           onFocus={() => setIsFocused(true)}
@@ -102,7 +104,7 @@ export function RichTextEditor({
         />
         {isEmpty && !isFocused && (
           <div className="absolute top-2.5 left-3 text-sm text-muted-foreground pointer-events-none">
-            {placeholder}
+            {placeholder ?? t("Scrivi…")}
           </div>
         )}
       </div>

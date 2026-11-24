@@ -1,10 +1,12 @@
 import { CheckCircle } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ConnectionConfirmStepProps {
   hook: any;
 }
 
 export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
+  const t = useT();
   const { selectedPages } = hook;
   const selectedAccounts = hook.assets.filter((asset: any) => asset.asset_type === "ad_account" && asset.selected);
 
@@ -12,16 +14,16 @@ export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
     <div className="space-y-4 py-4">
       <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
         <CheckCircle className="h-6 w-6" />
-        <p className="font-medium">Risorse Meta collegate con successo!</p>
+        <p className="font-medium">{t("Risorse Meta collegate con successo!")}</p>
       </div>
 
       {selectedAccounts.length === 0 && (
-        <p className="text-sm text-muted-foreground">Nessun account pubblicitario selezionato. Il collegamento delle Pagine resta attivo.</p>
+        <p className="text-sm text-muted-foreground">{t("Nessun account pubblicitario selezionato. Il collegamento delle Pagine resta attivo.")}</p>
       )}
       {selectedAccounts.map((account: any) => (
         <div key={account.id} className="rounded-lg border px-4 py-3">
           <p className="text-sm font-medium">{account.asset_name}</p>
-          <p className="text-xs text-muted-foreground">Account pubblicitario · {account.asset_id}</p>
+          <p className="text-xs text-muted-foreground">{t("Account pubblicitario · {asset_id}", { asset_id: String(account.asset_id ?? "") })}</p>
         </div>
       ))}
       {selectedPages.length > 0 && (
@@ -33,7 +35,7 @@ export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
               </div>
               <div>
                 <p className="text-sm font-medium">{page.asset_name}</p>
-                <p className="text-xs text-muted-foreground">Pagina Facebook</p>
+                <p className="text-xs text-muted-foreground">{t("Pagina Facebook")}</p>
               </div>
             </div>
           ))}
@@ -42,7 +44,7 @@ export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
 
       <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
         <p className="text-sm text-amber-800 dark:text-amber-300">
-          <strong>Collegamento pronto.</strong> Puoi salvare e chiudere{selectedAccounts.length > 0 ? " per gestire le sponsorizzate" : ""}, oppure configurare i moduli e la mappatura dei campi per ricevere i lead nel CRM.
+          <strong>{t("Collegamento pronto.")}</strong> {selectedAccounts.length > 0 ? t("Puoi salvare e chiudere per gestire le sponsorizzate, oppure configurare i moduli e la mappatura dei campi per ricevere i lead nel CRM.") : t("Puoi salvare e chiudere, oppure configurare i moduli e la mappatura dei campi per ricevere i lead nel CRM.")}
         </p>
       </div>
     </div>

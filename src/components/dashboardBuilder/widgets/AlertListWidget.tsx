@@ -23,6 +23,7 @@ import type {
 } from "@/lib/dashboardBuilder/types";
 import { formatValue } from "../formatValue";
 import { widgetLabel } from "@/lib/dashboardBuilder/widgetLabels";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   widget: DashboardWidget;
@@ -94,6 +95,7 @@ function displayTitle(widget: DashboardWidget): string {
 }
 
 export function AlertListWidget({ widget, resolved }: Props) {
+  const t = useT();
   const cfg = widget.config ?? {};
   const title = displayTitle(widget);
   const error = resolved?.status === "error" ? resolved.error : null;
@@ -137,14 +139,14 @@ export function AlertListWidget({ widget, resolved }: Props) {
         ) : summaryMode ? (
           <SummaryRow
             tone={summaryTone}
-            label={cfg.statusLabel ?? cfg.description ?? "Stato attuale"}
+            label={cfg.statusLabel ?? cfg.description ?? t("Stato attuale")}
             value={formatValue(totalValue, cfg)}
           />
         ) : rows.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-2 px-4 py-6 text-center">
             <CheckCircle2 className="h-5 w-5 text-emerald-500" />
             <p className="text-[11px] text-muted-foreground leading-snug">
-              {cfg.statusLabel ?? "Nessun alert nel periodo"}
+              {cfg.statusLabel ?? t("Nessun alert nel periodo")}
             </p>
           </div>
         ) : (

@@ -36,6 +36,7 @@ import {
   completezzaPercento,
   vociMancanti,
 } from "../../../supabase/functions/_shared/posModello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function dataIt(iso: string | null | undefined) {
   if (!iso) return "";
@@ -44,6 +45,7 @@ function dataIt(iso: string | null | undefined) {
 }
 
 export function PosElencoTab({ orders }: { orders: Array<{ id: string; description: string | null; order_code: string | null }> }) {
+  const t = useT();
   const navigate = useNavigate();
   const perms = usePermissions();
   const puoScrivere =
@@ -68,16 +70,16 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
     navigate(`/azienda/sicurezza-cantiere/pos/${p.id}`);
   const azioniPos = (p: PosRiga) => (
     <>
-      {puoScrivere && !p.daCompilare && <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Duplica POS o salva modello" title="Duplica POS o salva modello" onClick={()=>setRiuso(p)}><Copy className="h-4 w-4"/></Button>}
-      {!p.daCompilare && <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="PDF conservato o anteprima" title="PDF conservato, oppure anteprima in bozza" disabled={!!scaricando} onClick={async()=>{
-        setScaricando(p.id);try{await apriPdfPos(p.company_id,p.id,p.revisione);}catch(e){toast.error(e instanceof Error?e.message:"PDF non disponibile");}finally{setScaricando("");}
+      {puoScrivere && !p.daCompilare && <Button size="icon" variant="ghost" className="h-6 w-6" aria-label={t("Duplica POS o salva modello")} title={t("Duplica POS o salva modello")} onClick={()=>setRiuso(p)}><Copy className="h-4 w-4"/></Button>}
+      {!p.daCompilare && <Button size="icon" variant="ghost" className="h-6 w-6" aria-label={t("PDF conservato o anteprima")} title={t("PDF conservato, oppure anteprima in bozza")} disabled={!!scaricando} onClick={async()=>{
+        setScaricando(p.id);try{await apriPdfPos(p.company_id,p.id,p.revisione);}catch(e){toast.error(e instanceof Error?e.message:t("PDF non disponibile"));}finally{setScaricando("");}
       }}><FileDown className="h-4 w-4"/></Button>}
       {puoScrivere && p.status === "bozza" && p.revisione === 0 && !Object.values(p.iter).some(Boolean) && (
         <Button
           size="icon"
           variant="ghost"
           className="h-6 w-6 text-destructive"
-          aria-label="Elimina il POS"
+          aria-label={t("Elimina il POS")}
           onClick={() => setDaEliminare(p)}
         >
           <Trash2 className="h-4 w-4" />
@@ -94,13 +96,13 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
         </div>
       ) : isError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Non riesco a caricare i POS.{" "}
+          {t("Non riesco a caricare i POS.")}{" "}
           <button
             type="button"
             className="font-semibold underline"
             onClick={() => refetch()}
           >
-            Riprova
+            {t("Riprova")}
           </button>
         </div>
       ) : (
@@ -114,7 +116,7 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
                 className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
               >
                 <Plus className="mr-1 h-4 w-4" />
-                Nuovo POS
+                {t("Nuovo POS")}
               </Button>
             ) : null
           }
@@ -124,7 +126,7 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
           getStage={fasePos}
           onOpen={apriPos}
           getTitle={(p) =>
-            `POS ${p.commessa?.order_code ?? p.id.slice(0, 8)} · Rev. ${p.revisione}`
+            t("POS {codice} · Rev. {n}", { codice: p.commessa?.order_code ?? p.id.slice(0, 8), n: String(p.revisione ?? "") })
           }
           getSearch={(p) =>
             [
@@ -139,18 +141,18 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
           getOrderId={(p) => p.order_id}
           orders={orders}
           canWrite={puoScrivere}
-          note="La fase Da approvare indica una bozza completa. L’approvazione viene registrata nell’editor, dopo i controlli previsti; per modificare un POS approvato si crea una revisione."
+          note={t("La fase Da approvare indica una bozza completa. L’approvazione viene registrata nell’editor, dopo i controlli previsti; per modificare un POS approvato si crea una revisione.")}
           onTransition={(p, target) => ({
             title:
               target === "approvato"
-                ? "Approva il POS dall’editor"
-                : "Completa il passaggio nel POS",
+                ? t("Approva il POS dall’editor")
+                : t("Completa il passaggio nel POS"),
             description:
               p.status === "approvato"
-                ? "Questo POS è approvato. Aprilo e crea una nuova revisione per modificarne i contenuti."
+                ? t("Questo POS è approvato. Aprilo e crea una nuova revisione per modificarne i contenuti.")
                 : target === "approvare" && fasePos(p) === "compilare"
-                  ? "Completa le voci mancanti: la bozza comparirà tra quelle da approvare quando sarà completa."
-                  : "Apri il POS per controllare i contenuti e registrare il passaggio effettivo. Il trascinamento non sostituisce i controlli di approvazione.",
+                  ? t("Completa le voci mancanti: la bozza comparirà tra quelle da approvare quando sarà completa.")
+                  : t("Apri il POS per controllare i contenuti e registrare il passaggio effettivo. Il trascinamento non sostituisce i controlli di approvazione."),
             run: () => apriPos(p),
           })}
           renderCard={(p) => (
@@ -161,10 +163,10 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
               <div className="flex items-center justify-between text-xs">
                 <span>
                   {p.daCompilare
-                    ? "Modello da compilare"
-                    : `${completezzaPercento(p.contenuto)}% compilato`}
+                    ? t("Modello da compilare")
+                    : t("{contenuto}% compilato", { contenuto: String(completezzaPercento(p.contenuto) ?? "") })}
                 </span>
-                <span>Rev. {p.revisione}</span>
+                <span>{t("Rev. {n}", { n: String(p.revisione ?? "") })}</span>
               </div>
               {!p.daCompilare && (
                 <Progress
@@ -188,9 +190,7 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
                         return next;
                       });
                     }}
-                  >
-                    {vociMancanti(p.contenuto).length} voci da completare
-                  </summary>
+                  >{t("{n} voci da completare", { n: vociMancanti(p.contenuto).length })}</summary>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
                     {vociMancanti(p.contenuto).map((v, index) => (
                       <li key={`${v.riferimento}-${index}`}>{v.testo}</li>
@@ -199,39 +199,37 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
                 </details>
               )}
               <p className="text-xs text-muted-foreground">
-                Datore di lavoro:{" "}
-                {p.contenuto.impresa.datore_lavoro || "Da indicare"}
+                {t("Datore di lavoro:")}{" "}
+                {p.contenuto.impresa.datore_lavoro || t("Da indicare")}
               </p>
               <p className="text-xs text-muted-foreground">
                 {p.status === "approvato"
-                  ? `Approvato da ${p.approvato_da_nome ?? "nome non registrato"}`
-                  : `Creato il ${dataIt(p.created_at)}`}
+                  ? t("Approvato da {nome}", { nome: p.approvato_da_nome ?? t("nome non registrato") })
+                  : t("Creato il {created_at}", { created_at: String(dataIt(p.created_at) ?? "") })}
               </p>
               {p.iter.firma_datore_il && (
-                <p className="text-xs text-muted-foreground">
-                  Firma datore registrata: {dataIt(p.iter.firma_datore_il)}
-                </p>
+                <p className="text-xs text-muted-foreground">{t("Firma datore registrata: {firma_datore_il}", { firma_datore_il: String(dataIt(p.iter.firma_datore_il) ?? "") })}</p>
               )}
               {verificaIterNegativa(p.contenuto, p.iter) && (
-                <p className="text-xs font-medium text-red-700">Verifica negativa: i lavori non possono iniziare</p>
+                <p className="text-xs font-medium text-red-700">{t("Verifica negativa: i lavori non possono iniziare")}</p>
               )}
             </>
           )}
           renderActions={azioniPos}
           columns={[
             {
-              label: "Commessa",
+              label: t("Commessa"),
               render: (p) => (
                 <Link
                   to={`/azienda/ordini/${p.order_id}`}
                   className="font-mono text-xs text-primary hover:underline"
                 >
-                  {p.commessa?.order_code ?? "Apri commessa"}
+                  {p.commessa?.order_code ?? t("Apri commessa")}
                 </Link>
               ),
             },
             {
-              label: "Cantiere",
+              label: t("Cantiere"),
               render: (p) => (
                 <span
                   className="block max-w-64 truncate"
@@ -241,27 +239,27 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
                 </span>
               ),
             },
-            { label: "Revisione", render: (p) => `Rev. ${p.revisione}` },
+            { label: t("Revisione"), render: (p) => t("Rev. {n}", { n: String(p.revisione ?? "") }) },
             {
-              label: "Compilazione",
+              label: t("Compilazione"),
               render: (p) =>
                 p.daCompilare
-                  ? "Modello da compilare"
+                  ? t("Modello da compilare")
                   : `${completezzaPercento(p.contenuto)}%`,
             },
             {
-              label: "Approvato da",
+              label: t("Approvato da"),
               render: (p) => p.approvato_da_nome ?? "—",
             },
             {
-              label: "Approvazione",
+              label: t("Approvazione"),
               render: (p) => dataIt(p.approvato_il) || "—",
             },
             {
-              label: "Firma datore registrata",
+              label: t("Firma datore registrata"),
               render: (p) => dataIt(p.iter.firma_datore_il) || "—",
             },
-            { label: "Creazione", render: (p) => dataIt(p.created_at) },
+            { label: t("Creazione"), render: (p) => dataIt(p.created_at) },
           ]}
         />
       )}
@@ -281,22 +279,20 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questo POS?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare questo POS?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il POS in bozza di «
-              {daEliminare?.commessa?.order_code ||
+              {t("Il POS in bozza di «{commessa}» sarà eliminato definitivamente. È possibile solo se non ha firme, approvazioni, iter registrato o revisioni approvate da conservare.", { commessa: daEliminare?.commessa?.order_code ||
                 daEliminare?.commessa?.description ||
-                "commessa"}
-              » sarà eliminato definitivamente. È possibile solo se non ha firme, approvazioni, iter registrato o revisioni approvate da conservare.
+                t("commessa") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => daEliminare && elimina.mutate(daEliminare.id)}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** «4.800» sono migliaia, «8,5» e «8.5» decimali. */
 const numeroDaTesto = (t: string): number | null => {
@@ -87,6 +88,7 @@ export function SchedaTecnica({ etichetta, righe, onChange, segnaposto = ["Poten
   onChange: (righe: { etichetta: string; valore: string }[]) => void;
   segnaposto?: [string, string];
 }) {
+  const t = useT();
   // Le righe hanno campi non controllati: dopo una cancellazione si ridisegnano
   // tutte, altrimenti la riga che sale mostrerebbe il testo di quella tolta.
   const [giro, setGiro] = useState(0);
@@ -96,11 +98,11 @@ export function SchedaTecnica({ etichetta, righe, onChange, segnaposto = ["Poten
       {righe.map((x, i) => (
         // Sul telefono voce e valore vanno su due righe: affiancati, la voce si tagliava.
         <div key={`${giro}-${i}`} className="flex flex-wrap gap-2 rounded-lg border p-2 sm:flex-nowrap sm:border-0 sm:p-0">
-          <Input aria-label="Caratteristica" defaultValue={x.etichetta} placeholder={segnaposto[0]} className="h-8 basis-full text-xs sm:basis-auto sm:flex-1"
+          <Input aria-label={t("Caratteristica")} defaultValue={x.etichetta} placeholder={segnaposto[0]} className="h-8 basis-full text-xs sm:basis-auto sm:flex-1"
             onBlur={(e) => onChange(righe.map((y, j) => (j === i ? { ...y, etichetta: e.target.value.trim() } : y)))} />
-          <Input aria-label="Valore" defaultValue={x.valore} placeholder={segnaposto[1]} className="h-8 min-w-0 flex-1 text-xs sm:w-40 sm:flex-none"
+          <Input aria-label={t("Valore")} defaultValue={x.valore} placeholder={segnaposto[1]} className="h-8 min-w-0 flex-1 text-xs sm:w-40 sm:flex-none"
             onBlur={(e) => onChange(righe.map((y, j) => (j === i ? { ...y, valore: e.target.value.trim() } : y)))} />
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Togli la riga"
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={t("Togli la riga")}
             onClick={() => { setGiro((g) => g + 1); onChange(righe.filter((_, j) => j !== i)); }}>
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -109,7 +111,7 @@ export function SchedaTecnica({ etichetta, righe, onChange, segnaposto = ["Poten
       {righe.length < 9 ? (
         <Button type="button" variant="outline" size="sm" className="h-8 text-xs"
           onClick={() => onChange([...righe, { etichetta: "Caratteristica", valore: "da scrivere" }])}>
-          <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi una riga
+          <Plus className="mr-1 h-3.5 w-3.5" /> {t("Aggiungi una riga")}
         </Button>
       ) : null}
     </div>

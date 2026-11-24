@@ -8,15 +8,18 @@ import { PiscineTemplateEditor } from "./PiscineTemplateEditor";
 import type { PisTemplatePdf } from "@/types/piscine";
 import { createFullPscTemplate, PSC_MODULE_TITLES, type FullPscModuleId } from "@/lib/moduli-vendita/fullPscModules";
 import { loadLocalPscTemplate, saveLocalPscTemplate } from "@/lib/moduli-vendita/localPscTemplates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PscModuleTemplatePanel({ moduleId }: { moduleId: FullPscModuleId }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { data: base, isLoading, isError } = usePisTemplatePdf();
-  if (!companyId || isLoading) return <p role="status">Caricamento modello Piscine…</p>;
-  if (isError || !base) return <p role="alert">Impossibile leggere il modello aziendale. Riprova prima di preparare la copia.</p>;
+  if (!companyId || isLoading) return <p role="status">{t("Caricamento modello Piscine…")}</p>;
+  if (isError || !base) return <p role="alert">{t("Impossibile leggere il modello aziendale. Riprova prima di preparare la copia.")}</p>;
   return <Workspace key={`${companyId}:${moduleId}`} companyId={companyId} moduleId={moduleId} base={base} />;
 }
 function Workspace({ companyId, moduleId, base }: { companyId: string; moduleId: FullPscModuleId; base: PisTemplatePdf }) {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const [initial] = useState(() => {
     try { const record = loadLocalPscTemplate(companyId, moduleId); return { record, template: record?.template ?? createFullPscTemplate(base, moduleId), error: "" }; }
@@ -50,13 +53,13 @@ function Workspace({ companyId, moduleId, base }: { companyId: string; moduleId:
   return <section className="space-y-4">
     <AlertDialog open={!!leaveTarget} onOpenChange={open => { if (!open) setLeaveTarget(null); }}>
       <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Uscire senza salvare?</AlertDialogTitle><AlertDialogDescription>Le modifiche non salvate di questo modulo andranno perse. La copia salvata e il modello online resteranno invariati.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Resta nel modulo</AlertDialogCancel><AlertDialogAction onClick={() => { const target = leaveTarget; setLeaveTarget(null); dirtyRef.current = false; target?.click(); }}>Esci senza salvare</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogHeader><AlertDialogTitle>{t("Uscire senza salvare?")}</AlertDialogTitle><AlertDialogDescription>{t("Le modifiche non salvate di questo modulo andranno perse. La copia salvata e il modello online resteranno invariati.")}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>{t("Resta nel modulo")}</AlertDialogCancel><AlertDialogAction onClick={() => { const target = leaveTarget; setLeaveTarget(null); dirtyRef.current = false; target?.click(); }}>{t("Esci senza salvare")}</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-    <div className="flex flex-wrap justify-between gap-2"><Button variant="outline" onClick={() => navigate(false)}>← Moduli Piscine</Button><Button variant="ghost" onClick={() => navigate(true)}>Apri la bozza precedente</Button></div>
-    <div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">Area Piscine · Modulo PDF</p><h2 className="text-2xl font-semibold">{PSC_MODULE_TITLES[moduleId]}</h2><p className="text-sm text-muted-foreground">Le pagine del modello originale, con testi e immagini dedicati a questo intervento.</p></div>
-    <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950"><strong>Modello dell'azienda.</strong> Testi, immagini e impostazioni si salvano online e li vedono tutti i colleghi. Quando crei un preventivo con questo intervento, il PDF usa questo modello. La bozza precedente e il template aziendale restano invariati.</p>
+    <div className="flex flex-wrap justify-between gap-2"><Button variant="outline" onClick={() => navigate(false)}>{t("← Moduli Piscine")}</Button><Button variant="ghost" onClick={() => navigate(true)}>{t("Apri la bozza precedente")}</Button></div>
+    <div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">{t("Area Piscine · Modulo PDF")}</p><h2 className="text-2xl font-semibold">{PSC_MODULE_TITLES[moduleId]}</h2><p className="text-sm text-muted-foreground">{t("Le pagine del modello originale, con testi e immagini dedicati a questo intervento.")}</p></div>
+    <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950"><strong>{t("Modello dell'azienda.")}</strong> {t("Testi, immagini e impostazioni si salvano online e li vedono tutti i colleghi. Quando crei un preventivo con questo intervento, il PDF usa questo modello. La bozza precedente e il template aziendale restano invariati.")}</p>
     <div data-psc-module-editor><PiscineTemplateEditor embedded localModule={{ id: moduleId, template: initial.template, saved: !!initial.record, onDirtyChange,
       save: template => { revision.current = saveLocalPscTemplate(companyId, moduleId, template, revision.current).savedAt; },
     }} /></div>

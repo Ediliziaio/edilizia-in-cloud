@@ -8,7 +8,6 @@
 import { useState } from "react";
 import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,8 +25,10 @@ import { SmsDirectionIcon } from "@/components/sms/SmsDirectionIcon";
 import { SmsTriggerBadge } from "@/components/sms/SmsTriggerBadge";
 import { SmsSkeletonLoader } from "@/components/sms/SmsSkeletonLoader";
 import type { SmsDirection, SmsStatus } from "@/types/sms";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SmsHistory() {
+  const t = useT();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<SmsStatus | "tutti">("tutti");
@@ -61,7 +62,7 @@ export function SmsHistory() {
             <div className="relative max-md:basis-full">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca numero o testo…"
+                placeholder={t("Cerca numero o testo…")}
                 className="pl-8 w-48 h-9 text-sm max-md:w-full"
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
@@ -73,12 +74,12 @@ export function SmsHistory() {
               onValueChange={(v) => { setFilterDirection(v as SmsDirection | "tutti"); setPage(1); }}
             >
               <SelectTrigger className="h-9 w-32 text-sm max-md:w-auto max-md:min-w-0 max-md:flex-1">
-                <SelectValue placeholder="Direzione" />
+                <SelectValue placeholder={t("Direzione")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tutti">Tutti</SelectItem>
-                <SelectItem value="outbound">Uscita</SelectItem>
-                <SelectItem value="inbound">Entrata</SelectItem>
+                <SelectItem value="tutti">{t("Tutti")}</SelectItem>
+                <SelectItem value="outbound">{t("Uscita")}</SelectItem>
+                <SelectItem value="inbound">{t("Entrata")}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -87,23 +88,21 @@ export function SmsHistory() {
               onValueChange={(v) => { setFilterStatus(v as SmsStatus | "tutti"); setPage(1); }}
             >
               <SelectTrigger className="h-9 w-36 text-sm max-md:w-auto max-md:min-w-0 max-md:flex-1">
-                <SelectValue placeholder="Stato" />
+                <SelectValue placeholder={t("Stato")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tutti">Tutti gli stati</SelectItem>
-                <SelectItem value="queued">In coda</SelectItem>
-                <SelectItem value="sending">In invio</SelectItem>
-                <SelectItem value="sent">Inviato</SelectItem>
-                <SelectItem value="delivered">Consegnato</SelectItem>
-                <SelectItem value="failed">Fallito</SelectItem>
-                <SelectItem value="received">Ricevuto</SelectItem>
+                <SelectItem value="tutti">{t("Tutti gli stati")}</SelectItem>
+                <SelectItem value="queued">{t("In coda")}</SelectItem>
+                <SelectItem value="sending">{t("In invio")}</SelectItem>
+                <SelectItem value="sent">{t("Inviato")}</SelectItem>
+                <SelectItem value="delivered">{t("Consegnato")}</SelectItem>
+                <SelectItem value="failed">{t("Fallito")}</SelectItem>
+                <SelectItem value="received">{t("Ricevuto")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {totalCount > 0 && (
-            <span className="text-sm text-muted-foreground max-md:hidden">
-              {new Intl.NumberFormat("it-IT").format(totalCount)} messaggi
-            </span>
+            <span className="text-sm text-muted-foreground max-md:hidden">{t("{n} messaggi", { n: new Intl.NumberFormat(intlCampo()).format(totalCount) })}</span>
           )}
         </div>
       </CardHeader>
@@ -116,18 +115,18 @@ export function SmsHistory() {
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2 max-md:py-6">
             <MessageSquare className="h-10 w-10 opacity-30 max-md:hidden" />
-            <p className="text-sm">Nessun messaggio trovato</p>
+            <p className="text-sm">{t("Nessun messaggio trovato")}</p>
           </div>
         ) : (
           <>
             {/* Table header */}
             <div className="hidden md:grid grid-cols-[32px_140px_1fr_100px_100px_130px] gap-3 px-4 py-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
               <span />
-              <span>Numero</span>
-              <span>Messaggio</span>
-              <span>Stato</span>
-              <span>Trigger</span>
-              <span>Data</span>
+              <span>{t("Numero")}</span>
+              <span>{t("Messaggio")}</span>
+              <span>{t("Stato")}</span>
+              <span>{t("Trigger")}</span>
+              <span>{t("Data")}</span>
             </div>
 
             {/* Rows — telefono: numero, testo, data e stato su una riga */}
@@ -138,7 +137,7 @@ export function SmsHistory() {
                   sinistra={<SmsDirectionIcon direction={msg.direction} />}
                   titolo={<span className="font-mono">{msg.direction === "outbound" ? msg.to_number : msg.from_number}</span>}
                   sottotitolo={msg.body}
-                  valore={<span className="text-[11px] font-normal text-muted-foreground">{format(new Date(msg.created_at), "dd/MM HH:mm", { locale: it })}</span>}
+                  valore={<span className="text-[11px] font-normal text-muted-foreground">{format(new Date(msg.created_at), "dd/MM HH:mm", { locale: dateFnsCampo() })}</span>}
                   stato={<SmsStatusBadge status={msg.status} />}
                 />
               ))}
@@ -170,7 +169,7 @@ export function SmsHistory() {
 
                   {/* Data */}
                   <span className="text-xs text-muted-foreground">
-                    {format(new Date(msg.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
+                    {format(new Date(msg.created_at), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() })}
                   </span>
                 </div>
               ))}
@@ -179,9 +178,7 @@ export function SmsHistory() {
             {/* Paginazione */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
-                <span>
-                  Pagina {page} di {totalPages}
-                </span>
+                <span>{t("Pagina {page} di {totalPages}", { page, totalPages })}</span>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"

@@ -13,6 +13,7 @@ import {
   erroriFontiTecniche,
   type FontiTecnicheScheda,
 } from "../../../../supabase/functions/_shared/posFontiTecniche";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function FontiSchedaTecnicaPos({
   companyId,
   orderId,
@@ -36,6 +37,7 @@ export function FontiSchedaTecnicaPos({
   dal: string;
   al: string;
 }) {
+  const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState("");
@@ -52,9 +54,7 @@ export function FontiSchedaTecnicaPos({
   const errori = erroriFontiTecniche(f, tipo, orderId, faseId, dal, al);
   return (
     <div className="space-y-2 rounded-md border bg-slate-50 p-3">
-      <Label htmlFor={`${id}-modo`}>
-        Fonte {tipo}: documenti o dichiarazione
-      </Label>
+      <Label htmlFor={`${id}-modo`}>{t("Fonte {tipo}: documenti o dichiarazione", { tipo: String(tipo ?? "") })}</Label>
       <UniformSelect
         id={`${id}-modo`}
         className="h-10 w-full rounded border bg-background px-2 text-sm"
@@ -67,15 +67,15 @@ export function FontiSchedaTecnicaPos({
           })
         }
       >
-        <option value="da_verificare">Da scegliere e verificare</option>
-        <option value="documenti">Documenti tecnici del fascicolo</option>
+        <option value="da_verificare">{t("Da scegliere e verificare")}</option>
+        <option value="documenti">{t("Documenti tecnici del fascicolo")}</option>
         {tipo === "rischio" ? (
           <option value="testo_pos">
-            Valutazione descritta nel POS, senza originale collegato
+            {t("Valutazione descritta nel POS, senza originale collegato")}
           </option>
         ) : (
           <option value="non_applicabile">
-            Documentazione non applicabile, con motivazione da verificare
+            {t("Documentazione non applicabile, con motivazione da verificare")}
           </option>
         )}
       </UniformSelect>
@@ -83,8 +83,8 @@ export function FontiSchedaTecnicaPos({
         <>
           <Label htmlFor={`${id}-motivo`}>
             {tipo === "rischio"
-              ? "Motiva la fonte della valutazione nel POS"
-              : "Motiva la documentazione non applicabile"}
+              ? t("Motiva la fonte della valutazione nel POS")
+              : t("Motiva la documentazione non applicabile")}
           </Label>
           <Textarea
             id={`${id}-motivo`}
@@ -93,9 +93,7 @@ export function FontiSchedaTecnicaPos({
             onChange={(e) => edit({ ...f, motivazione: e.target.value })}
           />
           <p className="text-xs text-amber-900">
-            Questa è una dichiarazione del compilatore, senza documento
-            originale allegato; non conferma automaticamente l’adeguatezza della
-            scelta.
+            {t("Questa è una dichiarazione del compilatore, senza documento originale allegato; non conferma automaticamente l’adeguatezza della scelta.")}
           </p>
         </>
       )}
@@ -105,8 +103,8 @@ export function FontiSchedaTecnicaPos({
           className="space-y-2 rounded border bg-white p-2 text-xs"
         >
           <p className="font-medium">
-            {d.titolo} · rev. {d.revisione || "non indicata"} ·{" "}
-            {d.data_rilascio || "data non indicata"}
+            {d.titolo} {t("· rev.")} {d.revisione || t("non indicata")} ·{" "}
+            {d.data_rilascio || t("data non indicata")}
           </p>
           <p>
             {d.file_name} · {d.stato}
@@ -121,13 +119,11 @@ export function FontiSchedaTecnicaPos({
                   await apriDocumentoTecnicoPos(companyId, orderId, d);
                 } catch (e) {
                   setErrore(
-                    e instanceof Error ? e.message : "Apertura non disponibile",
+                    e instanceof Error ? e.message : t("Apertura non disponibile"),
                   );
                 }
               }}
-            >
-              Apri documento {i + 1}
-            </Button>
+            >{t("Apri documento {i}", { i: i + 1 })}</Button>
             {!sola && (
               <Button
                 size="sm"
@@ -138,9 +134,7 @@ export function FontiSchedaTecnicaPos({
                     documenti: f.documenti.filter((x) => x.id !== d.id),
                   })
                 }
-              >
-                Rimuovi documento {i + 1}
-              </Button>
+              >{t("Rimuovi documento {i}", { i: i + 1 })}</Button>
             )}
           </div>
           <label className="flex items-start gap-2">
@@ -158,16 +152,14 @@ export function FontiSchedaTecnicaPos({
               }
             />
             <span>
-              Ho verificato la pertinenza di questo documento per la scheda e il
-              periodo del POS.
+              {t("Ho verificato la pertinenza di questo documento per la scheda e il periodo del POS.")}
             </span>
           </label>
           {q.data &&
             q.data.documenti.find((x) => x.id === d.id)?.impronta !==
               d.impronta && (
               <p className="text-amber-900">
-                Fonte cambiata o non più disponibile: rimuovi il collegamento e
-                seleziona la versione riletta.
+                {t("Fonte cambiata o non più disponibile: rimuovi il collegamento e seleziona la versione riletta.")}
               </p>
             )}
         </div>
@@ -180,43 +172,39 @@ export function FontiSchedaTecnicaPos({
             onClick={() => setAperto(!aperto)}
           >
             {aperto
-              ? "Chiudi selezione documenti"
-              : "Scegli dal fascicolo tecnico"}
+              ? t("Chiudi selezione documenti")
+              : t("Scegli dal fascicolo tecnico")}
           </Button>
           {aperto && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Solo documenti tecnici della propria impresa in questo cantiere.
-                Le fonti personali, HR e dei subappaltatori richiedono percorsi
-                dedicati.
+                {t("Solo documenti tecnici della propria impresa in questo cantiere. Le fonti personali, HR e dei subappaltatori richiedono percorsi dedicati.")}
               </p>
               {q.isLoading ? (
-                <p className="text-xs">Lettura documenti…</p>
+                <p className="text-xs">{t("Lettura documenti…")}</p>
               ) : q.isError ? (
                 <p role="alert" className="text-xs text-destructive">
-                  Documenti non disponibili. Rileggi prima di selezionare.
+                  {t("Documenti non disponibili. Rileggi prima di selezionare.")}
                 </p>
               ) : (
                 <>
                   <UniformSelect
-                    aria-label={`Documento tecnico ${id}`}
+                    aria-label={t("Documento tecnico {id}", { id: String(id ?? "") })}
                     className="h-10 w-full rounded border bg-background px-2 text-sm"
                     value={scelto}
                     onChange={(e) => setScelto(e.target.value)}
                   >
-                    <option value="">Seleziona il documento effettivo</option>
+                    <option value="">{t("Seleziona il documento effettivo")}</option>
                     {q.data?.documenti.map((d) => (
                       <option key={d.id} value={d.id}>
-                        {d.titolo} · rev. {d.revisione || "non indicata"} ·{" "}
+                        {d.titolo} {t("· rev.")} {d.revisione || t("non indicata")} ·{" "}
                         {d.stato}
                       </option>
                     ))}
                   </UniformSelect>
                   {!q.data?.documenti.length && (
                     <p className="text-xs">
-                      Nessun documento tecnico selezionabile: completa il
-                      fascicolo. Non viene dedotta l’assenza di rischi o
-                      obblighi.
+                      {t("Nessun documento tecnico selezionabile: completa il fascicolo. Non viene dedotta l’assenza di rischi o obblighi.")}
                     </p>
                   )}
                 </>
@@ -227,7 +215,7 @@ export function FontiSchedaTecnicaPos({
                 disabled={q.isError || q.isFetching}
                 onClick={() => q.refetch()}
               >
-                Rileggi documenti
+                {t("Rileggi documenti")}
               </Button>
               <Button
                 size="sm"
@@ -264,7 +252,7 @@ export function FontiSchedaTecnicaPos({
                   }
                 }}
               >
-                Collega versione selezionata
+                {t("Collega versione selezionata")}
               </Button>
             </div>
           )}
@@ -275,8 +263,7 @@ export function FontiSchedaTecnicaPos({
       )}
       {ro && f.documenti.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Per i documenti originali di una revisione già emessa consulta il
-          fascicolo dell’emissione; le fonti correnti possono essere cambiate.
+          {t("Per i documenti originali di una revisione già emessa consulta il fascicolo dell’emissione; le fonti correnti possono essere cambiate.")}
         </p>
       )}
       {errore && (

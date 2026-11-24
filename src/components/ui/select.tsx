@@ -3,6 +3,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const Select = SelectPrimitive.Root;
 
@@ -81,6 +82,7 @@ const SelectContent = React.forwardRef<
     fitContent?: boolean;
   }
 >(({ className, children, fitContent = false, position = "popper", onKeyDownCapture, onCloseAutoFocus, onEscapeKeyDown, onPointerDownOutside, ...props }, ref) => {
+  const tr = useT();
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const cercaRef = React.useRef<HTMLInputElement | null>(null);
   // La lista vera nasce quando la tendina si apre (da chiusa Radix la disegna in un
@@ -187,8 +189,8 @@ const SelectContent = React.forwardRef<
                 // Il resto (lettere, spazio, cancella) è del campo, non della lista.
                 e.stopPropagation();
               }}
-              placeholder="Cerca…"
-              aria-label="Cerca nella tendina"
+              placeholder={tr("Cerca…")}
+              aria-label={tr("Cerca nella tendina")}
               autoComplete="off"
               className="h-8 w-full rounded-sm bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
             />
@@ -206,7 +208,7 @@ const SelectContent = React.forwardRef<
         >
           {children}
         </SelectPrimitive.Viewport>
-        {nessuna && <p className="px-3 py-2 text-sm text-muted-foreground">Nessuna corrispondenza.</p>}
+        {nessuna && <p className="px-3 py-2 text-sm text-muted-foreground">{tr("Nessuna corrispondenza.")}</p>}
         <SelectScrollDownButton />
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>

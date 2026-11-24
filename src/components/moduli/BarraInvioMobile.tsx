@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { condividiFile } from "@/lib/mobile/condividiFile";
 import { downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   onIndietro: () => void;
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, children }: Props) {
+  const t = useT();
   const [pdfInCorso, setPdfInCorso] = useState(false);
   const pdfPronto = useRef<Promise<Blob> | null>(null);
   const nomeFile = `${titolo.replace(/[\\/:*?"<>|]+/g, "").trim() || "Preventivo"}.pdf`;
@@ -51,8 +53,8 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
       if (azione === "manda") {
         const esito = await condividiFile(blob, nomeFile, titolo);
         if (esito === "serve-un-tocco") {
-          toast.success("PDF pronto", {
-            action: { label: "Manda", onClick: () => { void condividiFile(blob, nomeFile, titolo); } },
+          toast.success(t("PDF pronto"), {
+            action: { label: t("Manda"), onClick: () => { void condividiFile(blob, nomeFile, titolo); } },
             duration: 10000,
           });
         }
@@ -61,13 +63,13 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
       const url = URL.createObjectURL(blob);
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       if (!window.open(url, "_blank")) {
-        toast.success("PDF pronto", {
-          action: { label: "Apri", onClick: () => window.open(url, "_blank") },
+        toast.success(t("PDF pronto"), {
+          action: { label: t("Apri"), onClick: () => window.open(url, "_blank") },
           duration: 10000,
         });
       }
     } catch (e) {
-      toast.error("PDF non generato", { description: e instanceof Error ? e.message : "Riprova." });
+      toast.error(t("PDF non generato"), { description: e instanceof Error ? e.message : t("Riprova.") });
     } finally {
       pdfPronto.current = null;
       setPdfInCorso(false);
@@ -76,7 +78,7 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
 
   return (
     <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur">
-      <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={onIndietro} aria-label="Indietro">
+      <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={onIndietro} aria-label={t("Indietro")}>
         <ArrowLeft className="h-4 w-4" />
       </Button>
       {pdfBloccato ? (
@@ -103,13 +105,13 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-52">
             <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { void usaPdf("scarica"); }}>
-              <Download className="h-4 w-4" /> Scarica PDF
+              <Download className="h-4 w-4" /> {t("Scarica PDF")}
             </DropdownMenuItem>
             <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { void usaPdf("manda"); }}>
-              <Share className="h-4 w-4" /> Manda il PDF
+              <Share className="h-4 w-4" /> {t("Manda il PDF")}
             </DropdownMenuItem>
             <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { void usaPdf("guarda"); }}>
-              <Eye className="h-4 w-4" /> Guarda il PDF
+              <Eye className="h-4 w-4" /> {t("Guarda il PDF")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

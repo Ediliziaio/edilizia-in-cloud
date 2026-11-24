@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SUPABASE_ORIGIN = new URL(import.meta.env.VITE_SUPABASE_URL as string).origin;
 
@@ -12,6 +13,7 @@ interface OAuthStepProps {
 const STORAGE_KEY = "meta_oauth_result";
 
 export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const popupRef = useRef<Window | null>(null);
   const closedPollRef = useRef<number | null>(null);
@@ -144,16 +146,15 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
       </div>
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-          Collega il tuo account Facebook per importare automaticamente i lead
-          dai moduli Lead Ads delle tue pagine.
+          {t("Collega il tuo account Facebook per importare automaticamente i lead dai moduli Lead Ads delle tue pagine.")}
         </p>
         <p className="text-xs text-muted-foreground">
-          Facebook ti chiederà i permessi per pagine, moduli lead e inserzioni, più quelli delle funzioni attive (post, statistiche, messaggi).
+          {t("Facebook ti chiederà i permessi per pagine, moduli lead e inserzioni, più quelli delle funzioni attive (post, statistiche, messaggi).")}
         </p>
       </div>
       <Button onClick={handleConnect} disabled={loading} className="gap-2">
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        Collega con Facebook
+        {t("Collega con Facebook")}
       </Button>
     </div>
   );

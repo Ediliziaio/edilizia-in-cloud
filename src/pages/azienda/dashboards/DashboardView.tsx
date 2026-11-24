@@ -50,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
   { value: "this_month", label: "Questo mese" },
@@ -67,6 +68,7 @@ const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
 const VALID_PERIODS = new Set<string>(PERIODS.map((p) => p.value));
 
 export default function DashboardView() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -198,12 +200,12 @@ export default function DashboardView() {
         <div className="flex items-center gap-3 min-w-0">
           <Button asChild variant="ghost" size="sm">
             <Link to="/azienda/dashboards">
-              <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard
+              <ArrowLeft className="h-4 w-4 mr-1" /> {t("Dashboard")}
             </Link>
           </Button>
           <div className="min-w-0">
             <h1 className="text-xl font-semibold truncate">
-              {dash.isLoading ? "Caricamento…" : meta?.name ?? "Dashboard"}
+              {dash.isLoading ? t("Caricamento…") : meta?.name ?? t("Dashboard")}
             </h1>
             {meta?.description && (
               <p className="text-xs text-muted-foreground truncate">
@@ -218,21 +220,21 @@ export default function DashboardView() {
             size="sm"
             onClick={() => resolved.refetch()}
             disabled={resolved.isFetching}
-            title="Aggiorna dati (R)"
+            title={t("Aggiorna dati (R)")}
           >
             <RefreshCw
               className={`h-4 w-4 mr-1 ${resolved.isFetching ? "animate-spin" : ""}`}
             />
-            Aggiorna
+            {t("Aggiorna")}
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             onClick={() => window.print()}
-            title="Stampa o salva come PDF (P)"
+            title={t("Stampa o salva come PDF (P)")}
           >
-            <Printer className="h-4 w-4 mr-1" /> Stampa
+            <Printer className="h-4 w-4 mr-1" /> {t("Stampa")}
           </Button>
 
           {dashForMenu && <DashboardCardMenu dashboard={dashForMenu} canEdit={canEdit} />}
@@ -240,7 +242,7 @@ export default function DashboardView() {
           {canEdit && (
             <Button asChild size="sm">
               <Link to={`/azienda/dashboards/${id}/modifica`}>
-                <Pencil className="h-4 w-4 mr-1" /> Modifica
+                <Pencil className="h-4 w-4 mr-1" /> {t("Modifica")}
               </Link>
             </Button>
           )}
@@ -251,7 +253,7 @@ export default function DashboardView() {
       <div className="rounded-xl border bg-card/40 backdrop-blur-sm px-3 py-2 flex items-center gap-2 flex-wrap print:hidden">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0 pl-1">
           <Filter className="h-3.5 w-3.5" />
-          Filtri
+          {t("Filtri")}
         </div>
 
         <Select
@@ -265,13 +267,13 @@ export default function DashboardView() {
           }}
         >
           <SelectTrigger className="w-[200px] h-8 text-xs">
-            <SelectValue placeholder="Periodo" />
+            <SelectValue placeholder={t("Periodo")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Periodo widget (default)</SelectItem>
+            <SelectItem value="none">{t("Periodo widget (default)")}</SelectItem>
             {PERIODS.map((p) => (
               <SelectItem key={p.value} value={p.value}>
-                {p.label}
+                {t(p.label)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -284,13 +286,13 @@ export default function DashboardView() {
                 <CalendarRange className="h-3.5 w-3.5 mr-1" />
                 {customFrom && customTo
                   ? `${customFrom} → ${customTo}`
-                  : "Seleziona date"}
+                  : t("Seleziona date")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-3 space-y-2" align="start">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-medium text-muted-foreground">
-                  Dal
+                  {t("Dal")}
                 </label>
                 <Input
                   type="date"
@@ -301,7 +303,7 @@ export default function DashboardView() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[11px] font-medium text-muted-foreground">
-                  Al
+                  {t("Al")}
                 </label>
                 <Input
                   type="date"
@@ -322,19 +324,19 @@ export default function DashboardView() {
               variant="secondary"
               className="h-7 px-2 text-[11px] font-medium gap-1"
             >
-              <span className="text-muted-foreground">Periodo:</span>
+              <span className="text-muted-foreground">{t("Periodo:")}</span>
               <span>
                 {period === "custom"
                   ? hasCustomRange
                     ? `${customFrom} → ${customTo}`
-                    : "Personalizzato"
-                  : periodLabel ?? period}
+                    : t("Personalizzato")
+                  : periodLabel ? t(periodLabel) : period}
               </span>
               <button
                 type="button"
                 onClick={resetFilters}
                 className="ml-1 -mr-1 text-muted-foreground hover:text-foreground"
-                aria-label="Rimuovi filtro periodo"
+                aria-label={t("Rimuovi filtro periodo")}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -351,14 +353,14 @@ export default function DashboardView() {
             onClick={resetFilters}
             className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
           >
-            Reimposta
+            {t("Reimposta")}
           </Button>
         )}
       </div>
 
       {/* Header ridotto visibile solo in stampa */}
       <div className="hidden print:block mb-4 pb-2 border-b">
-        <h1 className="text-lg font-semibold">{meta?.name ?? "Dashboard"}</h1>
+        <h1 className="text-lg font-semibold">{meta?.name ?? t("Dashboard")}</h1>
         {meta?.description && (
           <p className="text-xs text-muted-foreground">{meta.description}</p>
         )}
@@ -371,7 +373,7 @@ export default function DashboardView() {
       {dash.error ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5" />
-          <span>Errore nel caricamento: {(dash.error as Error).message}</span>
+          <span>{t("Errore nel caricamento: {message}", { message: String((dash.error as Error).message ?? "") })}</span>
         </div>
       ) : dash.isLoading || !layout ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

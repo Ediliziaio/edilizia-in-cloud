@@ -53,6 +53,8 @@ import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/Trend
 import { Comparsa, StatGrafico, TESTO_ASSE, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { formatEuroRiquadro } from "@/lib/controlloGestione/formatCG";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import type { Traduttore } from "@/lib/campo/lingua/traduttore";
 
 
 // I colori del grafico: due linee e la barra della cassa (verde sopra lo zero,
@@ -63,21 +65,21 @@ const COLORE_CASSA_POS = "hsl(var(--chart-2))";
 const COLORE_CASSA_NEG = "hsl(var(--chart-5))";
 
 /** Il periodo del filtro in parole, scritto sotto i numeri che lo seguono. */
-function periodoInParole(f: { datePreset: string; dateFrom: Date; dateTo: Date }): string {
+function periodoInParole(f: { datePreset: string; dateFrom: Date; dateTo: Date }, t: Traduttore): string {
   const parole: Record<string, string> = {
     today: "Oggi", yesterday: "Ieri", last7: "Ultimi 7 giorni", last30: "Ultimi 30 giorni",
     month: "Questo mese", quarter: "Ultimi 90 giorni",
   };
-  if (parole[f.datePreset]) return parole[f.datePreset];
-  const g = (d: Date) => d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+  if (parole[f.datePreset]) return t(parole[f.datePreset]);
+  const g = (d: Date) => d.toLocaleDateString(intlCampo(), { day: "numeric", month: "short" });
   return `${g(f.dateFrom)} – ${g(f.dateTo)}`;
 }
 
 /** Variazione % contro il periodo precedente (null se prima era zero). */
-function variazioneSu(ora: number, prima: number) {
+function variazioneSu(ora: number, prima: number, t: Traduttore) {
   const a = safeNumber(ora);
   const b = safeNumber(prima);
-  return { pct: b === 0 ? null : ((a - b) / Math.abs(b)) * 100, nota: "Rispetto al periodo precedente" };
+  return { pct: b === 0 ? null : ((a - b) / Math.abs(b)) * 100, nota: t("Rispetto al periodo precedente") };
 }
 
 function eur(value: number) {
@@ -85,6 +87,7 @@ function eur(value: number) {
 }
 
 export default function CruscottoAziendale() {
+  const tr = useT();
   const perms = usePermissions();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -136,7 +139,7 @@ export default function CruscottoAziendale() {
         const date = new Date(oggi.getFullYear(), oggi.getMonth() - (11 - index), 1);
         date.setHours(0, 0, 0, 0);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
+        const monthLabel = date.toLocaleDateString(intlCampo(), { month: "short" }).replace(".", "");
         const row = byKey.get(key);
         return {
           key,
@@ -180,13 +183,13 @@ export default function CruscottoAziendale() {
 
   const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
     const eur = (v: number) =>
-      v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true });
+      v.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true });
     return [
-      { key: "venduto", label: "Venduto (IVA escl.)", color: "hsl(var(--chart-1))", formatter: eur },
-      { key: "incassato", label: "Incassato (IVA incl.)", color: "hsl(var(--chart-3))", formatter: eur },
+      { key: "venduto", label: tr("Venduto (IVA escl.)"), color: "hsl(var(--chart-1))", formatter: eur },
+      { key: "incassato", label: tr("Incassato (IVA incl.)"), color: "hsl(var(--chart-3))", formatter: eur },
       {
         key: "cassa",
-        label: "Cassa netta",
+        label: tr("Cassa netta"),
         color: (v) => (v < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"),
         formatter: eur,
         valueColor: (v) => (v < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"),
@@ -209,26 +212,26 @@ export default function CruscottoAziendale() {
   // P4 — il venduto apre il `DrilldownDrawer` con le righe che lo fanno.
   const executiveKpis = useMemo(() => [
     {
-      label: "Venduto periodo (IVA escl.)",
-      etichetta: "Venduto",
+      label: tr("Venduto periodo (IVA escl.)"),
+      etichetta: tr("Venduto"),
       value: eur(finance.revenueThisMonth),
-      hint: `prima ${eur(finance.revenuePrevMonth)} · IVA escl.`,
+      hint: tr("prima {importo} · IVA escl.", { importo: eur(finance.revenuePrevMonth) }),
       tone: (finance.revenueThisMonth >= finance.revenuePrevMonth ? "buono" : "attenzione") as TonoNumero,
       tendenza: ultimiSei.map((m) => m.venduto),
-      variazione: variazioneSu(finance.revenueThisMonth, finance.revenuePrevMonth),
+      variazione: variazioneSu(finance.revenueThisMonth, finance.revenuePrevMonth, tr),
       drilldown: "revenue" as DrilldownType,
     },
     {
       // Qui stava «Saldo scadenze mese»: fisso sul mese in un riquadro che si
       // chiama «Numeri del periodo», e già per intero in Finanza. Al suo posto
       // l'incassato del periodo scelto, accanto al venduto dello stesso periodo.
-      label: "Incassato periodo (IVA incl.)",
-      etichetta: "Incassato",
+      label: tr("Incassato periodo (IVA incl.)"),
+      etichetta: tr("Incassato"),
       value: eur(finance.collectedInPeriod ?? 0),
-      hint: `prima ${eur(finance.collectedPrevPeriod ?? 0)} · IVA incl.`,
+      hint: tr("prima {importo} · IVA incl.", { importo: eur(finance.collectedPrevPeriod ?? 0) }),
       tone: ((finance.collectedInPeriod ?? 0) >= (finance.collectedPrevPeriod ?? 0) ? "buono" : "attenzione") as TonoNumero,
       tendenza: ultimiSei.map((m) => m.incassato),
-      variazione: variazioneSu(finance.collectedInPeriod ?? 0, finance.collectedPrevPeriod ?? 0),
+      variazione: variazioneSu(finance.collectedInPeriod ?? 0, finance.collectedPrevPeriod ?? 0, tr),
       drilldown: null as DrilldownType,
     },
   ], [finance, ultimiSei]);
@@ -244,7 +247,7 @@ export default function CruscottoAziendale() {
   const showFinanza     = perms.isAdmin || perms.canViewPrimaNota || perms.canViewBilling || perms.canViewCosts || perms.canViewTesoreria;
   const showOperazioni  = perms.isAdmin || perms.canViewDashboard || perms.canViewOrders;
 
-  const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const todayStr = new Date().toLocaleDateString(intlCampo(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
 
   return (
@@ -253,14 +256,14 @@ export default function CruscottoAziendale() {
           tablet il selettore sta accanto al titolo della testata: la barra
           sopra ripeteva il nome una riga prima del titolo. */}
       <div className="sm:hidden">
-        <DashboardSelectorBar title="Cruscotto Economico" />
+        <DashboardSelectorBar title={tr("Cruscotto Economico")} />
       </div>
 
       <DashboardPageHeader
-        title="Cruscotto Economico"
+        title={tr("Cruscotto Economico")}
         subtitle={todayCap}
         icon={LayoutDashboard}
-        leftAccessory={<DashboardSelectorBar title="Cruscotto Economico" soloSelettore />}
+        leftAccessory={<DashboardSelectorBar title={tr("Cruscotto Economico")} soloSelettore />}
         compactTitle
         density="compact"
         toolbar={<CruscottoFilters filters={filters} onUpdate={updateFilters} compact />}
@@ -272,7 +275,7 @@ export default function CruscottoAziendale() {
             onClick={() => window.print()}
           >
             <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Stampa / PDF</span>
+            <span className="hidden sm:inline">{tr("Stampa / PDF")}</span>
           </Button>
         }
         className="print:mb-4"
@@ -303,7 +306,7 @@ export default function CruscottoAziendale() {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <span>Errore nel caricamento dei dati. Riprova tra qualche secondo.</span>
+              <span>{tr("Errore nel caricamento dei dati. Riprova tra qualche secondo.")}</span>
               <Button
                 type="button"
                 variant="outline"
@@ -312,7 +315,7 @@ export default function CruscottoAziendale() {
                 onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all })}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                Riprova
+                {tr("Riprova")}
               </Button>
             </div>
           </AlertDescription>
@@ -337,13 +340,13 @@ export default function CruscottoAziendale() {
                 <RiquadroNumero
                   key={item.label}
                   etichetta={item.etichetta}
-                  periodo={periodoInParole(filters)}
+                  periodo={periodoInParole(filters, tr)}
                   valore={isLoading ? "…" : item.value}
                   tono={isLoading ? "neutro" : item.tone}
                   contesto={item.hint}
                   tendenza={item.tendenza}
                   variazione={isLoading ? undefined : item.variazione}
-                  etichettaTendenza={`${item.etichetta} degli ultimi sei mesi`}
+                  etichettaTendenza={tr("{etichetta} degli ultimi sei mesi", { etichetta: item.etichetta })}
                   onClick={item.drilldown ? () => setDrilldown(item.drilldown) : undefined}
                 />
               ))}
@@ -354,22 +357,22 @@ export default function CruscottoAziendale() {
               <div className="rounded-2xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground">Venduto, incassato e cassa</h3>
-                    <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Ultimi 12 mesi</p>
+                    <h3 className="text-sm font-semibold text-foreground">{tr("Venduto, incassato e cassa")}</h3>
+                    <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">{tr("Ultimi 12 mesi")}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_VENDUTO }} /> Venduto <span className="opacity-70">IVA escl.</span></span>
-                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_INCASSATO }} /> Incassato <span className="opacity-70">IVA incl.</span></span>
-                    <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: `linear-gradient(90deg, ${COLORE_CASSA_POS} 50%, ${COLORE_CASSA_NEG} 50%)` }} /> Cassa netta</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_VENDUTO }} /> {tr("Venduto")} <span className="opacity-70">{tr("IVA escl.")}</span></span>
+                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_INCASSATO }} /> {tr("Incassato")} <span className="opacity-70">{tr("IVA incl.")}</span></span>
+                    <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: `linear-gradient(90deg, ${COLORE_CASSA_POS} 50%, ${COLORE_CASSA_NEG} 50%)` }} /> {tr("Cassa netta")}</span>
                   </div>
                 </div>
 
                 {!trendIsEmpty && executiveTrend.length > 0 && (
                   <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-                    <StatGrafico etichetta="Venduto 12 mesi" valore={formatEuroRiquadro(totali12.venduto)} />
-                    <StatGrafico etichetta="Incassato 12 mesi" valore={formatEuroRiquadro(totali12.incassato)} />
+                    <StatGrafico etichetta={tr("Venduto 12 mesi")} valore={formatEuroRiquadro(totali12.venduto)} />
+                    <StatGrafico etichetta={tr("Incassato 12 mesi")} valore={formatEuroRiquadro(totali12.incassato)} />
                     <StatGrafico
-                      etichetta="Cassa netta 12 mesi"
+                      etichetta={tr("Cassa netta 12 mesi")}
                       valore={`${totali12.cassa > 0 ? "+" : ""}${formatEuroRiquadro(totali12.cassa)}`}
                       tono={totali12.cassa >= 0 ? "buono" : "cattivo"}
                     />
@@ -379,8 +382,8 @@ export default function CruscottoAziendale() {
                 <div className="mt-3 h-[230px]">
                   {trendIsEmpty ? (
                     <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-                      <p className="text-sm font-medium text-muted-foreground">Ancora nessun movimento negli ultimi 12 mesi</p>
-                      <p className="text-xs text-muted-foreground/80">Registra il primo incasso o crea una commessa per vedere l'andamento.</p>
+                      <p className="text-sm font-medium text-muted-foreground">{tr("Ancora nessun movimento negli ultimi 12 mesi")}</p>
+                      <p className="text-xs text-muted-foreground/80">{tr("Registra il primo incasso o crea una commessa per vedere l'andamento.")}</p>
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
@@ -433,15 +436,15 @@ export default function CruscottoAziendale() {
           Sintesi. Restano sopra le schede, sempre visibili. */}
       {!isDataEmpty && (
         <div className="space-y-3">
-          <SectionErrorBoundary sectionName="I numeri che comandano">
+          <SectionErrorBoundary sectionName={tr("I numeri che comandano")}>
             <IndicatoriGuida />
           </SectionErrorBoundary>
           {companyTargets?.monthly_revenue_target && !isMobile && (
-            <SectionErrorBoundary sectionName="Target Mensile">
+            <SectionErrorBoundary sectionName={tr("Target Mensile")}>
               <TargetProgressBar
                 current={cashFlowForecast?.monthRevenue ?? 0}
                 target={companyTargets.monthly_revenue_target}
-                label="Target venduto · mese corrente"
+                label={tr("Target venduto · mese corrente")}
               />
             </SectionErrorBoundary>
           )}
@@ -458,13 +461,13 @@ export default function CruscottoAziendale() {
         <section className="rounded-2xl border bg-card p-3 shadow-sm print:border-slate-200 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="w-full">
             <TabsList className="sticky top-0 z-10 grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-muted p-1 sm:static">
-              <TabsTrigger value="incassi" className="rounded-lg" disabled={!showFinanza}>Incassi e cassa</TabsTrigger>
-              <TabsTrigger value="commesse" className="rounded-lg">Commesse e margini</TabsTrigger>
+              <TabsTrigger value="incassi" className="rounded-lg" disabled={!showFinanza}>{tr("Incassi e cassa")}</TabsTrigger>
+              <TabsTrigger value="commesse" className="rounded-lg">{tr("Commesse e margini")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="incassi" className="mt-3 space-y-3">
               {showFinanza && (
-                <SectionErrorBoundary sectionName="Incassi e cassa">
+                <SectionErrorBoundary sectionName={tr("Incassi e cassa")}>
                   <div className="space-y-3">
                     <CashFlowForecast cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
                     <ScadutoPerEtaWidget scaduto={scadutoTesoreria ?? { fasce: [], totale: 0, rate: 0, ritardoMedio: null }} isLoading={previsionale.isLoading} />
@@ -476,27 +479,27 @@ export default function CruscottoAziendale() {
             <TabsContent value="commesse" className="mt-3 space-y-3">
               {showOperazioni && (
                 <>
-                  <SectionErrorBoundary sectionName="Marginalità Cantieri">
+                  <SectionErrorBoundary sectionName={tr("Marginalità Cantieri")}>
                     <MarginalitaWidget />
                   </SectionErrorBoundary>
                   {/* Appalti e operazioni immobiliari: solo per chi ha acceso le commesse generali */}
-                  <SectionErrorBoundary sectionName="Commesse generali">
+                  <SectionErrorBoundary sectionName={tr("Commesse generali")}>
                     <CommesseGeneraliCruscotto />
                   </SectionErrorBoundary>
                 </>
               )}
               {showFinanza && (
                 <>
-                  <SectionErrorBoundary sectionName="Punto di Pareggio">
+                  <SectionErrorBoundary sectionName={tr("Punto di Pareggio")}>
                     <PuntoDiPareggio />
                   </SectionErrorBoundary>
                   {/* Il conto per sede, solo per chi ne ha più d'una. La torta
                       accanto ripeteva in percentuale la colonna «Inc. Ricavi». */}
                   {(sediData?.sedi?.length ?? 0) > 1 && sediVisibili.length > 0 && (
-                    <SectionErrorBoundary sectionName="Analytics per Sede">
+                    <SectionErrorBoundary sectionName={tr("Analytics per Sede")}>
                       <div className="space-y-3 rounded-lg border bg-card p-3 max-sm:hidden">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h2 className="text-lg font-semibold text-eic-navy">P&amp;L per Sede</h2>
+                          <h2 className="text-lg font-semibold text-eic-navy">{tr("P&L per Sede")}</h2>
                           <SedeFilterBar />
                         </div>
                         <SedeIncidenzaTable />

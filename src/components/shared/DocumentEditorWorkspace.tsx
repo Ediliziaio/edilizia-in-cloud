@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Eye, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type VistaEditorDocumento = "modifica" | "anteprima";
 
@@ -11,15 +12,16 @@ export function SceltaVistaDocumento({ vista, onChange, controls, className }: {
   controls: string;
   className?: string;
 }) {
+  const t = useT();
   return (
-    <div role="group" aria-label="Vista del modello" className={cn("flex w-fit max-w-full gap-1 rounded-lg border bg-card p-1", className)}>
+    <div role="group" aria-label={t("Vista del modello")} className={cn("flex w-fit max-w-full gap-1 rounded-lg border bg-card p-1", className)}>
       <Button type="button" variant={vista === "modifica" ? "default" : "ghost"} aria-pressed={vista === "modifica"}
         aria-controls={controls} onClick={() => onChange("modifica")} className="min-h-11 flex-1 gap-2">
-        <Pencil className="h-4 w-4" aria-hidden="true" /> Modifica
+        <Pencil className="h-4 w-4" aria-hidden="true" /> {t("Modifica")}
       </Button>
       <Button type="button" variant={vista === "anteprima" ? "default" : "ghost"} aria-pressed={vista === "anteprima"}
         aria-controls={controls} onClick={() => onChange("anteprima")} className="min-h-11 flex-1 gap-2">
-        <Eye className="h-4 w-4" aria-hidden="true" /> Anteprima
+        <Eye className="h-4 w-4" aria-hidden="true" /> {t("Anteprima")}
       </Button>
     </div>
   );

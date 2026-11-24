@@ -57,6 +57,7 @@ export interface PipelineWithStages {
 
 import type { CustomFieldDef } from "@/lib/contactUtils";
 import { REGION_OPTIONS } from "@/lib/italianRegions";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 export type { CustomFieldDef };
 
 /**
@@ -157,6 +158,7 @@ function ValoreDaElenco({
   valore: string;
   onChange: (v: string) => void;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const { data: voci = [], isLoading, isError } = useQuery({
     queryKey: queryKeys.marketingContacts.filterValues(companyId, elenco),
@@ -182,11 +184,11 @@ function ValoreDaElenco({
           variant="outline"
           role="combobox"
           aria-expanded={aperto}
-          aria-label={mostrato ? `Valore: ${mostrato}` : "Scegli il valore"}
+          aria-label={mostrato ? t("Valore: {mostrato}", { mostrato: String(mostrato ?? "") }) : t("Scegli il valore")}
           className="h-8 w-full justify-between px-3 text-xs font-normal"
         >
           <span className={cn("truncate", !valore && "text-muted-foreground")}>
-            {mostrato || "Scegli…"}
+            {mostrato || t("Scegli…")}
           </span>
           <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
@@ -201,10 +203,10 @@ function ValoreDaElenco({
         className="z-50 w-[--radix-popover-trigger-width] rounded-md border bg-popover p-0 text-popover-foreground shadow-md outline-none"
       >
         <Command>
-          <CommandInput placeholder="Cerca…" className="h-8 text-xs" />
+          <CommandInput placeholder={t("Cerca…")} className="h-8 text-xs" />
           <CommandList>
             <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">
-              {isLoading ? "Carico l'elenco…" : isError ? "Elenco non disponibile" : "Nessun valore"}
+              {isLoading ? t("Carico l'elenco…") : isError ? t("Elenco non disponibile") : t("Nessun valore")}
             </CommandEmpty>
             <CommandGroup>
               {voci.map((v) => (
@@ -219,7 +221,7 @@ function ValoreDaElenco({
                 >
                   <Check className={cn("mr-2 h-3.5 w-3.5 shrink-0", v.valore === valore ? "opacity-100" : "opacity-0")} />
                   <span className="flex-1 truncate">{v.etichetta}</span>
-                  <span className="ml-2 tabular-nums text-muted-foreground">{v.contatti.toLocaleString("it-IT")}</span>
+                  <span className="ml-2 tabular-nums text-muted-foreground">{v.contatti.toLocaleString(intlCampo())}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -260,6 +262,9 @@ export function ContactFiltersSheet({
   customFields = [],
   contaContatti,
 }: Props) {
+  const t = useT();
+  // I nomi dei campi personalizzati li scrive l'azienda: restano come sono.
+  const nomeCampo = (f: FieldDef) => (f.key.startsWith("cf_") ? f.label : t(f.label));
   const [local, setLocal] = useState<ContactFilters>(filters);
   // pickingFor: null = rules view, "new_group" = picking for new OR group, "nested_<groupId>" = picking for AND in group, "change_<ruleId>" = changing field
   const [pickingFor, setPickingFor] = useState<string | null>(null);
@@ -437,9 +442,9 @@ export function ContactFiltersSheet({
             value={rule.value}
             onChange={(e) => updateRule(rule.id, { value: e.target.value })}
             className="h-8 w-24 text-xs"
-            aria-label="Numero di giorni"
+            aria-label={t("Numero di giorni")}
           />
-          <span className="text-xs text-muted-foreground">giorni</span>
+          <span className="text-xs text-muted-foreground">{t("giorni")}</span>
         </div>
       );
     }
@@ -460,17 +465,17 @@ export function ContactFiltersSheet({
       return (
         <Select value={rule.value} onValueChange={(v) => updateRule(rule.id, { value: v })}>
           <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Scegli…" />
+            <SelectValue placeholder={t("Scegli…")} />
           </SelectTrigger>
           <SelectContent>
-            {fieldDef.options.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+            {fieldDef.options.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{fieldDef.key === "opp_status" ? t(o.label) : o.label}</SelectItem>)}
           </SelectContent>
         </Select>
       );
     }
     return (
       <Input
-        placeholder={fieldDef?.segnaposto ?? "Scrivi il valore…"}
+        placeholder={fieldDef?.segnaposto ? t(fieldDef.segnaposto) : t("Scrivi il valore…")}
         value={rule.value}
         onChange={(e) => updateRule(rule.id, { value: e.target.value })}
         className="h-8 text-xs"
@@ -479,8 +484,8 @@ export function ContactFiltersSheet({
   };
 
   const etichettaApplica = conteggio === null
-    ? "Applica"
-    : `Mostra ${conteggio.toLocaleString("it-IT")} ${conteggio === 1 ? "contatto" : "contatti"}`;
+    ? t("Applica")
+    : t(conteggio === 1 ? "Mostra {n} contatto" : "Mostra {n} contatti", { n: conteggio.toLocaleString(intlCampo()) });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -499,22 +504,22 @@ export function ContactFiltersSheet({
         {isPicking ? (
           /* Field picker screen */
           <div className="flex flex-col h-full">
-            <SheetDescription className="sr-only">Scegli il campo da filtrare</SheetDescription>
+            <SheetDescription className="sr-only">{t("Scegli il campo da filtrare")}</SheetDescription>
             <div className="px-6 pt-6 pb-3">
               <div className="flex items-center gap-2 mb-3">
                 <button
                   onClick={() => { setPickingFor(null); setFieldSearch(""); }}
                   className="p-1 hover:bg-muted rounded transition-colors"
-                  aria-label="Torna ai filtri"
+                  aria-label={t("Torna ai filtri")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <SheetTitle className="text-sm font-semibold flex-1">Scegli campo</SheetTitle>
+                <SheetTitle className="text-sm font-semibold flex-1">{t("Scegli campo")}</SheetTitle>
               </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca campo..."
+                  placeholder={t("Cerca campo...")}
                   value={fieldSearch}
                   onChange={(e) => setFieldSearch(e.target.value)}
                   className="pl-8 h-8 text-sm"
@@ -525,20 +530,20 @@ export function ContactFiltersSheet({
             <div className="flex-1 overflow-y-auto px-6 pb-4">
               {Object.entries(filteredFields).map(([group, fields]) => (
                 <div key={group} className="mb-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-1.5 px-1">{group}</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-1.5 px-1">{t(group)}</div>
                   {fields.map((f) => (
                     <button
                       key={f.key}
                       onClick={() => selectFieldForPicking(f.key)}
                       className="flex items-center w-full px-2 py-2 text-sm rounded-md hover:bg-muted/60 transition-colors text-foreground"
                     >
-                      {f.label}
+                      {nomeCampo(f)}
                     </button>
                   ))}
                 </div>
               ))}
               {Object.keys(filteredFields).length === 0 && (
-                <div className="text-center py-4 text-sm text-muted-foreground">Nessun campo trovato</div>
+                <div className="text-center py-4 text-sm text-muted-foreground">{t("Nessun campo trovato")}</div>
               )}
             </div>
           </div>
@@ -547,9 +552,9 @@ export function ContactFiltersSheet({
           <div className="flex flex-col h-full">
             <div className="px-6 pt-6 pb-3">
               <SheetHeader className="space-y-1 text-left">
-                <SheetTitle className="text-base">Filtri</SheetTitle>
+                <SheetTitle className="text-base">{t("Filtri")}</SheetTitle>
                 <SheetDescription className="text-xs">
-                  Nello stesso riquadro valgono tutte le condizioni; fra riquadri diversi ne basta uno.
+                  {t("Nello stesso riquadro valgono tutte le condizioni; fra riquadri diversi ne basta uno.")}
                 </SheetDescription>
               </SheetHeader>
             </div>
@@ -557,7 +562,7 @@ export function ContactFiltersSheet({
             <div className="flex-1 overflow-y-auto px-6 pb-4">
               {local.groups.length === 0 && (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  Nessun filtro attivo. Clicca sotto per aggiungerne uno.
+                  {t("Nessun filtro attivo. Clicca sotto per aggiungerne uno.")}
                 </div>
               )}
 
@@ -567,7 +572,7 @@ export function ContactFiltersSheet({
                   {gIdx > 0 && (
                     <div className="flex items-center gap-3 my-3">
                       <div className="flex-1 h-px bg-border" />
-                      <span className="text-[11px] font-semibold text-destructive uppercase tracking-wider">oppure</span>
+                      <span className="text-[11px] font-semibold text-destructive uppercase tracking-wider">{t("oppure")}</span>
                       <div className="flex-1 h-px bg-border" />
                     </div>
                   )}
@@ -597,9 +602,9 @@ export function ContactFiltersSheet({
                               <button
                                 onClick={() => { setPickingFor(`change_${rule.id}`); setFieldSearch(""); }}
                                 className="order-1 flex min-w-0 flex-1 items-center gap-1 text-sm font-medium text-foreground hover:text-primary transition-colors"
-                                title="Cambia campo"
+                                title={t("Cambia campo")}
                               >
-                                <span className="truncate">{fieldDef?.label || rule.field}</span>
+                                <span className="truncate">{fieldDef ? nomeCampo(fieldDef) : rule.field}</span>
                                 <Pencil className="h-3 w-3 shrink-0 text-muted-foreground" />
                               </button>
                               <Select
@@ -614,19 +619,19 @@ export function ContactFiltersSheet({
                                   });
                                 }}
                               >
-                                <SelectTrigger className="order-3 h-7 w-full text-xs sm:order-2 sm:w-[170px]" aria-label="Condizione">
+                                <SelectTrigger className="order-3 h-7 w-full text-xs sm:order-2 sm:w-[170px]" aria-label={t("Condizione")}>
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {operatori.map((op) => (
-                                    <SelectItem key={op} value={op} className="text-xs">{etichettaOperatore(fieldDef, op)}</SelectItem>
+                                    <SelectItem key={op} value={op} className="text-xs">{t(etichettaOperatore(fieldDef, op))}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                               <button
                                 onClick={() => removeRule(group.id, rule.id)}
                                 className="order-2 p-1 text-muted-foreground hover:text-destructive transition-colors sm:order-3"
-                                aria-label="Togli condizione"
+                                aria-label={t("Togli condizione")}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -637,7 +642,7 @@ export function ContactFiltersSheet({
 
                             {incompleta && (
                               <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                                Manca il valore: finché è vuota, questa condizione non filtra.
+                                {t("Manca il valore: finché è vuota, questa condizione non filtra.")}
                               </p>
                             )}
                           </div>
@@ -652,7 +657,7 @@ export function ContactFiltersSheet({
                         className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors py-1"
                       >
                         <Plus className="h-3 w-3" />
-                        Aggiungi condizione
+                        {t("Aggiungi condizione")}
                       </button>
                     </div>
                   </div>
@@ -665,7 +670,7 @@ export function ContactFiltersSheet({
                 className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors py-3 mt-1"
               >
                 <Plus className="h-4 w-4" />
-                {local.groups.length === 0 ? "Aggiungi filtro" : "Aggiungi alternativa (oppure)"}
+                {local.groups.length === 0 ? t("Aggiungi filtro") : t("Aggiungi alternativa (oppure)")}
               </button>
             </div>
 
@@ -679,14 +684,14 @@ export function ContactFiltersSheet({
                 }}
                 className="text-xs text-destructive hover:text-destructive/80 transition-colors mr-auto"
               >
-                Rimuovi tutti i filtri
+                {t("Rimuovi tutti i filtri")}
               </button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => onOpenChange(false)}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button
                 size="sm"

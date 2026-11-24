@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, ArrowRight } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * @param warnBelowEur soglia opzionale: se il saldo e' sotto (ma gli invii non
@@ -20,6 +21,7 @@ import { AlertTriangle, ArrowRight } from "lucide-react";
  * — cosi' l'utente non scopre il problema solo al momento dell'invio.
  */
 export function EmailCreditsBanner({ warnBelowEur }: { warnBelowEur?: number } = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -48,13 +50,13 @@ export function EmailCreditsBanner({ warnBelowEur }: { warnBelowEur?: number } =
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription className="flex items-center justify-between gap-3">
           <span>
-            <strong>Invii email bloccati</strong> — saldo crediti esaurito.
+            <strong>{t("Invii email bloccati")}</strong> {t("— saldo crediti esaurito.")}
           </span>
           <Link
             to="/azienda/impostazioni/abbonamento?tab=portafoglio"
             className="shrink-0 text-sm font-semibold underline underline-offset-2"
           >
-            Ricarica ora <ArrowRight className="ml-1 inline h-3 w-3" />
+            {t("Ricarica ora")} <ArrowRight className="ml-1 inline h-3 w-3" />
           </Link>
         </AlertDescription>
       </Alert>
@@ -70,15 +72,14 @@ export function EmailCreditsBanner({ warnBelowEur }: { warnBelowEur?: number } =
         <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         <AlertDescription className="flex items-center justify-between gap-3">
           <span>
-            <strong>Crediti email in esaurimento</strong> — saldo{" "}
-            {balance.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}: con un
-            invio grande potrebbe non bastare.
+            <strong>{t("Crediti email in esaurimento")}</strong>{" "}
+            {t("— saldo {saldo}: con un invio grande potrebbe non bastare.", { saldo: balance.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }) })}
           </span>
           <Link
             to="/azienda/impostazioni/abbonamento?tab=portafoglio"
             className="shrink-0 text-sm font-semibold underline underline-offset-2"
           >
-            Ricarica <ArrowRight className="ml-1 inline h-3 w-3" />
+            {t("Ricarica")} <ArrowRight className="ml-1 inline h-3 w-3" />
           </Link>
         </AlertDescription>
       </Alert>

@@ -13,6 +13,7 @@ import { CalendariDelTeam } from "./CompanyCalendarsOverview";
 import { CaselleDelTeam, casellaDaRicollegare, useCaselleDelTeam } from "./CompanyEmailsOverview";
 import { AutenticazioneDomini, useAutenticazioneDomini } from "./EmailDomainAuthPanel";
 import type { PopupComponentProps } from "./IntegrationsCatalog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Intro di una riga + il pulsante per collegare il proprio account dal profilo. */
 function IntroConProfilo({
@@ -46,11 +47,12 @@ function IntroConProfilo({
 }
 
 export function CalendariPopup({ onClose }: PopupComponentProps) {
+  const t = useT();
   return (
     <div className="space-y-4">
       <IntroConProfilo
-        testo="Ognuno collega il proprio calendario dal suo profilo: qui vedi chi l'ha fatto e quali calendari del gestionale ci scrivono."
-        etichetta="Collega il tuo"
+        testo={t("Ognuno collega il proprio calendario dal suo profilo: qui vedi chi l'ha fatto e quali calendari del gestionale ci scrivono.")}
+        etichetta={t("Collega il tuo")}
         scheda="calendari"
         onClose={onClose}
       />
@@ -71,6 +73,7 @@ function Conteggio({ n }: { n: number }) {
 
 /** Caselle del team e controllo del dominio, in due sezioni con il conto di quello che non va. */
 export function CaselleEmailPopup({ onClose, scheda }: PopupComponentProps) {
+  const t = useT();
   const [attiva, setAttiva] = useState(scheda === "dominio" ? "dominio" : "caselle");
   const { righe } = useCaselleDelTeam();
   const { daSistemare } = useAutenticazioneDomini();
@@ -79,19 +82,19 @@ export function CaselleEmailPopup({ onClose, scheda }: PopupComponentProps) {
   return (
     <div className="space-y-4">
       <IntroConProfilo
-        testo="Ognuno collega la propria casella dal suo profilo: la posta arriva in Conversazioni e si scrive dal gestionale."
-        etichetta="Collega la tua"
+        testo={t("Ognuno collega la propria casella dal suo profilo: la posta arriva in Conversazioni e si scrive dal gestionale.")}
+        etichetta={t("Collega la tua")}
         scheda="email"
         onClose={onClose}
       />
       <Tabs value={attiva} onValueChange={setAttiva}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="caselle">
-            Caselle{righe.length > 0 && <span className="ml-1 text-muted-foreground tabular-nums">{righe.length}</span>}
+            {t("Caselle")}{righe.length > 0 && <span className="ml-1 text-muted-foreground tabular-nums">{righe.length}</span>}
             <Conteggio n={guaste} />
           </TabsTrigger>
           <TabsTrigger value="dominio">
-            Dominio e consegna
+            {t("Dominio e consegna")}
             <Conteggio n={daSistemare.length} />
           </TabsTrigger>
         </TabsList>

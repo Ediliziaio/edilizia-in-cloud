@@ -39,6 +39,7 @@ import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
 import { buildBathroomRenderConfig, ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
 import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -78,6 +79,7 @@ async function getFunctionErrorMessage(error: unknown, fallback: string) {
 
 // ═════════════════════════════════════════════════════════════════════
 export default function RenderBagnoNew() {
+  const t = useT();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { effectiveCompany, user } = useAuth();
@@ -160,7 +162,7 @@ export default function RenderBagnoNew() {
 
         if (cancelled) return;
         if (error) throw error;
-        if (!data) throw new Error("Render non disponibile");
+        if (!data) throw new Error(t("Render non disponibile"));
 
         const row = data;
         const configurazione = row.configurazione;
@@ -198,10 +200,10 @@ export default function RenderBagnoNew() {
           setPhoto(null);
           setPhotoPreview(previewUrl);
           setStep(3);
-          toast.success("Configurazione caricata: puoi modificarla e rigenerare una nuova variante.");
+          toast.success(t("Configurazione caricata: puoi modificarla e rigenerare una nuova variante."));
         }
       } catch {
-        if (!cancelled) toast.error("Non sono riuscito a caricare il render da modificare.");
+        if (!cancelled) toast.error(t("Non sono riuscito a caricare il render da modificare."));
       }
     };
 
@@ -216,7 +218,7 @@ export default function RenderBagnoNew() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error(t("File troppo grande (max 20 MB)"));
       return;
     }
     const previewUrl = URL.createObjectURL(file);
@@ -264,12 +266,12 @@ export default function RenderBagnoNew() {
       });
 
       if (resp.error) {
-        throw new Error(await getFunctionErrorMessage(resp.error, "Analisi non riuscita"));
+        throw new Error(await getFunctionErrorMessage(resp.error, t("Analisi non riuscita")));
       }
 
       const analysisData = resp.data?.analisi_bagno || resp.data?.analisi || resp.data;
       if (!analysisData) {
-        throw new Error("Risposta analisi vuota");
+        throw new Error(t("Risposta analisi vuota"));
       }
 
       setAnalisi(analysisData as AnalisiBagno);
@@ -282,7 +284,7 @@ export default function RenderBagnoNew() {
         })
         .eq("id", sid);
     } catch (err) {
-      setAnalysisError(`Analisi AI non disponibile: ${err instanceof Error ? err.message : String(err)}`);
+      setAnalysisError(t("Analisi AI non disponibile: {errore}", { errore: err instanceof Error ? err.message : String(err) }));
       await supabase
         .from("render_bagno_sessions")
         .update({ stato: "analysis_done" })
@@ -290,19 +292,19 @@ export default function RenderBagnoNew() {
     } finally {
       setAnalysisLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const retryAnalysis = useCallback(async () => {
     if (!sessionId || !sourceOriginalPath || analysisLoading) return;
 
     const imageUrl = await createRenderOriginalSignedUrl("bagno-originals", sourceOriginalPath, 300);
     if (!imageUrl) {
-      setAnalysisError("Non sono riuscito a preparare la foto per una nuova analisi. Puoi procedere manualmente o cambiare foto.");
+      setAnalysisError(t("Non sono riuscito a preparare la foto per una nuova analisi. Puoi procedere manualmente o cambiare foto."));
       return;
     }
 
     await runBathroomAnalysis(sessionId, imageUrl);
-  }, [analysisLoading, runBathroomAnalysis, sessionId, sourceOriginalPath]);
+  }, [analysisLoading, runBathroomAnalysis, sessionId, sourceOriginalPath, t]);
 
   // ── Step 1 -> Step 2: upload + analyze ─────────────────────────────
   const goToStep2 = useCallback(async () => {
@@ -334,7 +336,7 @@ export default function RenderBagnoNew() {
         })
         .select("id")
         .single();
-      if (sessErr || !sess) throw new Error("Creazione sessione fallita");
+      if (sessErr || !sess) throw new Error(t("Creazione sessione fallita"));
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
       setSourceOriginalPath(storagePath);
@@ -348,14 +350,14 @@ export default function RenderBagnoNew() {
       if (imageUrl) {
         await runBathroomAnalysis(sid, imageUrl);
       } else {
-        setAnalysisError("Non sono riuscito a preparare la foto per l'analisi. Puoi procedere manualmente.");
+        setAnalysisError(t("Non sono riuscito a preparare la foto per l'analisi. Puoi procedere manualmente."));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
+      toast.error(err instanceof Error ? err.message : t("Upload foto fallito"));
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config, contactId, opportunityId, runBathroomAnalysis]);
+  }, [photo, companyId, user, config, contactId, opportunityId, runBathroomAnalysis, t]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -382,7 +384,7 @@ export default function RenderBagnoNew() {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         stopPolling();
         setGenerating(false);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
+        toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova."));
         setStep(3);
         return;
       }
@@ -409,7 +411,7 @@ export default function RenderBagnoNew() {
       if (s?.stato === "errore") {
         stopPolling();
         setGenerating(false);
-        toast.error("Render fallito. Riprova.");
+        toast.error(t("Render fallito. Riprova."));
         setStep(3);
         return;
       }
@@ -422,14 +424,14 @@ export default function RenderBagnoNew() {
     };
 
     poll();
-  }, [companyId, queryClient, stopPolling]);
+  }, [companyId, queryClient, stopPolling, t]);
 
   // ── Step 3 -> Step 4: start render ─────────────────────────────────
   const startRender = useCallback(async () => {
     if (!companyId || !user) return;
     if (!sessionId && !sourceOriginalPath) return;
     if (!hasActiveBathroomChange) {
-      toast.error("Attiva almeno una modifica al bagno prima di generare il render.");
+      toast.error(t("Attiva almeno una modifica al bagno prima di generare il render."));
       return;
     }
     // P1 FIX: guard contro double-click / doppio credit deduction.
@@ -472,7 +474,7 @@ export default function RenderBagnoNew() {
       if (createErr || !newSession) {
         setGenerating(false);
         setStep(3);
-        toast.error("Non sono riuscito a creare la nuova variante del render.");
+        toast.error(t("Non sono riuscito a creare la nuova variante del render."));
         return;
       }
 
@@ -483,7 +485,7 @@ export default function RenderBagnoNew() {
     if (!activeSessionId) {
       setGenerating(false);
       setStep(3);
-      toast.error("Sessione render non disponibile.");
+      toast.error(t("Sessione render non disponibile."));
       return;
     }
 
@@ -521,18 +523,18 @@ export default function RenderBagnoNew() {
 
     if (fnErr || fnData?.error) {
       const msg =
-        (fnErr ? await getFunctionErrorMessage(fnErr, "Generazione fallita") : undefined) ??
+        (fnErr ? await getFunctionErrorMessage(fnErr, t("Generazione fallita")) : undefined) ??
         fnData?.message ??
         fnData?.error ??
-        "Generazione fallita";
+        t("Generazione fallita");
       if (isIdleTimeoutMessage(msg)) {
-        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        toast.info(t("Render avviato: continuo a controllare lo stato in automatico."));
         return;
       }
       stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
-        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
+        toast.error(t("Crediti render insufficienti. Acquista nuovi crediti."));
       } else {
         toast.error(msg);
       }
@@ -555,9 +557,9 @@ export default function RenderBagnoNew() {
       stopPolling();
       setGenerating(false);
       setStep(3);
-      toast.error(err instanceof Error ? err.message : "Render fallito");
+      toast.error(err instanceof Error ? err.message : t("Render fallito"));
     }
-  }, [sessionId, companyId, user, sourceOriginalPath, hasActiveBathroomChange, config, queryClient, generating, startPolling, stopPolling, photoMeta, analisi, contactId, opportunityId]);
+  }, [sessionId, companyId, user, sourceOriginalPath, hasActiveBathroomChange, config, queryClient, generating, startPolling, stopPolling, photoMeta, analisi, contactId, opportunityId, t]);
 
   // ── Save to gallery ────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -573,14 +575,14 @@ export default function RenderBagnoNew() {
         .eq("id", sessionId);
       if (error) throw error;
       setSavedToGallery(true);
-      toast.success("Render salvato in galleria!");
+      toast.success(t("Render salvato in galleria!"));
       queryClient.invalidateQueries({ queryKey: ["render-bagno-gallery", companyId] });
     } catch (err) {
-      toast.error(`Salvataggio fallito: ${String(err)}`);
+      toast.error(t("Salvataggio fallito: {valore}", { valore: String(err) }));
     } finally {
       setSavingGallery(false);
     }
-  }, [sessionId, companyId, savedToGallery, queryClient]);
+  }, [sessionId, companyId, savedToGallery, queryClient, t]);
 
   // ── Download ───────────────────────────────────────────────────────
   const downloadResult = useCallback(async () => {
@@ -588,9 +590,9 @@ export default function RenderBagnoNew() {
     try {
       await downloadRenderImage(resultUrl, `render_bagno_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
-  }, [resultUrl]);
+  }, [resultUrl, t]);
 
   // ── WhatsApp share ─────────────────────────────────────────────────
   const shareWhatsApp = useCallback(() => {
@@ -631,7 +633,7 @@ export default function RenderBagnoNew() {
   // ═══════════════════════════════════════════════════════════════════
 
   const photoMetaLabel = photoMeta
-    ? `${photoMeta.orientation === "portrait" ? "Verticale" : photoMeta.orientation === "landscape" ? "Orizzontale" : "Quadrata"} · ${photoMeta.width}x${photoMeta.height}`
+    ? `${photoMeta.orientation === "portrait" ? t("Verticale") : photoMeta.orientation === "landscape" ? t("Orizzontale") : t("Quadrata")} · ${photoMeta.width}x${photoMeta.height}`
     : null;
   const sceneAnalysis = useMemo(
     () => normalizeBathroomSceneAnalysis(analisi, photoMeta),
@@ -654,12 +656,12 @@ export default function RenderBagnoNew() {
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Ristrutturazione bagno fotorealistica"
-        title="Stesso bagno, nuove finiture"
-        mobileTitle="Render Bagno"
-        description="Genera una visualizzazione realistica del bagno con i materiali, le piastrelle e i sanitari che hai scelto."
-        badgeLabel="Render AI — Bagni"
-        stepLabels={["Foto", "Analisi scena", "Intervento", "Render"]}
+        eyebrow={t("Ristrutturazione bagno fotorealistica")}
+        title={t("Stesso bagno, nuove finiture")}
+        mobileTitle={t("Render Bagno")}
+        description={t("Genera una visualizzazione realistica del bagno con i materiali, le piastrelle e i sanitari che hai scelto.")}
+        badgeLabel={t("Render AI — Bagni")}
+        stepLabels={[t("Foto"), t("Analisi scena"), t("Intervento"), t("Render")]}
         currentStep={step}
         accent="blue"
       />
@@ -680,7 +682,7 @@ export default function RenderBagnoNew() {
             <>
               <ZonaFotoMobile
                 onScegli={() => fileRef.current?.click()}
-                suggerimento="Ampia e luminosa, con pavimento, pareti e sanitari"
+                suggerimento={t("Ampia e luminosa, con pavimento, pareti e sanitari")}
                 accento="cyan"
               />
               <input
@@ -696,7 +698,7 @@ export default function RenderBagnoNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                Foto del bagno attuale
+                {t("Foto del bagno attuale")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -705,7 +707,7 @@ export default function RenderBagnoNew() {
                   <div className="flex max-h-[34rem] min-h-[240px] items-center justify-center">
                     <img loading="lazy"
                       src={photoPreview}
-                      alt="Foto caricata"
+                      alt={t("Foto caricata")}
                       className="max-h-[34rem] w-full object-contain"
                     />
                   </div>
@@ -729,7 +731,7 @@ export default function RenderBagnoNew() {
                   >
                     <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
                     <Camera className="hidden h-3.5 w-3.5 max-md:block" />
-                    Cambia foto
+                    {t("Cambia foto")}
                   </Button>
                 </div>
               ) : (
@@ -741,13 +743,13 @@ export default function RenderBagnoNew() {
                     <ImageIcon className="h-8 w-8 text-cyan-600/60" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold">Carica foto del bagno</p>
+                    <p className="font-semibold">{t("Carica foto del bagno")}</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      JPG, PNG, WEBP - Max 20 MB - Verticale resta verticale, orizzontale resta orizzontale
+                      {t("JPG, PNG, WEBP - Max 20 MB - Verticale resta verticale, orizzontale resta orizzontale")}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" type="button">
-                    Sfoglia file
+                    {t("Sfoglia file")}
                   </Button>
                 </div>
               )}
@@ -765,13 +767,13 @@ export default function RenderBagnoNew() {
           {/* Tips — telefono: la riga nella zona foto basta. */}
           <Card className="bg-muted/30 max-md:hidden">
             <CardContent className="py-3">
-              <p className="text-xs font-semibold mb-1.5">Consigli per il miglior risultato</p>
+              <p className="text-xs font-semibold mb-1.5">{t("Consigli per il miglior risultato")}</p>
               <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
-                <li>Inquadratura ampia che mostri pavimento, pareti e sanitari</li>
-                <li>Luce naturale o ben illuminato</li>
-                <li>Senza persone o oggetti che ostruiscano la visuale</li>
-                <li>Risoluzione almeno 800x600 px</li>
-                <li>Non serve rifare la foto: il render deve rispettare il formato originale</li>
+                <li>{t("Inquadratura ampia che mostri pavimento, pareti e sanitari")}</li>
+                <li>{t("Luce naturale o ben illuminato")}</li>
+                <li>{t("Senza persone o oggetti che ostruiscano la visuale")}</li>
+                <li>{t("Risoluzione almeno 800x600 px")}</li>
+                <li>{t("Non serve rifare la foto: il render deve rispettare il formato originale")}</li>
               </ul>
             </CardContent>
           </Card>
@@ -792,9 +794,9 @@ export default function RenderBagnoNew() {
             onClick={goToStep2}
           >
             {uploading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" />Caricamento in corso...</>
+              <><Loader2 className="h-4 w-4 animate-spin" />{t("Caricamento in corso...")}</>
             ) : (
-              <><Wand2 className="h-4 w-4" />Analizza con AI</>
+              <><Wand2 className="h-4 w-4" />{t("Analizza con AI")}</>
             )}
           </Button>
           )}
@@ -810,10 +812,10 @@ export default function RenderBagnoNew() {
           {photoPreview && (
             <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
               <div className="flex max-h-[22rem] min-h-[180px] items-center justify-center">
-                <img loading="lazy" src={photoPreview} alt="Bagno" className="max-h-[22rem] w-full object-contain" />
+                <img loading="lazy" src={photoPreview} alt={t("Bagno")} className="max-h-[22rem] w-full object-contain" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto caricata</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">{t("Foto caricata")}</div>
               {photoMetaLabel ? (
                 <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white max-md:hidden">
                   {photoMetaLabel}
@@ -827,7 +829,7 @@ export default function RenderBagnoNew() {
             <CardHeader className="max-md:p-3 max-md:pb-2">
               <CardTitle className="text-base flex items-center gap-2 max-md:text-[13px]">
                 <Wand2 className="h-4 w-4 text-cyan-600" />
-                Analisi AI del bagno
+                {t("Analisi AI del bagno")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-3 max-md:pt-0">
@@ -835,15 +837,15 @@ export default function RenderBagnoNew() {
                 <div className="flex items-center gap-3 py-6">
                   <Loader2 className="h-5 w-5 animate-spin text-cyan-600" />
                   <div>
-                    <p className="text-sm font-medium">Analisi in corso...</p>
-                    <p className="text-xs text-muted-foreground">L&apos;AI sta identificando gli elementi del bagno</p>
+                    <p className="text-sm font-medium">{t("Analisi in corso...")}</p>
+                    <p className="text-xs text-muted-foreground">{t("L'AI sta identificando gli elementi del bagno")}</p>
                   </div>
                 </div>
               ) : analysisError ? (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">{analysisError}</p>
                   <p className="text-xs text-muted-foreground">
-                    Puoi comunque procedere con la configurazione manuale.
+                    {t("Puoi comunque procedere con la configurazione manuale.")}
                   </p>
                   {sessionId && sourceOriginalPath ? (
                     <Button
@@ -855,7 +857,7 @@ export default function RenderBagnoNew() {
                       disabled={analysisLoading}
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
-                      Riprova analisi
+                      {t("Riprova analisi")}
                     </Button>
                   ) : null}
                 </div>
@@ -863,40 +865,40 @@ export default function RenderBagnoNew() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Tipo ambiente</p>
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Tipo ambiente")}</p>
                       <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{etichettaAnalisiBagno("ambiente", sceneAnalysis.roomType)}</p>
                     </div>
                     <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Layout percepito</p>
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Layout percepito")}</p>
                       <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{etichettaAnalisiBagno("layout", sceneAnalysis.layoutType)}</p>
                     </div>
                     {/* Telefono: le descrizioni libere delle piastrelle (in inglese, scritte dall'AI) restano al computer. */}
                     <div className="bg-muted/50 rounded-md p-2 max-md:hidden">
-                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Piastrelle parete</p>
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Piastrelle parete")}</p>
                       <p className="text-sm font-medium capitalize max-md:text-[13px]">{sceneAnalysis.wallTiles.description}</p>
                     </div>
                     <div className="bg-muted/50 rounded-md p-2 max-md:hidden">
-                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Pavimento</p>
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Pavimento")}</p>
                       <p className="text-sm font-medium capitalize max-md:text-[13px]">{sceneAnalysis.floor.description}</p>
                     </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Doccia</p>
-                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.shower.present ? etichettaAnalisiBagno("doccia", sceneAnalysis.shower.type) : "Assente"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Doccia")}</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.shower.present ? etichettaAnalisiBagno("doccia", sceneAnalysis.shower.type) : t("Assente")}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Vasca</p>
-                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.bathtub.present ? etichettaAnalisiBagno("vasca", sceneAnalysis.bathtub.type) : "Assente"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Vasca")}</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.bathtub.present ? etichettaAnalisiBagno("vasca", sceneAnalysis.bathtub.type) : t("Assente")}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Mobile</p>
-                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.vanity.present ? etichettaAnalisiBagno("mobile", sceneAnalysis.vanity.type) : "Assente"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Mobile")}</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.vanity.present ? etichettaAnalisiBagno("mobile", sceneAnalysis.vanity.type) : t("Assente")}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Sanitari</p>
-                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.sanitaryWare.wcPresent || sceneAnalysis.sanitaryWare.bidetPresent ? etichettaAnalisiBagno("sanitari", sceneAnalysis.sanitaryWare.wcType) : "Non chiari"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Sanitari")}</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.sanitaryWare.wcPresent || sceneAnalysis.sanitaryWare.bidetPresent ? etichettaAnalisiBagno("sanitari", sceneAnalysis.sanitaryWare.wcType) : t("Non chiari")}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2 col-span-2">
-                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Conservazione e luce</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{t("Conservazione e luce")}</p>
                     <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">
                       {etichettaAnalisiBagno("condizioni", sceneAnalysis.overallCondition)} · {etichettaAnalisiBagno("luce", sceneAnalysis.lighting.type)}
                     </p>
@@ -904,7 +906,7 @@ export default function RenderBagnoNew() {
                   </div>
                   {/* Telefono: l'elenco tecnico (in inglese) resta al computer. */}
                   <div className="rounded-md border border-border/60 bg-background px-3 py-2 max-md:hidden">
-                    <p className="text-[11px] font-semibold text-muted-foreground">Elementi da preservare rigidamente</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground">{t("Elementi da preservare rigidamente")}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {sceneAnalysis.preserveRigidly.slice(0, 8).map((item) => (
                         <Badge key={item} variant="secondary" className="text-[11px]">
@@ -916,7 +918,7 @@ export default function RenderBagnoNew() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground py-4">
-                  Analisi non disponibile. Procedi con la configurazione manuale.
+                  {t("Analisi non disponibile. Procedi con la configurazione manuale.")}
                 </p>
               )}
             </CardContent>
@@ -929,7 +931,7 @@ export default function RenderBagnoNew() {
             disabled={analysisLoading}
           >
             <Zap className="h-4 w-4" />
-            {analysisLoading ? "Attendi analisi..." : "Procedi alla configurazione"}
+            {analysisLoading ? t("Attendi analisi...") : t("Procedi alla configurazione")}
           </Button>
         </div>
       )}
@@ -948,15 +950,15 @@ export default function RenderBagnoNew() {
                 <img
                   loading="lazy"
                   src={templateResultUrl}
-                  alt="Render precedente"
+                  alt={t("Render precedente")}
                   className="h-20 w-full rounded-lg object-cover sm:w-32 max-md:h-11 max-md:w-14 max-md:shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium max-md:text-[13px]">Render già generato</p>
+                  <p className="text-sm font-medium max-md:text-[13px]">{t("Render già generato")}</p>
                   <p className="text-xs text-muted-foreground max-md:hidden">
-                    Puoi scaricarlo subito, oppure modificare le scelte qui sotto e rigenerarlo.
+                    {t("Puoi scaricarlo subito, oppure modificare le scelte qui sotto e rigenerarlo.")}
                   </p>
-                  <p className="text-[11px] text-muted-foreground md:hidden">Cambia le scelte qui sotto per una variante</p>
+                  <p className="text-[11px] text-muted-foreground md:hidden">{t("Cambia le scelte qui sotto per una variante")}</p>
                 </div>
                 {isMobile && <MandaRenderMobile resultUrl={templateResultUrl} nomeFile="render-bagno" soloIcona />}
                 <div className="flex gap-2 max-md:hidden">
@@ -967,13 +969,13 @@ export default function RenderBagnoNew() {
                     onClick={() => void downloadRenderImage(templateResultUrl, `render_bagno_${Date.now()}.png`)}
                   >
                     <Download className="h-4 w-4" />
-                    <span className="hidden sm:inline">Scarica</span>
+                    <span className="hidden sm:inline">{t("Scarica")}</span>
                   </Button>
                   <RenderPdfDownloadButton
                     beforeUrl={photoPreview}
                     afterUrl={templateResultUrl}
-                    title="Render Bagno"
-                    subtitle="Confronto prima / dopo"
+                    title={t("Render Bagno")}
+                    subtitle={t("Confronto prima / dopo")}
                     filename={`render_bagno_${Date.now()}.pdf`}
                     variant="outline"
                     className="gap-2 flex-1 sm:flex-none"
@@ -987,10 +989,10 @@ export default function RenderBagnoNew() {
           {photoPreview && (
             <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
               <div className="flex max-h-[18rem] min-h-[160px] items-center justify-center">
-                <img loading="lazy" src={photoPreview} alt="Bagno" className="max-h-[18rem] w-full object-contain" />
+                <img loading="lazy" src={photoPreview} alt={t("Bagno")} className="max-h-[18rem] w-full object-contain" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto originale</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">{t("Foto originale")}</div>
               {photoMetaLabel ? (
                 <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white max-md:hidden">
                   {photoMetaLabel}
@@ -1001,28 +1003,28 @@ export default function RenderBagnoNew() {
 
           {/* Telefono: spiegazioni e letture dell'analisi restano al computer; si va dritti alle scelte. */}
           <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm dark:border-cyan-900 dark:bg-cyan-950/20 max-md:hidden">
-            <p className="font-medium text-cyan-900 dark:text-cyan-200">Obiettivo del render bagno</p>
+            <p className="font-medium text-cyan-900 dark:text-cyan-200">{t("Obiettivo del render bagno")}</p>
             <p className="mt-1 text-cyan-800/80 dark:text-cyan-200/80">
-              Il risultato deve essere lo stesso bagno rivisitato: stessa prospettiva, stesso taglio foto e stesso orientamento dell&apos;immagine originale.
+              {t("Il risultato deve essere lo stesso bagno rivisitato: stessa prospettiva, stesso taglio foto e stesso orientamento dell'immagine originale.")}
             </p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 max-md:hidden">
             <Card className="border-border/60">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Ambiente letto dalla foto</CardTitle>
+                <CardTitle className="text-sm">{t("Ambiente letto dalla foto")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <p><span className="font-medium text-foreground">Layout:</span> {etichettaAnalisiBagno("layout", sceneAnalysis.layoutType)}</p>
-                <p><span className="font-medium text-foreground">Zona doccia:</span> {sceneAnalysis.shower.present ? etichettaAnalisiBagno("doccia", sceneAnalysis.shower.type) : "non rilevata"}</p>
-                <p><span className="font-medium text-foreground">Zona vasca:</span> {sceneAnalysis.bathtub.present ? etichettaAnalisiBagno("vasca", sceneAnalysis.bathtub.type) : "non rilevata"}</p>
-                <p><span className="font-medium text-foreground">Mobile:</span> {sceneAnalysis.vanity.present ? etichettaAnalisiBagno("mobile", sceneAnalysis.vanity.type) : "non rilevato"}</p>
+                <p><span className="font-medium text-foreground">{t("Layout:")}</span> {etichettaAnalisiBagno("layout", sceneAnalysis.layoutType)}</p>
+                <p><span className="font-medium text-foreground">{t("Zona doccia:")}</span> {sceneAnalysis.shower.present ? etichettaAnalisiBagno("doccia", sceneAnalysis.shower.type) : t("non rilevata")}</p>
+                <p><span className="font-medium text-foreground">{t("Zona vasca:")}</span> {sceneAnalysis.bathtub.present ? etichettaAnalisiBagno("vasca", sceneAnalysis.bathtub.type) : t("non rilevata")}</p>
+                <p><span className="font-medium text-foreground">{t("Mobile:")}</span> {sceneAnalysis.vanity.present ? etichettaAnalisiBagno("mobile", sceneAnalysis.vanity.type) : t("non rilevato")}</p>
               </CardContent>
             </Card>
 
             <Card className="border-border/60">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Scelte principali</CardTitle>
+                <CardTitle className="text-sm">{t("Scelte principali")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap gap-1.5">
@@ -1035,7 +1037,7 @@ export default function RenderBagnoNew() {
                     ))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Le istruzioni operative del render sono protette: qui mostriamo solo le scelte configurate.
+                  {t("Le istruzioni operative del render sono protette: qui mostriamo solo le scelte configurate.")}
                 </p>
               </CardContent>
             </Card>
@@ -1045,7 +1047,7 @@ export default function RenderBagnoNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Zap className="h-4 w-4 text-cyan-600" />
-                Configura il nuovo bagno
+                {t("Configura il nuovo bagno")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -1055,8 +1057,8 @@ export default function RenderBagnoNew() {
 
           {!hasActiveBathroomChange ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100 max-md:px-3 max-md:py-2 max-md:text-[13px]">
-              <span className="max-md:hidden">Attiva almeno una modifica prima di generare: cosi evitiamo un render identico alla foto e non consumiamo crediti inutilmente.</span>
-              <span className="md:hidden">Attiva almeno una modifica per generare il render.</span>
+              <span className="max-md:hidden">{t("Attiva almeno una modifica prima di generare: cosi evitiamo un render identico alla foto e non consumiamo crediti inutilmente.")}</span>
+              <span className="md:hidden">{t("Attiva almeno una modifica per generare il render.")}</span>
             </div>
           ) : null}
 
@@ -1067,9 +1069,9 @@ export default function RenderBagnoNew() {
             disabled={generating || !hasActiveBathroomChange || (!sessionId && !sourceOriginalPath)}
           >
             {generating ? (
-              <><Loader2 className="h-4 w-4 animate-spin" />Generazione in corso...</>
+              <><Loader2 className="h-4 w-4 animate-spin" />{t("Generazione in corso...")}</>
             ) : (
-              <><Zap className="h-4 w-4" /><span className="max-md:hidden">Conferma scelte e genera render AI</span><span className="md:hidden">Genera render AI</span></>
+              <><Zap className="h-4 w-4" /><span className="max-md:hidden">{t("Conferma scelte e genera render AI")}</span><span className="md:hidden">{t("Genera render AI")}</span></>
             )}
           </Button>
         </div>
@@ -1084,7 +1086,7 @@ export default function RenderBagnoNew() {
           elapsedSec={pollState.elapsedSec}
           dots={pollState.dots}
           accent="blue"
-          subjectLabel="L'AI sta elaborando il render del bagno"
+          subjectLabel={t("L'AI sta elaborando il render del bagno")}
         />
       )}
 
@@ -1094,9 +1096,9 @@ export default function RenderBagnoNew() {
           <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900 max-md:hidden">
             <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
             <div>
-              <p className="font-semibold text-green-800 dark:text-green-400 text-sm">Render completato!</p>
+              <p className="font-semibold text-green-800 dark:text-green-400 text-sm">{t("Render completato!")}</p>
               <p className="text-xs text-green-700 dark:text-green-500">
-                Il render fotorealistico del bagno e pronto
+                {t("Il render fotorealistico del bagno e pronto")}
               </p>
             </div>
           </div>
@@ -1105,7 +1107,7 @@ export default function RenderBagnoNew() {
           {photoPreview && resultUrl && (
             <Card className="overflow-hidden max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardHeader className="max-md:hidden">
-                <CardTitle className="text-base">Confronto Prima / Dopo</CardTitle>
+                <CardTitle className="text-base">{t("Confronto Prima / Dopo")}</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <BeforeAfterSlider
@@ -1120,7 +1122,7 @@ export default function RenderBagnoNew() {
               al posto di Scarica / PDF / link WhatsApp. */}
           {isMobile && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-bagno" className="min-w-0 flex-1" />
@@ -1131,15 +1133,15 @@ export default function RenderBagnoNew() {
           <div className="grid grid-cols-3 gap-3 max-md:hidden">
             <Button variant="outline" className="gap-2" onClick={downloadResult}>
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Scarica</span>
+              <span className="hidden sm:inline">{t("Scarica")}</span>
             </Button>
             {/* PDF prima/dopo brandizzato — lo stesso componente dei dettagli
                 galleria degli altri verticali; nel wizard bagno mancava. */}
             <RenderPdfDownloadButton
               beforeUrl={photoPreview}
               afterUrl={resultUrl}
-              title="Render Bagno"
-              subtitle="Confronto prima / dopo"
+              title={t("Render Bagno")}
+              subtitle={t("Confronto prima / dopo")}
               filename={`render_bagno_${Date.now()}.pdf`}
               variant="outline"
               className="gap-2"
@@ -1157,11 +1159,11 @@ export default function RenderBagnoNew() {
             onClick={saveToGallery}
           >
             {savingGallery ? (
-              <><Loader2 className="h-4 w-4 animate-spin" />Salvataggio...</>
+              <><Loader2 className="h-4 w-4 animate-spin" />{t("Salvataggio...")}</>
             ) : savedToGallery ? (
-              <><CheckCircle2 className="h-4 w-4" />Salvato in galleria</>
+              <><CheckCircle2 className="h-4 w-4" />{t("Salvato in galleria")}</>
             ) : (
-              "Salva in galleria"
+              t("Salva in galleria")
             )}
           </Button>
 
@@ -1182,7 +1184,7 @@ export default function RenderBagnoNew() {
             }}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel="Genera nuova variante bagno"
+            regenerateLabel={t("Genera nuova variante bagno")}
           />
 
           {/* Telefono: «Nuovo render» sta accanto a «Manda al cliente», «Modifica»
@@ -1193,7 +1195,7 @@ export default function RenderBagnoNew() {
               className="flex-1"
               onClick={nuovoRender}
             >
-              Nuovo render
+              {t("Nuovo render")}
             </Button>
             <Button
               variant="secondary"
@@ -1205,7 +1207,7 @@ export default function RenderBagnoNew() {
                 setStep(3);
               }}
             >
-              Modifica e rigenera
+              {t("Modifica e rigenera")}
             </Button>
           </div>
 
@@ -1214,7 +1216,7 @@ export default function RenderBagnoNew() {
               className="flex-1"
               onClick={() => navigate("/azienda/render/bagno/gallery")}
             >
-              Vai alla galleria
+              {t("Vai alla galleria")}
             </Button>
           </div>
         </div>

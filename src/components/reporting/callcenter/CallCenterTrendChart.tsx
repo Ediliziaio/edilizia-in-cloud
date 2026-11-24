@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import type { TrendGiornaliero } from "@/hooks/useCallCenterReport";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Vista = "volumi" | "tassi";
 
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function CallCenterTrendChart({ data, isLoading }: Props) {
+  const t = useT();
   const [vista, setVista] = useState<Vista>("volumi");
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
@@ -55,7 +57,7 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
     const rows = data.filter(d => d.giorno_settimana === g);
     const len = rows.length || 1;
     return {
-      giorno: DAY_MAP[g] ?? g,
+      giorno: t(DAY_MAP[g] ?? g),
       avg_chiamate: Math.round(rows.reduce((a, r) => a + r.nr_chiamate, 0) / len),
       avg_contatti: Math.round(rows.reduce((a, r) => a + r.nr_contatti, 0) / len),
       avg_appuntamenti: Math.round(rows.reduce((a, r) => a + r.nr_appuntamenti, 0) / len * 10) / 10,
@@ -75,7 +77,7 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
             className="text-xs h-7"
             onClick={() => setVista(v)}
           >
-            {v === "volumi" ? "Volumi assoluti" : "Tassi (%)"}
+            {v === "volumi" ? t("Volumi assoluti") : t("Tassi (%)")}
           </Button>
         ))}
       </div>
@@ -83,18 +85,18 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
       {/* Daily trend chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Andamento Giornaliero</CardTitle>
+          <CardTitle className="text-base">{t("Andamento Giornaliero")}</CardTitle>
         </CardHeader>
         <CardContent>
           {data.length > 0 && statGiorni && (
             <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-              <StatGrafico etichetta="Giorno con più chiamate" valore={String(statGiorni.migliore.nr_chiamate)} nota={`${statGiorni.migliore.giorno_settimana} ${statGiorni.migliore.giorno_label}`} />
-              <StatGrafico etichetta="Chiamate al giorno" valore={statGiorni.media.toLocaleString("it-IT")} nota={`media su ${statGiorni.attivi} giorni con chiamate`} />
-              <StatGrafico etichetta="Tasso di contatto" valore={`${statGiorni.tasso.toLocaleString("it-IT")}%`} nota="contatti sulle chiamate" tono={statGiorni.tasso >= 40 ? "buono" : "cattivo"} />
+              <StatGrafico etichetta={t("Giorno con più chiamate")} valore={String(statGiorni.migliore.nr_chiamate)} nota={`${statGiorni.migliore.giorno_settimana} ${statGiorni.migliore.giorno_label}`} />
+              <StatGrafico etichetta={t("Chiamate al giorno")} valore={statGiorni.media.toLocaleString(intlCampo())} nota={t("media su {attivi} giorni con chiamate", { attivi: statGiorni.attivi })} />
+              <StatGrafico etichetta={t("Tasso di contatto")} valore={`${statGiorni.tasso.toLocaleString(intlCampo())}%`} nota={t("contatti sulle chiamate")} tono={statGiorni.tasso >= 40 ? "buono" : "cattivo"} />
             </div>
           )}
           {data.length === 0 ? (
-            <p className="text-center text-muted-foreground py-10">Nessun dato disponibile</p>
+            <p className="text-center text-muted-foreground py-10">{t("Nessun dato disponibile")}</p>
           ) : (
             <ResponsiveContainer width="100%" height={330}>
               <ComposedChart data={data}>
@@ -107,18 +109,18 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
                     <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                     <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
-                    <Bar yAxisId="left" dataKey="nr_chiamate" name="Chiamate" fill={`url(#${id}-barra-chiamate)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} />
-                    <Bar yAxisId="left" dataKey="nr_contatti" name="Contatti" fill={`url(#${id}-barra-contatti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={100} />
-                    <Bar yAxisId="left" dataKey="nr_appuntamenti" name="Appuntamenti" fill={`url(#${id}-barra-appuntamenti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={200} />
-                    <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                    <Bar yAxisId="left" dataKey="nr_chiamate" name={t("Chiamate")} fill={`url(#${id}-barra-chiamate)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} />
+                    <Bar yAxisId="left" dataKey="nr_contatti" name={t("Contatti")} fill={`url(#${id}-barra-contatti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={100} />
+                    <Bar yAxisId="left" dataKey="nr_appuntamenti" name={t("Appuntamenti")} fill={`url(#${id}-barra-appuntamenti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={200} />
+                    <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name={t("Tasso Contatto %")} stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
                   </>
                 ) : (
                   <>
                     <YAxis tickFormatter={v => `${v}%`} domain={[0, 100]} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                     <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} formatter={(v: number) => [`${v}%`]} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
-                    <Line type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
-                    <Line type="monotone" dataKey="tasso_appuntamento" name="Tasso App. %" stroke="hsl(38, 92%, 50%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} animationBegin={150} />
+                    <Line type="monotone" dataKey="tasso_contatto" name={t("Tasso Contatto %")} stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                    <Line type="monotone" dataKey="tasso_appuntamento" name={t("Tasso App. %")} stroke="hsl(38, 92%, 50%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} animationBegin={150} />
                   </>
                 )}
               </ComposedChart>
@@ -131,8 +133,8 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
       {data.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Performance per Giorno della Settimana</CardTitle>
-            <p className="text-sm text-muted-foreground">Media giornaliera — utile per pianificare i turni</p>
+            <CardTitle className="text-base">{t("Performance per Giorno della Settimana")}</CardTitle>
+            <p className="text-sm text-muted-foreground">{t("Media giornaliera — utile per pianificare i turni")}</p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
@@ -144,9 +146,9 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
                 <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} domain={[0, 100]} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
-                <Bar yAxisId="left" dataKey="avg_chiamate" name="Avg Chiamate" fill={`url(#${id}-barra-chiamate)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} />
-                <Bar yAxisId="left" dataKey="avg_contatti" name="Avg Contatti" fill={`url(#${id}-barra-contatti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={100} />
-                <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Bar yAxisId="left" dataKey="avg_chiamate" name={t("Avg Chiamate")} fill={`url(#${id}-barra-chiamate)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} />
+                <Bar yAxisId="left" dataKey="avg_contatti" name={t("Avg Contatti")} fill={`url(#${id}-barra-contatti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={100} />
+                <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name={t("Tasso Contatto %")} stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -157,20 +159,20 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
       {data.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Dettaglio Giornaliero</CardTitle>
+            <CardTitle className="text-base">{t("Dettaglio Giornaliero")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-auto max-h-[400px]">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Giorno</TableHead>
-                    <TableHead>Gg.</TableHead>
-                    <TableHead className="text-right">Chiamate</TableHead>
-                    <TableHead className="text-right">Contatti</TableHead>
-                    <TableHead className="text-right">App.</TableHead>
-                    <TableHead className="text-right">% Contatto</TableHead>
-                    <TableHead className="text-right">% App.</TableHead>
+                    <TableHead>{t("Giorno")}</TableHead>
+                    <TableHead>{t("Gg.")}</TableHead>
+                    <TableHead className="text-right">{t("Chiamate")}</TableHead>
+                    <TableHead className="text-right">{t("Contatti")}</TableHead>
+                    <TableHead className="text-right">{t("App.")}</TableHead>
+                    <TableHead className="text-right">{t("% Contatto")}</TableHead>
+                    <TableHead className="text-right">{t("% App.")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

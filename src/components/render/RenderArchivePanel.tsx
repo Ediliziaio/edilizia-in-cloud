@@ -51,6 +51,7 @@ import {
 } from "@/lib/render/renderNavigation";
 import { RecentRenderCard } from "./RecentRenderCard";
 import type { RenderComparisonTarget } from "./RenderComparisonDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const Comparison = lazy(() => import("./RenderComparisonDialog"));
 const PAGE_SIZE = 12;
@@ -97,8 +98,10 @@ export function RenderArchivePanel({
   scanning = false,
   onLoadMore,
   onExpandHistory,
-  title = "Ultimi render",
+  title: titleProp,
 }: Props) {
+  const t = useT();
+  const title = titleProp ?? t("Ultimi render");
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const filters = readRenderFilters(params);
@@ -191,7 +194,7 @@ export function RenderArchivePanel({
       .filter((item) => item.planOrigin)
       .map((item) => [
         item.planOrigin!.planId,
-        item.planOrigin!.projectTitle || "Planimetria collegata",
+        item.planOrigin!.projectTitle || t("Planimetria collegata"),
       ]),
   );
   const chosen = items.filter(
@@ -275,8 +278,8 @@ export function RenderArchivePanel({
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Aggiorna render"
-            title="Aggiorna render"
+            aria-label={t("Aggiorna render")}
+            title={t("Aggiorna render")}
             disabled={isFetching}
             onClick={onRefresh}
           >
@@ -286,7 +289,7 @@ export function RenderArchivePanel({
           </Button>
           <div
             role="group"
-            aria-label="Visualizzazione dei render"
+            aria-label={t("Visualizzazione dei render")}
             className="flex rounded-lg border p-1"
           >
             {(
@@ -305,8 +308,8 @@ export function RenderArchivePanel({
                 size="sm"
                 variant={filters.view === value ? "secondary" : "ghost"}
                 aria-pressed={filters.view === value}
-                aria-label={name}
-                title={name}
+                aria-label={t(name)}
+                title={t(name)}
                 onClick={() => change({ view: value })}
                 className="h-7 px-2"
               >
@@ -318,7 +321,7 @@ export function RenderArchivePanel({
       </div>
       <div
         role="group"
-        aria-label="Stato dei render"
+        aria-label={t("Stato dei render")}
         className="flex gap-1 overflow-x-auto rounded-lg bg-muted/60 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {[
@@ -341,13 +344,13 @@ export function RenderArchivePanel({
               key={id}
               variant={filters.status === id ? "outline" : "ghost"}
               size="sm"
-              aria-label={`${label} ${count}`}
+              aria-label={`${t(label)} ${count}`}
               aria-pressed={filters.status === id}
               onClick={() => change({ status: id })}
               className={`h-8 shrink-0 gap-1 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm ${filters.status === id ? "bg-card font-semibold text-primary shadow-sm hover:bg-card" : "text-muted-foreground"}`}
             >
-              <span className="sm:hidden">{short || label}</span>
-              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{t(short || label)}</span>
+              <span className="hidden sm:inline">{t(label)}</span>
               <span
                 className={`rounded px-0.5 py-0.5 text-[11px] tabular-nums sm:px-1.5 ${filters.status === id ? "bg-primary/10 text-primary" : "bg-background/75"}`}
               >
@@ -361,8 +364,8 @@ export function RenderArchivePanel({
         <div className="relative min-w-[11rem] flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <Input
-            aria-label="Cerca nei render recenti"
-            placeholder="Cerca stanza, progetto, contatto…"
+            aria-label={t("Cerca nei render recenti")}
+            placeholder={t("Cerca stanza, progetto, contatto…")}
             value={filters.search}
             onChange={(event) => change({ search: event.target.value })}
             className="bg-card pl-9"
@@ -377,7 +380,7 @@ export function RenderArchivePanel({
           className="shrink-0 gap-2"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-          Filtri
+          {t("Filtri")}
           {advancedCount > 0 && (
             <span className="rounded bg-primary/10 px-1.5 text-xs tabular-nums text-primary">{advancedCount}</span>
           )}
@@ -386,13 +389,13 @@ export function RenderArchivePanel({
           <Button
             type="button"
             variant="ghost"
-            aria-label="Azzera filtri"
-            title="Azzera filtri"
+            aria-label={t("Azzera filtri")}
+            title={t("Azzera filtri")}
             className="gap-1.5 px-2"
             onClick={() => change({ search: "", module: "all", crm: "all", onlyPlan: false, from: "", to: "", project: "all" })}
           >
             <X className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Azzera</span>
+            <span className="hidden sm:inline">{t("Azzera")}</span>
           </Button>
         )}
       </div>
@@ -403,11 +406,11 @@ export function RenderArchivePanel({
               value={filters.module}
               onValueChange={(value) => change({ module: value })}
             >
-              <SelectTrigger aria-label="Filtra modulo render">
+              <SelectTrigger aria-label={t("Filtra modulo render")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i moduli</SelectItem>
+                <SelectItem value="all">{t("Tutti i moduli")}</SelectItem>
                 {modules.map((module) => (
                   <SelectItem key={module.id} value={module.id}>
                     {module.title}
@@ -420,31 +423,31 @@ export function RenderArchivePanel({
             value={filters.crm}
             onValueChange={(value) => change({ crm: value })}
           >
-            <SelectTrigger aria-label="Filtra collegamenti CRM">
+            <SelectTrigger aria-label={t("Filtra collegamenti CRM")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">CRM: tutti</SelectItem>
-              <SelectItem value="linked">Collegati al CRM</SelectItem>
-              <SelectItem value="unlinked">Non collegati al CRM</SelectItem>
+              <SelectItem value="all">{t("CRM: tutti")}</SelectItem>
+              <SelectItem value="linked">{t("Collegati al CRM")}</SelectItem>
+              <SelectItem value="unlinked">{t("Non collegati al CRM")}</SelectItem>
             </SelectContent>
           </Select>
 
           <label className="space-y-1 text-xs text-muted-foreground">
-            <span>Progetto</span>
+            <span>{t("Progetto")}</span>
             <Select
               value={filters.project}
               onValueChange={(value) => change({ project: value })}
             >
-              <SelectTrigger aria-label="Filtra progetto">
+              <SelectTrigger aria-label={t("Filtra progetto")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i progetti</SelectItem>
+                <SelectItem value="all">{t("Tutti i progetti")}</SelectItem>
                 {filters.project !== "all" &&
                   !projects.has(filters.project) && (
                     <SelectItem value={filters.project}>
-                      Progetto selezionato
+                      {t("Progetto selezionato")}
                     </SelectItem>
                   )}
                 {[...projects].map(([id, name]) => (
@@ -456,19 +459,19 @@ export function RenderArchivePanel({
             </Select>
           </label>
           <label className="space-y-1 text-xs text-muted-foreground">
-            <span>Dal</span>
+            <span>{t("Dal")}</span>
             <Input
               type="date"
-              aria-label="Render dal"
+              aria-label={t("Render dal")}
               value={filters.from}
               onChange={(event) => change({ from: event.target.value })}
             />
           </label>
           <label className="space-y-1 text-xs text-muted-foreground">
-            <span>Al</span>
+            <span>{t("Al")}</span>
             <Input
               type="date"
-              aria-label="Render al"
+              aria-label={t("Render al")}
               value={filters.to}
               onChange={(event) => change({ to: event.target.value })}
             />
@@ -478,12 +481,12 @@ export function RenderArchivePanel({
               checked={filters.onlyPlan}
               onCheckedChange={(value) => change({ onlyPlan: value === true })}
             />
-            Solo da planimetria
+            {t("Solo da planimetria")}
           </label>
         </div>
         {filters.from && filters.to && filters.from > filters.to && (
           <p role="alert" className="mt-2 text-xs text-destructive">
-            La data iniziale deve precedere quella finale.
+            {t("La data iniziale deve precedere quella finale.")}
           </p>
         )}
       </div>
@@ -492,15 +495,11 @@ export function RenderArchivePanel({
           <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
           <div className="flex-1">
             <p>
-              {stale}{" "}
-              {stale === 1
-                ? "sessione da verificare"
-                : "sessioni da verificare"}
+              {t(stale === 1 ? "{n} sessione da verificare" : "{n} sessioni da verificare", { n: stale })}
               .
             </p>
             <p className="mt-1">
-              Sono state create da oltre 30 minuti: questa età non misura il
-              tempo di elaborazione.
+              {t("Sono state create da oltre 30 minuti: questa età non misura il tempo di elaborazione.")}
             </p>
           </div>
           <Button
@@ -518,19 +517,19 @@ export function RenderArchivePanel({
               )
             }
           >
-            Mostra da verificare
+            {t("Mostra da verificare")}
           </Button>
         </div>
       )}
       {!!chosen.length && (
         <div
           className="sticky top-16 z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-background p-3 shadow-sm"
-          aria-label="Render selezionati per confronto"
+          aria-label={t("Render selezionati per confronto")}
         >
-          <p className="text-sm">{chosen.length} di 2 render selezionati</p>
+          <p className="text-sm">{t("{n} di 2 render selezionati", { n: chosen.length })}</p>
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               size="sm"
@@ -538,7 +537,7 @@ export function RenderArchivePanel({
               onClick={() => setComparing(true)}
             >
               <GitCompareArrows className="mr-1.5 h-4 w-4" />
-              Confronta selezionati
+              {t("Confronta selezionati")}
             </Button>
           </div>
         </div>
@@ -552,27 +551,27 @@ export function RenderArchivePanel({
       ) : error ? (
         <div role="alert" className="rounded-xl border py-12 text-center">
           <AlertTriangle className="mx-auto mb-3 h-7 w-7 text-destructive" />
-          <p className="font-medium">Impossibile caricare i render</p>
+          <p className="font-medium">{t("Impossibile caricare i render")}</p>
           <Button
             variant="outline"
             size="sm"
             className="mt-4"
             onClick={onRefresh}
           >
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : !items.length && !hasMore ? (
         <div className="rounded-xl border border-dashed py-14 text-center">
           <ImageIcon className="mx-auto mb-3 h-9 w-9 text-muted-foreground/50" />
-          <h3 className="font-semibold">Il tuo primo render parte da qui</h3>
+          <h3 className="font-semibold">{t("Il tuo primo render parte da qui")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Scegli l’ambiente o l’intervento da visualizzare.
+            {t("Scegli l’ambiente o l’intervento da visualizzare.")}
           </p>
           {onNewRender && (
             <Button className="mt-4 gap-2" onClick={onNewRender}>
               <Plus className="h-4 w-4" />
-              Nuovo render
+              {t("Nuovo render")}
             </Button>
           )}
         </div>
@@ -581,8 +580,8 @@ export function RenderArchivePanel({
           <Search className="mx-auto mb-3 h-7 w-7 text-muted-foreground/50" />
           <p className="font-medium">
             {hasMore
-              ? "Nessun risultato nei render già caricati"
-              : "Nessun render con questi filtri"}
+              ? t("Nessun risultato nei render già caricati")
+              : t("Nessun render con questi filtri")}
           </p>
           {hasMore && (
             <Button
@@ -593,23 +592,23 @@ export function RenderArchivePanel({
               disabled={loadingMore}
             >
               {loadingMore || scanning
-                ? "Ricerca nello storico…"
-                : "Cerca nello storico completo"}
+                ? t("Ricerca nello storico…")
+                : t("Cerca nello storico completo")}
             </Button>
           )}
           <Button variant="ghost" size="sm" className="mt-4" onClick={reset}>
-            Mostra tutti i render recenti
+            {t("Mostra tutti i render recenti")}
           </Button>
         </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <p role="status" aria-live="polite">
-              {(page - 1) * PAGE_SIZE + 1}–
-              {Math.min(page * PAGE_SIZE, filtered.length)} di {filtered.length}{" "}
-              render{hasMore ? " caricati" : ""}
+              {hasMore
+                ? t("{da}–{a} di {totale} render caricati", { da: (page - 1) * PAGE_SIZE + 1, a: Math.min(page * PAGE_SIZE, filtered.length), totale: filtered.length })
+                : t("{da}–{a} di {totale} render", { da: (page - 1) * PAGE_SIZE + 1, a: Math.min(page * PAGE_SIZE, filtered.length), totale: filtered.length })}
             </p>
-            <span>Più recenti prima</span>
+            <span>{t("Più recenti prima")}</span>
           </div>
           {filters.view === "projects" ? (
             <div className="space-y-5">
@@ -636,13 +635,13 @@ export function RenderArchivePanel({
                       <h3 className="font-semibold">
                         {origin?.projectTitle ||
                           (origin
-                            ? "Planimetria collegata"
-                            : "Render senza planimetria associata")}
+                            ? t("Planimetria collegata")
+                            : t("Render senza planimetria associata"))}
                       </h3>
                       {origin?.projectAvailable !== false && origin && (
                         <Button variant="link" size="sm" asChild>
                           <Link to={origin.projectPath} onClick={open}>
-                            Apri progetto
+                            {t("Apri progetto")}
                           </Link>
                         </Button>
                       )}
@@ -651,11 +650,7 @@ export function RenderArchivePanel({
                       <div key={room} className="space-y-2">
                         {variants[0].planOrigin && (
                           <p className="text-xs text-muted-foreground">
-                            {variants[0].planOrigin.roomName} · versione{" "}
-                            {variants[0].planOrigin.version} · {variants.length}{" "}
-                            {variants.length === 1
-                              ? "render"
-                              : "render in questa pagina"}
+                            {t(variants.length === 1 ? "{stanza} · versione {versione} · {n} render" : "{stanza} · versione {versione} · {n} render in questa pagina", { stanza: variants[0].planOrigin.roomName, versione: String(variants[0].planOrigin.version ?? ""), n: variants.length })}
                           </p>
                         )}
                         <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -680,7 +675,7 @@ export function RenderArchivePanel({
           )}
           {pages > 1 && (
             <nav
-              aria-label="Pagine dei render"
+              aria-label={t("Pagine dei render")}
               className="flex items-center justify-center gap-4 pt-2"
             >
               <Button
@@ -690,18 +685,16 @@ export function RenderArchivePanel({
                 onClick={() => movePage(page - 1)}
               >
                 <ChevronLeft className="mr-1 h-4 w-4" />
-                Precedenti
+                {t("Precedenti")}
               </Button>
-              <span className="text-xs text-muted-foreground">
-                Pagina {page} di {pages}
-              </span>
+              <span className="text-xs text-muted-foreground">{t("Pagina {page} di {pages}", { page: String(page ?? ""), pages: String(pages ?? "") })}</span>
               <Button
                 variant="outline"
                 size="sm"
                 disabled={page >= pages}
                 onClick={() => movePage(page + 1)}
               >
-                Successivi
+                {t("Successivi")}
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
             </nav>
@@ -712,8 +705,8 @@ export function RenderArchivePanel({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
           <p>
             {hasMore
-              ? `${items.length} di ${total} render caricati. Ricerca e filtri proseguono nello storico completo.`
-              : `Storico completo · ${items.length} render`}
+              ? t("{n} di {total} render caricati. Ricerca e filtri proseguono nello storico completo.", { n: items.length, total: String(total ?? "") })
+              : t("Storico completo · {n} render", { n: items.length })}
           </p>
           {hasMore && (
             <Button
@@ -723,25 +716,24 @@ export function RenderArchivePanel({
               onClick={onLoadMore}
             >
               {loadingMore
-                ? "Caricamento…"
+                ? t("Caricamento…")
                 : moreError
-                  ? "Riprova caricamento storico"
-                  : "Carica render precedenti"}
+                  ? t("Riprova caricamento storico")
+                  : t("Carica render precedenti")}
             </Button>
           )}
         </div>
       )}
       {moreError && (
         <p role="alert" className="text-xs text-destructive">
-          Una parte dello storico non è stata caricata. I risultati visibili
-          restano consultabili: riprova il caricamento.
+          {t("Una parte dello storico non è stata caricata. I risultati visibili restano consultabili: riprova il caricamento.")}
         </p>
       )}
       {comparing && targets.length === 2 && (
         <Suspense
           fallback={
             <p className="text-sm text-muted-foreground">
-              Caricamento del confronto…
+              {t("Caricamento del confronto…")}
             </p>
           }
         >

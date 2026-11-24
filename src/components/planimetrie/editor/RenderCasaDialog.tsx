@@ -20,6 +20,7 @@ import { DettagliRenderStanza } from "../tred/DettagliRenderStanza";
 import type { Planimetria } from "./adattatore";
 import type { RenderChatDisegno, VistaChatDisegno } from "./comandiChat";
 import type { Vista } from "./comandi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Inquadratura {
   id: string;
@@ -75,6 +76,7 @@ const RAPPORTO = DIMENSIONI.larghezza / DIMENSIONI.altezza;
 const sigla = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 function SchedaVista({ lavoro, esito }: { lavoro: Inquadratura; esito?: Esito }) {
+  const t = useT();
   const png = esito?.png;
   const immagine = useBlobRef<HTMLImageElement>(png, "src");
   const scarica = useBlobRef<HTMLAnchorElement>(png, "href");
@@ -84,7 +86,7 @@ function SchedaVista({ lavoro, esito }: { lavoro: Inquadratura; esito?: Esito })
     {png ? <img ref={immagine} alt={lavoro.nome} className="block aspect-[1120/744] w-full object-contain bg-slate-100" />
       : <div className="grid aspect-[1120/744] w-full place-content-center gap-2 bg-muted/40 px-5 text-center text-sm text-muted-foreground">
         <ImageIcon className="mx-auto size-5" aria-hidden="true" />
-        {esito && "errore" in esito ? esito.errore : "In attesa di generazione"}
+        {esito && "errore" in esito ? esito.errore : t("In attesa di generazione")}
       </div>}
     <div className="flex items-center justify-between gap-2 p-3">
       <div className="min-w-0">
@@ -92,18 +94,19 @@ function SchedaVista({ lavoro, esito }: { lavoro: Inquadratura; esito?: Esito })
         {lavoro.tipo === "locale" && <p className="truncate text-xs text-muted-foreground">{lavoro.piano.nome}</p>}
       </div>
       {png && <Button size="icon" variant="outline" asChild className="h-8 w-8 shrink-0">
-        <a ref={scarica} download={nomeFile + ".png"} aria-label={"Scarica PNG " + lavoro.nome}><Download className="size-4" aria-hidden="true" /></a>
+        <a ref={scarica} download={nomeFile + ".png"} aria-label={t("Scarica PNG {nome}", { nome: lavoro.nome })}><Download className="size-4" aria-hidden="true" /></a>
       </Button>}
     </div>
   </article>;
 }
 
 function ConfrontoFoto({ lavoro, esito }: { lavoro: Inquadratura; esito?: Esito }) {
+  const t = useT();
   return <div className="space-y-3">
     <ConfrontoRender3D key={lavoro.id} nome={lavoro.nome} riferimento={esito?.riferimento} risultato={esito?.png}
       errore={esito?.errore} nomeFile={lavoro.id.replaceAll("/", "-") + "-cycles.png"} />
-    {!!esito?.riscontri?.length && <section aria-label="Riscontri sul modello" className="rounded-xl border bg-card px-4 py-3">
-      <h3 className="flex items-center gap-2 text-sm font-medium"><Ruler className="size-4 text-primary" aria-hidden="true" /> Misure e aperture del modello</h3>
+    {!!esito?.riscontri?.length && <section aria-label={t("Riscontri sul modello")} className="rounded-xl border bg-card px-4 py-3">
+      <h3 className="flex items-center gap-2 text-sm font-medium"><Ruler className="size-4 text-primary" aria-hidden="true" /> {t("Misure e aperture del modello")}</h3>
       <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {esito.riscontri.map(r => <li key={r.nome + r.dato} className="min-w-0 text-sm">
           <span className="font-medium">{r.nome}</span>
@@ -124,6 +127,7 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
   archivio?: VersioneRenderVisita;
   onChiudi: () => void;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const fotorealistico = modo.startsWith("foto:");
   const modoBase = (fotorealistico ? modo.slice(5) : modo) as RenderChatDisegno;
@@ -179,7 +183,7 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
               const scena = costruisciScena({ ...pianta, muri:[], aperture:[], locali:[], aree:[], terreno:undefined, elementi:[campo] },{vista});
               telecamera = vistaGiroIntorno(scena.limiti, RAPPORTO);
             } else if (lavoro.localeId) telecamera = vistaInternaArredata(pianta, lavoro.localeId, { vista, aspetto: RAPPORTO });
-            else throw new Error("L’inquadratura non è disponibile per questa pianta.");
+            else throw new Error(t("L’inquadratura non è disponibile per questa pianta."));
             const richiesta = {
               pianta, vista, telecamera, ...DIMENSIONI, scena,
               aspetto: !fotorealistico && (esterno || campo) ? { ...aspetto, realistico: true, alberi: false, dentro: false } : undefined,
@@ -205,7 +209,7 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
                 data: new Date().toISOString(), anteprima: riferimento, render: png, riscontri, telecamera }).catch((): undefined => undefined);
             }
           } catch (err) {
-            if (!chiuso) setEsiti(old => ({ ...old, [lavoro.id]: { ...old[lavoro.id], errore: err instanceof Error ? err.message : "Vista non disponibile." } }));
+            if (!chiuso) setEsiti(old => ({ ...old, [lavoro.id]: { ...old[lavoro.id], errore: err instanceof Error ? err.message : t("Vista non disponibile.") } }));
           }
         };
         const restanti = lavori.filter(l => !serie || !completati.current[l.id]?.png);
@@ -217,21 +221,22 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
           await Promise.all(gruppo.map(calcola));
         }
       } catch {
-        if (!chiuso) setErrore("Non riesco a caricare il motore 3D. Riprova.");
+        if (!chiuso) setErrore(t("Non riesco a caricare il motore 3D. Riprova."));
       } finally {
         if (!chiuso) setCorrente("");
       }
     })();
     return () => { chiuso = true; controller.abort(); };
-  }, [companyId, fotorealistico, lavori, modoBase, piani, serie, soloInterni, tentativo, vista]);
+  }, [companyId, fotorealistico, lavori, modoBase, piani, serie, soloInterni, tentativo, vista, t]);
 
   const pronte = Object.values(esiti).filter(e => e.png).length;
   const mancanti = Object.values(esiti).filter(e => e.errore).length;
   const occupato = !errore && pronte + mancanti < lavori.length;
   const locali = lavori.filter(l => l.tipo === "locale");
-  const base = soloInterni ? "delle stanze" : modoBase === "render-edificio" ? "dell’edificio"
-    : modoBase === "render-sport" || modoBase.startsWith("render:") ? "dei campi" : "di tutta la casa";
-  const titolo = (fotorealistico ? "Render fotorealistico " : "Render 3D ") + base;
+  const diCampi = modoBase === "render-sport" || modoBase.startsWith("render:");
+  const titolo = fotorealistico
+    ? (soloInterni ? t("Render fotorealistico delle stanze") : modoBase === "render-edificio" ? t("Render fotorealistico dell’edificio") : diCampi ? t("Render fotorealistico dei campi") : t("Render fotorealistico di tutta la casa"))
+    : (soloInterni ? t("Render 3D delle stanze") : modoBase === "render-edificio" ? t("Render 3D dell’edificio") : diCampi ? t("Render 3D dei campi") : t("Render 3D di tutta la casa"));
   const correnteFoto = fotorealistico ? lavori.find(l => l.id === selezionata) : undefined;
   const esitoCorrente = correnteFoto && esiti[correnteFoto.id];
   const stanzePerUnita = new Map<string, Inquadratura[]>();
@@ -273,32 +278,32 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
     <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col gap-4 overflow-hidden p-4 sm:p-6">
       <DialogHeader className="shrink-0 pr-6 text-left">
         <DialogTitle className="flex items-center gap-2"><Building2 className="size-5 text-primary" aria-hidden="true" />{titolo}</DialogTitle>
-        <DialogDescription>{fotorealistico ? `Stessa geometria e stessa camera. ${descrizioneMotoreFotorealistico()}.` :
-          "Viste generate nel browser dalla geometria, dagli arredi e dalle finiture della pianta."} {vista === "progetto" ? "Progetto" : "Com’è oggi"}</DialogDescription>
+        <DialogDescription>{fotorealistico ? t("Stessa geometria e stessa camera. {valore}.", { valore: String(descrizioneMotoreFotorealistico() ?? "") }) :
+          t("Viste generate nel browser dalla geometria, dagli arredi e dalle finiture della pianta.")} {vista === "progetto" ? t("Progetto") : t("Com’è oggi")}</DialogDescription>
       </DialogHeader>
       {lavori.length > 0 ? <>
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
           <p className="flex items-center gap-2 text-sm" role="status">
             {occupato && <Loader2 className="size-4 text-primary motion-safe:animate-spin" aria-hidden="true" />}
-            {pronte} di {lavori.length} viste pronte{mancanti ? " · " + mancanti + " da rigenerare" : ""}
+            {t("{pronte} di {totale} viste pronte", { pronte, totale: lavori.length })}{mancanti ? " · " + t("{n} da rigenerare", { n: mancanti }) : ""}
             {corrente && <span className="text-muted-foreground">· {corrente}</span>}
           </p>
-          {(mancanti > 0 || errore) && <Button size="sm" variant="outline" disabled={occupato} onClick={() => setTentativo(n => n + 1)}><RotateCcw className="size-4" /> Rigenera</Button>}
-          {soloInterni && pronte === lavori.length && <Button size="sm" variant="outline" disabled={scaricando} onClick={() => void scaricaConfronti()}><Download className="size-4" />{scaricando ? "Preparo i file…" : "Scarica tutti i confronti"}</Button>}
+          {(mancanti > 0 || errore) && <Button size="sm" variant="outline" disabled={occupato} onClick={() => setTentativo(n => n + 1)}><RotateCcw className="size-4" /> {t("Rigenera")}</Button>}
+          {soloInterni && pronte === lavori.length && <Button size="sm" variant="outline" disabled={scaricando} onClick={() => void scaricaConfronti()}><Download className="size-4" />{scaricando ? t("Preparo i file…") : t("Scarica tutti i confronti")}</Button>}
         </div>
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
-        {erroreScarica && <p role="alert" className="text-sm text-destructive">Archivio da scaricare. Riprova.</p>}
+        {erroreScarica && <p role="alert" className="text-sm text-destructive">{t("Archivio da scaricare. Riprova.")}</p>}
         {correnteFoto ? <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">
           {soloInterni ? <div className="space-y-2">{[...stanzePerUnita].sort(([a], [b]) => Number(!a.startsWith("Unità ")) - Number(!b.startsWith("Unità ")) || a.localeCompare(b)).map(([nome, elenco]) =>
             <div key={nome} role="group" aria-label={nome} className="flex flex-wrap items-center gap-2">
               <span className="min-w-20 text-xs font-medium text-muted-foreground">{nome}</span>{pulsanti(elenco)}
-            </div>)}</div> : <div role="group" aria-label="Inquadratura" className="flex flex-wrap gap-2">{pulsanti(lavori)}</div>}
-          {correnteFoto.localeId && <div role="group" aria-label="Vista della stanza" className="flex flex-wrap gap-1.5">
+            </div>)}</div> : <div role="group" aria-label={t("Inquadratura")} className="flex flex-wrap gap-2">{pulsanti(lavori)}</div>}
+          {correnteFoto.localeId && <div role="group" aria-label={t("Vista della stanza")} className="flex flex-wrap gap-1.5">
             <Button size="sm" variant={dettagli ? "outline" : "secondary"} aria-pressed={!dettagli} onClick={() => setDettagli(false)}>
-              <ImageIcon className="size-4" aria-hidden="true" /> Vista d’insieme
+              <ImageIcon className="size-4" aria-hidden="true" /> {t("Vista d’insieme")}
             </Button>
             <Button size="sm" variant={dettagli ? "secondary" : "outline"} aria-pressed={dettagli} onClick={() => setDettagli(true)}>
-              <Focus className="size-4" aria-hidden="true" /> Aperture e arredi
+              <Focus className="size-4" aria-hidden="true" /> {t("Aperture e arredi")}
             </Button>
           </div>}
           {dettagli && correnteFoto.localeId ? <DettagliRenderStanza key={correnteFoto.id}
@@ -310,12 +315,12 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {lavori.filter(l => l.tipo !== "locale").map(l => <SchedaVista key={l.id} lavoro={l} esito={esiti[l.id]} />)}
           </div>
-          {locali.length > 0 && <section aria-label="Interni" className="space-y-2.5">
-            <h2 className="text-sm font-semibold">Interni <span className="text-muted-foreground">· {locali.length} {locali.length === 1 ? "ambiente" : "ambienti"}</span></h2>
+          {locali.length > 0 && <section aria-label={t("Interni")} className="space-y-2.5">
+            <h2 className="text-sm font-semibold">{t("Interni")} <span className="text-muted-foreground">· {t(locali.length === 1 ? "{n} ambiente" : "{n} ambienti", { n: locali.length })}</span></h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{locali.map(l => <SchedaVista key={l.id} lavoro={l} esito={esiti[l.id]} />)}</div>
           </section>}
         </div>}
-      </> : <p className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">Aggiungi alla pianta la geometria da inquadrare.</p>}
+      </> : <p className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">{t("Aggiungi alla pianta la geometria da inquadrare.")}</p>}
     </DialogContent>
   </Dialog>;
 }

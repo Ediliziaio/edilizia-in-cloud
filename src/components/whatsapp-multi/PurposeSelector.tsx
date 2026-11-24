@@ -19,6 +19,7 @@ import {
   PURPOSE_ORDER,
   type WAPurpose,
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ICONS: Record<WAPurpose, typeof MessageSquare> = {
   bot_operativo: MessageSquare,
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function PurposeSelector({ selected, onSelect, disabledPurposes = [] }: Props) {
+  const t = useT();
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {PURPOSE_ORDER.map((p) => {
@@ -48,7 +50,7 @@ export function PurposeSelector({ selected, onSelect, disabledPurposes = [] }: P
             type="button"
             disabled={isDisabled}
             onClick={() => onSelect(p)}
-            aria-label={`Scegli scopo ${PURPOSE_LABELS[p]}`}
+            aria-label={t("Scegli scopo {scopo}", { scopo: t(PURPOSE_LABELS[p]) })}
             aria-pressed={isSelected}
             className={cn(
               "w-full text-left rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -67,31 +69,31 @@ export function PurposeSelector({ selected, onSelect, disabledPurposes = [] }: P
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <Icon className="h-5 w-5 shrink-0 text-primary" />
-                    <CardTitle className="text-base">{PURPOSE_LABELS[p]}</CardTitle>
+                    <CardTitle className="text-base">{t(PURPOSE_LABELS[p])}</CardTitle>
                   </div>
                   <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">
-                    {group.shortLabel}
+                    {t(group.shortLabel)}
                   </span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <CardDescription className="text-xs">
-                  {PURPOSE_DESCRIPTIONS[p]}
+                  {t(PURPOSE_DESCRIPTIONS[p])}
                 </CardDescription>
                 <div className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
-                  {PURPOSE_AUTONOMY[p]}
+                  {t(PURPOSE_AUTONOMY[p])}
                 </div>
                 <ul className="space-y-1 text-xs text-muted-foreground">
                   {PURPOSE_EXAMPLES[p].slice(0, 2).map((example) => (
                     <li key={example} className="flex gap-1.5">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
-                      <span>{example}</span>
+                      <span>{t(example)}</span>
                     </li>
                   ))}
                 </ul>
                 {isDisabled && (
                   <p className="text-xs text-muted-foreground mt-2 italic">
-                    Già configurato per questa azienda.
+                    {t("Già configurato per questa azienda.")}
                   </p>
                 )}
               </CardContent>

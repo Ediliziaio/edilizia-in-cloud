@@ -10,6 +10,7 @@ import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type RenderSessionTable =
   | "render_sessions"
@@ -40,6 +41,7 @@ export function RenderCrmSummaryCard({
   sessionTable,
   editable = false,
 }: RenderCrmSummaryCardProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const pendingRef = useRef(false);
   const { effectiveCompany } = useAuth();
@@ -84,12 +86,12 @@ export function RenderCrmSummaryCard({
     },
     onSuccess: async (_, next) => {
       setSavedLink({ sourceKey, contactId: next.contactId, opportunityId: next.opportunityId });
-      toast.success("Collegamento CRM aggiornato");
+      toast.success(t("Collegamento CRM aggiornato"));
       await queryClient.invalidateQueries({ queryKey: ["render-crm-summary"] });
       await Promise.all(["linked-renders", "render-history", "render-stored-session"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
     },
     onError: () => {
-      toast.error("Non sono riuscito ad aggiornare il collegamento CRM");
+      toast.error(t("Non sono riuscito ad aggiornare il collegamento CRM"));
     },
     onSettled: () => { pendingRef.current = false; },
   });
@@ -107,7 +109,7 @@ export function RenderCrmSummaryCard({
       <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
         <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
           <Link2 className="h-4 w-4" />
-          Collegamenti render
+          {t("Collegamenti render")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 max-md:space-y-2 max-md:p-3 max-md:pt-0">
@@ -116,33 +118,33 @@ export function RenderCrmSummaryCard({
           <div className="grid gap-2 sm:grid-cols-3 max-sm:gap-0 max-sm:divide-y max-sm:overflow-hidden max-sm:rounded-lg max-sm:border">
             <div className="rounded-lg border bg-muted/20 p-3 max-sm:flex max-sm:min-w-0 max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:px-3 max-sm:py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:shrink-0 max-md:text-[11px] max-md:font-medium max-md:normal-case max-md:tracking-normal">
-                Creato da
+                {t("Creato da")}
               </p>
               <p className="mt-1 flex items-center gap-1.5 text-sm font-medium max-md:mt-0 max-md:min-w-0 max-md:truncate max-md:text-[13px]">
                 <UserRound className="h-3.5 w-3.5 text-primary max-md:hidden" />
-                {meta?.createdByName ?? "Non disponibile"}
+                {meta?.createdByName ?? t("Non disponibile")}
               </p>
             </div>
             <div className="rounded-lg border bg-muted/20 p-3 max-sm:flex max-sm:min-w-0 max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:px-3 max-sm:py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:shrink-0 max-md:text-[11px] max-md:font-medium max-md:normal-case max-md:tracking-normal">
-                Contatto
+                {t("Contatto")}
               </p>
               {meta?.contactName && currentContactId ? (
                 <div className="mt-1 flex items-center justify-between gap-2 max-md:mt-0 max-md:min-w-0">
                   <p className="truncate text-sm font-medium max-md:text-[13px]">{meta.contactName}</p>
                   <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                    <Link aria-label={`Apri contatto ${meta.contactName}`} to={`/azienda/marketing/contatti/${currentContactId}`}>
+                    <Link aria-label={t("Apri contatto {contactName}", { contactName: String(meta.contactName ?? "") })} to={`/azienda/marketing/contatti/${currentContactId}`}>
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
                   </Button>
                 </div>
               ) : (
-                <p className="mt-1 text-sm text-muted-foreground max-md:mt-0 max-md:text-[13px]">Non collegato</p>
+                <p className="mt-1 text-sm text-muted-foreground max-md:mt-0 max-md:text-[13px]">{t("Non collegato")}</p>
               )}
             </div>
             <div className="rounded-lg border bg-muted/20 p-3 max-sm:flex max-sm:min-w-0 max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:px-3 max-sm:py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:shrink-0 max-md:text-[11px] max-md:font-medium max-md:normal-case max-md:tracking-normal">
-                Opportunità
+                {t("Opportunità")}
               </p>
               {meta?.opportunityName ? (
                 <p className="mt-1 flex items-center gap-1.5 truncate text-sm font-medium max-md:mt-0 max-md:min-w-0 max-md:text-[13px]">
@@ -150,13 +152,13 @@ export function RenderCrmSummaryCard({
                   {meta.opportunityName}
                 </p>
               ) : (
-                <p className="mt-1 text-sm text-muted-foreground max-md:mt-0 max-md:text-[13px]">Non collegata</p>
+                <p className="mt-1 text-sm text-muted-foreground max-md:mt-0 max-md:text-[13px]">{t("Non collegata")}</p>
               )}
             </div>
           </div>
         ) : (
           <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground max-md:px-3 max-md:py-2 max-md:text-[13px]">
-            Nessun contatto o opportunità collegata a questo render.
+            {t("Nessun contatto o opportunità collegata a questo render.")}
           </div>
         )}
 
@@ -172,15 +174,15 @@ export function RenderCrmSummaryCard({
             />
             {!canPersist && (
               <p className="px-2 pb-2 text-xs text-muted-foreground">
-                Collegamento modificabile solo quando il render e la tabella sorgente sono disponibili.
+                {t("Collegamento modificabile solo quando il render e la tabella sorgente sono disponibili.")}
               </p>
             )}
             {linkMutation.isPending && (
               <Badge role="status" variant="secondary" className="mx-2 mb-2">
-                Salvataggio collegamento...
+                {t("Salvataggio collegamento...")}
               </Badge>
             )}
-            {linkMutation.isError && <p role="alert" className="px-2 pb-2 text-xs text-destructive">Non è stato possibile confermare il collegamento CRM. Visualizzi ancora i collegamenti precedenti; riprova.</p>}
+            {linkMutation.isError && <p role="alert" className="px-2 pb-2 text-xs text-destructive">{t("Non è stato possibile confermare il collegamento CRM. Visualizzi ancora i collegamenti precedenti; riprova.")}</p>}
           </fieldset>
         )}
       </CardContent>

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { TIPOLOGIE_DISEGNO, type DefinizioneDisegno } from "@/lib/serramenti/disegnoSerramento";
 import { tipologiaDaDefinizione } from "@/lib/serramenti/disegnoDaFamiglia";
 import { controllaMisure } from "@/lib/serramenti/limitiSerramento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface MisureFormaValori {
   frecciaMm?: number;
@@ -45,6 +46,7 @@ const numero = (t: string): number | undefined => {
 };
 
 export function MisureForma({ tipologia, definizione, larghezzaMm, altezzaMm, valori, onChange }: Props) {
+  const t = useT();
   const forma = formaDellaTipologia(tipologia);
   const tip = tipologia === "personalizzata" ? tipologiaDaDefinizione(definizione) : TIPOLOGIE_DISEGNO.find((x) => x.id === tipologia);
   if (tip?.sopraluce || tip?.sottoluce) {
@@ -54,13 +56,13 @@ export function MisureForma({ tipologia, definizione, larghezzaMm, altezzaMm, va
     ];
     return (
       <div className="space-y-1.5 rounded-md border border-slate-200 bg-slate-50/60 p-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Misure dei campi fissi</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Misure dei campi fissi")}</p>
         <div className="grid grid-cols-2 gap-2">
           {campi.map(({ campo, nome, tipico }) => <div key={campo} className="col-span-2 sm:col-span-1">
-            <Label className="flex h-5 items-center text-xs">Altezza del {nome} (mm)</Label>
+            <Label className="flex h-5 items-center text-xs">{nome === "sopraluce" ? t("Altezza del sopraluce (mm)") : t("Altezza del sottoluce (mm)")}</Label>
             <Input
               type="number"
-              aria-label={`Altezza del ${nome} (mm)`}
+              aria-label={nome === "sopraluce" ? t("Altezza del sopraluce (mm)") : t("Altezza del sottoluce (mm)")}
               min={0}
               className="h-9 text-xs"
               placeholder={`${tipico}`}
@@ -86,16 +88,16 @@ export function MisureForma({ tipologia, definizione, larghezzaMm, altezzaMm, va
 
   return (
     <div className="space-y-1.5 rounded-md border border-slate-200 bg-slate-50/60 p-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{forma === "arco" ? "Misura dell'arco" : "Misure del trapezio"}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{forma === "arco" ? t("Misura dell'arco") : t("Misure del trapezio")}</p>
       <div className="grid grid-cols-2 gap-2">
         {forma === "arco" ? (
           <div className="col-span-2 sm:col-span-1">
-            <Label className="flex h-5 items-center text-xs">Altezza dell'arco (mm)</Label>
+            <Label className="flex h-5 items-center text-xs">{t("Altezza dell'arco (mm)")}</Label>
             <Input
               type="number"
               min={0}
               className="h-9 text-xs"
-              placeholder={`tutto sesto: ${Math.round(larghezzaMm / 2)}`}
+              placeholder={t("tutto sesto: {valore}", { valore: Math.round(larghezzaMm / 2) })}
               key={`f${valori.frecciaMm ?? ""}`}
               defaultValue={valori.frecciaMm ?? ""}
               onBlur={(e) => onChange({ ...valori, frecciaMm: numero(e.target.value) })}
@@ -104,7 +106,7 @@ export function MisureForma({ tipologia, definizione, larghezzaMm, altezzaMm, va
         ) : (
           <>
             <div>
-              <Label className="flex h-5 items-center text-xs">Altezza lato basso (mm)</Label>
+              <Label className="flex h-5 items-center text-xs">{t("Altezza lato basso (mm)")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -116,14 +118,14 @@ export function MisureForma({ tipologia, definizione, larghezzaMm, altezzaMm, va
               />
             </div>
             <div>
-              <Label className="flex h-5 items-center text-xs">Lato basso (da dentro)</Label>
+              <Label className="flex h-5 items-center text-xs">{t("Lato basso (da dentro)")}</Label>
               <UniformSelect
                 className="h-9 w-full rounded-md border bg-background px-2 text-xs"
                 value={valori.latoMinore ?? "dx"}
                 onChange={(e) => onChange({ ...valori, latoMinore: e.target.value === "sx" ? "sx" : "dx" })}
               >
-                <option value="dx">A destra</option>
-                <option value="sx">A sinistra</option>
+                <option value="dx">{t("A destra")}</option>
+                <option value="sx">{t("A sinistra")}</option>
               </UniformSelect>
             </div>
           </>

@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { MetaAsset } from "@/types/integrations";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AdAccountPickerDialogProps {
   open: boolean;
@@ -31,6 +32,7 @@ interface AdAccountPickerDialogProps {
 }
 
 export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts, embedded = false }: AdAccountPickerDialogProps) {
+  const t = useT();
   const qc = useQueryClient();
   const [query, setQuery] = useState("");
 
@@ -89,7 +91,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
     },
     onSuccess: async (_data, assetId) => {
       const name = accounts.find((a) => a.asset_id === assetId)?.asset_name ?? assetId;
-      toast.success(assetId ? `Account pubblicitario attivo: ${name}` : "Account pubblicitario deselezionato");
+      toast.success(assetId ? t("Account pubblicitario attivo: {name}", { name: String(name ?? "") }) : t("Account pubblicitario deselezionato"));
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["ads-manager-beta", "meta-assets"] }),
         qc.invalidateQueries({ queryKey: queryKeys.metaAds.assetsAll }),
@@ -103,8 +105,8 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
         qc.invalidateQueries({ queryKey: queryKeys.metaAds.assetsAll }),
         qc.invalidateQueries({ queryKey: ["meta-ad-accounts", companyId] }),
       ]);
-      toast.error("Impossibile cambiare account", {
-        description: err instanceof Error ? err.message : "Riprova (serve il ruolo amministratore).",
+      toast.error(t("Impossibile cambiare account"), {
+        description: err instanceof Error ? err.message : t("Riprova (serve il ruolo amministratore)."),
       });
     },
   });
@@ -114,11 +116,10 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
         <div>
           <h3 className="flex items-center gap-2 font-medium">
             <Megaphone className="h-4 w-4" />
-            Scegli l'account pubblicitario
+            {t("Scegli l'account pubblicitario")}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Le campagne di questa azienda verranno create e monitorate sull'account selezionato.
-            Puoi deselezionarlo premendo di nuovo sul suo nome.
+            {t("Le campagne di questa azienda verranno create e monitorate sull'account selezionato. Puoi deselezionarlo premendo di nuovo sul suo nome.")}
           </p>
         </div>
 
@@ -128,7 +129,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cerca per nome o ID account…"
+              placeholder={t("Cerca per nome o ID account…")}
               className="pl-9"
               autoFocus
             />
@@ -137,9 +138,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
 
         <div className="border rounded-lg divide-y max-h-[340px] overflow-y-auto">
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
-              Nessun account corrisponde a “{query}”.
-            </p>
+            <p className="text-sm text-muted-foreground text-center py-6">{t("Nessun account corrisponde a “{query}”.", { query: String(query ?? "") })}</p>
           ) : (
             filtered.map((account) => {
               const isActive = account.asset_id === currentSelectedId;
@@ -174,7 +173,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
                   </div>
                   {isActive && (
                     <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      Attivo
+                      {t("Attivo")}
                     </span>
                   )}
                 </button>
@@ -185,25 +184,25 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            {accounts.length} account disponibili
-            {query && ` · ${filtered.length} risultati`}
+            {t("{n} account disponibili", { n: accounts.length })}
+            {query && ` · ${t("{n} risultati", { n: filtered.length })}`}
           </span>
           {selectMutation.isPending && (
             <span className="flex items-center gap-1.5">
-              <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+              <Loader2 className="h-3 w-3 animate-spin" /> {t("Salvataggio…")}
             </span>
           )}
         </div>
     </>
   );
 
-  if (embedded) return <section className="space-y-3" aria-label="Account pubblicitario">{content}</section>;
+  if (embedded) return <section className="space-y-3" aria-label={t("Account pubblicitario")}>{content}</section>;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader className="sr-only">
-          <DialogTitle>Account pubblicitario Meta</DialogTitle>
-          <DialogDescription>Scegli l’account per le campagne della tua azienda.</DialogDescription>
+          <DialogTitle>{t("Account pubblicitario Meta")}</DialogTitle>
+          <DialogDescription>{t("Scegli l’account per le campagne della tua azienda.")}</DialogDescription>
         </DialogHeader>
         {content}
       </DialogContent>

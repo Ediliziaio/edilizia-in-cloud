@@ -21,6 +21,7 @@ import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PALETTE = [
   "#F97316", "#2563EB", "#16A34A", "#7C3AED", "#DB2777",
@@ -41,7 +42,7 @@ export interface ChartSpec {
 const fmt = (v: unknown, unit?: string) => {
   const n = typeof v === "number" ? v : parseFloat(String(v));
   if (!isFinite(n)) return String(v ?? "");
-  const s = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
+  const s = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 }).format(n);
   return unit === "€" ? `€ ${s}` : unit ? `${s} ${unit}` : s;
 };
 
@@ -50,15 +51,16 @@ function Empty({ msg }: { msg: string }) {
 }
 
 export default function SilvioChartBlock({ spec }: { spec: ChartSpec }) {
+  const t = useT();
   if (!spec || !Array.isArray(spec.data) || spec.data.length === 0) {
-    return <Empty msg="Grafico non disponibile (dati mancanti)." />;
+    return <Empty msg={t("Grafico non disponibile (dati mancanti).")} />;
   }
   const type = spec.type || "bar";
   const xKey = spec.xKey || "label";
   const unit = spec.unit;
   const series: Serie[] = (spec.series && spec.series.length)
     ? spec.series
-    : [{ name: spec.title || "Valore", key: spec.valueKey || "value" }];
+    : [{ name: spec.title || t("Valore"), key: spec.valueKey || "value" }];
   const color = (i: number, s?: Serie) => s?.color || PALETTE[i % PALETTE.length];
   const data = spec.data as Array<Record<string, number | string>>;
 

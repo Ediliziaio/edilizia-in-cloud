@@ -20,6 +20,7 @@ import {
   dividiInPartiUguali, importoRata, ribilanciaUltimaRata, totalePercentuali,
 } from "@/lib/serramenti/ratePagamento";
 import type { SrPagamentoMilestone } from "@/types/serramenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   rate: SrPagamentoMilestone[];
@@ -32,6 +33,7 @@ interface Props {
 const GRIGLIA = "grid grid-cols-[minmax(0,1fr)_4.75rem_auto] gap-x-2 gap-y-1.5 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_5rem_6rem_2.25rem]";
 
 export function RatePagamento({ rate, totale, onChange }: Props) {
+  const t = useT();
   const ultima = rate.length - 1;
   const totalePct = totalePercentuali(rate);
   const ok = totalePct === 100;
@@ -50,10 +52,10 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
     <div className="space-y-2">
       {rate.length > 0 && (
         <div aria-hidden="true" className={cn(GRIGLIA, "px-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:hidden")}>
-          <span>Step</span>
-          <span>Quando</span>
+          <span>{t("Step")}</span>
+          <span>{t("Quando")}</span>
           <span>%</span>
-          <span className="text-right">Importo</span>
+          <span className="text-right">{t("Importo")}</span>
           <span />
         </div>
       )}
@@ -67,15 +69,15 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
               <Input
                 value={r.label}
                 onChange={(e) => modifica(i, { label: e.target.value })}
-                aria-label={`Nome dello step ${n}`}
-                placeholder="es. Acconto alla firma"
+                aria-label={t("Nome dello step {n}", { n: String(n ?? "") })}
+                placeholder={t("es. Acconto alla firma")}
                 className="col-start-1 row-start-1 h-9 min-w-0 text-xs md:text-xs"
               />
               <Input
                 value={r.when ?? ""}
                 onChange={(e) => modifica(i, { when: e.target.value || null })}
-                aria-label={`Quando, step ${n}`}
-                placeholder="Quando: es. Consegna materiale"
+                aria-label={t("Quando, step {n}", { n: String(n ?? "") })}
+                placeholder={t("Quando: es. Consegna materiale")}
                 className="col-start-1 row-start-2 h-9 min-w-0 text-xs md:col-start-2 md:row-start-1 md:text-xs"
               />
               <div className="col-start-2 row-start-1 flex min-w-0 items-center gap-1 md:col-start-3">
@@ -85,7 +87,7 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
                   min={0} max={100} step={5}
                   value={r.percentuale}
                   onChange={(e) => scriviPercentuale(i, Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-                  aria-label={`Percentuale dello step ${n}`}
+                  aria-label={t("Percentuale dello step {n}", { n: String(n ?? "") })}
                   className="h-9 min-w-0 px-2 text-right text-xs tabular-nums md:text-xs"
                 />
                 <span aria-hidden="true" className="text-xs text-muted-foreground">%</span>
@@ -93,9 +95,9 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
               {/* Lo stesso conto del PDF: totale IVA inclusa × percentuale. */}
               <p
                 className="col-span-2 col-start-2 row-start-2 text-right text-xs font-semibold tabular-nums text-slate-800 md:col-span-1 md:col-start-4 md:row-start-1"
-                title="Importo della rata, IVA inclusa"
+                title={t("Importo della rata, IVA inclusa")}
               >
-                <span className="sr-only">Importo dello step {n}, IVA inclusa: </span>
+                <span className="sr-only">{t("Importo dello step {n}, IVA inclusa:", { n: String(n ?? "") })}{" "}</span>
                 {formatEuro(importoRata(totale, r.percentuale))}
               </p>
               <Button
@@ -105,8 +107,8 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
                 onClick={() => onChange(ribilanciaUltimaRata(rate.filter((_, j) => j !== i)))}
                 disabled={rate.length <= 1}
                 className="col-start-3 row-start-1 h-9 w-9 justify-self-end text-rose-600 hover:bg-rose-50 md:col-start-5"
-                title="Rimuovi step"
-                aria-label={`Rimuovi lo step ${n}`}
+                title={t("Rimuovi step")}
+                aria-label={t("Rimuovi lo step {n}", { n: String(n ?? "") })}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -123,7 +125,7 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
           onClick={() => onChange(ribilanciaUltimaRata([...rate, { label: "", percentuale: 0, when: null }]))}
           className="gap-1 text-xs"
         >
-          <Plus className="h-3.5 w-3.5" /> Aggiungi step
+          <Plus className="h-3.5 w-3.5" /> {t("Aggiungi step")}
         </Button>
         {rate.length >= 2 && (
           <Button
@@ -133,7 +135,7 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
             onClick={() => onChange(dividiInPartiUguali(rate))}
             className="text-xs"
           >
-            Dividi in parti uguali
+            {t("Dividi in parti uguali")}
           </Button>
         )}
         <div
@@ -145,14 +147,14 @@ export function RatePagamento({ rate, totale, onChange }: Props) {
           aria-live="polite"
         >
           {ok && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />}
-          Totale: {totalePct}%
+          {t("Totale: {percentuale}%", { percentuale: totalePct })}
           {!ok && (
             <span className="ml-1 text-xs font-normal">
-              ({totalePct > 100 ? `−${scarto}%` : `+${scarto}%`} per arrivare a 100%)
+              {t("({scarto}% per arrivare a 100%)", { scarto: totalePct > 100 ? `−${scarto}` : `+${scarto}` })}
             </span>
           )}
           <span className="ml-auto text-xs font-normal tabular-nums text-muted-foreground md:ml-2">
-            {formatEuro(importoRata(totale, totalePct))}<span className="max-sm:hidden"> IVA inclusa</span>
+            {formatEuro(importoRata(totale, totalePct))}<span className="max-sm:hidden"> {t("IVA inclusa")}</span>
           </span>
         </div>
       </div>

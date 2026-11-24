@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Printer, Download, X } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** HTML completo della pagina da stampare (incluso <html>, <head> e <body>). */
@@ -51,6 +52,7 @@ export function PrintPreviewModal({
   onDownloadPdf,
   soloPdf = false,
 }: Props) {
+  const t = useT();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // L'iframe nasce dentro il portale del Dialog DOPO il primo effetto: col solo
   // ref l'effetto trovava null, usciva e non ripartiva più (anteprima vuota e
@@ -113,7 +115,7 @@ export function PrintPreviewModal({
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
       } catch (e) {
-        toast.error(`PDF non generato: ${e instanceof Error ? e.message : "errore"}`);
+        toast.error(t("PDF non generato: {motivo}", { motivo: e instanceof Error ? e.message : t("errore") }));
       }
       return;
     }
@@ -130,33 +132,33 @@ export function PrintPreviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="flex flex-row items-center justify-between px-4 py-3 border-b shrink-0">
-          <DialogTitle className="text-base">{title}</DialogTitle>
+          <DialogTitle className="text-base">{t(title)}</DialogTitle>
           <div className="flex items-center gap-2">
             {!soloPdf && <Button
               size="sm"
               variant="outline"
               onClick={handleDownload}
               disabled={!ready}
-              aria-label="Scarica documento"
+              aria-label={t("Scarica documento")}
             >
               <Download className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              Scarica
+              {t("Scarica")}
             </Button>}
             <Button
               size="sm"
               onClick={() => void handlePrint()}
               disabled={!ready || attesaImmagini}
-              aria-label={soloPdf ? "Stampa o salva PDF" : "Stampa documento"}
+              aria-label={soloPdf ? t("Stampa o salva PDF") : t("Stampa documento")}
             >
               <Printer className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              {attesaImmagini ? "Carico le foto…" : soloPdf ? "Stampa o salva PDF" : "Stampa"}
+              {attesaImmagini ? t("Carico le foto…") : soloPdf ? t("Stampa o salva PDF") : t("Stampa")}
             </Button>
             <Button
               size="icon"
               variant="ghost"
               className="h-8 w-8"
               onClick={() => onOpenChange(false)}
-              aria-label="Chiudi anteprima"
+              aria-label={t("Chiudi anteprima")}
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -166,12 +168,12 @@ export function PrintPreviewModal({
         <div className="flex-1 relative bg-muted/20">
           {!ready && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" aria-label="Caricamento documento..." />
+              <span className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" aria-label={t("Caricamento documento...")} />
             </div>
           )}
           <iframe
             ref={agganciaIframe}
-            title={title}
+            title={t(title)}
             className="w-full h-full border-0"
             sandbox="allow-same-origin allow-modals allow-scripts"
           />

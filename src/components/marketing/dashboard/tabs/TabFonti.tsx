@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { fmt, fmtCur } from "@/components/marketing/dashboard/utils";
 import { usePercorsoLead, pct, pctTxt, tempo } from "@/components/marketing/dashboard/PercorsoLead";
 import type { DashboardStats, DashboardFiltersState } from "@/hooks/useMarketingDashboard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /*
  * Tab «Fonti & ROI»: per ogni fonte, i lead arrivati nel periodo e cosa ne è
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export const TabFonti = memo(function TabFonti({ filters, assignedUserIds }: Props) {
+  const t = useT();
   const { data, isLoading } = usePercorsoLead(filters, assignedUserIds);
   const isMobile = useIsMobile();
 
@@ -41,12 +43,12 @@ export const TabFonti = memo(function TabFonti({ filters, assignedUserIds }: Pro
     .sort((a, b) => b.vinti / b.arrivati - a.vinti / a.arrivati)[0];
 
   const sintesi = [
-    { label: "Lead arrivati", valore: fmt(tot.arrivati), nota: `${fonti.length} fonti` },
-    { label: "Vendite", valore: fmt(tot.vinti), nota: `${pctTxt(convTot)} dei lead` },
-    { label: "Valore venduto", valore: fmtCur(tot.valore_vinto) },
+    { label: t("Lead arrivati"), valore: fmt(tot.arrivati), nota: t("{n} fonti", { n: fonti.length }) },
+    { label: t("Vendite"), valore: fmt(tot.vinti), nota: t("{convTot} dei lead", { convTot: String(pctTxt(convTot) ?? "") }) },
+    { label: t("Valore venduto"), valore: fmtCur(tot.valore_vinto) },
     conSpesa
-      ? { label: "Spesa", valore: fmtCur(spesaTot), nota: tot.vinti > 0 ? `${fmtCur(spesaTot / tot.vinti)} per vendita` : undefined }
-      : { label: "Converte meglio", valore: migliore?.fonte ?? "—", nota: migliore ? `${pctTxt(pct(migliore.vinti, migliore.arrivati))} dei lead` : "servono almeno 10 lead" },
+      ? { label: t("Spesa"), valore: fmtCur(spesaTot), nota: tot.vinti > 0 ? t("{valore} per vendita", { valore: fmtCur(spesaTot / tot.vinti) }) : undefined }
+      : { label: t("Converte meglio"), valore: migliore?.fonte ?? "—", nota: migliore ? t("{valore} dei lead", { valore: String(pctTxt(pct(migliore.vinti, migliore.arrivati)) ?? "") }) : t("servono almeno 10 lead") },
   ];
 
   return (
@@ -64,20 +66,20 @@ export const TabFonti = memo(function TabFonti({ filters, assignedUserIds }: Pro
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <Radio className="h-4 w-4 text-muted-foreground" /> Fonti
+            <Radio className="h-4 w-4 text-muted-foreground" /> {t("Fonti")}
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Lead arrivati nel periodo, per fonte, e cosa ne è stato fino a oggi</p>
+          <p className="text-xs text-muted-foreground">{t("Lead arrivati nel periodo, per fonte, e cosa ne è stato fino a oggi")}</p>
         </CardHeader>
         <CardContent className="pt-0">
           {fonti.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nessun lead nel periodo.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("Nessun lead nel periodo.")}</p>
           ) : isMobile ? (
             <div className="space-y-1.5">
               {fonti.map((f) => (
                 <div key={f.fonte} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                   <span className="truncate font-medium">{f.fonte}</span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {fmt(f.arrivati)} lead · <b className="text-foreground">{fmt(f.vinti)}</b> vendite · {pctTxt(pct(f.vinti, f.arrivati))}
+                    {fmt(f.arrivati)} {t("lead ·")} <b className="text-foreground">{fmt(f.vinti)}</b> {t("vendite ·")} {pctTxt(pct(f.vinti, f.arrivati))}
                   </span>
                 </div>
               ))}
@@ -87,18 +89,18 @@ export const TabFonti = memo(function TabFonti({ filters, assignedUserIds }: Pro
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs">Fonte</TableHead>
+                    <TableHead className="text-xs">{t("Fonte")}</TableHead>
                     <TableHead className="whitespace-nowrap text-right text-xs">Lead</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Presi in carico</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">1° contatto</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Appuntamento</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Vendite</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Lead → vendita</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Scartati</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Valore</TableHead>
-                    {conSpesa && <TableHead className="whitespace-nowrap text-right text-xs">Spesa</TableHead>}
-                    {conSpesa && <TableHead className="whitespace-nowrap text-right text-xs">Costo/lead</TableHead>}
-                    {conSpesa && <TableHead className="whitespace-nowrap text-right text-xs">Costo/vendita</TableHead>}
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Presi in carico")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("1° contatto")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Appuntamento")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Vendite")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Lead → vendita")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Scartati")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{t("Valore")}</TableHead>
+                    {conSpesa && <TableHead className="whitespace-nowrap text-right text-xs">{t("Spesa")}</TableHead>}
+                    {conSpesa && <TableHead className="whitespace-nowrap text-right text-xs">{t("Costo/lead")}</TableHead>}
+                    {conSpesa && <TableHead className="whitespace-nowrap text-right text-xs">{t("Costo/vendita")}</TableHead>}
                     {conSpesa && <TableHead className="whitespace-nowrap text-right text-xs font-semibold">ROI</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -131,10 +133,10 @@ export const TabFonti = memo(function TabFonti({ filters, assignedUserIds }: Pro
               </Table>
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {conSpesa
-                  ? "Spesa dai costi campagna del periodo. ROI = (valore venduto − spesa) ÷ spesa."
+                  ? t("Spesa dai costi campagna del periodo. ROI = (valore venduto − spesa) ÷ spesa.")
                   : assignedUserIds
-                    ? "La spesa è della fonte, non della persona: con un commerciale scelto non si mostra."
-                    : "Nessuna spesa registrata nel periodo: aggiungi i costi delle campagne per vedere costo per lead, per vendita e ROI."}
+                    ? t("La spesa è della fonte, non della persona: con un commerciale scelto non si mostra.")
+                    : t("Nessuna spesa registrata nel periodo: aggiungi i costi delle campagne per vedere costo per lead, per vendita e ROI.")}
               </p>
             </div>
           )}

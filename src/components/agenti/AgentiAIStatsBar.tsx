@@ -1,5 +1,6 @@
 import { Bot, MessageSquare, TrendingUp, Clock, CreditCard } from "lucide-react";
 import type { AICompanyStats } from "@/types/unifiedAgent.types";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // I sei numeri stavano su una striscia bianca con bordo al 90% di luminosita':
 // su fondo bianco non si distingueva nulla e sembravano testo sparso. Ora ogni
@@ -18,7 +19,7 @@ const STAT_CONFIG = [
     key: "conv_totali" as const,
     label: "Conversazioni (30gg)",
     icon: MessageSquare,
-    format: (v: number) => v.toLocaleString("it-IT"),
+    format: (v: number) => v.toLocaleString(intlCampo()),
     color: "text-violet-600",
     bg: "bg-violet-50 ring-1 ring-inset ring-violet-100",
   },
@@ -34,7 +35,7 @@ const STAT_CONFIG = [
     key: "chat_totali" as const,
     label: "Sessioni chat (30gg)",
     icon: MessageSquare,
-    format: (v: number) => v.toLocaleString("it-IT"),
+    format: (v: number) => v.toLocaleString(intlCampo()),
     color: "text-sky-600",
     bg: "bg-sky-50 ring-1 ring-inset ring-sky-100",
   },
@@ -51,13 +52,14 @@ const STAT_CONFIG = [
     label: "Costo addebitato",
     icon: CreditCard,
     format: (v: number) =>
-      v.toLocaleString("it-IT", { style: "currency", currency: "EUR" }),
+      v.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" }),
     color: "text-slate-600",
     bg: "bg-slate-100 ring-1 ring-inset ring-slate-200",
   },
 ];
 
 export function AgentiAIStatsBar({ stats }: { stats: AICompanyStats }) {
+  const t = useT();
   return (
     // Telefono: sei numeri 2×3 a filo pagina, senza icone. Da 768 senza il
     // px-6 che si sommava al margine del layout.
@@ -83,7 +85,7 @@ export function AgentiAIStatsBar({ stats }: { stats: AICompanyStats }) {
               </p>
               {/* Da 768 l'etichetta può andare a capo: «Chiamate (30gg)» a 1024
                   veniva tagliata anche senza icona. */}
-              <p className="truncate text-[11px] text-slate-500 md:whitespace-normal">{cfg.label}</p>
+              <p className="truncate text-[11px] text-slate-500 md:whitespace-normal">{t(cfg.label)}</p>
             </div>
           </div>
         );

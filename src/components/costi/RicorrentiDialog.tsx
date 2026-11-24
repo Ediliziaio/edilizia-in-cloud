@@ -11,7 +11,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Repeat, CalendarClock, Loader2 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -23,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface VoceRicorrente {
   id: string;
@@ -74,6 +74,7 @@ export function RicorrentiDialog({
   companyId: string | undefined;
   onGenerated: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
 
@@ -107,7 +108,7 @@ export function RicorrentiDialog({
       .update({ recurrence_auto: value })
       .eq("id", voce.id);
     if (error) {
-      toast({ title: "Errore nel salvataggio", description: error.message, variant: "destructive" });
+      toast({ title: t("Errore nel salvataggio"), description: error.message, variant: "destructive" });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["costi-ricorrenti", companyId] });
@@ -124,14 +125,14 @@ export function RicorrentiDialog({
       const created = result?.created || 0;
       toast(
         created > 0
-          ? { title: `Create ${created} nuove scadenze`, description: "Le trovi nella lista Spese, tra i previsti." }
-          : { title: "Niente da creare", description: "Le scadenze dei prossimi 3 mesi esistono già." },
+          ? { title: t("Create {created} nuove scadenze", { created: String(created ?? "") }), description: t("Le trovi nella lista Spese, tra i previsti.") }
+          : { title: t("Niente da creare"), description: t("Le scadenze dei prossimi 3 mesi esistono già.") },
       );
       onGenerated();
     } catch (err) {
       toast({
-        title: "Errore nella generazione",
-        description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
+        title: t("Errore nella generazione"),
+        description: err instanceof Error ? err.message : t("Riprova tra qualche istante."),
         variant: "destructive",
       });
     } finally {
@@ -144,11 +145,10 @@ export function RicorrentiDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Repeat className="h-4 w-4 text-orange-600" /> Spese ricorrenti
+            <Repeat className="h-4 w-4 text-orange-600" /> {t("Spese ricorrenti")}
           </DialogTitle>
           <DialogDescription>
-            Ogni voce qui sotto crea da sola le prossime scadenze (3 mesi in avanti).
-            Con l'interruttore acceso succede in automatico il 1° del mese; senza, si genera da qui.
+            {t("Ogni voce qui sotto crea da sola le prossime scadenze (3 mesi in avanti). Con l'interruttore acceso succede in automatico il 1° del mese; senza, si genera da qui.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -158,9 +158,7 @@ export function RicorrentiDialog({
           </div>
         ) : voci.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-muted-foreground">
-            Nessuna spesa ricorrente. Quando crei un costo, scegli ricorrenza
-            &ldquo;Mensile&rdquo; (o trimestrale, o annuale): da lì in poi le prossime
-            scadenze nascono da sole.
+            {t("Nessuna spesa ricorrente. Quando crei un costo, scegli ricorrenza “Mensile” (o trimestrale, o annuale): da lì in poi le prossime scadenze nascono da sole.")}
           </div>
         ) : (
           <>
@@ -174,10 +172,10 @@ export function RicorrentiDialog({
                       {v.prossima ? (
                         <span className="flex items-center gap-1">
                           <CalendarClock className="h-3 w-3" />
-                          prossima {format(new Date(v.prossima), "d MMM yyyy", { locale: it })}
+                          {t("prossima {data}", { data: format(new Date(v.prossima), "d MMM yyyy", { locale: dateFnsCampo() }) })}
                         </span>
                       ) : (
-                        <Badge variant="outline" className="h-4 px-1 text-[10px]">terminata</Badge>
+                        <Badge variant="outline" className="h-4 px-1 text-[10px]">{t("terminata")}</Badge>
                       )}
                       {v.category && <span className="truncate">· {v.category}</span>}
                     </p>
@@ -194,9 +192,9 @@ export function RicorrentiDialog({
                     <Switch
                       checked={v.recurrence_auto}
                       onCheckedChange={(val) => toggleAuto(v, val)}
-                      aria-label={`Generazione automatica per ${v.name}`}
+                      aria-label={t("Generazione automatica per {name}", { name: String(v.name ?? "") })}
                     />
-                    <span className="text-[10px] text-muted-foreground">auto</span>
+                    <span className="text-[10px] text-muted-foreground">{t("auto")}</span>
                   </div>
                 </div>
               ))}
@@ -204,12 +202,12 @@ export function RicorrentiDialog({
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
               <p className="text-sm text-muted-foreground">
-                {voci.length} voci · valgono <strong className="text-foreground">{formatCurrency(totaleMensile)}/mese</strong>
-                {conAuto > 0 && <span> · {conAuto} in automatico</span>}
+                {t("{n} voci · valgono", { n: voci.length })} <strong className="text-foreground">{t("{importo}/mese", { importo: formatCurrency(totaleMensile) })}</strong>
+                {conAuto > 0 && <span>{" "}{t("· {conAuto} in automatico", { conAuto: String(conAuto ?? "") })}</span>}
               </p>
               <Button size="sm" onClick={generaOra} disabled={generating} className="gap-1.5">
                 {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Repeat className="h-4 w-4" />}
-                {generating ? "Generazione..." : "Genera le prossime scadenze"}
+                {generating ? t("Generazione...") : t("Genera le prossime scadenze")}
               </Button>
             </div>
           </>

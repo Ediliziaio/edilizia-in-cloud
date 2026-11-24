@@ -24,6 +24,7 @@ import { wizardDraftFingerprint } from "@/lib/preventivi/wizardAiDraft";
 import { supabase } from "@/integrations/supabase/client";
 import type { SrProgettoDetail } from "@/types/serramenti";
 import { nativeCatalogueCandidates } from "../../../supabase/functions/_shared/quoteNative";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function SerramentiConversationalAiDialog({
   detail,
@@ -34,6 +35,7 @@ export default function SerramentiConversationalAiDialog({
   onClose: () => void;
   onInserted?: (id: string) => void;
 }) {
+  const tr = useT();
   const [base] = useState(() => structuredClone(detail));
   const company = useAziendaPerPdf(detail.progetto.company_id),
     template = useTemplatePdf(),
@@ -79,7 +81,7 @@ export default function SerramentiConversationalAiDialog({
     [families, tariffe.data, lines],
   );
   const title =
-    base.progetto.intervento_titolo || "Serramenti · configurazione tecnica";
+    base.progetto.intervento_titolo || tr("Serramenti · configurazione tecnica");
   const ready =
     !isLoading &&
     !linesLoading &&
@@ -112,7 +114,7 @@ export default function SerramentiConversationalAiDialog({
       context={(draft, query) => {
         if (!ready || failed)
           throw new Error(
-            "Attendi il caricamento del listino e del modello; se necessario riapri la chat.",
+            tr("Attendi il caricamento del listino e del modello; se necessario riapri la chat."),
           );
         const used = new Set([
           ...draft.serramenti.flatMap((r) => [
@@ -172,10 +174,9 @@ export default function SerramentiConversationalAiDialog({
       }}
       preview={(draft) => (
         <section className="rounded-2xl border bg-white p-3">
-          <h2 className="font-semibold">Anteprima del modello Serramenti</h2>
+          <h2 className="font-semibold">{tr("Anteprima del modello Serramenti")}</h2>
           <p className="my-2 text-xs text-slate-500">
-            Stesso PDF del wizard, incluse foto, disegni e schede del modello
-            scelto.
+            {tr("Stesso PDF del wizard, incluse foto, disegni e schede del modello scelto.")}
           </p>
           {ready && !failed ? (
             <div className="h-[65dvh]">
@@ -200,8 +201,8 @@ export default function SerramentiConversationalAiDialog({
           ) : (
             <p role="status">
               {failed
-                ? "Modello o listino non disponibili: riprova."
-                : "Carico modello e listino…"}
+                ? tr("Modello o listino non disponibili: riprova.")
+                : tr("Carico modello e listino…")}
             </p>
           )}
         </section>
@@ -229,27 +230,14 @@ export default function SerramentiConversationalAiDialog({
               {r.q} × {r.title}
             </li>
           ))}
-          <li>
-            {
-              base.serramenti.filter(
+          <li>{tr("{serramenti} serramenti rimossi · {accessori} accessori rimossi · {servizi} servizi rimossi", { serramenti: base.serramenti.filter(
                 (r) => !draft.serramenti.some((n) => n.id === r.id),
-              ).length
-            }{" "}
-            serramenti rimossi ·{" "}
-            {
-              base.accessori.filter(
+              ).length, accessori: base.accessori.filter(
                 (r) => !draft.accessori.some((n) => n.id === r.id),
-              ).length
-            }{" "}
-            accessori rimossi ·{" "}
-            {
-              base.servizi.filter(
+              ).length, servizi: base.servizi.filter(
                 (r) => !draft.servizi.some((n) => n.id === r.id),
-              ).length
-            }{" "}
-            servizi rimossi
-          </li>
-          <li>Cliente, IVA, condizioni e foto del progetto invariati.</li>
+              ).length })}</li>
+          <li>{tr("Cliente, IVA, condizioni e foto del progetto invariati.")}</li>
         </ul>
       )}
       onCommit={async (draft) => {
@@ -259,7 +247,7 @@ export default function SerramentiConversationalAiDialog({
           }) > 0
         )
           throw new Error(
-            "Attendi il salvataggio in corso nel wizard prima di applicare la distinta.",
+            tr("Attendi il salvataggio in corso nel wizard prima di applicare la distinta."),
           );
         await saveLocalSrConversation(
           (name, args) => supabase.rpc(name as never, args as never),

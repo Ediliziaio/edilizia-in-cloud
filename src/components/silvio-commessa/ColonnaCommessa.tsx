@@ -52,6 +52,7 @@ import {
 } from "./presentazione";
 import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
 import { daFareSubito, eraDaFare, scadenzaPassata } from "../../../shared/silvio-commessa/partenza.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORI_STATO: Record<Stato, string> = {
   fatto: "text-emerald-700 bg-emerald-50 border-emerald-200",
@@ -72,22 +73,24 @@ function Segno({ stato }: { stato: Stato }) {
 
 /** «Apri il documento · pagina 4»: c'è solo se la fonte è un documento che si può riaprire. */
 function ApriDocumento({ fonte, onApri }: { fonte: Fonte; onApri?: (() => void) | null }) {
+  const t = useT();
   if (!onApri) return null;
   const pagina = paginaCitata(fonte.dove);
   return (
     <Button type="button" size="sm" variant="outline" className="mt-2 h-11 gap-1 bg-white text-xs lg:h-7 lg:text-[11px]" onClick={onApri}>
-      <FileSearch className="h-3.5 w-3.5" aria-hidden />{pagina ? `Apri il documento a pagina ${pagina}` : "Apri il documento"}
+      <FileSearch className="h-3.5 w-3.5" aria-hidden />{pagina ? t("Apri il documento a pagina {pagina}", { pagina: String(pagina ?? "") }) : t("Apri il documento")}
     </Button>
   );
 }
 
 function DaDove({ v, onApri }: { v: Valore; onApri?: (() => void) | null }) {
+  const t = useT();
   const f = v.fonte;
   return (
     <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs lg:text-[11px] text-slate-700">
-      <p><span className="font-medium">Da:</span> {f.etichetta}{f.dove ? `, ${f.dove}` : ""}</p>
+      <p><span className="font-medium">{t("Da:")}</span> {f.etichetta}{f.dove ? `, ${f.dove}` : ""}</p>
       {f.citazione && <blockquote className="mt-1 border-l-2 border-orange-300 pl-2 italic">«{f.citazione}»</blockquote>}
-      {f.tipo !== "persona" && <p className="mt-1 text-slate-500">Silvio ne è sicuro al {Math.round(v.fiducia * 100)} %</p>}
+      {f.tipo !== "persona" && <p className="mt-1 text-slate-500">{t("Silvio ne è sicuro al {valore} %", { valore: Math.round(v.fiducia * 100) })}</p>}
       {v.nota && <p className="mt-1 text-slate-500">{v.nota}</p>}
       <ApriDocumento fonte={f} onApri={onApri} />
     </div>
@@ -107,6 +110,7 @@ const valoreDelCampo = (tipo: ReturnType<typeof tipoCampo>, s: string | boolean)
 function ModificaCampi({ v, attuale, onSalva, onAnnulla }: {
   v: Variabile; attuale: unknown; onSalva: (valore: unknown) => void; onAnnulla: () => void;
 }) {
+  const t = useT();
   const colonne = v.colonne.filter((c) => !/_id$|_at$|_il$/.test(c) || /_date$/.test(c));
   const iniziale = (c: string): string | boolean => {
     const x = colonne.length === 1 ? attuale : (attuale as Record<string, unknown> | null)?.[c];
@@ -140,7 +144,7 @@ function ModificaCampi({ v, attuale, onSalva, onAnnulla }: {
               <label htmlFor={id} className="text-xs lg:text-[11px] font-medium text-slate-600">{etichetta}</label>
               <UniformSelect id={id} autoFocus={i === 0} value={String(valori[c])} onChange={(e) => setValori({ ...valori, [c]: e.target.value })}
                 className="h-11 w-full rounded-md border border-input bg-background px-2 text-sm lg:h-9 lg:text-[13px]">
-                <option value="">Scegli…</option>
+                <option value="">{t("Scegli…")}</option>
                 {SCELTE[c].map((o) => <option key={o.valore} value={o.valore}>{o.nome}</option>)}
               </UniformSelect>
             </div>
@@ -165,14 +169,15 @@ function ModificaCampi({ v, attuale, onSalva, onAnnulla }: {
         );
       })}
       <div className="flex gap-2">
-        <Button type="submit" size="sm" className="h-11 lg:h-9">Salva</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>Lascia com'era</Button>
+        <Button type="submit" size="sm" className="h-11 lg:h-9">{t("Salva")}</Button>
+        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>{t("Lascia com'era")}</Button>
       </div>
     </form>
   );
 }
 
 function ModificaFasi({ fasi, onSalva, onAnnulla }: { fasi: FaseDelPiano[]; onSalva: (f: FaseDelPiano[]) => void; onAnnulla: () => void }) {
+  const t = useT();
   const [righe, setRighe] = useState<FaseDelPiano[]>(() => fasi.map((f) => ({ ...f })));
   const cambia = (i: number, p: Partial<FaseDelPiano>) => setRighe(righe.map((r, j) => (j === i ? { ...r, ...p } : r)));
   return (
@@ -182,18 +187,18 @@ function ModificaFasi({ fasi, onSalva, onAnnulla }: { fasi: FaseDelPiano[]; onSa
           <li key={i} className="grid grid-cols-2 items-end gap-2 rounded-md border bg-white p-2 sm:grid-cols-[1fr_8.5rem_8.5rem_auto]">
             {/* Sul telefono il nome ha tutta la riga, e le due date dicono quale è quale. */}
             <div className="col-span-2 flex gap-2 sm:contents">
-              <Input aria-label={`Nome della fase ${i + 1}`} value={r.name} onChange={(e) => cambia(i, { name: e.target.value })} className="h-11 min-w-0 flex-1 lg:h-9" />
-              <Button type="button" size="icon" variant="ghost" className="h-11 w-11 shrink-0 sm:order-last lg:h-9 lg:w-9" aria-label={`Togli la fase ${i + 1}`}
+              <Input aria-label={t("Nome della fase {n}", { n: i + 1 })} value={r.name} onChange={(e) => cambia(i, { name: e.target.value })} className="h-11 min-w-0 flex-1 lg:h-9" />
+              <Button type="button" size="icon" variant="ghost" className="h-11 w-11 shrink-0 sm:order-last lg:h-9 lg:w-9" aria-label={t("Togli la fase {nome}", { nome: i + 1 })}
                 onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
             </div>
             <div className="min-w-0 space-y-0.5 text-xs text-slate-600 lg:text-[11px]">
-              <span aria-hidden>Inizio</span>
-              <Input aria-label={`Inizio della fase ${i + 1}`} type="date" value={r.start_date ?? ""} className="h-11 px-2 lg:h-9"
+              <span aria-hidden>{t("Inizio")}</span>
+              <Input aria-label={t("Inizio della fase {i}", { i: i + 1 })} type="date" value={r.start_date ?? ""} className="h-11 px-2 lg:h-9"
                 onChange={(e) => cambia(i, { start_date: e.target.value || null })} />
             </div>
             <div className="min-w-0 space-y-0.5 text-xs text-slate-600 lg:text-[11px]">
-              <span aria-hidden>Fine</span>
-              <Input aria-label={`Fine della fase ${i + 1}`} type="date" value={r.end_date ?? ""} className="h-11 px-2 lg:h-9"
+              <span aria-hidden>{t("Fine")}</span>
+              <Input aria-label={t("Fine della fase {i}", { i: i + 1 })} type="date" value={r.end_date ?? ""} className="h-11 px-2 lg:h-9"
                 onChange={(e) => cambia(i, { end_date: e.target.value || null })} />
             </div>
           </li>
@@ -201,16 +206,17 @@ function ModificaFasi({ fasi, onSalva, onAnnulla }: { fasi: FaseDelPiano[]; onSa
       </ol>
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" className="h-11 gap-1 lg:h-9" onClick={() => setRighe([...righe, { name: "" }])}>
-          <Plus className="h-4 w-4" aria-hidden />Aggiungi una fase
+          <Plus className="h-4 w-4" aria-hidden />{t("Aggiungi una fase")}
         </Button>
-        <Button type="submit" size="sm" className="h-11 lg:h-9">Salva</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>Lascia com'era</Button>
+        <Button type="submit" size="sm" className="h-11 lg:h-9">{t("Salva")}</Button>
+        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>{t("Lascia com'era")}</Button>
       </div>
     </form>
   );
 }
 
 function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSalva: (r: RataDelPiano[]) => void; onAnnulla: () => void }) {
+  const t = useT();
   const [righe, setRighe] = useState(() => rate.map((r) => ({ ...r, testo: r.amount ? r.amount.toLocaleString("it-IT", { useGrouping: false }) : "" })));
   const cambia = (i: number, p: Partial<(typeof righe)[number]>) => setRighe(righe.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const salva = () => onSalva(righe
@@ -222,13 +228,13 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
       <ol className="space-y-2">
         {righe.map((r, i) => (
           <li key={i} className="grid grid-cols-[1fr_7rem_auto] gap-2">
-            <Input aria-label={`Nome della rata ${i + 1}`} value={r.label} onChange={(e) => cambia(i, { label: e.target.value })} className="col-span-2 h-11 max-sm:order-1 sm:col-span-1 lg:h-9" />
-            <Input aria-label={`Importo della rata ${i + 1}`} inputMode="decimal" value={r.testo} placeholder={r.percent != null ? `${r.percent} %` : undefined}
+            <Input aria-label={t("Nome della rata {n}", { n: i + 1 })} value={r.label} onChange={(e) => cambia(i, { label: e.target.value })} className="col-span-2 h-11 max-sm:order-1 sm:col-span-1 lg:h-9" />
+            <Input aria-label={t("Importo della rata {n}", { n: i + 1 })} inputMode="decimal" value={r.testo} placeholder={r.percent != null ? `${r.percent} %` : undefined}
               onChange={(e) => cambia(i, { testo: e.target.value })} className="col-span-3 h-11 max-sm:order-3 sm:col-span-1 lg:h-9" />
-            <Button type="button" size="icon" variant="ghost" className="h-11 w-11 max-sm:order-2 lg:h-9 lg:w-9" aria-label={`Togli la rata ${i + 1}`}
+            <Button type="button" size="icon" variant="ghost" className="h-11 w-11 max-sm:order-2 lg:h-9 lg:w-9" aria-label={t("Togli la rata {nome}", { nome: i + 1 })}
               onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
-            <label className="col-span-3 text-xs text-slate-600 max-sm:order-4">Scadenza della rata
-              <Input type="date" aria-label={`Scadenza della rata ${i + 1}`} value={r.expected_date ?? ""}
+            <label className="col-span-3 text-xs text-slate-600 max-sm:order-4">{t("Scadenza della rata")}
+              <Input type="date" aria-label={t("Scadenza della rata {i}", { i: i + 1 })} value={r.expected_date ?? ""}
                 onChange={(e) => cambia(i, { expected_date: e.target.value || null })} className="mt-1 h-11 lg:h-9" />
             </label>
           </li>
@@ -237,10 +243,10 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" className="h-11 gap-1 lg:h-9"
           onClick={() => setRighe([...righe, { label: `Rata ${righe.length + 1}`, type: "deposit", amount: 0, testo: "" }])}>
-          <Plus className="h-4 w-4" aria-hidden />Aggiungi una rata
+          <Plus className="h-4 w-4" aria-hidden />{t("Aggiungi una rata")}
         </Button>
-        <Button type="submit" size="sm" className="h-11 lg:h-9">Salva</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>Lascia com'era</Button>
+        <Button type="submit" size="sm" className="h-11 lg:h-9">{t("Salva")}</Button>
+        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>{t("Lascia com'era")}</Button>
       </div>
     </form>
   );
@@ -250,6 +256,7 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
 export function SceltaCliente({ companyId, piano, onScegli }: {
   companyId: string; piano: PianoCommessa; onScegli: (id: string, nome: string, cliente?: CompanyCustomer) => void;
 }) {
+  const t = useT();
   const { data: clienti = [] } = useCompanyCustomers(companyId);
   const [nuovo, setNuovo] = useState(false);
   const id = useId();
@@ -259,14 +266,14 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
   const indirizzo = piano.aree.cliente?.["cliente.client_address"]?.valore;
   return (
     <div className="mt-2 space-y-2">
-      <label htmlFor={id} className="text-xs lg:text-[11px] font-medium text-slate-600">Cliente del gestionale</label>
+      <label htmlFor={id} className="text-xs lg:text-[11px] font-medium text-slate-600">{t("Cliente del gestionale")}</label>
       <div className="flex min-w-0 gap-2 [&_button[role=combobox]]:h-11 lg:[&_button[role=combobox]]:h-9">
         <ClienteCombobox id={id} clienti={clienti} value={typeof scelto === "string" ? scelto : ""} onChange={(v) => {
           const c = clienti.find((x) => x.id === v);
           onScegli(v, c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "", c);
         }} />
         <Button type="button" variant="outline" size="sm" className="h-11 gap-1 lg:h-9" onClick={() => setNuovo(true)}>
-          <UserPlus className="h-4 w-4" aria-hidden />Nuovo
+          <UserPlus className="h-4 w-4" aria-hidden />{t("Nuovo")}
         </Button>
       </div>
       {nuovo && (
@@ -284,22 +291,25 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
 }
 
 function NomeCliente({ companyId, id }: { companyId: string; id: string }) {
+  const t = useT();
   const { data: clienti = [] } = useCompanyCustomers(companyId);
   const c = clienti.find((x) => x.id === id);
-  return <>{c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "cliente del gestionale collegato"}</>;
+  return <>{c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : t("cliente del gestionale collegato")}</>;
 }
 
 /** Il nome di una persona dello staff: mai da `profiles` grezzo, dove ci sono anche i clienti. */
 export function NomeStaff({ companyId, id }: { companyId: string; id: string }) {
+  const t = useT();
   const { data: staff = [] } = useCompanyStaffUsers(companyId);
   const p = staff.find((x) => x.id === id);
-  return <>{p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.email : "persona dello staff"}</>;
+  return <>{p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.email : t("persona dello staff")}</>;
 }
 
 /** Il nome della sede scelta: il valore è il suo id. */
 export function NomeSede({ id }: { id: string }) {
+  const t = useT();
   const { data: sedi = [] } = useSediList();
-  return <>{sedi.find((s) => s.id === id)?.nome ?? "sede scelta"}</>;
+  return <>{sedi.find((s) => s.id === id)?.nome ?? t("sede scelta")}</>;
 }
 
 // ── Una riga ────────────────────────────────────────────────────────────────
@@ -313,27 +323,28 @@ interface ElementoRisorsa {
   righe?: unknown[];
 }
 
-function rigaRisorsa(chiave: string, x: ElementoRisorsa, vedeCosti: boolean): { titolo: string; dettaglio: string } {
+function rigaRisorsa(chiave: string, x: ElementoRisorsa, vedeCosti: boolean, t: ReturnType<typeof useT>): { titolo: string; dettaglio: string } {
   const periodo = x.dal ? `${dataBreve(x.dal, false)}${x.al && x.al !== x.dal ? ` → ${dataBreve(x.al, false)}` : ""}` : "";
   switch (chiave) {
-    case "persone.squadra": return { titolo: x.nome ?? "Persona", dettaglio: [x.fase, periodo].filter(Boolean).join(" · ") };
-    case "ditte.assegnate": return { titolo: x.nome ?? "Ditta", dettaglio: [x.fase, vedeCosti && x.costo_previsto ? euro(x.costo_previsto) : ""].filter(Boolean).join(" · ") };
-    case "mezzi.allocazioni": return { titolo: x.nome ?? "Mezzo", dettaglio: [(x.fasi ?? []).join(", "), periodo, quantitaMezzo(x)].filter(Boolean).join(" · ") };
+    case "persone.squadra": return { titolo: x.nome ?? t("Persona"), dettaglio: [x.fase, periodo].filter(Boolean).join(" · ") };
+    case "ditte.assegnate": return { titolo: x.nome ?? t("Ditta"), dettaglio: [x.fase, vedeCosti && x.costo_previsto ? euro(x.costo_previsto) : ""].filter(Boolean).join(" · ") };
+    case "mezzi.allocazioni": return { titolo: x.nome ?? t("Mezzo"), dettaglio: [(x.fasi ?? []).join(", "), periodo, quantitaMezzo(x)].filter(Boolean).join(" · ") };
     case "materiali.acquisti": return {
-      titolo: x.fornitore ?? "Fornitore",
-      dettaglio: [x.fase, `${x.righe?.length ?? 0} voci`, !x.data_ordine ? ""
-        : scadenzaPassata(x.data_ordine, oggiInItalia()) ? `da ordinare subito: ${eraDaFare(x.data_ordine)}` : `ordinare entro ${dataBreve(x.data_ordine, false)}`].filter(Boolean).join(" · "),
+      titolo: x.fornitore ?? t("Fornitore"),
+      dettaglio: [x.fase, t("{n} voci", { n: x.righe?.length ?? 0 }), !x.data_ordine ? ""
+        : scadenzaPassata(x.data_ordine, oggiInItalia()) ? t("da ordinare subito: {quando}", { quando: eraDaFare(x.data_ordine) }) : t("ordinare entro {data}", { data: dataBreve(x.data_ordine, false) })].filter(Boolean).join(" · "),
     };
-    default: return { titolo: x.nome ?? "Contratto", dettaglio: [(x.fasi ?? []).join(", "), vedeCosti && x.importo ? euro(x.importo) : "", periodo].filter(Boolean).join(" · ") };
+    default: return { titolo: x.nome ?? t("Contratto"), dettaglio: [(x.fasi ?? []).join(", "), vedeCosti && x.importo ? euro(x.importo) : "", periodo].filter(Boolean).join(" · ") };
   }
 }
 
 function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; valore: unknown; onTogli?: (indice: number) => void; vedeCosti: boolean }) {
+  const t = useT();
   if (ELENCHI_RISORSE.has(chiave) && Array.isArray(valore)) {
     return (
       <ul className="mt-1 space-y-1 text-xs lg:text-[11px]">
         {(valore as ElementoRisorsa[]).map((x, i) => {
-          const r = rigaRisorsa(chiave, x, vedeCosti);
+          const r = rigaRisorsa(chiave, x, vedeCosti, t);
           const ko = x.stato === "attenzione";
           return (
             <li key={i} data-stato={ko ? "attenzione" : "proposta"} className={cn("rounded-md px-1.5 py-1", ko && "bg-red-50")}>
@@ -347,8 +358,8 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
                   {x.avviso && <p className="min-w-0 flex-1 text-red-700">{x.avviso}</p>}
                   {onTogli && (
                     <Button type="button" size="sm" variant="outline" className="h-11 border-red-200 bg-white text-xs lg:text-[11px] text-red-800 hover:bg-red-50 lg:h-7"
-                      aria-label={`Togli ${r.titolo}`} onClick={(e) => { e.stopPropagation(); onTogli(i); }}>
-                      {chiave === "persone.squadra" ? "Toglila dalla squadra" : "Toglila"}
+                      aria-label={t("Togli {nome}", { nome: String(r.titolo ?? "") })} onClick={(e) => { e.stopPropagation(); onTogli(i); }}>
+                      {chiave === "persone.squadra" ? t("Toglila dalla squadra") : t("Toglila")}
                     </Button>
                   )}
                 </div>
@@ -367,7 +378,7 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
         {(valore as { fase?: string; mesi?: string[]; motivo?: string }[]).map((a, i) => (
           <li key={i}>• <span className="font-medium">{a.fase}</span> ({(a.mesi ?? []).join(", ")}): {a.motivo}</li>
         ))}
-        <li className="text-slate-500">Regola di stagione, non una previsione: mettilo in conto nei tempi.</li>
+        <li className="text-slate-500">{t("Regola di stagione, non una previsione: mettilo in conto nei tempi.")}</li>
       </ul>
     );
   }
@@ -383,7 +394,7 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
             <li key={i}>
               <p className="flex justify-between gap-2">
                 <span className="min-w-0 break-words">• {p.titolo}</span>
-                {p.scadenza && <span className="shrink-0">entro {dataBreve(p.scadenza, false)}</span>}
+                {p.scadenza && <span className="shrink-0">{t("entro {data}", { data: String(dataBreve(p.scadenza, false) ?? "") })}</span>}
               </p>
               {p.avviso && <p className="font-medium text-amber-800">⚠ {p.avviso}</p>}
             </li>
@@ -399,7 +410,7 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
         {m.destinatario && <p className="mb-1 text-slate-500">A: {m.destinatario}</p>}
         <p className="whitespace-pre-line">{m.testo}</p>
         {m.avviso && !(m.scadenza && scadenzaPassata(m.scadenza, oggiInItalia())) && <p className="mt-1 font-medium text-amber-800">⚠ {m.avviso}</p>}
-        <p className="mt-1 font-medium text-slate-500">Bozza: Silvio non la manda. La trovi nelle attività della commessa.</p>
+        <p className="mt-1 font-medium text-slate-500">{t("Bozza: Silvio non la manda. La trovi nelle attività della commessa.")}</p>
       </div>
     );
   }
@@ -408,8 +419,8 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
       <ol className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
         {(valore as FaseDelPiano[]).map((f, i) => (
           <li key={i} className="flex justify-between gap-2">
-            <span className="min-w-0 break-words">{i + 1}. {f.name}{f.sottofasi?.length ? ` · ${f.sottofasi.length} voci` : ""}</span>
-            <span className="shrink-0">{f.start_date && f.end_date ? `${dataBreve(f.start_date, false)} → ${dataBreve(f.end_date, false)}` : f.giorni ? `${f.giorni} gg` : ""}</span>
+            <span className="min-w-0 break-words">{i + 1}. {f.name}{f.sottofasi?.length ? ` · ${t("{n} voci", { n: f.sottofasi.length })}` : ""}</span>
+            <span className="shrink-0">{f.start_date && f.end_date ? `${dataBreve(f.start_date, false)} → ${dataBreve(f.end_date, false)}` : f.giorni ? t("{n} gg", { n: f.giorni }) : ""}</span>
           </li>
         ))}
       </ol>
@@ -429,7 +440,7 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
         {righe.slice(0, 6).map((r, i) => <li key={i} className="break-words">• {r.name}</li>)}
-        {righe.length > 6 && <li>e altre {righe.length - 6}</li>}
+        {righe.length > 6 && <li>{t("e altre {n}", { n: righe.length - 6 })}</li>}
       </ul>
     );
   }
@@ -465,6 +476,7 @@ interface RigaProps {
 const NOTE_SEMPRE_IN_VISTA: ReadonlySet<string> = new Set(["fasi.work_start_date", "pagamenti.rate"]);
 
 function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null, clienteDaScegliere = false }: RigaProps) {
+  const t = useT();
   const { variabile: v, valore, conflitto, stato } = riga;
   const [info, setInfo] = useState(false);
   const rif = useRef<HTMLLIElement>(null);
@@ -490,11 +502,11 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
           ? <NomeSede id={valore.valore} />
           : testoValore(v.chiave, valore.valore, vedeCosti))
     : v.chiave === "cliente.customer_id" && piano.aree.cliente?.["cliente.nome"]
-      ? (clienteDaScegliere ? "non è nel gestionale: sceglilo o crealo" : "da collegare: alla creazione lo cerco per nome, oppure sceglilo tu")
+      ? (clienteDaScegliere ? t("non è nel gestionale: sceglilo o crealo") : t("da collegare: alla creazione lo cerco per nome, oppure sceglilo tu"))
       // La testata dice già la fine lavori: «manca» sulla stessa schermata sarebbe falso.
       : v.chiave === "fasi.work_end_date" && fineDalleFasi
-        ? `${dataBreve(fineDalleFasi)} (segue le fasi)`
-        : "manca";
+        ? t("{data} (segue le fasi)", { data: dataBreve(fineDalleFasi) })
+        : t("manca");
 
   const apriDi = (f: Fonte) => apriFonte?.(f) ?? null;
 
@@ -512,12 +524,12 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
             {v.etichetta}
             {daGuardare && (
               <span className="inline-flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 text-[11px] font-medium text-orange-800">
-                <MessageSquare className="h-3 w-3" aria-hidden />cambiato in chat
+                <MessageSquare className="h-3 w-3" aria-hidden />{t("cambiato in chat")}
               </span>
             )}
             {bloccata && (
-              <span className="inline-flex items-center gap-0.5 text-slate-400" title="Già nella commessa: si cambia dalla sua pagina">
-                <Lock className="h-3 w-3" aria-hidden /><span className="sr-only">(già nella commessa, non si cambia qui)</span>
+              <span className="inline-flex items-center gap-0.5 text-slate-400" title={t("Già nella commessa: si cambia dalla sua pagina")}>
+                <Lock className="h-3 w-3" aria-hidden /><span className="sr-only">{t("(già nella commessa, non si cambia qui)")}</span>
               </span>
             )}
           </p>
@@ -533,13 +545,13 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
         <div className="flex shrink-0 items-center">
           {valore && stato !== "manca" && !senzaFonte && (
             <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
-              aria-expanded={info} aria-controls={idInfo} aria-label={`Da dove viene «${v.etichetta}»`} onClick={() => setInfo(!info)}>
+              aria-expanded={info} aria-controls={idInfo} aria-label={t("Da dove viene «{etichetta}»", { etichetta: String(v.etichetta ?? "") })} onClick={() => setInfo(!info)}>
               <Info className="h-4 w-4" />
             </button>
           )}
           {modo !== "no" && !conflitto && (
             <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
-              aria-label={`Modifica «${v.etichetta}»`} aria-expanded={aperta} onClick={() => onApri(aperta ? null : v.chiave)}>
+              aria-label={t("Modifica «{name}»", { name: String(v.etichetta ?? "") })} aria-expanded={aperta} onClick={() => onApri(aperta ? null : v.chiave)}>
               <Pencil className="h-4 w-4" />
             </button>
           )}
@@ -548,7 +560,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
       {info && valore && <div id={idInfo}><DaDove v={valore} onApri={apriDi(valore.fonte)} /></div>}
 
       {conflitto && (
-        <div className="mt-2 space-y-2" role="group" aria-label={`Scegli quale «${v.etichetta}» tenere`}>
+        <div className="mt-2 space-y-2" role="group" aria-label={t("Scegli quale «{etichetta}» tenere", { etichetta: String(v.etichetta ?? "") })}>
           {conflitto.nota && !senzaFonte && <p className="text-xs lg:text-[11px] font-medium text-amber-800">{conflitto.nota}</p>}
           {conflitto.candidati.map((c, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-white p-2">
@@ -560,13 +572,13 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
                   <button type="button" className="mt-0.5 inline-flex min-h-11 items-center gap-1 text-xs lg:min-h-0 lg:text-[11px] font-medium text-orange-700 underline-offset-2 hover:underline"
                     onClick={() => apriDi(c.fonte)?.()}>
                     <FileSearch className="h-3 w-3" aria-hidden />
-                    {paginaCitata(c.fonte.dove) ? `Vedi a pagina ${paginaCitata(c.fonte.dove)}` : "Vedi nel documento"}
+                    {paginaCitata(c.fonte.dove) ? t("Vedi a pagina {dove}", { dove: String(paginaCitata(c.fonte.dove) ?? "") }) : t("Vedi nel documento")}
                   </button>
                 )}
               </div>
               <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8"
                 onClick={() => onModifica({ tipo: "scegli_fonte", area: v.area, chiave: v.chiave, fonte: c.fonte.tipo, idFonte: c.fonte.id ?? null, etichettaFonte: c.fonte.etichetta })}>
-                Tieni questo
+                {t("Tieni questo")}
               </Button>
             </div>
           ))}
@@ -575,7 +587,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 
       {fattoDaSolo(riga, autonomia) && !aperta && (
         <p className="mt-2 text-xs lg:text-[11px] text-emerald-800">
-          Silvio lo fa da solo: l'hai scelto in Impostazioni → Silvio e le commesse. Se non va, toglilo con la matita.
+          {t("Silvio lo fa da solo: l'hai scelto in Impostazioni → Silvio e le commesse. Se non va, toglilo con la matita.")}
         </p>
       )}
 
@@ -584,7 +596,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
           <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-amber-900">{testoConferma(riga, autonomia, { fineDalleFasi, vedeCosti })}</p>
           <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8"
             onClick={() => onModifica({ tipo: "cambia_valore", area: v.area, chiave: v.chiave, valore: valore!.valore })}>
-            Va bene
+            {t("Va bene")}
           </Button>
         </div>
       )}
@@ -617,16 +629,16 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
                         <span className="min-w-0 flex-1 truncate">{(() => {
                           const e = (x ?? {}) as { name?: string; label?: string; nome?: string; fornitore?: string; titolo?: string; fase?: string | null };
                           const nome = e.name ?? e.label ?? e.nome ?? e.fornitore ?? e.titolo;
-                          return nome ? `${nome}${e.fase && nome !== e.fase ? ` · ${e.fase}` : ""}` : e.fase ?? `Elemento ${i + 1}`;
+                          return nome ? `${nome}${e.fase && nome !== e.fase ? ` · ${e.fase}` : ""}` : e.fase ?? t("Elemento {n}", { n: i + 1 });
                         })()}</span>
-                        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-7" onClick={() => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice: i })}>Togli</Button>
+                        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-7" onClick={() => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice: i })}>{t("Togli")}</Button>
                       </li>
                     ))}
                   </ul>
                 )}
                 <div className="flex gap-2">
-                  {attuale != null && <Button type="button" size="sm" variant="outline" className="h-11 lg:h-9" onClick={() => cambia(null)}>Togli tutto</Button>}
-                  <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={chiudi}>Chiudi</Button>
+                  {attuale != null && <Button type="button" size="sm" variant="outline" className="h-11 lg:h-9" onClick={() => cambia(null)}>{t("Togli tutto")}</Button>}
+                  <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={chiudi}>{t("Chiudi")}</Button>
                 </div>
               </div>
             );
@@ -641,10 +653,11 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 
 /** Importo, IVA, rate, inizio e fine in una riga, col segno di quanto fidarsi: un tocco porta al dato. */
 export function RiepilogoNumeri({ numeri, onTocca }: { numeri: readonly NumeroDaControllare[]; onTocca: (n: NumeroDaControllare) => void }) {
+  const t = useT();
   if (!numeri.length) return null;
   return (
-    <section aria-label="Da controllare" className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
-      <h3 className="text-xs font-semibold text-slate-900 lg:text-[11px]">Da controllare</h3>
+    <section aria-label={t("Da controllare")} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <h3 className="text-xs font-semibold text-slate-900 lg:text-[11px]">{t("Da controllare")}</h3>
       <ul className="mt-1 flex flex-wrap gap-1.5">
         {numeri.map((n) => (
           <li key={n.chiave}>
@@ -655,7 +668,7 @@ export function RiepilogoNumeri({ numeri, onTocca }: { numeri: readonly NumeroDa
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-xs text-slate-500 lg:text-[11px]">✓ letto dal documento con la prova · ✋ proposto: guardalo</p>
+      <p className="mt-1 text-xs text-slate-500 lg:text-[11px]">{t("✓ letto dal documento con la prova · ✋ proposto: guardalo")}</p>
     </section>
   );
 }
@@ -671,6 +684,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
   d: DaDecidere; piano: PianoCommessa; onModifica: (m: Modifica | Modifica[]) => void;
   onApri: (chiave: string) => void; onVai: (chiave: string) => void; contesto: ContestoRisorse | null; vedeImporti: boolean; vedeCosti: boolean;
 }) {
+  const t = useT();
   if (!d.totale && !d.avvisi.length) return null;
   const div = divisioneDaDecidere(d);
   const tutte = accettaProposte(piano, div.altreProposte.map((p) => p.chiave));
@@ -678,7 +692,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
     <section aria-labelledby="silvio-da-decidere" data-chiave="silvio-da-decidere"
       className={cn("rounded-xl border p-2.5 shadow-sm", div.subito ? "border-amber-300 bg-amber-50/70" : "border-slate-200 bg-white")}>
       <h3 id="silvio-da-decidere" className="flex items-center gap-2 text-sm lg:text-[13px] font-semibold text-slate-900">
-        {div.subito > 0 && <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />}{div.subito ? "Da decidere" : d.totale ? "Niente di urgente" : "Da sapere"}
+        {div.subito > 0 && <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />}{div.subito ? t("Da decidere") : d.totale ? t("Niente di urgente") : t("Da sapere")}
         {div.subito > 0 && <span className="rounded-full bg-amber-200 px-2 text-xs lg:text-[11px] font-semibold text-amber-900">{div.subito}</span>}
       </h3>
       {div.subito > 0 && (
@@ -688,7 +702,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
             const nascosto = importoNascosto(c.chiave, vedeImporti, vedeCosti);
             return (
               <li key={`c-${c.chiave}`} className="rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-                <p className="text-slate-800"><strong>{v}</strong>: i documenti non sono d'accordo. Quale tengo?</p>
+                <p className="text-slate-800"><strong>{v}</strong>{t(": i documenti non sono d'accordo. Quale tengo?")}</p>
                 {c.nota && !nascosto && !parlaDiCosti(c.chiave, vedeCosti) && <p className="mt-1 text-xs lg:text-[11px] font-medium text-amber-800">{c.nota}</p>}
                 <div className="mt-2 flex flex-wrap gap-2">
                   {c.candidati.map((x, i) => (
@@ -705,8 +719,8 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
           })}
           {d.nonTornano.map((n) => (
             <li key={`t-${n.chiave}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-              <p className="min-w-0 flex-1 basis-full text-red-800"><span aria-hidden>⚠ </span>{n.testo} <strong>{n.etichetta}</strong> resta fuori finché non torna.</p>
-              <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(n.chiave)}>Sistema</Button>
+              <p className="min-w-0 flex-1 basis-full text-red-800"><span aria-hidden>⚠ </span>{n.testo} <strong>{n.etichetta}</strong> {t("resta fuori finché non torna.")}</p>
+              <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(n.chiave)}>{t("Sistema")}</Button>
             </li>
           ))}
           {div.avvisiSoldi.map((a) => (
@@ -722,8 +736,8 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
                 <p className="text-slate-800"><strong>{p.etichetta}</strong>{x ? <>: {testoValore(p.chiave, x.valore, vedeCosti)}</> : null}</p>
                 {x?.nota && <p className="mt-0.5 text-xs lg:text-[11px] text-amber-800">{x.nota}</p>}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {conferma.length > 0 && <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8" onClick={() => onModifica(conferma)}>Va bene</Button>}
-                  <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(p.chiave)}>Vedi<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
+                  {conferma.length > 0 && <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8" onClick={() => onModifica(conferma)}>{t("Va bene")}</Button>}
+                  <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(p.chiave)}>{t("Vedi")}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
                 </div>
               </li>
             );
@@ -743,28 +757,28 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
                 </p>
                 {alternativePersona(piano, n, contesto).map((a) => (
                   <Button key={a.id} type="button" size="sm" variant="outline" className="h-11 lg:h-8"
-                    onClick={() => onModifica(sostituisciPersona(piano, n, a))}>Metti {a.nome}</Button>
+                    onClick={() => onModifica(sostituisciPersona(piano, n, a))}>{t("Metti {nome}", { nome: String(a.nome ?? "") })}</Button>
                 ))}
                 <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8"
-                  onClick={() => onModifica({ tipo: "togli", area: n.area, chiave: n.chiave, indice: n.indice })}>Toglilo</Button>
-                <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(n.chiave)}>Vedi<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
+                  onClick={() => onModifica({ tipo: "togli", area: n.area, chiave: n.chiave, indice: n.indice })}>{t("Toglilo")}</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(n.chiave)}>{t("Vedi")}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
               </li>
             ))}
             {div.altreDomande.map((v) => <RigaDomanda key={`q-${v.chiave}`} v={v} onApri={onApri} />)}
             {div.altreProposte.length > 0 && (
               <li className="rounded-lg bg-slate-50 px-2.5 py-2 text-sm lg:text-[13px]">
                 <p className="text-slate-800">
-                  {div.altreProposte.length === 1 ? "Una mia proposta aspetta un sì" : `${div.altreProposte.length} mie proposte aspettano un sì`}:
+                  {div.altreProposte.length === 1 ? t("Una mia proposta aspetta un sì") : t("{n} mie proposte aspettano un sì", { n: div.altreProposte.length })}:
                   {" "}<span className="text-slate-600">{div.altreProposte.map((p) => minuscola(p.etichetta)).join(", ")}</span>.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {tutte.length > 0 && (
                     <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onModifica(tutte)}>
-                      {div.altreProposte.length === 1 ? "Va bene" : `Va bene a tutte e ${div.altreProposte.length}`}
+                      {div.altreProposte.length === 1 ? t("Va bene") : t("Va bene a tutte e {n}", { n: div.altreProposte.length })}
                     </Button>
                   )}
                   <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(div.altreProposte[0].chiave)}>
-                    Guardale prima<ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                    {t("Guardale prima")}<ArrowRight className="h-3.5 w-3.5" aria-hidden />
                   </Button>
                 </div>
               </li>
@@ -780,10 +794,11 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
 }
 
 function RigaDomanda({ v, onApri }: { v: Variabile; onApri: (chiave: string) => void }) {
+  const t = useT();
   return (
     <li className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-      <p className="min-w-0 flex-1 text-slate-800">Manca <strong>{v.chiave === "cliente.customer_id" ? "il cliente" : minuscola(v.etichetta)}</strong>.</p>
-      <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(v.chiave)}>Aggiungi</Button>
+      <p className="min-w-0 flex-1 text-slate-800">{t("Manca")} <strong>{v.chiave === "cliente.customer_id" ? t("il cliente") : minuscola(v.etichetta)}</strong>.</p>
+      <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(v.chiave)}>{t("Aggiungi")}</Button>
     </li>
   );
 }
@@ -829,6 +844,7 @@ export function ColonnaCommessa({
   companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte, autonomia = null,
   daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null, clienteDaScegliere = false, numeri = [],
 }: ColonnaCommessaProps) {
+  const t = useT();
   const aree = useMemo(() => AREE.map((area) => {
     // Un importo che chi guarda non vede non si può nemmeno chiedere.
     const righe = righeDellArea(piano, area, completezza).filter((r) => r.stato !== "manca" || !importoNascosto(r.variabile.chiave, vedeImporti, vedeCosti));
@@ -844,8 +860,8 @@ export function ColonnaCommessa({
   if (vuota) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-sm lg:text-[13px] text-slate-600">
-        <p className="font-medium text-slate-900">Qui si compone la commessa.</p>
-        <p className="mt-1">Cliente, importo, fasi con le date, pagamenti, persone e ditte: si riempiono mentre Silvio legge. Tu controlli, correggi e crei.</p>
+        <p className="font-medium text-slate-900">{t("Qui si compone la commessa.")}</p>
+        <p className="mt-1">{t("Cliente, importo, fasi con le date, pagamenti, persone e ditte: si riempiono mentre Silvio legge. Tu controlli, correggi e crei.")}</p>
       </div>
     );
   }
@@ -856,30 +872,30 @@ export function ColonnaCommessa({
         <DaDecidereInCima d={daDecidere} piano={piano} onModifica={onModifica} contesto={contesto} vedeImporti={vedeImporti} vedeCosti={vedeCosti} onApri={(c) => onApri(c)} onVai={(c) => (onVai ?? onApri)(c)} />
       )}
       {aree.filter((a) => a.righe.length).map(({ area, righe, stato, chiusa }) => chiusa && !mostrate.has(area) ? (
-        <section key={area} aria-label={NOMI_AREE[area as Area]} className="flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-sm lg:text-[13px] shadow-sm">
+        <section key={area} aria-label={t(NOMI_AREE[area as Area])} className="flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-sm lg:text-[13px] shadow-sm">
           <Segno stato="fatto" />
-          <span className="font-semibold text-slate-900">{NOMI_AREE[area as Area]}</span>
-          <span className="min-w-0 flex-1 truncate text-xs lg:text-[11px] text-slate-500">già nella commessa</span>
+          <span className="font-semibold text-slate-900">{t(NOMI_AREE[area as Area])}</span>
+          <span className="min-w-0 flex-1 truncate text-xs lg:text-[11px] text-slate-500">{t("già nella commessa")}</span>
           <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
           <button type="button" className="min-h-11 shrink-0 rounded px-1.5 py-1 text-xs lg:min-h-0 lg:text-[11px] font-medium text-slate-600 hover:bg-slate-100"
-            aria-label={`Mostra ${NOMI_AREE[area as Area].toLowerCase()}`}
-            onClick={() => setMostrate(new Set([...mostrate, area]))}>Mostra</button>
+            aria-label={t("Mostra {nome}", { nome: t(NOMI_AREE[area as Area]).toLowerCase() })}
+            onClick={() => setMostrate(new Set([...mostrate, area]))}>{t("Mostra")}</button>
         </section>
       ) : (
-        <section key={area} aria-label={NOMI_AREE[area as Area]}
+        <section key={area} aria-label={t(NOMI_AREE[area as Area])}
           className={cn("rounded-xl border bg-white px-1.5 py-1 shadow-sm transition-colors duration-700 motion-reduce:transition-none",
             righe.some((r) => accese.has(r.variabile.chiave)) && "border-amber-300")}>
           <h3 id={`area-${area}`} className="flex items-center gap-2 px-2 pt-1 text-sm lg:text-[13px] font-semibold text-slate-900">
             {stato && <Segno stato={stato} />}
-            {NOMI_AREE[area as Area]}
+            {t(NOMI_AREE[area as Area])}
             <span className="ml-auto text-xs lg:text-[11px] font-normal text-slate-500">{righe.filter((r) => r.stato !== "manca").length}/{righe.length}</span>
           </h3>
           {/* Un'area ancora tutta da riempire sta su due righe: i nomi da toccare, non una pila di «manca». */}
           {righe.every((r) => r.stato === "manca") && !righe.some((r) => r.variabile.chiave === aperta) ? (
             <div className="flex flex-wrap items-center gap-1.5 px-2 pb-1.5 pt-1 text-xs lg:text-[11px] text-slate-500">
-              <span className="italic">manca</span>
+              <span className="italic">{t("manca")}</span>
               {righe.map((r) => (
-                <button key={r.variabile.chiave} type="button" data-chiave={r.variabile.chiave} aria-label={`Modifica «${r.variabile.etichetta}»`}
+                <button key={r.variabile.chiave} type="button" data-chiave={r.variabile.chiave} aria-label={t("Modifica «{name}»", { name: String(r.variabile.etichetta ?? "") })}
                   onClick={() => onApri(r.variabile.chiave)}
                   className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-slate-300 px-2.5 text-slate-700 hover:border-orange-300 hover:bg-orange-50 lg:min-h-7">
                   <Plus className="h-3 w-3" aria-hidden />{r.variabile.etichetta}
@@ -900,8 +916,8 @@ export function ColonnaCommessa({
       ))}
       {vuote.length > 0 && (
         <p className="px-2 text-xs lg:text-[11px] text-slate-500">
-          Ancora niente su: {vuote.map((a) => minuscola(NOMI_AREE[a.area])).join(", ")}.
-          {" "}Arrivano con le fonti, o dalle commesse passate quando ce ne sono di simili.
+          {t("Ancora niente su: {aree}.", { aree: vuote.map((a) => minuscola(t(NOMI_AREE[a.area]))).join(", ") })}
+          {" "}{t("Arrivano con le fonti, o dalle commesse passate quando ce ne sono di simili.")}
         </p>
       )}
     </div>

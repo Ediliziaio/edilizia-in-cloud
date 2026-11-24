@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ════════════════════════════════════════════════════════════════════
 // TYPES
@@ -153,6 +154,7 @@ const EXAMPLE_OFFERS: Array<{ title: string; text: string }> = [
 // ════════════════════════════════════════════════════════════════════
 
 export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, currentOffer }: Props) {
+  const t = useT();
   const fieldId = useId();
   const [offer, setOffer] = useState("");
   const [extraHint, setExtraHint] = useState("");
@@ -164,12 +166,12 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
 
   const handleGenerate = async () => {
     if (!companyId) {
-      toast.error("Azienda non selezionata");
+      toast.error(t("Azienda non selezionata"));
       return;
     }
     if (offer.trim().length < 15) {
-      toast.error("Offerta troppo corta", {
-        description: "Almeno 15 caratteri. Scrivi sconti, garanzie, tempi, materiali.",
+      toast.error(t("Offerta troppo corta"), {
+        description: t("Almeno 15 caratteri. Scrivi sconti, garanzie, tempi, materiali."),
       });
       return;
     }
@@ -186,18 +188,18 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
       if (error) throw new Error(error.message);
       const resp = data as CopywriterResponse;
       if (!resp?.ads?.length) {
-        toast.error("L'AI non ha generato annunci validi", {
-          description: "Riprova o riscrivi l'offerta in modo più chiaro.",
+        toast.error(t("L'AI non ha generato annunci validi"), {
+          description: t("Riprova o riscrivi l'offerta in modo più chiaro."),
         });
         return;
       }
       setResult(resp);
       setSelectedVariantIdx(null);
-      toast.success(`${resp.ads.length} annunci pro generati`, {
+      toast.success(t("{n} annunci pro generati", { n: resp.ads.length }), {
         description: resp.coaching?.slice(0, 100) ?? "",
       });
     } catch (e) {
-      toast.error("Errore generazione", {
+      toast.error(t("Errore generazione"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -213,28 +215,27 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           <div className="flex-1">
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <Wand2 className="h-4 w-4 text-blue-600" />
-              AI Copywriter Pro — annunci stile Dan Kennedy / Jay Abraham
+              {t("AI Copywriter Pro — annunci stile Dan Kennedy / Jay Abraham")}
             </h3>
             <p className="mt-1 text-xs text-slate-600">
-              Scrivi la <strong>tua offerta</strong> (sconti, detrazioni, garanzie, tempi, materiali).
-              L'AI scrive <strong>5 varianti di annuncio</strong> usando framework di copywriting provati.
+              {t("Scrivi la")} <strong>{t("tua offerta")}</strong> {t("(sconti, detrazioni, garanzie, tempi, materiali). L'AI scrive")} <strong>{t("5 varianti di annuncio")}</strong> {t("usando framework di copywriting provati.")}
             </p>
           </div>
         </div>
 
         <Label htmlFor={`${fieldId}-offerta`} className="mb-1 block text-xs font-semibold text-slate-700">
-          La tua offerta (sconto, promozione, garanzia, caratteristiche premium):
+          {t("La tua offerta (sconto, promozione, garanzia, caratteristiche premium):")}
         </Label>
         <Textarea
           id={`${fieldId}-offerta`}
           value={offer}
           onChange={(e) => setOffer(e.target.value.slice(0, 1500))}
-          placeholder="Es. Sconto web 30% valido fino al 31 ottobre. Bonus serramenti 65% in detrazione fiscale. Posa qualificata con installatori certificati. Made in Italy con garanzia 10 anni. Sopralluogo gratuito in 48h."
+          placeholder={t("Es. Sconto web 30% valido fino al 31 ottobre. Bonus serramenti 65% in detrazione fiscale. Posa qualificata con installatori certificati. Made in Italy con garanzia 10 anni. Sopralluogo gratuito in 48h.")}
           className="min-h-28 bg-white text-sm"
           maxLength={1500}
         />
         <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 max-md:text-[11px]">
-          <span>{offer.length}/1500 caratteri</span>
+          <span>{t("{n}/1500 caratteri", { n: offer.length })}</span>
           <button
             type="button"
             onClick={() => setShowParams((v) => !v)}
@@ -243,21 +244,21 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
             className="inline-flex items-center gap-1 text-blue-700 hover:underline"
           >
             {showParams ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            Cosa includere nell'offerta?
+            {t("Cosa includere nell'offerta?")}
           </button>
         </div>
 
         {/* Elementi educational */}
         {showParams && (
           <div id={`${fieldId}-elementi`} className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
-            <p className="mb-2 text-xs font-semibold uppercase text-blue-900">Elementi forti da inserire</p>
+            <p className="mb-2 text-xs font-semibold uppercase text-blue-900">{t("Elementi forti da inserire")}</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {OFFER_PARAMS.map((p) => (
                 <div key={p.title} className="flex items-start gap-2 rounded-lg bg-blue-50/40 p-2">
                   <span className="text-base">{p.icon}</span>
                   <div>
-                    <p className="text-xs font-semibold text-slate-950">{p.title}</p>
-                    <p className="text-[10px] italic text-slate-600 max-md:text-[11px]">{p.example}</p>
+                    <p className="text-xs font-semibold text-slate-950">{t(p.title)}</p>
+                    <p className="text-[10px] italic text-slate-600 max-md:text-[11px]">{t(p.example)}</p>
                   </div>
                 </div>
               ))}
@@ -267,7 +268,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
 
         {/* Esempi cliccabili */}
         <div className="mt-3">
-          <p className="mb-1.5 text-[11px] font-semibold text-slate-700">💡 Esempi cliccabili (parti da uno e personalizzalo):</p>
+          <p className="mb-1.5 text-[11px] font-semibold text-slate-700">{t("💡 Esempi cliccabili (parti da uno e personalizzalo):")}</p>
           <div className="grid gap-2 sm:grid-cols-3">
             {EXAMPLE_OFFERS.map((ex) => (
               <button
@@ -276,8 +277,8 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
                 onClick={() => setOffer(ex.text)}
                 className="rounded-lg border border-slate-200 bg-white p-2 text-left text-xs hover:border-blue-300 hover:bg-blue-50"
               >
-                <p className="font-semibold text-slate-950">{ex.title}</p>
-                <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500 max-md:text-[11px]">{ex.text}</p>
+                <p className="font-semibold text-slate-950">{t(ex.title)}</p>
+                <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500 max-md:text-[11px]">{t(ex.text)}</p>
               </button>
             ))}
           </div>
@@ -292,15 +293,15 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           className="mt-3 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
         >
           {showHint ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          {showHint ? "Nascondi" : "Aggiungi hint extra (stile, tono, focus)"}
+          {showHint ? t("Nascondi") : t("Aggiungi hint extra (stile, tono, focus)")}
         </button>
         {showHint && (
           <Input
             id={`${fieldId}-indicazioni`}
-            aria-label="Indicazioni aggiuntive per il testo"
+            aria-label={t("Indicazioni aggiuntive per il testo")}
             value={extraHint}
             onChange={(e) => setExtraHint(e.target.value.slice(0, 200))}
-            placeholder="Es. tono lusso premium / molto diretto / parla a clienti senza budget"
+            placeholder={t("Es. tono lusso premium / molto diretto / parla a clienti senza budget")}
             className="mt-2 bg-white"
             maxLength={200}
           />
@@ -313,9 +314,9 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           className="mt-4 w-full bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg hover:from-blue-700 hover:to-violet-700"
         >
           {generating ? (
-            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI Copywriter Pro sta scrivendo…</>
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("AI Copywriter Pro sta scrivendo…")}</>
           ) : (
-            <><Sparkles className="mr-2 h-4 w-4" /> Genera 5 annunci pubblicitari pro</>
+            <><Sparkles className="mr-2 h-4 w-4" /> {t("Genera 5 annunci pubblicitari pro")}</>
           )}
         </Button>
       </div>
@@ -327,7 +328,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           {result.coaching && (
             <Alert className="border-violet-200 bg-violet-50">
               <Quote className="h-4 w-4 text-violet-700" />
-              <AlertTitle>Coaching del Copywriter</AlertTitle>
+              <AlertTitle>{t("Coaching del Copywriter")}</AlertTitle>
               <AlertDescription className="text-xs">{result.coaching}</AlertDescription>
             </Alert>
           )}
@@ -336,7 +337,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           <div className="rounded-xl border bg-white p-3">
             <div className="mb-2 flex items-center gap-2">
               <BookOpen className="h-3.5 w-3.5 text-slate-500" />
-              <p className="text-xs font-semibold text-slate-700">5 Framework usati</p>
+              <p className="text-xs font-semibold text-slate-700">{t("5 Framework usati")}</p>
             </div>
             <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
               {(Object.keys(FRAMEWORK_INFO) as Array<keyof typeof FRAMEWORK_INFO>).map((f) => {
@@ -370,12 +371,12 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
 
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-500">
-              Annunci personalizzati per <strong>{result.company_context.name}</strong>
+              {t("Annunci personalizzati per")} <strong>{result.company_context.name}</strong>
               {result.company_context.city && <> · {result.company_context.city}</>}
-              {result.company_context.anni_attivita !== null && <> · {result.company_context.anni_attivita} anni</>}
+              {result.company_context.anni_attivita !== null && <>{" "}{t("· {anni_attivita} anni", { anni_attivita: String(result.company_context.anni_attivita ?? "") })}</>}
             </p>
             <Button variant="ghost" size="sm" onClick={() => { setResult(null); setSelectedVariantIdx(null); }}>
-              Riscrivi con offerta diversa
+              {t("Riscrivi con offerta diversa")}
             </Button>
           </div>
         </>
@@ -397,6 +398,7 @@ function AdVariantCard({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const t = useT();
   const info = FRAMEWORK_INFO[ad.framework];
   const [expanded, setExpanded] = useState(false);
 
@@ -414,26 +416,26 @@ function AdVariantCard({
             <Badge variant="outline" className={cn("text-[10px]", info.color)}>
               {info.label}
             </Badge>
-            <p className="mt-0.5 text-[9px] text-slate-500 max-md:text-[11px]">stile {info.master}</p>
+            <p className="mt-0.5 text-[9px] text-slate-500 max-md:text-[11px]">{t("stile {master}", { master: String(info.master ?? "") })}</p>
           </div>
         </div>
         <Badge variant="outline" className="text-[10px] max-md:text-[11px]">
-          {ad.cta === "GET_QUOTE" ? "Preventivo" : ad.cta === "MESSAGE_PAGE" ? "Messaggio" : ad.cta === "WHATSAPP_MESSAGE" ? "WhatsApp" : "Scopri"}
+          {ad.cta === "GET_QUOTE" ? t("Preventivo") : ad.cta === "MESSAGE_PAGE" ? t("Messaggio") : ad.cta === "WHATSAPP_MESSAGE" ? "WhatsApp" : t("Scopri")}
         </Badge>
       </header>
 
       {/* Hook in evidenza */}
       <div className="mb-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2">
-        <p className="text-[9px] font-semibold uppercase text-fuchsia-700 max-md:text-[11px]">Hook (stop-scroll)</p>
+        <p className="text-[9px] font-semibold uppercase text-fuchsia-700 max-md:text-[11px]">{t("Hook (stop-scroll)")}</p>
         <p className="text-xs font-semibold text-fuchsia-950">{ad.hook}</p>
       </div>
 
       {/* Title */}
-      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Titolo (headline)</p>
+      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500 max-md:text-[11px]">{t("Titolo (headline)")}</p>
       <p className="mb-3 text-sm font-bold text-slate-950">{ad.title}</p>
 
       {/* Primary text */}
-      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Corpo annuncio</p>
+      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500 max-md:text-[11px]">{t("Corpo annuncio")}</p>
       <p className="mb-3 text-sm leading-relaxed text-slate-700">{ad.primary_text}</p>
 
       {/* Expanded: angle + framework explain + image prompt */}
@@ -443,21 +445,21 @@ function AdVariantCard({
         className="mb-2 inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-slate-900"
       >
         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        {expanded ? "Nascondi dettagli" : "Vedi angolo + framework + visuale"}
+        {expanded ? t("Nascondi dettagli") : t("Vedi angolo + framework + visuale")}
       </button>
 
       {expanded && (
         <div className="mb-3 space-y-2 rounded-lg border bg-slate-50 p-2">
           <div className="text-[10px] max-md:text-[11px]">
-            <p className="font-semibold text-slate-700">🎯 Angolo di vendita</p>
+            <p className="font-semibold text-slate-700">{t("🎯 Angolo di vendita")}</p>
             <p className="text-slate-600">{ad.angle}</p>
           </div>
           <div className="text-[10px] max-md:text-[11px]">
-            <p className="font-semibold text-slate-700">📚 Perché funziona</p>
+            <p className="font-semibold text-slate-700">{t("📚 Perché funziona")}</p>
             <p className="text-slate-600">{ad.framework_explain}</p>
           </div>
           <div className="text-[10px] max-md:text-[11px]">
-            <p className="font-semibold text-slate-700">🎨 Prompt immagine</p>
+            <p className="font-semibold text-slate-700">{t("🎨 Prompt immagine")}</p>
             <p className="italic text-slate-600">{ad.image_prompt}</p>
           </div>
         </div>
@@ -471,9 +473,9 @@ function AdVariantCard({
         )}
       >
         {selected ? (
-          <><CheckCircle2 className="mr-2 h-4 w-4" /> Selezionato</>
+          <><CheckCircle2 className="mr-2 h-4 w-4" /> {t("Selezionato")}</>
         ) : (
-          <><Target className="mr-2 h-4 w-4" /> Usa questo annuncio</>
+          <><Target className="mr-2 h-4 w-4" /> {t("Usa questo annuncio")}</>
         )}
       </Button>
     </div>

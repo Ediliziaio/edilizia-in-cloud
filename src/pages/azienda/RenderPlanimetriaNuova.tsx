@@ -58,6 +58,7 @@ import { AnalisiTavolaImportata, ImmagineTecnica, SelettoreLivelliTecnici } from
 import { immagineVistaTecnica, leggiTavolaTecnica, verificheTavolaTecnica, type LetturaTavolaTecnica } from "@/lib/planimetrie/analisiTavola";
 import type { AreaTavola, VistaTavolaTecnica } from "@/lib/planimetrie/tavolaTecnica";
 import { nuovaPlanimetria, statoVuoto, type Livello, type Planimetria } from "../../../shared/planimetrie/modello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const RitaglioDocumentoPianta = lazy(() => import("@/components/planimetrie/RitaglioDocumentoPianta"));
 const DocumentoPiantaIngrandito = lazy(() => import("@/components/planimetrie/DocumentoPiantaIngrandito"));
@@ -154,15 +155,16 @@ export function LeggiPlanimetria({ companyId, per, fileIniziale, onSalvata }: {
 function NuovaPiantaAzienda({ companyId, modo, per, fileIniziale, onSalvata }: {
   companyId: string; modo?: ModoNuovaPianta; per: DaDove; fileIniziale?: File; onSalvata?: (id: string) => void;
 }) {
+  const t = useT();
   const [generata, setGenerata] = useState<Generata | null>(null);
   const [importata, setImportata] = useState<ImportazioneEditor | null>(null);
 
   if (importata) {
     return <EditorConSalvataggio
       companyId={companyId}
-      titoloPagina={TITOLO_NUOVA}
-      sottotitoloPagina={importata.sottotitolo ?? (importata.modello ? "Editor · Modello dal DWG"
-        : importata.documento.livelli.length > 1 ? "Editor · Tavole da ricalcare" : "Editor · Tavola da ricalcare")}
+      titoloPagina={t(TITOLO_NUOVA)}
+      sottotitoloPagina={importata.sottotitolo ?? (importata.modello ? t("Editor · Modello dal DWG")
+        : importata.documento.livelli.length > 1 ? t("Editor · Tavole da ricalcare") : t("Editor · Tavola da ricalcare"))}
       indietro={onSalvata ? undefined : per.percorso()}
       tornaDopoSalvataggio={per.indietro}
       collegamenti={importata.collegamenti ? { ...importata.collegamenti, ...per.collegamenti } : per.collegamenti}
@@ -176,27 +178,27 @@ function NuovaPiantaAzienda({ companyId, modo, per, fileIniziale, onSalvata }: {
     />;
   }
   if (modo === "disegno") {
-    return <EditorConSalvataggio companyId={companyId} titoloPagina={TITOLO_NUOVA} sottotitoloPagina="Editor · Disegno libero"
+    return <EditorConSalvataggio companyId={companyId} titoloPagina={t(TITOLO_NUOVA)} sottotitoloPagina={t("Editor · Disegno libero")}
       indietro={per.percorso()} tornaDopoSalvataggio={per.indietro} collegamenti={per.collegamenti} titoloProposto={per.titolo} />;
   }
   if (generata) return <PiantaGenerata companyId={companyId} generata={generata} onAggiorna={setGenerata} per={per} onSalvata={onSalvata} />;
   if (onSalvata) return <ChiediPianta companyId={companyId} modo="documento" percorsoDisegno={per.percorso("disegno")}
     fileIniziale={fileIniziale} onPronta={setGenerata} onImportata={setImportata} />;
   return <div className="mx-auto max-w-5xl space-y-5 pb-12 sm:space-y-6">
-    <TestataPlanimetrie indietro={per.indietro} titolo={TITOLO_NUOVA} sottotitolo="Scegli come partire. La pianta si apre nell’editor prima del salvataggio."/>
-    <nav aria-label="Origine della planimetria" className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+    <TestataPlanimetrie indietro={per.indietro} titolo={t(TITOLO_NUOVA)} sottotitolo={t("Scegli come partire. La pianta si apre nell’editor prima del salvataggio.")}/>
+    <nav aria-label={t("Origine della planimetria")} className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
       {ORIGINI.map(({modo:valore,titolo,icona:Icona})=>{
         const attiva=modo===valore;
-        const descrizione=valore==="documento" ? (dwgDisponibile() ? "DWG, PDF o foto" : "PDF o foto")
-          : valore==="disegno" ? "Parti da un foglio vuoto"
-          : valore==="testo" ? "Descrivi le stanze in chat" : "Rilievo, schizzo o scheda salvata";
+        const descrizione=valore==="documento" ? (dwgDisponibile() ? t("DWG, PDF o foto") : t("PDF o foto"))
+          : valore==="disegno" ? t("Parti da un foglio vuoto")
+          : valore==="testo" ? t("Descrivi le stanze in chat") : t("Rilievo, schizzo o scheda salvata");
         return <Link key={valore} to={per.percorso(valore)} aria-current={attiva ? "page" : undefined}
           className={cn("min-w-0 rounded-xl border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4",
             attiva ? "border-primary bg-primary/[0.07] ring-1 ring-primary/30" : "bg-card hover:border-primary/40 hover:bg-muted/40")}>
           <span className={cn("mb-2.5 grid h-8 w-8 place-items-center rounded-md",attiva ? "bg-primary text-primary-foreground" : "bg-muted text-primary")}>
             <Icona className="h-4 w-4" aria-hidden="true"/>
           </span>
-          <span className="block text-sm font-semibold">{titolo}</span>
+          <span className="block text-sm font-semibold">{t(titolo)}</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{descrizione}</span>
         </Link>;
       })}
@@ -218,6 +220,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
   onPronta: (g: Generata) => void;
   onImportata: (importazione: ImportazioneEditor) => void;
 }) {
+  const tr = useT();
   const importaDwg = modo === "documento" && dwgDisponibile();
   const provaSenzaAI = import.meta.env.DEV && import.meta.env.MODE === "planimetria-locale";
   const [foto, setFoto] = useState<File[]>([]);
@@ -240,8 +243,8 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
     r.onend = () => setDettando(false);
     r.onerror = (e) => {
       setDettando(false);
-      if (e.error === "not-allowed") setErrore("Consenti l’accesso al microfono per dettare.");
-      else if (e.error !== "aborted") setErrore("Dettatura interrotta. Riprova o aggiungi le misure a mano.");
+      if (e.error === "not-allowed") setErrore(tr("Consenti l’accesso al microfono per dettare."));
+      else if (e.error !== "aborted") setErrore(tr("Dettatura interrotta. Riprova o aggiungi le misure a mano."));
     };
     riconoscitore.current = r;
     try {
@@ -249,7 +252,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       setErrore(null);
       setDettando(true);
     } catch {
-      setErrore("Impossibile avviare la dettatura. Puoi scrivere le misure a mano.");
+      setErrore(tr("Impossibile avviare la dettatura. Puoi scrivere le misure a mano."));
     }
   };
   const [tipo, setTipo] = useState<"documento" | "schizzo">("documento");
@@ -299,8 +302,8 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
   const [pianiPdf, setPianiPdf] = useState<PianoPdf[]>([]);
   const quotePdf = pianiPdf.map((piano) => quotaInCentimetri(piano.quota));
   const errorePianiPdf = pianiPdf.some((piano) => !piano.nome.trim()) || quotePdf.includes(null)
-    ? "Compila nome e quota di ogni piano."
-    : new Set(quotePdf).size !== quotePdf.length ? "Assegna quote diverse ai piani." : "";
+    ? tr("Compila nome e quota di ogni piano.")
+    : new Set(quotePdf).size !== quotePdf.length ? tr("Assegna quote diverse ai piani.") : "";
   const aggiungiPagina = () => setPianiPdf((correnti) => {
     if (correnti.some((piano) => piano.pagina === pagina)) return correnti;
     const numero = correnti.length;
@@ -356,7 +359,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       setLivelloTecnico("originale");
       setEvidenzaTecnica(null);
       setVistaTecnica(null);
-    }).catch((e: unknown) => { if (vivo) { setVista({ file, pagina, rotazione, ritaglio, url: null, raster: null }); setErrore(e instanceof Error ? e.message : "Non riesco a preparare l’anteprima."); } });
+    }).catch((e: unknown) => { if (vivo) { setVista({ file, pagina, rotazione, ritaglio, url: null, raster: null }); setErrore(e instanceof Error ? e.message : tr("Non riesco a preparare l’anteprima.")); } });
     return () => { vivo = false; if (url) URL.revokeObjectURL(url); };
   }, [file, pagina, rotazione, ritaglio, modo, daDwg]);
 
@@ -370,7 +373,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       if (!vivo || !blob) return;
       url = URL.createObjectURL(blob);
       setVistaTecnica({ lettura: analisiTavola, livello: livelloTecnico, url });
-    }).catch(() => { if (vivo) { setLivelloTecnico("originale"); setErroreAnalisi("Non riesco a visualizzare il livello selezionato."); } });
+    }).catch(() => { if (vivo) { setLivelloTecnico("originale"); setErroreAnalisi(tr("Non riesco a visualizzare il livello selezionato.")); } });
     return () => { vivo = false; if (url) URL.revokeObjectURL(url); };
   }, [analisiTavola, livelloTecnico]);
 
@@ -386,7 +389,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       const valore = await leggiTavolaTecnica(rasterAnteprima, controller.signal, { quoteVerticali: !ritaglio && rotazione === 0 });
       if (!controller.signal.aborted) setLetturaTecnica({ raster: rasterAnteprima, valore });
     } catch (e) {
-      if (!controller.signal.aborted) setErroreAnalisi(e instanceof Error ? e.message : "Non riesco ad analizzare la tavola.");
+      if (!controller.signal.aborted) setErroreAnalisi(e instanceof Error ? e.message : tr("Non riesco ad analizzare la tavola."));
     } finally {
       if (controllerAnalisi.current === controller) { controllerAnalisi.current = null; setAnalisiInCorso(false); }
     }
@@ -437,7 +440,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       if (cad) setFonteCad({ originale: f, riferimento: pronta.riferimento });
       setConvertitoHeic(eHeic(f));
     } catch (e) {
-      if (numero === sceltaFile.current) setErrore(e instanceof Error ? e.message : "Non riesco a leggere il file.");
+      if (numero === sceltaFile.current) setErrore(e instanceof Error ? e.message : tr("Non riesco a leggere il file."));
     } finally { if (numero === sceltaFile.current) setPreparandoFile(false); }
   };
 
@@ -448,7 +451,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       // Una foto alla volta: evita sei decodifiche HEIC da 24 MP in parallelo sul telefono.
       for (const f of files.slice(0, MASSIMO_FOTO - foto.length)) pronte.push(await normalizzaDocumento(f));
       setFoto((v) => [...v, ...pronte].slice(0, MASSIMO_FOTO));
-    } catch (e) { setErrore(e instanceof Error ? e.message : "Una delle foto non si legge."); }
+    } catch (e) { setErrore(e instanceof Error ? e.message : tr("Una delle foto non si legge.")); }
     finally { setPreparandoFile(false); }
   };
 
@@ -464,7 +467,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       if (!foglio) throw new Error();
       if (numero===sceltaFile.current) setRitagliando(foglio.file);
     } catch {
-      if (numero===sceltaFile.current) setErrore("La pagina del PDF non si è preparata per il ritaglio.");
+      if (numero===sceltaFile.current) setErrore(tr("La pagina del PDF non si è preparata per il ritaglio."));
     } finally {
       if (numero===sceltaFile.current) setPreparandoFile(false);
     }
@@ -484,13 +487,13 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       onImportata({
         documento,
         titolo: scheda?.titolo ?? (ingresso === "sopralluogo" ? "Pianta dal sopralluogo" : "Pianta da descrizione"),
-        sottotitolo: ingresso === "sopralluogo" ? "Editor · Dal sopralluogo" : "Editor · Da una descrizione",
+        sottotitolo: ingresso === "sopralluogo" ? tr("Editor · Dal sopralluogo") : tr("Editor · Da una descrizione"),
         origine: ingresso === "sopralluogo" ? "sopralluogo" : "manuale",
         collegamenti: scheda ? { surveyId: scheda.id, orderId: scheda.orderId } : undefined,
-        avvisi: misure.length ? ["Completa la disposizione delle stanze e aggiungi porte e finestre nell’editor."] : ["Gli appunti sono disponibili nella pianta. Puoi iniziare il disegno dall’editor."],
+        avvisi: misure.length ? [tr("Completa la disposizione delle stanze e aggiungi porte e finestre nell’editor.")] : [tr("Gli appunti sono disponibili nella pianta. Puoi iniziare il disegno dall’editor.")],
       });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Non riesco a preparare la bozza.");
+      setErrore(e instanceof Error ? e.message : tr("Non riesco a preparare la bozza."));
     }
   };
 
@@ -532,7 +535,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
           richiesta.foto_base64 = [];
           for (const f of foto.slice(0, MASSIMO_FOTO)) richiesta.foto_base64.push(await fotoPerRilievo(f));
         } catch {
-          setErrore("Una delle foto non si legge: toglila e riprova.");
+          setErrore(tr("Una delle foto non si legge: toglila e riprova."));
           return;
         }
       }
@@ -544,7 +547,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
         const pronta = pdf
           ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas, ritaglio))
           : await preparaImmagine(file, rotazione, undefined, ritaglio);
-        if (!pronta) throw new Error("Il documento non è leggibile.");
+        if (!pronta) throw new Error(tr("Il documento non è leggibile."));
         richiesta.mime = pronta.mime;
         richiesta.file_base64 = await inBase64(pronta.file);
         sorgente = { file: pronta.file, nome: daDwg ? file.name : nomeOriginale || file.name };
@@ -562,7 +565,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       const origine = modo === "sopralluogo" ? "sopralluogo" : daDwg ? "importazione" : ingresso === "documento" && file?.type === "application/pdf" ? "ai_pdf" : esito.origine;
       onPronta({ ...esito, planimetria: { ...esito.planimetria, ...(modo === "documento" ? { ambitoDocumento: ambito === "ambiente" ? "ambiente" as const : "alloggio" as const } : {}) }, origine, ingresso, titolo, sorgente, richiesta, letturaId: crypto.randomUUID(), collegamenti: collegamentiSopralluogo });
     } catch {
-      setErrore("Non riesco a preparare il documento: controlla il file e riprova.");
+      setErrore(tr("Non riesco a preparare il documento: controlla il file e riprova."));
     } finally {
       avvioInCorso.current = false;
       setInCorso(false);
@@ -595,7 +598,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       const tavole: Record<string, File> = {};
       documento.livelli = selezione.map<Livello>((piano, indice) => {
         const foglio = fogli[indice];
-        if (!foglio || !foglio.altezza || !foglio.larghezza) throw new Error("Non riesco a preparare il ritaglio. Prova un’altra selezione.");
+        if (!foglio || !foglio.altezza || !foglio.larghezza) throw new Error(tr("Non riesco a preparare il ritaglio. Prova un’altra selezione."));
         const percorso = assegnate ? `${PERCORSO_TAVOLA_NON_SALVATA}-${piano.id}` : PERCORSO_TAVOLA_NON_SALVATA;
         const nomeFile = daPdf ? `${titoloImportazione} - pagina ${piano.pagina}.png`
           : foglio.mime === file.type ? file.name : file.name.replace(/\.[^.]+$/, "") + ".png";
@@ -613,7 +616,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       const sorgente = documento.letturaDocumento && (rasterOriginale ?? rasterAnteprima);
       onImportata({
         documento, titolo: datiSopralluogo?.titolo ?? titoloImportazione, tavole,
-        sottotitolo: daRilievo ? "Editor · Schizzo del sopralluogo" : undefined,
+        sottotitolo: daRilievo ? tr("Editor · Schizzo del sopralluogo") : undefined,
         origine: daRilievo ? "sopralluogo" : undefined,
         collegamenti: collegamentiSopralluogo,
         sorgente: sorgente ? { file: sorgente, nome: nomeOriginale || file.name } : undefined,
@@ -621,7 +624,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       });
     } catch (error) {
       if (numero === sceltaFile.current && !controller.signal.aborted) {
-        setErrore(error instanceof Error ? error.message : "Non riesco a preparare la tavola per l’editor.");
+        setErrore(error instanceof Error ? error.message : tr("Non riesco a preparare la tavola per l’editor."));
       }
     } finally {
       avvioInCorso.current = false;
@@ -644,7 +647,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       const tavole: Record<string, File> = {};
       for (const [i, piano] of documento.livelli.entries()) {
         const foglio = await preparaImmagine(file, 0, undefined, ritagli[i], { squadra: false });
-        if (!foglio) throw new Error("Il modello è stato letto, ma il ritaglio della tavola non si è preparato. Riprova.");
+        if (!foglio) throw new Error(tr("Il modello è stato letto, ma il ritaglio della tavola non si è preparato. Riprova."));
         const percorso = `${PERCORSO_TAVOLA_NON_SALVATA}-${piano.id}`;
         const posizione = piani[i];
         piano.ricalco = {
@@ -701,7 +704,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       }
       onImportata({ documento, tavole, titolo: titoloImportazione, avvisi, modello: true });
     } catch (error) {
-      if (numero === sceltaFile.current && !controller.signal.aborted) setErrore(error instanceof Error ? error.message : "Ricostruzione CAD non riuscita.");
+      if (numero === sceltaFile.current && !controller.signal.aborted) setErrore(error instanceof Error ? error.message : tr("Ricostruzione CAD non riuscita."));
     } finally {
       avvioInCorso.current = false;
       if (numero === sceltaFile.current) setModellando(false);
@@ -714,7 +717,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
   const letturaAi = <Button type="button" variant={daDwg || provaSenzaAI || modo !== "documento" ? "outline" : "default"}
     className={modo === "documento" ? "w-full" : undefined} disabled={provaSenzaAI || !pronto || occupato} onClick={avvia}>
     {inCorso ? <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" /> : modo === "sopralluogo" ? <ClipboardList className="mr-2 h-4 w-4" /> : <Wand2 className="mr-2 h-4 w-4" />}
-    {inCorso ? "Lettura in corso…" : daDwg && !provaSenzaAI ? "Ricava la pianta con AI · 1 credito" : "Ricava la pianta"}
+    {inCorso ? tr("Lettura in corso…") : daDwg && !provaSenzaAI ? tr("Ricava la pianta con AI · 1 credito") : tr("Ricava la pianta")}
   </Button>;
 
   return (
@@ -724,14 +727,14 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
           <fieldset disabled={occupato} aria-busy={occupato} className="min-w-0 space-y-5">
           {modo === "sopralluogo" ? (
             <>
-              <div role="group" aria-label="Origine del sopralluogo" className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+              <div role="group" aria-label={tr("Origine del sopralluogo")} className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
                 <Button type="button" size="sm" variant="ghost" aria-pressed={sorgenteRilievo === "nuovo"}
                   className="gap-2 aria-pressed:bg-background aria-pressed:shadow-sm" onClick={() => { setSorgenteRilievo("nuovo"); setErrore(null); }}>
-                  <PenLine className="h-4 w-4" /> Nuovo rilievo
+                  <PenLine className="h-4 w-4" /> {tr("Nuovo rilievo")}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" aria-pressed={sorgenteRilievo === "salvato"}
                   className="gap-2 aria-pressed:bg-background aria-pressed:shadow-sm" onClick={() => { riconoscitore.current?.stop(); setSorgenteRilievo("salvato"); setErrore(null); }}>
-                  <ClipboardList className="h-4 w-4" /> Sopralluogo salvato
+                  <ClipboardList className="h-4 w-4" /> {tr("Sopralluogo salvato")}
                 </Button>
               </div>
               {sorgenteRilievo === "salvato" ? <SopralluogoSalvatoPlanimetria companyId={companyId} orderId={orderId} iniziale={datiSopralluogo?.id ?? sopralluogo}
@@ -759,53 +762,53 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
                   <div className="flex items-center gap-3">
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><FileUp className="h-5 w-5" aria-hidden="true" /></span>
                     <div>
-                      <Label htmlFor="file-pianta" className="text-sm font-semibold">{importaDwg ? "DWG, PDF o foto della pianta" : "PDF o foto della pianta"}</Label>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{importaDwg ? "DWG fino a 64 MB · PDF e foto fino a 10 MB" : "PDF, JPG, PNG, WebP, HEIC e HEIF fino a 10 MB"}</p>
+                      <Label htmlFor="file-pianta" className="text-sm font-semibold">{importaDwg ? tr("DWG, PDF o foto della pianta") : tr("PDF o foto della pianta")}</Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{importaDwg ? tr("DWG fino a 64 MB · PDF e foto fino a 10 MB") : tr("PDF, JPG, PNG, WebP, HEIC e HEIF fino a 10 MB")}</p>
                     </div>
                   </div>
                   <Input id="file-pianta" type="file" className="bg-card" accept={importaDwg ? `.dwg,${ACCETTA_DOCUMENTO_PIANTA}` : ACCETTA_DOCUMENTO_PIANTA} onClick={(e) => { e.currentTarget.value = ""; }} onChange={(e) => { void scegliFile(e.target.files?.[0] ?? null); }} />
                 </div>
                 {file && anteprima && (
-                  <section ref={pannelloAnteprima} aria-label="Anteprima della tavola" className="space-y-3 rounded-xl border bg-muted/20 p-3 motion-safe:animate-in motion-safe:fade-in-0">
+                  <section ref={pannelloAnteprima} aria-label={tr("Anteprima della tavola")} className="space-y-3 rounded-xl border bg-muted/20 p-3 motion-safe:animate-in motion-safe:fade-in-0">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="flex min-w-0 items-center gap-2 break-all text-xs font-medium"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{nomeOriginale}{convertitoHeic && <span className="shrink-0 rounded bg-emerald-50 px-2 py-1 text-emerald-700">HEIC convertito</span>}</p>
+                      <p className="flex min-w-0 items-center gap-2 break-all text-xs font-medium"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{nomeOriginale}{convertitoHeic && <span className="shrink-0 rounded bg-emerald-50 px-2 py-1 text-emerald-700">{tr("HEIC convertito")}</span>}</p>
                       {pagine > 1 && (
                         <div className="flex shrink-0 items-center gap-1 rounded-md border bg-card text-xs">
-                          <Button type="button" size="sm" variant="ghost" aria-label="Pagina precedente" disabled={pagina <= 1} onClick={() => cambiaPagina(-1)}>‹</Button>
-                          <span>Pagina {pagina} di {pagine}</span>
-                          <Button type="button" size="sm" variant="ghost" aria-label="Pagina successiva" disabled={pagina >= pagine} onClick={() => cambiaPagina(1)}>›</Button>
+                          <Button type="button" size="sm" variant="ghost" aria-label={tr("Pagina precedente")} disabled={pagina <= 1} onClick={() => cambiaPagina(-1)}>‹</Button>
+                          <span>{tr("Pagina {n} di {totale}", { n: String(pagina ?? ""), totale: String(pagine ?? "") })}</span>
+                          <Button type="button" size="sm" variant="ghost" aria-label={tr("Pagina successiva")} disabled={pagina >= pagine} onClick={() => cambiaPagina(1)}>›</Button>
                         </div>
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <Button type="button" size="sm" variant="outline" aria-label="Ruota a sinistra" onClick={() => preparaPagina({ rotazione: ((rotazione + 270) % 360) as Rotazione })}>Ruota ↺</Button>
-                      <Button type="button" size="sm" variant="outline" aria-label="Ruota a destra" onClick={() => preparaPagina({ rotazione: ((rotazione + 90) % 360) as Rotazione })}>Ruota ↻</Button>
-                      <Button type="button" size="sm" variant="outline" onClick={()=>void apriRitaglio()}><Crop className="mr-1.5 h-3.5 w-3.5" />{ritaglio ? "Modifica ritaglio" : daDwg ? "Ritaglia una pianta" : "Ritaglia foglio"}</Button>
-                      {ritaglio && <Button type="button" size="sm" variant="ghost" onClick={() => preparaPagina({ ritaglio: null })}>Togli ritaglio</Button>}
+                      <Button type="button" size="sm" variant="outline" aria-label={tr("Ruota a sinistra")} onClick={() => preparaPagina({ rotazione: ((rotazione + 270) % 360) as Rotazione })}>{tr("Ruota ↺")}</Button>
+                      <Button type="button" size="sm" variant="outline" aria-label={tr("Ruota a destra")} onClick={() => preparaPagina({ rotazione: ((rotazione + 90) % 360) as Rotazione })}>{tr("Ruota ↻")}</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={()=>void apriRitaglio()}><Crop className="mr-1.5 h-3.5 w-3.5" />{ritaglio ? tr("Modifica ritaglio") : daDwg ? tr("Ritaglia una pianta") : tr("Ritaglia foglio")}</Button>
+                      {ritaglio && <Button type="button" size="sm" variant="ghost" onClick={() => preparaPagina({ ritaglio: null })}>{tr("Togli ritaglio")}</Button>}
                       {!daDwg && !analisiTavola && <Button type="button" size="sm" variant="outline" className="gap-1.5" disabled={analisiInCorso}
                         onClick={() => { void analizzaTavola(); }}>
                         {analisiInCorso ? <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" /> : <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />}
-                        {analisiInCorso ? "Analisi in corso…" : "Analizza tavola"}
+                        {analisiInCorso ? tr("Analisi in corso…") : tr("Analizza tavola")}
                       </Button>}
                     </div>
                     {erroreAnalisi && <p role="alert" className="text-xs text-destructive">{erroreAnalisi}</p>}
                     {analisiTavola?.tavola.tipo === "hvac" && analisiTavola.tavola.colori && <SelettoreLivelliTecnici
                       vista={livelloTecnico} legendaLetta={!!analisiTavola.tavola.codiceMandata}
                       onVista={selezionaLivelloTecnico} />}
-                    <button type="button" aria-label="Ingrandisci il foglio" onClick={() => setIngrandita(true)} className="grid h-[clamp(16rem,36vh,28rem)] w-full cursor-zoom-in place-items-center overflow-hidden rounded-lg bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <button type="button" aria-label={tr("Ingrandisci il foglio")} onClick={() => setIngrandita(true)} className="grid h-[clamp(16rem,36vh,28rem)] w-full cursor-zoom-in place-items-center overflow-hidden rounded-lg bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       {analisiTavola && (evidenzaTecnica || zonaRitaglio) ? <ImmagineTecnica src={anteprima}
                         larghezza={analisiTavola.tavola.raster.larghezza} altezza={analisiTavola.tavola.raster.altezza}
                         zona={(evidenzaTecnica ?? zonaRitaglio)!} ritaglio={!!zonaRitaglio} />
-                        : <img src={srcTecnica ?? anteprima} alt="Anteprima del foglio" className="h-full min-h-0 w-full object-contain" />}
+                        : <img src={srcTecnica ?? anteprima} alt={tr("Anteprima del foglio")} className="h-full min-h-0 w-full object-contain" />}
                     </button>
                     <p className="text-xs text-muted-foreground">{daDwg
-                      ? "Tieni visibili la pianta e le sue quote. Se ci sono più piani, ritagliali uno alla volta."
-                      : livelloTecnico === "pianta" && srcTecnica ? "Le zone coperte dai canali vanno confrontate con la tavola architettonica."
-                        : "Tieni visibili il disegno e le sue quote."}</p>
+                      ? tr("Tieni visibili la pianta e le sue quote. Se ci sono più piani, ritagliali uno alla volta.")
+                      : livelloTecnico === "pianta" && srcTecnica ? tr("Le zone coperte dai canali vanno confrontate con la tavola architettonica.")
+                        : tr("Tieni visibili il disegno e le sue quote.")}</p>
                   </section>
                 )}
               </div>
-              <aside aria-label="Azioni di importazione" className="min-w-0 space-y-3">
+              <aside aria-label={tr("Azioni di importazione")} className="min-w-0 space-y-3">
                 {analisiTavola && <AnalisiTavolaImportata lettura={analisiTavola} ritaglioApplicato={!!ritaglioApplicato}
                   puoRitagliare={!!zonaRitaglio} evidenza={evidenzaTecnica} onEvidenza={mostraEvidenzaTecnica} onRitaglia={usaRitaglioTecnico}
                   onOriginale={() => { if (rasterOriginale) setOriginaleAperto({ raster: rasterOriginale, url: URL.createObjectURL(rasterOriginale) }); }} />}
@@ -817,8 +820,8 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
                   <div className="flex items-start gap-3">
                     <PenLine className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                     <div>
-                      <h2 className="text-sm font-semibold">Ricalco manuale</h2>
-                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">Usa la tavola come sfondo. Imposta la scala e disegna muri e ambienti.</p>
+                      <h2 className="text-sm font-semibold">{tr("Ricalco manuale")}</h2>
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{tr("Usa la tavola come sfondo. Imposta la scala e disegna muri e ambienti.")}</p>
                     </div>
                   </div>
                   {file?.type === "application/pdf" && pagine > 1 && (
@@ -828,7 +831,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
                   )}
                   <Button type="button" variant={daDwg || provaSenzaAI || pianiPdf.length ? "default" : "outline"} className="w-full gap-2"
                     disabled={!puoRicalcare || occupato} onClick={apriRicalco}>
-                    {pianiPdf.length > 1 ? `Apri ${pianiPdf.length} piani nell’editor` : pianiPdf.length ? "Apri il piano nell’editor" : "Ricalca nell’editor"}
+                    {pianiPdf.length > 1 ? tr("Apri {n} piani nell’editor", { n: pianiPdf.length }) : pianiPdf.length ? tr("Apri il piano nell’editor") : tr("Ricalca nell’editor")}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </section>
@@ -836,27 +839,27 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
                   <div className="flex items-start gap-3">
                     <Wand2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                     <div>
-                      <h2 className="text-sm font-semibold">Lettura automatica</h2>
+                      <h2 className="text-sm font-semibold">{tr("Lettura automatica")}</h2>
                       <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                        {provaSenzaAI ? "Lettura AI disattivata in questa prova locale."
-                          : pagine > 1 ? "Ricava una bozza dalla pagina visibile. La lettura usa 1 credito AI."
-                          : "Ricava una bozza da controllare nell’editor. La lettura usa 1 credito AI."}
+                        {provaSenzaAI ? tr("Lettura AI disattivata in questa prova locale.")
+                          : pagine > 1 ? tr("Ricava una bozza dalla pagina visibile. La lettura usa 1 credito AI.")
+                          : tr("Ricava una bozza da controllare nell’editor. La lettura usa 1 credito AI.")}
                       </p>
                     </div>
                   </div>
                   {!provaSenzaAI && <details className="rounded-lg border bg-muted/30 px-3 py-2">
-                    <summary className="cursor-pointer text-xs font-medium">Opzioni di lettura</summary>
+                    <summary className="cursor-pointer text-xs font-medium">{tr("Opzioni di lettura")}</summary>
                     <div className="mt-3 space-y-3">
                       {!daDwg && <div className="space-y-1.5">
-                        <Label htmlFor="tipo-tavola">Che cosa carichi?</Label>
+                        <Label htmlFor="tipo-tavola">{tr("Che cosa carichi?")}</Label>
                         <Select value={tipo} onValueChange={(valore: "documento" | "schizzo") => setTipo(valore)}>
                           <SelectTrigger id="tipo-tavola"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="documento">Disegno in scala</SelectItem><SelectItem value="schizzo">Schizzo con misure</SelectItem></SelectContent>
+                          <SelectContent><SelectItem value="documento">{tr("Disegno in scala")}</SelectItem><SelectItem value="schizzo">{tr("Schizzo con misure")}</SelectItem></SelectContent>
                         </Select>
                       </div>}
-                      <div className="space-y-1.5"><Label htmlFor="ambito-pianta">Cosa rappresenta?</Label><Select value={ambito} onValueChange={(v) => setAmbito(v as "completa" | "ambiente")}><SelectTrigger id="ambito-pianta"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completa">Pianta completa</SelectItem><SelectItem value="ambiente">Un solo ambiente</SelectItem></SelectContent></Select></div>
-                      {ambito === "ambiente" && <div className="space-y-1.5"><Label htmlFor="nome-ambiente-pianta">Quale ambiente?</Label><Input id="nome-ambiente-pianta" value={nomeAmbiente} maxLength={60} placeholder="Es. Bagno" onChange={(e) => setNomeAmbiente(e.target.value)} /></div>}
-                      <div className="space-y-1.5"><Label htmlFor="nota-lettura-pianta">Indicazioni per l’AI</Label><Textarea id="nota-lettura-pianta" rows={2} maxLength={tipo === "schizzo" ? 120 : 300} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Facoltativo. Es. leggi solo la cucina." /></div>
+                      <div className="space-y-1.5"><Label htmlFor="ambito-pianta">{tr("Cosa rappresenta?")}</Label><Select value={ambito} onValueChange={(v) => setAmbito(v as "completa" | "ambiente")}><SelectTrigger id="ambito-pianta"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completa">{tr("Pianta completa")}</SelectItem><SelectItem value="ambiente">{tr("Un solo ambiente")}</SelectItem></SelectContent></Select></div>
+                      {ambito === "ambiente" && <div className="space-y-1.5"><Label htmlFor="nome-ambiente-pianta">{tr("Quale ambiente?")}</Label><Input id="nome-ambiente-pianta" value={nomeAmbiente} maxLength={60} placeholder={tr("Es. Bagno")} onChange={(e) => setNomeAmbiente(e.target.value)} /></div>}
+                      <div className="space-y-1.5"><Label htmlFor="nota-lettura-pianta">{tr("Indicazioni per l’AI")}</Label><Textarea id="nota-lettura-pianta" rows={2} maxLength={tipo === "schizzo" ? 120 : 300} value={nota} onChange={(e) => setNota(e.target.value)} placeholder={tr("Facoltativo. Es. leggi solo la cucina.")} /></div>
                     </div>
                   </details>}
                   {letturaAi}
@@ -867,18 +870,18 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
             onTogli={(indice) => setMessaggi((correnti) => correnti.filter((_, i) => i !== indice))} />}
           </fieldset>
 
-          {(preparandoFile || anteprimaInCorso || ricalcando) && <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/5 p-3 text-sm"><Loader2 className="h-4 w-4 motion-safe:animate-spin" />{ricalcando ? "Preparo la tavola per l’editor…" : preparandoFile && daDwg ? "Leggo il disegno DWG…" : preparandoFile ? "Preparo il file…" : "Aggiorno l’anteprima del foglio…"}</p>}
-          {modellando && <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/5 p-3 text-sm"><Loader2 className="h-4 w-4 motion-safe:animate-spin" />Leggo geometrie e scritte dei piani selezionati…</p>}
+          {(preparandoFile || anteprimaInCorso || ricalcando) && <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/5 p-3 text-sm"><Loader2 className="h-4 w-4 motion-safe:animate-spin" />{ricalcando ? tr("Preparo la tavola per l’editor…") : preparandoFile && daDwg ? tr("Leggo il disegno DWG…") : preparandoFile ? tr("Preparo il file…") : tr("Aggiorno l’anteprima del foglio…")}</p>}
+          {modellando && <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/5 p-3 text-sm"><Loader2 className="h-4 w-4 motion-safe:animate-spin" />{tr("Leggo geometrie e scritte dei piani selezionati…")}</p>}
           {inCorso && <AttesaLetturaPianta fase={fase} anteprima={anteprima} />}
 
           {errore && (
             <div role="alert" className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
               <p>{errore}</p>
               {modo==="documento" && puoRicalcare ? <Button size="sm" variant="outline" disabled={occupato} onClick={() => void apriRicalco()}>
-                <PenLine className="mr-2 h-4 w-4" /> Ricalca la stessa tavola
+                <PenLine className="mr-2 h-4 w-4" /> {tr("Ricalca la stessa tavola")}
               </Button> : <Button asChild size="sm" variant="outline">
                 <Link to={percorsoDisegno}>
-                  <PenLine className="mr-2 h-4 w-4" /> Disegnala a mano
+                  <PenLine className="mr-2 h-4 w-4" /> {tr("Disegnala a mano")}
                 </Link>
               </Button>}
             </div>
@@ -887,21 +890,21 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
           {(modo === "testo" || (modo === "sopralluogo" && sorgenteRilievo === "nuovo")) &&
             <div className="-mx-4 flex flex-wrap items-center gap-2 rounded-b-lg border-t bg-card px-4 py-3 sm:-mx-6 sm:px-6">
               {modo === "sopralluogo" && !!file && !!anteprima &&
-                <Button type="button" disabled={occupato} onClick={() => void apriRicalco()}><PenLine className="mr-2 h-4 w-4" />Apri schizzo da ricalcare</Button>}
+                <Button type="button" disabled={occupato} onClick={() => void apriRicalco()}><PenLine className="mr-2 h-4 w-4" />{tr("Apri schizzo da ricalcare")}</Button>}
               <Button type="button" variant={file && anteprima ? "outline" : "default"} disabled={occupato || (!testoCompleto && !ambienti.length)} onClick={() => apriBozzaGuidata()}>
-                <ArrowRight className="mr-2 h-4 w-4" />{ambienti.length ? "Apri bozza nell’editor" : "Apri editor con appunti"}
+                <ArrowRight className="mr-2 h-4 w-4" />{ambienti.length ? tr("Apri bozza nell’editor") : tr("Apri editor con appunti")}
               </Button>
               {!provaSenzaAI && <div className="flex flex-wrap items-center gap-2">
                 {letturaAi}
-                <p className="text-xs text-muted-foreground">Lettura AI · 1 credito</p>
+                <p className="text-xs text-muted-foreground">{tr("Lettura AI · 1 credito")}</p>
               </div>}
             </div>}
         </CardContent>
       </Card>
       {schizzoAperto && <SchizzoSopralluogo onChiudi={() => setSchizzoAperto(false)} onUsa={(f) => { setSchizzoAperto(false); void scegliFile(f); }} />}
-      {ritagliando && <Suspense fallback={<p role="status">Apro il ritaglio…</p>}><RitaglioDocumentoPianta file={ritagliando} iniziale={ritaglio} onChiudi={() => setRitagliando(null)} onConferma={(r) => { preparaPagina({ ritaglio: r }); setRitagliando(null); }} /></Suspense>}
-      {ingrandita && anteprima && <Suspense fallback={<p role="status">Ingrandisco il foglio…</p>}><DocumentoPiantaIngrandito src={srcTecnica ?? anteprima} onChiudi={() => setIngrandita(false)} /></Suspense>}
-      {urlRitaglioOriginale && <Suspense fallback={<p role="status">Ingrandisco il foglio…</p>}>
+      {ritagliando && <Suspense fallback={<p role="status">{tr("Apro il ritaglio…")}</p>}><RitaglioDocumentoPianta file={ritagliando} iniziale={ritaglio} onChiudi={() => setRitagliando(null)} onConferma={(r) => { preparaPagina({ ritaglio: r }); setRitagliando(null); }} /></Suspense>}
+      {ingrandita && anteprima && <Suspense fallback={<p role="status">{tr("Ingrandisco il foglio…")}</p>}><DocumentoPiantaIngrandito src={srcTecnica ?? anteprima} onChiudi={() => setIngrandita(false)} /></Suspense>}
+      {urlRitaglioOriginale && <Suspense fallback={<p role="status">{tr("Ingrandisco il foglio…")}</p>}>
         <DocumentoPiantaIngrandito src={urlRitaglioOriginale} onChiudi={() => setOriginaleAperto(null)} />
       </Suspense>}
     </div>
@@ -911,6 +914,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
 function PiantaGenerata({ companyId, generata, onAggiorna, per, onSalvata }: {
   per: DaDove; companyId: string; generata: Generata; onAggiorna: (g: Generata) => void; onSalvata?: (id: string) => void;
 }) {
+  const t = useT();
   const serveScala = scalaDaConfermare(generata.ingresso, generata.generazione);
   const [rileggendo, setRileggendo] = useState(false);
   const [erroreRilettura, setErroreRilettura] = useState<string | null>(null);
@@ -923,13 +927,13 @@ function PiantaGenerata({ companyId, generata, onAggiorna, per, onSalvata }: {
     try {
       url = URL.createObjectURL(generata.sorgente.file);
       const dimensioni = await misureImmagine(url);
-      if (!dimensioni) throw new Error("Il documento originale non è più leggibile.");
+      if (!dimensioni) throw new Error(t("Il documento originale non è più leggibile."));
       const nota = [indicazioniRilettura.trim(), generata.richiesta?.nota ?? notaLetturaPianta("ambiente", generata.titolo, "", generata.ingresso === "schizzo")].filter(Boolean).join(" ").slice(0, 500);
       const richiesta: RichiestaAI = { ...generata.richiesta, company_id: companyId, ingresso: generata.ingresso, mime: generata.sorgente.file.type, file_base64: await inBase64(generata.sorgente.file), nota, ...dimensioni };
       const esito = await chiediAllAI(richiesta);
       if (esito.ok === false) { setErroreRilettura(esito.messaggio); return; }
       onAggiorna({ ...generata, ...esito, origine: generata.origine, planimetria: { ...esito.planimetria, ambitoDocumento: generata.planimetria.ambitoDocumento }, richiesta, letturaId: crypto.randomUUID() });
-    } catch (e) { setErroreRilettura(e instanceof Error ? e.message : "La nuova lettura non è riuscita. La bozza precedente è rimasta disponibile."); }
+    } catch (e) { setErroreRilettura(e instanceof Error ? e.message : t("La nuova lettura non è riuscita. La bozza precedente è rimasta disponibile.")); }
     finally { if (url) URL.revokeObjectURL(url); riletturaAvviata.current = false; setRileggendo(false); }
   };
   return (
@@ -937,8 +941,8 @@ function PiantaGenerata({ companyId, generata, onAggiorna, per, onSalvata }: {
       // dopo la conferma della scala l'editor riparte dalla pianta adeguata
       key={`${generata.letturaId ?? "prima-lettura"}:${generata.generazione.scala?.cm_per_unita ?? "senza-scala"}`}
       companyId={companyId}
-      titoloPagina={TITOLO_NUOVA}
-      sottotitoloPagina={generata.ingresso==="descrizione" ? "Editor · Da una descrizione" : generata.origine==="sopralluogo" ? "Editor · Dal sopralluogo" : "Editor · Da una tavola"}
+      titoloPagina={t(TITOLO_NUOVA)}
+      sottotitoloPagina={generata.ingresso==="descrizione" ? t("Editor · Da una descrizione") : generata.origine==="sopralluogo" ? t("Editor · Dal sopralluogo") : t("Editor · Da una tavola")}
       indietro={onSalvata ? undefined : per.percorso()}
       tornaDopoSalvataggio={per.indietro}
       collegamenti={generata.collegamenti ? { ...generata.collegamenti, ...per.collegamenti } : per.collegamenti}
@@ -948,10 +952,10 @@ function PiantaGenerata({ companyId, generata, onAggiorna, per, onSalvata }: {
       origine={generata.origine}
       onSalvata={onSalvata && (esito => onSalvata(esito.id))}
       avvisi={[
-        "Le misure in viola con «≈» sono stimate: controllale e correggile toccandole.",
+        t("Le misure in viola con «≈» sono stimate: controllale e correggile toccandole."),
       ]}
       sopra={<div className="space-y-3"><EsitoLetturaPianta pianta={generata.planimetria} sorgente={generata.sorgente} avvisi={generata.planimetria.letturaDocumento ? [] : generata.generazione.avvisi} />
-        {generata.sorgente && <div className="flex flex-wrap items-center justify-between gap-2"><Input aria-label="Indicazioni per la rilettura" className="h-8 min-w-[200px] flex-1 text-xs" maxLength={250} disabled={rileggendo} value={indicazioniRilettura} onChange={(e) => setIndicazioniRilettura(e.target.value)} placeholder="Indicazioni facoltative per la nuova lettura dello stesso foglio" /><Button type="button" size="sm" variant="outline" disabled={rileggendo} onClick={() => { void rileggi(); }}>{rileggendo ? <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}{rileggendo ? "Rilettura in corso…" : "Rileggi il documento · 1 credito"}</Button></div>}
+        {generata.sorgente && <div className="flex flex-wrap items-center justify-between gap-2"><Input aria-label={t("Indicazioni per la rilettura")} className="h-8 min-w-[200px] flex-1 text-xs" maxLength={250} disabled={rileggendo} value={indicazioniRilettura} onChange={(e) => setIndicazioniRilettura(e.target.value)} placeholder={t("Indicazioni facoltative per la nuova lettura dello stesso foglio")} /><Button type="button" size="sm" variant="outline" disabled={rileggendo} onClick={() => { void rileggi(); }}>{rileggendo ? <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}{rileggendo ? t("Rilettura in corso…") : t("Rileggi il documento · 1 credito")}</Button></div>}
         {rileggendo && <AttesaLetturaPianta fase="lettura" />}
         {erroreRilettura && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">{erroreRilettura}</p>}
         {serveScala && <ConfermaScala generata={generata} onConferma={onAggiorna} />}</div>}
@@ -961,6 +965,7 @@ function PiantaGenerata({ companyId, generata, onAggiorna, per, onSalvata }: {
 
 /** «Questa stanza è larga 4,20»: tutta la pianta in scala si adegua. */
 function ConfermaScala({ generata, onConferma }: { generata: Generata; onConferma: (g: Generata) => void }) {
+  const t = useT();
   const locali = generata.planimetria.livelli[0]?.fatto.locali ?? [];
   const [localeId, setLocaleId] = useState(locali[0]?.id ?? "");
   const [asse, setAsse] = useState<"x" | "y">("x");
@@ -972,24 +977,24 @@ function ConfermaScala({ generata, onConferma }: { generata: Generata; onConferm
   const applica = () => {
     const cm = leggiMisura(valore);
     if (!cm) {
-      setErrore("Scrivi una misura, es. 4,20.");
+      setErrore(t("Scrivi una misura, es. 4,20."));
       return;
     }
     try {
       const r = confermaScala(generata.planimetria, generata.generazione, localeId, asse, cm);
       onConferma({ ...generata, ...r });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Misura non applicata.");
+      setErrore(e instanceof Error ? e.message : t("Misura non applicata."));
     }
   };
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
       <div className="w-full flex items-center gap-2 font-medium text-foreground">
-        <Ruler className="h-4 w-4" /> Metti la pianta in scala: scrivi una misura vera di una stanza, tutto il resto si adegua.
+        <Ruler className="h-4 w-4" /> {t("Metti la pianta in scala: scrivi una misura vera di una stanza, tutto il resto si adegua.")}
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Stanza</Label>
+        <Label className="text-xs">{t("Stanza")}</Label>
         <Select value={localeId} onValueChange={setLocaleId}>
           <SelectTrigger className="h-9 w-44 bg-white">
             <SelectValue />
@@ -1004,23 +1009,23 @@ function ConfermaScala({ generata, onConferma }: { generata: Generata; onConferm
         </Select>
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Quale misura</Label>
+        <Label className="text-xs">{t("Quale misura")}</Label>
         <Select value={asse} onValueChange={(v) => setAsse(v as "x" | "y")}>
           <SelectTrigger className="h-9 w-56 bg-white">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="x">Larghezza (da sinistra a destra)</SelectItem>
-            <SelectItem value="y">Profondità (dall'alto in basso)</SelectItem>
+            <SelectItem value="x">{t("Larghezza (da sinistra a destra)")}</SelectItem>
+            <SelectItem value="y">{t("Profondità (dall'alto in basso)")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="misura-scala" className="text-xs">Metri</Label>
+        <Label htmlFor="misura-scala" className="text-xs">{t("Metri")}</Label>
         <Input id="misura-scala" inputMode="decimal" className="h-9 w-24 bg-white" placeholder="4,20" value={valore} onChange={(e) => setValore(e.target.value)} />
       </div>
-      <Button size="sm" onClick={applica}>Applica</Button>
-      <Button size="sm" variant="ghost" onClick={() => setNascosta(true)}>Lo faccio dopo</Button>
+      <Button size="sm" onClick={applica}>{t("Applica")}</Button>
+      <Button size="sm" variant="ghost" onClick={() => setNascosta(true)}>{t("Lo faccio dopo")}</Button>
       {errore && <p className="w-full text-xs text-destructive">{errore}</p>}
     </div>
   );

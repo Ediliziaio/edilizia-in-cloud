@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, FileText, ExternalLink, Pencil, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI = {
   durc: "DURC",
@@ -137,6 +138,7 @@ export function FascicoloDocumenti({
   documentoSelezionato?: string | null;
   onDeseleziona?: () => void;
 }) {
+  const t = useT();
   const perms = usePermissions();
   const q = useEvidenzeFascicolo({
     companyId,
@@ -173,8 +175,7 @@ export function FascicoloDocumenti({
   if (!perms.canViewSicurezzaCantiere)
     return (
       <p className="rounded-lg border p-4 text-sm text-muted-foreground">
-        Per leggere i documenti del fascicolo serve il permesso Sicurezza
-        cantiere.
+        {t("Per leggere i documenti del fascicolo serve il permesso Sicurezza cantiere.")}
       </p>
     );
   const righe = (q.data ?? []).filter((d) =>
@@ -258,7 +259,7 @@ export function FascicoloDocumenti({
         ))
     ) {
       toast.error(
-        "Verifica il collegamento dell’impresa alla commessa prima di salvare.",
+        t("Verifica il collegamento dell’impresa alla commessa prima di salvare."),
       );
       return;
     }
@@ -281,17 +282,17 @@ export function FascicoloDocumenti({
       form.origine_requisito !== "da_verificare" &&
       !form.riferimento_requisito.trim()
     ) {
-      toast.error("Specifica il riferimento del requisito confermato.");
+      toast.error(t("Specifica il riferimento del requisito confermato."));
       return;
     }
     if (form.catalogo_id && !voce) {
       toast.error(
-        "Classificazione non disponibile in questa versione dell’app",
+        t("Classificazione non disponibile in questa versione dell’app"),
       );
       return;
     }
     if (form.tipo === "pos" && !form.order_id) {
-      toast.error("Associa il POS alla commessa corretta.");
+      toast.error(t("Associa il POS alla commessa corretta."));
       return;
     }
     if (
@@ -299,19 +300,19 @@ export function FascicoloDocumenti({
       form.data_scadenza &&
       form.data_scadenza < form.data_rilascio
     ) {
-      toast.error("La scadenza non può precedere il rilascio.");
+      toast.error(t("La scadenza non può precedere il rilascio."));
       return;
     }
     if (form.stato === "ricevuto" && !form.file_path && !file) {
-      toast.error("Allega il documento prima di registrarlo come ricevuto.");
+      toast.error(t("Allega il documento prima di registrarlo come ricevuto."));
       return;
     }
     if (form.stato === "verificato" && !form.file_path) {
-      toast.error("Carica e salva il documento prima di verificarlo.");
+      toast.error(t("Carica e salva il documento prima di verificarlo."));
       return;
     }
     if (form.stato === "non_applicabile" && !form.note.trim()) {
-      toast.error("Indica perché il requisito non è applicabile.");
+      toast.error(t("Indica perché il requisito non è applicabile."));
       return;
     }
     setPending(true);
@@ -365,12 +366,12 @@ export function FascicoloDocumenti({
         });
       setForm(null);
       setFile(null);
-      toast.success("Evidenza salvata nel fascicolo");
+      toast.success(t("Evidenza salvata nel fascicolo"));
     } catch (e) {
       toast.error(
         e instanceof Error
           ? e.message
-          : "Documento non salvato. La richiesta resta recuperabile.",
+          : t("Documento non salvato. La richiesta resta recuperabile."),
       );
     } finally {
       setPending(false);
@@ -404,13 +405,13 @@ export function FascicoloDocumenti({
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="h-4 w-4" />
             {soloSdsAziendali
-              ? "SDS aziendali condivise"
-              : "Fascicolo e richieste documentali"}
+              ? t("SDS aziendali condivise")
+              : t("Fascicolo e richieste documentali")}
           </CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
             {soloSdsAziendali
-              ? "Un solo originale per tutte le commesse della propria impresa. Caricamento, verifica e collegamento ai prodotti sono passaggi distinti."
-              : "Documenti per impresa, operaio e cantiere. Caricamento, verifica e firma sono passaggi distinti."}
+              ? t("Un solo originale per tutte le commesse della propria impresa. Caricamento, verifica e collegamento ai prodotti sono passaggi distinti.")
+              : t("Documenti per impresa, operaio e cantiere. Caricamento, verifica e firma sono passaggi distinti.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -420,7 +421,7 @@ export function FascicoloDocumenti({
               variant="outline"
               onClick={() => setCatalogoAperto(true)}
             >
-              Catalogo
+              {t("Catalogo")}
             </Button>
           )}
           {scrive && (
@@ -435,7 +436,7 @@ export function FascicoloDocumenti({
               }}
             >
               <Plus className="mr-1 h-4 w-4" />
-              {soloSdsAziendali ? "Aggiungi SDS" : "Aggiungi"}
+              {soloSdsAziendali ? t("Aggiungi SDS") : t("Aggiungi")}
             </Button>
           )}
         </div>
@@ -444,11 +445,10 @@ export function FascicoloDocumenti({
         {documentoSelezionato && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
             <p>
-              Documento selezionato dal quadro della commessa. I filtri
-              sottostanti sono sospesi per questa consultazione.
+              {t("Documento selezionato dal quadro della commessa. I filtri sottostanti sono sospesi per questa consultazione.")}
             </p>
             <Button size="sm" variant="outline" onClick={onDeseleziona}>
-              Torna a tutti i documenti
+              {t("Torna a tutti i documenti")}
             </Button>
           </div>
         )}
@@ -456,21 +456,21 @@ export function FascicoloDocumenti({
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="max-w-xs"
-            aria-label="Cerca nel fascicolo"
-            placeholder="Cerca documento o referente…"
+            aria-label={t("Cerca nel fascicolo")}
+            placeholder={t("Cerca documento o referente…")}
             value={cerca}
             disabled={!!documentoSelezionato}
             onChange={(e) => setCerca(e.target.value)}
           />
           {!orderId && !soloSdsAziendali && (
             <UniformSelect
-              aria-label="Ambito dei documenti"
+              aria-label={t("Ambito dei documenti")}
               className="h-10 max-w-xs rounded-md border bg-background px-2 text-sm"
               value={contesto}
               onChange={(e) => setContesto(e.target.value)}
             >
-              <option value="tutti">Tutti gli ambiti</option>
-              <option value="impresa">Impresa / organico</option>
+              <option value="tutti">{t("Tutti gli ambiti")}</option>
+              <option value="impresa">{t("Impresa / organico")}</option>
               {commesse.data
                 ?.filter((c) => q.data?.some((d) => d.order_id === c.id))
                 .map((c) => (
@@ -487,7 +487,7 @@ export function FascicoloDocumenti({
                 checked={altriPeriodi}
                 onChange={(e) => setAltriPeriodi(e.target.checked)}
               />
-              Mostra anche altre fasi e periodi
+              {t("Mostra anche altre fasi e periodi")}
             </label>
           )}
           <label className="flex items-center gap-2 text-xs">
@@ -496,35 +496,35 @@ export function FascicoloDocumenti({
               checked={storico}
               onChange={(e) => setStorico(e.target.checked)}
             />
-            Versioni superate
+            {t("Versioni superate")}
           </label>
         </div>
         {q.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Fascicolo non disponibile.{" "}
+            {t("Fascicolo non disponibile.")}{" "}
             <Button variant="link" onClick={() => q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </p>
         ) : q.isLoading ? (
-          <p>Caricamento fascicolo…</p>
+          <p>{t("Caricamento fascicolo…")}</p>
         ) : !righe.length ? (
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
             {documentoSelezionato
-              ? "Il documento selezionato non è disponibile nella fonte corrente. Torna all’elenco e aggiorna la fonte."
+              ? t("Il documento selezionato non è disponibile nella fonte corrente. Torna all’elenco e aggiorna la fonte.")
               : soloSdsAziendali
-                ? "Nessuna SDS con questi filtri. Carica il file e indica revisione e data; un archivio vuoto non conferma l’assenza di prodotti pericolosi."
-                : "Nessuna evidenza con questi filtri. Aggiungi un documento o prepara una richiesta; non viene inviato alcun messaggio."}
+                ? t("Nessuna SDS con questi filtri. Carica il file e indica revisione e data; un archivio vuoto non conferma l’assenza di prodotti pericolosi.")
+                : t("Nessuna evidenza con questi filtri. Aggiungi un documento o prepara una richiesta; non viene inviato alcun messaggio.")}
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="p-3 text-left">Documento e titolare</th>
-                  <th className="p-3 text-left">Ambito</th>
-                  <th className="p-3 text-left">Stato e date</th>
-                  <th className="p-3 text-right">Azioni</th>
+                  <th className="p-3 text-left">{t("Documento e titolare")}</th>
+                  <th className="p-3 text-left">{t("Ambito")}</th>
+                  <th className="p-3 text-left">{t("Stato e date")}</th>
+                  <th className="p-3 text-right">{t("Azioni")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -533,22 +533,22 @@ export function FascicoloDocumenti({
                     <td className="p-3 align-top">
                       <p className="font-medium">{d.titolo}</p>
                       <p className="text-xs text-muted-foreground">
-                        {TIPI[d.tipo as keyof typeof TIPI] ?? d.tipo}
-                        {d.revisione ? ` · Rev. ${d.revisione}` : ""}
+                        {TIPI[d.tipo as keyof typeof TIPI] ? t(TIPI[d.tipo as keyof typeof TIPI]) : d.tipo}
+                        {d.revisione ? t(" · Rev. {revisione}", { revisione: String(d.revisione ?? "") }) : ""}
                       </p>
                       {(d.fase_id || d.applicabile_dal || d.applicabile_al) && (
                         <p className="text-xs text-muted-foreground">
                           {d.fase_id
-                            ? `Fase: ${fasi.data?.find((f) => f.id === d.fase_id)?.name ?? "fase collegata alla commessa"} · `
+                            ? `${t("Fase: {nome}", { nome: fasi.data?.find((f) => f.id === d.fase_id)?.name ?? t("fase collegata alla commessa") })} · `
                             : ""}
-                          Applicabilità:{" "}
-                          {d.applicabile_dal ?? "inizio non delimitato"} —{" "}
-                          {d.applicabile_al ?? "fine non delimitata"}
+                          {t("Applicabilità:")}{" "}
+                          {d.applicabile_dal ?? t("inizio non delimitato")} —{" "}
+                          {d.applicabile_al ?? t("fine non delimitata")}
                         </p>
                       )}
                       {d.catalogo_id && (
                         <p className="text-xs text-muted-foreground">
-                          Catalogo:{" "}
+                          {t("Catalogo:")}{" "}
                           {voceCatalogo(d.catalogo_id, d.catalogo_versione)
                             ?.titolo ?? d.catalogo_id}{" "}
                           · v{d.catalogo_versione}
@@ -556,9 +556,9 @@ export function FascicoloDocumenti({
                       )}
                       {d.incarico_id && (
                         <p className="text-xs">
-                          Incarico:{" "}
+                          {t("Incarico:")}{" "}
                           {incarichi.data?.find((i) => i.id === d.incarico_id)
-                            ?.nominativo ?? "Da consultare negli incarichi"}
+                            ?.nominativo ?? t("Da consultare negli incarichi")}
                         </p>
                       )}
                       {d.operaio_id && (
@@ -569,14 +569,14 @@ export function FascicoloDocumenti({
                             );
                             return o
                               ? `${o.nome} ${o.cognome}`
-                              : "Addetto esterno";
+                              : t("Addetto esterno");
                           })()}
                         </p>
                       )}
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Requisito:{" "}
+                        {t("Requisito:")}{" "}
                         {d.origine_requisito === "da_verificare"
-                          ? "origine da verificare"
+                          ? t("origine da verificare")
                           : d.origine_requisito}
                       </p>
                     </td>
@@ -587,40 +587,33 @@ export function FascicoloDocumenti({
                           className="text-primary"
                         >
                           {commesse.data?.find((c) => c.id === d.order_id)
-                            ?.order_code ?? "Commessa"}
+                            ?.order_code ?? t("Commessa")}
                         </a>
                       ) : soloSdsAziendali ? (
-                        "Tutte le commesse proprie"
+                        t("Tutte le commesse proprie")
                       ) : (
-                        "Impresa / organico"
+                        t("Impresa / organico")
                       )}
-                      {d.competenza && <p>Mese {d.competenza}</p>}
+                      {d.competenza && <p>{t("Mese {competenza}", { competenza: String(d.competenza ?? "") })}</p>}
                     </td>
                     <td className="p-3 align-top">
-                      <Badge variant="outline">{esitoEvidenza(d)}</Badge>
+                      <Badge variant="outline">{t(esitoEvidenza(d))}</Badge>
                       {soloSdsAziendali && (
                         <p className="mt-1 text-xs">
-                          Revisione {d.revisione || "da indicare"} · rilascio{" "}
-                          {d.data_rilascio || "da indicare"}
+                          {t("Revisione {revisione} · rilascio {rilascio}", { revisione: d.revisione || t("da indicare"), rilascio: d.data_rilascio || t("da indicare") })}
                         </p>
                       )}
                       {d.data_scadenza && (
-                        <p className="mt-1 text-xs">
-                          Scadenza {d.data_scadenza}
-                        </p>
+                        <p className="mt-1 text-xs">{t("Scadenza {data}", { data: String(d.data_scadenza ?? "") })}</p>
                       )}
                       {d.termine && (
-                        <p className="mt-1 text-xs">
-                          Da ricevere entro {d.termine}
-                        </p>
+                        <p className="mt-1 text-xs">{t("Da ricevere entro {termine}", { termine: String(d.termine ?? "") })}</p>
                       )}
                       {d.referente && (
-                        <p className="mt-1 text-xs">Referente: {d.referente}</p>
+                        <p className="mt-1 text-xs">{t("Referente: {nome}", { nome: String(d.referente ?? "") })}</p>
                       )}
                       {d.verificato_il && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Verifica registrata {d.verificato_il.slice(0, 10)}
-                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("Verifica registrata {verificato_il}", { verificato_il: d.verificato_il.slice(0, 10) })}</p>
                       )}
                     </td>
                     <td className="p-3 align-top">
@@ -629,7 +622,7 @@ export function FascicoloDocumenti({
                           <Button
                             size="icon"
                             variant="ghost"
-                            aria-label={`Apri ${d.titolo}`}
+                            aria-label={t("Apri {nome}", { nome: String(d.titolo ?? "") })}
                             onClick={() =>
                               apriFileFascicolo(d.file_path!).catch((e) =>
                                 toast.error(e.message),
@@ -643,7 +636,7 @@ export function FascicoloDocumenti({
                           <Button
                             size="icon"
                             variant="ghost"
-                            aria-label={`Modifica ${d.titolo}`}
+                            aria-label={t("Modifica {nome}", { nome: String(d.titolo ?? "") })}
                             onClick={() => modifica(d)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -679,16 +672,16 @@ export function FascicoloDocumenti({
             <DialogTitle>
               {soloSdsAziendali
                 ? form?.id
-                  ? "Gestisci SDS aziendale"
-                  : "Carica SDS aziendale"
+                  ? t("Gestisci SDS aziendale")
+                  : t("Carica SDS aziendale")
                 : form?.id
-                  ? "Gestisci evidenza"
-                  : "Documento o richiesta"}
+                  ? t("Gestisci evidenza")
+                  : t("Documento o richiesta")}
             </DialogTitle>
             <DialogDescription>
               {soloSdsAziendali
-                ? "Documento della propria impresa, riutilizzabile nelle commesse. Indica prodotto, revisione e data del documento. Per una nuova versione carica un’altra SDS: il file precedente rimane conservato."
-                : "Indica soggetto e cantiere corretti. Per una versione successiva crea una nuova evidenza; i file salvati non vengono sostituiti."}
+                ? t("Documento della propria impresa, riutilizzabile nelle commesse. Indica prodotto, revisione e data del documento. Per una nuova versione carica un’altra SDS: il file precedente rimane conservato.")
+                : t("Indica soggetto e cantiere corretti. Per una versione successiva crea una nuova evidenza; i file salvati non vengono sostituiti.")}
             </DialogDescription>
           </DialogHeader>
           {form && (
@@ -704,10 +697,10 @@ export function FascicoloDocumenti({
                   <div className="rounded-md border p-3 text-sm">
                     <p>
                       {classificazione
-                        ? `Catalogo v${classificazione.versione}: ${classificazione.titolo}`
+                        ? t("Catalogo v{versione}: {titolo}", { versione: String(classificazione.versione ?? ""), titolo: String(classificazione.titolo ?? "") })
                         : form.catalogo_id
-                          ? "Classificazione di un’altra versione dell’app: ricarica prima di modificare"
-                          : "Voce non classificata nel catalogo"}
+                          ? t("Classificazione di un’altra versione dell’app: ricarica prima di modificare")
+                          : t("Voce non classificata nel catalogo")}
                     </p>
                     {classificazione?.nota && (
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -716,8 +709,7 @@ export function FascicoloDocumenti({
                     )}
                     {verificatoNelFascicolo && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Per cambiare classificazione o incarico, salva prima lo
-                        stato Integrazione e riapri l’evidenza.
+                        {t("Per cambiare classificazione o incarico, salva prima lo stato Integrazione e riapri l’evidenza.")}
                       </p>
                     )}
                     <Button
@@ -727,14 +719,14 @@ export function FascicoloDocumenti({
                       disabled={pending || verificatoNelFascicolo}
                       onClick={() => setCatalogoAperto(true)}
                     >
-                      Classifica dal catalogo
+                      {t("Classifica dal catalogo")}
                     </Button>
                   </div>
                 )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="evi-tipo">Tipo</Label>
+                    <Label htmlFor="evi-tipo">{t("Tipo")}</Label>
                     <UniformSelect
                       id="evi-tipo"
                       className="h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -744,13 +736,13 @@ export function FascicoloDocumenti({
                     >
                       {Object.entries(TIPI).map(([v, l]) => (
                         <option key={v} value={v}>
-                          {l}
+                          {t(l)}
                         </option>
                       ))}
                     </UniformSelect>
                   </div>
                   <div>
-                    <Label htmlFor="evi-titolo">Titolo</Label>
+                    <Label htmlFor="evi-titolo">{t("Titolo")}</Label>
                     <Input
                       id="evi-titolo"
                       required
@@ -761,7 +753,7 @@ export function FascicoloDocumenti({
                 </div>
                 {!form.id && !!orderId && !subId && !soloSdsAziendali && (
                   <div>
-                    <Label htmlFor="evi-impresa">Titolare del documento</Label>
+                    <Label htmlFor="evi-impresa">{t("Titolare del documento")}</Label>
                     <UniformSelect
                       id="evi-impresa"
                       className="h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -773,38 +765,33 @@ export function FascicoloDocumenti({
                         cambia("subappaltatore_id", e.target.value)
                       }
                     >
-                      <option value="">Cantiere / propria impresa</option>
+                      <option value="">{t("Cantiere / propria impresa")}</option>
                       {impreseCollegate.data?.imprese.map((i) => (
                         <option key={i.id} value={i.id}>
-                          {i.ragione_sociale || "Impresa collegata"}
+                          {i.ragione_sociale || t("Impresa collegata")}
                         </option>
                       ))}
                     </UniformSelect>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Solo imprese già collegate alla commessa. Seleziona poi
-                      l’eventuale operaio o incarico; il caricamento non
-                      registra una verifica ITP.
+                      {t("Solo imprese già collegate alla commessa. Seleziona poi l’eventuale operaio o incarico; il caricamento non registra una verifica ITP.")}
                     </p>
                     {impreseCollegate.isError && (
                       <p role="alert" className="text-xs text-destructive">
-                        Imprese collegate non disponibili: riprova dalla scheda
-                        impresa.
+                        {t("Imprese collegate non disponibili: riprova dalla scheda impresa.")}
                       </p>
                     )}
                   </div>
                 )}
                 {form.id && form.subappaltatore_id && (
                   <p className="rounded-md bg-muted p-3 text-sm">
-                    Documento di un’impresa esterna: il titolare originale viene
-                    mantenuto. Per cambiare impresa occorre un nuovo record nel
-                    fascicolo corretto.
+                    {t("Documento di un’impresa esterna: il titolare originale viene mantenuto. Per cambiare impresa occorre un nuovo record nel fascicolo corretto.")}
                   </p>
                 )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="evi-commessa">
-                      Commessa
-                      {form.tipo === "pos" ? " (necessaria per il POS)" : ""}
+                      {t("Commessa")}
+                      {form.tipo === "pos" ? ` ${t("(necessaria per il POS)")}` : ""}
                     </Label>
                     <UniformSelect
                       id="evi-commessa"
@@ -814,7 +801,7 @@ export function FascicoloDocumenti({
                       value={form.order_id}
                       onChange={(e) => cambia("order_id", e.target.value)}
                     >
-                      <option value="">Documento aziendale / organico</option>
+                      <option value="">{t("Documento aziendale / organico")}</option>
                       {commesse.data?.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.order_code} · {c.description?.slice(0, 50)}
@@ -823,14 +810,14 @@ export function FascicoloDocumenti({
                     </UniformSelect>
                     {commesse.isError && (
                       <p role="alert" className="text-xs text-destructive">
-                        Elenco commesse non disponibile.
+                        {t("Elenco commesse non disponibile.")}
                       </p>
                     )}
                   </div>
                   {titolareSubId && (
                     <div>
                       <Label htmlFor="evi-operaio">
-                        Operaio (se personale)
+                        {t("Operaio (se personale)")}
                       </Label>
                       <UniformSelect
                         id="evi-operaio"
@@ -839,13 +826,13 @@ export function FascicoloDocumenti({
                         value={form.operaio_id}
                         onChange={(e) => cambia("operaio_id", e.target.value)}
                       >
-                        <option value="">Documento dell’impresa</option>
+                        <option value="">{t("Documento dell’impresa")}</option>
                         {form.operaio_id &&
                           !operai.data?.some(
                             (o) => o.id === form.operaio_id,
                           ) && (
                             <option value={form.operaio_id}>
-                              Addetto esterno già collegato
+                              {t("Addetto esterno già collegato")}
                             </option>
                           )}
                         {operai.data?.map((o) => (
@@ -863,12 +850,12 @@ export function FascicoloDocumenti({
                 >
                   <legend className="px-1 text-sm font-medium">
                     {soloSdsAziendali
-                      ? "Periodo di applicabilità"
-                      : "Applicabilità per fase e periodo"}
+                      ? t("Periodo di applicabilità")
+                      : t("Applicabilità per fase e periodo")}
                   </legend>
                   {!soloSdsAziendali && (
                     <>
-                      <Label htmlFor="evi-fase">Fase della commessa</Label>
+                      <Label htmlFor="evi-fase">{t("Fase della commessa")}</Label>
                       <UniformSelect
                         id="evi-fase"
                         disabled={!form.order_id || verificatoNelFascicolo}
@@ -877,27 +864,26 @@ export function FascicoloDocumenti({
                         onChange={(e) => cambia("fase_id", e.target.value)}
                       >
                         <option value="">
-                          Requisito non limitato a una fase
+                          {t("Requisito non limitato a una fase")}
                         </option>
                         {fasi.data?.map((f) => (
                           <option key={f.id} value={f.id}>
                             {f.name}
-                            {f.start_date ? ` · dal ${f.start_date}` : ""}
-                            {f.end_date ? ` al ${f.end_date}` : ""}
+                            {f.start_date ? t(" · dal {start_date}", { start_date: String(f.start_date ?? "") }) : ""}
+                            {f.end_date ? t(" al {valore}", { valore: String(f.end_date ?? "") }) : ""}
                           </option>
                         ))}
                       </UniformSelect>
                       {fasi.isError && (
                         <p role="alert" className="text-xs text-destructive">
-                          Fasi non disponibili: riprova prima di collegare una
-                          fase.
+                          {t("Fasi non disponibili: riprova prima di collegare una fase.")}
                         </p>
                       )}
                     </>
                   )}
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     <div>
-                      <Label htmlFor="evi-app-dal">Applicabile dal</Label>
+                      <Label htmlFor="evi-app-dal">{t("Applicabile dal")}</Label>
                       <Input
                         id="evi-app-dal"
                         type="date"
@@ -908,7 +894,7 @@ export function FascicoloDocumenti({
                       />
                     </div>
                     <div>
-                      <Label htmlFor="evi-app-al">Applicabile fino al</Label>
+                      <Label htmlFor="evi-app-al">{t("Applicabile fino al")}</Label>
                       <Input
                         id="evi-app-al"
                         type="date"
@@ -920,17 +906,14 @@ export function FascicoloDocumenti({
                     </div>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Periodo del requisito, distinto dalla scadenza del
-                    documento. Nessuna data viene copiata dal calendario:
-                    eventuali ripianificazioni vanno riesaminate. Per modificare
-                    l’ambito di un’evidenza verificata salva prima Integrazione.
+                    {t("Periodo del requisito, distinto dalla scadenza del documento. Nessuna data viene copiata dal calendario: eventuali ripianificazioni vanno riesaminate. Per modificare l’ambito di un’evidenza verificata salva prima Integrazione.")}
                   </p>
                 </fieldset>
                 {!soloSdsAziendali && (
                   <>
                     <div>
                       <Label htmlFor="evi-incarico">
-                        Incarico titolare del documento
+                        {t("Incarico titolare del documento")}
                       </Label>
                       <UniformSelect
                         id="evi-incarico"
@@ -939,7 +922,7 @@ export function FascicoloDocumenti({
                         disabled={!!form.operaio_id || verificatoNelFascicolo}
                         onChange={(e) => cambia("incarico_id", e.target.value)}
                       >
-                        <option value="">Nessun incarico collegato</option>
+                        <option value="">{t("Nessun incarico collegato")}</option>
                         {form.incarico_id &&
                           !incarichi.data?.some(
                             (i) =>
@@ -947,8 +930,7 @@ export function FascicoloDocumenti({
                               i.subappaltatore_id === (titolareSubId ?? null),
                           ) && (
                             <option value={form.incarico_id}>
-                              Incarico già collegato · non disponibile in questo
-                              elenco
+                              {t("Incarico già collegato · non disponibile in questo elenco")}
                             </option>
                           )}
                         {incarichi.data
@@ -959,21 +941,17 @@ export function FascicoloDocumenti({
                           )
                           .map((i) => (
                             <option key={i.id} value={i.id}>
-                              {i.nominativo} · {RUOLI_INCARICO[i.ruolo]}
+                              {i.nominativo} · {t(RUOLI_INCARICO[i.ruolo])}
                             </option>
                           ))}
                       </UniformSelect>
                       {incarichi.isError && (
                         <p role="alert" className="text-xs text-destructive">
-                          Incarichi non disponibili.
+                          {t("Incarichi non disponibili.")}
                         </p>
                       )}
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Per nomine e attestati delle figure scegli l’incarico
-                        esistente. Per un operaio esterno scegli l’operaio; i
-                        dipendenti interni restano nel modulo Personale. Il
-                        collegamento non verifica né documenta automaticamente
-                        la nomina.
+                        {t("Per nomine e attestati delle figure scegli l’incarico esistente. Per un operaio esterno scegli l’operaio; i dipendenti interni restano nel modulo Personale. Il collegamento non verifica né documenta automaticamente la nomina.")}
                       </p>
                     </div>
                   </>
@@ -983,7 +961,7 @@ export function FascicoloDocumenti({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <Label htmlFor="evi-origine">
-                          Origine del requisito
+                          {t("Origine del requisito")}
                         </Label>
                         <UniformSelect
                           id="evi-origine"
@@ -993,17 +971,17 @@ export function FascicoloDocumenti({
                             cambia("origine_requisito", e.target.value)
                           }
                         >
-                          <option value="da_verificare">Da verificare</option>
-                          <option value="normativa">Normativa</option>
+                          <option value="da_verificare">{t("Da verificare")}</option>
+                          <option value="normativa">{t("Normativa")}</option>
                           <option value="contratto">
-                            Contratto / committente
+                            {t("Contratto / committente")}
                           </option>
-                          <option value="interna">Procedura interna</option>
+                          <option value="interna">{t("Procedura interna")}</option>
                         </UniformSelect>
                       </div>
                       <div>
                         <Label htmlFor="evi-riferimento">
-                          Riferimento del requisito
+                          {t("Riferimento del requisito")}
                         </Label>
                         <Input
                           id="evi-riferimento"
@@ -1017,7 +995,7 @@ export function FascicoloDocumenti({
                   </>
                 )}
                 <div>
-                  <Label htmlFor="evi-stato">Stato</Label>
+                  <Label htmlFor="evi-stato">{t("Stato")}</Label>
                   <UniformSelect
                     id="evi-stato"
                     className="h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -1026,7 +1004,7 @@ export function FascicoloDocumenti({
                   >
                     {Object.entries(STATO_EVIDENZA).map(([v, l]) => (
                       <option key={v} value={v}>
-                        {l}
+                        {t(l)}
                       </option>
                     ))}
                   </UniformSelect>
@@ -1047,12 +1025,12 @@ export function FascicoloDocumenti({
                         !soloSdsAziendali ||
                         !["competenza", "termine", "referente"].includes(k),
                     )
-                    .map(([k, l, t]) => (
+                    .map(([k, l, tipoCampo]) => (
                       <div key={k}>
-                        <Label htmlFor={`evi-${k}`}>{l}</Label>
+                        <Label htmlFor={`evi-${k}`}>{t(l)}</Label>
                         <Input
                           id={`evi-${k}`}
-                          type={t}
+                          type={tipoCampo}
                           value={form[k]}
                           onChange={(e) => cambia(k, e.target.value)}
                         />
@@ -1060,14 +1038,11 @@ export function FascicoloDocumenti({
                     ))}
                 </div>
                 {form.file_path ? (
-                  <p className="rounded-md bg-slate-50 p-3 text-xs">
-                    File conservato: {form.file_name}. Per sostituirlo aggiungi
-                    una nuova evidenza.
-                  </p>
+                  <p className="rounded-md bg-slate-50 p-3 text-xs">{t("File conservato: {file_name}. Per sostituirlo aggiungi una nuova evidenza.", { file_name: String(form.file_name ?? "") })}</p>
                 ) : (
                   <div>
                     <Label htmlFor="evi-file">
-                      File PDF o immagine (fino a 15 MB)
+                      {t("File PDF o immagine (fino a 15 MB)")}
                     </Label>
                     <Input
                       id="evi-file"
@@ -1079,7 +1054,7 @@ export function FascicoloDocumenti({
                 )}
                 <div>
                   <Label htmlFor="evi-note">
-                    Note / motivazione della non applicabilità
+                    {t("Note / motivazione della non applicabilità")}
                   </Label>
                   <Textarea
                     id="evi-note"
@@ -1096,11 +1071,11 @@ export function FascicoloDocumenti({
                   disabled={pending}
                   onClick={richiediChiusura}
                 >
-                  Annulla
+                  {t("Annulla")}
                 </Button>
                 <Button disabled={pending}>
                   {pending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                  Salva nel fascicolo
+                  {t("Salva nel fascicolo")}
                 </Button>
               </DialogFooter>
             </form>
@@ -1110,14 +1085,13 @@ export function FascicoloDocumenti({
       <AlertDialog open={confermaChiusura} onOpenChange={setConfermaChiusura}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chiudere senza salvare?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Chiudere senza salvare?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Le modifiche non ancora salvate andranno perse. Puoi tornare al
-              modulo per completarle.
+              {t("Le modifiche non ancora salvate andranno perse. Puoi tornare al modulo per completarle.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continua modifica</AlertDialogCancel>
+            <AlertDialogCancel>{t("Continua modifica")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setForm(null);
@@ -1125,7 +1099,7 @@ export function FascicoloDocumenti({
                 setConfermaChiusura(false);
               }}
             >
-              Chiudi senza salvare
+              {t("Chiudi senza salvare")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

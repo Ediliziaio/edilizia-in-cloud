@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORE: Record<StatoPagamento, string> = {
   pagata: "bg-emerald-100 text-emerald-800",
@@ -44,6 +45,7 @@ const METODO: Record<string, string> = { riba: "RiBa", bonifico: "Bonifico", car
 const oggi = () => new Date().toLocaleDateString("en-CA");
 
 export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId: string | null; partitaIva: string | null }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [vista, setVista] = useState<"fatture" | "conto">("fatture");
 
@@ -112,8 +114,8 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
   if (q.isError)
     return (
       <div role="alert" className="space-y-2 rounded-lg border border-destructive/30 p-4 text-sm">
-        <p>Non riesco a leggere fatture e debiti del fornitore.</p>
-        <Button size="sm" variant="outline" onClick={() => void q.refetch()}>Riprova</Button>
+        <p>{t("Non riesco a leggere fatture e debiti del fornitore.")}</p>
+        <Button size="sm" variant="outline" onClick={() => void q.refetch()}>{t("Riprova")}</Button>
       </div>
     );
 
@@ -129,30 +131,29 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
           ["Note di credito", totali.noteCredito, ""],
         ].map(([nome, valore, cls]) => (
           <div key={nome as string} className="rounded-lg border p-2.5">
-            <p className="text-xs text-muted-foreground">{nome}</p>
+            <p className="text-xs text-muted-foreground">{t(nome as string)}</p>
             <p className={`text-base font-semibold tabular-nums ${cls}`}>{formatCurrency(valore as number)}</p>
           </div>
         ))}
       </div>
       {totali.daRegistrare > 0 && (
         <p className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-700">
-          {formatCurrency(totali.daRegistrare)} di fatture arrivate ma non ancora registrate come costo: il debito c’è,
-          le scadenze sono quelle scritte in fattura.{" "}
-          <Link to="/azienda/documenti/fatture-ricevute" className="font-medium underline">Registrale</Link>
+          {t("{importo} di fatture arrivate ma non ancora registrate come costo: il debito c’è, le scadenze sono quelle scritte in fattura.", { importo: formatCurrency(totali.daRegistrare) })}{" "}
+          <Link to="/azienda/documenti/fatture-ricevute" className="font-medium underline">{t("Registrale")}</Link>
         </p>
       )}
 
       {aperte.length > 0 && (
         <section className="space-y-1.5">
-          <h3 className="text-sm font-semibold">Rate e RiBa da pagare</h3>
+          <h3 className="text-sm font-semibold">{t("Rate e RiBa da pagare")}</h3>
           <ul className="divide-y rounded-lg border text-sm">
             {aperte.slice(0, 30).map((r) => {
               const scaduta = !!r.scadenza && r.scadenza < giorno;
               return (
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5">
                   <span className={scaduta ? "text-rose-700" : ""}>
-                    {r.scadenza ? formatDateIt(r.scadenza) : "Senza data"} · {METODO[r.metodo ?? ""] ?? "Pagamento"}
-                    {scaduta && " · scaduta"}
+                    {r.scadenza ? formatDateIt(r.scadenza) : t("Senza data")} · {t(METODO[r.metodo ?? ""] ?? "Pagamento")}
+                    {scaduta && ` ${t("· scaduta")}`}
                   </span>
                   <span className="font-medium tabular-nums">{formatCurrency(Number(r.importo) || 0)}</span>
                 </li>
@@ -163,28 +164,26 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
       )}
 
       <div className="flex gap-2">
-        <Button size="sm" variant={vista === "fatture" ? "default" : "outline"} onClick={() => setVista("fatture")}>
-          Fatture ({righe.length})
-        </Button>
+        <Button size="sm" variant={vista === "fatture" ? "default" : "outline"} onClick={() => setVista("fatture")}>{t("Fatture ({n})", { n: righe.length })}</Button>
         <Button size="sm" variant={vista === "conto" ? "default" : "outline"} onClick={() => setVista("conto")}>
-          Estratto conto
+          {t("Estratto conto")}
         </Button>
       </div>
 
       {righe.length === 0 ? (
         <p className="py-4 text-sm text-muted-foreground">
-          Nessuna fattura ricevuta da questo fornitore{partitaIva ? "" : ": aggiungi la P.IVA in anagrafica per trovare quelle arrivate dallo SDI"}.
+          {partitaIva ? t("Nessuna fattura ricevuta da questo fornitore.") : t("Nessuna fattura ricevuta da questo fornitore: aggiungi la P.IVA in anagrafica per trovare quelle arrivate dallo SDI.")}
         </p>
       ) : vista === "fatture" ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Fattura</th>
-                <th className="px-3 py-2 text-left font-medium">Stato</th>
-                <th className="px-3 py-2 text-right font-medium">Importo</th>
-                <th className="px-3 py-2 text-right font-medium">Residuo</th>
-                <th className="hidden px-3 py-2 text-left font-medium sm:table-cell">Prossima scadenza</th>
+                <th className="px-3 py-2 text-left font-medium">{t("Fattura")}</th>
+                <th className="px-3 py-2 text-left font-medium">{t("Stato")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("Importo")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("Residuo")}</th>
+                <th className="hidden px-3 py-2 text-left font-medium sm:table-cell">{t("Prossima scadenza")}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -195,7 +194,7 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
                     <span className="ml-2 text-xs text-muted-foreground">{r.fattura.data_fattura ? formatDateIt(r.fattura.data_fattura) : ""}</span>
                   </td>
                   <td className="px-3 py-1.5">
-                    <Badge className={`${COLORE[r.stato]} font-normal`}>{ETICHETTA_STATO_PAGAMENTO[r.stato]}</Badge>
+                    <Badge className={`${COLORE[r.stato]} font-normal`}>{t(ETICHETTA_STATO_PAGAMENTO[r.stato])}</Badge>
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{formatCurrency(r.importo)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{r.residuo > 0 ? formatCurrency(r.residuo) : "—"}</td>
@@ -210,11 +209,11 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Data</th>
-                <th className="px-3 py-2 text-left font-medium">Movimento</th>
-                <th className="px-3 py-2 text-right font-medium">Dare</th>
-                <th className="px-3 py-2 text-right font-medium">Avere</th>
-                <th className="px-3 py-2 text-right font-medium">Saldo</th>
+                <th className="px-3 py-2 text-left font-medium">{t("Data")}</th>
+                <th className="px-3 py-2 text-left font-medium">{t("Movimento")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("Dare")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("Avere")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("Saldo")}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -230,7 +229,7 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
             </tbody>
           </table>
           <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-            Avere: le fatture (il debito sale). Dare: pagamenti e note di credito (il debito scende). Il saldo è quanto resta da pagare.
+            {t("Avere: le fatture (il debito sale). Dare: pagamenti e note di credito (il debito scende). Il saldo è quanto resta da pagare.")}
           </p>
         </div>
       )}

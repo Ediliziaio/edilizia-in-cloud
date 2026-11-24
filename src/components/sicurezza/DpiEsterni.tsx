@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 function ModificaDpiEsterno({
   ambito,
   contesto,
@@ -83,8 +84,7 @@ function StoricoDpiEsterno({
     />
   );
 }
-const dataIt = (d: string | null) =>
-  d ? d.split("-").reverse().join("/") : "non indicata";
+const dataGrezza = (d: string) => d.split("-").reverse().join("/");
 export function DpiEsterni({
   ambito,
   apertoIniziale = false,
@@ -94,6 +94,8 @@ export function DpiEsterni({
   apertoIniziale?: boolean;
   contestoNonDisponibile?: boolean;
 }) {
+  const t = useT();
+  const dataIt = (d: string | null) => (d ? dataGrezza(d) : t("non indicata"));
   const [aperto, setAperto] = useState(apertoIniziale);
   const p = usePermissions();
   const q = useDpiEsterni(ambito, aperto && !contestoNonDisponibile);
@@ -138,7 +140,7 @@ export function DpiEsterni({
           aria-expanded={aperto}
           onClick={() => setAperto((v) => !v)}
         >
-          Dotazioni DPI dell’impresa esterna {aperto ? "−" : "+"}
+          {t("Dotazioni DPI dell’impresa esterna")} {aperto ? "−" : "+"}
         </Button>
         {aperto && (
           <div className="flex flex-wrap gap-2">
@@ -148,7 +150,7 @@ export function DpiEsterni({
                 disabled={q.isFetching || !r?.addetti.some((a) => a.attivo)}
                 onClick={() => prepara()}
               >
-                Registra dotazione esterna
+                {t("Registra dotazione esterna")}
               </Button>
             )}
             <Button
@@ -157,7 +159,7 @@ export function DpiEsterni({
               disabled={q.isFetching || contestoNonDisponibile}
               onClick={() => void q.refetch()}
             >
-              Aggiorna dotazioni
+              {t("Aggiorna dotazioni")}
             </Button>
           </div>
         )}
@@ -165,68 +167,52 @@ export function DpiEsterni({
       {aperto && (
         <div className="mt-3 space-y-3">
           <p className="text-xs text-muted-foreground">
-            Registro degli operai di questa impresa, distinto dai tuoi
-            dipendenti. Le consegne restano del titolare e vengono ritrovate
-            nelle sue commesse pertinenti. I verbali sono collegamenti al
-            fascicolo originale; non attestano automaticamente firma, consegna
-            effettiva o adeguatezza.
+            {t("Registro degli operai di questa impresa, distinto dai tuoi dipendenti. Le consegne restano del titolare e vengono ritrovate nelle sue commesse pertinenti. I verbali sono collegamenti al fascicolo originale; non attestano automaticamente firma, consegna effettiva o adeguatezza.")}
           </p>
           {contestoNonDisponibile ? (
             <p role="alert" className="text-sm text-destructive">
-              Contesto della fase non disponibile: attendi prima di consultare
-              le dotazioni.
+              {t("Contesto della fase non disponibile: attendi prima di consultare le dotazioni.")}
             </p>
           ) : q.isLoading ? (
-            <p role="status">Caricamento delle dotazioni esterne…</p>
+            <p role="status">{t("Caricamento delle dotazioni esterne…")}</p>
           ) : q.isError || !r ? (
             <p role="alert" className="text-sm text-destructive">
-              Dotazioni non disponibili: non è possibile confermare completezza
-              o assenza di registrazioni.
+              {t("Dotazioni non disponibili: non è possibile confermare completezza o assenza di registrazioni.")}
             </p>
           ) : (
             <>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">
-                  {r.addetti.length} operai nel contesto
-                </Badge>
-                <Badge variant="outline">{consegne.length} registrazioni</Badge>
-                <Badge variant="outline">
-                  {
-                    consegne.filter(
+                <Badge variant="outline">{t("{n} operai nel contesto", { n: r.addetti.length })}</Badge>
+                <Badge variant="outline">{t("{n} registrazioni", { n: consegne.length })}</Badge>
+                <Badge variant="outline">{t("{n} riferimenti da riesaminare", { n: consegne.filter(
                       (d) =>
                         d.evidenza_id &&
                         (d.verbale_cambiato || d.verbale_pertinente !== true),
-                    ).length
-                  }{" "}
-                  riferimenti da riesaminare
-                </Badge>
+                    ).length })}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                Riferimento: {dataIt(r.data)}.{" "}
+                {t("Riferimento: {data}.", { data: dataIt(r.data) })}{" "}
                 {ambito.orderId
-                  ? "Sono inclusi gli operai assegnati in questa data/fase."
-                  : "Organico dell’impresa, incluse le registrazioni storiche."}{" "}
-                Gli stati attuali non ricostruiscono il possesso passato dei
-                DPI.
+                  ? t("Sono inclusi gli operai assegnati in questa data/fase.")
+                  : t("Organico dell’impresa, incluse le registrazioni storiche.")}{" "}
+                {t("Gli stati attuali non ricostruiscono il possesso passato dei DPI.")}
               </p>
               {!r.addetti.length ? (
                 <p className="text-sm text-muted-foreground">
-                  Nessun operaio nel contesto selezionato. Completa l’organico e
-                  le assegnazioni dalla scheda impresa; non vengono creati
-                  dipendenti interni.
+                  {t("Nessun operaio nel contesto selezionato. Completa l’organico e le assegnazioni dalla scheda impresa; non vengono creati dipendenti interni.")}
                 </p>
               ) : (
                 r.addetti.map((a) => (
                   <details key={a.id} className="rounded border p-3">
                     <summary className="cursor-pointer text-sm font-medium">
                       {a.nome} {a.cognome} ·{" "}
-                      {a.qualifica || "Mansione da indicare"} ·{" "}
-                      {a.consegne.length} consegne · rif. {a.id.slice(0, 8)}
-                      {!a.attivo ? " · cessato nell’organico" : ""}
+                      {a.qualifica || t("Mansione da indicare")} ·{" "}
+                      {t("{n} consegne · rif. {rif}", { n: a.consegne.length, rif: a.id.slice(0, 8) })}
+                      {!a.attivo ? ` ${t("· cessato nell’organico")}` : ""}
                     </summary>
                     {!a.consegne.length ? (
                       <p className="mt-2 text-sm text-amber-800">
-                        Nessuna dotazione registrata per questo operaio.
+                        {t("Nessuna dotazione registrata per questo operaio.")}
                       </p>
                     ) : (
                       <div className="mt-3 overflow-x-auto">
@@ -234,9 +220,9 @@ export function DpiEsterni({
                           <thead>
                             <tr className="border-b">
                               <th className="p-2">DPI</th>
-                              <th className="p-2">Date e stato</th>
-                              <th className="p-2">Verbale nel fascicolo</th>
-                              <th className="p-2">Azioni</th>
+                              <th className="p-2">{t("Date e stato")}</th>
+                              <th className="p-2">{t("Verbale nel fascicolo")}</th>
+                              <th className="p-2">{t("Azioni")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -251,10 +237,10 @@ export function DpiEsterni({
                                   </p>
                                 </td>
                                 <td className="p-2">
-                                  Consegna {dataIt(d.consegnato_il)}
-                                  <p>Scadenza {dataIt(d.scade_il)}</p>
+                                  {t("Consegna {data}", { data: dataIt(d.consegnato_il) })}
+                                  <p>{t("Scadenza {data}", { data: String(dataIt(d.scade_il) ?? "") })}</p>
                                   {d.restituito_il && (
-                                    <p>Reso {dataIt(d.restituito_il)}</p>
+                                    <p>{t("Reso {restituito_il}", { restituito_il: String(dataIt(d.restituito_il) ?? "") })}</p>
                                   )}
                                   <p>
                                     {
@@ -276,7 +262,7 @@ export function DpiEsterni({
                                         toast.error(
                                           e instanceof Error
                                             ? e.message
-                                            : "Verbale non disponibile",
+                                            : t("Verbale non disponibile"),
                                         ),
                                       )
                                     }
@@ -291,7 +277,7 @@ export function DpiEsterni({
                                         disabled={q.isFetching || !d.versione}
                                         onClick={() => prepara(a, d)}
                                       >
-                                        Rettifica dotazione
+                                        {t("Rettifica dotazione")}
                                       </Button>
                                     )}
                                     <Button
@@ -301,7 +287,7 @@ export function DpiEsterni({
                                         setStorico({ addetto: a, consegna: d })
                                       }
                                     >
-                                      Storico dotazione
+                                      {t("Storico dotazione")}
                                     </Button>
                                   </div>
                                 </td>
@@ -338,26 +324,28 @@ function RiferimentoVerbale({
   d: ConsegnaDpiEsterno;
   onApri: (v: VerbaleDpi) => void;
 }) {
-  if (!d.evidenza_id) return <span>Nessun verbale collegato</span>;
+  const t = useT();
+  const dataIt = (d: string | null) => (d ? dataGrezza(d) : t("non indicata"));
+  if (!d.evidenza_id) return <span>{t("Nessun verbale collegato")}</span>;
   return (
     <div className="space-y-1">
       {d.verbale_cambiato && (
         <p className="text-amber-800">
-          Verbale modificato: collegamento da riesaminare.
+          {t("Verbale modificato: collegamento da riesaminare.")}
         </p>
       )}
       {d.verbale_pertinente !== true ? (
         <p className="text-amber-800">
-          Verbale non disponibile o non pertinente a questo contesto.
+          {t("Verbale non disponibile o non pertinente a questo contesto.")}
         </p>
       ) : (
         d.verbale_corrente && (
           <>
             <p>{d.verbale_corrente.titolo}</p>
             <p>
-              Stato documentale: {d.verbale_corrente.stato}
+              {t("Stato documentale:")} {d.verbale_corrente.stato}
               {d.verbale_corrente.data_scadenza
-                ? ` · scadenza ${dataIt(d.verbale_corrente.data_scadenza)}`
+                ? ` · ${t("scadenza {data_scadenza}", { data_scadenza: String(dataIt(d.verbale_corrente.data_scadenza) ?? "") })}`
                 : ""}
             </p>
             <Button
@@ -366,7 +354,7 @@ function RiferimentoVerbale({
               className="h-auto p-0"
               onClick={() => onApri(d.verbale_corrente!)}
             >
-              Apri verbale corrente
+              {t("Apri verbale corrente")}
             </Button>
           </>
         )

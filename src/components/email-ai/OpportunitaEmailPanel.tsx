@@ -13,8 +13,10 @@ import {
   useOpportunitaBozzePerEmail,
   useAggiornaStatoOpportunita,
 } from "@/lib/email-ai/hooks";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OpportunitaEmailPanel({ emailId }: { emailId: string }) {
+  const t = useT();
   const apri = useApriOpportunita();
   const aggiorna = useAggiornaStatoOpportunita();
   const { data: bozze } = useOpportunitaBozzePerEmail(emailId);
@@ -27,7 +29,7 @@ export function OpportunitaEmailPanel({ emailId }: { emailId: string }) {
                 disabled={apri.isPending}
                 onClick={() => apri.mutate({ email_id: emailId })}>
           {apri.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Briefcase className="h-3.5 w-3.5" />}
-          Apri opportunità
+          {t("Apri opportunità")}
         </Button>
       )}
 
@@ -35,24 +37,24 @@ export function OpportunitaEmailPanel({ emailId }: { emailId: string }) {
         <div key={b.id} className="rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-xs">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Sparkles className="h-4 w-4 text-violet-600" />
-            <span className="font-semibold text-violet-900">Opportunità preparata</span>
+            <span className="font-semibold text-violet-900">{t("Opportunità preparata")}</span>
             {b.cliente_match_id ? (
-              <Badge variant="outline" className="gap-1 bg-white text-[10px]"><UserCheck className="h-3 w-3" /> Cliente dal CRM</Badge>
+              <Badge variant="outline" className="gap-1 bg-white text-[10px]"><UserCheck className="h-3 w-3" /> {t("Cliente dal CRM")}</Badge>
             ) : (
-              <Badge variant="outline" className="gap-1 border-amber-300 bg-amber-50 text-amber-800 text-[10px]"><UserPlus className="h-3 w-3" /> Cliente nuovo (da creare)</Badge>
+              <Badge variant="outline" className="gap-1 border-amber-300 bg-amber-50 text-amber-800 text-[10px]"><UserPlus className="h-3 w-3" /> {t("Cliente nuovo (da creare)")}</Badge>
             )}
-            {b.stato === "aperta" && <Badge className="bg-emerald-600 text-[10px]">Aperta</Badge>}
+            {b.stato === "aperta" && <Badge className="bg-emerald-600 text-[10px]">{t("Aperta")}</Badge>}
           </div>
 
           {b.richiesta_sintesi && <p className="mb-2 text-[12px] text-slate-800">{b.richiesta_sintesi}</p>}
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            {b.tipo_lavoro && <Field label="Lavoro" value={b.tipo_lavoro} />}
-            {b.indirizzo && <Field label="Indirizzo" value={b.indirizzo} />}
-            {b.tempistiche && <Field label="Tempistiche" value={b.tempistiche} />}
-            {b.vincoli && <Field label="Vincoli" value={b.vincoli} />}
-            {!b.cliente_match_id && b.cliente_nuovo?.nome && <Field label="Contatto" value={b.cliente_nuovo.nome} />}
-            {!b.cliente_match_id && b.cliente_nuovo?.telefono && <Field label="Telefono" value={b.cliente_nuovo.telefono} />}
+            {b.tipo_lavoro && <Field label={t("Lavoro")} value={b.tipo_lavoro} />}
+            {b.indirizzo && <Field label={t("Indirizzo")} value={b.indirizzo} />}
+            {b.tempistiche && <Field label={t("Tempistiche")} value={b.tempistiche} />}
+            {b.vincoli && <Field label={t("Vincoli")} value={b.vincoli} />}
+            {!b.cliente_match_id && b.cliente_nuovo?.nome && <Field label={t("Contatto")} value={b.cliente_nuovo.nome} />}
+            {!b.cliente_match_id && b.cliente_nuovo?.telefono && <Field label={t("Telefono")} value={b.cliente_nuovo.telefono} />}
           </div>
 
           {b.stato !== "aperta" && (
@@ -60,12 +62,12 @@ export function OpportunitaEmailPanel({ emailId }: { emailId: string }) {
               <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-xs hover:bg-emerald-700"
                       disabled={aggiorna.isPending}
                       onClick={() => aggiorna.mutate({ id: b.id, stato: "aperta", email_id: emailId })}>
-                <CheckCircle2 className="h-3.5 w-3.5" /> Segna come aperta
+                <CheckCircle2 className="h-3.5 w-3.5" /> {t("Segna come aperta")}
               </Button>
               <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                       disabled={aggiorna.isPending}
                       onClick={() => aggiorna.mutate({ id: b.id, stato: "scartata", email_id: emailId })}>
-                <XCircle className="h-3.5 w-3.5" /> Scarta
+                <XCircle className="h-3.5 w-3.5" /> {t("Scarta")}
               </Button>
             </div>
           )}

@@ -8,6 +8,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { supabase } from "@/integrations/supabase/client";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cercaNellOperazione } from "@/lib/orders/generali/registroOperazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type GruppoProposte = { order_id: string; phase_id: string | null; fase: string | null; n: number };
 
@@ -15,6 +16,7 @@ export function ProposteMaterialiOperazione({ riepilogo, edificio, edifici, chiu
   riepilogo: RiepilogoGenerale; edificio: string; edifici: ReadonlyMap<string, string>;
   chiudi: () => void; apri: (id: string, fase: string | null) => void;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [cerca, setCerca] = useState("");
   const [limite, setLimite] = useState(30);
@@ -37,28 +39,28 @@ export function ProposteMaterialiOperazione({ riepilogo, edificio, edifici, chiu
   return <Dialog open onOpenChange={open => { if (!open) chiudi(); }}>
     <DialogContent className="max-h-[90dvh] max-w-2xl gap-3 overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Proposte dal computo</DialogTitle>
-        <DialogDescription>Rivedi le proposte per commessa e fase prima di inserirle negli articoli.</DialogDescription>
+        <DialogTitle>{t("Proposte dal computo")}</DialogTitle>
+        <DialogDescription>{t("Rivedi le proposte per commessa e fase prima di inserirle negli articoli.")}</DialogDescription>
       </DialogHeader>
       <div className="flex flex-wrap items-center gap-2">
         <Input type="search" value={cerca} onChange={e => { setCerca(e.target.value); setLimite(30); }}
-          aria-label="Cerca fase o commessa nelle proposte" placeholder="Cerca fase o commessa…" className="h-8 w-auto max-w-full text-sm" />
-        {!proposte.isPending && !proposte.isError && <span className="text-xs text-muted-foreground">{totale} da decidere</span>}
+          aria-label={t("Cerca fase o commessa nelle proposte")} placeholder={t("Cerca fase o commessa…")} className="h-8 w-auto max-w-full text-sm" />
+        {!proposte.isPending && !proposte.isError && <span className="text-xs text-muted-foreground">{t("{n} da decidere", { n: totale })}</span>}
       </div>
-      {proposte.isPending ? <p role="status" className="text-sm">Carico le proposte…</p>
-        : proposte.isError ? <p role="status" className="text-sm">Coda delle proposte non disponibile.{" "}
-          <Button size="sm" variant="link" onClick={() => void proposte.refetch()}>Riprova</Button></p>
-        : !righe.length ? <p className="rounded-md border p-3 text-sm text-muted-foreground">Nessuna proposta per questa selezione.</p>
+      {proposte.isPending ? <p role="status" className="text-sm">{t("Carico le proposte…")}</p>
+        : proposte.isError ? <p role="status" className="text-sm">{t("Coda delle proposte non disponibile.")}{" "}
+          <Button size="sm" variant="link" onClick={() => void proposte.refetch()}>{t("Riprova")}</Button></p>
+        : !righe.length ? <p className="rounded-md border p-3 text-sm text-muted-foreground">{t("Nessuna proposta per questa selezione.")}</p>
         : <ul className="divide-y rounded-md border">{righe.slice(0, limite).map(r => <li key={`${r.order_id}:${r.phase_id ?? ""}`}
           className="flex items-center justify-between gap-2 px-3 py-1.5">
-          <div className="min-w-0"><p className="text-sm font-medium">{r.fase ?? "Senza fase"}</p>
-            <p className="truncate text-xs text-muted-foreground" title={commesse.get(r.order_id)}>{commesse.get(r.order_id) ?? "Commessa"} · {r.n} {Number(r.n) === 1 ? "proposta" : "proposte"}</p>
+          <div className="min-w-0"><p className="text-sm font-medium">{r.fase ?? t("Senza fase")}</p>
+            <p className="truncate text-xs text-muted-foreground" title={commesse.get(r.order_id)}>{commesse.get(r.order_id) ?? t("Commessa")} · {t(Number(r.n) === 1 ? "{n} proposta" : "{n} proposte", { n: Number(r.n) })}</p>
           </div>
           <Button size="sm" variant="outline" className="h-8" onClick={() => apri(r.order_id, r.phase_id)}>
-            Rivedi <ArrowRight className="size-3.5" aria-hidden="true" />
+            {t("Rivedi")} <ArrowRight className="size-3.5" aria-hidden="true" />
           </Button>
         </li>)}</ul>}
-      {righe.length > limite && <Button size="sm" variant="outline" onClick={() => setLimite(n => n + 30)}>Mostra altre fasi</Button>}
+      {righe.length > limite && <Button size="sm" variant="outline" onClick={() => setLimite(n => n + 30)}>{t("Mostra altre fasi")}</Button>}
     </DialogContent>
   </Dialog>;
 }

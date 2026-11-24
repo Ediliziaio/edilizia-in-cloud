@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CheckCircle2, AlertTriangle, RefreshCw, Trash2, Star, Building2 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type GbpConnection = {
   id: string;
@@ -55,6 +56,7 @@ const POPUP_POLL_INTERVAL_MS = 800;
 const POPUP_MAX_WAIT_MS = 5 * 60_000;
 
 export default function GbpConnectionCard() {
+  const t = useT();
   const { effectiveCompany, userRoles } = useAuth();
   const companyId = effectiveCompany?.id;
   const eSuperAdmin = userRoles.includes("super_admin");
@@ -137,7 +139,7 @@ export default function GbpConnectionCard() {
       const data = ev.data;
       if (!data || data.source !== "gbp-oauth") return;
       if (data.status === "ok") {
-        toast.success("Google Business Profile collegato");
+        toast.success(t("Google Business Profile collegato"));
         queryClient.invalidateQueries({ queryKey: ["gbp-connection", companyId] });
       } else {
         toast.error(`Errore OAuth: ${data.message ?? "sconosciuto"}`);
@@ -161,7 +163,7 @@ export default function GbpConnectionCard() {
         body: JSON.stringify({}),
       });
       const json = await res.json();
-      if (!res.ok || !json.url) throw new Error(json.error ?? "Impossibile avviare OAuth");
+      if (!res.ok || !json.url) throw new Error(json.error ?? t("Impossibile avviare OAuth"));
 
       const w = 520, h = 640;
       const left = window.screenX + (window.outerWidth - w) / 2;
@@ -201,11 +203,11 @@ export default function GbpConnectionCard() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore selezione location");
+      if (!res.ok) throw new Error(json.error ?? t("Errore selezione location"));
       return json;
     },
     onSuccess: () => {
-      toast.success("Location selezionata");
+      toast.success(t("Location selezionata"));
       queryClient.invalidateQueries({ queryKey: ["gbp-connection", companyId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -222,13 +224,13 @@ export default function GbpConnectionCard() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Sincronizzazione completata: ${data?.synced ?? 0} recensioni`);
+      toast.success(t("Sincronizzazione completata: {n} recensioni", { n: data?.synced ?? 0 }));
       queryClient.invalidateQueries({ queryKey: ["gbp-connection", companyId] });
       queryClient.invalidateQueries({ queryKey: ["gbp-reviews", companyId] });
       setSyncing(false);
     },
     onError: (e: Error) => {
-      toast.error(eSuperAdmin ? `Errore sync: ${e.message}` : (messaggioGbpPerCliente(e.message)?.titolo ?? "Sincronizzazione non riuscita, riprova tra poco"));
+      toast.error(eSuperAdmin ? t("Errore sync: {message}", { message: String(e.message ?? "") }) : (messaggioGbpPerCliente(e.message)?.titolo ?? t("Sincronizzazione non riuscita, riprova tra poco")));
       setSyncing(false);
     },
   });
@@ -244,11 +246,11 @@ export default function GbpConnectionCard() {
         body: JSON.stringify({}),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore disconnessione");
+      if (!res.ok) throw new Error(json.error ?? t("Errore disconnessione"));
       return json;
     },
     onSuccess: () => {
-      toast.success("Google Business Profile scollegato");
+      toast.success(t("Google Business Profile scollegato"));
       queryClient.invalidateQueries({ queryKey: ["gbp-connection", companyId] });
       setDisconnectOpen(false);
     },
@@ -258,7 +260,7 @@ export default function GbpConnectionCard() {
   const lastSyncText = useMemo(() => {
     if (!connection?.last_sync_at) return null;
     const d = new Date(connection.last_sync_at);
-    return d.toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+    return d.toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" });
   }, [connection?.last_sync_at]);
 
   return (
@@ -273,20 +275,20 @@ export default function GbpConnectionCard() {
               <div>
                 <CardTitle className="text-base">Google Business Profile</CardTitle>
                 <CardDescription>
-                  Recensioni Google, scheda locale, alert nuove recensioni
+                  {t("Recensioni Google, scheda locale, alert nuove recensioni")}
                 </CardDescription>
               </div>
             </div>
             {hasLocation ? (
               <Badge className="bg-emerald-600 hover:bg-emerald-600">
-                <CheckCircle2 className="mr-1 h-3 w-3" /> Collegato
+                <CheckCircle2 className="mr-1 h-3 w-3" /> {t("Collegato")}
               </Badge>
             ) : isConnected ? (
               <Badge variant="secondary">
-                <AlertTriangle className="mr-1 h-3 w-3" /> Seleziona location
+                <AlertTriangle className="mr-1 h-3 w-3" /> {t("Seleziona location")}
               </Badge>
             ) : (
-              <Badge variant="outline">Non collegato</Badge>
+              <Badge variant="outline">{t("Non collegato")}</Badge>
             )}
           </div>
         </CardHeader>
@@ -295,11 +297,10 @@ export default function GbpConnectionCard() {
           {!isConnected && (
             <>
               <p className="text-sm text-muted-foreground">
-                Collega la scheda Google della tua impresa per importare automaticamente le
-                recensioni, ricevere alert su nuove valutazioni e rispondere direttamente da qui.
+                {t("Collega la scheda Google della tua impresa per importare automaticamente le recensioni, ricevere alert su nuove valutazioni e rispondere direttamente da qui.")}
               </p>
               <Button onClick={handleConnect} disabled={connecting || !companyId} className="w-full">
-                {connecting ? "Connessione in corso..." : "Collega Google Business Profile"}
+                {connecting ? t("Connessione in corso...") : t("Collega Google Business Profile")}
               </Button>
             </>
           )}
@@ -307,7 +308,7 @@ export default function GbpConnectionCard() {
           {isConnected && !hasLocation && (
             <div className="space-y-3">
               <div className="rounded-lg bg-blue-50 p-3 text-sm">
-                <p className="font-medium text-blue-900">Account Google collegato</p>
+                <p className="font-medium text-blue-900">{t("Account Google collegato")}</p>
                 <p className="text-blue-700 text-xs mt-1">{connection?.google_account_email}</p>
               </div>
               {/* 2026-05-27: mostra last_error API dettagliato (es. "API non
@@ -320,28 +321,25 @@ export default function GbpConnectionCard() {
                   </p>
                   <p className="text-amber-800 text-xs">{messaggioGbpPerCliente(connection.last_error)?.testo}</p>
                   {eSuperAdmin && (
-                    <p className="mt-2 border-t border-amber-200 pt-2 text-[11px] text-amber-700 whitespace-pre-wrap">Dettaglio tecnico: {connection.last_error}</p>
+                    <p className="mt-2 border-t border-amber-200 pt-2 text-[11px] text-amber-700 whitespace-pre-wrap">{t("Dettaglio tecnico: {last_error}", { last_error: String(connection.last_error ?? "") })}</p>
                   )}
                 </div>
               ) : locations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nessuna scheda Google Business trovata. Verifica di averne una verificata su
-                  business.google.com con lo stesso account.
+                  {t("Nessuna scheda Google Business trovata. Verifica di averne una verificata su business.google.com con lo stesso account.")}
                 </p>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground">
-                    Trovate {locations.length} schede. Seleziona quale collegare:
-                  </p>
+                  <p className="text-sm text-muted-foreground">{t("Trovate {n} schede. Seleziona quale collegare:", { n: locations.length })}</p>
                   <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Scegli la scheda Google Business" />
+                      <SelectValue placeholder={t("Scegli la scheda Google Business")} />
                     </SelectTrigger>
                     <SelectContent>
                       {locations.map((loc) => (
                         <SelectItem key={loc.gbp_location_id} value={loc.gbp_location_id}>
                           <div className="flex flex-col">
-                            <span className="font-medium">{loc.display_name ?? "Senza nome"}</span>
+                            <span className="font-medium">{loc.display_name ?? t("Senza nome")}</span>
                             {loc.address && (
                               <span className="text-xs text-muted-foreground">{loc.address}</span>
                             )}
@@ -355,7 +353,7 @@ export default function GbpConnectionCard() {
                     disabled={!selectedLocationId || selectLocationMutation.isPending}
                     className="w-full"
                   >
-                    Conferma selezione
+                    {t("Conferma selezione")}
                   </Button>
                 </>
               )}
@@ -371,7 +369,7 @@ export default function GbpConnectionCard() {
                 onClick={() => setDisconnectOpen(true)}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Scollega Google Business Profile
+                {t("Scollega Google Business Profile")}
               </Button>
             </div>
           )}
@@ -383,31 +381,29 @@ export default function GbpConnectionCard() {
                   <Building2 className="h-4 w-4 text-emerald-700 mt-0.5 shrink-0" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-emerald-900">
-                      {connection?.gbp_location_name ?? "Scheda collegata"}
+                      {connection?.gbp_location_name ?? t("Scheda collegata")}
                     </p>
                     {connection?.gbp_location_address && (
                       <p className="text-xs text-emerald-700 mt-0.5">
                         {connection.gbp_location_address}
                       </p>
                     )}
-                    <p className="text-xs text-emerald-700 mt-1">
-                      Account: {connection?.google_account_email}
-                    </p>
+                    <p className="text-xs text-emerald-700 mt-1">{t("Account: {google_account_email}", { google_account_email: String(connection?.google_account_email ?? "") })}</p>
                   </div>
                 </div>
               </div>
 
               {lastSyncText && (
                 <p className="text-xs text-muted-foreground">
-                  Ultima sincronizzazione: {lastSyncText} ·{" "}
-                  {connection?.last_sync_review_count ?? 0} recensioni
+                  {t("Ultima sincronizzazione:")} {lastSyncText} ·{" "}
+                  {connection?.last_sync_review_count ?? 0} {t("recensioni")}
                 </p>
               )}
               {connection?.last_error && (
                 <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
                   <AlertTriangle className="inline h-3 w-3 mr-1" />
                   {messaggioGbpPerCliente(connection.last_error)?.testo}
-                  {eSuperAdmin && <span className="block mt-1 text-[11px] text-amber-700">Dettaglio tecnico: {connection.last_error}</span>}
+                  {eSuperAdmin && <span className="block mt-1 text-[11px] text-amber-700">{t("Dettaglio tecnico: {last_error}", { last_error: String(connection.last_error ?? "") })}</span>}
                 </div>
               )}
 
@@ -419,7 +415,7 @@ export default function GbpConnectionCard() {
                   className="flex-1"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-                  Sincronizza ora
+                  {t("Sincronizza ora")}
                 </Button>
                 <Button variant="outline" onClick={() => setDisconnectOpen(true)}>
                   <Trash2 className="h-4 w-4" />
@@ -433,19 +429,18 @@ export default function GbpConnectionCard() {
       <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Scollegare Google Business Profile?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Scollegare Google Business Profile?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Le recensioni già importate restano in EiC, ma non riceverai più nuovi aggiornamenti
-              da Google. Puoi ricollegare in qualsiasi momento.
+              {t("Le recensioni già importate restano in EiC, ma non riceverai più nuovi aggiornamenti da Google. Puoi ricollegare in qualsiasi momento.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={disconnectMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={disconnectMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
             >
-              Scollega
+              {t("Scollega")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

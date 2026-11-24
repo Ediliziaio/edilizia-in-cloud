@@ -82,6 +82,7 @@ import {
 } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const SAVINGS_GREEN = "hsl(var(--success))";
 const COST_AMBER = "hsl(38 92% 50%)";
 
@@ -226,6 +227,7 @@ export function RoiSimulator({
   onSendEmail,
   plans = [],
 }: RoiSimulatorProps) {
+  const t = useT();
   const isMobile = useIsMobile();
   // Stato non-controllato (fallback) se il parent non passa value/onChange.
   // default-merge: tollera scenari salvati legacy/parziali (campi nuovi mancanti).
@@ -260,8 +262,8 @@ export function RoiSimulator({
 
   const chartData = useMemo(
     () => [
-      { label: "Restare com'è", value: Math.round(results.costoInazioneAnnuo), fill: COST_AMBER },
-      { label: "Con EdiliziaInCloud", value: Math.round(results.canoneAnno), fill: SAVINGS_GREEN },
+      { label: t("Restare com'è"), value: Math.round(results.costoInazioneAnnuo), fill: COST_AMBER },
+      { label: t("Con EdiliziaInCloud"), value: Math.round(results.canoneAnno), fill: SAVINGS_GREEN },
     ],
     [results.costoInazioneAnnuo, results.canoneAnno],
   );
@@ -274,30 +276,30 @@ export function RoiSimulator({
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Settings2 className="h-4 w-4 text-primary" />
-              La situazione attuale
+              {t("La situazione attuale")}
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Compila i dati del cliente: il calcolo si aggiorna in tempo reale.
+              {t("Compila i dati del cliente: il calcolo si aggiorna in tempo reale.")}
             </p>
           </CardHeader>
           <CardContent className="space-y-5">
             {showClientName && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Nome cliente</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Nome cliente")}</Label>
                   <Input
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Es. Edil Rossi S.r.l."
+                    placeholder={t("Es. Edil Rossi S.r.l.")}
                     className="h-9"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Referente (opzionale)</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Referente (opzionale)")}</Label>
                   <Input
                     value={referente}
                     onChange={(e) => onReferenteChange?.(e.target.value)}
-                    placeholder="Es. Mario Rossi"
+                    placeholder={t("Es. Mario Rossi")}
                     className="h-9"
                   />
                 </div>
@@ -306,28 +308,28 @@ export function RoiSimulator({
 
             {/* 1 ── La tua azienda ── */}
             <div className="space-y-3">
-              <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />}>La tua azienda</SectionTitle>
+              <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />}>{t("La tua azienda")}</SectionTitle>
               <IntegerField
-                label="Fatturato annuo"
+                label={t("Fatturato annuo")}
                 value={inputs.fatturatoAnnuo}
                 onChange={(v) => setInputs((p) => ({ ...p, fatturatoAnnuo: v }))}
                 suffix="€/anno"
-                hint="Base del margine recuperato col controllo di gestione."
+                hint={t("Base del margine recuperato col controllo di gestione.")}
               />
               <div className="grid grid-cols-2 gap-3">
                 <NumberField
-                  label="Margine medio attuale"
+                  label={t("Margine medio attuale")}
                   value={inputs.marginePct}
                   onChange={(v) => setInputs((p) => ({ ...p, marginePct: v }))}
                   suffix="%"
                   step={1}
                 />
                 <IntegerField
-                  label="Strumenti e abbonamenti oggi"
+                  label={t("Strumenti e abbonamenti oggi")}
                   value={inputs.softwareMensile}
                   onChange={(v) => setInputs((p) => ({ ...p, softwareMensile: v }))}
                   suffix="€/mese"
-                  hint="Gestionale, marketing, email/SMS/WhatsApp, CRM, timbrature, call center…"
+                  hint={t("Gestionale, marketing, email/SMS/WhatsApp, CRM, timbrature, call center…")}
                 />
               </div>
             </div>
@@ -338,11 +340,9 @@ export function RoiSimulator({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <SectionTitle icon={<Clock className="h-3.5 w-3.5" />}>
-                  Tempo perso ogni settimana
+                  {t("Tempo perso ogni settimana")}
                 </SectionTitle>
-                <Badge variant="secondary" className="text-[11px] tabular-nums">
-                  {results.oreSettimana.toLocaleString("it-IT")} h totali
-                </Badge>
+                <Badge variant="secondary" className="text-[11px] tabular-nums">{t("{n} h totali", { n: results.oreSettimana.toLocaleString(intlCampo()) })}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/20 p-3">
                 {(
@@ -355,7 +355,7 @@ export function RoiSimulator({
                   ] as const
                 ).map(([key, label]) => (
                   <div key={key} className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">{label}</Label>
+                    <Label className="text-[11px] text-muted-foreground">{t(label)}</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -384,18 +384,18 @@ export function RoiSimulator({
             {/* 3 ── Costi e rischi ── */}
             <div className="space-y-3">
               <SectionTitle icon={<AlertTriangle className="h-3.5 w-3.5" />}>
-                Costi e rischi
+                {t("Costi e rischi")}
               </SectionTitle>
               <div className="grid grid-cols-2 gap-3">
                 <NumberField
-                  label="Costo orario medio"
+                  label={t("Costo orario medio")}
                   value={inputs.costoOrario}
                   onChange={(v) => setInputs((p) => ({ ...p, costoOrario: v }))}
                   suffix="€/h"
                   step={1}
                 />
                 <IntegerField
-                  label="Errori, sanzioni, ritardi"
+                  label={t("Errori, sanzioni, ritardi")}
                   value={inputs.erroriAnnui}
                   onChange={(v) => setInputs((p) => ({ ...p, erroriAnnui: v }))}
                   suffix="€/anno"
@@ -408,11 +408,11 @@ export function RoiSimulator({
             {/* 4 ── Investimento ── */}
             <div className="space-y-3">
               <SectionTitle icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
-                Investimento
+                {t("Investimento")}
               </SectionTitle>
               {plans.length > 0 && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Piano EdiliziaInCloud</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Piano EdiliziaInCloud")}</Label>
                   <Select
                     value={plans.find((pl) => pl.price_monthly === inputs.abbonamentoMensile)?.id ?? "custom"}
                     onValueChange={(id) => {
@@ -421,29 +421,29 @@ export function RoiSimulator({
                     }}
                   >
                     <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Scegli un piano" />
+                      <SelectValue placeholder={t("Scegli un piano")} />
                     </SelectTrigger>
                     <SelectContent>
                       {plans.map((plan) => (
                         <SelectItem key={plan.id} value={plan.id}>
-                          {plan.name} · {formatCurrency(plan.price_monthly)}/mese
+                          {plan.name} · {t("{importo}/mese", { importo: formatCurrency(plan.price_monthly) })}
                         </SelectItem>
                       ))}
-                      <SelectItem value="custom">Importo personalizzato</SelectItem>
+                      <SelectItem value="custom">{t("Importo personalizzato")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               )}
               <NumberField
-                label="Canone EdiliziaInCloud"
+                label={t("Canone EdiliziaInCloud")}
                 value={inputs.abbonamentoMensile}
                 onChange={(v) => setInputs((p) => ({ ...p, abbonamentoMensile: v }))}
                 suffix="€/mese"
                 step={10}
                 hint={
                   plans.length > 0
-                    ? "Scegli un piano sopra oppure inserisci un importo personalizzato."
-                    : "Pre-compilato col piano reale; modificabile in trattativa."
+                    ? t("Scegli un piano sopra oppure inserisci un importo personalizzato.")
+                    : t("Pre-compilato col piano reale; modificabile in trattativa.")
                 }
               />
             </div>
@@ -454,38 +454,38 @@ export function RoiSimulator({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <SectionTitle icon={<Rocket className="h-3.5 w-3.5" />}>
-                  Crescita (opzionale)
+                  {t("Crescita (opzionale)")}
                 </SectionTitle>
                 <Switch
                   checked={inputs.abilitaCrescita}
                   onCheckedChange={(v) => setInputs((p) => ({ ...p, abilitaCrescita: v }))}
-                  aria-label="Abilita la leva crescita"
+                  aria-label={t("Abilita la leva crescita")}
                 />
               </div>
               {inputs.abilitaCrescita && (
                 <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3">
                   <NumberField
-                    label="Preventivi al mese"
+                    label={t("Preventivi al mese")}
                     value={inputs.preventiviMese}
                     onChange={(v) => setInputs((p) => ({ ...p, preventiviMese: v }))}
                     suffix="n."
                     step={1}
                   />
                   <IntegerField
-                    label="Valore medio preventivo"
+                    label={t("Valore medio preventivo")}
                     value={inputs.valoreMedioPreventivo}
                     onChange={(v) => setInputs((p) => ({ ...p, valoreMedioPreventivo: v }))}
                     suffix="€"
                   />
                   <NumberField
-                    label="Tasso di chiusura"
+                    label={t("Tasso di chiusura")}
                     value={inputs.tassoChiusuraPct}
                     onChange={(v) => setInputs((p) => ({ ...p, tassoChiusuraPct: v }))}
                     suffix="%"
                     step={5}
                   />
                   <NumberField
-                    label="Più preventivi con EiC"
+                    label={t("Più preventivi con EiC")}
                     value={inputs.upliftPreventiviPct}
                     onChange={(v) => setInputs((p) => ({ ...p, upliftPreventiviPct: v }))}
                     suffix="%"
@@ -504,7 +504,7 @@ export function RoiSimulator({
                 >
                   <span className="flex items-center gap-1.5">
                     <Settings2 className="h-3.5 w-3.5" />
-                    Assunzioni avanzate
+                    {t("Assunzioni avanzate")}
                   </span>
                   <ChevronDown
                     className={`h-4 w-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`}
@@ -514,7 +514,7 @@ export function RoiSimulator({
               <CollapsibleContent className="space-y-4 pt-3">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-muted-foreground">
-                    Settimane lavorative / anno
+                    {t("Settimane lavorative / anno")}
                   </Label>
                   <Input
                     type="number"
@@ -531,23 +531,23 @@ export function RoiSimulator({
                   />
                 </div>
                 <PctSlider
-                  label="Tempo recuperato con EdiliziaInCloud"
+                  label={t("Tempo recuperato con EdiliziaInCloud")}
                   value={inputs.pctTempoRecuperato}
                   onChange={(v) => setInputs((p) => ({ ...p, pctTempoRecuperato: v }))}
                 />
                 <PctSlider
-                  label="Errori / sanzioni / ritardi evitati"
+                  label={t("Errori / sanzioni / ritardi evitati")}
                   value={inputs.pctRischioEvitato}
                   onChange={(v) => setInputs((p) => ({ ...p, pctRischioEvitato: v }))}
                 />
                 <PctSlider
-                  label="Margine recuperato sul fatturato"
+                  label={t("Margine recuperato sul fatturato")}
                   value={inputs.pctMargineRecuperato}
                   onChange={(v) => setInputs((p) => ({ ...p, pctMargineRecuperato: v }))}
                   max={10}
                   step={0.5}
                   decimals={1}
-                  hint="Tipicamente 1–3% del fatturato grazie al controllo in tempo reale."
+                  hint={t("Tipicamente 1–3% del fatturato grazie al controllo in tempo reale.")}
                 />
               </CollapsibleContent>
             </Collapsible>
@@ -567,7 +567,7 @@ export function RoiSimulator({
             <CardContent className="p-5">
               <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 <TrendingUp className={`h-4 w-4 ${guadagna ? "text-success" : ""}`} />
-                Con EdiliziaInCloud guadagni
+                {t("Con EdiliziaInCloud guadagni")}
               </div>
               <div
                 className={`mt-1 text-4xl font-extrabold tabular-nums ${
@@ -575,17 +575,15 @@ export function RoiSimulator({
                 }`}
               >
                 {formatCurrency(Math.max(0, results.guadagnoNettoAnnuo))}
-                <span className="text-lg font-semibold text-muted-foreground"> / anno</span>
+                <span className="text-lg font-semibold text-muted-foreground"> {t("/ anno")}</span>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
                 {guadagna ? (
                   <>
-                    Sono <strong>{formatCurrency(results.guadagnoNettoMensile)} al mese</strong> che
-                    oggi escono dalla tua cassa senza che te ne accorgi. EdiliziaInCloud non è un
-                    costo: te li restituisce.
+                    {t("Sono")} <strong>{t("{importo} al mese", { importo: formatCurrency(results.guadagnoNettoMensile) })}</strong> {t("che oggi escono dalla tua cassa senza che te ne accorgi. EdiliziaInCloud non è un costo: te li restituisce.")}
                   </>
                 ) : (
-                  "Aumenta fatturato, ore perse o costi attuali per vedere il guadagno reale."
+                  t("Aumenta fatturato, ore perse o costi attuali per vedere il guadagno reale.")
                 )}
               </p>
             </CardContent>
@@ -602,29 +600,29 @@ export function RoiSimulator({
                 <p className="mt-1 text-2xl font-bold tabular-nums text-success">
                   {results.roiMultiplo > 0 ? `${results.roiMultiplo.toFixed(1)}×` : "—"}
                 </p>
-                <p className="text-[11px] text-muted-foreground">su ogni euro investito</p>
+                <p className="text-[11px] text-muted-foreground">{t("su ogni euro investito")}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-3.5">
                 <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   <Timer className="h-3.5 w-3.5" />
-                  Payback
+                  {t("Payback")}
                 </div>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                  {results.paybackGiorni > 0 ? results.paybackGiorni.toLocaleString("it-IT") : "—"}
+                  {results.paybackGiorni > 0 ? results.paybackGiorni.toLocaleString(intlCampo()) : "—"}
                   {results.paybackGiorni > 0 && (
-                    <span className="text-sm font-semibold text-muted-foreground"> gg</span>
+                    <span className="text-sm font-semibold text-muted-foreground"> {t("gg")}</span>
                   )}
                 </p>
-                <p className="text-[11px] text-muted-foreground">si ripaga in</p>
+                <p className="text-[11px] text-muted-foreground">{t("si ripaga in")}</p>
               </CardContent>
             </Card>
             <Card className="border-amber-500/30 bg-amber-500/[0.04]">
               <CardContent className="p-3.5">
                 <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  Inazione
+                  {t("Inazione")}
                 </div>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
                   {formatCurrency(results.costoInazioneAnnuo)}
@@ -632,13 +630,13 @@ export function RoiSimulator({
                 <p className="text-[11px] text-muted-foreground">
                   {guadagna ? (
                     <>
-                      ogni giorno che rimandi butti{" "}
+                      {t("ogni giorno che rimandi butti")}{" "}
                       <strong className="text-amber-600">
                         {formatCurrency(results.guadagnoNettoGiornaliero)}
                       </strong>
                     </>
                   ) : (
-                    "restare com'è ti costa /anno"
+                    t("restare com'è ti costa /anno")
                   )}
                 </p>
               </CardContent>
@@ -649,7 +647,7 @@ export function RoiSimulator({
           <Card>
             <CardContent className="p-4">
               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Restare com'è oggi vs investire in EdiliziaInCloud
+                {t("Restare com'è oggi vs investire in EdiliziaInCloud")}
               </p>
               <div className="h-[150px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -683,7 +681,7 @@ export function RoiSimulator({
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-1.5">
                 <BarChart3 className="h-4 w-4 text-primary" />
-                Da dove arriva il valore
+                {t("Da dove arriva il valore")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -705,17 +703,17 @@ export function RoiSimulator({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 text-sm font-medium leading-tight">
-                        {leva.label}
+                        {t(leva.label)}
                         {principale && (
                           <Badge
                             variant="outline"
                             className="border-success/40 px-1.5 py-0 text-[10px] text-success"
                           >
-                            principale
+                            {t("principale")}
                           </Badge>
                         )}
                       </div>
-                      <p className="truncate text-[11px] text-muted-foreground">{leva.funzione}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{t(leva.funzione)}</p>
                     </div>
                     <span
                       className={`shrink-0 text-sm font-semibold tabular-nums ${
@@ -729,18 +727,18 @@ export function RoiSimulator({
               })}
               <Separator className="my-1" />
               <div className="flex items-center justify-between px-2.5 text-sm">
-                <span className="font-medium text-muted-foreground">Valore totale generato</span>
+                <span className="font-medium text-muted-foreground">{t("Valore totale generato")}</span>
                 <span className="font-bold tabular-nums">
                   {formatCurrency(results.valoreGeneratoAnnuo + results.softwareEliminato)}
                 </span>
               </div>
               {guadagna && (
                 <p className="px-2.5 pt-1 text-xs leading-snug text-muted-foreground">
-                  Non stai comprando un software: stai smettendo di perdere{" "}
+                  {t("Non stai comprando un software: stai smettendo di perdere")}{" "}
                   <strong className="text-foreground">
                     {formatCurrency(results.guadagnoNettoAnnuo)}
                   </strong>{" "}
-                  ogni anno.
+                  {t("ogni anno.")}
                 </p>
               )}
             </CardContent>
@@ -755,7 +753,7 @@ export function RoiSimulator({
                 className="gap-2"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Salva simulazione
+                {t("Salva simulazione")}
               </Button>
             )}
 
@@ -771,12 +769,12 @@ export function RoiSimulator({
                       onClick={() => onExportPdf?.({ inputs, results, clientName, referente })}
                     >
                       <FileDown className="h-4 w-4" />
-                      Esporta PDF
+                      {t("Esporta PDF")}
                     </Button>
                   )}
                 </span>
               </TooltipTrigger>
-              {!onExportPdf && <TooltipContent>In arrivo: report PDF per il cliente</TooltipContent>}
+              {!onExportPdf && <TooltipContent>{t("In arrivo: report PDF per il cliente")}</TooltipContent>}
             </Tooltip>
 
             <Tooltip>
@@ -789,11 +787,11 @@ export function RoiSimulator({
                     onClick={() => onSendEmail?.({ inputs, results, clientName, referente })}
                   >
                     <Mail className="h-4 w-4" />
-                    Invia via email
+                    {t("Invia via email")}
                   </Button>
                 </span>
               </TooltipTrigger>
-              {!onSendEmail && <TooltipContent>In arrivo: invio email al cliente</TooltipContent>}
+              {!onSendEmail && <TooltipContent>{t("In arrivo: invio email al cliente")}</TooltipContent>}
             </Tooltip>
           </div>
         </div>
@@ -821,7 +819,7 @@ function PctSlider({ label, value, onChange, max = 100, step = 5, decimals = 0, 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label className="text-[11px] text-muted-foreground">{label}</Label>
+        <Label className="text-[11px] text-muted-foreground">{t(label)}</Label>
         <span className="text-xs font-medium tabular-nums">{safe.toFixed(decimals)}%</span>
       </div>
       <Slider

@@ -7,6 +7,7 @@ import { TemplateFieldEditor } from '@/components/documenti/TemplateFieldEditor'
 import { useDocumentoTemplates, useTemplateFields } from '@/hooks/useDocumentoTemplates';
 import { TemplateDocumentUse } from '@/components/documenti/TemplateDocumentUse';
 import { useAuth } from '@/contexts/AuthContext';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type WizardStep = 1 | 2 | 3;
 
@@ -17,6 +18,7 @@ const STEPS = [
 ];
 
 export default function NuovoTemplate() {
+  const tr = useT();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { effectiveCompany } = useAuth();
@@ -70,10 +72,10 @@ export default function NuovoTemplate() {
           className="gap-1.5"
         >
           <ChevronLeft className="h-4 w-4" />
-          Indietro
+          {tr("Indietro")}
         </Button>
         <h1 className="text-xl font-bold text-slate-800">
-          {templateDaUrl ? 'Campi del template' : 'Nuovo Template'}
+          {templateDaUrl ? tr("Campi del template") : tr("Nuovo Template")}
         </h1>
       </div>
 
@@ -93,7 +95,7 @@ export default function NuovoTemplate() {
               >
                 {passoCorrente > s.id ? <CheckCircle2 className="h-4 w-4" /> : s.id}
               </div>
-              <span className="text-xs text-slate-500 mt-1 whitespace-nowrap">{s.label}</span>
+              <span className="text-xs text-slate-500 mt-1 whitespace-nowrap">{tr(s.label)}</span>
             </div>
             {idx < STEPS.length - 1 && (
               <div className={`flex-1 h-0.5 mb-4 mx-2 ${passoCorrente > s.id ? 'bg-green-300' : 'bg-slate-200'}`} />
@@ -106,7 +108,7 @@ export default function NuovoTemplate() {
       <div className="bg-white rounded-2xl border p-6 shadow-sm">
         {passoCorrente === 1 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-slate-800">Carica il documento template</h2>
+            <h2 className="text-lg font-semibold text-slate-800">{tr("Carica il documento template")}</h2>
             <TemplateUploader
               onUpload={handleUpload}
               isLoading={uploadTemplate.isPending}
@@ -116,16 +118,15 @@ export default function NuovoTemplate() {
 
         {passoCorrente === 2 && templateCorrente && effectiveCompany && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-slate-800">Configura i campi personalizzati</h2>
+            <h2 className="text-lg font-semibold text-slate-800">{tr("Configura i campi personalizzati")}</h2>
             <p className="text-sm text-slate-500">
-              Aggiungi i dati variabili del modello. Nei PDF scegli dove stamparli cliccando sulla pagina.
-              Nei DOCX inserisci i segnaposto (es. <code className="bg-slate-100 px-1 rounded">{'{{nome_cliente}}'}</code>) nel file originale.
+              {tr("Aggiungi i dati variabili del modello. Nei PDF scegli dove stamparli cliccando sulla pagina. Nei DOCX inserisci i segnaposto (es.")} <code className="bg-slate-100 px-1 rounded">{'{{nome_cliente}}'}</code>{tr(") nel file originale.")}
             </p>
             {erroreModelli ? <div role="alert" className="space-y-2 text-sm text-red-700">
-              <p>Impossibile caricare il modello. I campi restano salvati: riprova prima di continuare.</p>
-              <Button variant="outline" onClick={() => void ricaricaModelli()}>Riprova</Button>
+              <p>{tr("Impossibile caricare il modello. I campi restano salvati: riprova prima di continuare.")}</p>
+              <Button variant="outline" onClick={() => void ricaricaModelli()}>{tr("Riprova")}</Button>
             </div> : !fileCorrente ? <p role="status" className="text-sm text-slate-500">
-              {modelliInCaricamento ? 'Caricamento del modello…' : 'Modello non disponibile per questa azienda. Riaprilo dall’elenco dei documenti.'}
+              {modelliInCaricamento ? tr("Caricamento del modello…") : tr("Modello non disponibile per questa azienda. Riaprilo dall’elenco dei documenti.")}
             </p> : <TemplateFieldEditor
               templateId={templateCorrente}
               companyId={effectiveCompany.id}
@@ -137,11 +138,11 @@ export default function NuovoTemplate() {
                 onClick={() => setStep(3)}
                 disabled={!fileCorrente || !!erroreModelli || campiInCaricamento || !!erroreCampi || !!campiDaPosizionare}
               >
-                Salva e prova compilazione
+                {tr("Salva e prova compilazione")}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
-            {campiDaPosizionare && <p className="text-sm text-amber-700">Posiziona sul PDF tutti i campi obbligatori prima di continuare.</p>}
+            {campiDaPosizionare && <p className="text-sm text-amber-700">{tr("Posiziona sul PDF tutti i campi obbligatori prima di continuare.")}</p>}
           </div>
         )}
 
@@ -152,10 +153,10 @@ export default function NuovoTemplate() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-800">
-                Modello salvato
+                {tr("Modello salvato")}
               </h2>
               <p className="text-slate-500 text-sm mt-2">
-                Il modello <strong>{nomeCorrente}</strong> è salvato. Prova i valori e controlla l’anteprima prima dell’uso.
+                {tr("Il modello")} <strong>{nomeCorrente}</strong> {tr("è salvato. Prova i valori e controlla l’anteprima prima dell’uso.")}
               </p>
             </div>
             {fileCorrente && <TemplateDocumentUse key={fileCorrente.id} template={fileCorrente} />}
@@ -165,7 +166,7 @@ export default function NuovoTemplate() {
                 onClick={() => navigate('/azienda/firma-elettronica')}
               >
                 <FileText className="h-4 w-4" />
-                Vai ai documenti
+                {tr("Vai ai documenti")}
               </Button>
               <Button
                 variant="outline"
@@ -177,7 +178,7 @@ export default function NuovoTemplate() {
                   if (templateIdDaUrl) navigate('/azienda/firma-elettronica/nuovo-template', { replace: true });
                 }}
               >
-                Crea un altro template
+                {tr("Crea un altro template")}
               </Button>
             </div>
           </div>

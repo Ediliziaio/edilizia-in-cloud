@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback";
 import { logger } from "@/utils/logger";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // solaLettura è un limite, non un permesso: non deve poter aprire una rotta.
 type NonPermissionKeys = "isLoading" | "isAdmin" | "onlyAssigned" | "visibleAreas" | "loadError" | "solaLettura";
@@ -23,6 +24,7 @@ interface RequireCompanyPermissionProps {
 }
 
 export function RequireCompanyPermission({ permission, children, consenti }: RequireCompanyPermissionProps) {
+  const t = useT();
   const permissions = usePermissions();
   const { refreshAuth } = useAuth();
   const navigate = useNavigate();
@@ -52,9 +54,9 @@ export function RequireCompanyPermission({ permission, children, consenti }: Req
         <Card className="max-w-md">
           <CardContent className="flex flex-col items-center py-10 text-center">
             <ShieldX className="mb-4 h-12 w-12 text-amber-600" />
-            <h2 className="text-xl font-bold">Permessi non verificati</h2>
+            <h2 className="text-xl font-bold">{t("Permessi non verificati")}</h2>
             <p className="mt-2 text-muted-foreground">
-              Non ho ricevuto una risposta affidabile sui permessi di questa sezione. Riprova la sessione invece di restare bloccato.
+              {t("Non ho ricevuto una risposta affidabile sui permessi di questa sezione. Riprova la sessione invece di restare bloccato.")}
             </p>
             <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
               {permissions.loadError}
@@ -62,11 +64,11 @@ export function RequireCompanyPermission({ permission, children, consenti }: Req
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <Button onClick={() => { void refreshAuth().finally(() => window.location.reload()); }}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Ricarica sessione
+                {t("Ricarica sessione")}
               </Button>
               <Button variant="outline" onClick={() => navigate("/azienda")}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Dashboard
+                {t("Dashboard")}
               </Button>
             </div>
           </CardContent>
@@ -79,9 +81,9 @@ export function RequireCompanyPermission({ permission, children, consenti }: Req
     if (loadingTimedOut) {
       return (
         <LoadingTimeoutFallback
-          title="Verifica permessi lenta"
-          description="La piattaforma non ha ricevuto i permessi in tempo. Prima questo caso poteva lasciare la pagina con la rotellina infinita; ora puoi riprovare subito."
-          detail={`Permesso richiesto: ${permission}`}
+          title={t("Verifica permessi lenta")}
+          description={t("La piattaforma non ha ricevuto i permessi in tempo. Prima questo caso poteva lasciare la pagina con la rotellina infinita; ora puoi riprovare subito.")}
+          detail={t("Permesso richiesto: {permesso}", { permesso: String(permission) })}
           onRetry={() => { void refreshAuth().finally(() => window.location.reload()); }}
           retryLabel="Ricarica sessione"
         />
@@ -92,7 +94,7 @@ export function RequireCompanyPermission({ permission, children, consenti }: Req
       <div className="min-h-[320px] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
-          <p>Verifica permessi...</p>
+          <p>{t("Verifica permessi...")}</p>
         </div>
       </div>
     );
@@ -104,13 +106,13 @@ export function RequireCompanyPermission({ permission, children, consenti }: Req
         <Card className="max-w-md">
           <CardContent className="flex flex-col items-center py-10 text-center">
             <ShieldX className="mb-4 h-12 w-12 text-destructive" />
-            <h2 className="text-xl font-bold">Accesso negato</h2>
+            <h2 className="text-xl font-bold">{t("Accesso negato")}</h2>
             <p className="mt-2 text-muted-foreground">
-              Non hai i permessi per accedere a questa sezione.
+              {t("Non hai i permessi per accedere a questa sezione.")}
             </p>
             <Button variant="outline" className="mt-6" onClick={() => navigate("/azienda")}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Torna alla dashboard
+              {t("Torna alla dashboard")}
             </Button>
           </CardContent>
         </Card>

@@ -7,6 +7,7 @@ import L from "leaflet";
 import iconUrl from "leaflet/dist/images/marker-icon.png";
 import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 import shadowUrl from "leaflet/dist/images/marker-shadow.png";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
@@ -46,6 +47,7 @@ export function OsrmRouteMap({
   startLng,
   height = "240px",
 }: OsrmRouteMapProps) {
+  const t = useT();
   const center: [number, number] =
     routeCoordinates.length > 0
       ? routeCoordinates[Math.floor(routeCoordinates.length / 2)]
@@ -92,7 +94,7 @@ export function OsrmRouteMap({
             }}
           >
             <Popup>
-              <p className="text-xs font-semibold">Posizione attuale</p>
+              <p className="text-xs font-semibold">{t("Posizione attuale")}</p>
             </Popup>
           </CircleMarker>
         )}

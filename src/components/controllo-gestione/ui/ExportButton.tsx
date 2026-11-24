@@ -7,6 +7,7 @@ import { Download, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Async function che esegue l'export e ritorna quando il download è partito */
@@ -22,6 +23,7 @@ export function ExportButton({
   size = "sm",
   variant = "outline",
 }: Props) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -30,11 +32,11 @@ export function ExportButton({
     setLoading(true);
     try {
       await onExport();
-      toast({ title: "File scaricato" });
+      toast({ title: t("File scaricato") });
     } catch (e) {
       toast({
-        title: "Esportazione non riuscita",
-        description: e instanceof Error && e.message ? e.message : "Riprova tra qualche secondo.",
+        title: t("Esportazione non riuscita"),
+        description: e instanceof Error && e.message ? e.message : t("Riprova tra qualche secondo."),
         variant: "destructive",
       });
     } finally {
@@ -52,7 +54,7 @@ export function ExportButton({
       ) : (
         <Download className="mr-2 h-4 w-4" />
       )}
-      {label}
+      {t(label)}
     </Button>
   );
 }

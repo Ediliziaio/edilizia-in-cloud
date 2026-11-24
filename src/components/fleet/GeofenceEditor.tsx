@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGeofence } from "@/hooks/useGeofence";
 import type { CantiereGeofence, CantiereGeofenceInsert } from "@/types/fleet";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface GeofenceEditorProps {
   companyId: string;
@@ -23,6 +24,7 @@ interface GeofenceEditorProps {
  * Clic sulla mappa → imposta centro del nuovo geofence.
  */
 export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
+  const t = useT();
   const { toast } = useToast();
   const permissions=usePermissions();
   const canEdit=!permissions.isLoading && !permissions.solaLettura && permissions.isAdmin;
@@ -52,7 +54,7 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
   const handleCreate = async () => {
     if (!canEdit) return;
     if (!newName.trim() || newLat == null || newLng == null) {
-      toast({ title: "Errore", description: "Clicca sulla mappa per scegliere il centro e inserisci un nome", variant: "destructive" });
+      toast({ title: t("Errore"), description: t("Clicca sulla mappa per scegliere il centro e inserisci un nome"), variant: "destructive" });
       return;
     }
 
@@ -66,15 +68,15 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
 
     try {
       await createGeofence(input);
-      toast({ title: "Geofence creato", description: `"${input.nome}" aggiunto con successo.` });
+      toast({ title: t("Geofence creato"), description: t("\"{nome}\" aggiunto con successo.", { nome: String(input.nome ?? "") }) });
       setDialogOpen(false);
       setNewName("");
       setNewRadius("200");
       setNewLat(null);
       setNewLng(null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Errore";
-      toast({ title: "Errore", description: msg, variant: "destructive" });
+      const msg = err instanceof Error ? err.message : t("Errore");
+      toast({ title: t("Errore"), description: msg, variant: "destructive" });
     }
   };
 
@@ -83,9 +85,9 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
     setDeletingId(id);
     try {
       await deleteGeofence(id);
-      toast({ title: "Geofence rimosso", description: `"${nome}" rimosso.` });
+      toast({ title: t("Geofence rimosso"), description: t("\"{nome}\" rimosso.", { nome: String(nome ?? "") }) });
     } catch {
-      toast({title:"Zona non rimossa",description:"Riprova: il salvataggio non è stato confermato.",variant:"destructive"});
+      toast({title:t("Zona non rimossa"),description:t("Riprova: il salvataggio non è stato confermato."),variant:"destructive"});
     } finally {
       setDeletingId(null);
     }
@@ -97,7 +99,7 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2">
           <MapPin className="h-4 w-4 text-amber-500" />
-          Zone di geofence ({geofences.length})
+          {t("Zone di geofence ({n})", { n: geofences.length })}
         </h3>
         <Button
           size="sm"
@@ -106,7 +108,7 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
           disabled={!canEdit || isError}
         >
           <Plus className="h-3.5 w-3.5" />
-          Aggiungi zona
+          {t("Aggiungi zona")}
         </Button>
       </div>
 
@@ -115,9 +117,9 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : isError ? <HrQueryError label="Zone GPS non disponibili" onRetry={refetch} /> : geofences.length === 0 ? (
+      ) : isError ? <HrQueryError label={t("Zone GPS non disponibili")} onRetry={refetch} /> : geofences.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-6">
-          Nessuna zona di geofence configurata
+          {t("Nessuna zona di geofence configurata")}
         </p>
       ) : (
         <div className="space-y-2">
@@ -156,21 +158,21 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuovo geofence</DialogTitle>
+            <DialogTitle>{t("Nuovo geofence")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="gf-nome">Nome zona *</Label>
+              <Label htmlFor="gf-nome">{t("Nome zona *")}</Label>
               <Input
                 id="gf-nome"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="es. Cantiere Via Roma"
+                placeholder={t("es. Cantiere Via Roma")}
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="gf-raggio">Raggio (metri)</Label>
+              <Label htmlFor="gf-raggio">{t("Raggio (metri)")}</Label>
               <Input
                 id="gf-raggio"
                 type="number"
@@ -182,27 +184,25 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
             </div>
 
             {newLat != null && newLng != null && (
-              <p className="text-xs text-muted-foreground">
-                Centro selezionato: {newLat.toFixed(5)}, {newLng.toFixed(5)}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Centro selezionato: {newLat}, {newLng}", { newLat: newLat.toFixed(5), newLng: newLng.toFixed(5) })}</p>
             )}
 
             <p className="text-xs text-muted-foreground">
-              Clicca sulla mappa per scegliere il centro del geofence.
+              {t("Clicca sulla mappa per scegliere il centro del geofence.")}
             </p>
 
             <div className="h-56 rounded-lg overflow-hidden border">
               <FleetMapCanvas height="224px" onMapClick={handleMapClick} points={newLat != null && newLng != null ? [
-                {lat:newLat,lng:newLng,radius:Number(newRadius)||200,color:"#ea580c",label:"Zona da confermare"}
+                {lat:newLat,lng:newLng,radius:Number(newRadius)||200,color:"#ea580c",label:t("Zona da confermare")}
               ] : []} />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("Annulla")}</Button>
             <Button onClick={handleCreate} disabled={isCreating}>
               {isCreating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Crea geofence
+              {t("Crea geofence")}
             </Button>
           </DialogFooter>
         </DialogContent>

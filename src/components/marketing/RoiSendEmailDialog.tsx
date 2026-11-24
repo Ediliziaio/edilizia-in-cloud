@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Mail, Send, Loader2, FileText } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const EUR = (n: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(
@@ -153,6 +154,7 @@ export function RoiSendEmailDialog({
   defaultEmail,
   metadata,
 }: RoiSendEmailDialogProps) {
+  const t = useT();
   const defaultSubject = useMemo(
     () =>
       results.guadagnoNettoAnnuo > 0
@@ -189,7 +191,7 @@ export function RoiSendEmailDialog({
 
   const handleSend = async () => {
     if (!recipientValid) {
-      toast.error("Inserisci un indirizzo email valido");
+      toast.error(t("Inserisci un indirizzo email valido"));
       return;
     }
     setSending(true);
@@ -217,13 +219,13 @@ export function RoiSendEmailDialog({
         throw new Error((data as { error?: string }).error);
       }
 
-      toast.success("Report inviato al cliente", {
-        description: `Email con PDF allegato spedita a ${to.trim()}.`,
+      toast.success(t("Report inviato al cliente"), {
+        description: t("Email con PDF allegato spedita a {to}.", { to: to.trim() }),
       });
       onOpenChange(false);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Errore nell'invio";
-      toast.error("Invio non riuscito", { description: msg });
+      const msg = e instanceof Error ? e.message : t("Errore nell'invio");
+      toast.error(t("Invio non riuscito"), { description: msg });
     } finally {
       setSending(false);
     }
@@ -235,18 +237,17 @@ export function RoiSendEmailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-primary" />
-            Invia il report al cliente
+            {t("Invia il report al cliente")}
           </DialogTitle>
           <DialogDescription>
-            Spedisci l'analisi ROI con il PDF brandizzato in allegato. Oggetto e messaggio sono già
-            pronti: modificali se vuoi.
+            {t("Spedisci l'analisi ROI con il PDF brandizzato in allegato. Oggetto e messaggio sono già pronti: modificali se vuoi.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="roi-email-to" className="text-xs text-muted-foreground">
-              Destinatario
+              {t("Destinatario")}
             </Label>
             <Input
               id="roi-email-to"
@@ -259,13 +260,13 @@ export function RoiSendEmailDialog({
               aria-invalid={to.length > 0 && !recipientValid}
             />
             {to.length > 0 && !recipientValid && (
-              <p className="text-[11px] text-destructive">Indirizzo email non valido</p>
+              <p className="text-[11px] text-destructive">{t("Indirizzo email non valido")}</p>
             )}
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="roi-email-subject" className="text-xs text-muted-foreground">
-              Oggetto
+              {t("Oggetto")}
             </Label>
             <Input
               id="roi-email-subject"
@@ -278,7 +279,7 @@ export function RoiSendEmailDialog({
 
           <div className="space-y-1.5">
             <Label htmlFor="roi-email-message" className="text-xs text-muted-foreground">
-              Messaggio
+              {t("Messaggio")}
             </Label>
             <Textarea
               id="roi-email-message"
@@ -292,18 +293,18 @@ export function RoiSendEmailDialog({
           <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             <FileText className="h-4 w-4 shrink-0 text-primary" />
             <span className="truncate">
-              In allegato: <strong className="text-foreground">{roiPdfFileName(clientName)}</strong>
+              {t("In allegato:")} <strong className="text-foreground">{roiPdfFileName(clientName)}</strong>
             </span>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={sending}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={handleSend} disabled={sending || !recipientValid} className="gap-2">
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {sending ? "Invio..." : "Invia report"}
+            {sending ? t("Invio...") : t("Invia report")}
           </Button>
         </DialogFooter>
       </DialogContent>

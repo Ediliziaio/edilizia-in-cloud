@@ -32,6 +32,7 @@ import {
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -60,6 +61,7 @@ const TETTO_TIPS = [
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderTettoNew() {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -114,7 +116,7 @@ export default function RenderTettoNew() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error(t("File troppo grande (max 20 MB)"));
       return;
     }
     setPhoto(file);
@@ -150,16 +152,16 @@ export default function RenderTettoNew() {
         })
         .select("id")
         .single();
-      if (sessErr || !sess) throw new Error("Creazione sessione fallita");
+      if (sessErr || !sess) throw new Error(t("Creazione sessione fallita"));
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
       setStep(2);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
+      toast.error(err instanceof Error ? err.message : t("Upload foto fallito"));
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config, contactId, opportunityId]);
+  }, [photo, companyId, user, config, contactId, opportunityId, t]);
 
   // ── Polling helpers ───────────────────────────────────────────────────────
   const stopPolling = useCallback(() => {
@@ -191,7 +193,7 @@ export default function RenderTettoNew() {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         stopPolling();
         setGenerating(false);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova più tardi.");
+        toast.error(t("Timeout: il render sta impiegando troppo tempo. Riprova più tardi."));
         setStep(2);
         return;
       }
@@ -219,7 +221,7 @@ export default function RenderTettoNew() {
       if (s?.status === "failed") {
         stopPolling();
         setGenerating(false);
-        toast.error(s.error_message || "Render fallito. Riprova.");
+        toast.error(s.error_message || t("Render fallito. Riprova."));
         setStep(2);
         return;
       }
@@ -231,7 +233,7 @@ export default function RenderTettoNew() {
     };
 
     poll();
-  }, [companyId, queryClient, stopPolling]);
+  }, [companyId, queryClient, stopPolling, t]);
 
   // ── Step 2 -> 3: start render ─────────────────────────────────────────────
   const startRender = useCallback(async () => {
@@ -283,16 +285,16 @@ export default function RenderTettoNew() {
       const msg = await resolveEdgeFunctionErrorMessage({
         error: fnErr,
         data: fnData,
-        fallback: "Generazione fallita",
+        fallback: t("Generazione fallita"),
       });
       if (isIdleTimeoutMessage(msg)) {
-        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        toast.info(t("Render avviato: continuo a controllare lo stato in automatico."));
         return;
       }
       stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
-        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
+        toast.error(t("Crediti render insufficienti. Acquista nuovi crediti."));
       } else {
         toast.error(msg);
       }
@@ -315,9 +317,9 @@ export default function RenderTettoNew() {
       stopPolling();
       setGenerating(false);
       setStep(2);
-      toast.error(err instanceof Error ? err.message : "Render fallito");
+      toast.error(err instanceof Error ? err.message : t("Render fallito"));
     }
-  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, stopPolling, generating]);
+  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, stopPolling, generating, t]);
 
   // ── Download result ───────────────────────────────────────────────────────
   const downloadResult = useCallback(async () => {
@@ -326,9 +328,9 @@ export default function RenderTettoNew() {
     try {
       await downloadRenderImage(url, `render_tetto_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error(t("Download fallito. Tieni premuto sull'immagine per salvarla."));
     }
-  }, [resultUrls]);
+  }, [resultUrls, t]);
 
   // ── WhatsApp share ────────────────────────────────────────────────────────
   const shareWhatsApp = useCallback(() => {
@@ -372,12 +374,12 @@ export default function RenderTettoNew() {
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Render copertura tetto fotorealistico"
-        title="Stessa casa, stesso tetto, nuova copertura"
-        mobileTitle="Render Tetto"
-        description="L'AI sostituisce solo la copertura del tetto preservando struttura, prospettiva, luci e contorno della foto originale."
-        badgeLabel="Render AI — Tetti"
-        stepLabels={["Foto", "Configura", "Elaborazione", "Risultati"]}
+        eyebrow={t("Render copertura tetto fotorealistico")}
+        title={t("Stessa casa, stesso tetto, nuova copertura")}
+        mobileTitle={t("Render Tetto")}
+        description={t("L'AI sostituisce solo la copertura del tetto preservando struttura, prospettiva, luci e contorno della foto originale.")}
+        badgeLabel={t("Render AI — Tetti")}
+        stepLabels={[t("Foto"), t("Configura"), t("Elaborazione"), t("Risultati")]}
         currentStep={step}
         accent="red"
       />
@@ -398,7 +400,7 @@ export default function RenderTettoNew() {
             <>
               <ZonaFotoMobile
                 onScegli={() => fileRef.current?.click()}
-                suggerimento="Frontale o dall'alto, con tutto il tetto visibile"
+                suggerimento={t("Frontale o dall'alto, con tutto il tetto visibile")}
                 accento="red"
               />
               <input
@@ -414,7 +416,7 @@ export default function RenderTettoNew() {
             <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                Foto del tetto attuale
+                {t("Foto del tetto attuale")}
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
@@ -422,7 +424,7 @@ export default function RenderTettoNew() {
                 <div className="relative rounded-lg overflow-hidden">
                   <img loading="lazy"
                     src={photoPreview}
-                    alt="Foto caricata"
+                    alt={t("Foto caricata")}
                     className="w-full max-h-80 object-cover"
                   />
                   {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
@@ -437,7 +439,7 @@ export default function RenderTettoNew() {
                   >
                     <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
                     <Camera className="hidden h-3.5 w-3.5 max-md:block" />
-                    Cambia foto
+                    {t("Cambia foto")}
                   </Button>
                 </div>
               ) : (
@@ -449,13 +451,13 @@ export default function RenderTettoNew() {
                     <ImageIcon className="h-8 w-8 text-red-400" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold">Carica foto del tetto</p>
+                    <p className="font-semibold">{t("Carica foto del tetto")}</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      JPG, PNG, WEBP - Max 20 MB - Foto frontale o aerea
+                      {t("JPG, PNG, WEBP - Max 20 MB - Foto frontale o aerea")}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" type="button">
-                    Sfoglia file
+                    {t("Sfoglia file")}
                   </Button>
                 </div>
               )}
@@ -488,10 +490,10 @@ export default function RenderTettoNew() {
             {uploading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Caricamento...
+                {t("Caricamento...")}
               </>
             ) : (
-              "Continua con la configurazione"
+              t("Continua con la configurazione")
             )}
           </Button>
           )}
@@ -505,13 +507,13 @@ export default function RenderTettoNew() {
         <div className="space-y-4 max-md:space-y-3">
           {photoPreview && (
             <div className="rounded-lg overflow-hidden max-h-48">
-              <img loading="lazy" src={photoPreview} alt="Foto tetto" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt={t("Foto tetto")} className="w-full h-full object-cover" />
             </div>
           )}
 
           <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
             <CardHeader className="max-md:hidden">
-              <CardTitle className="text-base">Configurazione nuova copertura</CardTitle>
+              <CardTitle className="text-base">{t("Configurazione nuova copertura")}</CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
               <TettoConfigForm value={config} onChange={setConfig} />
@@ -524,7 +526,7 @@ export default function RenderTettoNew() {
             onClick={startRender}
           >
             <Zap className="h-4 w-4 mr-2" />
-            Genera render tetto
+            {t("Genera render tetto")}
           </Button>
         </div>
       )}
@@ -538,8 +540,8 @@ export default function RenderTettoNew() {
           elapsedSec={pollState.elapsedSec}
           dots={pollState.dots}
           accent="red"
-          tips={TETTO_TIPS}
-          subjectLabel="L'AI sta elaborando il render del tetto"
+          tips={TETTO_TIPS.map((tip) => t(tip))}
+          subjectLabel={t("L'AI sta elaborando il render del tetto")}
         />
       )}
 
@@ -553,21 +555,21 @@ export default function RenderTettoNew() {
               {/* Telefono: parla l'immagine. */}
               <div className="flex items-center gap-2 mb-4 max-md:hidden">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <span className="font-semibold text-green-700">Render completato!</span>
+                <span className="font-semibold text-green-700">{t("Render completato!")}</span>
               </div>
 
               {photoPreview ? (
                 <BeforeAfterSlider
                   beforeSrc={photoPreview}
                   afterSrc={resultUrls[0]}
-                  beforeLabel="Prima"
-                  afterLabel="Dopo"
+                  beforeLabel={t("Prima")}
+                  afterLabel={t("Dopo")}
                 />
               ) : (
                 <div className="rounded-lg overflow-hidden">
                   <img loading="lazy"
                     src={resultUrls[0]}
-                    alt="Render tetto"
+                    alt={t("Render tetto")}
                     className="w-full object-cover"
                   />
                 </div>
@@ -578,7 +580,7 @@ export default function RenderTettoNew() {
           {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
           {isMobile && (
             <div className="flex gap-2">
-              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label={t("Nuovo render")}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
               <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-tetto" className="min-w-0 flex-1" />
@@ -588,7 +590,7 @@ export default function RenderTettoNew() {
           <div className="flex gap-2 max-md:hidden">
             <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}>
               <Download className="h-4 w-4" />
-              Download
+              {t("Download")}
             </Button>
             <Button variant="outline" className="flex-1 gap-2" onClick={shareWhatsApp}>
               <Share2 className="h-4 w-4" />
@@ -603,7 +605,7 @@ export default function RenderTettoNew() {
             onEditChoices={() => setStep(2)}
             onRegenerate={startRender}
             disabled={generating}
-            regenerateLabel="Genera nuova variante tetto"
+            regenerateLabel={t("Genera nuova variante tetto")}
           />
 
           <Button
@@ -611,7 +613,7 @@ export default function RenderTettoNew() {
             onClick={nuovoRender}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
-            Nuovo render tetto
+            {t("Nuovo render tetto")}
           </Button>
         </div>
       )}

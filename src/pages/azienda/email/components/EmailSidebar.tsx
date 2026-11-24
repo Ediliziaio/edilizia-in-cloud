@@ -33,6 +33,7 @@ import type { EmailFilter, FolderFilter } from "../EmailLayout";
 import type { EmailConnectionSummary } from "../EmailLayout";
 import ReconnectMailboxDialog from "./ReconnectMailboxDialog";
 import { useDocumentiDaConfermareCount } from "@/lib/email-ai/hooks";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type SystemFolderKey = "inbox" | "sent" | "drafts" | "starred" | "spam" | "trash" | "archive";
 
@@ -70,17 +71,17 @@ interface EmailSidebarProps {
   documentiPath?: string | null;
 }
 
-function syncLabelFor(value: string | null | undefined): string {
+function syncLabelFor(value: string | null | undefined, t: (testo: string, valori?: Record<string, string | number>) => string): string {
   if (!value) return "mai";
   const ts = new Date(value).getTime();
   if (!Number.isFinite(ts)) return "—";
   const diff = Date.now() - ts;
   const minutes = Math.round(diff / 60_000);
-  if (minutes < 1) return "adesso";
-  if (minutes < 60) return `${minutes} min fa`;
+  if (minutes < 1) return t("adesso");
+  if (minutes < 60) return t("{n} min fa", { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h fa`;
-  return new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+  if (hours < 24) return t("{n} h fa", { n: hours });
+  return new Date(value).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" });
 }
 
 interface FolderCount {
@@ -151,6 +152,7 @@ function providerLabel(provider: string): string {
 }
 
 export function EmailSidebar({ filter, onFilterChange, onCompose, connections, settingsPath = "/azienda/impostazioni/mio-profilo", aiSettingsPath = "/azienda/email/ai", documentiPath = null }: EmailSidebarProps) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
   const documentiDaConfermare = useDocumentiDaConfermareCount(effectiveCompany?.id, !!documentiPath).data ?? 0;
@@ -257,12 +259,12 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
           onClick={onCompose}
         >
           <PencilLine className="h-4 w-4" />
-          Scrivi
+          {t("Scrivi")}
         </Button>
 
         <div className="rounded-2xl border border-blue-100 bg-white p-2 shadow-sm">
           <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-700">
-            Caselle sincronizzate
+            {t("Caselle sincronizzate")}
           </p>
           <button
             type="button"
@@ -276,9 +278,9 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
               EiC
             </span>
             <span className="min-w-0 flex-1 text-left">
-              <span className="block truncate font-semibold">Tutte le caselle</span>
+              <span className="block truncate font-semibold">{t("Tutte le caselle")}</span>
               <span className="block truncate text-[10px] text-slate-500">
-                {connections.length > 0 ? `${connections.length} ${connections.length === 1 ? "account collegato" : "account collegati"}` : "Nessun account collegato"}
+                {connections.length > 0 ? t(connections.length === 1 ? "{n} account collegato" : "{n} account collegati", { n: connections.length }) : t("Nessun account collegato")}
               </span>
             </span>
           </button>
@@ -304,7 +306,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
                 >
                   <button
                     type="button"
-                    aria-label={expanded ? `Comprimi ${f.label}` : `Espandi ${f.label}`}
+                    aria-label={expanded ? t("Comprimi {nome}", { nome: t(f.label) }) : t("Espandi {nome}", { nome: t(f.label) })}
                     onClick={() => setOpenFolders((current) => ({ ...current, [f.key]: !current[f.key] }))}
                     className={cn(
                       "flex h-9 w-7 shrink-0 items-center justify-center rounded-l-xl transition-colors",
@@ -322,7 +324,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
                     )}
                   >
                     <Icon className={cn("h-4 w-4 shrink-0", activeAllAccounts ? "text-white" : "text-slate-500 group-hover:text-blue-700")} />
-                    <span className="min-w-0 flex-1 truncate text-left">{f.label}</span>
+                    <span className="min-w-0 flex-1 truncate text-left">{t(f.label)}</span>
                     {count > 0 && (
                       <Badge
                         variant="secondary"
@@ -349,7 +351,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
                           key={`${f.key}-${connection.id}`}
                           type="button"
                           onClick={() => onFilterChange({ ...filter, folder, accountId: connection.id })}
-                          title={`${f.shortLabel} · ${connection.email_address}`}
+                          title={`${t(f.shortLabel)} · ${connection.email_address}`}
                           className={cn(
                             "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition-colors",
                             accountActive
@@ -401,7 +403,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
             className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-blue-50/70"
           >
             <FileCheck2 className="h-4 w-4 shrink-0 text-blue-600" />
-            <span className="min-w-0 flex-1 leading-tight">Documenti da confermare</span>
+            <span className="min-w-0 flex-1 leading-tight">{t("Documenti da confermare")}</span>
             <Badge variant="secondary" className="h-5 min-w-[24px] rounded-full bg-blue-100 px-1.5 text-[10px] text-blue-800 hover:bg-blue-100">
               {compactCount(documentiDaConfermare)}
             </Badge>
@@ -419,17 +421,17 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
         {aiSettingsPath && <Link
           to={aiSettingsPath}
           className="block rounded-2xl border border-orange-100 bg-orange-50/70 p-3 transition-colors hover:bg-orange-100/70"
-          title="Apprendimento e regole di instradamento"
+          title={t("Apprendimento e regole di instradamento")}
         >
           <div className="flex items-start gap-2">
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1 text-xs font-semibold text-orange-900">
-                AI della casella
+                {t("AI della casella")}
                 <ChevronRight className="h-3.5 w-3.5 text-orange-500" />
               </p>
               <p className="mt-0.5 text-[11px] leading-snug text-orange-800/80">
-                Classifica lead, preventivi, fatture e priorità. Tocca per regole e apprendimento.
+                {t("Classifica lead, preventivi, fatture e priorità. Tocca per regole e apprendimento.")}
               </p>
             </div>
           </div>
@@ -470,6 +472,7 @@ function SyncStatusPanel({
   connections: EmailSidebarProps["connections"];
   settingsPath: string;
 }) {
+  const t = useT();
   const [reconnectOpen, setReconnectOpen] = useState(false);
   const autoOpenedRef = useRef(false);
   const extendedConnections = connections as EmailConnectionSummary[];
@@ -486,7 +489,7 @@ function SyncStatusPanel({
     .map((c) => c.last_synced_at)
     .filter((value): value is string => Boolean(value))
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
-  const lastSyncLabel = syncLabelFor(lastSyncAt);
+  const lastSyncLabel = syncLabelFor(lastSyncAt, t);
 
   // Auto-apertura: appena si rilevano caselle in errore (connessioni caricate in
   // modo asincrono) il popup si apre da solo, una volta per ingresso nel client.
@@ -523,16 +526,16 @@ function SyncStatusPanel({
           hasError ? "text-rose-900" : "text-emerald-900",
         )}>
           {hasError
-            ? `${unhealthy.length} ${unhealthy.length === 1 ? "casella" : "caselle"} con problemi`
-            : `${active}/${extendedConnections.length} ${extendedConnections.length === 1 ? "casella attiva" : "caselle attive"}`}
+            ? t(unhealthy.length === 1 ? "{n} casella con problemi" : "{n} caselle con problemi", { n: unhealthy.length })
+            : t(extendedConnections.length === 1 ? "{attive}/{n} casella attiva" : "{attive}/{n} caselle attive", { attive: active, n: extendedConnections.length })}
         </p>
         <p className={cn(
           "mt-0.5 truncate text-[11px] leading-snug",
           hasError ? "text-rose-700" : "text-emerald-800/80",
         )}>
           {hasError
-            ? "Riconnetti la casella in errore"
-            : `Ultimo controllo ${lastSyncLabel}`}
+            ? t("Riconnetti la casella in errore")
+            : t("Ultimo controllo {lastSyncLabel}", { lastSyncLabel })}
         </p>
       </div>
     </div>
@@ -547,7 +550,7 @@ function SyncStatusPanel({
           type="button"
           onClick={() => setReconnectOpen(true)}
           className={panelClass}
-          title="Una o più caselle hanno problemi — clicca per riconnetterle"
+          title={t("Una o più caselle hanno problemi — clicca per riconnetterle")}
         >
           {content}
         </button>
@@ -562,7 +565,7 @@ function SyncStatusPanel({
   }
 
   return (
-    <Link to={settingsPath} className={panelClass} title="Stato sync caselle — clicca per impostazioni">
+    <Link to={settingsPath} className={panelClass} title={t("Stato sync caselle — clicca per impostazioni")}>
       {content}
     </Link>
   );

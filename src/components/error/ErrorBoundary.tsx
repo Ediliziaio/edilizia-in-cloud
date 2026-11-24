@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
+/** I testi del riquadro d'errore nella lingua di chi guarda: la classe non può usare gli hook. */
+function ConLingua({ children }: { children: (t: ReturnType<typeof useT>) => React.ReactNode }) {
+  const t = useT();
+  return <>{children(t)}</>;
+}
 
 interface Props {
   children: React.ReactNode;
@@ -252,28 +259,30 @@ export class ErrorBoundary extends React.Component<Props, State> {
             );
           }
           return (
+            <ConLingua>{(t) => (
             <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
               <div className="p-4 rounded-full bg-blue-50 mb-4">
                 <RefreshCw className="h-10 w-10 text-blue-500 animate-spin" />
               </div>
-              <h2 className="text-xl font-semibold mb-2">Aggiornamento in corso…</h2>
+              <h2 className="text-xl font-semibold mb-2">{t("Aggiornamento in corso…")}</h2>
               <p className="text-muted-foreground text-sm mb-6 max-w-md">
-                Tentativo {attemptInfo.count + 1} di {MAX_AUTO_ATTEMPTS}. La pagina si ricaricherà
-                automaticamente tra pochi secondi.
+                {t("Tentativo {n} di {max}. La pagina si ricaricherà automaticamente tra pochi secondi.", { n: attemptInfo.count + 1, max: MAX_AUTO_ATTEMPTS })}
               </p>
             </div>
+            )}</ConLingua>
           );
         }
 
         // Dopo 3 tentativi: bottone manuale + reset sessionStorage al click
         return (
+          <ConLingua>{(t) => (
           <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
             <div className="p-4 rounded-full bg-amber-50 mb-4">
               <AlertTriangle className="h-10 w-10 text-amber-500" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">Aggiornamento richiesto</h2>
+            <h2 className="text-xl font-semibold mb-2">{t("Aggiornamento richiesto")}</h2>
             <p className="text-muted-foreground text-sm mb-6 max-w-md">
-              L&apos;app è stata aggiornata. Clicca per scaricare la nuova versione.
+              {t("L'app è stata aggiornata. Clicca per scaricare la nuova versione.")}
             </p>
             <button
               type="button"
@@ -283,25 +292,26 @@ export class ErrorBoundary extends React.Component<Props, State> {
               }}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium"
             >
-              <RefreshCw className="h-4 w-4" /> Ricarica adesso
+              <RefreshCw className="h-4 w-4" /> {t("Ricarica adesso")}
             </button>
           </div>
+          )}</ConLingua>
         );
       }
 
-      const title = this.props.title ?? "Qualcosa è andato storto";
+      const title = this.props.title;
 
       return (
+        <ConLingua>{(t) => (
         <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
           <div className="p-4 rounded-full bg-destructive/10 mb-4">
             <AlertTriangle className="h-10 w-10 text-destructive" />
           </div>
 
-          <h2 className="text-xl font-semibold text-foreground mb-2">{title}</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-2">{title ?? t("Qualcosa è andato storto")}</h2>
 
           <p className="text-muted-foreground text-sm mb-1 max-w-md">
-            Si è verificato un errore inatteso in questa sezione. Puoi riprovare
-            o tornare alla home.
+            {t("Si è verificato un errore inatteso in questa sezione. Puoi riprovare o tornare alla home.")}
           </p>
 
           {/* 2026-05-27: mostro il messaggio di errore SEMPRE (anche in prod
@@ -312,7 +322,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           {this.state.error && (
             <details className="mt-3 max-w-lg w-full">
               <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground select-none">
-                Dettagli tecnici per assistenza
+                {t("Dettagli tecnici per assistenza")}
               </summary>
               <p className="text-xs text-destructive/70 font-mono bg-destructive/5 border border-destructive/20 rounded px-3 py-2 mt-2 break-all text-left">
                 <strong>{this.state.error.name}</strong>: {this.state.error.message.substring(0, 300)}
@@ -323,11 +333,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <div className="flex gap-3 mt-6 flex-wrap justify-center">
             <Button onClick={this.handleReset} size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
-              Riprova
+              {t("Riprova")}
             </Button>
             <Button variant="outline" size="sm" onClick={this.handleGoHome}>
               <Home className="h-4 w-4 mr-2" />
-              Vai alla home
+              {t("Vai alla home")}
             </Button>
           </div>
 
@@ -337,12 +347,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
             {this.state.ticketState === "success" ? (
               <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-medium">
                 <CheckCircle2 className="h-5 w-5" />
-                <span>Ticket inviato. Florin ha ricevuto la notifica.</span>
+                <span>{t("Ticket inviato. Florin ha ricevuto la notifica.")}</span>
               </div>
             ) : (
               <>
                 <p className="text-xs text-muted-foreground mb-3 text-center">
-                  Hai bisogno di assistenza immediata? Florin (super admin) riceverà subito un'email con tutti i dettagli per intervenire.
+                  {t("Hai bisogno di assistenza immediata? Florin (super admin) riceverà subito un'email con tutti i dettagli per intervenire.")}
                 </p>
                 <Button
                   onClick={this.handleSendTicket}
@@ -353,24 +363,25 @@ export class ErrorBoundary extends React.Component<Props, State> {
                   {this.state.ticketState === "submitting" ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Invio in corso…
+                      {t("Invio in corso…")}
                     </>
                   ) : (
                     <>
                       <LifeBuoy className="h-4 w-4 mr-2" />
-                      Invia ticket assistenza al super admin
+                      {t("Invia ticket assistenza al super admin")}
                     </>
                   )}
                 </Button>
                 {this.state.ticketState === "error" && this.state.ticketError && (
                   <p className="text-xs text-destructive mt-2 text-center">
-                    Errore invio: {this.state.ticketError}. Riprova o contatta l'assistenza via WhatsApp.
+                    {t("Errore invio: {errore}. Riprova o contatta l'assistenza via WhatsApp.", { errore: this.state.ticketError ?? "" })}
                   </p>
                 )}
               </>
             )}
           </div>
         </div>
+        )}</ConLingua>
       );
     }
 

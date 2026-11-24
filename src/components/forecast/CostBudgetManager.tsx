@@ -4,7 +4,6 @@ import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth } from "date-fns";
-import { it } from "date-fns/locale";
 import { Plus, Trash2, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,6 +24,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell,
 } from "recharts";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CostBudgetManagerProps {
   dynamicCategories: string[];
@@ -34,6 +34,7 @@ interface CostBudgetManagerProps {
 }
 
 export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettura = false }: CostBudgetManagerProps) {
+  const t = useT();
   const idBudget = idSvg(useId());
   const fermoBudget = usePreferisceMenoMovimento();
   const { effectiveCompany } = useAuth();
@@ -51,7 +52,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
     const now = new Date();
     for (let i = -3; i <= 9; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      opts.push({ value: format(d, "yyyy-MM"), label: format(d, "MMMM yyyy", { locale: it }) });
+      opts.push({ value: format(d, "yyyy-MM"), label: format(d, "MMMM yyyy", { locale: dateFnsCampo() }) });
     }
     return opts;
   }, []);
@@ -85,9 +86,9 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.budgets(companyId) });
       setNewCategory("");
       setNewAmount("");
-      toast.success("Budget salvato");
+      toast.success(t("Budget salvato"));
     },
-    onError: () => toast.error("Errore nel salvataggio"),
+    onError: () => toast.error(t("Errore nel salvataggio")),
   });
 
   const deleteBudgetMutation = useMutation({
@@ -97,7 +98,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.budgets(companyId) });
-      toast.success("Budget rimosso");
+      toast.success(t("Budget rimosso"));
     },
   });
 
@@ -174,7 +175,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
 
   const handleAdd = () => {
     if (!newCategory || !newAmount || parseFloat(newAmount) <= 0) {
-      toast.error("Seleziona categoria e importo");
+      toast.error(t("Seleziona categoria e importo"));
       return;
     }
     addBudgetMutation.mutate();
@@ -186,24 +187,24 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
       {budgetAnno && budgetAnno.budget > 0 && (
         <div className="grid gap-4 rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 dark:border-slate-700 md:grid-cols-[280px_minmax(0,1fr)]">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Budget {annoBudget}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Budget {annoBudget}", { annoBudget: String(annoBudget ?? "") })}</p>
             <div className="mt-1.5 flex items-baseline gap-2">
               <span className="text-3xl font-bold tabular-nums tracking-tight">{Math.round(pctBudget)}%</span>
-              <span className="text-xs text-slate-400">speso, su {budgetAnno.mesi} {budgetAnno.mesi === 1 ? "mese" : "mesi"} con budget</span>
+              <span className="text-xs text-slate-400">{t(budgetAnno.mesi === 1 ? "speso, su {n} mese con budget" : "speso, su {n} mesi con budget", { n: budgetAnno.mesi })}</span>
             </div>
-            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pctBudget, 100))} aria-label={`Budget ${annoBudget}`}>
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pctBudget, 100))} aria-label={t("Budget {annoBudget}", { annoBudget: String(annoBudget ?? "") })}>
               <div className={`cg-barra-cresce h-full rounded-full bg-gradient-to-r ${pctBudget > 100 ? "from-rose-500 to-orange-400" : pctBudget > 85 ? "from-amber-400 to-yellow-300" : "from-emerald-400 to-teal-300"}`} style={{ width: `${Math.max(2, Math.min(pctBudget, 100))}%` }} />
             </div>
             <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-              <div><dt className="text-slate-400">Budget</dt><dd className="font-semibold tabular-nums">{formatCurrencyCompact(budgetAnno.budget)}</dd></div>
-              <div><dt className="text-slate-400">Speso</dt><dd className="font-semibold tabular-nums">{formatCurrencyCompact(budgetAnno.speso)}</dd></div>
-              <div><dt className="text-slate-400">{budgetAnno.speso > budgetAnno.budget ? "Oltre" : "Resta"}</dt><dd className={`font-semibold tabular-nums ${budgetAnno.speso > budgetAnno.budget ? "text-rose-300" : "text-emerald-300"}`}>{formatCurrencyCompact(Math.abs(budgetAnno.budget - budgetAnno.speso))}</dd></div>
+              <div><dt className="text-slate-400">{t("Budget")}</dt><dd className="font-semibold tabular-nums">{formatCurrencyCompact(budgetAnno.budget)}</dd></div>
+              <div><dt className="text-slate-400">{t("Speso")}</dt><dd className="font-semibold tabular-nums">{formatCurrencyCompact(budgetAnno.speso)}</dd></div>
+              <div><dt className="text-slate-400">{budgetAnno.speso > budgetAnno.budget ? t("Oltre") : t("Resta")}</dt><dd className={`font-semibold tabular-nums ${budgetAnno.speso > budgetAnno.budget ? "text-rose-300" : "text-emerald-300"}`}>{formatCurrencyCompact(Math.abs(budgetAnno.budget - budgetAnno.speso))}</dd></div>
             </dl>
           </div>
           <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Categorie fuori budget</p>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Categorie fuori budget")}</p>
             {budgetAnno.fuori.length === 0 ? (
-              <p className="text-xs text-emerald-300">Nessuna: ogni categoria con un budget ci sta dentro.</p>
+              <p className="text-xs text-emerald-300">{t("Nessuna: ogni categoria con un budget ci sta dentro.")}</p>
             ) : (
               <ul className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
                 {budgetAnno.fuori.slice(0, 8).map((f) => (
@@ -221,18 +222,18 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" /> Budget per Categoria
+            <Target className="h-5 w-5" /> {t("Budget per Categoria")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {soloLettura ? (
             <AvvisoSolaLettura>
-              Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
+              {t("Sola lettura: qui serve il permesso «Costi», e chi ce l'ha in «Sola lettura» non può scrivere.")}
             </AvvisoSolaLettura>
           ) : (
             <div className="flex flex-col sm:flex-row gap-3">
               <div>
-                <Label className="text-xs">Mese</Label>
+                <Label className="text-xs">{t("Mese")}</Label>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                   <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -243,9 +244,9 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
                 </Select>
               </div>
               <div className="flex-1">
-                <Label className="text-xs">Categoria</Label>
+                <Label className="text-xs">{t("Categoria")}</Label>
                 <Select value={newCategory} onValueChange={setNewCategory}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("Seleziona...")} /></SelectTrigger>
                   <SelectContent>
                     {dynamicCategories.map(cat => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
@@ -254,12 +255,12 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
                 </Select>
               </div>
               <div className="w-[140px]">
-                <Label className="text-xs">Budget (€)</Label>
+                <Label className="text-xs">{t("Budget (€)")}</Label>
                 <Input type="number" step="0.01" value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="0.00" />
               </div>
               <div className="flex items-end">
                 <Button size="sm" onClick={handleAdd} disabled={addBudgetMutation.isPending} className="gap-1">
-                  <Plus className="h-4 w-4" /> Aggiungi
+                  <Plus className="h-4 w-4" /> {t("Aggiungi")}
                 </Button>
               </div>
             </div>
@@ -270,10 +271,10 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead className="text-right">Budget</TableHead>
-                  <TableHead className="text-right">Effettivo</TableHead>
-                  <TableHead className="text-right">Scostamento</TableHead>
+                  <TableHead>{t("Categoria")}</TableHead>
+                  <TableHead className="text-right">{t("Budget")}</TableHead>
+                  <TableHead className="text-right">{t("Effettivo")}</TableHead>
+                  <TableHead className="text-right">{t("Scostamento")}</TableHead>
                   {!soloLettura && <TableHead className="w-10" />}
                 </TableRow>
               </TableHeader>
@@ -296,11 +297,11 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            aria-label={`Elimina budget ${b.category}`}
+                            aria-label={t("Elimina budget {category}", { category: String(b.category ?? "") })}
                             onClick={async () => {
                               if (await confirm({
-                                title: "Eliminare questo budget?",
-                                description: `Budget "${b.category}" verrà rimosso. L'operazione non può essere annullata.`,
+                                title: t("Eliminare questo budget?"),
+                                description: t("Budget \"{category}\" verrà rimosso. L'operazione non può essere annullata.", { category: String(b.category ?? "") }),
                                 confirmLabel: "Elimina",
                                 variant: "destructive",
                               })) {
@@ -325,7 +326,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
       {chartData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Budget vs Effettivo — {monthOptions.find(o => o.value === selectedMonth)?.label}</CardTitle>
+            <CardTitle className="text-base">{t("Budget vs Effettivo — {label}", { label: String(monthOptions.find(o => o.value === selectedMonth)?.label ?? "") })}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">

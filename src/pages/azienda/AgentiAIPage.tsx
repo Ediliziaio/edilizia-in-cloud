@@ -31,6 +31,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "statistiche" | "crediti";
 
@@ -60,6 +61,7 @@ const ALL_TABS: { key: MainTab; label: string; labelBreve?: string; icon: typeof
 const TAB_TELEFONO: MainTab[] = ["agenti", "conversazioni", "chat"];
 
 export default function AgentiAIPage() {
+  const tr = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const { pathname } = useLocation();
   const navigate=useNavigate();
@@ -107,22 +109,22 @@ export default function AgentiAIPage() {
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="eic-workspace-icon"><Bot aria-hidden="true" className="size-5" /></span>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Agenti AI</h1>
-            <p className="text-xs text-muted-foreground md:hidden">Configurazione da computer o tablet</p>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{tr("Agenti AI")}</h1>
+            <p className="text-xs text-muted-foreground md:hidden">{tr("Configurazione da computer o tablet")}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!isAdminContext && (
             <Button asChild variant="outline" size="sm" className="eic-motion-button">
-              <Link to={centralinoHistoryHref()}><History aria-hidden="true" className="mr-1.5 size-4" /> Chiamate nel Centralino</Link>
+              <Link to={centralinoHistoryHref()}><History aria-hidden="true" className="mr-1.5 size-4" /> {tr("Chiamate nel Centralino")}</Link>
             </Button>
           )}
           {elConfig?.api_key_valida && (
             <div className="hidden items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs md:flex">
               <span className="size-2 rounded-full bg-orange-500" aria-hidden="true" />
-              ElevenLabs connesso
+              {tr("ElevenLabs connesso")}
               {elConfig.crediti_rimanenti != null && (
-                <span className="text-muted-foreground">· {Math.round(elConfig.crediti_rimanenti).toLocaleString("it-IT")} crediti</span>
+                <span className="text-muted-foreground">{tr("· {n} crediti", { n: Math.round(elConfig.crediti_rimanenti).toLocaleString(intlCampo()) })}</span>
               )}
             </div>
           )}
@@ -131,15 +133,15 @@ export default function AgentiAIPage() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="min-w-0 overflow-x-auto px-1 pb-3 pt-1">
-          <WorkspaceTabs label="Sezioni di Agenti AI" selected={activeTab} compactIcons className="max-md:w-full"
+          <WorkspaceTabs label={tr("Sezioni di Agenti AI")} selected={activeTab} compactIcons className="max-md:w-full"
             items={TABS.filter(({ key }) => !isMobile || TAB_TELEFONO.includes(key))
-              .map(({ key, label, labelBreve, icon }) => ({ id: key, label, shortLabel: labelBreve, icon }))} />
+              .map(({ key, label, labelBreve, icon }) => ({ id: key, label: tr(label), shortLabel: labelBreve ? tr(labelBreve) : undefined, icon }))} />
         </div>
 
         {/* Stats bar — only on Agenti tab */}
         {activeTab === "agenti" && (
           statsError ? <div role="alert" className="mb-3 rounded-lg border border-amber-200 p-3 text-sm">
-            Statistiche non caricate. <button className="underline" onClick={() => retryStats()}>Riprova</button>
+            {tr("Statistiche non caricate.")} <button className="underline" onClick={() => retryStats()}>{tr("Riprova")}</button>
           </div> : stats
             ? <AgentiAIStatsBar stats={stats} />
             : statsLoading

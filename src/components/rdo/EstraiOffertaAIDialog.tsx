@@ -18,6 +18,7 @@ import { Sparkles, Loader2, Upload, Mail, AlertTriangle, Check } from "lucide-re
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RigaEstratta {
   rfq_item_id: string | null;
@@ -55,6 +56,7 @@ interface Props {
 export function EstraiOffertaAIDialog({
   open, onOpenChange, rfqSupplierId, fornitoreNome, haEmailAgganciata, onApplica,
 }: Props) {
+  const t = useT();
   const [lettura, setLettura] = useState(false);
   const [applico, setApplico] = useState(false);
   const [proposta, setProposta] = useState<PropostaEstratta | null>(null);
@@ -92,7 +94,7 @@ export function EstraiOffertaAIDialog({
         }
         throw new Error(msg);
       }
-      if (!data?.ok) throw new Error(data?.error || "Lettura non riuscita");
+      if (!data?.ok) throw new Error(data?.error || t("Lettura non riuscita"));
       const p = data as PropostaEstratta;
       setProposta(p);
       // Preselezione: solo abbinamenti con voce riconosciuta e confidenza >= 60.
@@ -103,7 +105,7 @@ export function EstraiOffertaAIDialog({
           .map(({ i }) => i),
       ));
     } catch (e) {
-      toast.error("Lettura non riuscita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Lettura non riuscita"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setLettura(false);
     }
@@ -111,7 +113,7 @@ export function EstraiOffertaAIDialog({
 
   const daFile = (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("File troppo grande (max 10MB)");
+      toast.error(t("File troppo grande (max 10MB)"));
       return;
     }
     const reader = new FileReader();
@@ -123,18 +125,18 @@ export function EstraiOffertaAIDialog({
     if (!proposta) return;
     const righe = proposta.righe.filter((_, i) => scelte.has(i));
     if (righe.length === 0) {
-      toast.error("Nessuna riga selezionata");
+      toast.error(t("Nessuna riga selezionata"));
       return;
     }
     setApplico(true);
     try {
       await onApplica(righe, proposta);
-      toast.success(`${righe.length} prezz${righe.length === 1 ? "o applicato" : "i applicati"}`, {
-        description: "Controlla la griglia di confronto: i numeri restano modificabili.",
+      toast.success(t(righe.length === 1 ? "{n} prezzo applicato" : "{n} prezzi applicati", { n: righe.length }), {
+        description: t("Controlla la griglia di confronto: i numeri restano modificabili."),
       });
       chiudi(false);
     } catch (e) {
-      toast.error("Applicazione non riuscita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Applicazione non riuscita"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setApplico(false);
     }
@@ -146,11 +148,10 @@ export function EstraiOffertaAIDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-orange-500" />
-            Leggi l'offerta di {fornitoreNome}
+            {t("Leggi l'offerta di {fornitore}", { fornitore: fornitoreNome })}
           </DialogTitle>
           <DialogDescription>
-            L'AI estrae i prezzi dal preventivo e li abbina alle voci della richiesta.
-            Niente viene scritto finché non guardi la tabella e applichi.
+            {t("L'AI estrae i prezzi dal preventivo e li abbina alle voci della richiesta. Niente viene scritto finché non guardi la tabella e applichi.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -159,7 +160,7 @@ export function EstraiOffertaAIDialog({
             {lettura ? (
               <div className="flex flex-col items-center gap-3 py-10 text-sm text-slate-500">
                 <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
-                Sto leggendo il documento...
+                {t("Sto leggendo il documento...")}
               </div>
             ) : (
               <>
@@ -170,12 +171,12 @@ export function EstraiOffertaAIDialog({
                     onClick={() => leggi({ use_email_attachment: true })}
                   >
                     <Mail className="h-4 w-4 mr-2 text-slate-400" />
-                    Usa l'allegato dell'email agganciata
+                    {t("Usa l'allegato dell'email agganciata")}
                   </Button>
                 )}
                 <label className="flex items-center gap-2 w-full rounded-md border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-4 py-2.5 text-sm font-medium cursor-pointer transition-colors">
                   <Upload className="h-4 w-4 text-slate-400" />
-                  Carica il preventivo (PDF o foto)
+                  {t("Carica il preventivo (PDF o foto)")}
                   <input
                     type="file"
                     accept="application/pdf,image/*"
@@ -197,10 +198,10 @@ export function EstraiOffertaAIDialog({
                 <thead>
                   <tr className="border-b bg-muted/50 text-left text-xs">
                     <th className="p-2 w-8"></th>
-                    <th className="p-2 font-medium">Voce richiesta</th>
-                    <th className="p-2 font-medium">Nel documento</th>
-                    <th className="p-2 font-medium text-right">Prezzo</th>
-                    <th className="p-2 font-medium text-right">Fiducia</th>
+                    <th className="p-2 font-medium">{t("Voce richiesta")}</th>
+                    <th className="p-2 font-medium">{t("Nel documento")}</th>
+                    <th className="p-2 font-medium text-right">{t("Prezzo")}</th>
+                    <th className="p-2 font-medium text-right">{t("Fiducia")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -221,7 +222,7 @@ export function EstraiOffertaAIDialog({
                         </td>
                         <td className="p-2">
                           {r.voce_richiesta ?? (
-                            <span className="italic text-slate-400">non nella richiesta</span>
+                            <span className="italic text-slate-400">{t("non nella richiesta")}</span>
                           )}
                         </td>
                         <td className="p-2 text-slate-600">
@@ -230,7 +231,7 @@ export function EstraiOffertaAIDialog({
                         </td>
                         <td className="p-2 text-right tabular-nums">
                           {!r.disponibile
-                            ? <Badge className="bg-slate-200 text-slate-600 text-[10px]">non disponibile</Badge>
+                            ? <Badge className="bg-slate-200 text-slate-600 text-[10px]">{t("non disponibile")}</Badge>
                             : r.prezzo_unitario != null
                               ? <>
                                   {formatCurrency(r.prezzo_unitario)}
@@ -238,7 +239,7 @@ export function EstraiOffertaAIDialog({
                                     <span className="block text-[11px] text-slate-500">−{r.sconto_percentuale}%</span>
                                   )}
                                 </>
-                              : <span className="text-slate-400">illeggibile</span>}
+                              : <span className="text-slate-400">{t("illeggibile")}</span>}
                         </td>
                         <td className="p-2 text-right">
                           <span
@@ -260,8 +261,8 @@ export function EstraiOffertaAIDialog({
 
             {(proposta.giorni_consegna != null || proposta.validita_offerta || proposta.condizioni_pagamento) && (
               <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                {proposta.giorni_consegna != null && <Badge variant="outline">Consegna: {proposta.giorni_consegna} gg</Badge>}
-                {proposta.validita_offerta && <Badge variant="outline">Valida fino al {proposta.validita_offerta.split("-").reverse().join("/")}</Badge>}
+                {proposta.giorni_consegna != null && <Badge variant="outline">{t("Consegna: {giorni_consegna} gg", { giorni_consegna: proposta.giorni_consegna })}</Badge>}
+                {proposta.validita_offerta && <Badge variant="outline">{t("Valida fino al {valore}", { valore: proposta.validita_offerta.split("-").reverse().join("/") })}</Badge>}
                 {proposta.condizioni_pagamento && <Badge variant="outline">{proposta.condizioni_pagamento}</Badge>}
               </div>
             )}
@@ -272,7 +273,7 @@ export function EstraiOffertaAIDialog({
               </p>
             )}
             <p className="text-[11px] text-slate-400">
-              Le righe sotto il 60% di fiducia partono deselezionate: controllale sul documento prima di applicarle.
+              {t("Le righe sotto il 60% di fiducia partono deselezionate: controllale sul documento prima di applicarle.")}
             </p>
           </div>
         )}
@@ -280,11 +281,11 @@ export function EstraiOffertaAIDialog({
         {proposta && (
           <DialogFooter>
             <Button variant="outline" onClick={() => { setProposta(null); setScelte(new Set()); }}>
-              Rileggi
+              {t("Rileggi")}
             </Button>
             <Button onClick={applica} disabled={applico || scelte.size === 0}>
               {applico ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Check className="h-4 w-4 mr-1.5" />}
-              Applica {scelte.size} prezz{scelte.size === 1 ? "o" : "i"}
+              {t(scelte.size === 1 ? "Applica {n} prezzo" : "Applica {n} prezzi", { n: scelte.size })}
             </Button>
           </DialogFooter>
         )}

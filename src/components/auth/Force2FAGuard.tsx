@@ -20,10 +20,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ShieldAlert } from "lucide-react";
 import { TwoFactorSetup } from "./TwoFactorSetup";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const POLICIES = ["force_2fa_super_admin", "force_2fa_company_admin"] as const;
 
 export function Force2FAGuard({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { user, role, isImpersonating } = useAuth();
   const [hasMFA, setHasMFA] = useState<boolean | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -123,24 +125,22 @@ export function Force2FAGuard({ children }: { children: React.ReactNode }) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-amber-500" />
-              Autenticazione a due fattori obbligatoria
+              {t("Autenticazione a due fattori obbligatoria")}
             </DialogTitle>
             <DialogDescription>
-              Per il tuo ruolo è richiesta l&apos;autenticazione a due fattori (2FA).
-              Configurala ora per continuare a usare la piattaforma in sicurezza.
+              {t("Per il tuo ruolo è richiesta l'autenticazione a due fattori (2FA). Configurala ora per continuare a usare la piattaforma in sicurezza.")}
             </DialogDescription>
           </DialogHeader>
 
           <Alert>
             <AlertDescription className="text-sm">
-              Usa un&apos;app Authenticator (Google Authenticator, Authy, 1Password) per
-              scansionare il QR code e inserire il codice di verifica.
+              {t("Usa un'app Authenticator (Google Authenticator, Authy, 1Password) per scansionare il QR code e inserire il codice di verifica.")}
             </AlertDescription>
           </Alert>
 
           <TwoFactorSetup />
           <p className="text-xs text-center text-muted-foreground mt-2">
-            Una volta completato il setup, ricarica la pagina per continuare.
+            {t("Una volta completato il setup, ricarica la pagina per continuare.")}
           </p>
         </DialogContent>
       </Dialog>

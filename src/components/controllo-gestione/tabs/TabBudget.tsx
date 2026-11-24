@@ -26,6 +26,7 @@ import { Info, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
@@ -46,6 +47,7 @@ function coloreScostamento(r: RigaBudget): string {
 }
 
 export function TabBudget({ anno }: Props) {
+  const tr = useT();
   const q = useBudgetConfronto(anno);
   const [editor, setEditor] = useState<RigaBudget | null>(null);
 
@@ -65,31 +67,31 @@ export function TabBudget({ anno }: Props) {
       {!haBudget ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Info className="h-4 w-4 shrink-0" />
-          Nessun budget per il {anno}: premi la matita accanto a una voce per inserirlo.
+          {tr("Nessun budget per il {anno}: premi la matita accanto a una voce per inserirlo.", { anno })}
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <RiquadroConfronto titolo="Ricavi" budget={ricavi.budget} definito={ricavi.definito} incompleto={ricavi.incompleto} previsione={ricavi.previsione} piuEMeglio annoChiuso={annoChiuso} />
-          <RiquadroConfronto titolo="Costi" budget={costi.budget} definito={costi.definito} incompleto={costi.incompleto} previsione={costi.previsione} piuEMeglio={false} annoChiuso={annoChiuso} />
-          <RiquadroConfronto titolo="Utile netto" budget={utile.budget} definito={utile.definito} previsione={utile.previsione} piuEMeglio annoChiuso={annoChiuso} incompleto={!utileConfrontabile} />
+          <RiquadroConfronto titolo={tr("Ricavi")} budget={ricavi.budget} definito={ricavi.definito} incompleto={ricavi.incompleto} previsione={ricavi.previsione} piuEMeglio annoChiuso={annoChiuso} />
+          <RiquadroConfronto titolo={tr("Costi")} budget={costi.budget} definito={costi.definito} incompleto={costi.incompleto} previsione={costi.previsione} piuEMeglio={false} annoChiuso={annoChiuso} />
+          <RiquadroConfronto titolo={tr("Utile netto")} budget={utile.budget} definito={utile.definito} previsione={utile.previsione} piuEMeglio annoChiuso={annoChiuso} incompleto={!utileConfrontabile} />
         </div>
       )}
       {budgetSospetto && (
         <p className="text-sm text-muted-foreground">
-          Il budget dei ricavi è meno di un terzo della previsione: è ancora quello giusto?
+          {tr("Il budget dei ricavi è meno di un terzo della previsione: è ancora quello giusto?")}
         </p>
       )}
 
       <Card className="rounded-2xl">
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
           <div>
-            <CardTitle className="text-base">Budget e consuntivo · {anno}</CardTitle>
+            <CardTitle className="text-base">{tr("Budget e consuntivo · {anno}", { anno: String(anno ?? "") })}</CardTitle>
             <p className="text-xs text-muted-foreground">
               {mesiChiusi === 0
-                ? "Nessun mese ancora chiuso: il consuntivo e la previsione compaiono dalla fine del primo mese."
+                ? tr("Nessun mese ancora chiuso: il consuntivo e la previsione compaiono dalla fine del primo mese.")
                 : annoChiuso
-                  ? "Anno chiuso: la previsione coincide con il consuntivo dell'anno, dallo stesso conto economico della scheda CE."
-                  : `Consuntivo ${periodo} · previsione = consuntivo ÷ ${mesiChiusi} × 12 (le variazioni di scorte restano quelle registrate).`}
+                  ? tr("Anno chiuso: la previsione coincide con il consuntivo dell'anno, dallo stesso conto economico della scheda CE.")
+                  : tr("Consuntivo {periodo} · previsione = consuntivo ÷ {mesiChiusi} × 12 (le variazioni di scorte restano quelle registrate).", { periodo: String(periodo ?? ""), mesiChiusi: String(mesiChiusi ?? "") })}
             </p>
           </div>
           <ExportButton
@@ -130,13 +132,13 @@ export function TabBudget({ anno }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-muted/40">
                 <tr>
-                  <th className="min-w-[180px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Voce</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Budget anno</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Consuntivo {periodo}</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Previsione fine anno</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Scostamento</th>
+                  <th className="min-w-[180px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">{tr("Voce")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{tr("Budget anno")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{tr("Consuntivo {periodo}", { periodo: String(periodo ?? "") })}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{tr("Previsione fine anno")}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">{tr("Scostamento")}</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">%</th>
-                  <th className="w-12 px-2 py-2"><span className="sr-only">Modifica</span></th>
+                  <th className="w-12 px-2 py-2"><span className="sr-only">{tr("Modifica")}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -153,7 +155,7 @@ export function TabBudget({ anno }: Props) {
                     >
                       <td className="px-3 py-2">{v.label}</td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {v.budgetDefinito ? formatCurrency(v.budget) : <span className="text-muted-foreground">Da definire</span>}
+                        {v.budgetDefinito ? formatCurrency(v.budget) : <span className="text-muted-foreground">{tr("Da definire")}</span>}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {v.consuntivo !== 0 ? formatCurrency(v.consuntivo) : "—"}
@@ -165,10 +167,10 @@ export function TabBudget({ anno }: Props) {
                         {v.confrontoDisponibile ? (
                           <span className={cn(v.budget === 0 && v.semaforo === "rosso" && "rounded-md px-2 py-0.5", v.budget === 0 && v.semaforo === "rosso" && SEM_BG.rosso)}>
                             {formatCurrency(v.scostamento)}
-                            {v.budget === 0 && v.semaforo === "rosso" && !v.piuEMeglio && <span className="ml-1 text-xs">non previsti</span>}
+                            {v.budget === 0 && v.semaforo === "rosso" && !v.piuEMeglio && <span className="ml-1 text-xs">{tr("non previsti")}</span>}
                           </span>
                         ) : v.budgetIncompleto && v.budgetDefinito
-                          ? <span className="text-xs text-muted-foreground" title="Alcune voci di questo totale hanno un consuntivo ma nessun budget">budget incompleto</span>
+                          ? <span className="text-xs text-muted-foreground" title={tr("Alcune voci di questo totale hanno un consuntivo ma nessun budget")}>{tr("budget incompleto")}</span>
                           : "—"}
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -187,7 +189,7 @@ export function TabBudget({ anno }: Props) {
                             size="icon"
                             className="h-7 w-7 text-muted-foreground"
                             onClick={() => setEditor(v)}
-                            aria-label={`Modifica budget ${v.label}`}
+                            aria-label={tr("Modifica budget {label}", { label: String(v.label ?? "") })}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -227,6 +229,7 @@ function RiquadroConfronto({
   /** Budget senza alcune voci che hanno un consuntivo: niente confronto. */
   incompleto?: boolean;
 }) {
+  const t = useT();
   const scost = previsione - budget;
   const pct = budget !== 0 && !incompleto ? (scost / Math.abs(budget)) * 100 : null;
   const migliora = piuEMeglio ? scost >= 0 : scost <= 0;
@@ -245,7 +248,7 @@ function RiquadroConfronto({
           )}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground" title={formatCurrency(budget)}>
-          {annoChiuso ? "Consuntivo" : "Previsione fine anno"} · {incompleto && definito ? "budget incompleto" : definito ? <>budget {formatEuroRiquadro(budget)}</> : "budget da definire"}
+          {annoChiuso ? t("Consuntivo") : t("Previsione fine anno")} · {incompleto && definito ? t("budget incompleto") : definito ? <>{t("budget {budget}", { budget: formatEuroRiquadro(budget) })}</> : t("budget da definire")}
         </p>
       </CardContent>
     </Card>
@@ -260,6 +263,7 @@ function BudgetEditor({
   notaIniziale: string | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const upsert = useUpsertBudget();
   const { toast } = useToast();
   // Montato con key = voce: lo stato parte già dai valori della voce.
@@ -269,7 +273,7 @@ function BudgetEditor({
   const handleSave = async (rimuovi = false) => {
     const num = leggiImporto(importo);
     if (!rimuovi && (importo.trim() === "" || num === null || num < 0)) {
-      toast({ title: "Importo non valido", description: "Scrivi l’importo annuo. Inserisci 0 per confermare un budget pari a zero.", variant: "destructive" });
+      toast({ title: t("Importo non valido"), description: t("Scrivi l’importo annuo. Inserisci 0 per confermare un budget pari a zero."), variant: "destructive" });
       return;
     }
     try {
@@ -279,10 +283,10 @@ function BudgetEditor({
         importo: rimuovi ? null : num,
         note: note.trim() || null,
       });
-      toast({ title: rimuovi ? "Budget da definire" : "Budget salvato" });
+      toast({ title: rimuovi ? t("Budget da definire") : t("Budget salvato") });
       onClose();
     } catch (e) {
-      toast({ title: "Budget non salvato", description: messaggioErrore(e), variant: "destructive" });
+      toast({ title: t("Budget non salvato"), description: messaggioErrore(e), variant: "destructive" });
     }
   };
 
@@ -290,40 +294,37 @@ function BudgetEditor({
     <Sheet open onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Budget {anno} — {voce.label}</SheetTitle>
-          <SheetDescription>Quanto prevedi per tutto l'anno, IVA esclusa.</SheetDescription>
+          <SheetTitle>{t("Budget {anno} — {label}", { anno: String(anno ?? ""), label: String(voce.label ?? "") })}</SheetTitle>
+          <SheetDescription>{t("Quanto prevedi per tutto l'anno, IVA esclusa.")}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-4">
           <div>
-            <Label htmlFor="budget-importo" className="text-xs">Importo annuo (€)</Label>
+            <Label htmlFor="budget-importo" className="text-xs">{t("Importo annuo (€)")}</Label>
             <Input
               id="budget-importo"
               inputMode="decimal"
               value={importo}
               onChange={(e) => setImporto(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void handleSave(); }}
-              placeholder="es. 120.000"
+              placeholder={t("es. 120.000")}
               autoFocus
             />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Consuntivo finora: {formatCurrency(voce.consuntivo)} · previsione fine anno:{" "}
-              {formatCurrency(voce.previsione)}
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("Consuntivo finora: {consuntivo} · previsione fine anno: {previsione}", { consuntivo: formatCurrency(voce.consuntivo), previsione: formatCurrency(voce.previsione) })}</p>
           </div>
           <div>
-            <Label htmlFor="budget-note" className="text-xs">Note</Label>
+            <Label htmlFor="budget-note" className="text-xs">{t("Note")}</Label>
             <Input
               id="budget-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="es. +12% sul 2025"
+              placeholder={t("es. +12% sul 2025")}
             />
           </div>
           <Button className="w-full" onClick={() => void handleSave()} disabled={upsert.isPending}>
-            Salva budget
+            {t("Salva budget")}
           </Button>
           {voce.budgetDefinito && <Button className="w-full" variant="ghost" onClick={() => void handleSave(true)} disabled={upsert.isPending}>
-            Rimuovi budget e nota
+            {t("Rimuovi budget e nota")}
           </Button>}
         </div>
       </SheetContent>

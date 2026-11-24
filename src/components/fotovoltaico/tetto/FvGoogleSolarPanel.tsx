@@ -13,6 +13,7 @@ import type {
 } from "@/lib/fotovoltaico/solarRaster";
 import { qualitaSolarValida } from "../../../../supabase/functions/_shared/fvGoogleSolar";
 import { Button } from "@/components/ui/button";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const qualitaFoto = { HIGH: "alta", MEDIUM: "media", BASE: "base" };
 type Analisi = {
   chiave: string;
@@ -38,6 +39,7 @@ export function FvGoogleSolarPanel({
   onFoto: (foto: FotoSolarFv | undefined) => void;
   onMisure: (misure: MisureTettoSolarFv) => void;
 }) {
+  const t = useT();
   const [analisi, setAnalisi] = useState<Analisi | null>(null),
     [occupato, setOccupato] = useState(false),
     [errore, setErrore] = useState(""),
@@ -73,7 +75,7 @@ export function FvGoogleSolarPanel({
     );
     if (error || data?.error) {
       throw Error(
-        data?.message || "Il collegamento Google Solar non risponde. Riprova.",
+        data?.message || t("Il collegamento Google Solar non risponde. Riprova."),
       );
     }
     return data;
@@ -89,7 +91,7 @@ export function FvGoogleSolarPanel({
         ? "BASE"
         : layers.qualitaGoogle;
       if (layers.disponibile !== true || !qualitaSolarValida(quality)) {
-        throw Error("Google non ha restituito una foto verificabile del tetto");
+        throw Error(t("Google non ha restituito una foto verificabile del tetto"));
       }
       const [rgb, dsm, mask] = await Promise.all(
         ["rgb", "dsm", "mask"].map((livello) => invoca("raster", { livello })),
@@ -104,7 +106,7 @@ export function FvGoogleSolarPanel({
       ]);
       if (!layers.imagery_date) {
         throw Error(
-          "Google non ha indicato la data della foto: riprova o continua con la mappa",
+          t("Google non ha indicato la data della foto: riprova o continua con la mappa"),
         );
       }
       if (corrente.current !== chiave) return;
@@ -126,7 +128,7 @@ export function FvGoogleSolarPanel({
     } catch (e) {
       if (corrente.current === chiave) {
         setErrore(
-          e instanceof Error ? e.message : "Analisi Google non disponibile",
+          e instanceof Error ? e.message : t("Analisi Google non disponibile"),
         );
       }
     } finally {
@@ -143,7 +145,7 @@ export function FvGoogleSolarPanel({
       });
       if (corrente.current === chiave) onFoto({ ...attuale.foto, path });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Foto non salvata");
+      setErrore(e instanceof Error ? e.message : t("Foto non salvata"));
     } finally {
       setOccupato(false);
     }
@@ -158,18 +160,18 @@ export function FvGoogleSolarPanel({
       const valore = misureTettoSolarFv(mappa, attuale.dsm, attuale.mask, attuale.foto.data);
       setMisure({ chiave: chiaveMisure, valore });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Quote non disponibili");
+      setErrore(e instanceof Error ? e.message : t("Quote non disponibili"));
     }
   };
   const proponi = misure?.chiave === chiaveMisure ? misure.valore : null;
   return (
     <section
-      aria-label="Foto e misure Google Solar"
+      aria-label={t("Foto e misure Google Solar")}
       className="my-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-sm"
     >
-      <h4 className="font-semibold">Foto e misure Google Solar</h4>
+      <h4 className="font-semibold">{t("Foto e misure Google Solar")}</h4>
       <p className="text-xs text-slate-600">
-        Una foto georeferenziata e quote del tetto, dove disponibili.
+        {t("Una foto georeferenziata e quote del tetto, dove disponibili.")}
       </p>
       <Button
         type="button"
@@ -179,23 +181,17 @@ export function FvGoogleSolarPanel({
         onClick={() => void carica()}
       >
         {occupato
-          ? "Analisi Google in corso…"
-          : "Analizza questo tetto con Google"}
+          ? t("Analisi Google in corso…")
+          : t("Analizza questo tetto con Google")}
       </Button>
       {!progettoId && (
-        <p className="text-xs">Salva prima la bozza per analizzare il tetto.</p>
+        <p className="text-xs">{t("Salva prima la bozza per analizzare il tetto.")}</p>
       )}
       {errore && (
-        <p role="status" className="text-xs text-amber-800">
-          {errore} Il disegno salvato resta disponibile.
-        </p>
+        <p role="status" className="text-xs text-amber-800">{t("{errore} Il disegno salvato resta disponibile.", { errore: String(errore ?? "") })}</p>
       )}
       {mappa.fotoSolar && (
-        <p className="text-xs text-slate-600">
-          Foto salvata: {mappa.fotoSolar.data} · qualità{" "}
-          {qualitaFoto[mappa.fotoSolar.qualita]} ·{" "}
-          {Math.round(mappa.fotoSolar.risoluzione * 100)} cm/pixel
-        </p>
+        <p className="text-xs text-slate-600">{t("Foto salvata: {data} · qualità {valore} · {valore2} cm/pixel", { data: String(mappa.fotoSolar.data ?? ""), valore: String(qualitaFoto[mappa.fotoSolar.qualita] ?? ""), valore2: Math.round(mappa.fotoSolar.risoluzione * 100) })}</p>
       )}
       {mappa.fotoSolar && modificabile && (
         <Button
@@ -204,24 +200,20 @@ export function FvGoogleSolarPanel({
           className="w-full"
           onClick={() => onFoto(undefined)}
         >
-          Usa la vista Google Maps
+          {t("Usa la vista Google Maps")}
         </Button>
       )}
       {attuale && (
         <>
           <img
             src={attuale.jpeg}
-            alt="Anteprima della foto Google Solar del tetto"
+            alt={t("Anteprima della foto Google Solar del tetto")}
             className="w-full rounded-lg"
           />
           <p className="text-xs" translate="no">
             Google Maps · Source: Includes solar data from Google
           </p>
-          <p className="text-xs">
-            Google Solar · {attuale.foto.data} · qualità{" "}
-            {qualitaFoto[attuale.foto.qualita]} ·{" "}
-            {Math.round(attuale.foto.risoluzione * 100)} cm/pixel
-          </p>
+          <p className="text-xs">{t("Google Solar · {data} · qualità {valore} · {valore2} cm/pixel", { data: String(attuale.foto.data ?? ""), valore: String(qualitaFoto[attuale.foto.qualita] ?? ""), valore2: Math.round(attuale.foto.risoluzione * 100) })}</p>
           <Button
             type="button"
             variant="outline"
@@ -229,7 +221,7 @@ export function FvGoogleSolarPanel({
             disabled={occupato || !modificabile}
             onClick={() => void salvaFoto()}
           >
-            Usa la foto Google Solar
+            {t("Usa la foto Google Solar")}
           </Button>
           <Button
             type="button"
@@ -238,20 +230,17 @@ export function FvGoogleSolarPanel({
             disabled={!mappa.falde.length || occupato}
             onClick={() => void misura()}
           >
-            Misura le falde disegnate
+            {t("Misura le falde disegnate")}
           </Button>
           {proponi && (
             <div className="space-y-2 text-xs">
               <p>
-                {proponi.altezza == null ? "Altezza da confermare manualmente" : `Gronda minima dal terreno: ${proponi.altezza.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m`}
-                {" · "}scarto del piano: {proponi.scarto.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m
+                {proponi.altezza == null ? t("Altezza da confermare manualmente") : t("Gronda minima dal terreno: {altezza} m", { altezza: proponi.altezza.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) })}
+                {" · "}{t("scarto del piano:")} {proponi.scarto.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} m
               </p>
-              {proponi.avvisoAltezza && <p className="text-amber-800">{proponi.avvisoAltezza}. Le pendenze restano consultabili; l’altezza già inserita viene mantenuta.</p>}
+              {proponi.avvisoAltezza && <p className="text-amber-800">{t("{avvisoAltezza}. Le pendenze restano consultabili; l’altezza già inserita viene mantenuta.", { avvisoAltezza: String(proponi.avvisoAltezza ?? "") })}</p>}
               {proponi.falde.map((f) => (
-                <p key={f.id}>
-                  {f.nome}: {f.inclinazione.toFixed(1)}° · azimut{" "}
-                  {f.azimut.toFixed(0)}°
-                </p>
+                <p key={f.id}>{t("{nome}: {inclinazione}° · azimut {azimut}°", { nome: String(f.nome ?? ""), inclinazione: f.inclinazione.toFixed(1), azimut: f.azimut.toFixed(0) })}</p>
               ))}
               <Button
                 type="button"
@@ -259,17 +248,15 @@ export function FvGoogleSolarPanel({
                 disabled={!modificabile || pannelli > 0}
                 onClick={() => onMisure(proponi)}
               >
-                Applica le misure alle falde
+                {t("Applica le misure alle falde")}
               </Button>
               {pannelli > 0 && (
                 <p>
-                  La posa contiene già pannelli: le misure sono consultabili.
-                  Per applicarle prepara una nuova disposizione senza moduli.
+                  {t("La posa contiene già pannelli: le misure sono consultabili. Per applicarle prepara una nuova disposizione senza moduli.")}
                 </p>
               )}
               <p>
-                Stima da dati Google, da confermare con sopralluogo. Le quote
-                non sostituiscono un rilievo.
+                {t("Stima da dati Google, da confermare con sopralluogo. Le quote non sostituiscono un rilievo.")}
               </p>
             </div>
           )}

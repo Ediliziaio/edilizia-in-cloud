@@ -8,8 +8,10 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Hammer, Library } from "lucide-react";
 import { ListinoPrezzariSection } from "@/components/elettrico/ListinoPrezzariSection";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function ElettricoListino() {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-slate-50">
@@ -32,14 +34,14 @@ export default function ElettricoListino() {
             className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Torna ai Preventivi
+            {t("Torna ai Preventivi")}
           </button>
           <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
             <Library className="h-6 w-6 sm:h-7 sm:w-7 text-orange-400 shrink-0" />
-            <span className="truncate">Listino lavorazioni</span>
+            <span className="truncate">{t("Listino lavorazioni")}</span>
           </h1>
           <p className="hidden sm:block text-sm text-blue-100 mt-1">
-            Capitoli, voci e prezzi del tuo listino — riutilizzati nei computi dei preventivi.
+            {t("Capitoli, voci e prezzi del tuo listino — riutilizzati nei computi dei preventivi.")}
           </p>
         </div>
       </div>

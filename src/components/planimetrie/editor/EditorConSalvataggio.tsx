@@ -31,6 +31,7 @@ import { Vista3DPigra } from "../Vista3DPigra";
 import { pianiDaPlanimetria, type PianoPer3D } from "@/lib/planimetrie/tred";
 import type { Vista } from "./comandi";
 import type { VistaChatDisegno } from "./comandiChat";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const RenderCasaDialog = lazy(() => import("./RenderCasaDialog"));
 
@@ -92,6 +93,7 @@ export function EditorConSalvataggio({
   onModificaDisegno,
   nelComputo,
 }: Props) {
+  const tr = useT();
   const navigate = useNavigate();
   const avvisi = avvisiPassati ?? [];
   const queryClient = useQueryClient();
@@ -215,7 +217,7 @@ export function EditorConSalvataggio({
         try { percorso = await sorgenteCaricata.current; } catch (e) { sorgenteCaricata.current = null; throw e; }
         daSalvare = { ...daSalvare, letturaDocumento: { ...daSalvare.letturaDocumento, sorgente: { percorso, nome: sorgenteDocumento.nome.slice(0, 250) } } };
       }
-    } catch (e) { salvataggioInCorso.current = false; setSalvando(false); toast.error(e instanceof Error ? e.message : "Tavola non salvata. Riprova."); return; }
+    } catch (e) { salvataggioInCorso.current = false; setSalvando(false); toast.error(e instanceof Error ? e.message : tr("Tavola non salvata. Riprova.")); return; }
     const esito = await salvaPianta(
       { crea: creaPlanimetria, salva: salvaNuovaVersione },
       {
@@ -240,8 +242,8 @@ export function EditorConSalvataggio({
     // non si aspetta il ricaricamento: si torna subito alla scheda, che rilegge da sola i dati segnati come vecchi
     void queryClient.invalidateQueries({ queryKey: chiaviPlanimetrie.tutte });
     const differenza = effetti.reduce((t, e) => t + e.totale, 0);
-    toast.success(esito.creata ? "Pianta salvata" : `Pianta salvata (versione ${esito.versione})`, effetti.length ? {
-      description: `${effetti.length === 1 ? "Un computo collegato cambia" : `${effetti.length} computi collegati cambiano`} di ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", signDisplay: "exceptZero" }).format(differenza)}: aggiornalo dalla commessa («La pianta è cambiata»).`,
+    toast.success(esito.creata ? tr("Pianta salvata") : tr("Pianta salvata (versione {versione})", { versione: String(esito.versione ?? "") }), effetti.length ? {
+      description: tr(effetti.length === 1 ? "Un computo collegato cambia di {importo}: aggiornalo dalla commessa («La pianta è cambiata»)." : "{n} computi collegati cambiano di {importo}: aggiornalo dalla commessa («La pianta è cambiata»).", { n: effetti.length, importo: new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", signDisplay: "exceptZero" }).format(differenza) }),
       duration: 10_000,
     } : undefined);
     try {
@@ -257,7 +259,7 @@ export function EditorConSalvataggio({
             navigate(`/azienda/marketing/preventivi/computo?${new URLSearchParams({ bozza: id, esistente: "1", fase: "3" })}`);
             return;
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Il computo della variante non è disponibile.");
+            toast.error(error instanceof Error ? error.message : tr("Il computo della variante non è disponibile."));
           }
         }
         navigate(percorsoVariantePlanimetria(fonte, { studio: true, livello: ambitoSalvato.livelloId }));
@@ -275,35 +277,35 @@ export function EditorConSalvataggio({
     <>
       {nuova && (
         <Input
-          aria-label="Nome della pianta"
+          aria-label={tr("Nome della pianta")}
           disabled={salvando}
           value={titolo}
           maxLength={200}
-          placeholder="Nome della planimetria"
+          placeholder={tr("Nome della planimetria")}
           className="h-9 w-56 bg-muted/25 max-md:w-44"
           onChange={(e) => setTitolo(e.target.value)}
         />
       )}
-      {!nelComputo && <Button variant="outline" size="icon" className="h-9 w-9 max-md:hidden" aria-label={intero ? "Esci da schermo intero" : "Schermo intero"} title={intero ? "Esci da schermo intero (Esc)" : "Schermo intero"} onClick={() => setIntero((v) => !v)}>
+      {!nelComputo && <Button variant="outline" size="icon" className="h-9 w-9 max-md:hidden" aria-label={intero ? tr("Esci da schermo intero") : tr("Schermo intero")} title={intero ? tr("Esci da schermo intero (Esc)") : tr("Schermo intero")} onClick={() => setIntero((v) => !v)}>
         {intero ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
       </Button>}
       {!nelComputo && <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />}
-      {!nelComputo && companyId && perPrezzo && allApertura && <span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-1 empty:hidden dark:border-teal-900 dark:bg-teal-950/25 max-md:hidden" title="Costo dei lavori della variante, ricalcolato dopo ogni modifica"><CostoProposta documento={allApertura} proposta={perPrezzo} ambito={ambitoPrezzo} companyId={companyId} /></span>}
+      {!nelComputo && companyId && perPrezzo && allApertura && <span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-1 empty:hidden dark:border-teal-900 dark:bg-teal-950/25 max-md:hidden" title={tr("Costo dei lavori della variante, ricalcolato dopo ogni modifica")}><CostoProposta documento={allApertura} proposta={perPrezzo} ambito={ambitoPrezzo} companyId={companyId} /></span>}
       {/* Sul telefono resta la sola icona: il nome della pianta ha bisogno di quello spazio. I bottoni
           della testata sono alti 40 px come quelli della barra (min-h: batte la regola mobile dei 32 px). */}
-      <Button ref={bottoneAnteprima3D} size="sm" variant={affiancata3D ? "secondary" : "outline"} aria-pressed={affiancata3D} aria-label="Anteprima 3D"
-        onClick={() => setAffiancata3D(aperta => !aperta)} disabled={salvando} className="gap-2 max-md:min-h-10 max-md:min-w-10 max-md:px-2.5" title="Mostra la pianta e il 3D insieme">
-        <Box className="h-4 w-4" aria-hidden="true" /> <span className="max-md:hidden">Anteprima 3D</span>
+      <Button ref={bottoneAnteprima3D} size="sm" variant={affiancata3D ? "secondary" : "outline"} aria-pressed={affiancata3D} aria-label={tr("Anteprima 3D")}
+        onClick={() => setAffiancata3D(aperta => !aperta)} disabled={salvando} className="gap-2 max-md:min-h-10 max-md:min-w-10 max-md:px-2.5" title={tr("Mostra la pianta e il 3D insieme")}>
+        <Box className="h-4 w-4" aria-hidden="true" /> <span className="max-md:hidden">{tr("Anteprima 3D")}</span>
       </Button>
-      {nelComputo?.annulla && modificata && <Button type="button" variant="ghost" size="sm" className="max-md:min-h-10" disabled={salvando || anteprimaChat} onClick={nelComputo.annulla}>Annulla modifiche</Button>}
+      {nelComputo?.annulla && modificata && <Button type="button" variant="ghost" size="sm" className="max-md:min-h-10" disabled={salvando || anteprimaChat} onClick={nelComputo.annulla}>{tr("Annulla modifiche")}</Button>}
       {puoModificareDisegno && !nelComputo?.onRivediNelComputo && <Button size="sm" className="max-md:min-h-10" onClick={() => void salva()} disabled={salvando || anteprimaChat || (!modificata && !nuova) || (nuova && !titolo.trim())}
-        title={anteprimaChat ? "Applica o scarta la proposta prima di salvare" : undefined}>
+        title={anteprimaChat ? tr("Applica o scarta la proposta prima di salvare") : undefined}>
         {salvando ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" /> : <Save className="h-4 w-4" />}
-        {nelComputo ? "Salva pianta" : "Salva"}
+        {nelComputo ? tr("Salva pianta") : tr("Salva")}
       </Button>}
     </>
   );
-  const statoPianta = anteprimaChat ? "Anteprima della chat" : modificata ? "Modifiche da salvare" : nuova ? "" : "Versione salvata";
+  const statoPianta = anteprimaChat ? tr("Anteprima della chat") : modificata ? tr("Modifiche da salvare") : nuova ? "" : tr("Versione salvata");
   return (
     <div className={nelComputo ? "quote-wizard-ai-project-editor flex min-w-0 flex-col gap-2" : intero ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background p-3" : "flex h-[max(760px,calc(100dvh-7rem))] flex-col gap-3 pb-2 max-md:h-[calc(100dvh-11.5rem)] max-md:min-h-[420px] max-md:gap-2"}>
       {nelComputo ? <div className="flex flex-wrap items-center justify-between gap-2">
@@ -319,7 +321,7 @@ export function EditorConSalvataggio({
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="flex-1">{conflitto}</span>
           <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
-            <RotateCcw className="mr-2 h-4 w-4" /> Ricarica
+            <RotateCcw className="mr-2 h-4 w-4" /> {tr("Ricarica")}
           </Button>
         </div>
       )}
@@ -336,7 +338,7 @@ export function EditorConSalvataggio({
       )}
 
       {!nelComputo && iniziale?.riferimenti?.note && <details className="shrink-0 rounded-lg border bg-card px-3 py-2 text-sm">
-        <summary className="cursor-pointer font-medium">Appunti della pianta</summary>
+        <summary className="cursor-pointer font-medium">{tr("Appunti della pianta")}</summary>
         <p className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words text-muted-foreground">{iniziale.riferimenti.note}</p>
       </details>}
 
@@ -362,8 +364,8 @@ export function EditorConSalvataggio({
         <Dialog open onOpenChange={(open) => { if (!open) setAnteprima3D(null); }}>
           <DialogContent className="max-h-[94dvh] max-w-6xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Anteprima 3D della pianta</DialogTitle>
-              <DialogDescription>Esplora la geometria corrente e controlla l’allineamento dei piani.</DialogDescription>
+              <DialogTitle>{tr("Anteprima 3D della pianta")}</DialogTitle>
+              <DialogDescription>{tr("Esplora la geometria corrente e controlla l’allineamento dei piani.")}</DialogDescription>
             </DialogHeader>
             <Vista3DPigra piante={(anteprima3D.piani.find(p => p.id === anteprima3D.livelloId) ?? anteprima3D.piani[0]).piante}
               piani={anteprima3D.piani} livelloIniziale={anteprima3D.livelloId} versione={modificata || anteprimaChat ? undefined : versioneAttesa} edificioIniziale
@@ -373,7 +375,7 @@ export function EditorConSalvataggio({
           </DialogContent>
         </Dialog>
       ) : null}
-      {renderCasa && <Suspense fallback={<p role="status" className="sr-only">Apro i render della casa…</p>}>
+      {renderCasa && <Suspense fallback={<p role="status" className="sr-only">{tr("Apro i render della casa…")}</p>}>
         <RenderCasaDialog {...renderCasa} onChiudi={() => setRenderCasa(null)} />
       </Suspense>}
     </div>

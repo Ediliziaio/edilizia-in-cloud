@@ -28,6 +28,7 @@ import { funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, TIPI_CASSONETTO, TIPI
 import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import type { AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/planimetrie/terreno.ts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AzioniPannello {
   nomeStanza: (id: string, nome: string) => void;
@@ -134,6 +135,7 @@ export function PannelloDettagli({ pianta, dati, sottotetto, latiModificabili, v
 }
 
 function DettaglioArea({ vista, area: a, azioni }: { vista: Vista; area: AreaLavoro; azioni: AzioniPannello }) {
+  const tr = useT();
   const mq = areaPoligono(a.contorno) / 10_000;
   const perimetro = a.contorno.reduce((t, p, i) => t + dist(p, a.contorno[(i + 1) % a.contorno.length]), 0) / 100;
   const libera = modificabile(a.stato, vista);
@@ -142,51 +144,52 @@ function DettaglioArea({ vista, area: a, azioni }: { vista: Vista; area: AreaLav
     <div className="space-y-3 p-3">
       <p className="text-sm font-semibold">{a.nome || NOMI_AREA[a.tipo]}</p>
       <div className="space-y-1">
-        <Label className="text-xs">Tipo</Label>
+        <Label className="text-xs">{tr("Tipo")}</Label>
         <Select value={a.tipo} onValueChange={(v) => azioni.modificaArea(a.id, { tipo: v as TipoArea })} disabled={!libera}>
           <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
           <SelectContent>{TIPI_AREA.map((t) => <SelectItem key={t} value={t}>{NOMI_AREA[t]}</SelectItem>)}</SelectContent>
         </Select>
       </div>
       <div className="space-y-1">
-        <Label className="text-xs" htmlFor="nome-area">Nome</Label>
+        <Label className="text-xs" htmlFor="nome-area">{tr("Nome")}</Label>
         <Input id="nome-area" value={nome} placeholder={NOMI_AREA[a.tipo]} onChange={(e) => setNome(e.target.value)} onBlur={() => nome !== (a.nome ?? "") && azioni.modificaArea(a.id, { nome: nome.trim() || undefined })} />
       </div>
       {a.tipo !== "lotto" && (
         <div className="space-y-1">
-          <Label className="text-xs" htmlFor="quota-area">Quota rispetto al piano terra (m)</Label>
+          <Label className="text-xs" htmlFor="quota-area">{tr("Quota rispetto al piano terra (m)")}</Label>
           <Input id="quota-area" key={`q-${a.quota ?? 0}`} defaultValue={String((a.quota ?? 0) / 100).replace(".", ",")} inputMode="decimal"
             onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && Math.round(v * 100) !== (a.quota ?? 0)) azioni.modificaArea(a.id, { quota: Math.round(v * 100) || undefined }); }} />
-          <p className="text-[11px] text-muted-foreground">Per terrazzamenti, rialzi e bordi piscina (−0,50 = mezzo metro sotto).</p>
+          <p className="text-[11px] text-muted-foreground">{tr("Per terrazzamenti, rialzi e bordi piscina (−0,50 = mezzo metro sotto).")}</p>
         </div>
       )}
-      <p className="text-sm">{scriviMq(mq)}{a.tipo === "lotto" ? ` · perimetro ${perimetro.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m` : ""}</p>
+      <p className="text-sm">{scriviMq(mq)}{a.tipo === "lotto" ? ` · ${tr("perimetro {perimetro} m", { perimetro: perimetro.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}` : ""}</p>
       {a.tipo === "lotto" && (
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={a.recinzione !== false} onChange={(e) => azioni.modificaArea(a.id, { recinzione: e.target.checked })} />
-          Recintato (conta i metri di recinzione, si vede nel 3D)
+          {tr("Recintato (conta i metri di recinzione, si vede nel 3D)")}
         </label>
       )}
       <Button size="sm" variant="outline" className="w-full justify-start text-destructive" onClick={() => azioni.elimina({ tipo: "area", id: a.id })}>
-        <Trash2 /> {vista === "progetto" && a.stato !== "nuovo" ? (a.stato === "da_demolire" ? "Rimetti" : "Togli nel progetto") : "Elimina"}
+        <Trash2 /> {vista === "progetto" && a.stato !== "nuovo" ? (a.stato === "da_demolire" ? tr("Rimetti") : tr("Togli nel progetto")) : tr("Elimina")}
       </Button>
     </div>
   );
 }
 
 function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: Vista; elemento: ElementoLavoro; azioni: AzioniPannello; essenziale?: boolean }) {
+  const tr = useT();
   const ok = modificabile(e.stato, vista);
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs text-muted-foreground">{e.alzateCad ? "Dalla tavola DWG" : "Arredo"}</p>
+        <p className="text-xs text-muted-foreground">{e.alzateCad ? tr("Dalla tavola DWG") : tr("Arredo")}</p>
         <p className="font-semibold">{e.etichetta || nomeDelTipo(e.tipo)}</p>
-        {vista === "progetto" && e.stato === "nuovo" && <p className="text-xs text-red-700">Nuovo, nel progetto</p>}
-        {vista === "progetto" && e.stato === "da_demolire" && <p className="text-xs text-amber-700">Da togliere</p>}
-        {!ok && e.stato === "esistente" && <p className="text-xs text-muted-foreground">Nel progetto gli arredi di oggi non si spostano: toglilo e mettine uno nuovo.</p>}
+        {vista === "progetto" && e.stato === "nuovo" && <p className="text-xs text-red-700">{tr("Nuovo, nel progetto")}</p>}
+        {vista === "progetto" && e.stato === "da_demolire" && <p className="text-xs text-amber-700">{tr("Da togliere")}</p>}
+        {!ok && e.stato === "esistente" && <p className="text-xs text-muted-foreground">{tr("Nel progetto gli arredi di oggi non si spostano: toglilo e mettine uno nuovo.")}</p>}
       </div>
       <div className="space-y-1">
-        <Label>Cos'è</Label>
+        <Label>{tr("Cos'è")}</Label>
         <Select value={CATALOGO.some((v) => v.tipo === e.tipo) ? e.tipo : "altro"} disabled={!ok} onValueChange={(t) => {
           const v = CATALOGO.find((x) => x.tipo === t);
           if (v) azioni.modificaElemento(e.id, { tipo: v.tipo, larghezza: v.larghezza, profondita: v.profondita, altezza: v.altezza });
@@ -199,96 +202,99 @@ function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: 
         </Select>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <CampoMisura etichetta="Larghezza (cm)" valore={e.larghezza} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { larghezza: cm })} />
-        <CampoMisura etichetta={e.tipo === "piscina" || e.tipo === "auto" ? "Lunghezza (cm)" : "Profondità (cm)"} valore={e.profondita} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { profondita: cm })} />
-        {e.tipo === "piscina" && <CampoMisura etichetta="Profondità vasca (cm)" valore={e.altezza || 140} centimetri disabled={!ok}
+        <CampoMisura etichetta={tr("Larghezza (cm)")} valore={e.larghezza} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { larghezza: cm })} />
+        <CampoMisura etichetta={e.tipo === "piscina" || e.tipo === "auto" ? tr("Lunghezza (cm)") : tr("Profondità (cm)")} valore={e.profondita} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { profondita: cm })} />
+        {e.tipo === "piscina" && <CampoMisura etichetta={tr("Profondità vasca (cm)")} valore={e.altezza || 140} centimetri disabled={!ok}
           onConferma={cm => { if (cm > 0) azioni.modificaElemento(e.id, { altezza: cm }); }} />}
       </div>
       <div className="space-y-1">
-        <span className="text-xs text-muted-foreground">Rotazione: {e.rotazione}°</span>
+        <span className="text-xs text-muted-foreground">{tr("Rotazione: {rotazione}°", { rotazione: String(e.rotazione ?? "") })}</span>
         <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -90)} aria-label="Ruota a sinistra di 90°"><RotateCcw /> 90°</Button>
-          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 90)} aria-label="Ruota a destra di 90°"><RotateCw /> 90°</Button>
-          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -15)} aria-label="Ruota a sinistra di 15°">−15°</Button>
-          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 15)} aria-label="Ruota a destra di 15°">+15°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -90)} aria-label={tr("Ruota a sinistra di 90°")}><RotateCcw /> 90°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 90)} aria-label={tr("Ruota a destra di 90°")}><RotateCw /> 90°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -15)} aria-label={tr("Ruota a sinistra di 15°")}>−15°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 15)} aria-label={tr("Ruota a destra di 15°")}>+15°</Button>
         </div>
       </div>
       {e.tipo === TIPO_PUNTO_QUOTA && (
         <div className="space-y-1">
-          <Label htmlFor={`quota-${e.id}`}>Quota del terreno (m)</Label>
-          <Input id={`quota-${e.id}`} key={`${e.id}-${e.etichetta ?? ""}`} defaultValue={leggiQuota(e.etichetta) !== null ? String(leggiQuota(e.etichetta)! / 100).replace(".", ",") : ""} placeholder="es. 1,20 oppure -0,50" inputMode="decimal" disabled={!ok}
+          <Label htmlFor={`quota-${e.id}`}>{tr("Quota del terreno (m)")}</Label>
+          <Input id={`quota-${e.id}`} key={`${e.id}-${e.etichetta ?? ""}`} defaultValue={leggiQuota(e.etichetta) !== null ? String(leggiQuota(e.etichetta)! / 100).replace(".", ",") : ""} placeholder={tr("es. 1,20 oppure -0,50")} inputMode="decimal" disabled={!ok}
             onBlur={(ev) => { const q = leggiQuota(ev.target.value); const nuova = q === null ? undefined : scriviQuota(q); if (nuova !== e.etichetta) azioni.modificaElemento(e.id, { etichetta: nuova }); }}
             onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur(); }} />
-          <p className="text-[11px] text-muted-foreground">Rispetto al pavimento del piano terra (0). Con almeno due punti il terreno nel 3D è in pendenza e la pianta ha le curve di livello ogni 50 cm.</p>
+          <p className="text-[11px] text-muted-foreground">{tr("Rispetto al pavimento del piano terra (0). Con almeno due punti il terreno nel 3D è in pendenza e la pianta ha le curve di livello ogni 50 cm.")}</p>
         </div>
       )}
       {!essenziale && e.tipo !== TIPO_PUNTO_QUOTA && (
         <div className="space-y-1">
-          <Label htmlFor={`etichetta-${e.id}`}>Nome sulla pianta (facoltativo)</Label>
+          <Label htmlFor={`etichetta-${e.id}`}>{tr("Nome sulla pianta (facoltativo)")}</Label>
           <Input id={`etichetta-${e.id}`} defaultValue={e.etichetta ?? ""} placeholder={nomeDelTipo(e.tipo)} disabled={!ok}
             onBlur={(ev) => { const v = ev.target.value.trim(); if (v !== (e.etichetta ?? "")) azioni.modificaElemento(e.id, { etichetta: v || undefined }); }}
             onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur(); }} />
         </div>
       )}
       <div className="flex flex-wrap gap-2 pt-1">
-        <Button size="sm" variant="outline" onClick={() => azioni.duplicaElemento(e.id)}><Copy /> Duplica</Button>
+        <Button size="sm" variant="outline" onClick={() => azioni.duplicaElemento(e.id)}><Copy /> {tr("Duplica")}</Button>
         {TIPI_SU_TUTTI_I_PIANI.includes(e.tipo) && ok && (
-          <Button size="sm" variant="outline" onClick={() => azioni.copiaSuiPiani(e.id)}><Layers /> Su tutti i piani</Button>
+          <Button size="sm" variant="outline" onClick={() => azioni.copiaSuiPiani(e.id)}><Layers /> {tr("Su tutti i piani")}</Button>
         )}
         {!essenziale && (
           vista === "progetto" && e.stato === "da_demolire"
-            ? <Button size="sm" variant="outline" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}><Undo2 /> Rimetti</Button>
+            ? <Button size="sm" variant="outline" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}><Undo2 /> {tr("Rimetti")}</Button>
             : <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}>
-                <Trash2 /> {vista === "progetto" && e.stato === "esistente" ? "Togli nel progetto" : "Elimina"}
+                <Trash2 /> {vista === "progetto" && e.stato === "esistente" ? tr("Togli nel progetto") : tr("Elimina")}
               </Button>
         )}
       </div>
-      <p className="text-[11px] text-muted-foreground">Trascinalo per spostarlo · R ruota di 90° · Ctrl+D duplica · Canc elimina</p>
+      <p className="text-[11px] text-muted-foreground">{tr("Trascinalo per spostarlo · R ruota di 90° · Ctrl+D duplica · Canc elimina")}</p>
     </div>
   );
 }
 
 function DettaglioQuota({ quota: q, daRivedere, azioni }: { quota: QuotaLavoro; daRivedere: boolean; azioni: AzioniPannello }) {
+  const t = useT();
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs text-muted-foreground">Quota</p>
+        <p className="text-xs text-muted-foreground">{t("Quota")}</p>
         <p className="text-lg font-semibold tabular-nums">{scriviMetri(dist(q.p1, q.p2))} m</p>
-        <p className="text-xs text-muted-foreground">{q.testoOriginale ? `Tavola originale · ${q.testoOriginale}` : q.riferimenti ? "Quota associativa" : "Distanza fra i due punti"}</p>
-        {daRivedere && <p className="text-xs text-amber-800">Aggancio da rivedere. Una delle posizioni misurate è cambiata o è stata rimossa.</p>}
+        <p className="text-xs text-muted-foreground">{q.testoOriginale ? t("Tavola originale · {testoOriginale}", { testoOriginale: String(q.testoOriginale ?? "") }) : q.riferimenti ? t("Quota associativa") : t("Distanza fra i due punti")}</p>
+        {daRivedere && <p className="text-xs text-amber-800">{t("Aggancio da rivedere. Una delle posizioni misurate è cambiata o è stata rimossa.")}</p>}
       </div>
-      <CampoMisura etichetta="Distanza dalla linea (cm)" valore={Math.abs(q.scostamento)} centimetri
+      <CampoMisura etichetta={t("Distanza dalla linea (cm)")} valore={Math.abs(q.scostamento)} centimetri
         onConferma={(cm) => azioni.modificaQuota(q.id, { scostamento: q.scostamento < 0 ? -cm : cm })} />
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => azioni.modificaQuota(q.id, { scostamento: -q.scostamento })}>Dall'altra parte</Button>
-        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "quota", id: q.id })}><Trash2 /> Elimina</Button>
+        <Button size="sm" variant="outline" onClick={() => azioni.modificaQuota(q.id, { scostamento: -q.scostamento })}>{t("Dall'altra parte")}</Button>
+        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "quota", id: q.id })}><Trash2 /> {t("Elimina")}</Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">Trascina la quota per allontanarla o avvicinarla.</p>
+      <p className="text-[11px] text-muted-foreground">{t("Trascina la quota per allontanarla o avvicinarla.")}</p>
     </div>
   );
 }
 
 function DettaglioTesto({ testo: t, azioni }: { testo: TestoLavoro; azioni: AzioniPannello }) {
+  const tr = useT();
   const [valore, setValore] = useState(t.testo);
   const salva = () => { const v = valore.trim(); if (v && v !== t.testo) azioni.modificaTesto(t.id, { testo: v }); };
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label htmlFor={`testo-${t.id}`}>Testo</Label>
+        <Label htmlFor={`testo-${t.id}`}>{tr("Testo")}</Label>
         <Input id={`testo-${t.id}`} autoFocus value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
       </div>
       <div className="flex flex-wrap gap-1">
         <Button size="sm" variant="outline" onClick={() => azioni.modificaTesto(t.id, { rotazione: ((t.rotazione - 90) % 360 + 360) % 360 })}><RotateCcw /> 90°</Button>
         <Button size="sm" variant="outline" onClick={() => azioni.modificaTesto(t.id, { rotazione: (t.rotazione + 90) % 360 })}><RotateCw /> 90°</Button>
-        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "testo", id: t.id })}><Trash2 /> Elimina</Button>
+        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "testo", id: t.id })}><Trash2 /> {tr("Elimina")}</Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">Trascina il testo per spostarlo.</p>
+      <p className="text-[11px] text-muted-foreground">{tr("Trascina il testo per spostarlo.")}</p>
     </div>
   );
 }
 
 function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: DatiVista; vista: Vista; azioni: AzioniPannello }) {
+  const t = useT();
   const locali = dati.locali;
   const quantita = locali.map((l) => ({ l, q: l }));
   const totale = quantita.reduce((s, x) => s + x.q.mq, 0);
@@ -300,8 +306,8 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold">Stanze</h3>
-        {locali.length === 0 && <p className="mt-1 text-sm text-muted-foreground">Ancora nessuna stanza.</p>}
+        <h3 className="text-sm font-semibold">{t("Stanze")}</h3>
+        {locali.length === 0 && <p className="mt-1 text-sm text-muted-foreground">{t("Ancora nessuna stanza.")}</p>}
         <ul className="mt-2 divide-y rounded-md border">
           {quantita.map(({ l, q }) => (
             <li key={l.id}>
@@ -312,7 +318,7 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
               >
                 <span className="truncate">
                   {l.nome}
-                  <span className="ml-1 text-xs text-muted-foreground">{l.aperto ? "Zona aperta" : etichettaDestinazione(l.destinazione, l.nome)}</span>
+                  <span className="ml-1 text-xs text-muted-foreground">{l.aperto ? t("Zona aperta") : etichettaDestinazione(l.destinazione, l.nome)}</span>
                 </span>
                 <span className={cn("shrink-0 whitespace-nowrap pl-2 tabular-nums", q.stimata && "italic text-primary")}>
                   {q.stimata ? "≈ " : ""}
@@ -324,7 +330,7 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
         </ul>
         {locali.length > 0 && (
           <div className="mt-2 flex justify-between px-3 text-sm font-semibold">
-            <span>Totale</span>
+            <span>{t("Totale")}</span>
             <span className="tabular-nums">{scriviMq(totale)}</span>
           </div>
         )}
@@ -342,18 +348,17 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
       {stimate > 0 && (
         <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
           <p className="text-foreground">
-            <strong>{stimate}</strong> {stimate === 1 ? "misura è stimata" : "misure sono stimate"}: si vedono a righe viola e con «≈».
-            Controllale sul posto, poi confermale.
+            <strong>{stimate}</strong> {stimate === 1 ? t("misura è stimata: si vedono a righe viola e con «≈». Controllale sul posto, poi confermale.") : t("misure sono stimate: si vedono a righe viola e con «≈». Controllale sul posto, poi confermale.")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => azioni.seleziona(prossimaStimata(pianta))}>
-              Controllale una alla volta
+              {t("Controllale una alla volta")}
             </Button>
             {!pianta.letturaDocumento && <Button size="sm" variant="outline" onClick={azioni.confermaTutte}>
-              <Check /> Le ho controllate tutte
+              <Check /> {t("Le ho controllate tutte")}
             </Button>}
           </div>
-          <p className="mt-1.5 text-xs text-foreground/80">{pianta.letturaDocumento ? "Correggi le misure sul disegno e completa le verifiche in «Confronta foto e pianta». Le quote dubbie restano aperte fino alla conferma." : "Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima."}</p>
+          <p className="mt-1.5 text-xs text-foreground/80">{pianta.letturaDocumento ? t("Correggi le misure sul disegno e completa le verifiche in «Confronta foto e pianta». Le quote dubbie restano aperte fino alla conferma.") : t("Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima.")}</p>
         </div>
       )}
       <DaSistemare pianta={pianta} dati={dati} azioni={azioni} />
@@ -363,6 +368,7 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
 
 /** I problemi del controllo della fase 1, in parole semplici; un clic porta all'oggetto. */
 function DaSistemare({ pianta, dati, azioni }: { pianta: Pianta; dati: DatiVista; azioni: AzioniPannello }) {
+  const t = useT();
   const problemi = [...dati.problemi].sort((a, b) => (a.gravita === b.gravita ? 0 : a.gravita === "errore" ? -1 : 1));
   if (!problemi.length) return null;
   const tipoDi = (id?: string): Selezione["tipo"] | null =>
@@ -378,7 +384,7 @@ function DaSistemare({ pianta, dati, azioni }: { pianta: Pianta; dati: DatiVista
   return (
     <div>
       <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-        <AlertTriangle className="h-4 w-4 text-amber-600" /> Da controllare
+        <AlertTriangle className="h-4 w-4 text-amber-600" /> {t("Da controllare")}
       </h3>
       <ul className="mt-2 space-y-1">
         {problemi.slice(0, 8).map((p, i) => {
@@ -401,7 +407,7 @@ function DaSistemare({ pianta, dati, azioni }: { pianta: Pianta; dati: DatiVista
           );
         })}
       </ul>
-      {problemi.length > 8 && <p className="mt-1 text-xs text-muted-foreground">e altri {problemi.length - 8}.</p>}
+      {problemi.length > 8 && <p className="mt-1 text-xs text-muted-foreground">{t("e altri {n}.", { n: problemi.length - 8 })}</p>}
     </div>
   );
 }
@@ -427,6 +433,7 @@ function DettaglioStanza({
   essenziale?: boolean;
   focusNome?: boolean;
 }) {
+  const t = useT();
   const q = locale;
   // la stanza disegnata nell'editor, se c'è (nel progetto una stanza può nascere dalle pareti)
   const diLavoro = pianta.locali.find((l) => l.id === locale.id);
@@ -435,7 +442,7 @@ function DettaglioStanza({
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label htmlFor="pl-nome">Nome della stanza</Label>
+        <Label htmlFor="pl-nome">{t("Nome della stanza")}</Label>
         <Input
           id="pl-nome"
           value={nome}
@@ -447,7 +454,7 @@ function DettaglioStanza({
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="pl-tipo-stanza">Che stanza è</Label>
+        <Label htmlFor="pl-tipo-stanza">{t("Che stanza è")}</Label>
         <Select value={locale.destinazione} onValueChange={(v) => azioni.destinazioneStanza(locale.id, v as Destinazione)}>
           <SelectTrigger id="pl-tipo-stanza">
             <SelectValue />
@@ -464,30 +471,30 @@ function DettaglioStanza({
       <FinitureStanza value={locale.finiture ?? {}} onChange={(f) => azioni.finitureStanza(locale.id, f)} pavimentoComune={pavimentoComune} />
       {!essenziale && (diLavoro || vista === "progetto") && (
         <div className="space-y-1">
-          <Label htmlFor="pl-unita">Appartamento (condominio, bifamiliare)</Label>
-          <Input id="pl-unita" key={`${locale.id}-unita-${locale.unita ?? ""}`} defaultValue={locale.unita ?? ""} placeholder="Es. A, Int. 3, Parti comuni" maxLength={40}
+          <Label htmlFor="pl-unita">{t("Appartamento (condominio, bifamiliare)")}</Label>
+          <Input id="pl-unita" key={`${locale.id}-unita-${locale.unita ?? ""}`} defaultValue={locale.unita ?? ""} placeholder={t("Es. A, Int. 3, Parti comuni")} maxLength={40}
             onBlur={(e) => e.target.value.trim() !== (locale.unita ?? "") && azioni.unitaStanza(locale.id, e.target.value.trim())}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-          <p className="text-[11px] text-muted-foreground">Le stanze con la stessa sigla fanno un appartamento: nel computo trovi superfici e pareti per appartamento.</p>
+          <p className="text-[11px] text-muted-foreground">{t("Le stanze con la stessa sigla fanno un appartamento: nel computo trovi superfici e pareti per appartamento.")}</p>
         </div>
       )}
       {sottotetto && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-          <p className="font-medium">Sotto le falde</p>
-          <p className="mt-0.5 tabular-nums">Altezza minima {scriviMetri(sottotetto.minima)} m · massima {scriviMetri(sottotetto.massima)} m · <strong>media {scriviMetri(sottotetto.media)} m</strong></p>
-          <p className="tabular-nums">Superficie utile (sopra 1,50 m) <strong>{scriviMq(sottotetto.superficieUtile)}</strong> su {scriviMq(sottotetto.superficie)} · volume {sottotetto.volume.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m³</p>
+          <p className="font-medium">{t("Sotto le falde")}</p>
+          <p className="mt-0.5 tabular-nums">{t("Altezza minima {minima} m · massima {massima} m", { minima: scriviMetri(sottotetto.minima), massima: scriviMetri(sottotetto.massima) })} · <strong>{t("media {media} m", { media: String(scriviMetri(sottotetto.media) ?? "") })}</strong></p>
+          <p className="tabular-nums">{t("Superficie utile (sopra 1,50 m)")} <strong>{scriviMq(sottotetto.superficieUtile)}</strong> {t("su {superficie} · volume {volume} m³", { superficie: scriviMq(sottotetto.superficie), volume: sottotetto.volume.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}</p>
         </div>
       )}
       <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm">
         <div>
-          <div className="text-xs text-muted-foreground">Pavimento</div>
+          <div className="text-xs text-muted-foreground">{t("Pavimento")}</div>
           <div className={`text-base font-semibold ${q.stimata ? "italic text-primary" : ""}`}>
             {q.stimata ? "≈ " : ""}
             {scriviMq(q.mq)}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">{q.aperto ? "Perimetro del contorno" : "Perimetro"}</div>
+          <div className="text-xs text-muted-foreground">{q.aperto ? t("Perimetro del contorno") : t("Perimetro")}</div>
           <div className={`text-base font-semibold ${q.stimata ? "italic text-primary" : ""}`}>
             {q.stimata ? "≈ " : ""}
             {scriviMetri(q.perimetro * 100)} m
@@ -495,19 +502,19 @@ function DettaglioStanza({
         </div>
       </div>
       {q.superficieDichiarataMq !== undefined && (
-        <p className="text-xs text-muted-foreground">Superficie indicata nella tavola DWG <strong className="tabular-nums text-foreground">{scriviMq(q.superficieDichiarataMq)}</strong></p>
+        <p className="text-xs text-muted-foreground">{t("Superficie indicata nella tavola DWG")} <strong className="tabular-nums text-foreground">{scriviMq(q.superficieDichiarataMq)}</strong></p>
       )}
-      {q.aperto && <p className="text-xs text-muted-foreground">Zona comunicante. Il contorno serve a misurare il pavimento.</p>}
+      {q.aperto && <p className="text-xs text-muted-foreground">{t("Zona comunicante. Il contorno serve a misurare il pavimento.")}</p>}
       <div className="space-y-1">
-        <Label>Misure interne (da muro a muro)</Label>
+        <Label>{t("Misure interne (da muro a muro)")}</Label>
         {!misurabile && (
-          <p className="text-xs text-muted-foreground">Nel progetto le stanze di oggi non si allargano: demolisci la parete e disegnane una nuova.</p>
+          <p className="text-xs text-muted-foreground">{t("Nel progetto le stanze di oggi non si allargano: demolisci la parete e disegnane una nuova.")}</p>
         )}
         <div className="grid grid-cols-2 gap-2">
           {q.lati.map((l, i) => (
             <CampoMisura
               key={`${locale.id}-${i}`}
-              etichetta={`Lato ${i + 1}`}
+              etichetta={t("Lato {i}", { i: i + 1 })}
               valore={l}
               disabled={!misurabile}
               stimata={q.stimata}
@@ -519,9 +526,9 @@ function DettaglioStanza({
       {!essenziale && diLavoro && destinazioneArredabile(locale.destinazione) && (
         <div className="space-y-1 rounded-md border border-dashed p-2">
           <Button size="sm" variant="secondary" className="w-full" onClick={() => azioni.arreda(locale.id, locale.destinazione)}>
-            <Armchair /> Arreda con un clic
+            <Armchair /> {t("Arreda con un clic")}
           </Button>
-          <p className="text-[11px] text-muted-foreground">Mette gli arredi tipici di {DESTINAZIONI.find((d) => d.valore === locale.destinazione)?.etichetta.toLowerCase() ?? "questa stanza"} lungo le pareti, lontano da porte e finestre. Poi li sposti come vuoi; il 3D e il render AI li usano dove stanno.</p>
+          <p className="text-[11px] text-muted-foreground">{t("Mette gli arredi tipici di {stanza} lungo le pareti, lontano da porte e finestre. Poi li sposti come vuoi; il 3D e il render AI li usano dove stanno.", { stanza: DESTINAZIONI.find((d) => d.valore === locale.destinazione)?.etichetta.toLowerCase() ?? t("questa stanza") })}</p>
         </div>
       )}
       {!essenziale && diLavoro && (() => {
@@ -529,25 +536,25 @@ function DettaglioStanza({
         const clima = btuConsigliati(diLavoro);
         return (
           <div className="space-y-2 rounded-md border border-dashed p-2">
-            <p className="text-xs font-medium">Impianti</p>
+            <p className="text-xs font-medium">{t("Impianti")}</p>
             <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.impiantoElettrico(locale.id, locale.destinazione)}>
-              Impianto elettrico minimo
+              {t("Impianto elettrico minimo")}
             </Button>
-            <p className="text-[11px] text-muted-foreground">Norma CEI 64-8, livello 1: {cei.prese} {cei.prese === 1 ? "presa" : "prese"}, {cei.luci} {cei.luci === 1 ? "punto luce" : "punti luce"} con interruttore accanto alla porta. Mette solo quello che manca.</p>
+            <p className="text-[11px] text-muted-foreground">{t("Norma CEI 64-8, livello 1: {prese}, {luci} con interruttore accanto alla porta. Mette solo quello che manca.", { prese: t(cei.prese === 1 ? "{n} presa" : "{n} prese", { n: cei.prese }), luci: t(cei.luci === 1 ? "{n} punto luce" : "{n} punti luce", { n: cei.luci }) })}</p>
             {!["balcone", "terrazzo", "garage", "cantina", "ripostiglio", "giardino"].includes(locale.destinazione) && (
               <>
                 <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.riscaldamento(locale.id)}>
-                  Riscaldamento: termosifoni sotto le finestre
+                  {t("Riscaldamento: termosifoni sotto le finestre")}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">Circa {Math.round((q.mq * ((diLavoro.altezza ?? 270) / 100) * 40) / 50) * 50} W per questa stanza (40 W al m³, di massima). Metti la caldaia o la pompa di calore (Arredi → Energia) per avere i tubi nel computo.</p>
+                <p className="text-[11px] text-muted-foreground">{t("Circa {valore} W per questa stanza (40 W al m³, di massima). Metti la caldaia o la pompa di calore (Arredi → Energia) per avere i tubi nel computo.", { valore: Math.round((q.mq * ((diLavoro.altezza ?? 270) / 100) * 40) / 50) * 50 })}</p>
               </>
             )}
             {DESTINAZIONI_CLIMA.has(locale.destinazione) && (
               <>
                 <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.clima(locale.id, locale.destinazione)}>
-                  Clima: {clima.split > 1 ? `${clima.split} split da ` : "split da "}{clima.taglia.toLocaleString("it-IT")} BTU
+                  {clima.split > 1 ? t("Clima: {split} split da {taglia} BTU", { split: clima.split, taglia: clima.taglia.toLocaleString(intlCampo()) }) : t("Clima: split da {taglia} BTU", { taglia: clima.taglia.toLocaleString(intlCampo()) })}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">Circa {clima.btu.toLocaleString("it-IT")} BTU/h per {q.mq.toLocaleString("it-IT", { maximumFractionDigits: 1 })} mq: indicazione di massima, esposizione e vetrate contano. Metti anche l'unità esterna (catalogo Impianti) per avere rame e condensa nel computo.</p>
+                <p className="text-[11px] text-muted-foreground">{t("Circa {btu} BTU/h per {mq} mq: indicazione di massima, esposizione e vetrate contano. Metti anche l'unità esterna (catalogo Impianti) per avere rame e condensa nel computo.", { btu: clima.btu.toLocaleString(intlCampo()), mq: q.mq.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}</p>
               </>
             )}
           </div>
@@ -557,12 +564,12 @@ function DettaglioStanza({
       <div className="flex flex-wrap gap-2 pt-1">
         {q.stimata && (
           <Button size="sm" variant="outline" onClick={() => azioni.conferma({ tipo: "locale", id: locale.id })}>
-            <Check /> Misure controllate
+            <Check /> {t("Misure controllate")}
           </Button>
         )}
         {!essenziale && diLavoro && (
           <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "locale", id: locale.id })}>
-            <Trash2 /> {vista === "progetto" && diLavoro.stato !== "nuovo" ? "Demolisci la stanza" : "Elimina la stanza"}
+            <Trash2 /> {vista === "progetto" && diLavoro.stato !== "nuovo" ? t("Demolisci la stanza") : t("Elimina la stanza")}
           </Button>
         )}
       </div>
@@ -571,21 +578,23 @@ function DettaglioStanza({
 }
 
 function MagliaPilastri({ onMetti }: { onMetti: (passoCm: number) => void }) {
+  const t = useT();
   const [passo, setPasso] = useState("6,00");
   const cm = leggiMisura(passo);
   return (
     <div className="space-y-1 rounded-md border border-dashed p-2">
-      <Label htmlFor="pl-passo" className="text-xs">Pilastri a maglia (capannone, autorimessa)</Label>
+      <Label htmlFor="pl-passo" className="text-xs">{t("Pilastri a maglia (capannone, autorimessa)")}</Label>
       <div className="flex gap-2">
-        <Input id="pl-passo" className="h-8 w-24" value={passo} onChange={(e) => setPasso(e.target.value)} aria-label="Passo dei pilastri in metri" />
-        <Button size="sm" variant="secondary" disabled={!cm || cm < 200} onClick={() => cm && onMetti(cm)}>Metti i pilastri</Button>
+        <Input id="pl-passo" className="h-8 w-24" value={passo} onChange={(e) => setPasso(e.target.value)} aria-label={t("Passo dei pilastri in metri")} />
+        <Button size="sm" variant="secondary" disabled={!cm || cm < 200} onClick={() => cm && onMetti(cm)}>{t("Metti i pilastri")}</Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">Passo in metri, uguale nei due versi; la maglia parte dal centro. Si contano nel computo come «Pilastri».</p>
+      <p className="text-[11px] text-muted-foreground">{t("Passo in metri, uguale nei due versi; la maglia parte dal centro. Si contano nel computo come «Pilastri».")}</p>
     </div>
   );
 }
 
 function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; muro: Muro; azioni: AzioniPannello; essenziale?: boolean }) {
+  const t = useT();
   const misurabile = modificabile(muro.stato, vista);
   const stimata = muro.origine === "stimata";
   const altezzaStimata = (muro.origineAltezza ?? muro.origine) === "stimata";
@@ -594,44 +603,42 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">
-        Parete{" "}
-        {vista === "progetto" && muro.stato === "da_demolire" && <span className="ml-1 rounded bg-yellow-300 px-1.5 text-xs">da demolire</span>}
-        {muro.stato === "nuovo" && <span className="ml-1 rounded bg-red-600 px-1.5 text-xs text-white">nuova</span>}
+        {t("Parete")}{" "}
+        {vista === "progetto" && muro.stato === "da_demolire" && <span className="ml-1 rounded bg-yellow-300 px-1.5 text-xs">{t("da demolire")}</span>}
+        {muro.stato === "nuovo" && <span className="ml-1 rounded bg-red-600 px-1.5 text-xs text-white">{t("nuova")}</span>}
       </h3>
       <CampoMisura
-        etichetta="Lunghezza"
+        etichetta={t("Lunghezza")}
         valore={lunghezzaMuro(muro)}
         disabled={!misurabile}
         stimata={stimata}
         onConferma={(cm) => azioni.lunghezzaParete(muro.id, cm)}
       />
       <CampoMisura
-        etichetta="Altezza della parete"
+        etichetta={t("Altezza della parete")}
         valore={muro.altezza}
         stimata={altezzaStimata}
         onConferma={(cm) => azioni.altezzaParete(muro.id, cm)}
       />
       {altezzaStimata && <Button size="sm" variant="outline" onClick={() => azioni.altezzaParete(muro.id, muro.altezza)}>
-        <Check /> {muro.stato === "nuovo" ? "Conferma altezza di progetto" : "Conferma altezza rilevata"}
+        <Check /> {muro.stato === "nuovo" ? t("Conferma altezza di progetto") : t("Conferma altezza rilevata")}
       </Button>}
       {!misurabile && vista === "progetto" && !funzioneIncerta && (
-        <p className="text-xs text-muted-foreground">Le pareti di oggi nel progetto non si spostano: puoi demolirle e disegnarne di nuove.</p>
+        <p className="text-xs text-muted-foreground">{t("Le pareti di oggi nel progetto non si spostano: puoi demolirle e disegnarne di nuove.")}</p>
       )}
       {!essenziale && (
         <div className="space-y-1">
-          <Label>Spessore</Label>
+          <Label>{t("Spessore")}</Label>
           <Select value={String(muro.spessore)} onValueChange={(v) => azioni.spessoreParete(muro.id, Number(v))} disabled={!misurabile}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {[8, 10, 12, 15, 20, 25, 30, 40, 50].map((s) => (
-                <SelectItem key={s} value={String(s)}>
-                  {s} cm
-                </SelectItem>
+                <SelectItem key={s} value={String(s)}>{t("{s} cm", { s: String(s ?? "") })}</SelectItem>
               ))}
               {![8, 10, 12, 15, 20, 25, 30, 40, 50].includes(muro.spessore) && (
-                <SelectItem value={String(muro.spessore)}>{muro.spessore} cm</SelectItem>
+                <SelectItem value={String(muro.spessore)}>{t("{spessore} cm", { spessore: String(muro.spessore ?? "") })}</SelectItem>
               )}
             </SelectContent>
           </Select>
@@ -639,30 +646,30 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
       )}
       {muro.stato === "esistente" && <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/30 p-2 text-xs">
         <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={!!muro.bloccato} onChange={(e) => azioni.bloccaParete(muro.id, e.target.checked)} />
-        <span><span className="block font-medium">Parete bloccata</span><span className="block text-muted-foreground">Strutturale, cavedio o colonne degli impianti: nessuna modifica la sposta o la demolisce, nemmeno chiesta a Silvio.</span></span>
+        <span><span className="block font-medium">{t("Parete bloccata")}</span><span className="block text-muted-foreground">{t("Strutturale, cavedio o colonne degli impianti: nessuna modifica la sposta o la demolisce, nemmeno chiesta a Silvio.")}</span></span>
       </label>}
       {(!essenziale || funzioneIncerta) && <div className="space-y-1">
-        <Label>Funzione della parete</Label>
+        <Label>{t("Funzione della parete")}</Label>
         <Select value={funzioneIncerta ? "da_verificare" : muro.tipo} disabled={!misurabile}
           onValueChange={(tipo: TipoMuro | "da_verificare") => azioni.funzioneParete(muro.id, tipo)}>
-          <SelectTrigger aria-label="Funzione della parete"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label={t("Funzione della parete")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="da_verificare">Da riscontrare</SelectItem>
-            {TIPI_MURO.map(tipo => <SelectItem key={tipo} value={tipo}>{etichette[tipo]}</SelectItem>)}
+            <SelectItem value="da_verificare">{t("Da riscontrare")}</SelectItem>
+            {TIPI_MURO.map(tipo => <SelectItem key={tipo} value={tipo}>{t(etichette[tipo])}</SelectItem>)}
           </SelectContent>
         </Select>
         {funzioneIncerta && <p className="text-xs leading-relaxed text-muted-foreground">
-          Riscontra gli elaborati strutturali, poi classifica la parete in «Com’è oggi».
+          {t("Riscontra gli elaborati strutturali, poi classifica la parete in «Com’è oggi».")}
         </p>}
       </div>}
       <div className="flex flex-wrap gap-2 pt-1">
         {stimata && (
           <Button size="sm" variant="outline" onClick={() => azioni.conferma({ tipo: "muro", id: muro.id })}>
-            <Check /> Misura controllata
+            <Check /> {t("Misura controllata")}
           </Button>
         )}
         {!essenziale && !(vista === "progetto" && muro.stato === "esistente" && funzioneIncerta)
-          && <BottoneElimina vista={vista} stato={muro.stato} cosa="la parete" onClick={() => azioni.elimina({ tipo: "muro", id: muro.id })} />}
+          && <BottoneElimina vista={vista} stato={muro.stato} cosa={t("la parete")} onClick={() => azioni.elimina({ tipo: "muro", id: muro.id })} />}
       </div>
       {!essenziale && misurabile && <CurvaParete onCurva={(f) => azioni.curvaParete(muro.id, f)} />}
     </div>
@@ -670,18 +677,19 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
 }
 
 function CurvaParete({ onCurva }: { onCurva: (frecciaCm: number) => void }) {
+  const t = useT();
   const [freccia, setFreccia] = useState("0,50");
   const [verso, setVerso] = useState<1 | -1>(1);
   const cm = leggiMisura(freccia);
   return (
     <div className="space-y-1 rounded-md border border-dashed p-2">
-      <Label htmlFor="pl-freccia" className="text-xs">Parete curva (bovindo, balcone tondo)</Label>
+      <Label htmlFor="pl-freccia" className="text-xs">{t("Parete curva (bovindo, balcone tondo)")}</Label>
       <div className="flex flex-wrap gap-2">
-        <Input id="pl-freccia" className="h-8 w-20" value={freccia} onChange={(e) => setFreccia(e.target.value)} aria-label="Freccia della curva in metri" />
-        <Button size="sm" variant="outline" onClick={() => setVerso((v) => (v === 1 ? -1 : 1))}>{verso === 1 ? "Verso un lato" : "Verso l'altro"}</Button>
-        <Button size="sm" variant="secondary" disabled={!cm} onClick={() => cm && onCurva(cm * verso)}>Curva</Button>
+        <Input id="pl-freccia" className="h-8 w-20" value={freccia} onChange={(e) => setFreccia(e.target.value)} aria-label={t("Freccia della curva in metri")} />
+        <Button size="sm" variant="outline" onClick={() => setVerso((v) => (v === 1 ? -1 : 1))}>{verso === 1 ? t("Verso un lato") : t("Verso l'altro")}</Button>
+        <Button size="sm" variant="secondary" disabled={!cm} onClick={() => cm && onCurva(cm * verso)}>{t("Curva")}</Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">La freccia è quanto la curva si allontana dal centro della parete. Diventa un arco di tratti dritti; la stanza segue la curva. Ctrl+Z per tornare indietro.</p>
+      <p className="text-[11px] text-muted-foreground">{t("La freccia è quanto la curva si allontana dal centro della parete. Diventa un arco di tratti dritti; la stanza segue la curva. Ctrl+Z per tornare indietro.")}</p>
     </div>
   );
 }
@@ -689,11 +697,12 @@ function CurvaParete({ onCurva }: { onCurva: (frecciaCm: number) => void }) {
 const NOMI_APERTURA: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Passaggio senza porta" };
 
 function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: Vista; apertura: Apertura; azioni: AzioniPannello; essenziale?: boolean }) {
+  const tr = useT();
   const misurabile = modificabile(a.stato, vista);
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label>Cos'è</Label>
+        <Label>{tr("Cos'è")}</Label>
         <Select value={a.tipo} onValueChange={(v) => azioni.modificaApertura(a.id, { tipo: v as TipoApertura })} disabled={!misurabile}>
           <SelectTrigger>
             <SelectValue />
@@ -701,7 +710,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
           <SelectContent>
             {(Object.keys(NOMI_APERTURA) as TipoApertura[]).map((t) => (
               <SelectItem key={t} value={t}>
-                {NOMI_APERTURA[t]}
+                {tr(NOMI_APERTURA[t])}
               </SelectItem>
             ))}
           </SelectContent>
@@ -710,7 +719,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
       {a.tipo !== "varco" && (
         <div className="grid grid-cols-[1fr_auto] items-end gap-2">
           <div className="space-y-1">
-            <Label>Come si apre</Label>
+            <Label>{tr("Come si apre")}</Label>
             <Select
               value={sistemaDi(a)}
               onValueChange={(v) => {
@@ -727,7 +736,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
           </div>
           {sistemaDi(a) !== "scorrevole_scomparsa" && (
             <div className="space-y-1">
-              <Label>Ante</Label>
+              <Label>{tr("Ante")}</Label>
               <div className="flex gap-1">
                 {[1, 2, 3, 4].map((n) => (
                   <Button key={n} type="button" size="sm" variant={anteDi(a) === n ? "default" : "outline"} className="h-9 w-8 px-0" disabled={!misurabile} onClick={() => azioni.modificaApertura(a.id, { ante: n })}>{n}</Button>
@@ -742,7 +751,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Oscurante</Label>
+              <Label>{tr("Oscurante")}</Label>
               <Select
                 value={oscuranteDi(a) ?? "nessuno"}
                 onValueChange={(v) => azioni.modificaApertura(a.id, { oscurante: v === "nessuno" ? undefined : (v as TipoOscurante) })}
@@ -750,14 +759,14 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nessuno">Nessuno</SelectItem>
+                  <SelectItem value="nessuno">{tr("Nessuno")}</SelectItem>
                   {oscuranteAmmessi(a.tipo).map((o) => <SelectItem key={o} value={o}>{NOMI_OSCURANTE[o]}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             {eAvvolgibile(oscuranteDi(a)) && (
               <div className="space-y-1">
-                <Label>Cassonetto</Label>
+                <Label>{tr("Cassonetto")}</Label>
                 <Select
                   value={cassonettoDi(a) ?? "monoblocco"}
                   onValueChange={(v) => azioni.modificaApertura(a.id, { cassonetto: v as TipoCassonetto })}
@@ -774,7 +783,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
           {eAvvolgibile(oscuranteDi(a)) && (
             <div className="grid grid-cols-2 items-end gap-2">
               <CampoMisura
-                etichetta="Altezza cassonetto (cm)"
+                etichetta={tr("Altezza cassonetto (cm)")}
                 valore={a.altezzaCassonetto ?? altezzaCassonettoConsigliata(a.altezza, oscuranteDi(a) ?? "tapparella")}
                 centimetri
                 disabled={!misurabile}
@@ -782,13 +791,13 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
               />
               <label className="flex h-9 items-center gap-2 text-sm">
                 <Switch checked={!!a.motore} onCheckedChange={(v) => azioni.modificaApertura(a.id, { motore: v })} disabled={!misurabile} />
-                Motore
+                {tr("Motore")}
               </label>
             </div>
           )}
           {oscuranteDi(a) && !essenziale && <MisureOscuranteRiga a={a} />}
           <div className="space-y-1">
-            <Label>Zanzariera</Label>
+            <Label>{tr("Zanzariera")}</Label>
             <Select
               value={zanzarieraDi(a) ?? "nessuna"}
               onValueChange={(v) => azioni.modificaApertura(a.id, { zanzariera: v === "nessuna" ? undefined : (v as TipoZanzariera) })}
@@ -796,7 +805,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="nessuna">Nessuna</SelectItem>
+                <SelectItem value="nessuna">{tr("Nessuna")}</SelectItem>
                 {TIPI_ZANZARIERA.map((z) => <SelectItem key={z} value={z}>{NOMI_ZANZARIERA[z]}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -806,7 +815,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
       )}
       <div className="grid grid-cols-2 gap-2">
         <CampoMisura
-          etichetta="Larghezza (cm)"
+          etichetta={tr("Larghezza (cm)")}
           valore={a.larghezza}
           centimetri
           disabled={!misurabile}
@@ -814,7 +823,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
           onConferma={(cm) => azioni.modificaApertura(a.id, { larghezza: cm })}
         />
         <CampoMisura
-          etichetta="Altezza (cm)"
+          etichetta={tr("Altezza (cm)")}
           valore={a.altezza}
           centimetri
           disabled={!misurabile}
@@ -823,7 +832,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
         />
         {a.tipo === "finestra" && !essenziale && (
           <CampoMisura
-            etichetta="Da terra (cm)"
+            etichetta={tr("Da terra (cm)")}
             valore={a.davanzale}
             centimetri
             disabled={!misurabile}
@@ -832,19 +841,19 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
         )}
       </div>
       <div className="flex flex-wrap gap-2 pt-1">
-        {a.versoDaVerificare && <p className="w-full text-xs text-amber-800">Verso di apertura da verificare sul documento o sul posto.</p>}
+        {a.versoDaVerificare && <p className="w-full text-xs text-amber-800">{tr("Verso di apertura da verificare sul documento o sul posto.")}</p>}
         {a.tipo !== "finestra" && (
           <Button size="sm" variant="outline" onClick={() => azioni.giraApertura(a.id)} disabled={!misurabile}>
-            <RotateCw /> {a.versoDaVerificare ? "Imposta il verso" : "Gira il verso"}
+            <RotateCw /> {a.versoDaVerificare ? tr("Imposta il verso") : tr("Gira il verso")}
           </Button>
         )}
         {a.origine === "stimata" && (
           <Button size="sm" variant="outline" onClick={() => azioni.conferma({ tipo: "apertura", id: a.id })}>
-            <Check /> Misura controllata
+            <Check /> {tr("Misura controllata")}
           </Button>
         )}
         {!essenziale && (
-          <BottoneElimina vista={vista} stato={a.stato} cosa={a.tipo === "finestra" ? "la finestra" : "la porta"} onClick={() => azioni.elimina({ tipo: "apertura", id: a.id })} />
+          <BottoneElimina vista={vista} stato={a.stato} cosa={a.tipo === "finestra" ? tr("la finestra") : tr("la porta")} onClick={() => azioni.elimina({ tipo: "apertura", id: a.id })} />
         )}
       </div>
     </div>
@@ -853,60 +862,64 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
 
 /** Foro, controtelaio e anta, di massima: servono per ordinare il controtelaio prima della posa. */
 function MisureControtelaio({ a }: { a: Apertura }) {
+  const t = useT();
   const m = misureSerramento(a);
-  const cm = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+  const cm = (v: number) => v.toLocaleString(intlCampo(), { maximumFractionDigits: 1 });
   return (
     <div className="space-y-0.5 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-      <p><span className="font-medium text-foreground">Controtelaio{m.controtelaioSpeciale ? " per scorrevole a scomparsa" : ""}:</span> {cm(m.controtelaio.larghezza)} × {cm(m.controtelaio.altezza)} cm</p>
-      <p>Serramento: {cm(m.telaio.larghezza)} × {cm(m.telaio.altezza)} cm · anta {cm(m.anta)} cm{anteDi(a) > 1 ? ` (${anteDi(a)} ante)` : ""}</p>
-      {m.tascaScomparsa > 0 && <p>Serve un tratto di muro libero di almeno {cm(m.tascaScomparsa)} cm a fianco, senza porte né impianti.</p>}
+      <p><span className="font-medium text-foreground">{m.controtelaioSpeciale ? t("Controtelaio per scorrevole a scomparsa:") : t("Controtelaio:")}</span> {cm(m.controtelaio.larghezza)} × {cm(m.controtelaio.altezza)} cm</p>
+      <p>{t("Serramento: {larghezza} × {altezza} cm · anta {anta} cm", { larghezza: cm(m.telaio.larghezza), altezza: cm(m.telaio.altezza), anta: cm(m.anta) })}{anteDi(a) > 1 ? ` ${t("({n} ante)", { n: anteDi(a) })}` : ""}</p>
+      {m.tascaScomparsa > 0 && <p>{t("Serve un tratto di muro libero di almeno {tascaScomparsa} cm a fianco, senza porte né impianti.", { tascaScomparsa: String(cm(m.tascaScomparsa) ?? "") })}</p>}
     </div>
   );
 }
 
 function MisureZanzarieraRiga({ a }: { a: Apertura }) {
+  const t = useT();
   const z = misureZanzariera(a);
   if (!z) return null;
-  const cm = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+  const cm = (v: number) => v.toLocaleString(intlCampo(), { maximumFractionDigits: 1 });
   return (
     <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-      <span className="font-medium text-foreground">Zanzariera:</span> telo {cm(z.larghezza)} × {cm(z.altezza)} cm ({cm(z.superficieMq)} m²){z.ante > 1 ? ` · ${z.ante} ante` : ""} · guide e telaio {cm(z.guideMl)} m
+      <span className="font-medium text-foreground">{t("Zanzariera:")}</span> {t("telo {larghezza} × {altezza} cm ({mq} m²)", { larghezza: cm(z.larghezza), altezza: cm(z.altezza), mq: cm(z.superficieMq) })}{z.ante > 1 ? ` · ${t("{n} ante", { n: z.ante })}` : ""} · {t("guide e telaio {metri} m", { metri: cm(z.guideMl) })}
     </div>
   );
 }
 
 function MisureOscuranteRiga({ a }: { a: Apertura }) {
+  const t = useT();
   const o = misureOscurante(a);
   if (!o) return null;
-  const cm = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+  const cm = (v: number) => v.toLocaleString(intlCampo(), { maximumFractionDigits: 1 });
   return (
     <div className="space-y-0.5 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
       {o.cassonetto && (
         <p>
-          <span className="font-medium text-foreground">Cassonetto:</span> {cm(o.cassonetto.larghezza)} × {cm(o.cassonetto.altezza)} cm, profondo {cm(o.cassonetto.profondita)} cm
-          {o.cassonetto.tipo === "monoblocco" ? ` · sta nel vano: il serramento resta alto ${cm(misureSerramento(a).telaio.altezza)} cm` : ` · serve muro libero sopra il vano: ${cm(o.spazioSopra)} cm`}
+          <span className="font-medium text-foreground">{t("Cassonetto:")}</span> {t("{larghezza} × {altezza} cm, profondo {profondita} cm", { larghezza: cm(o.cassonetto.larghezza), altezza: cm(o.cassonetto.altezza), profondita: cm(o.cassonetto.profondita) })}
+          {o.cassonetto.tipo === "monoblocco" ? ` · ${t("sta nel vano: il serramento resta alto {altezza} cm", { altezza: String(cm(misureSerramento(a).telaio.altezza) ?? "") })}` : ` · ${t("serve muro libero sopra il vano: {spazioSopra} cm", { spazioSopra: String(cm(o.spazioSopra) ?? "") })}`}
         </p>
       )}
       <p>
         {o.avvolgibile
-          ? `Telo ${cm(o.telo.larghezza)} × ${cm(o.telo.altezza)} cm (${cm(o.superficieMq)} m²) · guide ${cm(o.guideMl * 2)} m${o.motore ? " · motorizzata" : ""}`
-          : `${o.ante} ${o.ante === 1 ? "anta" : "ante"} da ${cm(a.larghezza / o.ante)} cm (${cm(o.superficieMq)} m²)`}
+          ? t("Telo {larghezza} × {altezza} cm ({mq} m²) · guide {metri} m", { larghezza: cm(o.telo.larghezza), altezza: cm(o.telo.altezza), mq: cm(o.superficieMq), metri: cm(o.guideMl * 2) }) + (o.motore ? ` · ${t("motorizzata")}` : "")
+          : t(o.ante === 1 ? "{n} anta da {larghezza} cm ({mq} m²)" : "{n} ante da {larghezza} cm ({mq} m²)", { n: o.ante, larghezza: cm(a.larghezza / o.ante), mq: cm(o.superficieMq) })}
       </p>
     </div>
   );
 }
 
 function BottoneElimina({ vista, stato, cosa, onClick }: { vista: Vista; stato: Muro["stato"]; cosa: string; onClick: () => void }) {
+  const t = useT();
   if (vista === "progetto" && stato === "da_demolire") {
     return (
       <Button size="sm" variant="outline" onClick={onClick}>
-        <Undo2 /> Non demolire
+        <Undo2 /> {t("Non demolire")}
       </Button>
     );
   }
   return (
     <Button size="sm" variant="ghost" className="text-destructive" onClick={onClick}>
-      <Trash2 /> {vista === "progetto" && stato === "esistente" ? `Demolisci ${cosa}` : `Elimina ${cosa}`}
+      <Trash2 /> {vista === "progetto" && stato === "esistente" ? t("Demolisci {cosa}", { cosa: String(cosa ?? "") }) : t("Elimina {cosa}", { cosa: String(cosa ?? "") })}
     </Button>
   );
 }
@@ -927,6 +940,7 @@ export function CampoMisura({
   stimata?: boolean;
   centimetri?: boolean;
 }) {
+  const t = useT();
   const scritto = centimetri ? scriviCentimetri(valore) : scriviMetri(valore);
   const [testo, setTesto] = useState(scritto);
   const [errore, setErrore] = useState(false);
@@ -961,7 +975,7 @@ export function CampoMisura({
           if (e.key === "Escape") setTesto(scritto);
         }}
       />
-      {errore && <span className="text-xs text-destructive">Scrivi una misura, es. {centimetri ? "90" : "4,20"}</span>}
+      {errore && <span className="text-xs text-destructive">{t("Scrivi una misura, es. {esempio}", { esempio: centimetri ? "90" : "4,20" })}</span>}
     </div>
   );
 }

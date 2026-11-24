@@ -17,6 +17,7 @@ import {
   DIFFICULTY_LABELS,
   type FlowTemplate,
 } from "@/lib/flow-templates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   categoriaFiltro?: string | null;
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livello: difficoltaFiltro = null }: Props) {
+  const tr = useT();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const companyId = useEffectiveCompanyId();
@@ -63,11 +65,11 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
   // (solo per template prontoAllUso, completi senza campi da scegliere).
   const handleUseTemplate = async (template: FlowTemplate, publish = false) => {
     if (!companyId || !user?.id) {
-      toast.error("Devi essere autenticato per usare un template");
+      toast.error(tr("Devi essere autenticato per usare un template"));
       return;
     }
     if (!automationTemplateInScope(template, companyId === PLATFORM_ADMIN_COMPANY_ID)) {
-      toast.error("Questo template non appartiene a quest’area.");
+      toast.error(tr("Questo template non appartiene a quest’area."));
       return;
     }
 
@@ -153,11 +155,11 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
       void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
 
       if (publish) {
-        toast.success(`"${template.nome}" ATTIVA e già operativa`, {
-          description: "Il flusso è pubblicato: scatterà al prossimo evento. Puoi personalizzarlo nel builder.",
+        toast.success(tr("\"{nome}\" ATTIVA e già operativa", { nome: String(template.nome ?? "") }), {
+          description: tr("Il flusso è pubblicato: scatterà al prossimo evento. Puoi personalizzarlo nel builder."),
         });
       } else {
-        toast.success(`Template "${template.nome}" creato! Apro il builder...`);
+        toast.success(tr("Template \"{nome}\" creato! Apro il builder...", { nome: String(template.nome ?? "") }));
       }
       navigate(`${routePrefix}/automazioni/${flowId}`);
     } catch (err: any) {
@@ -172,7 +174,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
           /* best-effort: se anche il cleanup fallisce, resta la bozza ma l'utente è avvisato dall'errore */
         }
       }
-      toast.error("Errore nella creazione dell'automazione");
+      toast.error(tr("Errore nella creazione dell'automazione"));
     } finally {
       setActivatingId(null);
     }
@@ -217,7 +219,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
                   {/* Una riga al posto del riquadro colorato «Trigger / Step: N nodi ·
                       N connessioni»: nodi e connessioni sono parole del builder. */}
                   <p className="truncate text-xs text-muted-foreground">
-                    Scatta con: {template.triggerTipo.replace(/_/g, ' ')} · {nodeCount} passaggi
+                    {tr("Scatta con:")} {template.triggerTipo.replace(/_/g, ' ')} · {nodeCount} {tr("passaggi")}
                   </p>
 
                   {/* Niente etichetta della categoria: è già il titolo del gruppo
@@ -233,12 +235,12 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
                           className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
                           onClick={() => handleUseTemplate(template, true)}
                           disabled={isActivating}
-                          title="Completo così com'è: lo pubblica subito, operativo dal prossimo evento"
+                          title={tr("Completo così com'è: lo pubblica subito, operativo dal prossimo evento")}
                         >
                           {isActivating ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <><Zap className="w-3.5 h-3.5 mr-1" />Attiva subito</>
+                            <><Zap className="w-3.5 h-3.5 mr-1" />{tr("Attiva subito")}</>
                           )}
                         </Button>
                       )}
@@ -250,9 +252,9 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
                         disabled={isActivating}
                       >
                         {isActivating ? (
-                          <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Creazione...</>
+                          <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />{tr("Creazione...")}</>
                         ) : (
-                          <>{!template.prontoAllUso && <Zap className="w-3.5 h-3.5 mr-1" />}Personalizza</>
+                          <>{!template.prontoAllUso && <Zap className="w-3.5 h-3.5 mr-1" />}{tr("Personalizza")}</>
                         )}
                       </Button>
                     </div>
@@ -266,7 +268,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
 
       {filtered.length === 0 && (
         <div className="text-center py-12 text-muted-foreground text-sm">
-          Nessun template trovato{cerca ? ` per "${cerca}"` : ""}.
+          {tr("Nessun template trovato")}{cerca ? tr(" per \"{cerca}\"", { cerca: String(cerca ?? "") }) : ""}.
         </div>
       )}
     </div>

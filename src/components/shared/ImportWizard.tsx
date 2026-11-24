@@ -17,6 +17,7 @@ import { programmazioneValida, type Programmazione } from "@/lib/importazione/pr
 import { scaricaRigheDaRivedere } from "./import-wizard/scaricaRighe";
 import { PAGINA_IMPORTAZIONE } from "./import-wizard/useImportaDaUrl";
 import { campiObbligatoriMancanti, type ImportField } from "./CSVImportDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ImportWizardProps {
   open: boolean;
@@ -121,6 +122,7 @@ export function ImportWizard({
   open, onClose, defaultObjectType, contactFields, opportunityFields,
   onImportContacts, onImportOpportunities, destinazione, conOpzioni, onAnteprima, companyId, onAnnullata,
 }: ImportWizardProps) {
+  const t = useT();
   const [step, setStep] = useState(0);
   const [objectType, setObjectType] = useState<ObjectType>(defaultObjectType);
   const [file, setFile] = useState<File | null>(null);
@@ -225,7 +227,7 @@ export function ImportWizard({
         : await onImportOpportunities(mappedRows, opzioniCorrenti());
       setResult(res);
     } catch (err: any) {
-      setResult({ success: 0, errors: [err?.message || "Errore durante l'importazione"] });
+      setResult({ success: 0, errors: [err?.message || t("Errore durante l'importazione")] });
     } finally {
       setIsImporting(false);
     }
@@ -245,10 +247,10 @@ export function ImportWizard({
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background shrink-0">
         <div>
-          <h1 className="text-lg font-semibold">Importazioni</h1>
-          <p className="text-sm text-muted-foreground">{destinazione || "Importare contatti e lead"}</p>
+          <h1 className="text-lg font-semibold">{t("Importazioni")}</h1>
+          <p className="text-sm text-muted-foreground">{destinazione || t("Importare contatti e lead")}</p>
         </div>
-        <button type="button" aria-label="Chiudi importazione" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+        <button type="button" aria-label={t("Chiudi importazione")} onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -325,21 +327,21 @@ export function ImportWizard({
         <div>
           {step > 0 && !result && (
             <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={isImporting}>
-              <ChevronLeft className="h-4 w-4 mr-1" /> Indietro
+              <ChevronLeft className="h-4 w-4 mr-1" /> {t("Indietro")}
             </Button>
           )}
         </div>
         <div className="flex items-center gap-2">
           {!result && (
             <Button variant="ghost" onClick={onClose} disabled={isImporting}>
-              Annulla
+              {t("Annulla")}
             </Button>
           )}
           {result ? (
-            <Button onClick={onClose}>Chiudi</Button>
+            <Button onClick={onClose}>{t("Chiudi")}</Button>
           ) : (
             <Button onClick={handleNext} disabled={!canNext(step) || isImporting}>
-              {step === 3 ? (programmazione ? "Programma l'importazione" : "Importa adesso") : "Successivo"}
+              {step === 3 ? (programmazione ? t("Programma l'importazione") : t("Importa adesso")) : t("Successivo")}
             </Button>
           )}
         </div>

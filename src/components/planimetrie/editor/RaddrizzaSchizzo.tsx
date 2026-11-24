@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { proiezioneFoglio, raddrizzaSchizzo, type AngoliSchizzo } from "@/lib/planimetrie/prospettivaSchizzo";
 import { useBlobRef } from "../useBlobRef";
 import type { Punto } from "./adattatore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ANGOLI = ["Alto a sinistra", "Alto a destra", "Basso a destra", "Basso a sinistra"] as const;
 const INIZIALI = [{ x: .05, y: .05 }, { x: .95, y: .05 }, { x: .95, y: .95 }, { x: .05, y: .95 }];
@@ -16,6 +17,7 @@ export default function RaddrizzaSchizzo({ file, iniziali, onConferma, onRiprist
   onRipristina: () => void;
   onChiudi: () => void;
 }) {
+  const t = useT();
   const immagine = useBlobRef<HTMLImageElement>(file, "src");
   const [punti, setPunti] = useState<Array<Punto | null>>(iniziali ? [...iniziali] : [null, null, null, null]);
   const [attivo, setAttivo] = useState(0);
@@ -49,7 +51,7 @@ export default function RaddrizzaSchizzo({ file, iniziali, onConferma, onRiprist
     try {
       onConferma(await raddrizzaSchizzo(file, angoli), angoli);
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Impossibile raddrizzare il foglio.");
+      setErrore(e instanceof Error ? e.message : t("Impossibile raddrizzare il foglio."));
       setOccupato(false);
     }
   }
@@ -57,22 +59,22 @@ export default function RaddrizzaSchizzo({ file, iniziali, onConferma, onRiprist
   return <Dialog open onOpenChange={open => { if (!open && !occupato) onChiudi(); }}>
     <DialogContent className="max-h-[95dvh] max-w-4xl overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Raddrizza la foto dello schizzo</DialogTitle>
-        <DialogDescription>Scegli gli angoli del foglio in senso orario, a partire dall’alto a sinistra. Per rifinire un punto, selezionalo e usa le frecce sulla foto.</DialogDescription>
+        <DialogTitle>{t("Raddrizza la foto dello schizzo")}</DialogTitle>
+        <DialogDescription>{t("Scegli gli angoli del foglio in senso orario, a partire dall’alto a sinistra. Per rifinire un punto, selezionalo e usa le frecce sulla foto.")}</DialogDescription>
       </DialogHeader>
-      <div role="group" aria-label="Angoli del foglio" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div role="group" aria-label={t("Angoli del foglio")} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {ANGOLI.map((nome, i) => <Button key={nome} type="button" size="sm" variant={i === attivo ? "secondary" : "outline"}
           disabled={occupato} aria-pressed={i === attivo} onClick={() => setAttivo(i)} className="h-auto min-h-8 whitespace-normal px-2 text-xs">
-          {punti[i] ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span aria-hidden>{i + 1}</span>} {nome}
+          {punti[i] ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span aria-hidden>{i + 1}</span>} {t(nome)}
         </Button>)}
       </div>
       <div className="flex justify-center overflow-hidden rounded-lg bg-muted p-3">
-        <button type="button" aria-label={"Seleziona angolo " + ANGOLI[attivo].toLocaleLowerCase("it")} disabled={occupato}
+        <button type="button" aria-label={t("Seleziona angolo {nome}", { nome: t(ANGOLI[attivo]).toLowerCase() })} disabled={occupato}
           onKeyDown={daTastiera} onClick={e => {
             const r = e.currentTarget.getBoundingClientRect();
             posiziona(e.detail === 0 ? punti[attivo] ?? INIZIALI[attivo] : { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }, true);
           }} className="relative block max-w-full cursor-crosshair touch-manipulation rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          <img ref={immagine} alt="Foto inclinata originale" className="block max-h-[57dvh] w-auto max-w-full select-none" draggable={false} />
+          <img ref={immagine} alt={t("Foto inclinata originale")} className="block max-h-[57dvh] w-auto max-w-full select-none" draggable={false} />
           <svg aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
             {punti.map((p, i) => {
               const fine = punti[(i + 1) % 4];
@@ -84,13 +86,13 @@ export default function RaddrizzaSchizzo({ file, iniziali, onConferma, onRiprist
             className="pointer-events-none absolute grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-sky-600 text-[10px] font-bold text-white shadow">{i + 1}</span>)}
         </button>
       </div>
-      <p role="status" className="text-xs text-muted-foreground">{angoli ? valido ? "Quattro angoli posizionati." : "Ricontrolla l’ordine e la posizione degli angoli." : punti.filter(Boolean).length + " di 4 angoli posizionati."}</p>
+      <p role="status" className="text-xs text-muted-foreground">{angoli ? valido ? t("Quattro angoli posizionati.") : t("Ricontrolla l’ordine e la posizione degli angoli.") : t("{n} di 4 angoli posizionati.", { n: punti.filter(Boolean).length })}</p>
       {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
       <DialogFooter className="flex-wrap gap-2">
-        <Button type="button" variant="ghost" disabled={occupato} onClick={() => { setPunti([null, null, null, null]); setAttivo(0); setErrore(""); }}><RotateCcw className="h-4 w-4" /> Riparti</Button>
-        {iniziali && <Button type="button" variant="outline" disabled={occupato} onClick={onRipristina}>Usa foto originale</Button>}
-        <Button type="button" variant="outline" disabled={occupato} onClick={onChiudi}>Annulla</Button>
-        <Button type="button" disabled={!valido || occupato} onClick={() => void conferma()}><ScanLine className="h-4 w-4" />{occupato ? "Raddrizzo…" : "Applica correzione"}</Button>
+        <Button type="button" variant="ghost" disabled={occupato} onClick={() => { setPunti([null, null, null, null]); setAttivo(0); setErrore(""); }}><RotateCcw className="h-4 w-4" /> {t("Riparti")}</Button>
+        {iniziali && <Button type="button" variant="outline" disabled={occupato} onClick={onRipristina}>{t("Usa foto originale")}</Button>}
+        <Button type="button" variant="outline" disabled={occupato} onClick={onChiudi}>{t("Annulla")}</Button>
+        <Button type="button" disabled={!valido || occupato} onClick={() => void conferma()}><ScanLine className="h-4 w-4" />{occupato ? t("Raddrizzo…") : t("Applica correzione")}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>;

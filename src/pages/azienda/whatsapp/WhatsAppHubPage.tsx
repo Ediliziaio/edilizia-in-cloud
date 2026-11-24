@@ -17,12 +17,14 @@ import { useSearchParams } from "react-router-dom";
 import { useWhatsAppBase } from "./useWhatsAppBase";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ALL_TABS = ["numeri", "regia", "automazioni", "template", "broadcast", "notifiche"] as const;
 const MARKETING_TABS = ["numeri", "template", "broadcast"] as const;
 type WhatsAppHubTab = typeof ALL_TABS[number];
 
 export default function WhatsAppHubPage() {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const { isAdminContext } = useWhatsAppBase();
   const validTabs: readonly WhatsAppHubTab[] = isAdminContext ? MARKETING_TABS : ALL_TABS;
@@ -44,8 +46,8 @@ export default function WhatsAppHubPage() {
   if (isMobile) {
     return (
       <div className="space-y-3">
-        <h1 className="text-lg font-bold">{isAdminContext ? "WhatsApp Marketing" : "WhatsApp"}</h1>
-        <AvvisoSoloDaComputer titolo="Numeri, regia AI, modelli e invii WhatsApp si impostano da computer o tablet" />
+        <h1 className="text-lg font-bold">{isAdminContext ? t("WhatsApp Marketing") : "WhatsApp"}</h1>
+        <AvvisoSoloDaComputer titolo={t("Numeri, regia AI, modelli e invii WhatsApp si impostano da computer o tablet")} />
       </div>
     );
   }
@@ -58,17 +60,17 @@ export default function WhatsAppHubPage() {
   return (
     <div>
       <Tabs value={tab} onValueChange={onChangeTab} className="w-full">
-        <h1 className="mb-4 text-2xl font-bold">{isAdminContext ? "WhatsApp Marketing" : "WhatsApp"}</h1>
+        <h1 className="mb-4 text-2xl font-bold">{isAdminContext ? t("WhatsApp Marketing") : "WhatsApp"}</h1>
         {/* Schede larghe quanto il testo (erano colonne uguali su 768px). */}
         <TabsList className="mb-4">
           {/* Parole di tutti i giorni (09/10/2026): «Modelli» e «Invii di massa» al posto di «Template» e «Broadcast».
               Gli indirizzi (?tab=template, ?tab=broadcast) non cambiano. */}
-          <TabsTrigger value="numeri">Numeri</TabsTrigger>
-          {!isAdminContext && <TabsTrigger value="regia" title="Regia operativa dei cantieri">Regia</TabsTrigger>}
-          {!isAdminContext && <TabsTrigger value="automazioni">Automazioni</TabsTrigger>}
-          <TabsTrigger value="template">Modelli</TabsTrigger>
-          <TabsTrigger value="broadcast">Invii di massa</TabsTrigger>
-          {!isAdminContext && <TabsTrigger value="notifiche">Notifiche</TabsTrigger>}
+          <TabsTrigger value="numeri">{t("Numeri")}</TabsTrigger>
+          {!isAdminContext && <TabsTrigger value="regia" title={t("Regia operativa dei cantieri")}>{t("Regia")}</TabsTrigger>}
+          {!isAdminContext && <TabsTrigger value="automazioni">{t("Automazioni")}</TabsTrigger>}
+          <TabsTrigger value="template">{t("Modelli")}</TabsTrigger>
+          <TabsTrigger value="broadcast">{t("Invii di massa")}</TabsTrigger>
+          {!isAdminContext && <TabsTrigger value="notifiche">{t("Notifiche")}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="numeri" className="mt-0">

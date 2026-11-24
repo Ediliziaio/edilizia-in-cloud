@@ -2,9 +2,10 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useSediAnalytics } from '@/hooks/useSediAnalytics'
 import { useSedeFilter } from '@/store/sedeFilterStore'
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function formatCurrency(v: number) {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+  return new Intl.NumberFormat(intlCampo(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
 }
 function formatPercent(v: number) {
   return `${v.toFixed(1)}%`
@@ -31,6 +32,7 @@ function DeltaBadge({ delta }: { delta: number }) {
 }
 
 export function SedeIncidenzaTable() {
+  const t = useT();
   const { sediSelezionate, periodo } = useSedeFilter()
   const { data, isLoading } = useSediAnalytics({ da: periodo.da, a: periodo.a })
 
@@ -43,7 +45,7 @@ export function SedeIncidenzaTable() {
   if (sedi.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground text-sm">
-        Nessun dato disponibile. Assegna le sedi ai preventivi per visualizzare le analytics.
+        {t("Nessun dato disponibile. Assegna le sedi ai preventivi per visualizzare le analytics.")}
       </div>
     )
   }
@@ -53,13 +55,13 @@ export function SedeIncidenzaTable() {
       <table className="w-full text-sm">
         <thead className="bg-eic-navy text-white">
           <tr>
-            <th className="p-3 text-left">Sede</th>
-            <th className="p-3 text-right">Ricavi</th>
-            <th className="p-3 text-right">Margine</th>
-            <th className="p-3 text-right">Marg. %</th>
-            <th className="p-3 text-right">Inc. Ricavi</th>
-            <th className="p-3 text-right">Inc. Margine</th>
-            <th className="p-3 text-center">Delta</th>
+            <th className="p-3 text-left">{t("Sede")}</th>
+            <th className="p-3 text-right">{t("Ricavi")}</th>
+            <th className="p-3 text-right">{t("Margine")}</th>
+            <th className="p-3 text-right">{t("Marg. %")}</th>
+            <th className="p-3 text-right">{t("Inc. Ricavi")}</th>
+            <th className="p-3 text-right">{t("Inc. Margine")}</th>
+            <th className="p-3 text-center">{t("Delta")}</th>
           </tr>
         </thead>
         <tbody>

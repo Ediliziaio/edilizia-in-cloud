@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
 import { useNavigate } from "react-router-dom";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   alerts: AlertsData | undefined;
@@ -21,18 +22,19 @@ interface AlertItem {
 }
 
 export const AlertBanner = memo(function AlertBanner({ alerts, isLoading }: Props) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
 
   if (isLoading || !alerts) return null;
 
   const items: AlertItem[] = [
-    { key: "stale_leads", icon: Clock, label: "Lead non contattati 48h+", count: alerts.stale_leads, severity: "critical", path: "/azienda/marketing/contatti" },
-    { key: "stale_opp", icon: AlertTriangle, label: "Opportunità ferme", count: alerts.stale_opportunities, severity: "critical", path: "/azienda/marketing/opportunita" },
-    { key: "stale_2h", icon: Timer, label: "Lead non contattati entro 2h", count: alerts.stale_leads_2h, severity: "warning", path: "/azienda/marketing/contatti" },
-    { key: "show_rate", icon: Target, label: "Show rate sotto soglia", count: alerts.show_rate_below_threshold, severity: "warning" },
-    { key: "pipeline_dec", icon: TrendingDown, label: "Pipeline in calo", count: alerts.pipeline_declining, severity: "warning" },
-    { key: "pending_appt", icon: CalendarX, label: "Appuntamenti da esitare", count: alerts.pending_appointments, severity: "warning", path: "/azienda/marketing/calendario" },
+    { key: "stale_leads", icon: Clock, label: t("Lead non contattati 48h+"), count: alerts.stale_leads, severity: "critical", path: "/azienda/marketing/contatti" },
+    { key: "stale_opp", icon: AlertTriangle, label: t("Opportunità ferme"), count: alerts.stale_opportunities, severity: "critical", path: "/azienda/marketing/opportunita" },
+    { key: "stale_2h", icon: Timer, label: t("Lead non contattati entro 2h"), count: alerts.stale_leads_2h, severity: "warning", path: "/azienda/marketing/contatti" },
+    { key: "show_rate", icon: Target, label: t("Show rate sotto soglia"), count: alerts.show_rate_below_threshold, severity: "warning" },
+    { key: "pipeline_dec", icon: TrendingDown, label: t("Pipeline in calo"), count: alerts.pipeline_declining, severity: "warning" },
+    { key: "pending_appt", icon: CalendarX, label: t("Appuntamenti da esitare"), count: alerts.pending_appointments, severity: "warning", path: "/azienda/marketing/calendario" },
   ];
 
   const active = items.filter(i => typeof i.count === "boolean" ? i.count : (i.count as number) > 0);
@@ -53,7 +55,7 @@ export const AlertBanner = memo(function AlertBanner({ alerts, isLoading }: Prop
         <div className="flex items-center gap-2">
           <AlertTriangle className={cn("h-4 w-4", isCritical ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400")} />
           <span className="text-sm font-semibold">
-            {active.length} alert attiv{active.length === 1 ? "o" : "i"}
+            {t(active.length === 1 ? "{n} alert attivo" : "{n} alert attivi", { n: active.length })}
           </span>
           {!expanded && (
             <div className="flex gap-1.5 ml-2">

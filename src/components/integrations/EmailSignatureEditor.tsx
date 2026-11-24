@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, AlertCircle } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface EmailSignatureEditorProps {
   connectionId: string;
@@ -43,6 +44,7 @@ export function EmailSignatureEditor({
   emailAddress,
   onSaved,
 }: EmailSignatureEditorProps) {
+  const t = useT();
   const qc = useQueryClient();
   const [text, setText] = useState(initialText ?? "");
   const [dirty, setDirty] = useState(false);
@@ -87,19 +89,19 @@ export function EmailSignatureEditor({
       setDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
-      toast.success("Firma salvata");
+      toast.success(t("Firma salvata"));
       onSaved?.();
     },
     onError: (e) => {
       // Errore tipico: colonna non esiste (migration pending)
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("signature_html") || msg.includes("signature_text") || msg.includes("42703")) {
-        toast.error("Migration firma email non ancora applicata", {
-          description: "Esegui `supabase db push` per attivare le firme personali.",
+        toast.error(t("Migration firma email non ancora applicata"), {
+          description: t("Esegui `supabase db push` per attivare le firme personali."),
         });
         return;
       }
-      toast.error("Errore salvataggio firma", { description: msg });
+      toast.error(t("Errore salvataggio firma"), { description: msg });
     },
   });
 
@@ -113,17 +115,17 @@ export function EmailSignatureEditor({
     <div className="space-y-2 rounded-md border bg-muted/20 p-3">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs font-semibold flex items-center gap-1.5">
-          Firma email
+          {t("Firma email")}
           {saved && <Check className="h-3 w-3 text-emerald-600" />}
           {saveMutation.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
         </Label>
         {text.trim() ? (
           <span className="text-[10px] text-emerald-700 flex items-center gap-0.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Attiva
+            {t("Attiva")}
           </span>
         ) : (
-          <span className="text-[10px] text-muted-foreground">Nessuna firma</span>
+          <span className="text-[10px] text-muted-foreground">{t("Nessuna firma")}</span>
         )}
       </div>
       <Textarea
@@ -146,7 +148,7 @@ export function EmailSignatureEditor({
       />
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <span>
-          Appesa automaticamente a tutte le email inviate da {emailAddress || "questo account"}.
+          {t("Appesa automaticamente a tutte le email inviate da")} {emailAddress || t("questo account")}.
         </span>
         {dirty && (
           <Button
@@ -157,14 +159,14 @@ export function EmailSignatureEditor({
             onClick={() => saveMutation.mutate(text)}
             disabled={saveMutation.isPending}
           >
-            Salva ora
+            {t("Salva ora")}
           </Button>
         )}
       </div>
       {initialHtml && initialHtml !== initialText && (
         <p className="text-[10px] text-muted-foreground flex items-start gap-1">
           <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
-          La versione HTML è impostata. Modificando qui verrà rigenerata da plain text.
+          {t("La versione HTML è impostata. Modificando qui verrà rigenerata da plain text.")}
         </p>
       )}
     </div>

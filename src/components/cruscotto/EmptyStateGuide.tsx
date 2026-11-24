@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { PackagePlus, UserPlus, Receipt, BarChart3 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   hasOrders: boolean;
@@ -41,6 +42,7 @@ const GUIDES = [
 ];
 
 export const EmptyStateGuide = memo(function EmptyStateGuide(props: Props) {
+  const t = useT();
   const visible = GUIDES.filter(g => g.check(props));
   if (visible.length === 0) return null;
 
@@ -48,10 +50,10 @@ export const EmptyStateGuide = memo(function EmptyStateGuide(props: Props) {
     <Card className="p-5 border-dashed border-2 border-muted-foreground/20">
       <div className="flex items-center gap-2 mb-3">
         <BarChart3 className="h-5 w-5 text-primary" />
-        <h3 className="text-sm font-semibold">Il cruscotto si popola con i tuoi dati</h3>
+        <h3 className="text-sm font-semibold">{t("Il cruscotto si popola con i tuoi dati")}</h3>
       </div>
       <p className="text-xs text-muted-foreground mb-4">
-        Inizia inserendo ordini, contatti e costi — i KPI si aggiorneranno automaticamente.
+        {t("Inizia inserendo ordini, contatti e costi — i KPI si aggiorneranno automaticamente.")}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {visible.map(g => {
@@ -60,11 +62,11 @@ export const EmptyStateGuide = memo(function EmptyStateGuide(props: Props) {
             <div key={g.key} className="flex flex-col items-start gap-2 p-3 rounded-lg bg-muted/50">
               <Icon className="h-5 w-5 text-primary" />
               <div>
-                <div className="text-sm font-medium">{g.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{g.desc}</div>
+                <div className="text-sm font-medium">{t(g.title)}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{t(g.desc)}</div>
               </div>
               <Button asChild size="sm" variant="outline" className="mt-auto">
-                <Link to={g.link}>{g.cta}</Link>
+                <Link to={g.link}>{t(g.cta)}</Link>
               </Button>
             </div>
           );

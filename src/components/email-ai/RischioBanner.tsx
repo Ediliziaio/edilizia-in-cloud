@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { valutaRischio } from "@/lib/email-ai/risk-signals";
 import { useDominiFornitoriNoti, useDocumentiEstrattiPerEmail } from "@/lib/email-ai/hooks";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RischioMessage {
   id: string;
@@ -44,6 +45,7 @@ function extractLinks(html?: string | null): Array<{ text?: string; href?: strin
 }
 
 export function RischioBanner({ message }: { message: RischioMessage }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { data: knownDomains } = useDominiFornitoriNoti(effectiveCompany?.id);
   const { data: drafts } = useDocumentiEstrattiPerEmail(message.id);
@@ -75,7 +77,7 @@ export function RischioBanner({ message }: { message: RischioMessage }) {
     )}>
       <div className={cn("mb-1.5 flex items-center gap-2 text-sm font-semibold", alto ? "text-rose-800" : "text-amber-800")}>
         {alto ? <ShieldAlert className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-        {alto ? "Email ad alto rischio" : "Email da verificare"}
+        {alto ? t("Email ad alto rischio") : t("Email da verificare")}
       </div>
       <ul className="space-y-1">
         {segnali.map((s) => (
@@ -86,7 +88,7 @@ export function RischioBanner({ message }: { message: RischioMessage }) {
         ))}
       </ul>
       <p className={cn("mt-2 text-[11px]", alto ? "text-rose-700" : "text-amber-700")}>
-        Questo è un avviso: l'email non è stata bloccata. Valuta tu prima di agire.
+        {t("Questo è un avviso: l'email non è stata bloccata. Valuta tu prima di agire.")}
       </p>
     </div>
   );

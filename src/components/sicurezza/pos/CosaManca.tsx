@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Lavorazione, SezionePos, VoceMancante } from "../../../../supabase/functions/_shared/posModello";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   voci: VoceMancante[];
@@ -14,9 +15,9 @@ interface Props {
 type Gruppo = NonNullable<VoceMancante["gruppo"]>;
 type Elemento = { tipo: "voce"; voce: VoceMancante } | { tipo: "gruppo"; gruppo: Gruppo; voci: VoceMancante[] };
 
-const TITOLO_GRUPPO: Record<Gruppo, (n: number) => string> = {
-  "prodotti-riesame": (n) => `Elenco dei prodotti da riesaminare in ${n} lavorazioni`,
-  "prodotti-identifica": (n) => `Prodotti e schede di sicurezza (SDS) da identificare in ${n} lavorazioni`,
+const TITOLO_GRUPPO: Record<Gruppo, string> = {
+  "prodotti-riesame": "Elenco dei prodotti da riesaminare in {n} lavorazioni",
+  "prodotti-identifica": "Prodotti e schede di sicurezza (SDS) da identificare in {n} lavorazioni",
 };
 
 /**
@@ -39,6 +40,7 @@ export function raggruppaVoci(voci: VoceMancante[]): Elemento[] {
 }
 
 export function CosaManca({ voci, lavorazioni, ro, onVai, onConfermaProdotti }: Props) {
+  const t = useT();
   const [confermo, setConfermo] = useState(false);
   const nome = (id?: string) => {
     const i = lavorazioni.findIndex((l) => l.id === id);
@@ -55,21 +57,19 @@ export function CosaManca({ voci, lavorazioni, ro, onVai, onConfermaProdotti }: 
         </li>
       ) : (
         <li key={e.gruppo} className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-2 text-sm">
-          <p className="font-medium">{TITOLO_GRUPPO[e.gruppo](e.voci.length)}<span className="ml-1 text-xs font-normal text-muted-foreground">({e.voci[0].riferimento})</span></p>
+          <p className="font-medium">{t(TITOLO_GRUPPO[e.gruppo], { n: e.voci.length })}<span className="ml-1 text-xs font-normal text-muted-foreground">({e.voci[0].riferimento})</span></p>
           <p className="text-xs text-muted-foreground">{e.voci.map((v) => `«${nome(v.lavorazione_id)}»`).join(", ")}</p>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" className="tap-compact" onClick={() => onVai("lavorazioni")}>Apri le lavorazioni</Button>
+            <Button type="button" size="sm" variant="outline" className="tap-compact" onClick={() => onVai("lavorazioni")}>{t("Apri le lavorazioni")}</Button>
           </div>
           {e.gruppo === "prodotti-riesame" && !ro && (
             <div className="space-y-2 rounded-md border bg-background p-2">
               <label className="flex items-start gap-2 text-xs">
                 <input type="checkbox" className="mt-0.5" checked={confermo} onChange={(ev) => setConfermo(ev.target.checked)} />
-                Ho verificato l’elenco dei prodotti realmente usati in queste lavorazioni, anche dove non sono previste sostanze pericolose. La conferma non è una valutazione del rischio chimico.
+                {t("Ho verificato l’elenco dei prodotti realmente usati in queste lavorazioni, anche dove non sono previste sostanze pericolose. La conferma non è una valutazione del rischio chimico.")}
               </label>
               <Button type="button" size="sm" disabled={!confermo} className="tap-compact"
-                onClick={() => { onConfermaProdotti(e.voci.map((v) => v.lavorazione_id).filter((x): x is string => !!x)); setConfermo(false); }}>
-                Conferma per tutte e {e.voci.length}
-              </Button>
+                onClick={() => { onConfermaProdotti(e.voci.map((v) => v.lavorazione_id).filter((x): x is string => !!x)); setConfermo(false); }}>{t("Conferma per tutte e {n}", { n: e.voci.length })}</Button>
             </div>
           )}
         </li>

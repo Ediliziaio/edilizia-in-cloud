@@ -1,3 +1,4 @@
+
 /**
  * CassaCumulataChart — extract da FotovoltaicoWizard (~142 righe)
  * SVG chart pure (no deps). Mostra cassa cumulata con highlight breakeven
@@ -5,12 +6,15 @@
  * wizard fotovoltaico (3456 → 3314 righe).
  */
 
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
 interface Props {
   cassa: Array<{ anno: number; cumulato: number }>;
   payback: number | null;
 }
 
 export function CassaCumulataChart({ cassa, payback }: Props) {
+  const t = useT();
   const xRange = cassa.length > 0 ? cassa[cassa.length - 1].anno : 0;
   // Guard: serve almeno 2 punti e un orizzonte > 0, altrimenti xScale divide per 0.
   if (cassa.length < 2 || xRange <= 0) return null;
@@ -59,7 +63,7 @@ export function CassaCumulataChart({ cassa, payback }: Props) {
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-auto"
       role="img"
-      aria-label={`Grafico cassa cumulata ${xRange} anni`}
+      aria-label={t("Grafico cassa cumulata {xRange} anni", { xRange: String(xRange ?? "") })}
     >
       <defs>
         <linearGradient id="fvGreenArea" x1="0" y1="0" x2="0" y2="1">
@@ -106,11 +110,9 @@ export function CassaCumulataChart({ cassa, payback }: Props) {
           <g transform={`translate(${breakevenX + 5}, ${padT + 10})`}>
             <rect width="120" height="32" rx="6" fill="#F97316" />
             <text x="10" y="14" fontSize="10" fill="white" fontWeight="700">
-              BREAKEVEN
+              {t("BREAKEVEN")}
             </text>
-            <text x="10" y="26" fontSize="10" fill="white">
-              Anno {payback?.toFixed(1)} · 0 €
-            </text>
+            <text x="10" y="26" fontSize="10" fill="white">{t("Anno {payback} · 0 €", { payback: payback?.toFixed(1) })}</text>
           </g>
         </>
       )}
@@ -153,7 +155,7 @@ export function CassaCumulataChart({ cassa, payback }: Props) {
             xRange,
           ]),
         ].map((a, i) => (
-          <text key={`${a}-${i}`} x={xScale(a)} y={H - padB + 18}>{`Anno ${a}`}</text>
+          <text key={`${a}-${i}`} x={xScale(a)} y={H - padB + 18}>{t("Anno {a}", { a: String(a ?? "") })}</text>
         ))}
       </g>
     </svg>

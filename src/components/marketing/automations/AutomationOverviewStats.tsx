@@ -11,6 +11,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   companyId: string;
@@ -19,6 +20,7 @@ interface Props {
 const MS_DAY = 86400 * 1000;
 
 export function AutomationOverviewStats({ companyId }: Props) {
+  const t = useT();
   const { data, isLoading, error } = useQuery({
     queryKey: ["automation-overview-stats", companyId],
     queryFn: async () => {
@@ -63,7 +65,7 @@ export function AutomationOverviewStats({ companyId }: Props) {
     refetchInterval: 30 * 1000,
   });
 
-  if (error) return <p role="status" className="mt-1 text-sm text-amber-700">Statistiche non disponibili: impossibile verificare gli esiti.</p>;
+  if (error) return <p role="status" className="mt-1 text-sm text-amber-700">{t("Statistiche non disponibili: impossibile verificare gli esiti.")}</p>;
 
   if (isLoading || !data) {
     return <Skeleton className="mt-1.5 h-4 w-96 max-w-full" />;
@@ -72,32 +74,32 @@ export function AutomationOverviewStats({ companyId }: Props) {
   const successRate = data.runs7d > 0
     ? Math.round((data.runs7dSuccess / data.runs7d) * 100)
     : null;
-  const n = (v: number) => v.toLocaleString("it-IT");
+  const n = (v: number) => v.toLocaleString(intlCampo());
 
   const voci: { testo: string; titolo?: string; allarme?: boolean }[] = [
     {
       testo: data.enrollmentsActive > 0
-        ? `${n(data.enrollmentsActive)} iscrizion${data.enrollmentsActive === 1 ? "e" : "i"} in corso`
-        : "nessuna iscrizione in corso",
+        ? t(data.enrollmentsActive === 1 ? "{n} iscrizione in corso" : "{n} iscrizioni in corso", { n: n(data.enrollmentsActive) })
+        : t("nessuna iscrizione in corso"),
     },
     {
       testo: data.runs24h > 0
-        ? `${n(data.runs24h)} passagg${data.runs24h === 1 ? "io eseguito" : "i eseguiti"} nelle ultime 24 ore`
-        : "nessun passaggio eseguito nelle ultime 24 ore",
-      titolo: `${n(data.runs7d)} in 7 giorni`,
+        ? t(data.runs24h === 1 ? "{n} passaggio eseguito nelle ultime 24 ore" : "{n} passaggi eseguiti nelle ultime 24 ore", { n: n(data.runs24h) })
+        : t("nessun passaggio eseguito nelle ultime 24 ore"),
+      titolo: t("{n} in 7 giorni", { n: n(data.runs7d) }),
     },
     ...(successRate !== null
-      ? [{ testo: `${successRate}% riusciti in 7 giorni`, titolo: `${n(data.runs7dSuccess)} su ${n(data.runs7d)}` }]
+      ? [{ testo: t("{n}% riusciti in 7 giorni", { n: successRate }), titolo: t("{n} su {totale}", { n: n(data.runs7dSuccess), totale: n(data.runs7d) }) }]
       : []),
     {
       testo: data.errors24h > 0
-        ? `${n(data.errors24h)} error${data.errors24h === 1 ? "e" : "i"} nelle ultime 24 ore`
-        : "nessun errore nelle ultime 24 ore",
+        ? t(data.errors24h === 1 ? "{n} errore nelle ultime 24 ore" : "{n} errori nelle ultime 24 ore", { n: n(data.errors24h) })
+        : t("nessun errore nelle ultime 24 ore"),
       allarme: data.errors24h > 0,
     },
     ...(data.unresolvedErrors > 0 ? [{
       testo: `${n(data.unresolvedErrors)} passagg${data.unresolvedErrors === 1 ? "io fallito da verificare" : "i falliti da verificare"}`,
-      titolo: "Errori definitivi ancora aperti, anche precedenti agli ultimi 7 giorni. Nessun reinvio automatico.",
+      titolo: t("Errori definitivi ancora aperti, anche precedenti agli ultimi 7 giorni. Nessun reinvio automatico."),
       allarme: true,
     }] : []),
   ];

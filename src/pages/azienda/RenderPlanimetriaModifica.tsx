@@ -11,8 +11,10 @@ import { EditorConSalvataggio } from "@/components/planimetrie/editor/EditorConS
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function RenderPlanimetriaModifica() {
+  const t = useT();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const { effectiveCompany } = useAuth();
@@ -29,10 +31,10 @@ export default function RenderPlanimetriaModifica() {
   if (error || !data) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
-        <TestataPlanimetrie indietro={percorsiPlanimetrie.elenco} titolo="Modifica la pianta" />
-        <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Pianta non trovata."}</p>
+        <TestataPlanimetrie indietro={percorsiPlanimetrie.elenco} titolo={t("Modifica la pianta")} />
+        <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : t("Pianta non trovata.")}</p>
         <Button asChild variant="outline">
-          <Link to={percorsiPlanimetrie.elenco}>Torna alle piante</Link>
+          <Link to={percorsiPlanimetrie.elenco}>{t("Torna alle piante")}</Link>
         </Button>
       </div>
     );

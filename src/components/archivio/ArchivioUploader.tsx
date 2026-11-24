@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Info, Upload } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   onUpload: (params: {
@@ -43,6 +44,7 @@ interface FormState {
 }
 
 export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
+  const t = useT();
   const formId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<FormState>({
@@ -85,12 +87,12 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Archivia Documento</CardTitle>
+        <CardTitle className="text-base">{t("Archivia Documento")}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-tipo`}>Tipo documento</Label>
+            <Label htmlFor={`${formId}-tipo`}>{t("Tipo documento")}</Label>
             <Select
               value={form.tipo_documento}
               onValueChange={(v) =>
@@ -101,7 +103,7 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
               }
             >
               <SelectTrigger id={`${formId}-tipo`}>
-                <SelectValue placeholder="Seleziona tipo..." />
+                <SelectValue placeholder={t("Seleziona tipo...")} />
               </SelectTrigger>
               <SelectContent>
                 {(
@@ -111,7 +113,7 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
                   ][]
                 ).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
-                    {label}
+                    {t(label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -119,7 +121,7 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-anno`}>Anno fiscale</Label>
+            <Label htmlFor={`${formId}-anno`}>{t("Anno fiscale")}</Label>
             <Input
               id={`${formId}-anno`}
               type="number"
@@ -133,7 +135,7 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-file`}>File</Label>
+            <Label htmlFor={`${formId}-file`}>{t("File")}</Label>
             <Input
               id={`${formId}-file`}
               aria-describedby={`${formId}-formati`}
@@ -145,15 +147,15 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
               }
             />
             <p id={`${formId}-formati`} className="text-xs text-muted-foreground">
-              Formati accettati: PDF, XML, P7M
+              {t("Formati accettati: PDF, XML, P7M")}
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-note`}>Note</Label>
+            <Label htmlFor={`${formId}-note`}>{t("Note")}</Label>
             <Textarea
               id={`${formId}-note`}
-              placeholder="Note opzionali sul documento..."
+              placeholder={t("Note opzionali sul documento...")}
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               rows={2}
@@ -163,14 +165,13 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
           <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
             <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
             <span>
-              Del documento si calcola l'impronta SHA-256, che serve a
-              riconoscere se il file cambia. Non è una firma digitale.
+              {t("Del documento si calcola l'impronta SHA-256, che serve a riconoscere se il file cambia. Non è una firma digitale.")}
             </span>
           </div>
 
           <Button type="submit" disabled={isUploading || !isValid}>
             <Upload className="h-4 w-4 mr-2" />
-            {isUploading ? "Archiviazione in corso..." : "Archivia Documento"}
+            {isUploading ? t("Archiviazione in corso...") : t("Archivia Documento")}
           </Button>
         </form>
       </CardContent>

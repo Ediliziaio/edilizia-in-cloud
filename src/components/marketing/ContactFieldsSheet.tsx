@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Lock, GripVertical } from "lucide-react";
 import { COLUMNS } from "./ContactsTable";
 import type { CustomFieldDef } from "@/lib/contactUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactFieldsSheetProps {
   open: boolean;
@@ -35,6 +36,7 @@ function groupBy(cols: ColDef[]) {
 }
 
 export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply, customFields = [] }: ContactFieldsSheetProps) {
+  const t = useT();
   const [draft, setDraft] = useState<Set<string>>(new Set(visibleColumns));
   const [search, setSearch] = useState("");
 
@@ -89,7 +91,7 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
         onCheckedChange={() => toggleField(col.key)}
         className="h-3.5 w-3.5"
       />
-      <span className="text-xs truncate">{col.label}</span>
+      <span className="text-xs truncate">{col.key.startsWith("cf_") ? col.label : t(col.label)}</span>
     </div>
   );
 
@@ -97,9 +99,9 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-sm flex flex-col p-0 gap-0">
         <SheetHeader className="px-5 pt-5 pb-3 border-b">
-          <SheetTitle className="text-lg font-bold">Gestisci campi</SheetTitle>
+          <SheetTitle className="text-lg font-bold">{t("Gestisci campi")}</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            Scegli le colonne da mostrare nella tabella contatti
+            {t("Scegli le colonne da mostrare nella tabella contatti")}
           </SheetDescription>
         </SheetHeader>
 
@@ -108,7 +110,7 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Cerca campi..."
+              placeholder={t("Cerca campi...")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 pl-8 text-xs"
@@ -118,10 +120,10 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
           {/* Active fields grouped */}
           {activeGroups.length > 0 && (
             <div className="space-y-3">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase">Campi nella tabella</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase">{t("Campi nella tabella")}</p>
               {activeGroups.map(({ group, cols }) => (
                 <div key={group} className="space-y-0.5">
-                  <p className="text-[10px] font-medium text-muted-foreground/70 pl-1">{group}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground/70 pl-1">{t(group)}</p>
                   {cols.map(renderField)}
                 </div>
               ))}
@@ -131,10 +133,10 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
           {/* Inactive fields grouped */}
           {inactiveGroups.length > 0 && (
             <div className="space-y-3">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase">Aggiungi campi</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase">{t("Aggiungi campi")}</p>
               {inactiveGroups.map(({ group, cols }) => (
                 <div key={group} className="space-y-0.5">
-                  <p className="text-[10px] font-medium text-muted-foreground/70 pl-1">{group}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground/70 pl-1">{t(group)}</p>
                   {cols.map(renderField)}
                 </div>
               ))}
@@ -145,7 +147,7 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
         {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 flex items-center justify-end gap-2 px-5 py-3 bg-background border-t">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             size="sm"
@@ -154,7 +156,7 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
               onOpenChange(false);
             }}
           >
-            Applica
+            {t("Applica")}
           </Button>
         </div>
       </SheetContent>

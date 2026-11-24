@@ -1,11 +1,11 @@
 import { useState, Suspense, lazy, useEffect } from "react";
 import { format, subDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Route, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePercorsoGiornaliero } from "@/hooks/usePercorsoGiornaliero";
 import type { GpsPositionExport } from "@/lib/gps/exportExcel";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // Lazy-load della mappa percorso per non bloccare il bundle
 const PercorsoMap = lazy(() =>
@@ -30,6 +30,7 @@ export function PercorsoTecnico({
   className,
   onPositionsLoaded,
 }: PercorsoTecnicoProps) {
+  const t = useT();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
@@ -76,7 +77,7 @@ export function PercorsoTecnico({
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-xs min-w-[80px] text-center">
-            {format(selectedDate, "d MMM yyyy", { locale: it })}
+            {format(selectedDate, "d MMM yyyy", { locale: dateFnsCampo() })}
           </span>
           <Button
             variant="ghost"
@@ -102,7 +103,7 @@ export function PercorsoTecnico({
         </div>
       ) : positions.length === 0 ? (
         <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
-          Nessun percorso registrato per questa data
+          {t("Nessun percorso registrato per questa data")}
         </div>
       ) : (
         <Suspense

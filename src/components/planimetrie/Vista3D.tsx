@@ -55,6 +55,7 @@ import type { InquadraturaRender3D } from "./tred/RenderInquadratura3D";
 import type { Punto } from "../../../shared/planimetrie/modello";
 import { rettangoliIngombroArredo } from "../../../shared/planimetrie/modelliArredo";
 import { LUCI_RENDER_LOCALE, NOMI_LUCE_RENDER_LOCALE, type LuceRenderLocale } from "../../../shared/planimetrie/renderLocale";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const RenderInquadratura3D = lazy(() => import("./tred/RenderInquadratura3D"));
 
@@ -155,6 +156,7 @@ function scarica(dati: BlobPart, nome: string, tipo: string) {
 }
 
 const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piante, nomeFile = "planimetria", className, onFotogramma, modoIniziale = "giro", vistaIniziale = "progetto", vistaEdificioIniziale, localeIniziale, piani, livelloIniziale, onVediInPianta, onVisita, versione, archivioRender, archivioInquadrature, edificioIniziale = false, esplosoIniziale = false, aspettoIniziale, telecameraIniziale, proporzioniIniziali, studio, anteprimaEditor }, ref) {
+  const tr = useT();
   const schemaCanali = !!piante.progetto.canaliAria;
   const compatta = !!anteprimaEditor;
   const contenitore = useRef<HTMLDivElement>(null);
@@ -235,7 +237,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const vistaVisita = vista === vistaIniziale ? vistaEdificioIniziale ?? vista : vista;
   const strutturaStrati = strati && modo !== "dentro" && !inVisita;
   const mostraSoffitti = soffitto || strutturaStrati;
-  const pianiVisita = useMemo(() => piani?.length ? piani : [{ id: "piano", nome: "Piano terra", quota: 0, piante }], [piani, piante]);
+  const pianiVisita = useMemo(() => piani?.length ? piani : [{ id: "piano", nome: tr("Piano terra"), quota: 0, piante }], [piani, piante, tr]);
   const scenaBase: Scena3D = useMemo(
     () =>
       inVisita ? scenaEdificio(pianiVisita, { vista: vistaVisita, soffitto: true, impianti, passaggiAperti: true, terreno: 4 })
@@ -262,10 +264,10 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       .then(risultato => { if (!chiuso) setScenaDettagliata({ base: scenaVisibile, risultato }); })
       .catch(() => {
         if (!chiuso) setScenaDettagliata({ base: scenaVisibile, risultato: { ...scenaVisibile,
-          avvisi: [...scenaVisibile.avvisi, "Modelli di dettaglio non disponibili."] } });
+          avvisi: [...scenaVisibile.avvisi, tr("Modelli di dettaglio non disponibili.")] } });
       });
     return () => { chiuso = true; };
-  }, [scenaVisibile]);
+  }, [scenaVisibile, tr]);
   const scena = scenaDettagliata?.base === scenaVisibile ? scenaDettagliata.risultato : scenaVisibile;
   const mappa = useMemo(() => inVisita ? mappaVisita(pianiVisita, vistaVisita, scena) : null, [inVisita, pianiVisita, vistaVisita, scena]);
   const pianoPartenza = livelloIniziale ?? piani?.find(p => p.piante === piante)?.id;
@@ -305,7 +307,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: !compatta });
     } catch {
-      setErrore("Questo browser non riesce a mostrare il 3D (WebGL non disponibile).");
+      setErrore(tr("Questo browser non riesce a mostrare il 3D (WebGL non disponibile)."));
       return;
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, compatta ? 1.5 : 2));
@@ -350,7 +352,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       renderer.domElement.remove();
       motore.current = null;
     };
-  }, [leggiPosizioneMappa, compatta]);
+  }, [leggiPosizioneMappa, compatta, tr]);
 
   // Sincronizza la scena mantenendo mesh, buffer e materiali ancora validi.
   useEffect(() => {
@@ -643,7 +645,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     if (!mappa || !posizione.current) return;
     const punti = percorsoVisita(mappa, posizione.current, passaggio);
     if (!punti) return;
-    animaPercorso(punti, passaggio.a, passaggio.tipo === "sali" ? "Salita in corso" : passaggio.tipo === "scendi" ? "Discesa in corso" : "Attraverso la soglia");
+    animaPercorso(punti, passaggio.a, passaggio.tipo === "sali" ? tr("Salita in corso") : passaggio.tipo === "scendi" ? tr("Discesa in corso") : tr("Attraverso la soglia"));
   };
 
   const raggiungiPavimento = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -662,10 +664,10 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     const punti = percorsoSulPavimentoVisita(mappa, p, [x, y, z]);
     const piedi = punti?.at(-1);
     if (!punti || !piedi) {
-      setAvvisoVisita("Punto non raggiungibile in linea diretta.");
+      setAvvisoVisita(tr("Punto non raggiungibile in linea diretta."));
       return;
     }
-    animaPercorso(punti, { pianoId: p.pianoId, piedi }, "Spostamento in corso");
+    animaPercorso(punti, { pianoId: p.pianoId, piedi }, tr("Spostamento in corso"));
   };
 
   useEffect(() => {
@@ -697,7 +699,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
 
   const telecameraAdesso = useCallback((): Telecamera3D => {
     const m = motore.current;
-    if (!m) throw new Error("3D non pronto.");
+    if (!m) throw new Error(tr("3D non pronto."));
     const dir = new THREE.Vector3();
     m.camera.getWorldDirection(dir);
     const p = m.camera.position;
@@ -707,7 +709,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       alto: [m.camera.up.x, m.camera.up.y, m.camera.up.z],
       fov: m.camera.fov,
     };
-  }, []);
+  }, [tr]);
 
   const fotogramma = useCallback(
     async (misure?: { larghezza: number; altezza: number }) => {
@@ -716,13 +718,13 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       // si cammina da una stanza all'altra e si fa il render da dove si è.
       const doveSono = modo === "dentro" ? localeAllaPosizione(pianta, telecamera.posizione) : null;
       const id = doveSono ?? (locali.some((l) => l.id === localeId) ? localeId : locali[0]?.id);
-      if (!id) throw new Error("La pianta non ha locali.");
+      if (!id) throw new Error(tr("La pianta non ha locali."));
       if (modo === "dentro" && motore.current) {
         telecamera.fov = fovPerProporzioni(telecamera.fov, motore.current.camera.aspect, (misure?.larghezza ?? 1024) / (misure?.altezza ?? 768));
       }
       return catturaFotogramma({ pianta, localeId: id, telecamera, vista, elementi: arredi, aspetto: { ...asp, dentro: modo === "dentro", effetti: false }, ...misure });
     },
-    [pianta, locali, localeId, vista, arredi, asp, telecameraAdesso, modo],
+    [pianta, locali, localeId, vista, arredi, asp, telecameraAdesso, modo, tr],
   );
 
   useImperativeHandle(ref, () => ({
@@ -826,38 +828,38 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
 
   const suggerimento =
     modo === "alto"
-      ? "Trascina per spostarti, rotella o due dita per avvicinarti."
+      ? tr("Trascina per spostarti, rotella o due dita per avvicinarti.")
       : modo === "giro"
-        ? "Trascina per girare intorno, rotella o due dita per avvicinarti, tasto destro per spostarti."
-        : inVisita ? "Tocca un punto sul pavimento per raggiungerlo. Trascina per guardarti intorno. Puoi camminare anche con le frecce o WASD."
-          : "Trascina per guardarti intorno. Frecce o rotella per camminare.";
+        ? tr("Trascina per girare intorno, rotella o due dita per avvicinarti, tasto destro per spostarti.")
+        : inVisita ? tr("Tocca un punto sul pavimento per raggiungerlo. Trascina per guardarti intorno. Puoi camminare anche con le frecce o WASD.")
+          : tr("Trascina per guardarti intorno. Frecce o rotella per camminare.");
 
-  const comandiVista = <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare" className="[&>*]:whitespace-nowrap">
-    <ToggleGroupItem value="alto" aria-label="Vista dall'alto">
+  const comandiVista = <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label={tr("Come guardare")} className="[&>*]:whitespace-nowrap">
+    <ToggleGroupItem value="alto" aria-label={tr("Vista dall'alto")}>
       <MappaIcona className="mr-1 h-4 w-4" />
-      Dall'alto
+      {tr("Dall'alto")}
     </ToggleGroupItem>
-    <ToggleGroupItem value="giro" aria-label="Gira intorno">
+    <ToggleGroupItem value="giro" aria-label={tr("Gira intorno")}>
       <Rotate3d className="mr-1 h-4 w-4" />
-      <span className="max-sm:hidden">Gira intorno</span><span className="sm:hidden">Gira</span>
+      <span className="max-sm:hidden">{tr("Gira intorno")}</span><span className="sm:hidden">{tr("Gira")}</span>
     </ToggleGroupItem>
-    {(compatta ? locali.length > 0 : studio || archivioStanza || onFotogramma || modoIniziale === "dentro") && <ToggleGroupItem value="dentro" aria-label="Entra nella stanza" disabled={tuttiIPiani}>
+    {(compatta ? locali.length > 0 : studio || archivioStanza || onFotogramma || modoIniziale === "dentro") && <ToggleGroupItem value="dentro" aria-label={tr("Entra nella stanza")} disabled={tuttiIPiani}>
       <Eye className="mr-1 h-4 w-4" />
-      {compatta ? "Dentro" : <><span className="max-sm:hidden">Entra nella stanza</span><span className="sm:hidden">Dentro</span></>}
+      {compatta ? tr("Dentro") : <><span className="max-sm:hidden">{tr("Entra nella stanza")}</span><span className="sm:hidden">{tr("Dentro")}</span></>}
     </ToggleGroupItem>}
-    {!schemaCanali && !compatta && <ToggleGroupItem value="visita" aria-label="Visita a piedi" className="gap-1.5 data-[state=on]:text-primary">
-      <Footprints className="size-4" />Visita a piedi
+    {!schemaCanali && !compatta && <ToggleGroupItem value="visita" aria-label={tr("Visita a piedi")} className="gap-1.5 data-[state=on]:text-primary">
+      <Footprints className="size-4" />{tr("Visita a piedi")}
     </ToggleGroupItem>}
   </ToggleGroup>;
 
   if (compatta) return <div className={cn("flex flex-col", className)}>
     <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
       {comandiVista}
-      <Button type="button" size="icon" variant="ghost" className="size-8" aria-label="Ripristina inquadratura" title="Ripristina inquadratura"
+      <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={tr("Ripristina inquadratura")} title={tr("Ripristina inquadratura")}
         onClick={() => risistemaInquadratura(n => n + 1)}><Focus aria-hidden="true" /></Button>
       {anteprimaEditor.confronto && <div className="ml-auto">{anteprimaEditor.confronto}</div>}
     </div>
-    <div ref={contenitore} role="group" aria-label="Vista 3D della pianta" className="relative min-h-0 flex-1 overflow-hidden bg-[#eef1f4]"
+    <div ref={contenitore} role="group" aria-label={tr("Vista 3D della pianta")} className="relative min-h-0 flex-1 overflow-hidden bg-[#eef1f4]"
       onPointerDown={anteprimaEditor.onSelezione ? memorizzaPuntatore : undefined}
       onPointerUp={anteprimaEditor.onSelezione ? selezionaConPuntatore : undefined}
       onPointerCancel={() => { puntatore.current = null; }}>
@@ -887,14 +889,14 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             return true;
           } : undefined} />}
         {!inVisita && !schemaCanali && <Button type="button" size="sm" variant={strutturaStrati ? "secondary" : "outline"} aria-pressed={strutturaStrati}
-          className="gap-1.5" onClick={cambiaVistaEsplosa}><Layers className="size-4" />Vista esplosa</Button>}
+          className="gap-1.5" onClick={cambiaVistaEsplosa}><Layers className="size-4" />{tr("Vista esplosa")}</Button>}
         {!inVisita && !schemaCanali && !!pianta.pavimentoRadiante?.length &&
           <Button type="button" size="sm" variant={impianti ? "secondary" : "outline"} aria-pressed={impianti}
-            className="gap-1.5" onClick={() => setImpianti(v => !v)}><Cable className="size-4" />Impianti</Button>}
+            className="gap-1.5" onClick={() => setImpianti(v => !v)}><Cable className="size-4" />{tr("Impianti")}</Button>}
         {!studio && modo === "dentro" && locali.length > 0 && (
           <Select value={localeId} onValueChange={setLocaleId}>
-            <SelectTrigger className="h-9 w-44" aria-label="Stanza">
-              <SelectValue placeholder="Scegli la stanza" />
+            <SelectTrigger className="h-9 w-44" aria-label={tr("Stanza")}>
+              <SelectValue placeholder={tr("Scegli la stanza")} />
             </SelectTrigger>
             <SelectContent>
               {locali.map((l) => (
@@ -914,85 +916,85 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         {studio?.rapide && <Button type="button" size="sm" variant={studio.rapide.aperte ? "secondary" : "outline"} className="gap-1.5"
           aria-expanded={studio.rapide.aperte} aria-controls={studio.rapide.aperte ? "modifiche-rapide-3d" : undefined}
           onClick={() => studio.rapide?.onCambia(!studio.rapide.aperte)}>
-          <PaintRoller className="size-4" />Modifiche rapide
+          <PaintRoller className="size-4" />{tr("Modifiche rapide")}
         </Button>}
         {!schemaCanali && asp.realistico && !strutturaStrati && (modo === "dentro" || inVisita) &&
           <Select value={asp.luce ?? "giorno"} onValueChange={luce => cambiaAsp({ luce: luce as LuceRenderLocale })} disabled={!!attraversamento}>
-            <SelectTrigger className="h-9 w-auto gap-1.5 px-2.5" aria-label="Illuminazione della vista 3D">
+            <SelectTrigger className="h-9 w-auto gap-1.5 px-2.5" aria-label={tr("Illuminazione della vista 3D")}>
               <Sun className="size-4 shrink-0 text-muted-foreground" /><SelectValue />
             </SelectTrigger>
             <SelectContent fitContent>{LUCI_RENDER_LOCALE.map(luce => <SelectItem key={luce} value={luce}>{NOMI_LUCE_RENDER_LOCALE[luce]}</SelectItem>)}</SelectContent>
           </Select>}
         {inVisita && <div className="ml-auto flex items-center gap-1">
-          <Button type="button" size="icon" variant="ghost" className="size-8" aria-label="Torna al punto di partenza" title="Torna al punto di partenza"
+          <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={tr("Torna al punto di partenza")} title={tr("Torna al punto di partenza")}
             disabled={!tappaVisita || !!attraversamento} onClick={() => risistemaInquadratura(n => n + 1)}><Focus className="size-4"/></Button>
           <Button type="button" size="icon" variant="ghost" aria-pressed={opzioniVisibili} disabled={!!attraversamento} onClick={() => mostraOpzioni(v => !v)}
-            aria-label="Impostazioni 3D" title="Impostazioni 3D" className="size-8"><SlidersHorizontal className="size-4"/></Button>
+            aria-label={tr("Impostazioni 3D")} title={tr("Impostazioni 3D")} className="size-8"><SlidersHorizontal className="size-4"/></Button>
         </div>}
         {studio && !inVisita && <div className="ml-auto flex flex-wrap items-center gap-1">
-          {onVediInPianta && livelloIniziale && <Button type="button" size="sm" variant="ghost" className="gap-1.5" aria-label="Mostra sulla pianta"
-            onClick={() => onVediInPianta({ livelloId: livelloIniziale, localeId: localeId || undefined })}><MappaIcona className="size-4"/><span className="max-sm:sr-only">Sulla pianta</span></Button>}
-          {studio.onVistaAmpia && <Button type="button" size="sm" variant="outline" aria-pressed={studio.vistaAmpia} aria-label="Vista ampia"
+          {onVediInPianta && livelloIniziale && <Button type="button" size="sm" variant="ghost" className="gap-1.5" aria-label={tr("Mostra sulla pianta")}
+            onClick={() => onVediInPianta({ livelloId: livelloIniziale, localeId: localeId || undefined })}><MappaIcona className="size-4"/><span className="max-sm:sr-only">{tr("Sulla pianta")}</span></Button>}
+          {studio.onVistaAmpia && <Button type="button" size="sm" variant="outline" aria-pressed={studio.vistaAmpia} aria-label={tr("Vista ampia")}
             className="gap-1.5 aria-pressed:bg-primary/10 aria-pressed:text-primary motion-safe:active:scale-[.96]" onClick={studio.onVistaAmpia}>
             {studio.vistaAmpia ? <Minimize2 className="size-4"/> : <Maximize2 className="size-4"/>}
-            <span className="max-sm:sr-only">{studio.vistaAmpia ? "Mostra pannello" : "Vista ampia"}</span>
+            <span className="max-sm:sr-only">{studio.vistaAmpia ? tr("Mostra pannello") : tr("Vista ampia")}</span>
           </Button>}
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Ripristina inquadratura" title="Ripristina inquadratura" onClick={() => { setInquadraturaLocale(false); risistemaInquadratura(n => n + 1); }}><Focus className="h-4 w-4" /></Button>
-          <Button type="button" size="sm" variant="ghost" aria-pressed={opzioniVisibili} onClick={() => mostraOpzioni(v => !v)} className="gap-1.5"><SlidersHorizontal className="h-4 w-4" />Vista</Button>
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={tr("Ripristina inquadratura")} title={tr("Ripristina inquadratura")} onClick={() => { setInquadraturaLocale(false); risistemaInquadratura(n => n + 1); }}><Focus className="h-4 w-4" /></Button>
+          <Button type="button" size="sm" variant="ghost" aria-pressed={opzioniVisibili} onClick={() => mostraOpzioni(v => !v)} className="gap-1.5"><SlidersHorizontal className="h-4 w-4" />{tr("Vista")}</Button>
         </div>}
         {((!studio && !inVisita) || opzioniVisibili) && <div className="flex flex-wrap items-center gap-2 max-md:hidden">
           <Button variant="outline" size="sm" disabled={occupato} onClick={() => esegui(async () => scarica(await esportaGlbConFiniture(scena) as Uint8Array<ArrayBuffer>,
             `${nomeFile}${strutturaStrati ? "-vista-esplosa" : ""}.glb`, "model/gltf-binary"))}>
             <Download className="mr-1 h-4 w-4" />
-            Scarica GLB
+            {tr("Scarica GLB")}
           </Button>
-          {!schemaCanali && <Button variant="outline" size="sm" disabled={occupato} title="Un file da mandare al cliente: si apre col doppio clic, anche dal telefono"
+          {!schemaCanali && <Button variant="outline" size="sm" disabled={occupato} title={tr("Un file da mandare al cliente: si apre col doppio clic, anche dal telefono")}
             onClick={() => esegui(async () => {
               const { tourHtml } = await import("@/lib/planimetrie/tred/tourHtml");
               scarica(tourHtml(await esportaGlbConFiniture(scena) as Uint8Array, { titolo: nomeFile.replace(/-/g, " ") }), `${nomeFile}-tour-3d.html`, "text/html");
             })}>
             <Eye className="mr-1 h-4 w-4" />
-            Tour 3D da inviare
+            {tr("Tour 3D da inviare")}
           </Button>}
           <Button variant="outline" size="sm" disabled={occupato} onClick={scaricaObj}>
             <Box className="mr-1 h-4 w-4" />
-            Scarica OBJ
+            {tr("Scarica OBJ")}
           </Button>
         </div>}
       </div>
 
       {!schemaCanali && ((!studio && !inVisita) || (opzioniVisibili && !attraversamento)) && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
         {inVisita && <label className="flex items-center gap-2">
-          <Switch checked={!movimentoRidotto} disabled={ridotto} onCheckedChange={setAnimaPassaggi} aria-label="Anima i passaggi della visita" />
-          Anima i passaggi
+          <Switch checked={!movimentoRidotto} disabled={ridotto} onCheckedChange={setAnimaPassaggi} aria-label={tr("Anima i passaggi della visita")} />
+          {tr("Anima i passaggi")}
         </label>}
         {!studio && conStati && (
-          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && setVista(v as VistaLavori)} variant="outline" size="sm" aria-label="Cosa mostrare">
-            <ToggleGroupItem value="fatto">Stato di fatto</ToggleGroupItem>
-            <ToggleGroupItem value="progetto">Progetto</ToggleGroupItem>
+          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && setVista(v as VistaLavori)} variant="outline" size="sm" aria-label={tr("Cosa mostrare")}>
+            <ToggleGroupItem value="fatto">{tr("Stato di fatto")}</ToggleGroupItem>
+            <ToggleGroupItem value="progetto">{tr("Progetto")}</ToggleGroupItem>
             <ToggleGroupItem value="confronto">
               <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#f2c200]" />
               <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#d42a2a]" />
-              Demolizioni e nuovo
+              {tr("Demolizioni e nuovo")}
             </ToggleGroupItem>
           </ToggleGroup>
         )}
         {conPiani && !inVisita && (
           <div className="flex flex-wrap items-center gap-2">
             <Switch id="vista3d-edificio" checked={edificio} onCheckedChange={setEdificio} />
-            <Label htmlFor="vista3d-edificio" className="flex items-center gap-1"><Building className="h-3.5 w-3.5" />Tutto l'edificio ({piani!.length} piani)</Label>
+            <Label htmlFor="vista3d-edificio" className="flex items-center gap-1"><Building className="h-3.5 w-3.5" />{tr("Tutto l'edificio ({n} piani)", { n: piani!.length })}</Label>
             {edificio && (
               <>
                 <Switch id="vista3d-esploso" checked={esploso} onCheckedChange={setEsploso} />
-                <Label htmlFor="vista3d-esploso">Piani staccati</Label>
+                <Label htmlFor="vista3d-esploso">{tr("Piani staccati")}</Label>
                 <Select value={finoA || "tutti"} onValueChange={(v) => setFinoA(v === "tutti" ? "" : v)}>
-                  <SelectTrigger className="h-8 w-44" aria-label="Fino al piano">
+                  <SelectTrigger className="h-8 w-44" aria-label={tr("Fino al piano")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tutti">Tutti i piani</SelectItem>
+                    <SelectItem value="tutti">{tr("Tutti i piani")}</SelectItem>
                     {piani!.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>Fino a: {p.nome}</SelectItem>
+                      <SelectItem key={p.id} value={p.id}>{tr("Fino a: {nome}", { nome: String(p.nome ?? "") })}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1002,63 +1004,63 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         )}
         {!inVisita && <>{!strutturaStrati && <div className="flex items-center gap-2">
           <Switch id="vista3d-soffitto" checked={soffitto} onCheckedChange={setSoffitto} />
-          <Label htmlFor="vista3d-soffitto">Soffitto</Label>
+          <Label htmlFor="vista3d-soffitto">{tr("Soffitto")}</Label>
         </div>}
         <div className="flex items-center gap-2">
           <Switch id="vista3d-arredi" checked={arredi} onCheckedChange={setArredi} />
-          <Label htmlFor="vista3d-arredi">Arredi e sanitari</Label>
+          <Label htmlFor="vista3d-arredi">{tr("Arredi e sanitari")}</Label>
         </div></>}
         <div className="flex items-center gap-2">
           <Switch id="vista3d-impianti" checked={impianti} onCheckedChange={setImpianti} />
-          <Label htmlFor="vista3d-impianti" className="flex items-center gap-1"><Cable className="h-3.5 w-3.5" />Impianti</Label>
+          <Label htmlFor="vista3d-impianti" className="flex items-center gap-1"><Cable className="h-3.5 w-3.5" />{tr("Impianti")}</Label>
         </div>
         {!inVisita && <div className="flex items-center gap-2">
           <Switch id="vista3d-fondazioni" checked={fondazioni} onCheckedChange={setFondazioni} />
-          <Label htmlFor="vista3d-fondazioni">Fondazioni</Label>
+          <Label htmlFor="vista3d-fondazioni">{tr("Fondazioni")}</Label>
         </div>}
         {(
           <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 border-t pt-2">
             <div className="flex items-center gap-2">
               <Switch id="vista3d-realistico" checked={asp.realistico} onCheckedChange={(v) => cambiaAsp({ realistico: v })} />
-              <Label htmlFor="vista3d-realistico" className="flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" />Aspetto realistico</Label>
+              <Label htmlFor="vista3d-realistico" className="flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" />{tr("Aspetto realistico")}</Label>
             </div>
             {asp.realistico && (
               <>
                 {modo !== "dentro" && <Select value={stileCasa(asp) ?? "personale"} onValueChange={(v) => { if (v !== "personale") cambiaAsp(STILI_CASA[v as IdStileCasa].scelte); }}>
-                  <SelectTrigger className="h-8 w-44" aria-label="Stile della casa"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-44" aria-label={tr("Stile della casa")}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {ID_STILI_CASA.map((id) => <SelectItem key={id} value={id}>Stile: {STILI_CASA[id].nome.toLowerCase()}</SelectItem>)}
-                    <SelectItem value="personale">Stile: a modo tuo</SelectItem>
+                    {ID_STILI_CASA.map((id) => <SelectItem key={id} value={id}>{tr("Stile: {nome}", { nome: tr(STILI_CASA[id].nome).toLowerCase() })}</SelectItem>)}
+                    <SelectItem value="personale">{tr("Stile: a modo tuo")}</SelectItem>
                   </SelectContent>
                 </Select>}
                 {modo !== "dentro" && <Select value={asp.facciata} onValueChange={(v) => cambiaAsp({ facciata: v as OpzioniAspetto["facciata"], coloreFacciata: undefined })}>
-                  <SelectTrigger className="h-8 w-48" aria-label="Facciata"><SelectValue /></SelectTrigger>
-                  <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{FACCIATE[id].nome}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-8 w-48" aria-label={tr("Facciata")}><SelectValue /></SelectTrigger>
+                  <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{tr(FACCIATE[id].nome)}</SelectItem>)}</SelectContent>
                 </Select>}
-                {modo !== "dentro" && FACCIATE[asp.facciata].trama === "intonaco" && <label className="flex items-center gap-1.5 text-xs">Colore
-                  <input type="color" aria-label="Colore della facciata" value={coloreDellaFacciata(asp)}
+                {modo !== "dentro" && FACCIATE[asp.facciata].trama === "intonaco" && <label className="flex items-center gap-1.5 text-xs">{tr("Colore")}
+                  <input type="color" aria-label={tr("Colore della facciata")} value={coloreDellaFacciata(asp)}
                     onChange={(e) => cambiaAsp({ coloreFacciata: e.currentTarget.value })} className="h-8 w-10 cursor-pointer rounded border bg-background p-0.5" />
                 </label>}
                 {modo !== "dentro" && <Select value={asp.zoccolo ?? "intonaco"} onValueChange={(v) => cambiaAsp({ zoccolo: v === "intonaco" ? undefined : v as IdZoccolo })}>
-                  <SelectTrigger className="h-8 w-48" aria-label="Zoccolo della facciata"><SelectValue /></SelectTrigger>
-                  <SelectContent>{ID_ZOCCOLI.map((id) => <SelectItem key={id} value={id}>{ZOCCOLI[id]}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-8 w-48" aria-label={tr("Zoccolo della facciata")}><SelectValue /></SelectTrigger>
+                  <SelectContent>{ID_ZOCCOLI.map((id) => <SelectItem key={id} value={id}>{tr(ZOCCOLI[id])}</SelectItem>)}</SelectContent>
                 </Select>}
                 {!studio && <Select disabled={!!pianta.infissiProgetto} value={pianta.infissiProgetto?.colore ?? asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
-                  <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? "Infissi comuni del progetto" : "Infissi"}><SelectValue /></SelectTrigger>
-                  <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>Infissi: {INFISSI[id].nome.toLowerCase()}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? tr("Infissi comuni del progetto") : tr("Infissi")}><SelectValue /></SelectTrigger>
+                  <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>{tr("Infissi: {nome}", { nome: tr(INFISSI[id].nome).toLowerCase() })}</SelectItem>)}</SelectContent>
                 </Select>}
                 <div className="flex items-center gap-2">
                   <Sun className="h-3.5 w-3.5" aria-hidden />
-                  <input type="range" min={7} max={19} step={0.25} value={asp.ora} onChange={(e) => cambiaAsp({ ora: Number(e.target.value) })} aria-label="Ora del giorno" className="h-1.5 w-28 accent-primary" />
+                  <input type="range" min={7} max={19} step={0.25} value={asp.ora} onChange={(e) => cambiaAsp({ ora: Number(e.target.value) })} aria-label={tr("Ora del giorno")} className="h-1.5 w-28 accent-primary" />
                   <span className="w-10 text-xs tabular-nums text-muted-foreground">{String(Math.floor(asp.ora)).padStart(2, "0")}:{String(Math.round((asp.ora % 1) * 60)).padStart(2, "0")}</span>
                 </div>
                 {modo !== "dentro" && !studio && <div className="flex items-center gap-2">
                   <Switch id="vista3d-alberi" checked={asp.alberi} onCheckedChange={(v) => cambiaAsp({ alberi: v })} />
-                  <Label htmlFor="vista3d-alberi">Alberi</Label>
+                  <Label htmlFor="vista3d-alberi">{tr("Alberi")}</Label>
                 </div>}
                 <div className="flex items-center gap-2">
                   <Switch id="vista3d-effetti" checked={asp.effetti} onCheckedChange={(v) => cambiaAsp({ effetti: v })} />
-                  <Label htmlFor="vista3d-effetti" title="Ombre morbide negli angoli: più bello, un po' più pesante">Ombre morbide</Label>
+                  <Label htmlFor="vista3d-effetti" title={tr("Ombre morbide negli angoli: più bello, un po' più pesante")}>{tr("Ombre morbide")}</Label>
                 </div>
               </>
             )}
@@ -1067,7 +1069,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       </div>}
 
       {strutturaStrati && controlliStrati.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-2.5">
-        <div role="group" aria-label="Strati del modello" className="flex flex-wrap items-center gap-1">
+        <div role="group" aria-label={tr("Strati del modello")} className="flex flex-wrap items-center gap-1">
           {controlliStrati.map(({ id, nome }) => {
             const visibile = !stratiNascosti.has(id);
             return <Button key={id} type="button" size="sm" variant={visibile ? "secondary" : "ghost"} className="h-8 gap-1.5 px-2 text-xs"
@@ -1078,13 +1080,13 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
               })}><Layers className="size-3.5" />{nome}</Button>;
           })}
           {stratiNascosti.size > 0 && <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-xs text-primary"
-            onClick={() => setStratiNascosti(new Set())}>Mostra tutti</Button>}
+            onClick={() => setStratiNascosti(new Set())}>{tr("Mostra tutti")}</Button>}
         </div>
         <label className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          Stacco fra gli strati
+          {tr("Stacco fra gli strati")}
           <input type="range" min={0.5} max={4} step={0.1} value={distanzaStrati} onChange={e => setDistanzaStrati(Number(e.target.value))}
-            className="min-h-7 w-24 accent-primary" aria-label="Stacco fra gli strati" />
-          <span className="min-w-10 text-right font-medium tabular-nums text-foreground">{distanzaStrati.toLocaleString("it-IT")} m</span>
+            className="min-h-7 w-24 accent-primary" aria-label={tr("Stacco fra gli strati")} />
+          <span className="min-w-10 text-right font-medium tabular-nums text-foreground">{distanzaStrati.toLocaleString(intlCampo())} m</span>
         </label>
       </div>}
       <div
@@ -1103,12 +1105,12 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         onPointerCancel={() => { puntatore.current = null; anteprimaIngombro(); }}
         className={cn("relative min-h-[320px] w-full overflow-hidden rounded-lg border bg-[#eef1f4] outline-none focus-visible:ring-2 focus-visible:ring-ring",
           schemaCanali ? "h-[clamp(320px,51dvh,650px)]" : inVisita || studio?.vistaAmpia ? "h-[clamp(320px,65dvh,740px)]" : studio ? "h-[clamp(350px,54vh,680px)]" : "h-[60vh]", studio?.istruzione && !inVisita && "cursor-crosshair")}
-        aria-label={schemaCanali ? "Vista 3D dei canali" : "Vista 3D della pianta"}
+        aria-label={schemaCanali ? tr("Vista 3D dei canali") : tr("Vista 3D della pianta")}
       >
         {studio?.istruzione && !inVisita && <p role="status" className="pointer-events-none absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] rounded-lg bg-slate-900/90 px-3 py-2 text-xs font-medium text-white">{studio.istruzione}</p>}
         {errore && <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">{errore}</div>}
         {inVisita && !errore && <><IndicazioniVisita luogo={luogo} vicino={passaggioVicino} passaggioInCorso={attraversamento} avviso={avvisoVisita}
-          invito={mappa?.passaggi.length ? "Avvicinati a una scala o a un’uscita." : conPiani ? "Collegamenti tra i piani da disegnare." : undefined}
+          invito={mappa?.passaggi.length ? tr("Avvicinati a una scala o a un’uscita.") : conPiani ? tr("Collegamenti tra i piani da disegnare.") : undefined}
           onPassaggio={percorri} onRender={puoRenderDaQui ? () => preparaRenderDaQui() : undefined}
           mostraMappa={mostraMappa} onMappa={pianoInVisita ? () => setMostraMappa(v => !v) : undefined}
           onGuardaEdificio={luogo?.esterno && !attraversamento ? guardaEdificio : undefined} />
@@ -1121,20 +1123,20 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             onRilascia={() => camminata.rilascia("pulsante")} onGira={giraVisita} /></div></>}
         {!inVisita && impianti && (scena.impianti?.length ?? 0) > 0 && (
           <div className="pointer-events-none absolute bottom-3 left-3 max-w-[16rem] space-y-0.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-700 shadow-sm">
-            <p className="font-semibold">Impianti · stime</p>
+            <p className="font-semibold">{tr("Impianti · stime")}</p>
             {scena.impianti!.map((l) => (
               <p key={l.linea} className="flex items-center gap-1.5">
                 <span className="inline-block h-1 w-4 rounded-full" style={{ background: l.colore }} />
-                {l.nome} · {l.superficieMq !== undefined ? `${l.superficieMq.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m² / ` : ""}
-                {l.metri.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m
+                {l.nome} · {l.superficieMq !== undefined ? `${l.superficieMq.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} m² / ` : ""}
+                {l.metri.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} m
               </p>
             ))}
             {!!scena.impianti!.find(l => l.linea === "radiante")?.circuiti?.length && <details className="pointer-events-auto pt-1">
-              <summary className="cursor-pointer font-semibold">Circuiti radianti</summary>
+              <summary className="cursor-pointer font-semibold">{tr("Circuiti radianti")}</summary>
               <div className="max-h-52 space-y-2 overflow-auto py-1">
                 <p className="flex gap-3 font-medium">
-                  <span style={{ color: COLORI_CIRCUITO.mandata }}>Mandata</span>
-                  <span style={{ color: COLORI_CIRCUITO.ritorno }}>Ritorno</span>
+                  <span style={{ color: COLORI_CIRCUITO.mandata }}>{tr("Mandata")}</span>
+                  <span style={{ color: COLORI_CIRCUITO.ritorno }}>{tr("Ritorno")}</span>
                 </p>
                 <CircuitiRadiantiElenco circuiti={scena.impianti!.find(l => l.linea === "radiante")!.circuiti!} />
               </div>
@@ -1143,33 +1145,33 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         )}
         {vista === "confronto" && !inVisita && (
           <div className="pointer-events-none absolute left-3 top-3 flex gap-3 rounded-md bg-white/85 px-2.5 py-1.5 text-xs text-neutral-700 shadow-sm">
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#f2c200]" />Da demolire</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#d42a2a]" />Nuovo</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#f2c200]" />{tr("Da demolire")}</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#d42a2a]" />{tr("Nuovo")}</span>
           </div>
         )}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">{suggerimento}</p>
-        {puoRenderDaQui && <Button size="sm" variant="outline" className="gap-1.5 sm:hidden" onClick={() => preparaRenderDaQui()}><Sparkles className="size-3.5"/>Render da qui</Button>}
+        {puoRenderDaQui && <Button size="sm" variant="outline" className="gap-1.5 sm:hidden" onClick={() => preparaRenderDaQui()}><Sparkles className="size-3.5"/>{tr("Render da qui")}</Button>}
         {!schemaCanali && !inVisita && scena.mesh.length > 0 && !errore && fotorealisticoDisponibile() && <Button size="sm" variant="outline" className="gap-1.5" onClick={() => preparaRenderDaQui()}>
-          <Sparkles className="size-3.5" />Render fotorealistico
+          <Sparkles className="size-3.5" />{tr("Render fotorealistico")}
         </Button>}
         {modo === "dentro" && studio?.onRender && <Button size="sm" className="gap-1.5" disabled={studio.renderDisabilitato || !!errore} onClick={() => {
           if (!motore.current) return;
           const telecamera = telecameraAdesso();
           studio.onRender?.({ telecamera, localeId: localeAllaPosizione(pianta, telecamera.posizione) ?? localeId, aspetto: { ...asp, dentro: true }, proporzioni: motore.current.camera.aspect });
-        }}><Sparkles className="h-4 w-4" />{studio.renderLabel ?? "Usa questa vista per il render"}</Button>}
+        }}><Sparkles className="h-4 w-4" />{studio.renderLabel ?? tr("Usa questa vista per il render")}</Button>}
         {modo === "dentro" && onFotogramma && <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma({ larghezza: 1536, altezza: 1024 })))}>
-          Usa questa vista per il render
+          {tr("Usa questa vista per il render")}
         </Button>}
       </div>
       {scena.avvisi.length > 0 && <details className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
-        <summary className="cursor-pointer font-medium text-amber-800 dark:text-amber-200">Verifiche sul modello · {scena.avvisi.length}</summary>
+        <summary className="cursor-pointer font-medium text-amber-800 dark:text-amber-200">{tr("Verifiche sul modello · {n}", { n: scena.avvisi.length })}</summary>
         <ul className="mt-2 list-disc space-y-1 pl-4 text-muted-foreground">
           {scena.avvisi.map((a, i) => <li key={i}>{a}</li>)}
         </ul>
       </details>}
-      {render && <Suspense fallback={<p role="status" className="sr-only">Apro il confronto render…</p>}>
+      {render && <Suspense fallback={<p role="status" className="sr-only">{tr("Apro il confronto render…")}</p>}>
         <RenderInquadratura3D data={render} onChiudi={() => setRender(null)} />
       </Suspense>}
     </div>

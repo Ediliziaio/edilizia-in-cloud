@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
+import { intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ export interface FunnelChartProps {
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
 const fmtPct = (p: number) => `${Math.round(p)}%`;
-const fmtVal = (v: number) => v.toLocaleString("it-IT");
+const fmtVal = (v: number) => v.toLocaleString(intlCampo());
 
 const springConfig = { stiffness: 120, damping: 20, mass: 1 };
 const hoverSpring = { stiffness: 300, damping: 24 };

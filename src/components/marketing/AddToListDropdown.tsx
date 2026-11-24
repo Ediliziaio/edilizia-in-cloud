@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { CreateListDialog } from "./CreateListDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AddToListDropdownProps {
   selectedIds: Set<string>;
@@ -52,6 +53,7 @@ async function getCompanyScopedContactIds(contactIds: string[], companyId: strin
 }
 
 export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -90,7 +92,7 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
         // A lotti si può fallire a metà: chi è già nella lista ci resta.
         throw new Error(
           aggiunti > 0
-            ? `${aggiunti} contatti aggiunti, poi si è fermata: ${errore instanceof Error ? errore.message : String(errore)}`
+            ? t("{aggiunti} contatti aggiunti, poi si è fermata: {errore}", { aggiunti, errore: errore instanceof Error ? errore.message : String(errore) })
             : errore instanceof Error ? errore.message : String(errore),
           { cause: errore },
         );
@@ -98,11 +100,11 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
       return aggiunti;
     },
     onSuccess: (aggiunti: number) => {
-      toast.success(`${aggiunti.toLocaleString("it-IT")} contatti aggiunti alla lista`);
+      toast.success(t("{aggiunti} contatti aggiunti alla lista", { aggiunti: aggiunti.toLocaleString(intlCampo()) }));
       queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
       setOpen(false);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Errore nell'aggiunta"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : t("Errore nell'aggiunta")),
   });
 
   const createAndAdd = useMutation({
@@ -124,12 +126,12 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
       }, LOTTO_RIGHE);
     },
     onSuccess: () => {
-      toast.success("Lista creata e contatti aggiunti");
+      toast.success(t("Lista creata e contatti aggiunti"));
       queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
       setCreateOpen(false);
       setOpen(false);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Errore nella creazione"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : t("Errore nella creazione")),
   });
 
   return (
@@ -137,13 +139,13 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button size="sm" variant="outline" disabled={selectedIds.size === 0 || addMutation.isPending || createAndAdd.isPending}>
-            <ListPlus className="h-4 w-4 mr-1" /> Aggiungi a lista
+            <ListPlus className="h-4 w-4 mr-1" /> {t("Aggiungi a lista")}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-56 p-2" align="start">
           <div className="space-y-1 max-h-48 overflow-y-auto">
             {lists.length === 0 ? (
-              <p className="text-xs text-muted-foreground px-2 py-1">Nessuna lista</p>
+              <p className="text-xs text-muted-foreground px-2 py-1">{t("Nessuna lista")}</p>
             ) : (
               lists.map((l) => (
                 <button
@@ -162,7 +164,7 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
               className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors flex items-center gap-1.5 text-primary"
               onClick={() => { setOpen(false); setCreateOpen(true); }}
             >
-              <Plus className="h-3.5 w-3.5" /> Crea nuova lista
+              <Plus className="h-3.5 w-3.5" /> {t("Crea nuova lista")}
             </button>
           </div>
         </PopoverContent>

@@ -84,6 +84,7 @@ import { AdminMobileSettingsNav } from "@/components/admin/AdminMobileSettingsNa
 // action proposals) ma scoped al backend superadmin (silvio-admin-chat).
 import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AdminNavItem {
   title: string;
@@ -262,6 +263,7 @@ function paginaPrimaDelleImpostazioni(): string {
 }
 
 function AdminSettingsSidebar() {
+  const t = useT();
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const { permissions } = useSuperAdminPermissions();
@@ -305,13 +307,13 @@ function AdminSettingsSidebar() {
             onClick={() => navigate(paginaPrimaDelleImpostazioni())}
           >
             <ArrowLeft className="h-4 w-4" />
-            Torna indietro
+            {t("Torna indietro")}
           </Button>
-          <h2 className="text-lg font-semibold px-3 mb-3">Impostazioni</h2>
+          <h2 className="text-lg font-semibold px-3 mb-3">{t("Impostazioni")}</h2>
           <div className="relative mb-3 px-1">
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Cerca impostazioni..."
+              placeholder={t("Cerca impostazioni...")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-8 text-sm"
@@ -321,9 +323,7 @@ function AdminSettingsSidebar() {
 
         <ScrollArea className="flex-1">
           {filteredNav.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-6 py-8 text-center">
-              Nessun risultato per &quot;{search}&quot;
-            </p>
+            <p className="text-sm text-muted-foreground px-6 py-8 text-center">{t("Nessun risultato per \"{search}\"", { search: String(search ?? "") })}</p>
           ) : (
             filteredNav.map((group) => (
               <SidebarGroup key={group.group}>
@@ -343,7 +343,7 @@ function AdminSettingsSidebar() {
                               <Icon className="h-4 w-4 mt-0.5 shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm">{item.label}</span>
+                                  <span className="text-sm">{t(item.label)}</span>
                                   {item.badge && (
                                     <span className="inline-flex items-center rounded-full bg-sidebar-primary/10 px-1.5 py-0.5 text-xs font-medium text-sidebar-primary">
                                       {item.badge}
@@ -351,7 +351,7 @@ function AdminSettingsSidebar() {
                                   )}
                                 </div>
                                 <p className="text-xs text-muted-foreground truncate mt-0.5 group-hover:text-muted-foreground/80">
-                                  {item.description}
+                                  {t(item.description)}
                                 </p>
                               </div>
                             </NavLink>
@@ -373,7 +373,7 @@ function AdminSettingsSidebar() {
             onClick={() => signOut()}
           >
             <LogOut className="h-4 w-4" />
-            Esci
+            {t("Esci")}
           </Button>
         </div>
       </SidebarContent>
@@ -382,6 +382,7 @@ function AdminSettingsSidebar() {
 }
 
 function AdminMainSidebar() {
+  const t = useT();
   const { signOut, impersonateCompany } = useAuth();
   const { permissions } = useSuperAdminPermissions();
   const { data: sidebarBadges } = useAdminSidebarBadges();
@@ -460,7 +461,7 @@ function AdminMainSidebar() {
         return;
       }
     }
-    toast.error("Sessione non disponibile", { description: "Aggiorna la pagina e riprova. Non sei entrato nell’azienda." });
+    toast.error(t("Sessione non disponibile"), { description: t("Aggiorna la pagina e riprova. Non sei entrato nell’azienda.") });
   };
 
   // Sidebar SuperAdmin — palette blu (brand) + accenti arancio (active).
@@ -480,7 +481,7 @@ function AdminMainSidebar() {
             <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
           </Link>
           {sidebarBadges?.maintenanceActive && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-semibold text-orange-600 dark:text-orange-400" title="Manutenzione attiva">
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-semibold text-orange-600 dark:text-orange-400" title={t("Manutenzione attiva")}>
               🔧
             </span>
           )}
@@ -496,7 +497,7 @@ function AdminMainSidebar() {
                 >
                   <span className="flex items-center gap-2 min-w-0">
                     <Building className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate text-xs">Accedi come azienda</span>
+                    <span className="truncate text-xs">{t("Accedi come azienda")}</span>
                   </span>
                   <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-40 group-hover:opacity-70 transition-opacity" />
                 </Button>
@@ -506,7 +507,7 @@ function AdminMainSidebar() {
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      placeholder="Cerca un'azienda..."
+                      placeholder={t("Cerca un'azienda...")}
                       value={companySearch}
                       onChange={(e) => handleSearchChange(e.target.value)}
                       className="pl-9 h-9 text-sm"
@@ -517,7 +518,7 @@ function AdminMainSidebar() {
                 <Separator />
                 <div className="px-3 py-2">
                   <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
-                    Tutte le aziende
+                    {t("Tutte le aziende")}
                   </p>
                 </div>
                 <div className="max-h-[300px] overflow-y-auto">
@@ -541,7 +542,7 @@ function AdminMainSidebar() {
                     ))}
                     {visibleCompanies.length === 0 && (
                       <p className="text-xs text-muted-foreground px-2 py-4 text-center">
-                        Nessuna azienda trovata
+                        {t("Nessuna azienda trovata")}
                       </p>
                     )}
                   </div>
@@ -563,7 +564,7 @@ function AdminMainSidebar() {
               <SidebarMenu>
                 {permissions.can_view_platform_stats && (
                   <SidebarMenuItem key="top-dashboard">
-                    <SidebarMenuButton asChild tooltip="Dashboard">
+                    <SidebarMenuButton asChild tooltip={t("Dashboard")}>
                       <NavLink
                         to="/admin"
                         end
@@ -571,7 +572,7 @@ function AdminMainSidebar() {
                         activeClassName={activeClass}
                       >
                         <LayoutDashboard className="h-4 w-4" />
-                        <span className="flex-1 font-medium">Dashboard</span>
+                        <span className="flex-1 font-medium">{t("Dashboard")}</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -580,14 +581,14 @@ function AdminMainSidebar() {
                   const badge = getBadgeForNavItem("/admin/attivita", sidebarBadges);
                   return (
                     <SidebarMenuItem key="top-attivita">
-                      <SidebarMenuButton asChild tooltip="Attività">
+                      <SidebarMenuButton asChild tooltip={t("Attività")}>
                         <NavLink
                           to="/admin/attivita"
                           className={navLinkClass}
                           activeClassName={activeClass}
                         >
                           <CheckSquare className="h-4 w-4" />
-                          <span className="flex-1 font-medium">Attività</span>
+                          <span className="flex-1 font-medium">{t("Attività")}</span>
                           {badge && badge.count != null && badge.count > 0 && (
                             <span
                               className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
@@ -640,14 +641,14 @@ function AdminMainSidebar() {
                   const badge = getBadgeForNavItem("/admin/chat", sidebarBadges);
                   return (
                     <SidebarMenuItem key="top-chat">
-                      <SidebarMenuButton asChild tooltip="Chat team">
+                      <SidebarMenuButton asChild tooltip={t("Chat team")}>
                         <NavLink
                           to="/admin/chat"
                           className={navLinkClass}
                           activeClassName={activeClass}
                         >
                           <MessagesSquare className="h-4 w-4" />
-                          <span className="flex-1 font-medium">Chat</span>
+                          <span className="flex-1 font-medium">{t("Chat")}</span>
                           {badge && badge.count != null && badge.count > 0 && (
                             <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-sidebar-primary/15 px-1 text-xs font-bold leading-none text-sidebar-primary">
                               {badge.count > 99 ? "99+" : badge.count}
@@ -694,7 +695,7 @@ function AdminMainSidebar() {
                             activeClassName={activeClass}
                           >
                             <item.icon className="h-4 w-4" />
-                            <span className="flex-1">{item.title}</span>
+                            <span className="flex-1">{t(item.title)}</span>
                             {badge && badge.count != null && badge.count > 0 && (
                               <span
                                 className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
@@ -722,7 +723,7 @@ function AdminMainSidebar() {
                   return (
                     <SidebarSubcategory
                       key={sub.id}
-                      label={sub.label}
+                      label={t(sub.label)}
                       icon={sub.icon}
                       badge={aggregateBadge}
                       isOpen={isOpen(sub.id)}
@@ -741,7 +742,7 @@ function AdminMainSidebar() {
                                   activeClassName={activeClass}
                                 >
                                   <item.icon className="h-4 w-4" />
-                                  <span className="flex-1">{item.title}</span>
+                                  <span className="flex-1">{t(item.title)}</span>
                                   {badge && badge.count != null && badge.count > 0 && (
                                     <span
                                       className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
@@ -777,7 +778,7 @@ function AdminMainSidebar() {
             <div className="mx-3 my-3">
               <div className="h-px bg-slate-200/80 dark:bg-sidebar-border/60" />
               <p className="mt-3 px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-sidebar-foreground/40">
-                Marketing
+                {t("Marketing")}
               </p>
             </div>
             <SidebarGroup className="pt-0 pb-1">
@@ -800,7 +801,7 @@ function AdminMainSidebar() {
                               activeClassName={activeClass}
                             >
                               <item.icon className="h-4 w-4" />
-                              <span>{item.title}</span>
+                              <span>{t(item.title)}</span>
                             </NavLink>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -810,7 +811,7 @@ function AdminMainSidebar() {
                     return (
                       <SidebarSubcategory
                         key={sub.id}
-                        label={sub.label}
+                        label={t(sub.label)}
                         icon={sub.icon}
                         isOpen={isOpen(sub.id)}
                         onToggle={() => toggle(sub.id)}
@@ -826,7 +827,7 @@ function AdminMainSidebar() {
                                   activeClassName={activeClass}
                                 >
                                   <item.icon className="h-4 w-4" />
-                                  <span>{item.title}</span>
+                                  <span>{t(item.title)}</span>
                                 </NavLink>
                               </SidebarMenuButton>
                             </SidebarMenuItem>
@@ -853,7 +854,7 @@ function AdminMainSidebar() {
                       activeClassName={activeClass}
                     >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span>{t(item.title)}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -867,7 +868,7 @@ function AdminMainSidebar() {
               onClick={() => signOut()}
             >
               <LogOut className="h-4 w-4" />
-              Esci
+              {t("Esci")}
             </Button>
           </div>
         </div>
@@ -877,6 +878,7 @@ function AdminMainSidebar() {
 }
 
 export function AdminLayout() {
+  const t = useT();
   const location = useLocation();
   const isMobile = useIsMobile();
   const { role } = useAuth();
@@ -915,7 +917,7 @@ export function AdminLayout() {
         {isSettingsRoute && <AdminMobileSettingsNav />}
 
         <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 pb-28 bg-muted/30">
-          <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
+          <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
             <Outlet />
           </ErrorBoundary>
         </main>
@@ -950,7 +952,7 @@ export function AdminLayout() {
             </div>
           </header>
           <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 bg-muted/30">
-            <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
+            <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
               <Outlet />
             </ErrorBoundary>
           </main>

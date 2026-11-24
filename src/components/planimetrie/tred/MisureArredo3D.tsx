@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { altezzaPensiliCucina, altezzaTestieraLetto, PROFONDITA_PISCINA_CM, quotePiscina, richiedeAltezzaComplemento } from "../../../../shared/planimetrie/modelliArredo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Misure = { larghezza: number; profondita: number; altezza: number };
 export type TestoMisureArredo = Record<keyof Misure, string>;
@@ -43,6 +44,7 @@ export function leggiMisureArredo(testo: TestoMisureArredo, tipo: string): Misur
 export function MisureArredo3D({ tipo, valore, onChange }: {
   tipo: string; valore: TestoMisureArredo; onChange: (valore: TestoMisureArredo) => void;
 }) {
+  const t = useT();
   const id = useId();
   const taglie = TAGLIE[tipo === "letto" ? "letto_matrimoniale" : tipo];
   const angolare = tipo === "cucina_angolare", eLetto = letto(tipo);
@@ -57,9 +59,9 @@ export function MisureArredo3D({ tipo, valore, onChange }: {
   return <div role="group" aria-labelledby={id} className="space-y-2.5 rounded-lg border bg-muted/35 p-2.5">
     <h3 id={id} className="flex items-center gap-1.5 text-xs font-semibold">
       <Ruler aria-hidden className="size-3.5 text-primary" />
-      Misure <span className="font-normal text-muted-foreground">(cm)</span>
+      {t("Misure")} <span className="font-normal text-muted-foreground">(cm)</span>
     </h3>
-    {taglie && <div role="group" aria-label="Misure rapide" className="flex flex-wrap gap-1">
+    {taglie && <div role="group" aria-label={t("Misure rapide")} className="flex flex-wrap gap-1">
       {taglie.map(([larghezza, profondita]) => <Button type="button" size="sm"
         variant="outline" className="h-8 px-2 text-xs tabular-nums aria-pressed:border-primary/50 aria-pressed:bg-primary/10 aria-pressed:text-primary"
         key={`${larghezza}x${profondita}`}
@@ -73,7 +75,7 @@ export function MisureArredo3D({ tipo, valore, onChange }: {
         const n = numero(valore[campo]), minimo = campo === "altezza" ? altezzaMinima(tipo) : 1;
         const errato = !Number.isFinite(n) || n < minimo;
         return <label key={campo} className="flex min-w-0 flex-col justify-between gap-1 text-[11px] font-medium leading-tight">
-          {etichette[campo]}
+          {t(etichette[campo])}
           <Input inputMode="decimal" value={valore[campo]} placeholder={piscina && campo === "altezza" ? String(PROFONDITA_PISCINA_CM) : undefined}
             spellCheck={false} aria-invalid={errato}
             onChange={e => onChange({ ...valore, [campo]: e.target.value })}
@@ -81,16 +83,10 @@ export function MisureArredo3D({ tipo, valore, onChange }: {
         </label>;
       })}
     </div>
-    {!misure && <p className="text-xs text-destructive">Inserisci una misura valida in ogni campo.</p>}
-    {misure && eLetto && <p className="text-xs text-muted-foreground">
-      Misure esterne del letto. L’altezza arriva al materasso. Testiera a {quotaArredo(altezzaTestieraLetto(misure.altezza))} cm.
-    </p>}
-    {misure && angolare && <p className="text-xs text-muted-foreground">
-      I lati comprendono l’angolo. I pensili arrivano a {quotaArredo(altezzaPensiliCucina(misure.altezza) + 70)} cm.
-    </p>}
-    {misure && tipo === "isola_cucina" && <p className="text-xs text-muted-foreground">La profondità comprende gli sgabelli.</p>}
-    {vasca && <p className="text-xs text-muted-foreground">
-      Vasca interna {quotaArredo(vasca.luce)} × {quotaArredo(vasca.lungo)} cm. Fondo a {quotaArredo(vasca.vasca)} cm sotto il bordo.
-    </p>}
+    {!misure && <p className="text-xs text-destructive">{t("Inserisci una misura valida in ogni campo.")}</p>}
+    {misure && eLetto && <p className="text-xs text-muted-foreground">{t("Misure esterne del letto. L’altezza arriva al materasso. Testiera a {valore} cm.", { valore: quotaArredo(altezzaTestieraLetto(misure.altezza)) })}</p>}
+    {misure && angolare && <p className="text-xs text-muted-foreground">{t("I lati comprendono l’angolo. I pensili arrivano a {valore} cm.", { valore: quotaArredo(altezzaPensiliCucina(misure.altezza) + 70) })}</p>}
+    {misure && tipo === "isola_cucina" && <p className="text-xs text-muted-foreground">{t("La profondità comprende gli sgabelli.")}</p>}
+    {vasca && <p className="text-xs text-muted-foreground">{t("Vasca interna {luce} × {lungo} cm. Fondo a {vasca} cm sotto il bordo.", { luce: quotaArredo(vasca.luce), lungo: quotaArredo(vasca.lungo), vasca: quotaArredo(vasca.vasca) })}</p>}
   </div>;
 }

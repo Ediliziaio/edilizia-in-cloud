@@ -5,8 +5,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function StipendiPagatiDipendente({ employeeId, anno = new Date().getFullYear() }: { employeeId: string; anno?: number }) {
+  const t = useT();
   const q = useQuery({
     queryKey: ["stipendi-pagati-dipendente", employeeId, anno],
     queryFn: async () => {
@@ -24,9 +26,9 @@ export function StipendiPagatiDipendente({ employeeId, anno = new Date().getFull
   const totale = q.data.reduce((s, r) => s + Number(r.amount), 0);
   return (
     <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
-      <span className="font-medium">Stipendi pagati nel {anno}: {formatCurrency(totale)}</span>
+      <span className="font-medium">{t("Stipendi pagati nel {anno}: {totale}", { anno: String(anno ?? ""), totale: formatCurrency(totale) })}</span>
       <span className="block text-xs text-muted-foreground">
-        {q.data.length} {q.data.length === 1 ? "pagamento" : "pagamenti"} · l'ultimo il {q.data[0].entry_date.split("-").reverse().join("/")}
+        {t(q.data.length === 1 ? "{n} pagamento · l'ultimo il {data}" : "{n} pagamenti · l'ultimo il {data}", { n: q.data.length, data: q.data[0].entry_date.split("-").reverse().join("/") })}
       </span>
     </div>
   );

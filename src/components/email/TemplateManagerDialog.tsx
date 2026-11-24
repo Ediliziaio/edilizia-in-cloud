@@ -19,6 +19,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, X, Check } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface TemplateManagerDialogProps {
   open: boolean;
@@ -51,6 +52,7 @@ interface FormState {
 const EMPTY_FORM: FormState = { name: "", category: "generale", subject: "", body_text: "" };
 
 export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDialogProps) {
+  const tr = useT();
   const { templates, isLoading, isError, createMutation, updateMutation, deleteMutation } = useCompanyEmailTemplates();
   const qc = useQueryClient();
 
@@ -78,18 +80,18 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Il nome del template è obbligatorio"); return; }
+    if (!form.name.trim()) { toast.error(tr("Il nome del template è obbligatorio")); return; }
     try {
       if (editingId) {
         await updateMutation.mutateAsync({ id: editingId, ...form });
-        toast.success("Template aggiornato");
+        toast.success(tr("Template aggiornato"));
       } else {
         await createMutation.mutateAsync(form);
-        toast.success("Template creato");
+        toast.success(tr("Template creato"));
       }
       cancelForm();
     } catch (e) {
-      toast.error("Errore salvataggio", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Errore salvataggio"), { description: e instanceof Error ? e.message : String(e) });
     }
   };
 
@@ -97,9 +99,9 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync(deleteTarget.id);
-      toast.success("Template eliminato");
+      toast.success(tr("Template eliminato"));
     } catch (e) {
-      toast.error("Errore eliminazione", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Errore eliminazione"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setDeleteTarget(null);
     }
@@ -112,7 +114,7 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="text-base">Gestione template email</DialogTitle>
+            <DialogTitle className="text-base">{tr("Gestione template email")}</DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-3 pr-1">
@@ -120,45 +122,45 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
             {showForm ? (
               <div className="rounded-xl border bg-slate-50 p-4 space-y-3">
                 <p className="text-sm font-medium text-slate-700">
-                  {editingId ? "Modifica template" : "Nuovo template"}
+                  {editingId ? tr("Modifica template") : tr("Nuovo template")}
                 </p>
                 <div className="space-y-1">
-                  <Label className="text-xs">Nome *</Label>
+                  <Label className="text-xs">{tr("Nome *")}</Label>
                   <Input
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Es. Invio preventivo"
+                    placeholder={tr("Es. Invio preventivo")}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Categoria</Label>
+                  <Label className="text-xs">{tr("Categoria")}</Label>
                   <Select value={form.category} onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}>
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {CATEGORY_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                        <SelectItem key={o.value} value={o.value} className="text-sm">{tr(o.label)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Oggetto</Label>
+                  <Label className="text-xs">{tr("Oggetto")}</Label>
                   <Input
                     value={form.subject}
                     onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-                    placeholder="Oggetto del messaggio"
+                    placeholder={tr("Oggetto del messaggio")}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Testo</Label>
+                  <Label className="text-xs">{tr("Testo")}</Label>
                   <Textarea
                     value={form.body_text}
                     onChange={(e) => setForm((f) => ({ ...f, body_text: e.target.value }))}
-                    placeholder="Scrivi il testo del template…"
+                    placeholder={tr("Scrivi il testo del template…")}
                     rows={8}
                     className="text-sm resize-y"
                   />
@@ -166,16 +168,16 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
                 <div className="flex items-center gap-2 pt-1">
                   <Button size="sm" onClick={handleSave} disabled={isSaving} className="gap-1.5">
                     {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                    {editingId ? "Aggiorna" : "Crea template"}
+                    {editingId ? tr("Aggiorna") : tr("Crea template")}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={cancelForm} disabled={isSaving}>
-                    <X className="h-3.5 w-3.5 mr-1" /> Annulla
+                    <X className="h-3.5 w-3.5 mr-1" /> {tr("Annulla")}
                   </Button>
                 </div>
               </div>
             ) : (
               <Button size="sm" variant="outline" onClick={openNew} className="gap-1.5 w-full">
-                <Plus className="h-3.5 w-3.5" /> Nuovo template
+                <Plus className="h-3.5 w-3.5" /> {tr("Nuovo template")}
               </Button>
             )}
 
@@ -188,18 +190,18 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
               </div>
             ) : isError ? (
               <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <p className="text-xs text-muted-foreground italic">Impossibile caricare i template.</p>
+                <p className="text-xs text-muted-foreground italic">{tr("Impossibile caricare i template.")}</p>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => qc.invalidateQueries({ queryKey: ["company_email_templates"] })}
                 >
-                  Riprova
+                  {tr("Riprova")}
                 </Button>
               </div>
             ) : templates.length === 0 ? (
               <p className="text-xs text-muted-foreground italic text-center py-4">
-                Nessun template ancora — clicca «Nuovo template» per crearne uno.
+                {tr("Nessun template ancora — clicca «Nuovo template» per crearne uno.")}
               </p>
             ) : (
               <ul className="space-y-2">
@@ -222,7 +224,7 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
                         variant="ghost"
                         className="h-7 w-7 text-muted-foreground hover:text-foreground"
                         onClick={() => openEdit(t)}
-                        title="Modifica"
+                        title={tr("Modifica")}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -231,7 +233,7 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
                         variant="ghost"
                         className="h-7 w-7 text-muted-foreground hover:text-rose-600"
                         onClick={() => setDeleteTarget(t)}
-                        title="Elimina"
+                        title={tr("Elimina")}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -247,19 +249,16 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina template</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare il template «{deleteTarget?.name}»?
-              Questa azione non può essere annullata.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{tr("Elimina template")}</AlertDialogTitle>
+            <AlertDialogDescription>{tr("Sei sicuro di voler eliminare il template «{name}»? Questa azione non può essere annullata.", { name: String(deleteTarget?.name ?? "") })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-rose-600 hover:bg-rose-700"
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

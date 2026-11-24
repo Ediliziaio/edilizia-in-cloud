@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga { scelta: boolean; quantita: string; prezzo: string; nota: string }
 
@@ -21,6 +22,7 @@ export function VociContrattoDialog({ open, onClose, contratto, tariffe, onAggiu
   tariffe: TariffaContratto[];
   onAggiungi: (scelte: SceltaVoce[]) => void;
 }) {
+  const tr = useT();
   const iniziali = useMemo(() => Object.fromEntries(tariffe.map((t) => {
     const s = sceltaIniziale(t);
     return [t.id, { scelta: false, quantita: "1", prezzo: formatDecimalIT(s.prezzo), nota: "" } satisfies Riga];
@@ -43,29 +45,29 @@ export function VociContrattoDialog({ open, onClose, contratto, tariffe, onAggiu
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Voci dal contratto{contratto ? ` · ${contratto.nome}` : ""}</DialogTitle>
+          <DialogTitle>{tr("Voci dal contratto")}{contratto ? ` · ${contratto.nome}` : ""}</DialogTitle>
         </DialogHeader>
         {tariffe.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Il contratto non ha voci in listino.</p>
+          <p className="text-sm text-muted-foreground">{tr("Il contratto non ha voci in listino.")}</p>
         ) : (
-          <ul className="divide-y" aria-label="Voci del contratto">
+          <ul className="divide-y" aria-label={tr("Voci del contratto")}>
             {tariffe.map((t) => {
               const r = riga(t.id);
               return (
                 <li key={t.id} className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1.5 py-2 sm:grid-cols-[auto_1fr_5rem_7rem]">
-                  <Checkbox className="mt-0.5" checked={r.scelta} onCheckedChange={(v) => cambia(t.id, { scelta: v === true })} aria-label={`Scegli ${t.descrizione}`} />
+                  <Checkbox className="mt-0.5" checked={r.scelta} onCheckedChange={(v) => cambia(t.id, { scelta: v === true })} aria-label={tr("Scegli {voce}", { voce: String(t.descrizione ?? "") })} />
                   <div className="min-w-0">
                     <p className="break-words text-sm font-medium">{t.descrizione}</p>
                     <p className="text-xs text-muted-foreground">
                       {[unitaVoce(t.unita_misura), t.qualifica, t.codice, `contratto ${formatDecimalIT(t.prezzo_unitario)} €`].filter(Boolean).join(" · ")}
                     </p>
                   </div>
-                  <Input className="h-8 max-sm:col-start-2" inputMode="decimal" aria-label={`Quantità di ${t.descrizione}`} disabled={t.unita_misura === "corpo"}
+                  <Input className="h-8 max-sm:col-start-2" inputMode="decimal" aria-label={tr("Quantità di {nome}", { nome: String(t.descrizione ?? "") })} disabled={t.unita_misura === "corpo"}
                     value={t.unita_misura === "corpo" ? "1" : r.quantita} onChange={(e) => cambia(t.id, { quantita: e.target.value, scelta: true })} />
-                  <Input className="h-8 max-sm:col-start-2" inputMode="decimal" aria-label={`Prezzo di ${t.descrizione}`}
+                  <Input className="h-8 max-sm:col-start-2" inputMode="decimal" aria-label={tr("Prezzo di {voce}", { voce: String(t.descrizione ?? "") })}
                     value={r.prezzo} onChange={(e) => cambia(t.id, { prezzo: e.target.value, scelta: true })}
                     onBlur={() => cambia(t.id, { prezzo: formatDecimalIT(parseDecimalIT(r.prezzo)) })} />
-                  <Input className="col-start-2 h-8 sm:col-span-3" placeholder="Nota di riga (facoltativa)" aria-label={`Nota di ${t.descrizione}`}
+                  <Input className="col-start-2 h-8 sm:col-span-3" placeholder={tr("Nota di riga (facoltativa)")} aria-label={tr("Nota di {descrizione}", { descrizione: String(t.descrizione ?? "") })}
                     value={r.nota} onChange={(e) => cambia(t.id, { nota: e.target.value })} />
                 </li>
               );
@@ -73,9 +75,9 @@ export function VociContrattoDialog({ open, onClose, contratto, tariffe, onAggiu
           </ul>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{tr("Annulla")}</Button>
           <Button disabled={scelte.length === 0} onClick={conferma}>
-            {scelte.length <= 1 ? "Aggiungi la voce" : `Aggiungi ${scelte.length} voci`}
+            {scelte.length <= 1 ? tr("Aggiungi la voce") : tr("Aggiungi {n} voci", { n: scelte.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

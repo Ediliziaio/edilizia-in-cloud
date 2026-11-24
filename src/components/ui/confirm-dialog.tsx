@@ -32,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ConfirmOptions {
   title: string;
@@ -47,6 +48,7 @@ type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>;
 const ConfirmContext = createContext<ConfirmFn | null>(null);
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [opts, setOpts] = useState<ConfirmOptions | null>(null);
   const resolverRef = useRef<((value: boolean) => void) | null>(null);
@@ -78,7 +80,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => settle(false)}>
-              {opts?.cancelLabel ?? "Annulla"}
+              {opts?.cancelLabel ?? t("Annulla")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => settle(true)}
@@ -87,7 +89,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                   "bg-destructive text-destructive-foreground hover:bg-destructive/90",
               )}
             >
-              {opts?.confirmLabel ?? "Conferma"}
+              {opts?.confirmLabel ?? t("Conferma")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

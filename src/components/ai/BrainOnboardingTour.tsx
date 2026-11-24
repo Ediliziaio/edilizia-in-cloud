@@ -9,6 +9,7 @@
 import { useState, useEffect } from "react";
 import { Brain, Network, MousePointerClick, Sparkles, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STORAGE_KEY = "eic_brain_tour_completed_v1";
 
@@ -42,6 +43,7 @@ const STEPS: TourStep[] = [
 ];
 
 export function BrainOnboardingTour() {
+  const tr = useT();
   const [step, setStep] = useState<number | null>(null);
 
   useEffect(() => {
@@ -87,7 +89,7 @@ export function BrainOnboardingTour() {
           <button
             onClick={skip}
             className="absolute top-3 right-3 text-slate-400 hover:text-slate-700 transition-colors"
-            aria-label="Salta tour"
+            aria-label={tr("Salta tour")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -98,8 +100,8 @@ export function BrainOnboardingTour() {
           </div>
 
           {/* Title + text */}
-          <h3 className="text-lg font-bold text-slate-900 mb-1.5">{current.title}</h3>
-          <p className="text-sm text-slate-600 leading-relaxed">{current.text}</p>
+          <h3 className="text-lg font-bold text-slate-900 mb-1.5">{tr(current.title)}</h3>
+          <p className="text-sm text-slate-600 leading-relaxed">{tr(current.text)}</p>
 
           {/* Footer: step indicator + actions */}
           <div className="flex items-center justify-between mt-5 pt-3 border-t border-slate-100">
@@ -113,22 +115,20 @@ export function BrainOnboardingTour() {
                   )}
                 />
               ))}
-              <span className="text-[10px] text-slate-400 ml-2">
-                {step + 1} di {STEPS.length}
-              </span>
+              <span className="text-[10px] text-slate-400 ml-2">{tr("{step} di {n}", { step: step + 1, n: STEPS.length })}</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={skip}
                 className="text-[11px] text-slate-500 hover:text-slate-700 transition-colors px-2 py-1"
               >
-                Salta
+                {tr("Salta")}
               </button>
               <button
                 onClick={next}
                 className="text-[11px] font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-md flex items-center gap-1 shadow-sm transition-colors"
               >
-                {isLast ? "Inizia" : "Avanti"}
+                {isLast ? tr("Inizia") : tr("Avanti")}
                 <ArrowRight className="h-3 w-3" />
               </button>
             </div>

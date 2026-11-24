@@ -11,8 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw, RotateCcw, CheckCircle2, XCircle, Clock, AlertTriangle, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import type { Integration } from "@/types/integrations";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface IntegrationLogsPanelProps {
   integration: Integration;
@@ -49,6 +49,7 @@ const ACTION_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructiv
 };
 
 export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
@@ -138,7 +139,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["integration-events"] });
-      toast.success("Evento rimesso in coda");
+      toast.success(t("Evento rimesso in coda"));
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -151,7 +152,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
           <CardContent className="p-3 flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <div>
-              <p className="text-xs text-muted-foreground">In coda</p>
+              <p className="text-xs text-muted-foreground">{t("In coda")}</p>
               <p className="text-lg font-bold">{stats.pending}</p>
             </div>
           </CardContent>
@@ -160,7 +161,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
           <CardContent className="p-3 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Elaborati</p>
+              <p className="text-xs text-muted-foreground">{t("Elaborati")}</p>
               <p className="text-lg font-bold">{stats.processed}</p>
             </div>
           </CardContent>
@@ -169,7 +170,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
           <CardContent className="p-3 flex items-center gap-2">
             <XCircle className="h-4 w-4 text-destructive" />
             <div>
-              <p className="text-xs text-muted-foreground">Falliti</p>
+              <p className="text-xs text-muted-foreground">{t("Falliti")}</p>
               <p className="text-lg font-bold">{stats.failed}</p>
             </div>
           </CardContent>
@@ -178,7 +179,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
           <CardContent className="p-3 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Tasso successo (ultimi 100)</p>
+              <p className="text-xs text-muted-foreground">{t("Tasso successo (ultimi 100)")}</p>
               <p className="text-lg font-bold">
                 {stats.total > 0 ? Math.round((stats.processed / stats.total) * 100) : 0}%
               </p>
@@ -189,10 +190,10 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
 
       <Tabs defaultValue="events">
         <TabsList>
-          <TabsTrigger value="events">Lead in coda</TabsTrigger>
+          <TabsTrigger value="events">{t("Lead in coda")}</TabsTrigger>
           <TabsTrigger value="audit">
             <ScrollText className="h-3.5 w-3.5 mr-1.5" />
-            Log attività
+            {t("Log attività")}
           </TabsTrigger>
         </TabsList>
 
@@ -201,18 +202,18 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
           <div className="flex items-center justify-between gap-2">
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filtra stato" />
+                <SelectValue placeholder={t("Filtra stato")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                <SelectItem value="pending">In coda</SelectItem>
-                <SelectItem value="processed">Elaborati</SelectItem>
-                <SelectItem value="failed">Falliti</SelectItem>
+                <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+                <SelectItem value="pending">{t("In coda")}</SelectItem>
+                <SelectItem value="processed">{t("Elaborati")}</SelectItem>
+                <SelectItem value="failed">{t("Falliti")}</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-              Aggiorna
+              {t("Aggiorna")}
             </Button>
           </div>
 
@@ -220,25 +221,25 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>ID Evento</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead>Tentativi</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
+                  <TableHead>{t("Data")}</TableHead>
+                  <TableHead>{t("Tipo")}</TableHead>
+                  <TableHead>{t("ID Evento")}</TableHead>
+                  <TableHead>{t("Stato")}</TableHead>
+                  <TableHead>{t("Tentativi")}</TableHead>
+                  <TableHead className="text-right">{t("Azioni")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Caricamento...
+                      {t("Caricamento...")}
                     </TableCell>
                   </TableRow>
                 ) : events.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Nessun evento registrato
+                      {t("Nessun evento registrato")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -247,7 +248,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
                     return (
                       <TableRow key={event.id}>
                         <TableCell className="text-xs">
-                          {format(new Date(event.received_at), "dd MMM yyyy HH:mm", { locale: it })}
+                          {format(new Date(event.received_at), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() })}
                         </TableCell>
                         <TableCell className="text-xs font-mono">{event.event_type}</TableCell>
                         <TableCell className="text-xs font-mono max-w-[120px] truncate">
@@ -255,7 +256,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
                         </TableCell>
                         <TableCell>
                           <Badge variant={badge.variant} className="text-[10px]">
-                            {badge.label}
+                            {t(badge.label)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-xs">{event.fail_count}</TableCell>
@@ -268,7 +269,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
                               disabled={retryMutation.isPending}
                             >
                               <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                              Riprova
+                              {t("Riprova")}
                             </Button>
                           )}
                           {event.status === "failed" && event.last_fail_reason && (
@@ -291,7 +292,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
           <div className="flex justify-end">
             <Button variant="outline" size="sm" onClick={() => refetchAudit()}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-              Aggiorna
+              {t("Aggiorna")}
             </Button>
           </div>
 
@@ -299,30 +300,30 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Azione</TableHead>
-                  <TableHead>Dettagli</TableHead>
-                  <TableHead>Speed-to-lead</TableHead>
+                  <TableHead>{t("Data")}</TableHead>
+                  <TableHead>{t("Azione")}</TableHead>
+                  <TableHead>{t("Dettagli")}</TableHead>
+                  <TableHead>{t("Speed-to-lead")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {auditLoading ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                      Caricamento...
+                      {t("Caricamento...")}
                     </TableCell>
                   </TableRow>
                 ) : auditLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                      Nessun log disponibile
+                      {t("Nessun log disponibile")}
                     </TableCell>
                   </TableRow>
                 ) : (
                   auditLogs.map((log: any) => {
                     const meta = (log.metadata as Record<string, any>) || {};
                     const variant = ACTION_BADGE_VARIANT[log.action] ?? "secondary";
-                    const label = ACTION_LABEL[log.action] ?? log.action;
+                    const label = ACTION_LABEL[log.action] ? t(ACTION_LABEL[log.action]) : log.action;
                     const speedSec = meta.speed_to_lead_seconds;
                     const speedLabel = speedSec != null
                       ? speedSec < 60
@@ -333,20 +334,20 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
                     let detail = "";
                     if (log.action === "lead_imported") {
                       detail = [
-                        meta.campaign_name && `Campagna: ${meta.campaign_name}`,
-                        meta.dedupe && (meta.dedupe === "created" ? "Nuovo contatto" : "Aggiornato"),
+                        meta.campaign_name && t("Campagna: {nome}", { nome: String(meta.campaign_name) }),
+                        meta.dedupe && (meta.dedupe === "created" ? t("Nuovo contatto") : t("Aggiornato")),
                         meta.is_test && "TEST",
                       ].filter(Boolean).join(" · ");
                     } else if (log.action === "health_check") {
                       detail = meta.reason || (meta.new_health === "ok" ? "OK" : meta.new_health);
                     } else if (log.action === "token_refreshed") {
                       detail = meta.new_expiry
-                        ? `Nuovo expiry: ${format(new Date(meta.new_expiry), "dd MMM yyyy", { locale: it })}`
+                        ? t("Nuovo expiry: {data}", { data: format(new Date(meta.new_expiry), "dd MMM yyyy", { locale: dateFnsCampo() }) })
                         : "";
                     } else if (log.action === "webhook_subscribed") {
-                      detail = meta.page_id ? `Pagina: ${meta.page_id}` : "";
+                      detail = meta.page_id ? t("Pagina: {id}", { id: String(meta.page_id) }) : "";
                     } else if (log.action === "backfill_started") {
-                      detail = `${meta.imported ?? 0} lead importati`;
+                      detail = t("{n} lead importati", { n: meta.imported ?? 0 });
                     } else if (log.action === "test_lead_sent") {
                       detail = `Form: ${meta.form_id ?? "—"}`;
                     }
@@ -354,7 +355,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
                     return (
                       <TableRow key={log.id}>
                         <TableCell className="text-xs whitespace-nowrap">
-                          {format(new Date(log.created_at), "dd MMM HH:mm", { locale: it })}
+                          {format(new Date(log.created_at), "dd MMM HH:mm", { locale: dateFnsCampo() })}
                         </TableCell>
                         <TableCell>
                           <Badge variant={variant} className="text-[10px] whitespace-nowrap">
@@ -382,9 +383,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
       </Tabs>
 
       {integration.last_sync_at && (
-        <p className="text-xs text-muted-foreground">
-          Ultimo sync: {format(new Date(integration.last_sync_at), "dd MMM yyyy HH:mm", { locale: it })}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("Ultimo sync: {valore}", { valore: format(new Date(integration.last_sync_at), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() }) })}</p>
       )}
     </div>
   );

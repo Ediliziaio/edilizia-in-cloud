@@ -35,6 +35,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const navItems = [
   { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList, end: true },
@@ -60,6 +61,7 @@ const CUSTOMER_PAGE_TITLES: Record<string, string> = {
 };
 
 export function CustomerLayout() {
+  const t = useT();
   const { signOut, company, profile } = useAuth();
   const { effectiveBrand } = useBrandSettings(company?.id);
   useCustomCSS();
@@ -105,16 +107,16 @@ export function CustomerLayout() {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 px-4">
         <div className="w-full max-w-sm rounded-2xl border bg-background p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold">Portale clienti non attivo</h1>
+          <h1 className="text-lg font-semibold">{t("Portale clienti non attivo")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Il portale clienti non è attivo. Per informazioni contatta l'azienda.
+            {t("Il portale clienti non è attivo. Per informazioni contatta l'azienda.")}
           </p>
           <button
             type="button"
             onClick={() => signOut()}
             className="mt-4 inline-flex items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
           >
-            <LogOut className="h-4 w-4" /> Esci
+            <LogOut className="h-4 w-4" /> {t("Esci")}
           </button>
         </div>
       </div>
@@ -140,7 +142,7 @@ export function CustomerLayout() {
 
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Area Cliente</SidebarGroupLabel>
+              <SidebarGroupLabel>{t("Area Cliente")}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {navItems.map((item) => (
@@ -153,7 +155,7 @@ export function CustomerLayout() {
                           activeClassName="bg-accent text-accent-foreground font-medium"
                         >
                           <item.icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{item.title}</span>
+                          <span className="truncate">{t(item.title)}</span>
                           {item.title === "Assistenza" && unreadCount > 0 && (
                             <span className="ml-auto h-5 min-w-5 px-1 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[10px] font-bold">
                               {unreadCount}
@@ -185,7 +187,7 @@ export function CustomerLayout() {
               <button
                 onClick={() => signOut()}
                 className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors group-data-[collapsible=icon]:hidden"
-                title="Esci"
+                title={t("Esci")}
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -207,21 +209,19 @@ export function CustomerLayout() {
             <div className="bg-amber-50 border-b border-amber-300 px-4 py-2 flex items-center gap-2">
               <Eye className="h-4 w-4 text-amber-600 shrink-0" />
               <span className="text-sm text-amber-800 font-medium">
-                Modalità SuperAdmin — Visualizzazione come: Cliente (sola lettura)
+                {t("Modalità SuperAdmin — Visualizzazione come: Cliente (sola lettura)")}
               </span>
             </div>
           )}
           {previewSession.error && (
-            <div className="bg-destructive/10 border-b border-destructive/30 px-4 py-2 text-sm text-destructive text-center">
-              Token preview non valido: {previewSession.error}
-            </div>
+            <div className="bg-destructive/10 border-b border-destructive/30 px-4 py-2 text-sm text-destructive text-center">{t("Token preview non valido: {error}", { error: String(previewSession.error ?? "") })}</div>
           )}
 
           {/* Top bar — hidden on mobile (bottom nav replaces it) */}
           <header className="hidden md:flex h-14 border-b bg-background items-center gap-3 px-4 sticky top-0 z-40">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <ClipboardList className="h-4 w-4" />
-              <span>Area Cliente</span>
+              <span>{t("Area Cliente")}</span>
               {company?.name && (
                 <>
                   <span className="text-muted-foreground/50">·</span>
@@ -236,7 +236,7 @@ export function CustomerLayout() {
             {/* Larghezza di lettura: a 1366 px le card arrivavano a 1.078 px. */}
             <div className="mx-auto w-full max-w-5xl">
               <PreviewSessionContext.Provider value={previewSession}>
-                <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
+                <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
                   <Outlet />
                 </ErrorBoundary>
               </PreviewSessionContext.Provider>

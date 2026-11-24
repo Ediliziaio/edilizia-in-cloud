@@ -18,9 +18,10 @@ import { TemplateDialog } from "./TemplateDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function EmailTemplatesTab() {
+  const tr = useT();
   const { effectiveCompany: company, user } = useAuth();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -78,7 +79,7 @@ export function EmailTemplatesTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Cartella creata");
+      toast.success(tr("Cartella creata"));
       qc.invalidateQueries({ queryKey: ["email-folders"] });
       setFolderDialogOpen(false);
     },
@@ -91,7 +92,7 @@ export function EmailTemplatesTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Template eliminato");
+      toast.success(tr("Template eliminato"));
       qc.invalidateQueries({ queryKey: ["email-templates"] });
       setDeleteTarget(null);
     },
@@ -114,7 +115,7 @@ export function EmailTemplatesTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Template duplicato");
+      toast.success(tr("Template duplicato"));
       qc.invalidateQueries({ queryKey: ["email-templates"] });
     },
     onError: (e: any) => toast.error(e.message),
@@ -126,7 +127,7 @@ export function EmailTemplatesTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Template spostato");
+      toast.success(tr("Template spostato"));
       qc.invalidateQueries({ queryKey: ["email-templates"] });
       setMoveTarget(null);
     },
@@ -163,14 +164,14 @@ export function EmailTemplatesTab() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Cerca in tutte le cartelle…" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
+          <Input className="pl-9" placeholder={tr("Cerca in tutte le cartelle…")} value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
         </div>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
-            <FolderPlus className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">Crea cartella</span>
+            <FolderPlus className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">{tr("Crea cartella")}</span>
           </Button>
           <Button size="sm" onClick={nuovoModello}>
-            <Plus className="mr-1 h-4 w-4" /> Nuovo modello
+            <Plus className="mr-1 h-4 w-4" /> {tr("Nuovo modello")}
           </Button>
         </div>
       </div>
@@ -205,26 +206,26 @@ export function EmailTemplatesTab() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="py-12 text-center text-muted-foreground">Caricamento...</div>
+        <div className="py-12 text-center text-muted-foreground">{tr("Caricamento...")}</div>
       ) : templates.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <FileText className="h-9 w-9 text-muted-foreground" />
             {cercando ? (
               <>
-                <p className="font-medium text-foreground">Nessun modello con questa ricerca</p>
-                <Button variant="outline" size="sm" onClick={() => { setSearchInput(""); setPage(0); }}>Mostra tutti</Button>
+                <p className="font-medium text-foreground">{tr("Nessun modello con questa ricerca")}</p>
+                <Button variant="outline" size="sm" onClick={() => { setSearchInput(""); setPage(0); }}>{tr("Mostra tutti")}</Button>
               </>
             ) : dentroCartella ? (
-              <p className="font-medium text-foreground">Questa cartella è vuota</p>
+              <p className="font-medium text-foreground">{tr("Questa cartella è vuota")}</p>
             ) : (
               <>
-                <p className="font-medium text-foreground">Ancora nessun modello</p>
+                <p className="font-medium text-foreground">{tr("Ancora nessun modello")}</p>
                 <p className="max-w-md text-sm text-muted-foreground">
-                  Un modello è un'email pronta da riusare: la scrivi una volta e la usi per tutte le campagne.
+                  {tr("Un modello è un'email pronta da riusare: la scrivi una volta e la usi per tutte le campagne.")}
                 </p>
                 <Button size="sm" onClick={nuovoModello}>
-                  <Plus className="mr-1 h-4 w-4" /> Crea il primo modello
+                  <Plus className="mr-1 h-4 w-4" /> {tr("Crea il primo modello")}
                 </Button>
               </>
             )}
@@ -235,10 +236,10 @@ export function EmailTemplatesTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Titolo</TableHead>
-                <TableHead className="hidden md:table-cell">Oggetto</TableHead>
-                <TableHead className="hidden sm:table-cell">Aggiornato il</TableHead>
-                <TableHead className="hidden lg:table-cell">Cartella</TableHead>
+                <TableHead>{tr("Titolo")}</TableHead>
+                <TableHead className="hidden md:table-cell">{tr("Oggetto")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{tr("Aggiornato il")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{tr("Cartella")}</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -250,7 +251,7 @@ export function EmailTemplatesTab() {
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell className="hidden max-w-xs truncate text-muted-foreground md:table-cell">{t.subject || "—"}</TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
-                    {format(new Date(t.updated_at), "dd MMM yyyy", { locale: it })}
+                    {format(new Date(t.updated_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground lg:table-cell">
                     {t.folder_id ? (folders.find((f: any) => f.id === t.folder_id)?.name || "—") : "—"}
@@ -262,17 +263,17 @@ export function EmailTemplatesTab() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => { setEditTemplate(t); setDialogOpen(true); }}>
-                          <Pencil className="h-4 w-4 mr-2" /> Modifica
+                          <Pencil className="h-4 w-4 mr-2" /> {tr("Modifica")}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => duplicateMutation.mutate(t)}>
-                          <Copy className="h-4 w-4 mr-2" /> Duplica
+                          <Copy className="h-4 w-4 mr-2" /> {tr("Duplica")}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => { setMoveTarget(t.id); setMoveFolderId(t.folder_id || null); }}>
-                          <FolderInput className="h-4 w-4 mr-2" /> Sposta in cartella
+                          <FolderInput className="h-4 w-4 mr-2" /> {tr("Sposta in cartella")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(t.id)}>
-                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                          <Trash2 className="h-4 w-4 mr-2" /> {tr("Elimina")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -288,17 +289,17 @@ export function EmailTemplatesTab() {
               <span>{showing}</span>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                  <ChevronLeft className="h-4 w-4" /> Precedente
+                  <ChevronLeft className="h-4 w-4" /> {tr("Precedente")}
                 </Button>
                 <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-                  Successivo <ChevronRight className="h-4 w-4" />
+                  {tr("Successivo")} <ChevronRight className="h-4 w-4" />
                 </Button>
                 <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(0); }}>
                   <SelectTrigger className="h-8 w-[100px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="10">10 / pagina</SelectItem>
-                    <SelectItem value="25">25 / pagina</SelectItem>
-                    <SelectItem value="50">50 / pagina</SelectItem>
+                    <SelectItem value="10">{tr("10 / pagina")}</SelectItem>
+                    <SelectItem value="25">{tr("25 / pagina")}</SelectItem>
+                    <SelectItem value="50">{tr("50 / pagina")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -319,16 +320,16 @@ export function EmailTemplatesTab() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina template</AlertDialogTitle>
-            <AlertDialogDescription>Sei sicuro di voler eliminare questo template? L'azione non può essere annullata.</AlertDialogDescription>
+            <AlertDialogTitle>{tr("Elimina template")}</AlertDialogTitle>
+            <AlertDialogDescription>{tr("Sei sicuro di voler eliminare questo template? L'azione non può essere annullata.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+              {deleteMutation.isPending ? tr("Eliminazione...") : tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -338,14 +339,14 @@ export function EmailTemplatesTab() {
       <Dialog open={!!moveTarget} onOpenChange={(open) => !open && setMoveTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Sposta in cartella</DialogTitle>
+            <DialogTitle>{tr("Sposta in cartella")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Cartella di destinazione</Label>
+            <Label>{tr("Cartella di destinazione")}</Label>
             <Select value={moveFolderId || "__home__"} onValueChange={(v) => setMoveFolderId(v === "__home__" ? null : v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__home__">Home (nessuna cartella)</SelectItem>
+                <SelectItem value="__home__">{tr("Home (nessuna cartella)")}</SelectItem>
                 {folders.map((f: any) => (
                   <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                 ))}
@@ -353,12 +354,12 @@ export function EmailTemplatesTab() {
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMoveTarget(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setMoveTarget(null)}>{tr("Annulla")}</Button>
             <Button
               onClick={() => moveTarget && moveMutation.mutate({ id: moveTarget, folder_id: moveFolderId })}
               disabled={moveMutation.isPending}
             >
-              {moveMutation.isPending ? "Spostamento..." : "Sposta"}
+              {moveMutation.isPending ? tr("Spostamento...") : tr("Sposta")}
             </Button>
           </DialogFooter>
         </DialogContent>

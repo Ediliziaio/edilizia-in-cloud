@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { tonoScostamento, type ConfrontoVoce } from "@/lib/prezzario/confronto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MOTIVO_TESTO: Record<NonNullable<ConfrontoVoce["motivo"]>, string> = {
   "nessuna-corrispondenza": "Nessuna voce simile nel prezzario regionale",
@@ -19,10 +20,11 @@ const MOTIVO_TESTO: Record<NonNullable<ConfrontoVoce["motivo"]>, string> = {
 };
 
 export function ScostamentoVoce({ confronto }: { confronto: ConfrontoVoce | undefined }) {
+  const t = useT();
   if (!confronto) return null;
 
   if (confronto.scostamentoPct == null) {
-    const testo = confronto.motivo ? MOTIVO_TESTO[confronto.motivo] : "Non confrontabile";
+    const testo = confronto.motivo ? t(MOTIVO_TESTO[confronto.motivo]) : t("Non confrontabile");
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -58,12 +60,12 @@ export function ScostamentoVoce({ confronto }: { confronto: ConfrontoVoce | unde
       </TooltipTrigger>
       <TooltipContent className="max-w-[280px] space-y-1 text-xs">
         <p>
-          A prezzario:{" "}
+          {t("A prezzario:")}{" "}
           <strong>{formatCurrency(confronto.riferimento?.prezzo ?? 0)}</strong>
           {confronto.riferimento?.unita_misura ? `/${confronto.riferimento.unita_misura}` : ""}
         </p>
         <p>
-          Differenza su questa riga:{" "}
+          {t("Differenza su questa riga:")}{" "}
           <strong>{formatCurrency(confronto.scostamentoEuro ?? 0)}</strong>
         </p>
         {confronto.riferimento && (
@@ -74,8 +76,7 @@ export function ScostamentoVoce({ confronto }: { confronto: ConfrontoVoce | unde
         )}
         {confronto.confidenza === "probabile" && (
           <p className="opacity-80">
-            Corrispondenza trovata per somiglianza della descrizione, non per codice:
-            controlla che sia davvero la stessa lavorazione.
+            {t("Corrispondenza trovata per somiglianza della descrizione, non per codice: controlla che sia davvero la stessa lavorazione.")}
           </p>
         )}
       </TooltipContent>

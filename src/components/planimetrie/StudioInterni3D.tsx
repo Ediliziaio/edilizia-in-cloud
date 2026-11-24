@@ -29,6 +29,7 @@ import { CatalogoArredi3D, MiniaturaArredo } from "./tred/CatalogoArredi3D";
 import { CampioneSuperficie } from "./tred/CampioneSuperficie";
 import { leggiMisureArredo, MisureArredo3D, quotaArredo, testoMisureArredo, type TestoMisureArredo } from "./tred/MisureArredo3D";
 import { COLORI_ARREDO, ModificheRapide3D, riepilogoModificheCasa } from "./tred/ModificheRapide3D";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const SUPERFICI = { pavimento: "Pavimento", pareti: "Pareti", soffitto: "Soffitto", rivestimento: "Rivestimento" } as const;
 type Superficie = keyof typeof SUPERFICI;
 export type PannelloInterni3D = "superfici" | "infissi" | "arredi";
@@ -63,25 +64,27 @@ const misureArredo = (e: Elemento) => ({ larghezza: e.larghezza, profondita: e.p
 const baseInCm = (e: Pick<Elemento, "larghezza" | "profondita">) => `${quotaArredo(e.larghezza)} × ${quotaArredo(e.profondita)} cm`;
 
 function ModificaMisure({ elemento, onApplica }: { elemento: Elemento; onApplica: (e: Elemento) => void }) {
+  const t = useT();
   const iniziali = misureArredo(elemento);
   const [testo, setTesto] = useState(() => testoMisureArredo(iniziali));
   const nuove = leggiMisureArredo(testo, elemento.tipo);
   const modificate = !!nuove && (nuove.larghezza !== iniziali.larghezza || nuove.profondita !== iniziali.profondita || nuove.altezza !== iniziali.altezza);
   return <form className="w-full space-y-2" onSubmit={e => { e.preventDefault(); if (nuove && modificate) onApplica({ ...elemento, ...nuove }); }}>
     <MisureArredo3D tipo={elemento.tipo} valore={testo} onChange={setTesto} />
-    <Button type="submit" variant="outline" size="sm" className="w-full" disabled={!modificate}>Applica misure</Button>
+    <Button type="submit" variant="outline" size="sm" className="w-full" disabled={!modificate}>{t("Applica misure")}</Button>
   </form>;
 }
 
 function SceltaModello({ tipo, valore, misto, label, onChange }: { tipo: string; valore?: string; misto?: boolean; label: string; onChange: (id?: string) => void }) {
+  const t = useT();
   const opzioni = modelliArredo(tipo);
   if (!opzioni.length) return null;
   const scelta = modelloArredo(tipo, valore);
   return <div className="w-full space-y-1.5">
     <label className="block text-xs font-medium">{label}
       <UniformSelect value={misto ? "__misto__" : valore ?? ""} onChange={e => onChange(e.target.value || undefined)} className="mt-1 h-9 w-full">
-        {misto && <option value="__misto__" disabled>Modelli diversi</option>}
-        <option value="">Modello di base</option>
+        {misto && <option value="__misto__" disabled>{t("Modelli diversi")}</option>}
+        <option value="">{t("Modello di base")}</option>
         {opzioni.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
       </UniformSelect>
     </label>
@@ -91,6 +94,7 @@ function SceltaModello({ tipo, valore, misto, label, onChange }: { tipo: string;
 
 export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, planimetriaId, titolo, versione,
   localeIniziale, esplosoIniziale, puoScrivere, onSalvata, onVerifica, torna, pannello, onPannello, onLocaleCambiato, onVediInPianta, inVisita, onVisita }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const visore = useRef<Vista3DHandle>(null);
   const areaVisore = useRef<HTMLDivElement>(null);
@@ -179,7 +183,7 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
     ...nuove,
     localeId: locale?.id, modello: modelloNuovo, stato: vista === "fatto" ? "esistente" : "nuovo", origine: "stimata",
   } : undefined;
-  const istruzione = daPosare && (messaggio || `${nomeDelTipo(daPosare.tipo)} · ${baseInCm(daPosare)}. Tocca il pavimento per ${posa === "sposta" ? "spostare" : "posizionare"}.`);
+  const istruzione = daPosare && (messaggio || t(posa === "sposta" ? "{nome} · {misure}. Tocca il pavimento per spostare." : "{nome} · {misure}. Tocca il pavimento per posizionare.", { nome: nomeDelTipo(daPosare.tipo), misure: baseInCm(daPosare) }));
 
   const scegliModificaRapida = (scelta: ModificaCasa3D | null) => {
     setModificaRapida(scelta);
@@ -197,7 +201,7 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
     setUltimaRapida({ prima: bozza, dopo: anteprimaRapida.documento });
     onBozza(anteprimaRapida.documento);
     scegliModificaRapida(null);
-    setStatoRapido(`Applicato alla bozza · ${riepilogoModificheCasa(anteprimaRapida)}`);
+    setStatoRapido(t("Applicato alla bozza · {riepilogo}", { riepilogo: riepilogoModificheCasa(anteprimaRapida) }));
   };
 
   const modificaStato = (cambia: (s: StatoPianta) => StatoPianta) => {
@@ -237,13 +241,13 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
 
   const aggiornaElemento = (e: Elemento, l: Locale, conferma = "") => {
     if (!ingombroDentroLocale(e, l.contorno)) {
-      setMessaggio(daPosare ? "L’ingombro esce dalla stanza. Scegli un punto più interno." : "L’ingombro esce dalla stanza. Riduci le misure o sposta l’arredo.");
+      setMessaggio(daPosare ? t("L’ingombro esce dalla stanza. Scegli un punto più interno.") : t("L’ingombro esce dalla stanza. Riduci le misure o sposta l’arredo."));
       return;
     }
     modificaStato(s => ({ ...s, elementi: s.elementi.some(a => a.id === e.id) ? s.elementi.map(a => a.id === e.id ? e : a) : [...s.elementi, e] }));
     const vicino = ingombroVicino(e);
     selezionaArredo(e.id);
-    setMessaggio(vicino ? `Controlla lo spazio rispetto a ${nomeDelTipo(vicino.tipo).toLowerCase()}.` : conferma);
+    setMessaggio(vicino ? t("Controlla lo spazio rispetto a {nome}.", { nome: nomeDelTipo(vicino.tipo).toLowerCase() }) : conferma);
   };
 
   const avviaPosa = (azione: NonNullable<typeof posa>) => {
@@ -265,7 +269,7 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
     if (posa) {
       if (!daPosare) return;
       if (!locale || genere !== "pavimento" || riferimento !== locale.id) {
-        setMessaggio("Scegli un punto sul pavimento dell’ambiente selezionato.");
+        setMessaggio(t("Scegli un punto sul pavimento dell’ambiente selezionato."));
         return;
       }
       aggiornaElemento({ ...daPosare, id: daPosare.id || crypto.randomUUID(), posizione: punto, localeId: locale.id }, locale);
@@ -300,12 +304,12 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
       esito.saltati.forEach(e => saltati.add(e));
     }
     if (!aggiunti.length) {
-      setMessaggio(saltati.size ? "Spazio insufficiente per gli arredi proposti." : "Gli arredi proposti sono già presenti.");
+      setMessaggio(saltati.size ? t("Spazio insufficiente per gli arredi proposti.") : t("Gli arredi proposti sono già presenti."));
       return;
     }
     modificaStato(s => ({ ...s, elementi: [...s.elementi, ...aggiunti] }));
     setPosa(null);
-    setMessaggio(saltati.size ? "Aggiunti " + aggiunti.length + " arredi. Da posizionare " + [...saltati].join(", ") + "." : "Arredi posizionati negli ambienti selezionati.");
+    setMessaggio(saltati.size ? t("Aggiunti {n} arredi. Da posizionare {elenco}.", { n: aggiunti.length, elenco: [...saltati].join(", ") }) : t("Arredi posizionati negli ambienti selezionati."));
   };
 
   const salva = async (restaNelVisore: boolean) => {
@@ -317,12 +321,12 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
       const numero = await salvataggio.mutateAsync({ planimetriaId, versioneAttesa: versione, documento: bozza, nota: "Finiture, infissi e arredi dal 3D" });
       onBozza(null);
       if (restaNelVisore) {
-        toast.success("Modifiche 3D salvate");
+        toast.success(t("Modifiche 3D salvate"));
         onSalvata(locale?.id ?? "");
       }
       return numero;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Modifiche 3D non salvate.");
+      toast.error(e instanceof Error ? e.message : t("Modifiche 3D non salvate."));
     } finally { occupato.current = false; }
   };
 
@@ -341,8 +345,8 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
       disabled={salvataggio.isPending} onClick={() => {
         onBozza(ultimaRapida.prima);
         setUltimaRapida(undefined);
-        setStatoRapido("Ultima modifica annullata.");
-      }}><Undo2 className="size-4" />Annulla ultima modifica</Button>}
+        setStatoRapido(t("Ultima modifica annullata."));
+      }}><Undo2 className="size-4" />{t("Annulla ultima modifica")}</Button>}
     {bozza && <Button variant="ghost" size="sm" disabled={salvataggio.isPending || anteprimaAttiva} onClick={() => {
       onBozza(null);
       setUltimaRapida(undefined);
@@ -350,10 +354,10 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
       setSelezionato("");
       setPosa(null);
       setMessaggio("");
-    }}>Annulla modifiche</Button>}
+    }}>{t("Annulla modifiche")}</Button>}
     <Button size="sm" className="gap-1.5" variant={rapideAperte ? "outline" : "default"}
       disabled={!bozza || salvataggio.isPending || anteprimaAttiva} onClick={() => void salva(true)}>
-      <Save className="h-4 w-4" />{salvataggio.isPending ? "Salvataggio…" : "Salva modifiche"}
+      <Save className="h-4 w-4" />{salvataggio.isPending ? t("Salvataggio…") : t("Salva modifiche")}
     </Button>
   </div>;
   return <div className={cn("grid items-start gap-4 p-3 sm:p-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150",
@@ -374,34 +378,34 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
             return !ingombroDentroLocale(e, locale.contorno) ? "fuori" : ingombroVicino(e) ? "vicino" : "libero";
           } } : undefined,
           onRender: preparaRender,
-          renderLabel: bozza ? "Salva e prepara il render" : "Usa questa vista per il render", renderDisabilitato: salvataggio.isPending || anteprimaAttiva }} />
-      {!verifica.ok && <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><ScanLine className="h-3.5 w-3.5" />Anteprima con misure da verificare. <button type="button" onClick={onVerifica} className="font-semibold text-primary underline-offset-2 hover:underline">Verifica la tavola</button></p>}
+          renderLabel: bozza ? t("Salva e prepara il render") : t("Usa questa vista per il render"), renderDisabilitato: salvataggio.isPending || anteprimaAttiva }} />
+      {!verifica.ok && <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><ScanLine className="h-3.5 w-3.5" />{t("Anteprima con misure da verificare.")} <button type="button" onClick={onVerifica} className="font-semibold text-primary underline-offset-2 hover:underline">{t("Verifica la tavola")}</button></p>}
     </div>
     {rapideAperte && <div ref={areaRapide} className="min-w-0 scroll-mt-3"><ModificheRapide3D documento={attuale} ambito={ambito} livelloId={pianoRapido}
       onLivello={id => { setPianoRapido(id); setPrima(false); if (modificaRapida?.tipo === "arredo") scegliModificaRapida(null); }}
       modifica={modificaRapida} onModifica={scegliModificaRapida} anteprima={anteprimaRapida} prima={prima} onPrima={setPrima}
       onApplica={applicaModificaRapida} onChiudi={() => mostraRapide(false)} stato={statoRapido} occupato={salvataggio.isPending} azioniBozza={azioniBozza} /></div>}
-    <aside aria-label="Materiali e arredi del 3D" hidden={!mostraPannello} className="min-w-0 rounded-xl border bg-card shadow-sm xl:max-h-[calc(100dvh-8rem)] xl:overflow-y-auto">
+    <aside aria-label={t("Materiali e arredi del 3D")} hidden={!mostraPannello} className="min-w-0 rounded-xl border bg-card shadow-sm xl:max-h-[calc(100dvh-8rem)] xl:overflow-y-auto">
       <div className="space-y-2 border-b px-3.5 py-3">
-        <label htmlFor="ambiente-studio-3d" className="text-xs font-medium text-muted-foreground">Ambiente</label>
+        <label htmlFor="ambiente-studio-3d" className="text-xs font-medium text-muted-foreground">{t("Ambiente")}</label>
         <UniformSelect id="ambiente-studio-3d" value={locale?.id ?? ""} onChange={e => cambiaLocale(e.target.value)} className="h-9 w-full">
-          {!stato.locali.length && <option value="">Nessuna stanza</option>}
+          {!stato.locali.length && <option value="">{t("Nessuna stanza")}</option>}
           {stato.locali.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
         </UniformSelect>
         {puoModificareStanza && stanzeInterne.length > 1 && <div className="space-y-2 pt-1">
-          <div role="group" aria-label="Applica modifiche a" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-            <Button variant={piuStanze ? "ghost" : "outline"} size="sm" className="h-8 px-2 text-xs" aria-pressed={!piuStanze} onClick={() => setPiuStanze(false)}>Questa stanza</Button>
+          <div role="group" aria-label={t("Applica modifiche a")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+            <Button variant={piuStanze ? "ghost" : "outline"} size="sm" className="h-8 px-2 text-xs" aria-pressed={!piuStanze} onClick={() => setPiuStanze(false)}>{t("Questa stanza")}</Button>
             <Button variant={piuStanze ? "outline" : "ghost"} size="sm" className="h-8 gap-1 px-2 text-xs" aria-pressed={piuStanze} onClick={() => {
               if (!selezioneStanze.length && locale && eAmbienteInterno(locale)) setSelezioneStanze([locale.id]);
               setPiuStanze(true);
-            }}><Layers2 className="h-3.5 w-3.5" />Più stanze</Button>
+            }}><Layers2 className="h-3.5 w-3.5" />{t("Più stanze")}</Button>
           </div>
           {piuStanze && <fieldset className="space-y-1.5 rounded-lg border p-2">
-            <legend className="sr-only">Stanze del piano da modificare</legend>
+            <legend className="sr-only">{t("Stanze del piano da modificare")}</legend>
             <div className="flex items-center justify-between gap-2">
-              <span role="status" className="text-xs font-medium">{stanze.length} {stanze.length === 1 ? "stanza selezionata" : "stanze selezionate"}</span>
+              <span role="status" className="text-xs font-medium">{t(stanze.length === 1 ? "{n} stanza selezionata" : "{n} stanze selezionate", { n: stanze.length })}</span>
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setSelezioneStanze(tutteSelezionate ? [] : stanzeInterne.map(l => l.id))}>
-                {tutteSelezionate ? "Deseleziona tutte" : "Seleziona tutte"}
+                {tutteSelezionate ? t("Deseleziona tutte") : t("Seleziona tutte")}
               </Button>
             </div>
             <div className="max-h-32 space-y-1 overflow-auto pr-1">
@@ -418,73 +422,73 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
       </div>
       <Tabs value={pannello} onValueChange={v => { onPannello(v as PannelloInterni3D); setSelezionato(""); setPosa(null); setMessaggio(""); }} className="px-3.5 py-3">
         <TabsList className="grid h-auto w-full grid-cols-3">
-          <TabsTrigger value="superfici" className="gap-1 px-1.5 py-1.5 text-xs"><PaintRoller className="h-3.5 w-3.5" />Superfici</TabsTrigger>
-          <TabsTrigger value="infissi" className="gap-1 px-1.5 py-1.5 text-xs"><DoorOpen className="h-3.5 w-3.5" />Infissi</TabsTrigger>
-          <TabsTrigger value="arredi" className="gap-1 px-1.5 py-1.5 text-xs"><Armchair className="h-3.5 w-3.5" />Arredi</TabsTrigger>
+          <TabsTrigger value="superfici" className="gap-1 px-1.5 py-1.5 text-xs"><PaintRoller className="h-3.5 w-3.5" />{t("Superfici")}</TabsTrigger>
+          <TabsTrigger value="infissi" className="gap-1 px-1.5 py-1.5 text-xs"><DoorOpen className="h-3.5 w-3.5" />{t("Infissi")}</TabsTrigger>
+          <TabsTrigger value="arredi" className="gap-1 px-1.5 py-1.5 text-xs"><Armchair className="h-3.5 w-3.5" />{t("Arredi")}</TabsTrigger>
         </TabsList>
         <TabsContent value="superfici" className="mt-3 space-y-3">
           {locale ? <fieldset disabled={!puoModificareStanza || !stanze.length} className="space-y-2 disabled:opacity-65">
-            <label className="block text-xs font-medium">Superficie
+            <label className="block text-xs font-medium">{t("Superficie")}
               <UniformSelect className="mt-1 h-8 w-full" value={superficie} onChange={e => setSuperficie(e.target.value as Superficie)}>
-                {Object.entries(SUPERFICI).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+                {Object.entries(SUPERFICI).map(([id, nome]) => <option key={id} value={id}>{t(nome)}</option>)}
               </UniformSelect>
             </label>
-            {finitureDiverse && <p className="text-xs text-muted-foreground">Le stanze selezionate hanno finiture diverse.</p>}
+            {finitureDiverse && <p className="text-xs text-muted-foreground">{t("Le stanze selezionate hanno finiture diverse.")}</p>}
             <div className="grid grid-cols-2 gap-2">
               {campioni.map(c => <CampioneSuperficie key={c.id} campione={c} attivo={c.id === campioneAttuale?.id} onClick={() => scegliFinitura(c.descrizione)} />)}
             </div>
-            {superficie === "pavimento" && <label className="flex items-center justify-between gap-2 text-xs">Posa
-              <UniformSelect aria-label="Posa del pavimento" className="h-8 w-36" value={posaComune ?? ""}
+            {superficie === "pavimento" && <label className="flex items-center justify-between gap-2 text-xs">{t("Posa")}
+              <UniformSelect aria-label={t("Posa del pavimento")} className="h-8 w-36" value={posaComune ?? ""}
                 onChange={e => { const posa = e.target.value as PosaPavimento; modificaFiniture(f => ({ ...f, posaPavimento: posa === "dritta" ? undefined : posa })); }}>
-                {!posaComune && <option value="">Mista</option>}
-                <option value="dritta">Dritta</option>
-                <option value="traversa">Di traverso</option>
-                <option value="diagonale">In diagonale</option>
+                {!posaComune && <option value="">{t("Mista")}</option>}
+                <option value="dritta">{t("Dritta")}</option>
+                <option value="traversa">{t("Di traverso")}</option>
+                <option value="diagonale">{t("In diagonale")}</option>
               </UniformSelect>
             </label>}
-            {(superficie === "pareti" || superficie === "soffitto") && <label className="flex items-center justify-between gap-2 text-xs">Colore personalizzato
-              <input type="color" aria-label={"Colore personalizzato " + SUPERFICI[superficie].toLowerCase()} value={valore && /^#[a-f0-9]{6}$/i.test(valore) ? valore : campioneAttuale?.colore ?? "#f5f1e9"}
+            {(superficie === "pareti" || superficie === "soffitto") && <label className="flex items-center justify-between gap-2 text-xs">{t("Colore personalizzato")}
+              <input type="color" aria-label={t("Colore personalizzato {superficie}", { superficie: t(SUPERFICI[superficie]).toLowerCase() })} value={valore && /^#[a-f0-9]{6}$/i.test(valore) ? valore : campioneAttuale?.colore ?? "#f5f1e9"}
                 onInput={e => scegliFinitura(e.currentTarget.value)} onChange={e => scegliFinitura(e.currentTarget.value)}
                 className="h-8 w-12 cursor-pointer rounded border bg-background p-0.5" />
             </label>}
-            {superficie === "rivestimento" && altezze.length > 0 && <label className="flex items-center justify-between gap-2 text-xs">Altezza rivestimento (cm)
-              <Input key={stanze.map(l => l.id).join(",") + ":" + altezze.join(",")} aria-label="Altezza rivestimento" type="number" min={1} max={Math.max(...stanze.map(l => l.altezza))} defaultValue={altezzaComune} placeholder="Mista" className="h-8 w-20"
+            {superficie === "rivestimento" && altezze.length > 0 && <label className="flex items-center justify-between gap-2 text-xs">{t("Altezza rivestimento (cm)")}
+              <Input key={stanze.map(l => l.id).join(",") + ":" + altezze.join(",")} aria-label={t("Altezza rivestimento")} type="number" min={1} max={Math.max(...stanze.map(l => l.altezza))} defaultValue={altezzaComune} placeholder={t("Mista")} className="h-8 w-20"
                 onBlur={e => {
                   const n = Number(e.currentTarget.value);
                   if (n > 0 && n !== altezzaComune) modificaFiniture((f, l) => f.rivestimento ? { ...f, rivestimento: { ...f.rivestimento, altezza: Math.min(n, l.altezza) } } : f);
                 }} />
             </label>}
-            {valori.some(Boolean) && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => scegliFinitura()}>{superficie === "pavimento" ? "Usa pavimento comune" : "Ripristina finitura di base"}</Button>}
-          </fieldset> : <p className="text-xs text-muted-foreground">Seleziona una stanza per scegliere le finiture.</p>}
+            {valori.some(Boolean) && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => scegliFinitura()}>{superficie === "pavimento" ? t("Usa pavimento comune") : t("Ripristina finitura di base")}</Button>}
+          </fieldset> : <p className="text-xs text-muted-foreground">{t("Seleziona una stanza per scegliere le finiture.")}</p>}
         </TabsContent>
         <TabsContent value="infissi" className="mt-3 space-y-3">
           <fieldset disabled={!sceltaModificabile} className="space-y-3 disabled:opacity-65">
-            <label className="block text-xs font-medium">Profilo dei serramenti del progetto
+            <label className="block text-xs font-medium">{t("Profilo dei serramenti del progetto")}
               <UniformSelect value={infissi?.profilo ?? ""} onChange={e => modificaInfissi(e.target.value ? { profilo: e.target.value as InfissiProgetto["profilo"], colore: infissi?.colore ?? "antracite" } : undefined)} className="mt-1 h-9 w-full">
-                <option value="">Profilo del modello</option>
+                <option value="">{t("Profilo del modello")}</option>
                 {Object.entries(PROFILI_PROGETTO).map(([id,nome]) => <option key={id} value={id}>{nome}</option>)}
               </UniformSelect>
             </label>
             <div>
-              <p className="mb-1.5 text-xs font-medium">Finitura del profilo</p>
+              <p className="mb-1.5 text-xs font-medium">{t("Finitura del profilo")}</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(COLORI_INFISSI_PROGETTO).map(([id,c]) => <button key={id} type="button" title={c.nome} aria-label={c.nome} aria-pressed={infissi?.colore === id} onClick={() => modificaInfissi({ profilo: infissi?.profilo ?? "alluminio", colore: id as InfissiProgetto["colore"] })}
                   className={cn("h-8 w-8 rounded-md border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", infissi?.colore === id && "ring-2 ring-primary ring-offset-2")} style={{ backgroundColor: c.hex }} />)}
               </div>
             </div>
           </fieldset>
-          <p className="text-xs leading-relaxed text-muted-foreground">Il profilo scelto si applica a finestre e portefinestre di questa variante.</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t("Il profilo scelto si applica a finestre e portefinestre di questa variante.")}</p>
           {serramenti.length > 0 && <div className="space-y-2 border-t pt-3">
-            <label className="block text-xs font-medium">Serramento nell’ambiente
+            <label className="block text-xs font-medium">{t("Serramento nell’ambiente")}
               <UniformSelect value={serramenti.some(s => s.id === selezionato) ? selezionato : ""} onChange={e => setSelezionato(e.target.value)} className="mt-1 h-9 w-full">
-                <option value="">Scegli un serramento</option>
+                <option value="">{t("Scegli un serramento")}</option>
                 {serramenti.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
               </UniformSelect>
             </label>
             {apertura && <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-2 py-1.5 text-xs">
-              <span>{apertura.larghezza} × {apertura.altezza} cm</span>
-              <label className="flex items-center gap-2">Ante
-                <UniformSelect aria-label="Ante del serramento" className="h-8" disabled={!puoModificareStanza} value={anteDi(apertura)}
+              <span>{t("{larghezza} × {altezza} cm", { larghezza: String(apertura.larghezza ?? ""), altezza: String(apertura.altezza ?? "") })}</span>
+              <label className="flex items-center gap-2">{t("Ante")}
+                <UniformSelect aria-label={t("Ante del serramento")} className="h-8" disabled={!puoModificareStanza} value={anteDi(apertura)}
                   onChange={e => modificaStato(s => ({ ...s, aperture: s.aperture.map(a => a.id === apertura.id ? { ...a, ante: Number(e.target.value) } : a) }))}>
                   {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
                 </UniformSelect>
@@ -493,16 +497,16 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
           </div>}
         </TabsContent>
         <TabsContent value="arredi" className="mt-3 space-y-3">
-          <label className="block text-xs font-medium">Arredi nell’ambiente ({elementi.length})
+          <label className="block text-xs font-medium">{t("Arredi nell’ambiente ({n})", { n: elementi.length })}
             <UniformSelect value={elemento?.id ?? ""} onChange={e => selezionaArredo(e.target.value)} className="mt-1 h-9 w-full">
-              <option value="">{elementi.length ? "Seleziona arredo" : "Nessun arredo"}</option>
+              <option value="">{elementi.length ? t("Seleziona arredo") : t("Nessun arredo")}</option>
               {elementi.map((e, i) => <option key={e.id} value={e.id}>{i + 1}. {e.etichetta?.trim() || modelloArredo(e.tipo, e.modello)?.nome || nomeDelTipo(e.tipo)}</option>)}
             </UniformSelect>
           </label>
           {elemento && puoModificareStanza && <Button variant="ghost" size="sm" className="w-full gap-1.5 border"
             aria-expanded={mostraCatalogo} onClick={() => { setAggiungiArredo(v => !v); setPosa(null); setMessaggio(""); }}>
             {!mostraCatalogo && <Plus className="size-3.5" />}
-            {mostraCatalogo ? "Torna all’arredo" : "Aggiungi un arredo"}
+            {mostraCatalogo ? t("Torna all’arredo") : t("Aggiungi un arredo")}
           </Button>}
           {mostraCatalogo && <fieldset className="space-y-2 disabled:opacity-65" disabled={!puoModificareStanza || !locale}>
             <CatalogoArredi3D key={locale?.id} destinazione={locale?.destinazione ?? ""} tipo={tipo}
@@ -514,21 +518,21 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
               <div className="flex items-center gap-2">
                 <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted"><MiniaturaArredo voce={{ ...catalogo, ...nuove }} /></span>
                 <p className="min-w-0 flex-1 text-xs font-semibold">{catalogo.nome}</p>
-                <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" aria-label={`Ruota arredo di 90 gradi. Rotazione attuale ${rotazioneNuova} gradi`}
+                <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" aria-label={t("Ruota arredo di 90 gradi. Rotazione attuale {rotazioneNuova} gradi", { rotazioneNuova: String(rotazioneNuova ?? "") })}
                   onClick={() => { setRotazioneNuova(r => (r + 90) % 360); setMessaggio(""); }}><RotateCw className="size-3.5" />{rotazioneNuova}°</Button>
               </div>
-              <SceltaModello tipo={tipo} valore={modelloNuovo} label="Modello da inserire" onChange={id => {
+              <SceltaModello tipo={tipo} valore={modelloNuovo} label={t("Modello da inserire")} onChange={id => {
                 setModelloNuovo(id);
                 const taglia = modelloArredo(tipo, id)?.misure;
                 if (taglia) setMisureNuove(testoMisureArredo(taglia));
               }} />
               <MisureArredo3D tipo={tipo} valore={testoNuovo} onChange={v => { setMisureNuove(v); setMessaggio(""); }} />
               {posa !== "aggiungi" && <Button className="w-full gap-1.5" size="sm" disabled={!nuove} onClick={() => avviaPosa("aggiungi")}>
-                <Plus className="size-3.5" />Posiziona in 3D
+                <Plus className="size-3.5" />{t("Posiziona in 3D")}
               </Button>}
             </div>}
             {stanze.some(l => destinazioneArredabile(l.destinazione)) && <Button size="sm" variant={catalogo ? "ghost" : "outline"} className="w-full" onClick={suggerisciArredi}>
-              {piuStanze ? "Arreda le stanze selezionate" : "Proponi arredi"}
+              {piuStanze ? t("Arreda le stanze selezionate") : t("Proponi arredi")}
             </Button>}
           </fieldset>}
           {elemento && !mostraCatalogo && <>
@@ -541,37 +545,37 @@ export function StudioInterni3D({ documento, bozza, onBozza, livello, ambito, pl
               <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => {
                 setPosa(null); setMessaggio("");
                 visore.current?.inquadraArredo(elemento.id);
-              }}><Focus className="h-3.5 w-3.5" />Inquadra</Button>
+              }}><Focus className="h-3.5 w-3.5" />{t("Inquadra")}</Button>
             </div>
             <fieldset disabled={!puoModificareStanza} className="flex flex-wrap gap-1.5">
               <ModificaMisure key={`${elemento.id}:${Object.values(misureArredo(elemento)).join(":")}`} elemento={elemento}
-                onApplica={e => locale && aggiornaElemento(e, locale, "Misure aggiornate.")} />
-              {!posa && <Button variant="outline" size="sm" onClick={() => avviaPosa("sposta")}>Sposta</Button>}
-              <Button variant="outline" size="sm" disabled={!!posa} className="gap-1" onClick={() => locale && aggiornaElemento({ ...elemento, rotazione: (elemento.rotazione + 90) % 360 }, locale)}><RotateCw className="h-3.5 w-3.5" />Ruota</Button>
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" aria-label={"Rimuovi " + nomeElemento} onClick={() => {
+                onApplica={e => locale && aggiornaElemento(e, locale, t("Misure aggiornate."))} />
+              {!posa && <Button variant="outline" size="sm" onClick={() => avviaPosa("sposta")}>{t("Sposta")}</Button>}
+              <Button variant="outline" size="sm" disabled={!!posa} className="gap-1" onClick={() => locale && aggiornaElemento({ ...elemento, rotazione: (elemento.rotazione + 90) % 360 }, locale)}><RotateCw className="h-3.5 w-3.5" />{t("Ruota")}</Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" aria-label={t("Rimuovi {nome}", { nome: nomeElemento })} onClick={() => {
                 modificaStato(s => ({ ...s, elementi: s.elementi.flatMap(e => e.id !== elemento.id ? [e] : propostaId && e.stato !== "nuovo" ? [{ ...e, stato: "da_demolire" as const }] : []) }));
                 selezionaArredo("");
               }}><Trash2 className="h-4 w-4" /></Button>
             {piuStanze && <p className="w-full text-xs text-muted-foreground">{arrediDaAggiornare.size
-              ? `Modello e colore si applicano a ${arrediDaAggiornare.size} ${arrediDaAggiornare.size === 1 ? "arredo" : "arredi"} dello stesso tipo.`
-              : "Seleziona almeno una stanza con questo tipo di arredo per applicare modello e colore."}</p>}
+              ? t(arrediDaAggiornare.size === 1 ? "Modello e colore si applicano a {n} arredo dello stesso tipo." : "Modello e colore si applicano a {n} arredi dello stesso tipo.", { n: arrediDaAggiornare.size })
+              : t("Seleziona almeno una stanza con questo tipo di arredo per applicare modello e colore.")}</p>}
             {!!arrediDaAggiornare.size && <div className="mt-1 w-full space-y-1.5 border-t pt-2.5">
-              <SceltaModello tipo={elemento.tipo} valore={modelliDiversi ? undefined : primoArredo?.modello} misto={modelliDiversi} label="Modello dell’arredo" onChange={modello => modificaAspettoArredo({ modello })} />
-              <p className="text-xs font-medium">Colore arredo</p>
+              <SceltaModello tipo={elemento.tipo} valore={modelliDiversi ? undefined : primoArredo?.modello} misto={modelliDiversi} label={t("Modello dell’arredo")} onChange={modello => modificaAspettoArredo({ modello })} />
+              <p className="text-xs font-medium">{t("Colore arredo")}</p>
               <div className="flex flex-wrap items-center gap-1.5">
-                {COLORI_ARREDO.map(c => <button key={c.hex} type="button" title={c.nome} aria-label={"Colore arredo " + c.nome}
+                {COLORI_ARREDO.map(c => <button key={c.hex} type="button" title={c.nome} aria-label={t("Colore arredo {nome}", { nome: c.nome })}
                   aria-pressed={statoColore === c.hex} onClick={() => modificaAspettoArredo({ colore: c.hex })}
                   className={cn("h-7 w-7 rounded-md border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", statoColore === c.hex && "ring-2 ring-primary ring-offset-1")}
                   style={{ backgroundColor: c.hex }} />)}
-                <input type="color" aria-label={"Colore di " + nomeElemento} value={statoColore ?? "#d4c4af"}
+                <input type="color" aria-label={t("Colore di {nome}", { nome: nomeElemento })} value={statoColore ?? "#d4c4af"}
                   onInput={e => modificaAspettoArredo({ colore: e.currentTarget.value })} onChange={e => modificaAspettoArredo({ colore: e.currentTarget.value })}
                   className="h-7 w-9 cursor-pointer rounded border bg-background p-0.5" />
               </div>
-              {oggettiConLoStessoTipo.some(e => e.colore) && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => modificaAspettoArredo({ colore: undefined })}>Colore di base</Button>}
+              {oggettiConLoStessoTipo.some(e => e.colore) && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => modificaAspettoArredo({ colore: undefined })}>{t("Colore di base")}</Button>}
             </div>}
             </fieldset>
           </>}
-          {posa && <Button size="sm" variant="outline" className="w-full" onClick={() => { setPosa(null); setMessaggio(""); }}>Annulla posizionamento</Button>}
+          {posa && <Button size="sm" variant="outline" className="w-full" onClick={() => { setPosa(null); setMessaggio(""); }}>{t("Annulla posizionamento")}</Button>}
           {messaggio && <p role="status" className="text-xs text-muted-foreground">{messaggio}</p>}
         </TabsContent>
       </Tabs>

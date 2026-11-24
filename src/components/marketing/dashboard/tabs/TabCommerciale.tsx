@@ -2,7 +2,6 @@ import type { ComponentType, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict, format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -12,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, ArrowRight, CalendarX, ChevronRight, FileClock, Gauge, UserX } from "lucide-react";
 import type { DashboardFiltersState } from "@/hooks/useMarketingDashboard";
 import { fmt, fmtCur } from "@/components/marketing/dashboard/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /*
  * Tab «Commerciale»: le cose da fare adesso, con il nome e il link.
@@ -37,7 +37,7 @@ interface Props {
 }
 
 const fa = (iso: string) => {
-  try { return formatDistanceToNowStrict(parseISO(iso), { locale: it, addSuffix: true }); } catch { return ""; }
+  try { return formatDistanceToNowStrict(parseISO(iso), { locale: dateFnsCampo(), addSuffix: true }); } catch { return ""; }
 };
 
 function Riquadro({ icona: Icona, tono, titolo, totale, sotto, vuoto, tutti, children }: {
@@ -50,6 +50,7 @@ function Riquadro({ icona: Icona, tono, titolo, totale, sotto, vuoto, tutti, chi
   tutti?: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <Card className="flex flex-col">
       <CardHeader className="pb-2">
@@ -68,7 +69,7 @@ function Riquadro({ icona: Icona, tono, titolo, totale, sotto, vuoto, tutti, chi
         )}
         {tutti && totale > 0 && (
           <Button variant="ghost" size="sm" className="mt-auto h-8 justify-between px-2 text-xs" onClick={tutti}>
-            Vedi tutti <ArrowRight className="h-3.5 w-3.5" />
+            {t("Vedi tutti")} <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         )}
       </CardContent>
@@ -90,6 +91,7 @@ function Voce({ titolo, dettaglio, destra, onClick }: { titolo: string; dettagli
 }
 
 export function TabCommerciale({ filters, assignedUserIds }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const navigate = useNavigate();
@@ -112,7 +114,7 @@ export function TabCommerciale({ filters, assignedUserIds }: Props) {
 
   // un errore non è un caricamento: prima lo scheletro restava lì per sempre
   if (error) {
-    return <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">Non riesco a caricare le cose da fare. Riprova tra poco.</p>;
+    return <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">{t("Non riesco a caricare le cose da fare. Riprova tra poco.")}</p>;
   }
   if (isLoading || !data) {
     return (
@@ -128,54 +130,54 @@ export function TabCommerciale({ filters, assignedUserIds }: Props) {
     <div className="mt-3 space-y-3">
       <div className="grid gap-3 lg:grid-cols-2">
         <Riquadro
-          icona={UserX} tono="text-red-600" titolo="Lead mai contattati"
+          icona={UserX} tono="text-red-600" titolo={t("Lead mai contattati")}
           totale={data.lead_da_contattare.totale}
           sotto="Arrivati negli ultimi 30 giorni, nessun contatto da oltre 2 ore"
-          vuoto="Tutti i lead sono stati contattati."
+          vuoto={t("Tutti i lead sono stati contattati.")}
           tutti={() => navigate("/azienda/marketing/contatti?filter=stale")}
         >
           {data.lead_da_contattare.voci.map((l) => (
-            <Voce key={l.id} titolo={l.nome || "Senza nome"} dettaglio={`${l.fonte ?? "Fonte non indicata"} · ${chi(l.commerciale)}`}
+            <Voce key={l.id} titolo={l.nome || t("Senza nome")} dettaglio={`${l.fonte ?? "Fonte non indicata"} · ${chi(l.commerciale)}`}
               destra={fa(l.arrivato_il)} onClick={() => navigate(`/azienda/marketing/contatti/${l.id}`)} />
           ))}
         </Riquadro>
 
         <Riquadro
-          icona={CalendarX} tono="text-amber-600" titolo="Appuntamenti da esitare"
+          icona={CalendarX} tono="text-amber-600" titolo={t("Appuntamenti da esitare")}
           totale={data.appuntamenti_da_esitare.totale}
           sotto="Passati (ultimi 60 giorni) e ancora «confermati»: senza esito lo show rate non dice niente"
-          vuoto="Tutti gli appuntamenti passati hanno un esito."
+          vuoto={t("Tutti gli appuntamenti passati hanno un esito.")}
           tutti={() => navigate("/azienda/marketing/calendario")}
         >
           {data.appuntamenti_da_esitare.voci.map((a) => (
-            <Voce key={a.id} titolo={a.titolo || "Appuntamento"} dettaglio={chi(a.commerciale)}
-              destra={format(parseISO(a.data), "d MMM", { locale: it })}
+            <Voce key={a.id} titolo={a.titolo || t("Appuntamento")} dettaglio={chi(a.commerciale)}
+              destra={format(parseISO(a.data), "d MMM", { locale: dateFnsCampo() })}
               onClick={() => navigate(a.contact_id ? `/azienda/marketing/contatti/${a.contact_id}` : "/azienda/marketing/calendario")} />
           ))}
         </Riquadro>
 
         <Riquadro
-          icona={AlertTriangle} tono="text-red-600" titolo="Opportunità ferme"
+          icona={AlertTriangle} tono="text-red-600" titolo={t("Opportunità ferme")}
           totale={data.opportunita_ferme.totale}
           sotto={`Oltre la soglia della fase senza attività · ${fmtCur(data.opportunita_ferme.valore ?? 0)} in tutto · le più grandi prima`}
-          vuoto="Nessuna opportunità ferma."
+          vuoto={t("Nessuna opportunità ferma.")}
           tutti={() => navigate("/azienda/marketing/opportunita")}
         >
           {data.opportunita_ferme.voci.map((o) => (
-            <Voce key={o.id} titolo={o.nome || "Opportunità"} dettaglio={`${o.fase} · ferma da ${o.giorni} gg · ${chi(o.commerciale)}`}
+            <Voce key={o.id} titolo={o.nome || t("Opportunità")} dettaglio={`${o.fase} · ferma da ${o.giorni} gg · ${chi(o.commerciale)}`}
               destra={o.valore ? fmtCur(o.valore) : undefined} onClick={() => navigate(`/azienda/marketing/opportunita?apri=${o.id}`)} />
           ))}
         </Riquadro>
 
         <Riquadro
-          icona={FileClock} tono="text-blue-600" titolo="Preventivi senza risposta"
+          icona={FileClock} tono="text-blue-600" titolo={t("Preventivi senza risposta")}
           totale={data.preventivi_in_attesa.totale}
           sotto={`Inviati e non ancora firmati né rifiutati · ${fmtCur(data.preventivi_in_attesa.valore ?? 0)} IVA esclusa`}
-          vuoto="Nessun preventivo in attesa di risposta."
+          vuoto={t("Nessun preventivo in attesa di risposta.")}
           tutti={() => navigate("/azienda/marketing/preventivi")}
         >
           {data.preventivi_in_attesa.voci.map((q) => (
-            <Voce key={q.id} titolo={q.titolo || "Preventivo"} dettaglio={`${chi(q.commerciale)} · inviato ${fa(q.inviato_il)}`}
+            <Voce key={q.id} titolo={q.titolo || t("Preventivo")} dettaglio={`${chi(q.commerciale)} · inviato ${fa(q.inviato_il)}`}
               destra={fmtCur(q.imponibile)} onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)} />
           ))}
         </Riquadro>
@@ -187,7 +189,7 @@ export function TabCommerciale({ filters, assignedUserIds }: Props) {
             <Gauge className="h-5 w-5 text-primary shrink-0" />
             <span>
               <span className="block font-medium">Sales OS</span>
-              <span className="block text-xs font-normal text-muted-foreground">Forecast, velocity e lead caldi per priorità</span>
+              <span className="block text-xs font-normal text-muted-foreground">{t("Forecast, velocity e lead caldi per priorità")}</span>
             </span>
           </span>
           <ArrowRight className="h-4 w-4 shrink-0" />

@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { Sparkles, Users, Clock, MessageSquare, Send, ChevronRight, ChevronLeft, Bot } from "lucide-react";
 import { BulkScheduleTemplateGallery } from "./BulkScheduleTemplateGallery";
 import type { BulkScheduleTemplate } from "@/lib/automations/bulkScheduleTemplates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Costanti ───────────────────────────────────────────────────────────
 
@@ -96,6 +97,7 @@ interface Props {
 }
 
 export function BulkScheduleWizard({ open, onClose }: Props) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const qc = useQueryClient();
 
@@ -176,8 +178,8 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
     if (t.config.template.body) setTemplateBody(t.config.template.body);
     if (t.config.template.ai_prompt) setAiPrompt(t.config.template.ai_prompt);
     setStep(1);
-    toast.success(`Template "${t.name}" caricato`, {
-      description: "Personalizza nei prossimi step o clicca direttamente Crea.",
+    toast.success(tr("Template \"{name}\" caricato", { name: String(t.name ?? "") }), {
+      description: tr("Personalizza nei prossimi step o clicca direttamente Crea."),
     });
   };
 
@@ -231,15 +233,15 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Messaggio programmato creato", {
-        description: "Verrà inviato secondo lo schedule scelto.",
+      toast.success(tr("Messaggio programmato creato"), {
+        description: tr("Verrà inviato secondo lo schedule scelto."),
       });
       void qc.invalidateQueries({ queryKey: ["automation-flows"] });
       reset();
       onClose();
     },
     onError: (e: Error) => {
-      toast.error("Errore", { description: e.message });
+      toast.error(tr("Errore"), { description: e.message });
     },
   });
 
@@ -249,12 +251,12 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-orange-500" />
-            Nuovo messaggio programmato
+            {tr("Nuovo messaggio programmato")}
           </DialogTitle>
           <DialogDescription>
-            Manda un messaggio in automatico a un gruppo di utenti su uno schedule fisso.
+            {tr("Manda un messaggio in automatico a un gruppo di utenti su uno schedule fisso.")}
             {/* L'esempio lo danno già i modelli qui sotto: da tablet si toglie. */}
-            <span className="sm:hidden"> Es. "ogni mattina alle 7 ai miei operai con il cantiere di oggi".</span>
+            <span className="sm:hidden"> {tr("Es. \"ogni mattina alle 7 ai miei operai con il cantiere di oggi\".")}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -269,7 +271,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                 )} />
               ))}
             </div>
-            <div className="text-xs text-slate-500 -mt-1">Step {step} di 4</div>
+            <div className="text-xs text-slate-500 -mt-1">{tr("Step {step} di 4", { step: String(step ?? "") })}</div>
           </>
         )}
 
@@ -285,11 +287,11 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <Label>Come si chiama questo messaggio?</Label>
+              <Label>{tr("Come si chiama questo messaggio?")}</Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="es. Briefing operai mattutino"
+                placeholder={tr("es. Briefing operai mattutino")}
                 className="mt-1"
                 autoFocus
               />
@@ -297,7 +299,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
 
             <div>
               <Label className="flex items-center gap-2 mb-2">
-                <Clock className="h-4 w-4" /> Quando va inviato?
+                <Clock className="h-4 w-4" /> {tr("Quando va inviato?")}
               </Label>
               {/* Da tablet due colonne: sette opzioni una sotto l'altra facevano
                   scorrere il popup. */}
@@ -312,8 +314,8 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                   >
                     <RadioGroupItem value={p.id} className="mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{p.label}</p>
-                      <p className="text-xs text-slate-500">{p.description}</p>
+                      <p className="font-medium text-sm">{tr(p.label)}</p>
+                      <p className="text-xs text-slate-500">{tr(p.description)}</p>
                     </div>
                     {/* Il cron ripete l'etichetta in linguaggio tecnico: via da tablet. */}
                     <code className="text-[10px] text-slate-400 mt-0.5 sm:hidden">{p.cron}</code>
@@ -327,12 +329,12 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                 >
                   <RadioGroupItem value="custom" className="mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">Cron personalizzato</p>
+                    <p className="font-medium text-sm">{tr("Cron personalizzato")}</p>
                     {schedulePreset === "custom" && (
                       <Input
                         value={customCron}
                         onChange={(e) => setCustomCron(e.target.value)}
-                        placeholder="es. 0 7 * * 1-5"
+                        placeholder={tr("es. 0 7 * * 1-5")}
                         className="mt-2 font-mono text-xs"
                       />
                     )}
@@ -347,7 +349,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         {step === 2 && (
           <div className="space-y-4">
             <Label className="flex items-center gap-2 mb-2">
-              <Users className="h-4 w-4" /> A chi va inviato?
+              <Users className="h-4 w-4" /> {tr("A chi va inviato?")}
             </Label>
             <RadioGroup value={targetPreset} onValueChange={setTargetPreset}>
               {TARGET_PRESETS.map((t) => (
@@ -360,15 +362,14 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                 >
                   <RadioGroupItem value={t.id} />
                   <span className="text-2xl">{t.icon}</span>
-                  <span className="font-medium text-sm flex-1">{t.label}</span>
+                  <span className="font-medium text-sm flex-1">{tr(t.label)}</span>
                 </label>
               ))}
             </RadioGroup>
             {/* Da tablet via: un percorso /azienda/… e «custom query» non dicono
                 niente a chi usa l'app, e il builder è la pagina stessa. */}
             <p className="text-xs text-slate-500 sm:hidden">
-              Per filtri più complessi (tag specifici, sede operativa, custom query) usa il builder
-              avanzato in /azienda/automazioni.
+              {tr("Per filtri più complessi (tag specifici, sede operativa, custom query) usa il builder avanzato in /azienda/automazioni.")}
             </p>
           </div>
         )}
@@ -377,20 +378,18 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         {step === 3 && (
           <div className="space-y-4">
             <Label className="flex items-center gap-2 mb-2">
-              <MessageSquare className="h-4 w-4" /> Su quali canali?
+              <MessageSquare className="h-4 w-4" /> {tr("Su quali canali?")}
             </Label>
             {/* Solo da telefono; da tablet in su la riga non c'è. In parole di tutti i giorni, senza il percorso scritto come indirizzo. */}
             <p className="text-xs text-slate-500 -mt-2 sm:hidden">
-              Se scegli più canali, il messaggio parte da quello preferito dalla persona. Se quello non
-              è disponibile, prova il successivo nel suo ordine di preferenza: ognuno lo sceglie in
-              Impostazioni → Notifiche.
+              {tr("Se scegli più canali, il messaggio parte da quello preferito dalla persona. Se quello non è disponibile, prova il successivo nel suo ordine di preferenza: ognuno lo sceglie in Impostazioni → Notifiche.")}
             </p>
             <div className="space-y-2">
               {([
-                { key: "silvio_chat", emoji: "💬", label: "Chat Silvio (in-app)", desc: "Messaggio nella chat con Silvio. Sempre disponibile per gli utenti dell'app.", descBreve: "Messaggio nella chat con Silvio, sempre disponibile.", checked: channelSilvioChat, setter: setChannelSilvioChat, recommended: true },
-                { key: "telegram", emoji: "📱", label: "Telegram", desc: "Notifica push via bot Telegram. L'utente deve aver legato il proprio account al bot aziendale.", descBreve: "Notifica dal bot Telegram: l'utente deve aver collegato il suo account.", checked: channelTelegram, setter: setChannelTelegram, recommended: false },
-                { key: "whatsapp", emoji: "💚", label: "WhatsApp", desc: "Via WhatsApp Business. Richiede company config (whatsapp-send edge function).", descBreve: "Via WhatsApp Business: serve il numero aziendale collegato.", checked: channelWhatsapp, setter: setChannelWhatsapp, recommended: false },
-                { key: "email", emoji: "📧", label: "Email", desc: "Email all'indirizzo del profilo (o override personale).", descBreve: "All'indirizzo email del profilo.", checked: channelEmail, setter: setChannelEmail, recommended: false },
+                { key: "silvio_chat", emoji: "💬", label: tr("Chat Silvio (in-app)"), desc: tr("Messaggio nella chat con Silvio. Sempre disponibile per gli utenti dell'app."), descBreve: tr("Messaggio nella chat con Silvio, sempre disponibile."), checked: channelSilvioChat, setter: setChannelSilvioChat, recommended: true },
+                { key: "telegram", emoji: "📱", label: "Telegram", desc: tr("Notifica push via bot Telegram. L'utente deve aver legato il proprio account al bot aziendale."), descBreve: tr("Notifica dal bot Telegram: l'utente deve aver collegato il suo account."), checked: channelTelegram, setter: setChannelTelegram, recommended: false },
+                { key: "whatsapp", emoji: "💚", label: "WhatsApp", desc: tr("Via WhatsApp Business. Richiede company config (whatsapp-send edge function)."), descBreve: tr("Via WhatsApp Business: serve il numero aziendale collegato."), checked: channelWhatsapp, setter: setChannelWhatsapp, recommended: false },
+                { key: "email", emoji: "📧", label: "Email", desc: tr("Email all'indirizzo del profilo (o override personale)."), descBreve: tr("All'indirizzo email del profilo."), checked: channelEmail, setter: setChannelEmail, recommended: false },
               ] as const).map((ch) => (
                 <label
                   key={ch.key}
@@ -405,7 +404,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                       <p className="font-medium text-sm flex items-center gap-1.5">
                         {ch.label}
                         {ch.recommended && (
-                          <Badge variant="outline" className="text-[9px] h-4 bg-emerald-50 text-emerald-700 border-emerald-300">consigliato</Badge>
+                          <Badge variant="outline" className="text-[9px] h-4 bg-emerald-50 text-emerald-700 border-emerald-300">{tr("consigliato")}</Badge>
                         )}
                       </p>
                       {/* Da tablet la versione breve: quella lunga parlava di «edge
@@ -424,7 +423,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         {/* ────────── STEP 4: COSA ────────── */}
         {step === 4 && (
           <div className="space-y-4">
-            <Label>Cosa scrivere?</Label>
+            <Label>{tr("Cosa scrivere?")}</Label>
             <RadioGroup value={templateMode} onValueChange={(v) => setTemplateMode(v as "static" | "ai_generated")}>
               <label className={cn(
                 "flex items-start gap-3 rounded-lg border p-3 cursor-pointer",
@@ -432,8 +431,8 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
               )}>
                 <RadioGroupItem value="static" className="mt-0.5" />
                 <div className="flex-1">
-                  <p className="font-medium text-sm">Template fisso con variabili</p>
-                  <p className="text-xs text-slate-500">Stesso testo per tutti, ma con {`{nome}`}, {`{cantiere_oggi}`}, ecc.</p>
+                  <p className="font-medium text-sm">{tr("Template fisso con variabili")}</p>
+                  <p className="text-xs text-slate-500">{tr("Stesso testo per tutti, ma con")} {`{nome}`}, {`{cantiere_oggi}`}{tr(", ecc.")}</p>
                 </div>
               </label>
               <label className={cn(
@@ -443,16 +442,16 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                 <RadioGroupItem value="ai_generated" className="mt-0.5" />
                 <div className="flex-1">
                   <p className="font-medium text-sm flex items-center gap-1">
-                    <Bot className="h-3.5 w-3.5 text-violet-600" /> Silvio personalizza per ogni utente
+                    <Bot className="h-3.5 w-3.5 text-violet-600" /> {tr("Silvio personalizza per ogni utente")}
                   </p>
-                  <p className="text-xs text-slate-500">L'AI scrive un messaggio diverso a ciascuno in base ai dati (più caro)</p>
+                  <p className="text-xs text-slate-500">{tr("L'AI scrive un messaggio diverso a ciascuno in base ai dati (più caro)")}</p>
                 </div>
               </label>
             </RadioGroup>
 
             {templateMode === "static" && (
               <div>
-                <Label className="text-xs">Testo</Label>
+                <Label className="text-xs">{tr("Testo")}</Label>
                 <Textarea
                   value={templateBody}
                   onChange={(e) => setTemplateBody(e.target.value)}
@@ -460,7 +459,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                   className="mt-1"
                 />
                 <div className="mt-2">
-                  <p className="text-[11px] text-slate-500 mb-1">Variabili disponibili (click per inserire):</p>
+                  <p className="text-[11px] text-slate-500 mb-1">{tr("Variabili disponibili (click per inserire):")}</p>
                   <div className="flex flex-wrap gap-1">
                     {AVAILABLE_VARIABLES.map((v) => (
                       <button
@@ -468,7 +467,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                         type="button"
                         onClick={() => setTemplateBody((b) => `${b}${b.endsWith(" ") || !b ? "" : " "}${v.key}`)}
                         className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-orange-100 text-slate-700 border border-slate-200"
-                        title={`${v.description}\nEs: ${v.example}`}
+                        title={`${tr(v.description)}\n${tr("Es: {esempio}", { esempio: v.example })}`}
                       >
                         {v.key}
                       </button>
@@ -480,7 +479,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
 
             {templateMode === "ai_generated" && (
               <div>
-                <Label className="text-xs">Prompt per Silvio</Label>
+                <Label className="text-xs">{tr("Prompt per Silvio")}</Label>
                 <Textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
@@ -488,8 +487,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                   className="mt-1"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Le stesse variabili sono disponibili nel prompt. Silvio le risolverà e genererà
-                  un messaggio personalizzato per ogni destinatario.
+                  {tr("Le stesse variabili sono disponibili nel prompt. Silvio le risolverà e genererà un messaggio personalizzato per ogni destinatario.")}
                 </p>
               </div>
             )}
@@ -499,12 +497,12 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         <DialogFooter className="gap-2">
           {step > 1 && (
             <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={createMut.isPending}>
-              <ChevronLeft className="h-4 w-4 mr-1" /> Indietro
+              <ChevronLeft className="h-4 w-4 mr-1" /> {tr("Indietro")}
             </Button>
           )}
           {step === 1 && (
             <Button variant="ghost" onClick={() => setStep(0)} disabled={createMut.isPending}>
-              <ChevronLeft className="h-4 w-4 mr-1" /> Template
+              <ChevronLeft className="h-4 w-4 mr-1" /> {tr("Template")}
             </Button>
           )}
           <div className="flex-1" />
@@ -513,13 +511,13 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
               (step === 1 && (!name.trim() || (schedulePreset === "custom" && !customCron.trim()))) ||
               (step === 3 && !channelSilvioChat && !channelTelegram && !channelWhatsapp && !channelEmail)
             }>
-              Avanti <ChevronRight className="h-4 w-4 ml-1" />
+              {tr("Avanti")} <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           )}
           {step === 4 && (
             <Button onClick={() => createMut.mutate()} disabled={createMut.isPending} className="gap-2">
               <Send className="h-4 w-4" />
-              {createMut.isPending ? "Creazione..." : "Crea e attiva"}
+              {createMut.isPending ? tr("Creazione...") : tr("Crea e attiva")}
             </Button>
           )}
         </DialogFooter>

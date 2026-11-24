@@ -20,6 +20,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { PhoneIncoming, PhoneOff, User, X } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Passaggio {
   id: string;
@@ -34,17 +35,19 @@ interface Passaggio {
 }
 
 type HandoffContext={provider?:string;identity_verified?:boolean;ticket?:{id:string;reference:string;subject:string;status:string}|null;next_step?:string};
-export function FishHandoffDetails({context}:{context:HandoffContext}){return <div className="space-y-2 rounded border border-emerald-200 bg-emerald-50/50 p-3 text-xs"><p className="font-medium">{context.identity_verified?"Nome e indirizzo verificati":"Identità da verificare con il cliente"}</p>{context.identity_verified && context.ticket && <Link className="block underline" to={`/azienda/assistenza/${context.ticket.id}`}>{context.ticket.reference} · {context.ticket.subject}</Link>}{context.next_step && <p><b>Prossimo passo:</b> {context.next_step}</p>}</div>;}
+export function FishHandoffDetails({context}:{context:HandoffContext}){
+  const t = useT();return <div className="space-y-2 rounded border border-emerald-200 bg-emerald-50/50 p-3 text-xs"><p className="font-medium">{context.identity_verified?t("Nome e indirizzo verificati"):t("Identità da verificare con il cliente")}</p>{context.identity_verified && context.ticket && <Link className="block underline" to={`/azienda/assistenza/${context.ticket.id}`}>{context.ticket.reference} · {context.ticket.subject}</Link>}{context.next_step && <p><b>{t("Prossimo passo:")}</b> {context.next_step}</p>}</div>;}
 
 /** Da quanto sta squillando, in parole. */
-function daQuanto(iso: string): string {
+function daQuanto(iso: string, t: ReturnType<typeof useT>): string {
   const secondi = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (secondi < 60) return `${secondi} secondi fa`;
+  if (secondi < 60) return t("{n} secondi fa", { n: secondi });
   const minuti = Math.round(secondi / 60);
-  return minuti === 1 ? "un minuto fa" : `${minuti} minuti fa`;
+  return minuti === 1 ? t("un minuto fa") : t("{n} minuti fa", { n: minuti });
 }
 
 export function SchedaPassaggioChiamata() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
   const [passaggio, setPassaggio] = useState<Passaggio | null>(null);
@@ -110,7 +113,7 @@ export function SchedaPassaggioChiamata() {
     setErrore("");
     if(passaggio.contesto_ai?.provider==="fish_audio"){
       const {error}=await supabase.rpc("fish_operator_handoff_status" as never,{p_company:companyId,p_handoff:id,p_action:stato==="risposto"?"answer":stato==="terminata"?"finish":"missed"} as never);
-      if(error){setErrore("Non riesco a salvare lo stato. Riprova.");return;}
+      if(error){setErrore(t("Non riesco a salvare lo stato. Riprova."));return;}
       if(stato==="risposto")setPassaggio(current=>current?{...current,stato:"risposto"}:current);else setPassaggio(null);
       return;
     }
@@ -133,13 +136,13 @@ export function SchedaPassaggioChiamata() {
       <div className="flex items-start gap-3 border-b bg-orange-50 px-4 py-3 dark:bg-orange-950/30">
         <PhoneIncoming className="mt-0.5 h-5 w-5 shrink-0 animate-pulse text-orange-600" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-tight">{passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto"?"Chiamata in corso":"Ti stanno passando una chiamata"}</p>
-          <p className="text-xs text-muted-foreground">{daQuanto(passaggio.creato_il)}</p>
+          <p className="text-sm font-semibold leading-tight">{passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto"?t("Chiamata in corso"):t("Ti stanno passando una chiamata")}</p>
+          <p className="text-xs text-muted-foreground">{daQuanto(passaggio.creato_il, t)}</p>
         </div>
         {!(passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto") && <button
           onClick={() => chiudi("persa")}
           className="rounded p-1 text-muted-foreground hover:bg-muted"
-          aria-label="Chiudi la scheda"
+          aria-label={t("Chiudi la scheda")}
         >
           <X className="h-4 w-4" />
         </button>}
@@ -149,7 +152,7 @@ export function SchedaPassaggioChiamata() {
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{passaggio.nome_cliente || "Cliente"}</p>
+            <p className="truncate text-sm font-medium">{passaggio.nome_cliente || t("Cliente")}</p>
             {passaggio.telefono_cliente && (
               <a href={`tel:${passaggio.telefono_cliente}`} className="text-xs text-muted-foreground hover:underline">
                 {passaggio.telefono_cliente}
@@ -161,7 +164,7 @@ export function SchedaPassaggioChiamata() {
         {passaggio.riassunto && (
           <div className="rounded border bg-muted/40 p-2.5">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Cosa ha detto
+              {t("Cosa ha detto")}
             </p>
             <p className="whitespace-pre-wrap text-sm leading-snug">{passaggio.riassunto}</p>
           </div>
@@ -169,13 +172,13 @@ export function SchedaPassaggioChiamata() {
 
         {passaggio.contesto_ai?.provider==="fish_audio" && <FishHandoffDetails context={passaggio.contesto_ai}/>}
         {errore && <p role="alert" className="text-xs text-destructive">{errore}</p>}
-        {passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto"?<div><p className="mb-2 text-xs text-muted-foreground">Il collega resta occupato. Segna la fine quando hai concluso la telefonata.</p><Button size="sm" className="w-full" onClick={()=>chiudi("terminata")}>Ho terminato la chiamata</Button></div>:<div className="flex gap-2">
+        {passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto"?<div><p className="mb-2 text-xs text-muted-foreground">{t("Il collega resta occupato. Segna la fine quando hai concluso la telefonata.")}</p><Button size="sm" className="w-full" onClick={()=>chiudi("terminata")}>{t("Ho terminato la chiamata")}</Button></div>:<div className="flex gap-2">
           <Button size="sm" className="flex-1" onClick={() => chiudi("risposto")}>
-            Ho risposto
+            {t("Ho risposto")}
           </Button>
           <Button size="sm" variant="outline" onClick={() => chiudi("persa")}>
             <PhoneOff className="mr-1.5 h-3.5 w-3.5" />
-            Persa
+            {t("Persa")}
           </Button>
         </div>}
       </div>

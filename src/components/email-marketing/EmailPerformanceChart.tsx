@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useState } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type ChartDataPoint = { date: string; all: number; broadcast: number; automation: number; bulk: number };
 
@@ -22,6 +23,7 @@ const METRICS = [
 type MetricKey = typeof METRICS[number]["value"];
 
 export function EmailPerformanceChart({ datasets }: EmailPerformanceChartProps) {
+  const t = useT();
   const [metric, setMetric] = useState<MetricKey>("open_rate");
 
   const data = datasets[metric] || [];
@@ -32,15 +34,15 @@ export function EmailPerformanceChart({ datasets }: EmailPerformanceChartProps) 
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
           <CardTitle className="text-base">
-            {METRICS.find(m => m.value === metric)?.label || "Tasso di apertura"}
+            {t(METRICS.find(m => m.value === metric)?.label || "Tasso di apertura")}
           </CardTitle>
-          <p className="text-sm text-muted-foreground">Andamento nel tempo per tipo di campagna</p>
+          <p className="text-sm text-muted-foreground">{t("Andamento nel tempo per tipo di campagna")}</p>
         </div>
         <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             {METRICS.map(m => (
-              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              <SelectItem key={m.value} value={m.value}>{t(m.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -48,7 +50,7 @@ export function EmailPerformanceChart({ datasets }: EmailPerformanceChartProps) 
       <CardContent>
         {!hasData ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-            Nessun dato disponibile. Invia campagne per visualizzare l'andamento.
+            {t("Nessun dato disponibile. Invia campagne per visualizzare l'andamento.")}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={280}>

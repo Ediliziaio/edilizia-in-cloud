@@ -17,6 +17,7 @@ import {
   caricaSezioni, htmlEsportazione, nomeFile, scaricaCsv, scaricaJson, scaricaXlsx,
   type FormatoEsportazione, type SezioneEsportata, type Tabella,
 } from "@/lib/controlloGestione/esportaTutto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   anno: number;
@@ -50,6 +51,7 @@ async function ragioneSociale(): Promise<string | null> {
 }
 
 export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scarica", size = "sm" }: Props) {
+  const t = useT();
   const [occupato, setOccupato] = useState<FormatoEsportazione | null>(null);
   const [anteprima, setAnteprima] = useState<{ html: string; nome: string } | null>(null);
 
@@ -64,7 +66,7 @@ export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scar
       ];
       const intestazione = { azienda: await ragioneSociale(), titolo, anno };
       if (tutte.every((s) => s.tabelle.length === 0 && !s.errore)) {
-        toast.info("Niente da scaricare per quest'anno");
+        toast.info(t("Niente da scaricare per quest'anno"));
         return;
       }
       if (formato === "xlsx") await scaricaXlsx(tutte, intestazione);
@@ -73,12 +75,12 @@ export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scar
       else setAnteprima({ html: htmlEsportazione(tutte, intestazione), nome: nomeFile(intestazione, "pdf") });
       const mancanti = tutte.filter((s) => s.errore);
       if (mancanti.length) {
-        toast.warning(`${mancanti.length} sezioni non disponibili`, { description: mancanti.map((s) => s.titolo).join(", ") });
+        toast.warning(t("{n} sezioni non disponibili", { n: mancanti.length }), { description: mancanti.map((s) => s.titolo).join(", ") });
       } else if (formato !== "pdf") {
-        toast.success("File scaricato");
+        toast.success(t("File scaricato"));
       }
     } catch (e) {
-      toast.error("Esportazione non riuscita", { description: e instanceof Error ? e.message : "Riprova." });
+      toast.error(t("Esportazione non riuscita"), { description: e instanceof Error ? e.message : t("Riprova.") });
     } finally {
       setOccupato(null);
     }
@@ -98,18 +100,18 @@ export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scar
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size={size} className="gap-1.5" disabled={occupato !== null} aria-label={label || "Scarica"} title={label || "Scarica"}>
+          <Button variant="outline" size={size} className="gap-1.5" disabled={occupato !== null} aria-label={t(label || "Scarica")} title={t(label || "Scarica")}>
             {occupato ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {label}
+            {label ? t(label) : null}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuLabel>{titolo} · {anno}</DropdownMenuLabel>
+          <DropdownMenuLabel>{t(titolo)} · {anno}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {voce("xlsx", FileSpreadsheet, "Excel (.xlsx)", "Un foglio per tabella, con indice")}
-          {voce("pdf", FileText, "PDF", "Documento A4 da salvare o stampare")}
-          {voce("csv", FileArchive, "CSV", "Per Excel italiano; più tabelle in uno ZIP")}
-          {voce("json", FileJson, "JSON", "I dati completi, per altri programmi")}
+          {voce("xlsx", FileSpreadsheet, "Excel (.xlsx)", t("Un foglio per tabella, con indice"))}
+          {voce("pdf", FileText, "PDF", t("Documento A4 da salvare o stampare"))}
+          {voce("csv", FileArchive, "CSV", t("Per Excel italiano; più tabelle in uno ZIP"))}
+          {voce("json", FileJson, "JSON", t("I dati completi, per altri programmi"))}
         </DropdownMenuContent>
       </DropdownMenu>
       {anteprima && (
@@ -118,7 +120,7 @@ export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scar
           onOpenChange={(o) => { if (!o) setAnteprima(null); }}
           htmlContent={anteprima.html}
           fileName={anteprima.nome}
-          title={`${titolo} · ${anno}`}
+          title={`${t(titolo)} · ${anno}`}
           soloPdf
         />
       )}

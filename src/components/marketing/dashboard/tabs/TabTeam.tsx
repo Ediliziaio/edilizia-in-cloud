@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useRecalculateAllLeadScores } from "@/hooks/useSalesOS";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /*
  * Tab «Team»: la classifica dei commerciali — vendite, fatturato, chiusura,
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export const TabTeam = memo(function TabTeam({ data, isLoading, filters, assignedUserIds }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   // L'azienda che si sta guardando, non quella del proprio profilo: con «Stai
   // visualizzando» o con più aziende il ricalcolo finiva sull'azienda sbagliata.
@@ -44,16 +46,16 @@ export const TabTeam = memo(function TabTeam({ data, isLoading, filters, assigne
 
   const handleRecalculate = () => {
     recalcAll.mutate(undefined, {
-      onSuccess: (result) => toast.success(`Lead Score ricalcolato per ${result.updated} contatti`),
-      onError: () => toast.error("Errore durante il ricalcolo dei Lead Score"),
+      onSuccess: (result) => toast.success(t("Lead Score ricalcolato per {updated} contatti", { updated: String(result.updated ?? "") })),
+      onError: () => toast.error(t("Errore durante il ricalcolo dei Lead Score")),
     });
   };
 
   const sintesi = [
-    { label: "Vendite", valore: fmt(kpi?.contracts_won ?? 0), nota: kpi ? fmtCur(kpi.revenue) : undefined },
-    { label: "Ticket medio", valore: fmtCur(kpi?.avg_ticket ?? 0) },
-    { label: "Chiusura", valore: `${Math.round(kpi?.close_rate ?? 0)}%`, nota: "vinte ÷ (vinte + perse)" },
-    { label: "1° contatto", valore: tempo(percorso?.totale.ore_presa_mediana ?? null), nota: "tempo mediano" },
+    { label: t("Vendite"), valore: fmt(kpi?.contracts_won ?? 0), nota: kpi ? fmtCur(kpi.revenue) : undefined },
+    { label: t("Ticket medio"), valore: fmtCur(kpi?.avg_ticket ?? 0) },
+    { label: t("Chiusura"), valore: `${Math.round(kpi?.close_rate ?? 0)}%`, nota: t("vinte ÷ (vinte + perse)") },
+    { label: t("1° contatto"), valore: tempo(percorso?.totale.ore_presa_mediana ?? null), nota: t("tempo mediano") },
   ];
 
   return (
@@ -69,9 +71,7 @@ export const TabTeam = memo(function TabTeam({ data, isLoading, filters, assigne
       </div>
 
       {nonAssegnati && nonAssegnati.arrivati > 0 && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          {fmt(nonAssegnati.arrivati)} lead del periodo non hanno un commerciale: nessuno li ha in carico e nessuno li ha lavorati.
-        </p>
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{t("{arrivati} lead del periodo non hanno un commerciale: nessuno li ha in carico e nessuno li ha lavorati.", { arrivati: fmt(nonAssegnati.arrivati) })}</p>
       )}
 
       <DashboardSalesTable
@@ -84,7 +84,7 @@ export const TabTeam = memo(function TabTeam({ data, isLoading, filters, assigne
       <div className="flex justify-end max-sm:hidden">
         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={handleRecalculate} disabled={recalcAll.isPending}>
           <RefreshCw className={`h-3.5 w-3.5 ${recalcAll.isPending ? "animate-spin" : ""}`} />
-          {recalcAll.isPending ? "Ricalcolo…" : "Ricalcola lead score"}
+          {recalcAll.isPending ? t("Ricalcolo…") : t("Ricalcola lead score")}
         </Button>
       </div>
     </div>

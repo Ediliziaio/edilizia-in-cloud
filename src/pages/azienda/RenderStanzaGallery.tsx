@@ -13,6 +13,7 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type StanzaConfig = {
   tipo_stanza?: string;
@@ -40,6 +41,7 @@ const compact = (values: Array<string | null | undefined>) =>
   values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
 
 export default function RenderStanzaGallery() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -74,11 +76,11 @@ export default function RenderStanzaGallery() {
       item.config?.stile_target,
       item.config?.intensita,
       ...summaryValues.slice(0, 2),
-      origin ? "Da planimetria" : null,
+      origin ? t("Da planimetria") : null,
     ]);
     return {
       id: item.id,
-      title: origin?.roomName ?? (item.config?.tipo_stanza ? `Restyling ${item.config.tipo_stanza.replace(/_/g, " ")}` : "Render stanza"),
+      title: origin?.roomName ?? (item.config?.tipo_stanza ? t("Restyling {tipo_stanza}", { tipo_stanza: item.config.tipo_stanza.replace(/_/g, " ") }) : t("Render stanza")),
       date: item.created_at,
       detailPath: `/azienda/render/stanza/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,
@@ -92,14 +94,14 @@ export default function RenderStanzaGallery() {
       opportunityId: item.opportunity_id,
       opportunityName: item.meta.opportunityName,
     };
-  }), [gallery]);
+  }), [gallery, t]);
 
   return (
     <RenderUnifiedGallery
-      moduleName="Stanza"
-      badgeLabel="Galleria stanza"
-      title="Render interni salvati, leggibili e collegati al CRM."
-      description="Gestisci i restyling stanza con filtri per stile, data, autore, contatto e opportunita, mantenendo chiaro cosa e stato generato."
+      moduleName={t("Stanza")}
+      badgeLabel={t("Galleria stanza")}
+      title={t("Render interni salvati, leggibili e collegati al CRM.")}
+      description={t("Gestisci i restyling stanza con filtri per stile, data, autore, contatto e opportunita, mantenendo chiaro cosa e stato generato.")}
       backPath="/azienda/render/stanza"
       newPath="/azienda/render/stanza/new"
       items={items}
@@ -107,9 +109,9 @@ export default function RenderStanzaGallery() {
       error={error}
       isRefetching={isRefetching}
       onRetry={refetch}
-      emptyTitle="Galleria vuota"
-      emptyDescription="I render stanza completati appariranno qui."
-      searchPlaceholder="Cerca stanza, stile, autore, contatto..."
+      emptyTitle={t("Galleria vuota")}
+      emptyDescription={t("I render stanza completati appariranno qui.")}
+      searchPlaceholder={t("Cerca stanza, stile, autore, contatto...")}
       emptyIcon={Sofa}
       accentClassName="text-purple-600"
     />

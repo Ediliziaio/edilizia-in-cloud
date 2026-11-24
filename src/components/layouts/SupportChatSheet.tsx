@@ -8,10 +8,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Send } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { playNotificationSound } from "@/lib/notificationSound";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SupportMessage {
   id: string;
@@ -28,6 +28,7 @@ interface SupportChatSheetProps {
 }
 
 export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +77,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
           });
           if (newMsg.sender_role === "super_admin") {
             playNotificationSound();
-            toast("Nuovo messaggio dal supporto", {
+            toast(t("Nuovo messaggio dal supporto"), {
               description: newMsg.message.slice(0, 80),
             });
           }
@@ -107,13 +108,13 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
       });
       if (error) {
         logger.error("Error sending message:", error);
-        toast.error("Errore nell'invio del messaggio");
+        toast.error(t("Errore nell'invio del messaggio"));
         return;
       }
       setNewMessage("");
     } catch (err) {
       logger.error("Error sending message:", err);
-      toast.error("Errore nell'invio del messaggio");
+      toast.error(t("Errore nell'invio del messaggio"));
     } finally {
       setSending(false);
     }
@@ -130,8 +131,8 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col p-0 sm:max-w-md">
         <SheetHeader className="px-6 pt-6 pb-4 border-b">
-          <SheetTitle>Assistenza</SheetTitle>
-          <SheetDescription>Chat con il supporto</SheetDescription>
+          <SheetTitle>{t("Assistenza")}</SheetTitle>
+          <SheetDescription>{t("Chat con il supporto")}</SheetDescription>
         </SheetHeader>
 
         {loading ? (
@@ -145,7 +146,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
             <div className="p-4 space-y-3">
               {messages.length === 0 ? (
                 <p className="text-center text-muted-foreground text-sm py-8">
-                  Scrivi un messaggio per iniziare la conversazione
+                  {t("Scrivi un messaggio per iniziare la conversazione")}
                 </p>
               ) : (
                 messages.map((msg) => {
@@ -168,7 +169,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
                             isCompany ? "text-primary-foreground/70" : "text-muted-foreground"
                           }`}
                         >
-                          {format(new Date(msg.created_at), "HH:mm", { locale: it })}
+                          {format(new Date(msg.created_at), "HH:mm", { locale: dateFnsCampo() })}
                         </p>
                       </div>
                     </div>
@@ -185,7 +186,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Scrivi un messaggio..."
+            placeholder={t("Scrivi un messaggio...")}
             className="min-h-[44px] max-h-[120px] resize-none"
             rows={1}
           />

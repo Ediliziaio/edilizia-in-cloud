@@ -59,6 +59,7 @@ import { mapVociToQuoteItems, mapToOrderPayload, testataPreventivo } from "@/lib
 import { round2 } from "@/lib/simulatore/calcoli";
 import { avviaCommessa } from "@/lib/orders/avviaCommessa";
 import type { SimulazioneDoc, SimulazioneRisultato } from "@/lib/simulatore/tipi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TrasformaDialogProps {
   open: boolean;
@@ -90,6 +91,7 @@ export function TrasformaDialog({
   simulazioneNome,
   contactId = null,
 }: TrasformaDialogProps) {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -148,7 +150,7 @@ export function TrasformaDialog({
   // ── Crea preventivo (flusso reale di QuoteBuilder) ──────────────────────────
   const creaPreventivo = async () => {
     if (!companyId || !user?.id) {
-      toast.error("Sessione non valida", { description: "Azienda o utente non disponibili." });
+      toast.error(t("Sessione non valida"), { description: t("Azienda o utente non disponibili.") });
       return;
     }
     setBusy(true);
@@ -220,12 +222,12 @@ export function TrasformaDialog({
 
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       if (diverso) {
-        toast.warning("Preventivo creato con un totale diverso", {
-          description: `${quoteNumber}: ${formatCurrency(totaleSalvato)} invece di ${formatCurrency(testata.total)}. Controlla le righe.`,
+        toast.warning(t("Preventivo creato con un totale diverso"), {
+          description: t("{quoteNumber}: {totaleSalvato} invece di {total}. Controlla le righe.", { quoteNumber: String(quoteNumber ?? ""), totaleSalvato: formatCurrency(totaleSalvato), total: formatCurrency(testata.total) }),
         });
       } else {
-        toast.success("Preventivo creato", {
-          description: `${quoteNumber} generato dalla simulazione.`,
+        toast.success(t("Preventivo creato"), {
+          description: t("{quoteNumber} generato dalla simulazione.", { quoteNumber: String(quoteNumber ?? "") }),
         });
       }
       onOpenChange(false);
@@ -243,23 +245,23 @@ export function TrasformaDialog({
   // ── Crea commessa (flusso reale di CreateOrder via create_order_atomic) ──────
   const creaCommessa = async () => {
     if (!companyId || !user?.id) {
-      toast.error("Sessione non valida", { description: "Azienda o utente non disponibili." });
+      toast.error(t("Sessione non valida"), { description: t("Azienda o utente non disponibili.") });
       return;
     }
     if (!customerId) {
-      toast.error("Cliente mancante", { description: "Seleziona o crea un cliente per la commessa." });
+      toast.error(t("Cliente mancante"), { description: t("Seleziona o crea un cliente per la commessa.") });
       return;
     }
     if (!statusId) {
-      toast.error("Stato mancante", { description: "Seleziona lo stato iniziale della commessa." });
+      toast.error(t("Stato mancante"), { description: t("Seleziona lo stato iniziale della commessa.") });
       return;
     }
     setBusy(true);
     try {
       const costo = parseDecimalIT(financingCost);
       if (doc.scenari.finanziamento) {
-        if (!financingCost.trim()) throw new Error("Conferma il costo a carico dell’azienda, anche se è zero.");
-        if (costo > 0 && !financingCostMode) throw new Error("Scegli come viene pagato il costo della finanziaria.");
+        if (!financingCost.trim()) throw new Error(t("Conferma il costo a carico dell’azienda, anche se è zero."));
+        if (costo > 0 && !financingCostMode) throw new Error(t("Scegli come viene pagato il costo della finanziaria."));
         verificaCostoSuPiano(costo, financingCostMode, [{ type: "financing", amount: doc.scenari.finanziamento.importo_finanziato }]);
         if (financingCostMode) await verificaSupportoModalitaFinanziaria();
       }
@@ -287,7 +289,7 @@ export function TrasformaDialog({
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
-      toast.success("Commessa creata", { description: "Commessa generata dalla simulazione." });
+      toast.success(t("Commessa creata"), { description: t("Commessa generata dalla simulazione.") });
       onOpenChange(false);
       navigate(`/azienda/ordini/${result.id}`);
     } catch (err) {
@@ -311,9 +313,9 @@ export function TrasformaDialog({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Trasforma simulazione</DialogTitle>
+            <DialogTitle>{t("Trasforma simulazione")}</DialogTitle>
             <DialogDescription>
-              Genera un documento dalle voci simulate riutilizzando i flussi esistenti.
+              {t("Genera un documento dalle voci simulate riutilizzando i flussi esistenti.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -331,9 +333,9 @@ export function TrasformaDialog({
                 )}
               >
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">Preventivo</span>
+                <span className="text-sm font-semibold">{t("Preventivo")}</span>
                 <span className="text-xs text-muted-foreground">
-                  Bozza nel CRM con le voci
+                  {t("Bozza nel CRM con le voci")}
                 </span>
               </button>
               <button
@@ -347,9 +349,9 @@ export function TrasformaDialog({
                 )}
               >
                 <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">Commessa</span>
+                <span className="text-sm font-semibold">{t("Commessa")}</span>
                 <span className="text-xs text-muted-foreground">
-                  Ordine per un cliente
+                  {t("Ordine per un cliente")}
                 </span>
               </button>
             </div>
@@ -361,15 +363,13 @@ export function TrasformaDialog({
               {risultato.sconto_valore > 0 && (
                 <>
                   <div className="flex items-center justify-between max-sm:hidden">
-                    <span className="text-muted-foreground">Prezzo pieno</span>
+                    <span className="text-muted-foreground">{t("Prezzo pieno")}</span>
                     <span className="tabular-nums text-muted-foreground">
                       {formatCurrency(risultato.ricavo_lordo)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      Sconto {Number(doc.scenari.sconto_pct).toLocaleString("it-IT")}%
-                    </span>
+                    <span className="text-muted-foreground">{t("Sconto {discount_percent}%", { discount_percent: Number(doc.scenari.sconto_pct).toLocaleString(intlCampo()) })}</span>
                     <span className="tabular-nums text-muted-foreground">
                       −{formatCurrency(risultato.sconto_valore)}
                     </span>
@@ -377,7 +377,7 @@ export function TrasformaDialog({
                 </>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Imponibile</span>
+                <span className="text-muted-foreground">{t("Imponibile")}</span>
                 <span className="font-medium tabular-nums">
                   {formatCurrency(risultato.ricavo_netto)}
                 </span>
@@ -389,38 +389,38 @@ export function TrasformaDialog({
                 </span>
               </div>
               <div className="mt-1 flex items-center justify-between border-t pt-1">
-                <span className="font-semibold">Totale cliente</span>
+                <span className="font-semibold">{t("Totale cliente")}</span>
                 <span className="font-bold tabular-nums">
                   {formatCurrency(risultato.prezzo_cliente)}
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {doc.voci.length} {doc.voci.length === 1 ? "voce" : "voci"}
+                {t(doc.voci.length === 1 ? "{n} voce" : "{n} voci", { n: doc.voci.length })}
                 {risultato.durata_settimane > 0
-                  ? ` · ${risultato.durata_settimane} settimane`
+                  ? t(" · {durata_settimane} settimane", { durata_settimane: String(risultato.durata_settimane ?? "") })
                   : ""}
               </p>
             </div>
 
             {modo === "commessa" && doc.scenari.finanziamento && <div className="space-y-3 rounded-md border p-3">
-              <Label htmlFor="simulazione-costo-finanziaria">Costo della finanziaria a carico dell’azienda (€)</Label>
-              <Input id="simulazione-costo-finanziaria" inputMode="decimal" value={financingCost} onChange={e => setFinancingCost(e.target.value)} placeholder="Indica anche zero se non ci sono costi" />
-              <p className="text-xs text-muted-foreground">Conferma il costo effettivo previsto dall’accordo con la finanziaria. Gli interessi delle rate del cliente non determinano questo importo.</p>
+              <Label htmlFor="simulazione-costo-finanziaria">{t("Costo della finanziaria a carico dell’azienda (€)")}</Label>
+              <Input id="simulazione-costo-finanziaria" inputMode="decimal" value={financingCost} onChange={e => setFinancingCost(e.target.value)} placeholder={t("Indica anche zero se non ci sono costi")} />
+              <p className="text-xs text-muted-foreground">{t("Conferma il costo effettivo previsto dall’accordo con la finanziaria. Gli interessi delle rate del cliente non determinano questo importo.")}</p>
               <FinancingCostModeField value={financingCostMode} onChange={setFinancingCostMode} disabled={busy} />
             </div>}
             {/* Campi specifici commessa */}
             {modo === "commessa" && (
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label>Cliente *</Label>
+                  <Label>{t("Cliente *")}</Label>
                   <div className="flex gap-2">
                     <Select value={customerId || "__none__"} onValueChange={(v) => setCustomerId(v === "__none__" ? "" : v)}>
                       <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Seleziona un cliente" />
+                        <SelectValue placeholder={t("Seleziona un cliente")} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__" disabled>
-                          Seleziona un cliente
+                          {t("Seleziona un cliente")}
                         </SelectItem>
                         {customers.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
@@ -434,7 +434,7 @@ export function TrasformaDialog({
                       variant="outline"
                       size="icon"
                       onClick={() => setShowCreateCustomer(true)}
-                      title="Nuovo cliente"
+                      title={t("Nuovo cliente")}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -442,14 +442,14 @@ export function TrasformaDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Stato iniziale</Label>
+                  <Label>{t("Stato iniziale")}</Label>
                   <Select value={statusId || "__none__"} onValueChange={(v) => setStatusIdRaw(v === "__none__" ? null : v)}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleziona stato" />
+                      <SelectValue placeholder={t("Seleziona stato")} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__" disabled>
-                        Seleziona stato
+                        {t("Seleziona stato")}
                       </SelectItem>
                       {statuses.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
@@ -464,14 +464,14 @@ export function TrasformaDialog({
 
             {!hasVoci && (
               <p className="text-xs" style={{ color: "hsl(var(--chart-3))" }}>
-                La simulazione non ha voci: il documento verrà creato vuoto.
+                {t("La simulazione non ha voci: il documento verrà creato vuoto.")}
               </p>
             )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={busy}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={modo === "preventivo" ? creaPreventivo : creaCommessa}
@@ -479,7 +479,7 @@ export function TrasformaDialog({
               className="gap-2"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {modo === "preventivo" ? "Crea preventivo" : "Crea commessa"}
+              {modo === "preventivo" ? t("Crea preventivo") : t("Crea commessa")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,10 +1,12 @@
 import { AlertTriangle, ListChecks } from "lucide-react";
 import type { AttivitaAcquisto } from "@/lib/acquisti/attivita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function AttivitaAcquistoCard({
   attivita,
 }: {
   attivita: AttivitaAcquisto[];
 }) {
+  const t = useT();
   // Niente da fare: nessun riquadro, solo spazio in meno prima del contenuto.
   if (attivita.length === 0) return null;
   const attenzione = attivita.some((a) => a.priorita === "attenzione");
@@ -12,12 +14,12 @@ export function AttivitaAcquistoCard({
   // sola cosa da fare occupava una scheda alta 130 px.
   return (
     <section
-      aria-label="Da completare"
+      aria-label={t("Da completare")}
       className={`rounded-xl border px-3 py-2 ${attenzione ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-white"}`}
     >
       <h2 className={`flex items-center gap-1.5 text-xs font-semibold ${attenzione ? "text-amber-900" : "text-slate-800"}`}>
         <ListChecks className="h-3.5 w-3.5" />
-        Da completare ({attivita.length})
+        {t("Da completare ({n})", { n: attivita.length })}
       </h2>
       <ul className="mt-1 space-y-1">
         {attivita.map((a, i) => (

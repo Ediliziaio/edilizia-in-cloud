@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { BULK_SCHEDULE_TEMPLATES, type BulkScheduleTemplate } from "@/lib/automations/bulkScheduleTemplates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CATEGORIES: { value: BulkScheduleTemplate["category"] | "all"; label: string }[] = [
   { value: "all", label: "Tutti" },
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function BulkScheduleTemplateGallery({ onSelect, onSkip }: Props) {
+  const tr = useT();
   const [filter, setFilter] = useState<BulkScheduleTemplate["category"] | "all">("all");
 
   const filtered = useMemo(() => {
@@ -42,10 +44,10 @@ export function BulkScheduleTemplateGallery({ onSelect, onSkip }: Props) {
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold">Parti da un template?</h3>
+        <h3 className="text-sm font-semibold">{tr("Parti da un template?")}</h3>
         {/* Da tablet basta il titolo: la frase ripeteva cosa fa il click. */}
         <p className="text-xs text-muted-foreground sm:hidden">
-          7 messaggi pronti per i casi più comuni. Click → personalizza nello step successivo.
+          {tr("7 messaggi pronti per i casi più comuni. Click → personalizza nello step successivo.")}
         </p>
       </div>
 
@@ -62,7 +64,7 @@ export function BulkScheduleTemplateGallery({ onSelect, onSkip }: Props) {
                 : "bg-card border-slate-200 hover:bg-slate-50 text-slate-600",
             )}
           >
-            {c.label}
+            {tr(c.label)}
           </button>
         ))}
       </div>
@@ -104,7 +106,7 @@ export function BulkScheduleTemplateGallery({ onSelect, onSkip }: Props) {
       {onSkip && (
         <div className="flex justify-center pt-2">
           <Button variant="ghost" size="sm" onClick={onSkip} className="text-xs">
-            Salta — parti da zero
+            {tr("Salta — parti da zero")}
           </Button>
         </div>
       )}

@@ -4,8 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RenderCreditsWidget() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -40,7 +42,7 @@ export function RenderCreditsWidget() {
     <div className="flex items-center gap-1.5">
       <Zap className="h-4 w-4 text-amber-500" />
       <Badge variant={unlimited || balance > 0 ? "secondary" : "destructive"} className="font-mono">
-        {unlimited ? "illimitati" : `${balance} render`}
+        {unlimited ? t("illimitati") : t("{balance} render", { balance: String(balance ?? "") })}
       </Badge>
     </div>
   );

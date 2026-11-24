@@ -65,6 +65,7 @@ import {
 import { getDashboard } from "@/lib/dashboardBuilder/api";
 import { toast } from "@/hooks/use-toast";
 import type { DashboardListItem } from "@/lib/dashboardBuilder/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   dashboard: DashboardListItem;
@@ -73,6 +74,7 @@ interface Props {
 }
 
 export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -100,13 +102,13 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
     try {
       await deleteDash.mutateAsync(dashboard.id);
       toast({
-        title: "Dashboard eliminata",
-        description: `"${dashboard.name}" è stata rimossa.`,
+        title: t("Dashboard eliminata"),
+        description: t("\"{name}\" è stata rimossa.", { name: String(dashboard.name ?? "") }),
       });
       setDeleteOpen(false);
     } catch (e) {
       toast({
-        title: "Errore nell'eliminazione",
+        title: t("Errore nell'eliminazione"),
         description: (e as Error).message,
         variant: "destructive",
       });
@@ -117,12 +119,12 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
     try {
       await setDefault.mutateAsync(dashboard.id);
       toast({
-        title: "Default aggiornato",
-        description: `"${dashboard.name}" è ora la tua dashboard di default.`,
+        title: t("Default aggiornato"),
+        description: t("\"{name}\" è ora la tua dashboard di default.", { name: String(dashboard.name ?? "") }),
       });
     } catch (e) {
       toast({
-        title: "Errore",
+        title: t("Errore"),
         description: (e as Error).message,
         variant: "destructive",
       });
@@ -134,15 +136,15 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
     try {
       await updateScope.mutateAsync({ dashboardId: dashboard.id, scope: next });
       toast({
-        title: "Visibilità aggiornata",
+        title: t("Visibilità aggiornata"),
         description:
           next === "company"
-            ? "Ora è visibile a tutta l'azienda."
-            : "Ora è solo personale.",
+            ? t("Ora è visibile a tutta l'azienda.")
+            : t("Ora è solo personale."),
       });
     } catch (e) {
       toast({
-        title: "Errore",
+        title: t("Errore"),
         description: (e as Error).message,
         variant: "destructive",
       });
@@ -155,7 +157,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
       const detail = await getDashboard(dashboard.id);
       const layout = detail.version?.layout;
       const meta = detail.dashboard;
-      if (!layout || !meta) throw new Error("Layout non disponibile");
+      if (!layout || !meta) throw new Error(t("Layout non disponibile"));
       const copyName = `${meta.name} (copia)`;
       const result = await saveDash.mutateAsync({
         dashboardId: null,
@@ -167,13 +169,13 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
         note: "Duplicato da " + meta.name,
       });
       toast({
-        title: "Dashboard duplicata",
-        description: `"${copyName}" è pronta in area personale.`,
+        title: t("Dashboard duplicata"),
+        description: t("\"{copyName}\" è pronta in area personale.", { copyName: String(copyName ?? "") }),
       });
       navigate(`/azienda/dashboards/${result.dashboard_id}`);
     } catch (e) {
       toast({
-        title: "Errore nella duplicazione",
+        title: t("Errore nella duplicazione"),
         description: (e as Error).message,
         variant: "destructive",
       });
@@ -186,8 +188,8 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
     const name = renameValue.trim();
     if (!name) {
       toast({
-        title: "Nome non valido",
-        description: "Il nome non può essere vuoto.",
+        title: t("Nome non valido"),
+        description: t("Il nome non può essere vuoto."),
         variant: "destructive",
       });
       return;
@@ -201,7 +203,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
       const detail = await getDashboard(dashboard.id);
       const layout = detail.version?.layout;
       const meta = detail.dashboard;
-      if (!layout || !meta) throw new Error("Layout non disponibile");
+      if (!layout || !meta) throw new Error(t("Layout non disponibile"));
       await saveDash.mutateAsync({
         dashboardId: dashboard.id,
         name,
@@ -215,13 +217,13 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
         note: "Rename",
       });
       toast({
-        title: "Rinominata",
-        description: `Ora si chiama "${name}".`,
+        title: t("Rinominata"),
+        description: t("Ora si chiama \"{name}\".", { name: String(name ?? "") }),
       });
       setRenameOpen(false);
     } catch (e) {
       toast({
-        title: "Errore nel rename",
+        title: t("Errore nel rename"),
         description: (e as Error).message,
         variant: "destructive",
       });
@@ -249,7 +251,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
             type="button"
             onClick={stop}
             onKeyDown={(e) => e.key === " " && stop(e)}
-            aria-label="Azioni dashboard"
+            aria-label={t("Azioni dashboard")}
             className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
           >
             {busy ? (
@@ -275,7 +277,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
               navigate(`/azienda/dashboards/${dashboard.id}`);
             }}
           >
-            <Eye className="h-4 w-4 mr-2" /> Apri
+            <Eye className="h-4 w-4 mr-2" /> {t("Apri")}
           </DropdownMenuItem>
 
           {canEdit && (
@@ -285,7 +287,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
                 navigate(`/azienda/dashboards/${dashboard.id}/modifica`);
               }}
             >
-              <Edit3 className="h-4 w-4 mr-2" /> Modifica
+              <Edit3 className="h-4 w-4 mr-2" /> {t("Modifica")}
             </DropdownMenuItem>
           )}
 
@@ -296,7 +298,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
             }}
             disabled={busy}
           >
-            <Copy className="h-4 w-4 mr-2" /> Duplica
+            <Copy className="h-4 w-4 mr-2" /> {t("Duplica")}
           </DropdownMenuItem>
 
           {canEdit && (
@@ -307,7 +309,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
                 setRenameOpen(true);
               }}
             >
-              <Pencil className="h-4 w-4 mr-2" /> Rinomina
+              <Pencil className="h-4 w-4 mr-2" /> {t("Rinomina")}
             </DropdownMenuItem>
           )}
 
@@ -322,11 +324,11 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
           >
             {dashboard.is_default ? (
               <>
-                <StarOff className="h-4 w-4 mr-2" /> Già default
+                <StarOff className="h-4 w-4 mr-2" /> {t("Già default")}
               </>
             ) : (
               <>
-                <Star className="h-4 w-4 mr-2" /> Imposta come default
+                <Star className="h-4 w-4 mr-2" /> {t("Imposta come default")}
               </>
             )}
           </DropdownMenuItem>
@@ -341,11 +343,11 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
             >
               {dashboard.scope === "personal" ? (
                 <>
-                  <Users className="h-4 w-4 mr-2" /> Condividi con azienda
+                  <Users className="h-4 w-4 mr-2" /> {t("Condividi con azienda")}
                 </>
               ) : (
                 <>
-                  <Lock className="h-4 w-4 mr-2" /> Rendi personale
+                  <Lock className="h-4 w-4 mr-2" /> {t("Rendi personale")}
                 </>
               )}
             </DropdownMenuItem>
@@ -362,7 +364,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
                 disabled={busy}
                 className="text-destructive focus:text-destructive"
               >
-                <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                <Trash2 className="h-4 w-4 mr-2" /> {t("Elimina")}
               </DropdownMenuItem>
             </>
           )}
@@ -381,16 +383,16 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Rinomina dashboard</DialogTitle>
+            <DialogTitle>{t("Rinomina dashboard")}</DialogTitle>
             <DialogDescription>
-              Il nome è mostrato nella lista e nel breadcrumb.
+              {t("Il nome è mostrato nella lista e nel breadcrumb.")}
             </DialogDescription>
           </DialogHeader>
           <Input
             autoFocus
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
-            placeholder="Nome dashboard"
+            placeholder={t("Nome dashboard")}
             maxLength={80}
           />
           <DialogFooter>
@@ -399,7 +401,7 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
               onClick={() => setRenameOpen(false)}
               disabled={busy}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={handleRenameCommit}
@@ -407,10 +409,10 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
             >
               {busy ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("Salvataggio")}
                 </>
               ) : (
-                "Salva"
+                t("Salva")
               )}
             </Button>
           </DialogFooter>
@@ -421,15 +423,13 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent onClick={stop}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa dashboard?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare questa dashboard?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>&quot;{dashboard.name}&quot;</strong> verrà eliminata
-              insieme a tutte le sue versioni. Questa azione non può essere
-              annullata.
+              <strong>&quot;{dashboard.name}&quot;</strong> {t("verrà eliminata insieme a tutte le sue versioni. Questa azione non può essere annullata.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={busy}
@@ -437,10 +437,10 @@ export function DashboardCardMenu({ dashboard, canEdit = true }: Props) {
             >
               {busy ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Elimino…
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("Elimino…")}
                 </>
               ) : (
-                "Elimina"
+                t("Elimina")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

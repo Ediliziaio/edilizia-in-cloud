@@ -39,6 +39,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useVideoAI, type VideoJob } from "@/hooks/useVideoAI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Effect presets ───────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ function ElapsedTimer({ startedAt }: { startedAt: number }) {
 // ─── Job Card ─────────────────────────────────────────────────────────────────
 
 function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
+  const t = useT();
   const isActive = job.status === "pending" || job.status === "processing";
   const isDone = job.status === "succeeded";
   const isFailed = job.status === "failed";
@@ -129,7 +131,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
         {isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
             <div className="mb-2 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-            <p className="text-xs font-semibold text-white">Generazione...</p>
+            <p className="text-xs font-semibold text-white">{t("Generazione...")}</p>
             <p className="mt-0.5 text-[10px] text-white/60 max-md:text-[11px]">
               <ElapsedTimer startedAt={job.started_at} />
             </p>
@@ -140,7 +142,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
         {isDone && (
           <div className="absolute left-2 top-2">
             <Badge className="bg-emerald-500/90 text-white backdrop-blur-sm">
-              <CheckCircle2 className="mr-1 h-3 w-3" /> Pronto
+              <CheckCircle2 className="mr-1 h-3 w-3" /> {t("Pronto")}
             </Badge>
           </div>
         )}
@@ -148,7 +150,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
         {/* Failed badge */}
         {isFailed && (
           <div className="absolute left-2 top-2">
-            <Badge className="bg-red-500/90 text-white">Fallito</Badge>
+            <Badge className="bg-red-500/90 text-white">{t("Fallito")}</Badge>
           </div>
         )}
 
@@ -165,7 +167,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
       {/* Info footer */}
       <div className="space-y-1.5 p-2">
         <p className="truncate text-xs font-semibold text-slate-900">
-          {effect?.emoji} {effect?.label ?? job.effect_id ?? "Video AI"}
+          {effect?.emoji} {effect?.label ? t(effect.label) : job.effect_id ?? t("Video AI")}
         </p>
         <div className="flex flex-wrap gap-1">
           <Badge variant="outline" className="text-[9px] max-md:text-[11px]">{job.duration_seconds}s</Badge>
@@ -179,7 +181,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
           <div className="flex gap-1 pt-1">
             <Button size="sm" className="h-7 flex-1 text-[11px]" asChild>
               <a href={job.video_url} download>
-                <Download className="mr-1 h-3 w-3" /> Scarica
+                <Download className="mr-1 h-3 w-3" /> {t("Scarica")}
               </a>
             </Button>
             <Button size="sm" variant="outline" className="h-7 w-7 p-0"
@@ -187,14 +189,14 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
               <ExternalLink className="h-3 w-3" />
             </Button>
             <Button size="sm" variant="outline" className="h-7 w-7 p-0"
-              onClick={() => { void navigator.clipboard?.writeText(job.video_url!); toast.success("URL copiato"); }}>
+              onClick={() => { void navigator.clipboard?.writeText(job.video_url!); toast.success(t("URL copiato")); }}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
         )}
 
         {isFailed && (
-          <p className="text-[10px] text-red-600 max-md:text-[11px]">{job.error ?? "Generazione fallita"}</p>
+          <p className="text-[10px] text-red-600 max-md:text-[11px]">{job.error ?? t("Generazione fallita")}</p>
         )}
       </div>
     </div>
@@ -204,6 +206,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
 // ─── Setup guide ──────────────────────────────────────────────────────────────
 
 function SetupGuide({ onDismiss }: { onDismiss: () => void }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-6">
       <div className="mb-4 flex items-center gap-3">
@@ -211,8 +214,8 @@ function SetupGuide({ onDismiss }: { onDismiss: () => void }) {
           <Zap className="h-5 w-5 text-white" />
         </div>
         <div>
-          <p className="font-semibold text-slate-900">Configura Video AI</p>
-          <p className="text-sm text-slate-600">Serve REPLICATE_API_TOKEN — gratuito per iniziare</p>
+          <p className="font-semibold text-slate-900">{t("Configura Video AI")}</p>
+          <p className="text-sm text-slate-600">{t("Serve REPLICATE_API_TOKEN — gratuito per iniziare")}</p>
         </div>
         <button type="button" onClick={onDismiss} className="ml-auto rounded-full p-1 hover:bg-violet-100">
           <X className="h-4 w-4 text-slate-500" />
@@ -221,10 +224,10 @@ function SetupGuide({ onDismiss }: { onDismiss: () => void }) {
 
       <ol className="space-y-3">
         {[
-          { n: 1, text: "Crea account su", link: "https://replicate.com", linkLabel: "replicate.com" },
-          { n: 2, text: "Dashboard → Account → API Tokens → Create token" },
-          { n: 3, text: "Supabase Dashboard → Settings → Secrets → aggiungi REPLICATE_API_TOKEN" },
-          { n: 4, text: "Supabase Dashboard → Edge Functions → Riavvia ai-ads-video-generate e ai-ads-video-status" },
+          { n: 1, text: t("Crea account su"), link: "https://replicate.com", linkLabel: "replicate.com" },
+          { n: 2, text: t("Dashboard → Account → API Tokens → Create token") },
+          { n: 3, text: t("Supabase Dashboard → Settings → Secrets → aggiungi REPLICATE_API_TOKEN") },
+          { n: 4, text: t("Supabase Dashboard → Edge Functions → Riavvia ai-ads-video-generate e ai-ads-video-status") },
         ].map((step) => (
           <li key={step.n} className="flex items-start gap-3">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-white">
@@ -246,8 +249,7 @@ function SetupGuide({ onDismiss }: { onDismiss: () => void }) {
       <div className="mt-4 flex items-start gap-2 rounded-xl border border-violet-200 bg-white/60 p-3">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
         <p className="text-[11px] text-slate-600">
-          <strong>Costi:</strong> img2vid (foto animata) ~0.03€ · txt2vid (da testo) ~0.20€ per video.
-          Replicate offre $5 di crediti gratuiti all'iscrizione.
+          <strong>{t("Costi:")}</strong> {t("img2vid (foto animata) ~0.03€ · txt2vid (da testo) ~0.20€ per video. Replicate offre $5 di crediti gratuiti all'iscrizione.")}
         </p>
       </div>
     </div>
@@ -263,6 +265,7 @@ interface Props {
 }
 
 export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
+  const t = useT();
   const qc = useQueryClient();
 
   const { jobs, activeCount, isStarting, setupStatus, startJob, clearJob, clearCompleted, setSetupStatus } =
@@ -288,8 +291,8 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
 
   // ── Image handling ─────────────────────────────────────────────────────────
   const handleImageFile = useCallback((file: File) => {
-    if (!file.type.startsWith("image/")) { toast.error("Formato non supportato"); return; }
-    if (file.size > 15 * 1024 * 1024) { toast.error("Immagine troppo grande (max 15 MB)"); return; }
+    if (!file.type.startsWith("image/")) { toast.error(t("Formato non supportato")); return; }
+    if (file.size > 15 * 1024 * 1024) { toast.error(t("Immagine troppo grande (max 15 MB)")); return; }
     const url = URL.createObjectURL(file);
     setUploadedImage({ url, file });
   }, []);
@@ -328,15 +331,15 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
             <Clapperboard className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900">Video AI Studio</h2>
-            <p className="text-[11px] text-slate-500">Foto → Reel · Testo → Video · Effetti cinematici</p>
+            <h2 className="text-base font-bold text-slate-900">{t("Video AI Studio")}</h2>
+            <p className="text-[11px] text-slate-500">{t("Foto → Reel · Testo → Video · Effetti cinematici")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {activeCount > 0 && (
             <Badge className="bg-rose-500 text-white">
               <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-              {activeCount} in corso
+              {t("{n} in corso", { n: activeCount })}
             </Badge>
           )}
           <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Beta</Badge>
@@ -361,7 +364,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                 mode === "img2vid" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
               )}>
               <ImagePlus className="h-4 w-4" />
-              Da immagine
+              {t("Da immagine")}
             </button>
             <button type="button"
               onClick={() => setMode("txt2vid")}
@@ -370,7 +373,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                 mode === "txt2vid" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
               )}>
               <Sparkles className="h-4 w-4" />
-              Da testo
+              {t("Da testo")}
             </button>
           </div>
 
@@ -398,16 +401,14 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                       <Upload className="h-6 w-6 text-gray-400" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-700">Trascina la foto del cantiere</p>
-                      <p className="text-xs text-gray-500">JPG, PNG, WebP · max 15 MB</p>
+                      <p className="font-semibold text-gray-700">{t("Trascina la foto del cantiere")}</p>
+                      <p className="text-xs text-gray-500">{t("JPG, PNG, WebP · max 15 MB")}</p>
                     </div>
                     {libraryImages.length > 0 && (
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); setShowLibraryPicker(p => !p); }}
-                        className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-                        Scegli da Libreria ({libraryImages.length})
-                      </button>
+                        className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">{t("Scegli da Libreria ({n})", { n: libraryImages.length })}</button>
                     )}
                   </button>
 
@@ -426,13 +427,13 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                 </div>
               ) : (
                 <div className="relative overflow-hidden rounded-xl">
-                  <img loading="lazy" src={uploadedImage.url} alt="Selected" className="max-h-48 w-full object-cover" />
+                  <img loading="lazy" src={uploadedImage.url} alt="" className="max-h-48 w-full object-cover" />
                   <button type="button" onClick={() => setUploadedImage(null)}
                     className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white hover:bg-black">
                     <X className="h-4 w-4" />
                   </button>
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
-                    <p className="text-xs font-medium text-white">L'AI animerà questa foto con l'effetto selezionato</p>
+                    <p className="text-xs font-medium text-white">{t("L'AI animerà questa foto con l'effetto selezionato")}</p>
                   </div>
                 </div>
               )}
@@ -441,11 +442,11 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
             </div>
           ) : (
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Descrivi la scena</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t("Descrivi la scena")}</p>
               <Textarea
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
-                placeholder="Es. Operaio installa nuove finestre in appartamento luminoso, Milano, mattina, luce naturale..."
+                placeholder={t("Es. Operaio installa nuove finestre in appartamento luminoso, Milano, mattina, luce naturale...")}
                 className="min-h-20 resize-none focus-visible:ring-orange-500"
               />
               {/* Quick prompts */}
@@ -468,7 +469,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
           {/* ─── Effect picker ─────────────────────────────────────────── */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Effetto cinematico</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("Effetto cinematico")}</p>
               <div className="flex gap-1">
                 {(["all", "base", "cantiere", "cinematic"] as const).map(c => (
                   <button key={c} type="button"
@@ -477,7 +478,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                       "rounded-md px-2 py-0.5 text-[10px] font-medium transition",
                       categoryFilter === c ? "bg-gray-800 text-white" : "text-gray-500 hover:text-gray-800"
                     )}>
-                    {c === "all" ? "Tutti" : c === "cantiere" ? "🏗️ Cantiere" : c === "cinematic" ? "🎭 Cinematic" : "Base"}
+                    {c === "all" ? t("Tutti") : c === "cantiere" ? t("🏗️ Cantiere") : c === "cinematic" ? t("🎭 Cinematic") : t("Base")}
                   </button>
                 ))}
               </div>
@@ -503,7 +504,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                           style={{ background: `linear-gradient(135deg, ${effect.bgFrom}, ${effect.bgTo})` }}>
                           <span className="text-xl">{effect.emoji}</span>
                           <span className="px-1 text-center text-[9px] font-semibold leading-tight text-white/90 max-md:text-[11px]">
-                            {effect.label}
+                            {t(effect.label)}
                           </span>
                         </div>
 
@@ -516,8 +517,8 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-40">
-                      <p className="font-semibold">{effect.label}</p>
-                      <p className="text-xs opacity-80">{effect.desc}</p>
+                      <p className="font-semibold">{t(effect.label)}</p>
+                      <p className="text-xs opacity-80">{t(effect.desc)}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -528,8 +529,8 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
             <div className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
               <span className="text-lg">{selectedEffect.emoji}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-900">{selectedEffect.label}</p>
-                <p className="truncate text-[10px] text-gray-500 max-md:text-[11px]">{selectedEffect.desc}</p>
+                <p className="text-xs font-semibold text-gray-900">{t(selectedEffect.label)}</p>
+                <p className="truncate text-[10px] text-gray-500 max-md:text-[11px]">{t(selectedEffect.desc)}</p>
               </div>
             </div>
           </div>
@@ -537,7 +538,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
           {/* ─── Duration + Format + Aspect ────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Durata</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("Durata")}</p>
               <div className="flex gap-1.5">
                 {([3, 5, 8] as const).map(d => (
                   <button key={d} type="button"
@@ -554,7 +555,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Formato</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("Formato")}</p>
               <div className="flex gap-1.5">
                 {(["9:16", "1:1", "16:9"] as const).map(ar => (
                   <button key={ar} type="button"
@@ -567,7 +568,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                     )}>
                     {ar}
                     <span className="ml-0.5 hidden text-[9px] font-normal opacity-60 sm:inline max-md:text-[11px]">
-                      {ar === "9:16" ? "Reel" : ar === "1:1" ? "Feed" : "YT"}
+                      {ar === "9:16" ? t("Reel") : ar === "1:1" ? t("Feed") : "YT"}
                     </span>
                   </button>
                 ))}
@@ -579,10 +580,10 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[11px] text-gray-500">
               <span className="flex items-center gap-1">
-                <Timer className="h-3 w-3" /> ~30-60s generazione
+                <Timer className="h-3 w-3" /> {t("~30-60s generazione")}
               </span>
               <span>
-                Costo stimato: {mode === "img2vid" ? "~0.03€" : "~0.20€"}
+                {t("Costo stimato:")} {mode === "img2vid" ? "~0.03€" : "~0.20€"}
               </span>
             </div>
 
@@ -596,9 +597,9 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
               )}>
               {isStarting ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Avvio generazione...</>
+                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {t("Avvio generazione...")}</>
               ) : (
-                <><Film className="mr-2 h-5 w-5" /> Genera video AI</>
+                <><Film className="mr-2 h-5 w-5" /> {t("Genera video AI")}</>
               )}
             </Button>
           </div>
@@ -610,11 +611,11 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-900">
-              Generazioni {activeCount > 0 && <span className="text-rose-500">({activeCount} in corso)</span>}
+              {t("Generazioni")} {activeCount > 0 && <span className="text-rose-500">{t("({n} in corso)", { n: activeCount })}</span>}
             </h3>
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-slate-500"
               onClick={clearCompleted}>
-              <Trash2 className="mr-1 h-3 w-3" /> Pulisci completate
+              <Trash2 className="mr-1 h-3 w-3" /> {t("Pulisci completate")}
             </Button>
           </div>
 
@@ -634,17 +635,17 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
               <Play className="h-7 w-7 text-rose-500" />
             </div>
             <div>
-              <p className="font-semibold text-slate-700">I video generati appariranno qui</p>
+              <p className="font-semibold text-slate-700">{t("I video generati appariranno qui")}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Seleziona un effetto, carica una foto (o scrivi un prompt), e premi Genera.
+                {t("Seleziona un effetto, carica una foto (o scrivi un prompt), e premi Genera.")}
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-2 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1"><Timer className="h-3 w-3" /> ~30-60s per video</span>
+              <span className="flex items-center gap-1"><Timer className="h-3 w-3" /> {t("~30-60s per video")}</span>
               <span>·</span>
-              <span>Salvati in Libreria asset</span>
+              <span>{t("Salvati in Libreria asset")}</span>
               <span>·</span>
-              <span>Pronti per Meta Reels</span>
+              <span>{t("Pronti per Meta Reels")}</span>
             </div>
           </CardContent>
         </Card>

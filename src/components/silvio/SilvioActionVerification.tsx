@@ -3,6 +3,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { silvioActionDestination } from "@/lib/silvio/actionDestination";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Read-only reconciliation. Never resets a claim or dispatches the action again. */
 export function SilvioActionVerification({ companyId, userId, proposalId, summary, warning, onCheck }: {
@@ -13,23 +14,24 @@ export function SilvioActionVerification({ companyId, userId, proposalId, summar
   warning: string;
   onCheck: () => void;
 }) {
+  const t = useT();
   const check = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.from("ai_action_proposals")
         .select("id, company_id, user_id, status, action_type, applied_result")
         .eq("id", proposalId).eq("company_id", companyId).eq("user_id", userId)
         .abortSignal(AbortSignal.timeout(15_000)).maybeSingle();
-      if (error) throw new Error("Verifica non disponibile. Controlla la connessione e riprova la verifica, non l’azione.");
+      if (error) throw new Error(t("Verifica non disponibile. Controlla la connessione e riprova la verifica, non l’azione."));
       if (!data || data.id !== proposalId || data.company_id !== companyId || data.user_id !== userId)
-        throw new Error("Azione non trovata o non accessibile. Nessuna operazione è stata reinviata.");
+        throw new Error(t("Azione non trovata o non accessibile. Nessuna operazione è stata reinviata."));
       switch (data.status) {
-        case "applied": return { resolved: true, message: "Esito registrato: azione applicata. Non occorre ripeterla.", destination: silvioActionDestination(data.action_type, data.status, data.applied_result) };
-        case "failed": return { resolved: true, message: "Tentativo registrato come fallito. Controlla eventuali effetti parziali nella sezione interessata prima di creare una nuova richiesta." };
+        case "applied": return { resolved: true, message: t("Esito registrato: azione applicata. Non occorre ripeterla."), destination: silvioActionDestination(data.action_type, data.status, data.applied_result) };
+        case "failed": return { resolved: true, message: t("Tentativo registrato come fallito. Controlla eventuali effetti parziali nella sezione interessata prima di creare una nuova richiesta.") };
         case "rejected":
         case "expired":
-        case "undone": return { resolved: true, message: "Proposta chiusa. Nessuna nuova esecuzione avviata: controlla lo storico nella sezione interessata." };
-        case "confirmed": return { resolved: false, message: "Azione presa in carico, esito finale non ancora registrato. Attendi e verifica di nuovo; non ripetere l’azione." };
-        default: return { resolved: false, message: "Nessun esito finale verificabile. Controlla il risultato nell’app: questa verifica non autorizza un nuovo invio." };
+        case "undone": return { resolved: true, message: t("Proposta chiusa. Nessuna nuova esecuzione avviata: controlla lo storico nella sezione interessata.") };
+        case "confirmed": return { resolved: false, message: t("Azione presa in carico, esito finale non ancora registrato. Attendi e verifica di nuovo; non ripetere l’azione.") };
+        default: return { resolved: false, message: t("Nessun esito finale verificabile. Controlla il risultato nell’app: questa verifica non autorizza un nuovo invio.") };
       }
     },
     retry: false,
@@ -43,9 +45,9 @@ export function SilvioActionVerification({ companyId, userId, proposalId, summar
       <Button type="button" size="sm" variant="outline" className="mt-2 gap-1.5" disabled={check.isPending}
         onClick={() => { onCheck(); check.mutate(); }}>
         {check.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-        {check.isPending ? "Verifico…" : "Verifica esito"}
+        {check.isPending ? t("Verifico…") : t("Verifica esito")}
       </Button>
-      <p className="mt-1 text-[11px]">Controlla solo lo stato salvato. Non ripete l’operazione.</p>
+      <p className="mt-1 text-[11px]">{t("Controlla solo lo stato salvato. Non ripete l’operazione.")}</p>
     </div>
   );
 }

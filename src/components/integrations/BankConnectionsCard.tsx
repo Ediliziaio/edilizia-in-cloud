@@ -19,6 +19,7 @@ import { BANKING_QUERY_KEYS } from "@/lib/banking/queryKeys";
 import { invokeDistyra, validDistyraUrl } from "@/lib/banking/distyra";
 import { aggiornaConnessioneBanca } from "@/lib/banking/sincronizzazione";
 import { Circle, Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface BankConnection {
   id: string;
@@ -111,6 +112,7 @@ export default function BankConnectionsCard({
   senzaCornice = false,
   handleReturn = true,
 }: BankConnectionsCardProps = {}) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const { canViewTesoreria, canViewBankBalances, canEditSettingsIntegrations, isLoading: permsLoading } = usePermissions();
   const qc = useQueryClient();
@@ -154,15 +156,15 @@ export default function BankConnectionsCard({
 
   const syncNow = async (connectionId: string) => {
     setSyncingId(connectionId);
-    const t = toast.loading("Sincronizzazione movimenti…");
+    const t = toast.loading(tr("Sincronizzazione movimenti…"));
     try {
       const connessione = connections.find(c => c.id === connectionId);
       const esito = await aggiornaConnessioneBanca(companyId!, { ...connessione, id: connectionId, provider_slug: "distyra" }, canEditSettingsIntegrations && canViewBankBalances);
       if (esito.avviso) toast.info(esito.avviso, { id: t });
-      else toast.success(`Sincronizzati ${esito.movimenti} movimenti`, { id: t });
+      else toast.success(tr("Sincronizzati {movimenti} movimenti", { movimenti: String(esito.movimenti ?? "") }), { id: t });
       invalidateBanking();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore sincronizzazione", { id: t });
+      toast.error(e instanceof Error ? e.message : tr("Errore sincronizzazione"), { id: t });
     } finally {
       setSyncingId(null);
     }
@@ -173,10 +175,10 @@ export default function BankConnectionsCard({
     setDisconnecting(true);
     try {
       await invokeDistyra(companyId, { action: "disconnect", connection_id: disconnectId });
-      toast.success("Conto disconnesso");
+      toast.success(tr("Conto disconnesso"));
       invalidateBanking();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore disconnessione");
+      toast.error(e instanceof Error ? e.message : tr("Errore disconnessione"));
     } finally {
       setDisconnecting(false);
       setDisconnectId(null);
@@ -198,7 +200,7 @@ export default function BankConnectionsCard({
       if (!validDistyraUrl(data?.url)) throw new Error("Il servizio non ha restituito un indirizzo di collegamento valido.");
       window.location.href = data.url;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Collegamento non avviato");
+      toast.error(e instanceof Error ? e.message : tr("Collegamento non avviato"));
       setConnecting(false);
     }
   }
@@ -206,15 +208,15 @@ export default function BankConnectionsCard({
   // Un unico canale attivo per tutti i pulsanti: Distyra.
   const pulsanteCollega = (
     <Button size="sm" onClick={() => void collegaConDistyra()} disabled={connecting || !canEditSettingsIntegrations || !canViewBankBalances} className="shrink-0">
-      <Plus className="h-4 w-4 mr-1" /> Collega conto
+      <Plus className="h-4 w-4 mr-1" /> {tr("Collega conto")}
     </Button>
   );
 
   const elenco = connections.length === 0 ? (
     <p className="text-sm text-muted-foreground">
       {senzaCornice
-        ? "Nessun conto collegato."
-        : "Collega il conto corrente dell'azienda per importare i movimenti e riconciliarli con fatture e costi."}
+        ? tr("Nessun conto collegato.")
+        : tr("Collega il conto corrente dell'azienda per importare i movimenti e riconciliarli con fatture e costi.")}
     </p>
   ) : (
     connections.map((c) => {
@@ -224,17 +226,17 @@ export default function BankConnectionsCard({
         <div key={c.id} className="rounded-lg border p-3 space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <Circle aria-hidden="true" className={`h-2.5 w-2.5 fill-current ${c.status==="linked"&&!contoDaRicollegare(c)?"text-emerald-500":c.status==="disconnected"?"text-red-500":"text-amber-500"}`} /><span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
-              <Badge className={`text-[10px] px-1.5 py-0 border-0 ${st.cls}`}>{st.label}</Badge>
+              <Circle aria-hidden="true" className={`h-2.5 w-2.5 fill-current ${c.status==="linked"&&!contoDaRicollegare(c)?"text-emerald-500":c.status==="disconnected"?"text-red-500":"text-amber-500"}`} /><span className="font-medium text-sm">{c.institution_name ?? tr("Banca")}</span>
+              <Badge className={`text-[10px] px-1.5 py-0 border-0 ${st.cls}`}>{tr(st.label)}</Badge>
             </div>
             <div className="flex items-center gap-1.5">
               {c.provider_slug === "distyra" && (
                 <Button size="sm" variant="outline" onClick={() => syncNow(c.id)} disabled={syncingId === c.id}>
                   {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                  {c.status === "pending" ? "Verifica collegamento" : "Aggiorna movimenti"}
+                  {c.status === "pending" ? tr("Verifica collegamento") : tr("Aggiorna movimenti")}
                 </Button>
               )}
-              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "distyra" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
+              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "distyra" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label={tr("Disconnetti conto")}>
                 <Unlink className="h-3.5 w-3.5" />
               </Button>}
 
@@ -249,12 +251,13 @@ export default function BankConnectionsCard({
           {c.status === "linked" && c.expires_at && giorniAllaScadenza(c) <= 7 && (
             <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
               <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-              Il consenso scade il {new Date(c.expires_at).toLocaleDateString("it-IT")}
-              {giorniAllaScadenza(c) <= 0 ? " (oggi)" : ` (fra ${giorniAllaScadenza(c)} giorni)`}: ricollega il conto prima, così i movimenti non si fermano.
+              {giorniAllaScadenza(c) <= 0
+                ? tr("Il consenso scade il {data} (oggi): ricollega il conto prima, così i movimenti non si fermano.", { data: new Date(c.expires_at).toLocaleDateString(intlCampo()) })
+                : tr("Il consenso scade il {data} (fra {giorni} giorni): ricollega il conto prima, così i movimenti non si fermano.", { data: new Date(c.expires_at).toLocaleDateString(intlCampo()), giorni: giorniAllaScadenza(c) })}
             </p>
           )}
           {accs.length > 0 && (
-            <details className="space-y-1"><summary className="cursor-pointer text-xs text-muted-foreground">{accs.length} conti utilizzati · dettagli</summary>
+            <details className="space-y-1"><summary className="cursor-pointer text-xs text-muted-foreground">{tr("{n} conti utilizzati · dettagli", { n: accs.length })}</summary>
               {accs.map((a) => (
                 <div key={a.id} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                   <span className="flex min-w-0 items-center gap-1.5" title={a.account_name ?? undefined}>
@@ -269,7 +272,7 @@ export default function BankConnectionsCard({
             </details>
           )}
           {c.last_sync_at && (
-            <p className="text-[10px] text-muted-foreground">Ultima importazione movimenti: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
+            <p className="text-[10px] text-muted-foreground">{tr("Ultima importazione movimenti: {valore}", { valore: new Date(c.last_sync_at).toLocaleString(intlCampo()) })}</p>
           )}
         </div>
       );
@@ -281,15 +284,15 @@ export default function BankConnectionsCard({
       <AlertDialog open={!!disconnectId} onOpenChange={(o) => { if (!o && !disconnecting) setDisconnectId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnettere il conto?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Disconnettere il conto?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il consenso PSD2 viene revocato e il conto disattivato. I movimenti già importati restano salvati. Potrai ricollegarlo quando vuoi.
+              {tr("Il consenso PSD2 viene revocato e il conto disattivato. I movimenti già importati restano salvati. Potrai ricollegarlo quando vuoi.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={disconnecting}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={disconnecting}>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={(e) => { e.preventDefault(); disconnectConnection(); }} disabled={disconnecting}>
-              {disconnecting ? "Disconnessione…" : "Disconnetti"}
+              {disconnecting ? tr("Disconnessione…") : tr("Disconnetti")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -302,7 +305,7 @@ export default function BankConnectionsCard({
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Conti in sola lettura, con il consenso della banca. I movimenti disponibili alimentano la riconciliazione con fatture e costi.
+            {tr("Conti in sola lettura, con il consenso della banca. I movimenti disponibili alimentano la riconciliazione con fatture e costi.")}
           </p>
           {pulsanteCollega}
         </div>
@@ -318,7 +321,7 @@ export default function BankConnectionsCard({
       <CardHeader className="flex flex-row items-center justify-between gap-2 bg-muted/20 px-4 py-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Landmark className="h-4 w-4 text-blue-600" />
-          Conti e banche <span className="text-xs font-normal text-muted-foreground">· collegamento sicuro</span>
+          {tr("Conti e banche")} <span className="text-xs font-normal text-muted-foreground">{tr("· collegamento sicuro")}</span>
         </CardTitle>
         {pulsanteCollega}
       </CardHeader>

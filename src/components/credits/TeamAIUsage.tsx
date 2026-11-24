@@ -28,6 +28,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TrendingUp, Users, Coins, Zap, Bot, Sparkles, Award, Activity } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface LedgerRow {
   id: string;
@@ -55,7 +56,7 @@ interface ProfileMini {
 }
 
 const fmtEur = (n: number, decimals = 4) =>
-  `€ ${Number(n).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  `€ ${Number(n).toLocaleString(intlCampo(), { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 
 const TASK_LABELS: Record<string, string> = {
   persona_silvio: "Silvio (chat universale)",
@@ -74,9 +75,7 @@ const TASK_LABELS: Record<string, string> = {
   fattura_classifica: "Classificazione fatture ricevute",
 };
 
-function periodLabel(days: number) {
-  return days === 7 ? "Ultimi 7 giorni" : days === 30 ? "Ultimi 30 giorni" : `Ultimi ${days} giorni`;
-}
+
 
 function userInitials(p: ProfileMini | undefined): string {
   if (!p) return "?";
@@ -92,6 +91,7 @@ function userName(p: ProfileMini | undefined): string {
 }
 
 export default function TeamAIUsage() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [days, setDays] = useState<number>(30);
@@ -230,10 +230,7 @@ export default function TeamAIUsage() {
     return (
       <Alert>
         <Bot className="h-4 w-4" />
-        <AlertDescription>
-          Nessun consumo AI registrato negli ultimi {days} giorni. I dati appariranno qui non appena
-          il team inizierà a usare Silvio o gli altri strumenti AI.
-        </AlertDescription>
+        <AlertDescription>{tr("Nessun consumo AI registrato negli ultimi {days} giorni. I dati appariranno qui non appena il team inizierà a usare Silvio o gli altri strumenti AI.", { days: String(days ?? "") })}</AlertDescription>
       </Alert>
     );
   }
@@ -243,17 +240,15 @@ export default function TeamAIUsage() {
       {/* Header con period selector */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Consumo AI del team</h3>
-          <p className="text-sm text-muted-foreground">
-            Chi sta usando l'AI, per cosa e quanto sta spendendo. {periodLabel(days)}.
-          </p>
+          <h3 className="text-lg font-semibold">{tr("Consumo AI del team")}</h3>
+          <p className="text-sm text-muted-foreground">{tr("Chi sta usando l'AI, per cosa e quanto sta spendendo.")} {tr("Ultimi {days} giorni", { days })}.</p>
         </div>
         <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Ultimi 7 giorni</SelectItem>
-            <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-            <SelectItem value="90">Ultimi 90 giorni</SelectItem>
+            <SelectItem value="7">{tr("Ultimi 7 giorni")}</SelectItem>
+            <SelectItem value="30">{tr("Ultimi 30 giorni")}</SelectItem>
+            <SelectItem value="90">{tr("Ultimi 90 giorni")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -263,53 +258,49 @@ export default function TeamAIUsage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5 text-xs">
-              <Coins className="h-3.5 w-3.5" /> Spesa AI totale
+              <Coins className="h-3.5 w-3.5" /> {tr("Spesa AI totale")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{fmtEur(stats.totalCost, 4)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats.totalCalls.toLocaleString("it-IT")} chiamate
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">{tr("{totalCalls} chiamate", { totalCalls: stats.totalCalls.toLocaleString(intlCampo()) })}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5 text-xs">
-              <Activity className="h-3.5 w-3.5" /> Costo medio
+              <Activity className="h-3.5 w-3.5" /> {tr("Costo medio")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{fmtEur(stats.avgCost, 4)}</div>
-            <p className="text-xs text-muted-foreground mt-1">per chiamata</p>
+            <p className="text-xs text-muted-foreground mt-1">{tr("per chiamata")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5 text-xs">
-              <Users className="h-3.5 w-3.5" /> Utenti attivi
+              <Users className="h-3.5 w-3.5" /> {tr("Utenti attivi")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.topUsers.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              top: {userName(profileMap.get(stats.topUsers[0]?.userId ?? "")).split(" ")[0] ?? "—"}
+              {tr("top: {nome}", { nome: userName(profileMap.get(stats.topUsers[0]?.userId ?? "")).split(" ")[0] ?? "—" })}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5 text-xs">
-              <Zap className="h-3.5 w-3.5" /> Token totali
+              <Zap className="h-3.5 w-3.5" /> {tr("Token totali")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {((stats.totalTokensIn + stats.totalTokensOut) / 1000).toFixed(1)}k
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {(stats.totalTokensIn / 1000).toFixed(1)}k in / {(stats.totalTokensOut / 1000).toFixed(1)}k out
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">{tr("{valore}k in / {valore2}k out", { valore: (stats.totalTokensIn / 1000).toFixed(1), valore2: (stats.totalTokensOut / 1000).toFixed(1) })}</p>
           </CardContent>
         </Card>
       </div>
@@ -319,27 +310,27 @@ export default function TeamAIUsage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4" /> Lavori chiusi senza AI
+              <Sparkles className="h-4 w-4" /> {tr("Lavori chiusi senza AI")}
             </CardTitle>
             <CardDescription>
-              {metriche.lavori.pct_senza_ai ?? 0}% di {metriche.lavori.totali.toLocaleString("it-IT")} lavori automatici
-              chiusi con regole o dati già presenti, senza pagare l'AI. {metriche.lavori.chiamate_ai.toLocaleString("it-IT")} chiamate AI in tutto.
+              {tr("{pct}% di {totali} lavori automatici chiusi con regole o dati già presenti, senza pagare l'AI.", { pct: metriche.lavori.pct_senza_ai ?? 0, totali: metriche.lavori.totali.toLocaleString(intlCampo()) })}{" "}
+              {tr("{n} chiamate AI in tutto.", { n: metriche.lavori.chiamate_ai.toLocaleString(intlCampo()) })}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Flusso</TableHead>
-                  <TableHead className="text-right">Lavori</TableHead>
-                  <TableHead className="text-right">Senza AI</TableHead>
-                  <TableHead className="text-right">Chiamate AI</TableHead>
+                  <TableHead>{tr("Flusso")}</TableHead>
+                  <TableHead className="text-right">{tr("Lavori")}</TableHead>
+                  <TableHead className="text-right">{tr("Senza AI")}</TableHead>
+                  <TableHead className="text-right">{tr("Chiamate AI")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(metriche.flussi ?? []).map((f) => (
                   <TableRow key={f.flusso}>
-                    <TableCell>{TASK_LABELS[f.flusso] ?? f.flusso}</TableCell>
+                    <TableCell>{TASK_LABELS[f.flusso] ? tr(TASK_LABELS[f.flusso]) : f.flusso}</TableCell>
                     <TableCell className="text-right">{f.totali}</TableCell>
                     <TableCell className="text-right">{f.pct_senza_ai ?? 0}%</TableCell>
                     <TableCell className="text-right">{f.chiamate_ai}</TableCell>
@@ -356,20 +347,20 @@ export default function TeamAIUsage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Award className="h-4 w-4 text-amber-600" />
-            Top consumatori del team
+            {tr("Top consumatori del team")}
           </CardTitle>
-          <CardDescription>Chi ha speso di più in AI nel periodo</CardDescription>
+          <CardDescription>{tr("Chi ha speso di più in AI nel periodo")}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>#</TableHead>
-                <TableHead>Utente</TableHead>
-                <TableHead className="text-right">Calls</TableHead>
-                <TableHead className="text-right">Token</TableHead>
-                <TableHead className="text-right">Spesa</TableHead>
-                <TableHead className="text-right">% del totale</TableHead>
+                <TableHead>{tr("Utente")}</TableHead>
+                <TableHead className="text-right">{tr("Calls")}</TableHead>
+                <TableHead className="text-right">{tr("Token")}</TableHead>
+                <TableHead className="text-right">{tr("Spesa")}</TableHead>
+                <TableHead className="text-right">{tr("% del totale")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -396,7 +387,7 @@ export default function TeamAIUsage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{u.calls.toLocaleString("it-IT")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{u.calls.toLocaleString(intlCampo())}</TableCell>
                     <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
                       {(u.tokens / 1000).toFixed(1)}k
                     </TableCell>
@@ -422,24 +413,24 @@ export default function TeamAIUsage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-emerald-600" />
-              Top funzionalità AI
+              {tr("Top funzionalità AI")}
             </CardTitle>
-            <CardDescription>Per quali strumenti spendi di più</CardDescription>
+            <CardDescription>{tr("Per quali strumenti spendi di più")}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Task</TableHead>
-                  <TableHead className="text-right">Calls</TableHead>
-                  <TableHead className="text-right">Spesa</TableHead>
+                  <TableHead>{tr("Task")}</TableHead>
+                  <TableHead className="text-right">{tr("Calls")}</TableHead>
+                  <TableHead className="text-right">{tr("Spesa")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {stats.topTasks.slice(0, 8).map((t) => (
                   <TableRow key={t.task}>
                     <TableCell>
-                      <div className="text-sm font-medium">{TASK_LABELS[t.task] ?? t.task}</div>
+                      <div className="text-sm font-medium">{TASK_LABELS[t.task] ? tr(TASK_LABELS[t.task]) : t.task}</div>
                       <div className="text-[10px] text-muted-foreground font-mono">{t.task}</div>
                     </TableCell>
                     <TableCell className="text-right text-xs tabular-nums">{t.calls}</TableCell>
@@ -458,22 +449,22 @@ export default function TeamAIUsage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-violet-600" />
-              Top personas AI
+              {tr("Top personas AI")}
             </CardTitle>
-            <CardDescription>Quali esperti AI il team interpella</CardDescription>
+            <CardDescription>{tr("Quali esperti AI il team interpella")}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {stats.topPersonas.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">
-                Nessun uso di personas nel periodo
+                {tr("Nessun uso di personas nel periodo")}
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Persona</TableHead>
-                    <TableHead className="text-right">Calls</TableHead>
-                    <TableHead className="text-right">Spesa</TableHead>
+                    <TableHead>{tr("Persona")}</TableHead>
+                    <TableHead className="text-right">{tr("Calls")}</TableHead>
+                    <TableHead className="text-right">{tr("Spesa")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

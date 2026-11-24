@@ -43,6 +43,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type RuleScope = "company" | "salesperson" | "order";
 type RuleTrigger = "base" | "tier" | "bonus" | "malus" | "hold" | "payment_policy" | "quality";
@@ -338,26 +339,26 @@ function simulateRules(rules: CommissionRule[], values: SimulationValues) {
   return { total: Math.max(0, roundCurrency(total)), rows, blocked };
 }
 
-function describeCondition(rule: Pick<CommissionRule, "condition">): string {
+function describeCondition(rule: Pick<CommissionRule, "condition">, t: ReturnType<typeof useT>): string {
   const condition = rule.condition || {};
   const parts: string[] = [];
-  if (numberFrom(condition.min_revenue) > 0) parts.push(`da ${formatCurrency(numberFrom(condition.min_revenue))}`);
-  if (numberFrom(condition.min_errors) > 0) parts.push(`${numberFrom(condition.min_errors)}+ errori`);
-  if (condition.severity) parts.push(`gravità ${String(condition.severity)}`);
-  if (numberFrom(condition.collected_min_percent) > 0) parts.push(`${numberFrom(condition.collected_min_percent)}% incassato`);
-  return parts.length ? parts.join(" · ") : "Sempre";
+  if (numberFrom(condition.min_revenue) > 0) parts.push(t("da {importo}", { importo: formatCurrency(numberFrom(condition.min_revenue)) }));
+  if (numberFrom(condition.min_errors) > 0) parts.push(t("{n}+ errori", { n: numberFrom(condition.min_errors) }));
+  if (condition.severity) parts.push(t("gravità {valore}", { valore: String(condition.severity) }));
+  if (numberFrom(condition.collected_min_percent) > 0) parts.push(t("{valore}% incassato", { valore: numberFrom(condition.collected_min_percent) }));
+  return parts.length ? parts.join(" · ") : t("Sempre");
 }
 
-function describeAction(rule: Pick<CommissionRule, "action">): string {
+function describeAction(rule: Pick<CommissionRule, "action">, t: ReturnType<typeof useT>): string {
   const action = rule.action || {};
   const parts: string[] = [];
   if (numberFrom(action.commission_percent) > 0) parts.push(`${numberFrom(action.commission_percent)}%`);
   if (numberFrom(action.commission_fixed) > 0) parts.push(formatCurrency(numberFrom(action.commission_fixed)));
   if (numberFrom(action.bonus_amount) > 0) parts.push(`+${formatCurrency(numberFrom(action.bonus_amount))}`);
-  if (numberFrom(action.deduction_amount) > 0) parts.push(`-${formatCurrency(numberFrom(action.deduction_amount))}${action.per_error ? " per errore" : ""}`);
+  if (numberFrom(action.deduction_amount) > 0) parts.push(action.per_error ? t("-{importo} per errore", { importo: formatCurrency(numberFrom(action.deduction_amount)) }) : `-${formatCurrency(numberFrom(action.deduction_amount))}`);
   if (numberFrom(action.deduction_percent) > 0) parts.push(`-${numberFrom(action.deduction_percent)}%`);
-  if (action.hold_until_collected || action.hold_commission) parts.push("blocco pagamento");
-  return parts.length ? parts.join(" · ") : "Evento";
+  if (action.hold_until_collected || action.hold_commission) parts.push(t("blocco pagamento"));
+  return parts.length ? parts.join(" · ") : t("Evento");
 }
 
 function normalizeDraft(draft: RulePayload): RulePayload {
@@ -377,6 +378,7 @@ function normalizeDraft(draft: RulePayload): RulePayload {
 }
 
 export function CommissionRulesDialog({ open, onOpenChange, companyId }: CommissionRulesDialogProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
@@ -421,7 +423,7 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
 
   const saveRuleMutation = useMutation({
     mutationFn: async (draft: RulePayload) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       const payload = { company_id: companyId, ...normalizeDraft(draft) };
 
       if (shouldUseLocalRulesStorage()) {
@@ -439,14 +441,14 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.commissionRules(companyId) });
-      toast.success(result.soloBrowser ? "Regola salvata solo in questo browser (prova)" : "Regola salvata");
+      toast.success(result.soloBrowser ? t("Regola salvata solo in questo browser (prova)") : t("Regola salvata"));
     },
-    onError: (error: unknown) => toast.error(userErrorMessage(error, "Non sono riuscito a salvare la regola. Riprova tra un attimo.")),
+    onError: (error: unknown) => toast.error(userErrorMessage(error, t("Non sono riuscito a salvare la regola. Riprova tra un attimo."))),
   });
 
   const toggleRuleMutation = useMutation({
     mutationFn: async ({ rule, is_active }: { rule: CommissionRule; is_active: boolean }) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       if (shouldUseLocalRulesStorage()) {
         writeLocalRules(companyId, readLocalRules(companyId).map((r) => (r.id === rule.id ? { ...r, is_active } : r)));
         return;
@@ -458,12 +460,12 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.commissionRules(companyId) }),
-    onError: (error: unknown) => toast.error(userErrorMessage(error, "Non sono riuscito a cambiare la regola. Riprova tra un attimo.")),
+    onError: (error: unknown) => toast.error(userErrorMessage(error, t("Non sono riuscito a cambiare la regola. Riprova tra un attimo."))),
   });
 
   const deleteRuleMutation = useMutation({
     mutationFn: async (rule: CommissionRule) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       if (shouldUseLocalRulesStorage()) {
         writeLocalRules(companyId, readLocalRules(companyId).filter((r) => r.id !== rule.id));
         return;
@@ -473,15 +475,15 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.commissionRules(companyId) });
-      toast.success("Regola eliminata");
+      toast.success(t("Regola eliminata"));
     },
-    onError: (error: unknown) => toast.error(userErrorMessage(error, "Non sono riuscito a eliminare la regola. Riprova tra un attimo.")),
+    onError: (error: unknown) => toast.error(userErrorMessage(error, t("Non sono riuscito a eliminare la regola. Riprova tra un attimo."))),
   });
 
   const generateAiMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Azienda non disponibile");
-      if (aiPrompt.trim().length < 20) throw new Error("Scrivi qualche parola in più: serve una descrizione di almeno 20 caratteri.");
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
+      if (aiPrompt.trim().length < 20) throw new Error(t("Scrivi qualche parola in più: serve una descrizione di almeno 20 caratteri."));
 
       const { data, error } = await supabase.functions.invoke<AiResponse>("ai-commission-rules", {
         body: { company_id: companyId, prompt: aiPrompt },
@@ -494,10 +496,10 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
     },
     onSuccess: ({ drafts, daAi }) => {
       setAiDrafts(drafts);
-      if (daAi) toast.success("Bozze generate: controllale prima di applicarle");
-      else toast.warning("L'AI non ha risposto: ho letto il testo con regole semplici. Controlla bene le bozze prima di applicarle.");
+      if (daAi) toast.success(t("Bozze generate: controllale prima di applicarle"));
+      else toast.warning(t("L'AI non ha risposto: ho letto il testo con regole semplici. Controlla bene le bozze prima di applicarle."));
     },
-    onError: (error: unknown) => toast.error(userErrorMessage(error, "L'AI non è disponibile in questo momento. Riprova tra un attimo.")),
+    onError: (error: unknown) => toast.error(userErrorMessage(error, t("L'AI non è disponibile in questo momento. Riprova tra un attimo."))),
   });
 
   const buildManualRule = (): RulePayload => {
@@ -580,19 +582,17 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5" aria-hidden="true" />
-            Regole provvigioni
+            {t("Regole provvigioni")}
           </DialogTitle>
           <DialogDescription>
-            Scaglioni, bonus, penali e maturazione delle provvigioni, da provare nel simulatore. Per ora non
-            cambiano le provvigioni delle commesse: quelle si calcolano con il tipo e il valore scritti su ogni
-            venditore.
+            {t("Scaglioni, bonus, penali e maturazione delle provvigioni, da provare nel simulatore. Per ora non cambiano le provvigioni delle commesse: quelle si calcolano con il tipo e il valore scritti su ogni venditore.")}
           </DialogDescription>
         </DialogHeader>
 
         {shouldUseLocalRulesStorage() && (
           <Alert>
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            <AlertDescription>Prova su questo computer: le regole restano solo in questo browser.</AlertDescription>
+            <AlertDescription>{t("Prova su questo computer: le regole restano solo in questo browser.")}</AlertDescription>
           </Alert>
         )}
 
@@ -600,15 +600,15 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
           <TabsList className="grid h-auto w-full grid-cols-3">
             <TabsTrigger value="rules" className="gap-2">
               <Settings2 className="h-4 w-4" aria-hidden="true" />
-              Regole
+              {t("Regole")}
             </TabsTrigger>
             <TabsTrigger value="ai" className="gap-2">
               <Bot className="h-4 w-4" aria-hidden="true" />
-              Con l'AI
+              {t("Con l'AI")}
             </TabsTrigger>
             <TabsTrigger value="simulator" className="gap-2">
               <FlaskConical className="h-4 w-4" aria-hidden="true" />
-              Simulatore
+              {t("Simulatore")}
             </TabsTrigger>
           </TabsList>
 
@@ -617,25 +617,25 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
               <div className="rounded-lg border">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                   <div>
-                    <h3 className="text-sm font-semibold">Regole attive</h3>
-                    <p className="text-xs text-muted-foreground">{rules.filter((rule) => rule.is_active).length} attive su {rules.length}</p>
+                    <h3 className="text-sm font-semibold">{t("Regole attive")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("{attive} attive su {totale}", { attive: rules.filter((rule) => rule.is_active).length, totale: rules.length })}</p>
                   </div>
                   {isLoading && (
                     <span role="status">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
-                      <span className="sr-only">Caricamento delle regole…</span>
+                      <span className="sr-only">{t("Caricamento delle regole…")}</span>
                     </span>
                   )}
                 </div>
                 <div className="divide-y">
                   {lettureFallita && (
                     <div role="alert" className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm text-destructive">
-                      <span>Non riesco a leggere le regole. Controlla la connessione e riprova.</span>
-                      <Button variant="outline" size="sm" onClick={() => rileggi()}>Riprova</Button>
+                      <span>{t("Non riesco a leggere le regole. Controlla la connessione e riprova.")}</span>
+                      <Button variant="outline" size="sm" onClick={() => rileggi()}>{t("Riprova")}</Button>
                     </div>
                   )}
                   {!isLoading && !lettureFallita && rules.length === 0 && (
-                    <div className="p-6 text-sm text-muted-foreground">Nessuna regola configurata.</div>
+                    <div className="p-6 text-sm text-muted-foreground">{t("Nessuna regola configurata.")}</div>
                   )}
                   {rules.map((rule) => (
                     <div
@@ -647,31 +647,31 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">{rule.name}</span>
-                          <Badge variant="outline">{TRIGGER_LABELS[rule.trigger_type]}</Badge>
-                          <Badge variant="secondary">{BASIS_LABELS[rule.basis]}</Badge>
+                          <Badge variant="outline">{t(TRIGGER_LABELS[rule.trigger_type])}</Badge>
+                          <Badge variant="secondary">{t(BASIS_LABELS[rule.basis])}</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {describeCondition(rule)} · {describeAction(rule)}
+                          {describeCondition(rule, t)} · {describeAction(rule, t)}
                         </p>
                         {rule.description && <p className="text-xs text-muted-foreground">{rule.description}</p>}
                       </div>
                       <div className="flex items-center justify-end gap-2">
                         <Switch
                           checked={rule.is_active}
-                          aria-label={`Regola «${rule.name}»: attiva`}
+                          aria-label={t("Regola «{name}»: attiva", { name: String(rule.name ?? "") })}
                           disabled={toggleRuleMutation.isPending}
                           onCheckedChange={(checked) => toggleRuleMutation.mutate({ rule, is_active: checked })}
                         />
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Elimina regola provvigione ${rule.name}`}
+                          aria-label={t("Elimina regola provvigione {name}", { name: String(rule.name ?? "") })}
                           onClick={async () => {
                             if (
                               await confirm({
-                                title: "Eliminare la regola di provvigione?",
-                                description: `La regola "${rule.name}" verrà rimossa definitivamente dal piano provvigioni.`,
-                                confirmLabel: "Elimina",
+                                title: t("Eliminare la regola di provvigione?"),
+                                description: t("La regola \"{name}\" verrà rimossa definitivamente dal piano provvigioni.", { name: String(rule.name ?? "") }),
+                                confirmLabel: t("Elimina"),
                                 variant: "destructive",
                               })
                             ) {
@@ -690,57 +690,57 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
               <div className="rounded-lg border p-4">
                 <div className="mb-4 flex items-center gap-2">
                   <Plus className="h-4 w-4" />
-                  <h3 className="text-sm font-semibold">Nuova regola rapida</h3>
+                  <h3 className="text-sm font-semibold">{t("Nuova regola rapida")}</h3>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="commission-rule-name">Nome</Label>
+                    <Label htmlFor="commission-rule-name">{t("Nome")}</Label>
                     <Input id="commission-rule-name" value={manualName} onChange={(e) => setManualName(e.target.value)} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="commission-rule-trigger">Tipo</Label>
+                      <Label htmlFor="commission-rule-trigger">{t("Tipo")}</Label>
                       <Select value={manualTrigger} onValueChange={(value) => setManualTrigger(value as RuleTrigger)}>
                         <SelectTrigger id="commission-rule-trigger"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="base">Base</SelectItem>
-                          <SelectItem value="tier">Scaglione</SelectItem>
-                          <SelectItem value="bonus">Bonus al raggiungimento di un obiettivo</SelectItem>
-                          <SelectItem value="malus">Penale per errori</SelectItem>
-                          <SelectItem value="payment_policy">Quando si paga</SelectItem>
+                          <SelectItem value="base">{t("Base")}</SelectItem>
+                          <SelectItem value="tier">{t("Scaglione")}</SelectItem>
+                          <SelectItem value="bonus">{t("Bonus al raggiungimento di un obiettivo")}</SelectItem>
+                          <SelectItem value="malus">{t("Penale per errori")}</SelectItem>
+                          <SelectItem value="payment_policy">{t("Quando si paga")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="commission-rule-basis">Calcolata su</Label>
+                      <Label htmlFor="commission-rule-basis">{t("Calcolata su")}</Label>
                       <Select value={manualBasis} onValueChange={(value) => setManualBasis(value as RuleBasis)}>
                         <SelectTrigger id="commission-rule-basis"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="sold">Venduto</SelectItem>
-                          <SelectItem value="collected">Incassato</SelectItem>
-                          <SelectItem value="margin">Margine</SelectItem>
-                          <SelectItem value="revenue_period">Fatturato periodo</SelectItem>
+                          <SelectItem value="sold">{t("Venduto")}</SelectItem>
+                          <SelectItem value="collected">{t("Incassato")}</SelectItem>
+                          <SelectItem value="margin">{t("Margine")}</SelectItem>
+                          <SelectItem value="revenue_period">{t("Fatturato periodo")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="commission-rule-percent">Percentuale</Label>
+                      <Label htmlFor="commission-rule-percent">{t("Percentuale")}</Label>
                       <Input id="commission-rule-percent" type="number" step="0.1" value={manualPercent} onChange={(e) => setManualPercent(Number(e.target.value) || 0)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="commission-rule-threshold">Soglia (€)</Label>
+                      <Label htmlFor="commission-rule-threshold">{t("Soglia (€)")}</Label>
                       <Input id="commission-rule-threshold" type="number" step="100" value={manualThreshold} onChange={(e) => setManualThreshold(Number(e.target.value) || 0)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="commission-rule-amount">Importo (€)</Label>
+                      <Label htmlFor="commission-rule-amount">{t("Importo (€)")}</Label>
                       <Input id="commission-rule-amount" type="number" step="10" value={manualAmount} onChange={(e) => setManualAmount(Number(e.target.value) || 0)} />
                     </div>
                   </div>
                   <Button className="w-full gap-2" onClick={() => saveRuleMutation.mutate(buildManualRule())} disabled={saveRuleMutation.isPending}>
                     {saveRuleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
-                    Salva la regola
+                    {t("Salva la regola")}
                   </Button>
                 </div>
               </div>
@@ -752,10 +752,10 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
               <div className="rounded-lg border p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <Bot className="h-4 w-4" />
-                  <h3 className="text-sm font-semibold">Descrivi le regole a parole</h3>
+                  <h3 className="text-sm font-semibold">{t("Descrivi le regole a parole")}</h3>
                 </div>
                 <Textarea
-                  aria-label="Descrizione delle regole di provvigione"
+                  aria-label={t("Descrizione delle regole di provvigione")}
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   rows={9}
@@ -763,28 +763,28 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
                 />
                 <Button className="mt-3 w-full gap-2" onClick={() => generateAiMutation.mutate()} disabled={generateAiMutation.isPending}>
                   {generateAiMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Bot className="h-4 w-4" aria-hidden="true" />}
-                  Prepara le bozze
+                  {t("Prepara le bozze")}
                 </Button>
               </div>
 
               <div className="rounded-lg border">
                 <div className="flex items-center justify-between border-b px-4 py-3">
-                  <h3 className="text-sm font-semibold">Bozze</h3>
+                  <h3 className="text-sm font-semibold">{t("Bozze")}</h3>
                   {aiDrafts.length > 0 && <Badge variant="secondary">{aiDrafts.length}</Badge>}
                 </div>
                 <div className="divide-y">
                   {aiDrafts.length === 0 && (
-                    <div className="p-6 text-sm text-muted-foreground">Nessuna bozza generata.</div>
+                    <div className="p-6 text-sm text-muted-foreground">{t("Nessuna bozza generata.")}</div>
                   )}
                   {aiDrafts.map((draft, index) => (
                     <div key={`${draft.name}-${index}`} className="p-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{draft.name}</span>
-                        <Badge variant="outline">{TRIGGER_LABELS[draft.trigger_type]}</Badge>
-                        <Badge variant="secondary">{BASIS_LABELS[draft.basis]}</Badge>
+                        <Badge variant="outline">{t(TRIGGER_LABELS[draft.trigger_type])}</Badge>
+                        <Badge variant="secondary">{t(BASIS_LABELS[draft.basis])}</Badge>
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        {describeCondition(draft as CommissionRule)} · {describeAction(draft as CommissionRule)}
+                        {describeCondition(draft as CommissionRule, t)} · {describeAction(draft as CommissionRule, t)}
                       </p>
                     </div>
                   ))}
@@ -792,7 +792,7 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
                 <div className="border-t p-4">
                   <Button className="w-full gap-2" disabled={aiDrafts.length === 0 || saveRuleMutation.isPending} onClick={applyAiDrafts}>
                     {saveRuleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-                    Salva le bozze come regole
+                    {t("Salva le bozze come regole")}
                   </Button>
                 </div>
               </div>
@@ -802,56 +802,56 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
           <TabsContent value="simulator" className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
               <div className="rounded-lg border p-4">
-                <h3 className="mb-4 text-sm font-semibold">Scenario</h3>
+                <h3 className="mb-4 text-sm font-semibold">{t("Scenario")}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="sim-sold">Venduto</Label>
+                    <Label htmlFor="sim-sold">{t("Venduto")}</Label>
                     <Input id="sim-sold" type="number" value={simulation.sold} onChange={(e) => updateSimulation("sold", e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sim-collected">Incassato</Label>
+                    <Label htmlFor="sim-collected">{t("Incassato")}</Label>
                     <Input id="sim-collected" type="number" value={simulation.collected} onChange={(e) => updateSimulation("collected", e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sim-margin">Margine</Label>
+                    <Label htmlFor="sim-margin">{t("Margine")}</Label>
                     <Input id="sim-margin" type="number" value={simulation.margin} onChange={(e) => updateSimulation("margin", e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sim-period">Fatturato mese</Label>
+                    <Label htmlFor="sim-period">{t("Fatturato mese")}</Label>
                     <Input id="sim-period" type="number" value={simulation.periodRevenue} onChange={(e) => updateSimulation("periodRevenue", e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sim-errors">Errori</Label>
+                    <Label htmlFor="sim-errors">{t("Errori")}</Label>
                     <Input id="sim-errors" type="number" value={simulation.errors} onChange={(e) => updateSimulation("errors", e.target.value)} />
                   </div>
                 </div>
                 <Separator className="my-4" />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Stima della provvigione</span>
+                  <span className="text-sm text-muted-foreground">{t("Stima della provvigione")}</span>
                   <span className="text-xl font-semibold">{formatCurrency(simulated.total)}</span>
                 </div>
                 {simulated.blocked && (
                   <Alert className="mt-3">
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>Pagamento sospeso da una regola di maturazione.</AlertDescription>
+                    <AlertDescription>{t("Pagamento sospeso da una regola di maturazione.")}</AlertDescription>
                   </Alert>
                 )}
               </div>
 
               <div className="rounded-lg border">
                 <div className="border-b px-4 py-3">
-                  <h3 className="text-sm font-semibold">Risultato regole</h3>
+                  <h3 className="text-sm font-semibold">{t("Risultato regole")}</h3>
                 </div>
                 <div className="divide-y">
                   {simulated.rows.length === 0 && (
-                    <div className="p-6 text-sm text-muted-foreground">Aggiungi una regola per simulare.</div>
+                    <div className="p-6 text-sm text-muted-foreground">{t("Aggiungi una regola per simulare.")}</div>
                   )}
                   {simulated.rows.map((row) => (
                     <div key={row.id} className="flex items-center justify-between gap-3 p-4">
                       <div>
                         <p className="text-sm font-medium">{row.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {row.skipped ? "Condizione non raggiunta" : row.blocked ? "Matura ma resta sospesa" : "Applicata"}
+                          {row.skipped ? t("Condizione non raggiunta") : row.blocked ? t("Matura ma resta sospesa") : t("Applicata")}
                         </p>
                       </div>
                       <span className={row.amount < 0 ? "font-medium text-red-700" : "font-medium"}>
@@ -866,7 +866,7 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
         </Tabs>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Chiudi</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

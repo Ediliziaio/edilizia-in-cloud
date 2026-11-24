@@ -8,6 +8,7 @@ import {
   type QuotaDwg, type RiferimentoDwg, type RichiestaModelloDwg, type RiscontroQuotaDwg,
 } from "@/lib/planimetrie/coordinateDwg";
 import type { RitaglioPianta } from "@/lib/planimetrie/documentoImmagine";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SelezionePiano {
   id: string;
@@ -16,7 +17,7 @@ interface SelezionePiano {
   ritaglio: RitaglioPianta;
 }
 
-const misuraRitaglio = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+const misuraRitaglio = () => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 3 });
 const classeSelect = "h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const direzioneQuota = ({ angolo }: QuotaDwg) => angolo < 5 || angolo > 175 ? "orizzontale" : Math.abs(angolo - 90) < 5 ? "verticale" : "obliqua";
@@ -49,6 +50,7 @@ export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRico
   onAggiunto: () => void;
   onRicostruisci: (richiesta: RichiestaModelloDwg, tagli: RitaglioPianta[], quoteConfermate: RiscontroQuotaDwg[]) => void;
 }) {
+  const t = useT();
   const [piani, setPiani] = useState<SelezionePiano[]>([]);
   const [unita, setUnita] = useState(riferimento.unita?.toString() ?? "");
   const [altezza, setAltezza] = useState("2.70");
@@ -111,14 +113,14 @@ export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRico
         <div className="flex items-start gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Layers3 className="h-5 w-5" aria-hidden="true" /></span>
           <div>
-            <h2 id="titolo-modello-dwg" className="font-semibold">Pianta modificabile e 3D</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">Ritaglia e aggiungi ogni piano, poi verifica le quote.</p>
+            <h2 id="titolo-modello-dwg" className="font-semibold">{t("Pianta modificabile e 3D")}</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t("Ritaglia e aggiungi ogni piano, poi verifica le quote.")}</p>
           </div>
         </div>
         <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={aggiungi}
           disabled={occupato || !ritaglio || !!selezioneAggiunta || numero >= MASSIMO_PIANI_DWG}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          {selezioneAggiunta ? "Ritaglio aggiunto" : "Aggiungi ritaglio come piano"}
+          {selezioneAggiunta ? t("Ritaglio aggiunto") : t("Aggiungi ritaglio come piano")}
         </Button>
       </div>
 
@@ -127,15 +129,15 @@ export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRico
           {piani.map((p, indice) => (
             <li key={p.id} className="grid grid-cols-[minmax(0,1fr)_6.5rem_auto] items-end gap-2 rounded-lg bg-muted/45 p-2.5 sm:grid-cols-[minmax(0,1fr)_8.5rem_auto]">
               <div className="space-y-1">
-                <Label htmlFor={`${p.id}-nome`} className="text-xs">Piano {indice + 1}</Label>
+                <Label htmlFor={`${p.id}-nome`} className="text-xs">{t("Piano {n}", { n: indice + 1 })}</Label>
                 <Input id={`${p.id}-nome`} value={p.nome} maxLength={70} onChange={(event) => modifica(p.id, { nome: event.target.value })} className="bg-card" />
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`${p.id}-quota`} className="text-xs">Quota (m)</Label>
-                <Input id={`${p.id}-quota`} aria-label={`Quota del piano ${indice + 1} in metri`} type="number" step="0.01" value={p.quotaMetri}
+                <Label htmlFor={`${p.id}-quota`} className="text-xs">{t("Quota (m)")}</Label>
+                <Input id={`${p.id}-quota`} aria-label={t("Quota del piano {n} in metri", { n: indice + 1 })} type="number" step="0.01" value={p.quotaMetri}
                   onChange={(event) => modifica(p.id, { quotaMetri: event.target.value })} className="bg-card" />
               </div>
-              <Button type="button" variant="ghost" size="icon" className="h-10 w-9" aria-label={`Rimuovi ${p.nome || `piano ${indice + 1}`}`}
+              <Button type="button" variant="ghost" size="icon" className="h-10 w-9" aria-label={t("Rimuovi {nome}", { nome: p.nome || t("piano {n}", { n: indice + 1 }) })}
                 onClick={() => setPiani((correnti) => correnti.filter((selezione) => selezione.id !== p.id))}>
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -146,36 +148,36 @@ export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRico
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="unita-dwg" className="text-xs">Unità del DWG</Label>
+          <Label htmlFor="unita-dwg" className="text-xs">{t("Unità del DWG")}</Label>
           <select id="unita-dwg" value={unita} onChange={(event) => setUnita(event.target.value)} className={classeSelect} disabled={occupato}>
-            <option value="">Scegli l’unità</option>
-            {Object.entries(UNITA_DWG).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+            <option value="">{t("Scegli l’unità")}</option>
+            {Object.entries(UNITA_DWG).map(([id, nome]) => <option key={id} value={id}>{t(nome)}</option>)}
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="altezza-muri-dwg" className="text-xs">Altezza dei muri (m)</Label>
+          <Label htmlFor="altezza-muri-dwg" className="text-xs">{t("Altezza dei muri (m)")}</Label>
           <Input id="altezza-muri-dwg" type="number" step="0.01" min={2} max={8} value={altezza} onChange={(event) => setAltezza(event.target.value)} />
         </div>
       </div>
       {larghezzaMetri !== null && <p className="text-xs leading-relaxed text-muted-foreground" aria-live="polite">
-        Larghezza {piani.length ? "del primo piano ritagliato" : "del ritaglio"} con questa unità{" "}
-        <strong className="font-semibold tabular-nums text-foreground">{misuraRitaglio.format(larghezzaMetri)} m</strong>.
+        {piani.length ? t("Larghezza del primo piano ritagliato con questa unità") : t("Larghezza del ritaglio con questa unità")}{" "}
+        <strong className="font-semibold tabular-nums text-foreground">{misuraRitaglio().format(larghezzaMetri)} m</strong>.
       </p>}
       <fieldset className="space-y-2.5 rounded-lg border bg-muted/20 p-3" disabled={occupato}>
-        <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold"><Ruler className="h-4 w-4 text-primary" aria-hidden="true" /> Verifica la scala</legend>
+        <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold"><Ruler className="h-4 w-4 text-primary" aria-hidden="true" /> {t("Verifica la scala")}</legend>
         {!!quote.length && <>
-          <p className="text-xs leading-relaxed text-muted-foreground">Scegli due quote in direzioni diverse e riporta le loro misure in metri.</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t("Scegli due quote in direzioni diverse e riporta le loro misure in metri.")}</p>
           {righeQuote.map(({ quota, testo, metri }, i) => (
             <div key={i} className="grid grid-cols-[minmax(0,1fr)_6rem] items-end gap-2">
               <div className="space-y-1">
-                <Label htmlFor={`quota-dwg-${i}`} className="text-xs">Quota {i + 1} sulla tavola</Label>
+                <Label htmlFor={`quota-dwg-${i}`} className="text-xs">{t("Quota {n} sulla tavola", { n: i + 1 })}</Label>
                 <select id={`quota-dwg-${i}`} className={classeSelect} value={quota?.id ?? ""} onChange={e => scegliQuota(i, e.target.value, "")}>
-                  <option value="" disabled>Scegli una quota</option>
+                  <option value="" disabled>{t("Scegli una quota")}</option>
                   {opzioniQuote(quota, [...quoteNelPiano, ...quote]).map(q => <option key={q.id} value={q.id}>{q.testo} · {direzioneQuota(q)}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`quota-dwg-metri-${i}`} className="text-xs">Quota {i + 1} in m</Label>
+                <Label htmlFor={`quota-dwg-metri-${i}`} className="text-xs">{t("Quota {n} in m", { n: i + 1 })}</Label>
                 <Input id={`quota-dwg-metri-${i}`} value={testo} type="text" inputMode="decimal" maxLength={14}
                   placeholder="m" aria-invalid={!!testo.trim() && metri === null} disabled={!quota}
                   onChange={e => quota && scegliQuota(i, quota.id, e.target.value)} />
@@ -183,26 +185,26 @@ export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRico
             </div>
           ))}
         </>}
-        {riferimento.unita !== null && <p className="text-xs text-muted-foreground">Unità dichiarata dal file · {UNITA_DWG[riferimento.unita]}</p>}
-        {quoteNonValide ? <p role="alert" className="text-xs text-destructive">Inserisci le quote in metri, per esempio 3,50.</p>
+        {riferimento.unita !== null && <p className="text-xs text-muted-foreground">{t("Unità dichiarata dal file · {unita}", { unita: t(UNITA_DWG[riferimento.unita]) })}</p>}
+        {quoteNonValide ? <p role="alert" className="text-xs text-destructive">{t("Inserisci le quote in metri, per esempio 3,50.")}</p>
           : discordanza || suggerita ? <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950">
-            <p>{suggerita ? `Unità compatibile con le quote inserite · ${UNITA_DWG[suggerita]}` : "Le quote indicano scale diverse. Controlla i valori in metri sulla tavola."}</p>
-            {suggerita && <Button type="button" size="sm" variant="outline" className="mt-2 h-8" onClick={() => setUnita(String(suggerita))}>Usa {UNITA_DWG[suggerita].toLowerCase()}</Button>}
-          </div> : quoteConfermate.length ? <p role="status" className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Scala coerente su due quote</p>
+            <p>{suggerita ? t("Unità compatibile con le quote inserite · {unita}", { unita: t(UNITA_DWG[suggerita]) }) : t("Le quote indicano scale diverse. Controlla i valori in metri sulla tavola.")}</p>
+            {suggerita && <Button type="button" size="sm" variant="outline" className="mt-2 h-8" onClick={() => setUnita(String(suggerita))}>{t("Usa {unita}", { unita: t(UNITA_DWG[suggerita]).toLowerCase() })}</Button>}
+          </div> : quoteConfermate.length ? <p role="status" className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> {t("Scala coerente su due quote")}</p>
             : <p role="status" className="text-xs text-muted-foreground">
-              {quoteInserite.length === 2 && !doppiaDirezione ? "Scegli due quote in direzioni diverse per completare il riscontro. " :
-                !quote.length ? "Quote CAD leggibili assenti. " : ""}Puoi aprire la pianta e completare il riscontro nell’editor. Le quantità metriche restano sospese nel computo.
+              {quoteInserite.length === 2 && !doppiaDirezione ? `${t("Scegli due quote in direzioni diverse per completare il riscontro.")} ` :
+                !quote.length ? `${t("Quote CAD leggibili assenti.")} ` : ""}{t("Puoi aprire la pianta e completare il riscontro nell’editor. Le quantità metriche restano sospese nel computo.")}
             </p>}
       </fieldset>
       <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Layer dei muri</summary>
-        <Input aria-label="Nome del layer dei muri" value={layerMuri} onChange={(event) => setLayerMuri(event.target.value)}
-          placeholder="Automatico" maxLength={120} className="mt-2 max-w-xs" />
+        <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{t("Layer dei muri")}</summary>
+        <Input aria-label={t("Nome del layer dei muri")} value={layerMuri} onChange={(event) => setLayerMuri(event.target.value)}
+          placeholder={t("Automatico")} maxLength={120} className="mt-2 max-w-xs" />
       </details>
       <Button type="button" className="w-full gap-2 sm:w-auto" disabled={occupato || !numero || !unitaDwgValida(unitaSelezionata)
         || !righeValide || metri < 2 || metri > 8 || discordanza || quoteNonValide} onClick={ricostruisci}>
         <Box className="h-4 w-4" aria-hidden="true" />
-        Ricava pianta e 3D
+        {t("Ricava pianta e 3D")}
       </Button>
     </section>
   );

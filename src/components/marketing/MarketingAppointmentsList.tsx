@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +18,7 @@ import {
   MARKETING_APPOINTMENT_FOLLOW_UP_STATUSES,
   MARKETING_APPOINTMENT_STATUS_OPTIONS,
 } from "@/lib/marketingAppointmentStatus";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   appointments: MarketingAppointment[];
@@ -30,6 +30,7 @@ const ROWS_OPTIONS = [10, 25, 50];
 const FOLLOW_UP_STATUS_SET = new Set<string>(MARKETING_APPOINTMENT_FOLLOW_UP_STATUSES);
 
 export default function MarketingAppointmentsList({ appointments, onRefresh, onClickAppointment }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const googleSync = useGoogleCalendarSync();
@@ -102,7 +103,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     if (!companyId) {
-      toast({ title: "Azienda non disponibile", variant: "destructive" });
+      toast({ title: tr("Azienda non disponibile"), variant: "destructive" });
       return;
     }
 
@@ -111,10 +112,10 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
 
     const { data: saved, error } = await supabase.from("appointments").update({ status: newStatus }).eq("id", id).eq("company_id", companyId).select("id").single();
     if (error || !saved?.id) {
-      toast({ title: "Stato non aggiornato", description: error?.message || "Appuntamento non modificabile: ricarica la lista e riprova.", variant: "destructive" });
+      toast({ title: tr("Stato non aggiornato"), description: error?.message || tr("Appuntamento non modificabile: ricarica la lista e riprova."), variant: "destructive" });
     } else {
       void syncExternalCalendarsForStatus(id, newStatus);
-      toast({ title: "Stato aggiornato" });
+      toast({ title: tr("Stato aggiornato") });
       onRefresh();
     }
   };
@@ -132,10 +133,10 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
   }, [appointments]);
 
   const subTabs = [
-    { key: "prossimo" as const, label: "Prossimi", count: counts.prossimo },
-    { key: "followup" as const, label: "Da seguire", count: counts.followup },
-    { key: "annullato" as const, label: "Annullati", count: counts.annullato },
-    { key: "tutti" as const, label: "Tutti", count: counts.tutti },
+    { key: "prossimo" as const, label: tr("Prossimi"), count: counts.prossimo },
+    { key: "followup" as const, label: tr("Da seguire"), count: counts.followup },
+    { key: "annullato" as const, label: tr("Annullati"), count: counts.annullato },
+    { key: "tutti" as const, label: tr("Tutti"), count: counts.tutti },
   ];
 
   return (
@@ -178,7 +179,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
       <div className="relative max-w-sm">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Cerca per titolo o contatto..."
+          placeholder={tr("Cerca per titolo o contatto...")}
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           className="pl-9"
@@ -190,14 +191,14 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
         {paged.length === 0 ? (
           <p className="px-3 py-4 text-center text-[13px] text-muted-foreground">
             {search.trim()
-              ? "Nessun risultato"
+              ? tr("Nessun risultato")
               : subTab === "followup"
-              ? "Nessun appuntamento da seguire"
+              ? tr("Nessun appuntamento da seguire")
               : subTab === "annullato"
-              ? "Nessun appuntamento annullato"
+              ? tr("Nessun appuntamento annullato")
               : subTab === "prossimo"
-              ? "Nessun appuntamento imminente"
-              : "Nessun appuntamento"}
+              ? tr("Nessun appuntamento imminente")
+              : tr("Nessun appuntamento")}
           </p>
         ) : (
           paged.map((apt) => {
@@ -206,13 +207,13 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
               <RigaMobile
                 key={apt.id}
                 onClick={() => onClickAppointment(apt)}
-                titolo={apt.title || apt.contact_name || "Appuntamento"}
+                titolo={apt.title || apt.contact_name || tr("Appuntamento")}
                 sottotitolo={[
                   apt.contact_name && apt.contact_name !== apt.title ? apt.contact_name : null,
-                  `${format(parseISO(apt.appointment_date), "d MMM", { locale: it })}${apt.appointment_time ? ` ${apt.appointment_time.slice(0, 5)}` : ""}`,
-                  apt.assigned_name ?? "non assegnato",
+                  `${format(parseISO(apt.appointment_date), "d MMM", { locale: dateFnsCampo() })}${apt.appointment_time ? ` ${apt.appointment_time.slice(0, 5)}` : ""}`,
+                  apt.assigned_name ?? tr("non assegnato"),
                 ].filter(Boolean).join(" · ")}
-                stato={stato ? <Badge variant={stato.variant} className="text-[10px]">{stato.label}</Badge> : undefined}
+                stato={stato ? <Badge variant={stato.variant} className="text-[10px]">{tr(stato.label)}</Badge> : undefined}
               />
             );
           })
@@ -225,20 +226,20 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">#</TableHead>
-              <TableHead>Titolo</TableHead>
+              <TableHead>{tr("Titolo")}</TableHead>
               <TableHead>
                 <span className="inline-flex items-center gap-1">
                   <User className="h-3 w-3 text-muted-foreground" />
-                  Cliente
+                  {tr("Cliente")}
                 </span>
               </TableHead>
-              <TableHead>Stato</TableHead>
-              <TableHead>Data / Ora</TableHead>
-              <TableHead>Calendario</TableHead>
+              <TableHead>{tr("Stato")}</TableHead>
+              <TableHead>{tr("Data / Ora")}</TableHead>
+              <TableHead>{tr("Calendario")}</TableHead>
               <TableHead>
                 <span className="inline-flex items-center gap-1">
                   <UserCircle2 className="h-3 w-3 text-primary" />
-                  Venditore assegnato
+                  {tr("Venditore assegnato")}
                 </span>
               </TableHead>
             </TableRow>
@@ -257,19 +258,19 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                     )}
                     <p className="font-medium text-foreground">
                       {search.trim()
-                        ? "Nessun risultato"
+                        ? tr("Nessun risultato")
                         : subTab === "followup"
-                        ? "Nessun appuntamento da seguire"
+                        ? tr("Nessun appuntamento da seguire")
                         : subTab === "annullato"
-                        ? "Nessun appuntamento annullato"
+                        ? tr("Nessun appuntamento annullato")
                         : subTab === "prossimo"
-                        ? "Nessun appuntamento imminente"
-                        : "Nessun appuntamento"}
+                        ? tr("Nessun appuntamento imminente")
+                        : tr("Nessun appuntamento")}
                     </p>
                     <p className="text-xs">
                       {search.trim()
-                        ? "Prova con un altro termine di ricerca"
-                        : "Crea un nuovo appuntamento dal calendario"}
+                        ? tr("Prova con un altro termine di ricerca")
+                        : tr("Crea un nuovo appuntamento dal calendario")}
                     </p>
                   </div>
                 </TableCell>
@@ -312,7 +313,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                         {MARKETING_APPOINTMENT_STATUS_OPTIONS.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             <Badge variant={option.variant} className="text-[10px]">
-                              {option.label}
+                              {tr(option.label)}
                             </Badge>
                           </SelectItem>
                         ))}
@@ -320,7 +321,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                     </Select>
                   </TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
-                    {format(parseISO(apt.appointment_date), "dd/MM/yyyy", { locale: it })}
+                    {format(parseISO(apt.appointment_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}
                     {apt.appointment_time && (
                       <span className="text-muted-foreground ml-1">
                         {apt.appointment_time.slice(0, 5)}
@@ -337,7 +338,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                         {apt.assigned_name}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground/60 italic text-xs">non assegnato</span>
+                      <span className="text-muted-foreground/60 italic text-xs">{tr("non assegnato")}</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -350,10 +351,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
       {/* Pagination */}
       {filtered.length > 0 && (
         <div className={cn("flex items-center justify-between text-sm text-muted-foreground max-sm:justify-center max-sm:text-xs", totalPages <= 1 && "max-sm:hidden")}>
-          <span className="max-sm:hidden">
-            Mostra da {page * rowsPerPage + 1} a{" "}
-            {Math.min((page + 1) * rowsPerPage, filtered.length)} di {filtered.length} risultati
-          </span>
+          <span className="max-sm:hidden">{tr("Mostra da {da} a {a} di {n} risultati", { da: page * rowsPerPage + 1, a: Math.min((page + 1) * rowsPerPage, filtered.length), n: filtered.length })}</span>
           <div className="flex items-center gap-2">
             <Select
               value={String(rowsPerPage)}
@@ -364,9 +362,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
               </SelectTrigger>
               <SelectContent>
                 {ROWS_OPTIONS.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n} righe
-                  </SelectItem>
+                  <SelectItem key={n} value={String(n)}>{tr("{n} righe", { n })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

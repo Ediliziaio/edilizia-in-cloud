@@ -1,7 +1,6 @@
 import { memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { CalendarDays, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +12,7 @@ import { getDateRange } from "@/lib/dateRangeUtils";
 import { cn } from "@/lib/utils";
 import { fmt, formatDuration } from "@/components/marketing/dashboard/utils";
 import type { DashboardStats, DashboardFiltersState } from "@/hooks/useMarketingDashboard";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /*
  * Tab «Attività»: chi ha lavorato quanto nel periodo e come sono andati gli
@@ -80,6 +80,7 @@ function Cifra({ label, valore, nota, tono, soloComputer }: { label: string; val
 }
 
 export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const isMobile = useIsMobile();
@@ -105,7 +106,7 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
 
   // un errore non è un caricamento: prima lo scheletro restava lì per sempre
   if (error) {
-    return <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">Non riesco a caricare le attività del team. Riprova tra poco.</p>;
+    return <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">{tr("Non riesco a caricare le attività del team. Riprova tra poco.")}</p>;
   }
   if (isLoading || !data) {
     return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>;
@@ -117,33 +118,31 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-        <Cifra label="Contatti lavorati" valore={fmt(t.contatti)} nota={`${fmt(t.interventi)} interventi`} />
-        <Cifra label="Chiamate" valore={fmt(t.chiamate)} nota={t.chiamate > 0 ? `${chiamateConRisposta} con risposta` : undefined} />
-        <Cifra soloComputer label="Appuntamenti fissati" valore={fmt(t.appuntamenti_fissati)} nota="fissati nel periodo" />
-        <Cifra label="In agenda" valore={fmt(t.appuntamenti)} nota={`${fmt(t.effettuati)} effettuati`} />
-        <Cifra soloComputer label="Show rate" valore={show(t.effettuati, t.no_show)} nota={`${fmt(t.no_show)} no-show`}
+        <Cifra label={tr("Contatti lavorati")} valore={fmt(t.contatti)} nota={tr("{n} interventi", { n: fmt(t.interventi) })} />
+        <Cifra label={tr("Chiamate")} valore={fmt(t.chiamate)} nota={t.chiamate > 0 ? tr("{chiamateConRisposta} con risposta", { chiamateConRisposta: String(chiamateConRisposta ?? "") }) : undefined} />
+        <Cifra soloComputer label={tr("Appuntamenti fissati")} valore={fmt(t.appuntamenti_fissati)} nota={tr("fissati nel periodo")} />
+        <Cifra label={tr("In agenda")} valore={fmt(t.appuntamenti)} nota={tr("{effettuati} effettuati", { effettuati: fmt(t.effettuati) })} />
+        <Cifra soloComputer label={tr("Show rate")} valore={show(t.effettuati, t.no_show)} nota={`${fmt(t.no_show)} no-show`}
           tono={t.effettuati + t.no_show >= 5 && t.effettuati / (t.effettuati + t.no_show) < 0.6 ? "giallo" : undefined} />
-        <Cifra label="Da esitare" valore={fmt(t.da_esitare)} nota="passati senza esito" tono={t.da_esitare > 0 ? "giallo" : undefined} />
+        <Cifra label={tr("Da esitare")} valore={fmt(t.da_esitare)} nota={tr("passati senza esito")} tono={t.da_esitare > 0 ? "giallo" : undefined} />
       </div>
 
       {/* Per persona */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <Users className="h-4 w-4 text-muted-foreground" /> Chi ha lavorato quanto
+            <Users className="h-4 w-4 text-muted-foreground" /> {tr("Chi ha lavorato quanto")}
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {data.persone.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nessuna attività nel periodo.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{tr("Nessuna attività nel periodo.")}</p>
           ) : isMobile ? (
             <div className="space-y-1.5">
               {data.persone.slice(0, 5).map((p) => (
                 <div key={p.user_id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                   <span className="truncate font-medium">{p.name}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {fmt(p.contatti)} contatti · {fmt(p.chiamate)} chiamate · {fmt(p.appuntamenti)} app.
-                  </span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{tr("{contatti} contatti · {chiamate} chiamate · {appuntamenti} app.", { contatti: fmt(p.contatti), chiamate: fmt(p.chiamate), appuntamenti: fmt(p.appuntamenti) })}</span>
                 </div>
               ))}
             </div>
@@ -152,19 +151,19 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs">Persona</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Contatti</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Chiamate</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Risposta</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Durata</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Note</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Messaggi</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Cambi fase</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">App. fissati</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">In agenda</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Show rate</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Da esitare</TableHead>
-                    <TableHead className="whitespace-nowrap text-right text-xs">Ultima attività</TableHead>
+                    <TableHead className="text-xs">{tr("Persona")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Contatti")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Chiamate")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Risposta")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Durata")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Note")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Messaggi")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Cambi fase")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("App. fissati")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("In agenda")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Show rate")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Da esitare")}</TableHead>
+                    <TableHead className="whitespace-nowrap text-right text-xs">{tr("Ultima attività")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -183,15 +182,14 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
                       <TableCell className="text-right text-sm tabular-nums">{show(p.effettuati, p.no_show)}</TableCell>
                       <TableCell className={cn("text-right text-sm tabular-nums", p.da_esitare > 0 && "font-semibold text-amber-700")}>{fmt(p.da_esitare)}</TableCell>
                       <TableCell className="whitespace-nowrap text-right text-xs text-muted-foreground">
-                        {p.ultima_attivita ? formatDistanceToNowStrict(parseISO(p.ultima_attivita), { locale: it, addSuffix: true }) : "—"}
+                        {p.ultima_attivita ? formatDistanceToNowStrict(parseISO(p.ultima_attivita), { locale: dateFnsCampo(), addSuffix: true }) : "—"}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Contano solo gli interventi di una persona (non creazione e assegnazione automatiche). «App. fissati» = fissati
-                da lei, anche per altri; «In agenda» = assegnati a lei nel periodo.
+                {tr("Contano solo gli interventi di una persona (non creazione e assegnazione automatiche). «App. fissati» = fissati da lei, anche per altri; «In agenda» = assegnati a lei nel periodo.")}
               </p>
             </div>
           )}
@@ -203,7 +201,7 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" /> Calendari
+              <CalendarDays className="h-4 w-4 text-muted-foreground" /> {tr("Calendari")}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
@@ -212,9 +210,7 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
                 {data.calendari.map((c) => (
                   <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                     <span className="truncate font-medium">{c.name}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
-                      {fmt(c.in_agenda)} app. · show {show(c.effettuati, c.no_show)} · {pct(c.con_vendita, c.in_agenda)} vendita
-                    </span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{tr("{in_agenda} app. · show {effettuati} · {con_vendita} vendita", { in_agenda: fmt(c.in_agenda), effettuati: String(show(c.effettuati, c.no_show) ?? ""), con_vendita: String(pct(c.con_vendita, c.in_agenda) ?? "") })}</span>
                   </div>
                 ))}
               </div>
@@ -223,14 +219,14 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-xs">Calendario</TableHead>
-                      <TableHead className="whitespace-nowrap text-right text-xs">In agenda</TableHead>
-                      <TableHead className="whitespace-nowrap text-right text-xs">Prenotati da soli</TableHead>
-                      <TableHead className="whitespace-nowrap text-right text-xs">Effettuati</TableHead>
-                      <TableHead className="whitespace-nowrap text-right text-xs">No-show</TableHead>
-                      <TableHead className="whitespace-nowrap text-right text-xs">Show rate</TableHead>
-                      <TableHead className="whitespace-nowrap text-right text-xs">Da esitare</TableHead>
-                      <TableHead className="whitespace-nowrap text-right text-xs">Diventati vendita</TableHead>
+                      <TableHead className="text-xs">{tr("Calendario")}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-xs">{tr("In agenda")}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-xs">{tr("Prenotati da soli")}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-xs">{tr("Effettuati")}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-xs">{tr("No-show")}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-xs">{tr("Show rate")}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-xs">{tr("Da esitare")}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right text-xs">{tr("Diventati vendita")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -249,8 +245,7 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
                   </TableBody>
                 </Table>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  «Prenotati da soli» = senza un autore (link di prenotazione, assistente). «Diventati vendita» = il contatto ha
-                  un preventivo firmato o un'opportunità vinta.
+                  {tr("«Prenotati da soli» = senza un autore (link di prenotazione, assistente). «Diventati vendita» = il contatto ha un preventivo firmato o un'opportunità vinta.")}
                 </p>
               </div>
             )}

@@ -33,6 +33,7 @@ import { buildMockPdfData } from "@/lib/serramenti/mockPdfData";
 import { useProgetti } from "@/lib/serramenti/queries";
 import type { DocumentProps } from "@react-pdf/renderer";
 import type { SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   moduleId?: SerramentiTemplateModuleId;
@@ -65,6 +66,7 @@ export function SerramentiTemplatePreviewDialog({
   open, onOpenChange, template,
   companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo,
 }: Props) {
+  const t = useT();
   const [state, setState] = useState<PreviewState>({ status: "idle" });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastBlobUrlRef = useRef<string | null>(null);
@@ -132,7 +134,7 @@ export function SerramentiTemplatePreviewDialog({
           // Se il caricamento del preventivo reale fallisce (es. progetto
           // cancellato), fallback al mock con toast non bloccante.
           console.warn("[template-preview] real-data fetch failed, fallback to mock:", realErr);
-          toast.warning("Anteprima con dati reali non disponibile · uso demo");
+          toast.warning(t("Anteprima con dati reali non disponibile · uso demo"));
           enriched = await buildMockPdfData({ template, moduleId, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo });
         }
       } else {
@@ -183,7 +185,7 @@ export function SerramentiTemplatePreviewDialog({
       pdfDocRef.current = pdfDoc;
     } catch (err) {
       console.error("[template-preview] errore generazione PDF:", err);
-      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      const msg = err instanceof Error ? err.message : t("Errore sconosciuto");
       setState({ status: "error", message: msg });
     }
   };
@@ -262,7 +264,7 @@ export function SerramentiTemplatePreviewDialog({
     a.href = state.blobUrl;
     a.download = moduleId ? `anteprima-${moduleId}.pdf` : "anteprima-template.pdf";
     a.click();
-    toast.success("Anteprima scaricata");
+    toast.success(t("Anteprima scaricata"));
   };
 
   const handleOpenInTab = () => {
@@ -276,17 +278,17 @@ export function SerramentiTemplatePreviewDialog({
         <DialogHeader className="p-4 pb-3 border-b">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-base">Anteprima PDF preventivo</DialogTitle>
+              <DialogTitle className="text-base">{t("Anteprima PDF preventivo")}</DialogTitle>
               <DialogDescription className="text-xs mt-0.5">
                 {selectedProgettoId
-                  ? "Generato con dati di un preventivo reale + template corrente."
-                  : "Generato con dati cliente fittizi + template corrente (anche modifiche non salvate)."}
-                {" "}Clicca "Aggiorna" per rigenerare con le ultime modifiche.
+                  ? t("Generato con dati di un preventivo reale + template corrente.")
+                  : t("Generato con dati cliente fittizi + template corrente (anche modifiche non salvate).")}
+                {" "}{t("Clicca \"Aggiorna\" per rigenerare con le ultime modifiche.")}
               </DialogDescription>
               {/* M15 · Selettore data-source: demo vs preventivo reale */}
               <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Dati anteprima:
+                  {t("Dati anteprima:")}
                 </span>
                 <button
                   type="button"
@@ -299,11 +301,11 @@ export function SerramentiTemplatePreviewDialog({
                   }
                 >
                   <Sparkles className="h-3 w-3" />
-                  Demo (default)
+                  {t("Demo (default)")}
                 </button>
                 {progettiRecenti.length === 0 && (
                   <span className="text-[10px] italic text-muted-foreground">
-                    Nessun preventivo reale disponibile
+                    {t("Nessun preventivo reale disponibile")}
                   </span>
                 )}
                 {progettiRecenti.map((p) => {
@@ -342,7 +344,7 @@ export function SerramentiTemplatePreviewDialog({
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
                 )}
-                <span className="text-xs">Aggiorna</span>
+                <span className="text-xs">{t("Aggiorna")}</span>
               </Button>
               <Button
                 size="sm"
@@ -352,7 +354,7 @@ export function SerramentiTemplatePreviewDialog({
                 className="h-8 gap-1.5"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                <span className="text-xs hidden sm:inline">Apri in tab</span>
+                <span className="text-xs hidden sm:inline">{t("Apri in tab")}</span>
               </Button>
               <Button
                 size="sm"
@@ -362,7 +364,7 @@ export function SerramentiTemplatePreviewDialog({
                 className="h-8 gap-1.5"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span className="text-xs">Scarica</span>
+                <span className="text-xs">{t("Scarica")}</span>
               </Button>
             </div>
           </div>
@@ -373,9 +375,9 @@ export function SerramentiTemplatePreviewDialog({
             <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
               <div className="flex flex-col items-center gap-2">
                 <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
-                <p className="text-xs text-muted-foreground">Genero anteprima PDF…</p>
+                <p className="text-xs text-muted-foreground">{t("Genero anteprima PDF…")}</p>
                 <p className="text-[10px] text-muted-foreground/70 max-w-[220px] text-center">
-                  Al primo utilizzo scarico il motore PDF (~1 MB): può richiedere qualche secondo. Le volte successive è istantaneo.
+                  {t("Al primo utilizzo scarico il motore PDF (~1 MB): può richiedere qualche secondo. Le volte successive è istantaneo.")}
                 </p>
               </div>
             </div>
@@ -384,7 +386,7 @@ export function SerramentiTemplatePreviewDialog({
             <div className="absolute inset-0 flex items-center justify-center p-6">
               <div className="flex flex-col items-center gap-2 max-w-md text-center">
                 <AlertCircle className="h-8 w-8 text-rose-600" />
-                <p className="text-sm font-semibold">Errore generazione anteprima</p>
+                <p className="text-sm font-semibold">{t("Errore generazione anteprima")}</p>
                 <p className="text-xs text-muted-foreground">{state.message}</p>
                 <Button
                   size="sm"
@@ -392,7 +394,7 @@ export function SerramentiTemplatePreviewDialog({
                   onClick={() => void generate()}
                   className="mt-2"
                 >
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </div>
             </div>
@@ -411,19 +413,18 @@ export function SerramentiTemplatePreviewDialog({
                   <canvas
                     data-page={pageNum}
                     className="block max-w-full h-auto"
-                    aria-label={`Anteprima pagina ${pageNum} di ${state.pageCount}`}
+                    aria-label={t("Anteprima pagina {pageNum} di {pageCount}", { pageNum: String(pageNum ?? ""), pageCount: String(state.pageCount ?? "") })}
                   />
                 </div>
               ))}
               <p className="text-[10px] text-muted-foreground italic">
-                {state.pageCount} {state.pageCount === 1 ? "pagina" : "pagine"} ·
-                Anteprima a bassa risoluzione · scarica per vedere alta qualità
+                {t(state.pageCount === 1 ? "{n} pagina" : "{n} pagine", { n: state.pageCount })} {t("· Anteprima a bassa risoluzione · scarica per vedere alta qualità")}
               </p>
             </div>
           )}
           {state.status === "idle" && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <p className="text-xs text-muted-foreground">Apri di nuovo per generare l'anteprima.</p>
+              <p className="text-xs text-muted-foreground">{t("Apri di nuovo per generare l'anteprima.")}</p>
             </div>
           )}
         </div>

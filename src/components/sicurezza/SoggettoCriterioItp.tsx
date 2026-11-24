@@ -12,6 +12,7 @@ import {
   type DestinatarioItp,
   type SoggettiItp,
 } from "@/lib/sicurezza/soggettiItp";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const stile = "w-full rounded-md border bg-background px-3 py-2 text-sm";
 export function SoggettoCriterioItp({
   criterio: c,
@@ -30,6 +31,7 @@ export function SoggettoCriterioItp({
   onEstendi: () => void;
   onRiduci: () => void;
 }) {
+  const t = useT();
   const dest = destinatarioCriterio(c);
   const ambito = voceCatalogo(c.catalogo_id, c.catalogo_versione)?.ambito;
   const scelte: DestinatarioItp[] =
@@ -47,7 +49,7 @@ export function SoggettoCriterioItp({
   return (
     <div className="rounded-md bg-muted/40 p-3 space-y-2">
       <label className="block text-sm">
-        Destinatario del criterio
+        {t("Destinatario del criterio")}
         <UniformSelect
           className={stile}
           value={dest}
@@ -58,21 +60,21 @@ export function SoggettoCriterioItp({
         >
           {scelte.map((d) => (
             <option key={d} value={d}>
-              {
+              {t(
                 {
                   impresa: "Impresa",
                   commessa: "Commessa",
                   operaio: "Singolo operaio esterno",
                   incarico: "Incarico nominativo",
-                }[d]
-              }
+                }[d],
+              )}
             </option>
           ))}
         </UniformSelect>
       </label>
       {dest === "operaio" && (
         <label className="block text-sm">
-          Operaio titolare
+          {t("Operaio titolare")}
           <UniformSelect
             className={stile}
             value={c.operaio_id ?? ""}
@@ -86,19 +88,19 @@ export function SoggettoCriterioItp({
               })
             }
           >
-            <option value="">Scegli l’operaio…</option>
+            <option value="">{t("Scegli l’operaio…")}</option>
             {c.operaio_id &&
               !soggetti.operai.some((o) => o.id === c.operaio_id) && (
                 <option value={c.operaio_id}>
-                  Titolare non più disponibile
+                  {t("Titolare non più disponibile")}
                 </option>
               )}
             {soggetti.operai.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.nome} {o.cognome} · {o.mansione} · rif. {o.id.slice(0, 8)}
-                {!o.attivo ? " · cessato" : ""}
+                {o.nome} {o.cognome} · {o.mansione} {t("· rif.")} {o.id.slice(0, 8)}
+                {!o.attivo ? ` ${t("· cessato")}` : ""}
                 {!operai.some((x) => x.id === o.id)
-                  ? " · fuori assegnazione o fase"
+                  ? ` ${t("· fuori assegnazione o fase")}`
                   : ""}
               </option>
             ))}
@@ -108,7 +110,7 @@ export function SoggettoCriterioItp({
       {dest === "incarico" && (
         <>
           <label className="block text-sm">
-            Ruolo da esaminare
+            {t("Ruolo da esaminare")}
             <UniformSelect
               className={stile}
               value={c.ruolo ?? ""}
@@ -123,16 +125,16 @@ export function SoggettoCriterioItp({
                 })
               }
             >
-              <option value="">Scegli il ruolo…</option>
+              <option value="">{t("Scegli il ruolo…")}</option>
               {Object.entries(RUOLI_INCARICO).map(([v, n]) => (
                 <option key={v} value={v}>
-                  {n}
+                  {t(n)}
                 </option>
               ))}
             </UniformSelect>
           </label>
           <label className="block text-sm">
-            Incarico titolare
+            {t("Incarico titolare")}
             <UniformSelect
               className={stile}
               value={c.incarico_id ?? ""}
@@ -150,21 +152,20 @@ export function SoggettoCriterioItp({
                 });
               }}
             >
-              <option value="">Scegli l’incarico…</option>
+              <option value="">{t("Scegli l’incarico…")}</option>
               {c.incarico_id &&
                 !soggetti.incarichi.some((i) => i.id === c.incarico_id) && (
                   <option value={c.incarico_id}>
-                    Incarico non più disponibile
+                    {t("Incarico non più disponibile")}
                   </option>
                 )}
               {soggetti.incarichi
                 .filter((i) => !c.ruolo || i.ruolo === c.ruolo)
                 .map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.nominativo} · {RUOLI_INCARICO[i.ruolo]} · {i.stato} ·
-                    rif. {i.id.slice(0, 8)}
+                    {i.nominativo} · {t(RUOLI_INCARICO[i.ruolo])} · {i.stato} {t("· rif.")} {i.id.slice(0, 8)}
                     {!incarichi.some((x) => x.id === i.id)
-                      ? " · fuori periodo"
+                      ? ` ${t("· fuori periodo")}`
                       : ""}
                   </option>
                 ))}
@@ -177,8 +178,7 @@ export function SoggettoCriterioItp({
           {c.gruppo_id ? (
             <>
               <p className="text-xs text-muted-foreground">
-                Copertura di gruppo: ogni titolare resta da valutare
-                separatamente.
+                {t("Copertura di gruppo: ogni titolare resta da valutare separatamente.")}
               </p>
               <Button
                 type="button"
@@ -186,7 +186,7 @@ export function SoggettoCriterioItp({
                 variant="outline"
                 onClick={onRiduci}
               >
-                Torna a criterio singolo
+                {t("Torna a criterio singolo")}
               </Button>
             </>
           ) : (
@@ -198,17 +198,15 @@ export function SoggettoCriterioItp({
               onClick={onEstendi}
             >
               {dest === "operaio"
-                ? `Estendi agli addetti assegnati (${operai.length})`
-                : `Estendi agli incarichi del ruolo (${incarichi.length})`}
+                ? t("Estendi agli addetti assegnati ({n})", { n: operai.length })
+                : t("Estendi agli incarichi del ruolo ({n})", { n: incarichi.length })}
             </Button>
           )}
         </div>
       )}
       {["operaio", "incarico"].includes(dest) && (
         <p className="text-xs text-muted-foreground">
-          Se non c’è un titolare pertinente, registra la criticità o motiva la
-          non applicabilità. Un documento individuale non viene attribuito
-          all’intera squadra.
+          {t("Se non c’è un titolare pertinente, registra la criticità o motiva la non applicabilità. Un documento individuale non viene attribuito all’intera squadra.")}
         </p>
       )}
     </div>

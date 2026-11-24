@@ -6,10 +6,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { buildNavigationUrl } from "@/lib/routing";
 import type { InterventoConCoords } from "@/hooks/usePercorsoOttimizzato";
 import type { RouteResult } from "@/lib/routing";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PercorsoMap = lazy(() =>
   import("./PercorsoMap").then((m) => ({ default: m.PercorsoMap }))
@@ -60,6 +60,7 @@ export function PercorsoOttimizzatoPanel({
   onReorder,
   className,
 }: PercorsoOttimizzatoPanelProps) {
+  const t = useT();
   const isProcessing = ["geocoding", "optimizing", "routing"].includes(status);
   const isDone = status === "done";
 
@@ -90,12 +91,12 @@ export function PercorsoOttimizzatoPanel({
         {isProcessing ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            {STATUS_LABEL[status]}
+            {t(STATUS_LABEL[status])}
           </>
         ) : (
           <>
             <Route className="h-4 w-4" />
-            {isDone ? "Ricalcola percorso" : "Ottimizza percorso"}
+            {isDone ? t("Ricalcola percorso") : t("Ottimizza percorso")}
           </>
         )}
       </Button>
@@ -105,9 +106,7 @@ export function PercorsoOttimizzatoPanel({
         <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-900/30 border border-amber-500/30">
           <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
           <p className="text-amber-300 text-xs">
-            {nonGeocodificati} {nonGeocodificati === 1 ? "intervento non ha" : "interventi non hanno"} coordinate
-            valide e {nonGeocodificati === 1 ? "è stato escluso" : "sono stati esclusi"} dal percorso.
-            Verifica gli indirizzi.
+            {t(nonGeocodificati === 1 ? "{n} intervento non ha coordinate valide e è stato escluso dal percorso. Verifica gli indirizzi." : "{n} interventi non hanno coordinate valide e sono stati esclusi dal percorso. Verifica gli indirizzi.", { n: nonGeocodificati })}
           </p>
         </div>
       )}
@@ -125,11 +124,8 @@ export function PercorsoOttimizzatoPanel({
         <div className="flex items-center gap-3 p-3 rounded-lg bg-green-900/30 border border-green-500/30">
           <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
           <div className="flex-1">
-            <p className="text-green-300 text-xs font-medium">Percorso ottimizzato</p>
-            <p className="text-green-400 text-[11px] mt-0.5">
-              {Math.round(routeResult.distanceMeters / 1000 * 10) / 10} km ·{" "}
-              {routeResult.durationLabel}
-            </p>
+            <p className="text-green-300 text-xs font-medium">{t("Percorso ottimizzato")}</p>
+            <p className="text-green-400 text-[11px] mt-0.5">{t("{valore} km · {durationLabel}", { valore: Math.round(routeResult.distanceMeters / 1000 * 10) / 10, durationLabel: String(routeResult.durationLabel ?? "") })}</p>
           </div>
           <Button
             size="sm"
@@ -138,7 +134,7 @@ export function PercorsoOttimizzatoPanel({
             onClick={handleNavigazioneEsterna}
           >
             <ExternalLink className="h-3 w-3" />
-            Naviga
+            {t("Naviga")}
           </Button>
         </div>
       )}
@@ -168,7 +164,7 @@ export function PercorsoOttimizzatoPanel({
       {(isDone || status === "error") && orderedInterventi.length > 0 && (
         <div className="space-y-2">
           <p className="text-slate-400 text-xs font-medium px-0.5">
-            Ordine di visita ottimizzato
+            {t("Ordine di visita ottimizzato")}
           </p>
           {orderedInterventi.map((item, idx) => (
             <div
@@ -207,7 +203,7 @@ export function PercorsoOttimizzatoPanel({
                         {format(
                           new Date(item.data_intervento_prevista),
                           "HH:mm",
-                          { locale: it }
+                          { locale: dateFnsCampo() }
                         )}
                       </span>
                     </div>
@@ -219,7 +215,7 @@ export function PercorsoOttimizzatoPanel({
                       className="text-[10px] h-4 px-1.5 bg-blue-900/30 text-blue-300 border-blue-500/30 gap-1"
                     >
                       <Navigation className="h-2.5 w-2.5" />
-                      Arrivo ~{item.arrivoStimato}
+                      {t("Arrivo ~{ora}", { ora: String(item.arrivoStimato ?? "") })}
                     </Badge>
                   )}
 
@@ -228,7 +224,7 @@ export function PercorsoOttimizzatoPanel({
                       variant="outline"
                       className="text-[10px] h-4 px-1.5 bg-amber-900/20 text-amber-400 border-amber-500/30"
                     >
-                      Indirizzo mancante
+                      {t("Indirizzo mancante")}
                     </Badge>
                   )}
                 </div>
@@ -240,7 +236,7 @@ export function PercorsoOttimizzatoPanel({
                     onClick={() => idx > 0 && onReorder(idx, idx - 1)}
                     disabled={idx === 0}
                     className="p-0.5 rounded text-slate-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    aria-label="Sposta su"
+                    aria-label={t("Sposta su")}
                   >
                     <ChevronUp className="h-3.5 w-3.5" />
                   </button>
@@ -248,7 +244,7 @@ export function PercorsoOttimizzatoPanel({
                     onClick={() => idx < orderedInterventi.length - 1 && onReorder(idx, idx + 1)}
                     disabled={idx === orderedInterventi.length - 1}
                     className="p-0.5 rounded text-slate-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    aria-label="Sposta giù"
+                    aria-label={t("Sposta giù")}
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
                   </button>

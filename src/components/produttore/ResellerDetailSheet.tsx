@@ -15,6 +15,7 @@ import {
   Mail, Users, Briefcase, Contact, Clock, Link2, Pencil, Check, X, Package,
   Factory, CreditCard, CircleCheck, CircleDashed, AlertCircle, Copy, Loader2,
 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DetailData {
   success?: boolean;
@@ -42,6 +43,7 @@ export function ResellerDetailSheet({
   onOpenChange: (open: boolean) => void;
   onMutated: () => void;
 }) {
+  const t = useT();
   const resellerId = target?.id ?? null;
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -58,7 +60,7 @@ export function ResellerDetailSheet({
       });
       if (error) throw new Error(error.message);
       const r = data as DetailData | null;
-      if (!r || r.success === false) throw new Error(r?.error ?? "Errore nel caricamento");
+      if (!r || r.success === false) throw new Error(r?.error ?? t("Errore nel caricamento"));
       return r;
     },
   });
@@ -66,31 +68,31 @@ export function ResellerDetailSheet({
   const rename = useMutation({
     mutationFn: async (name: string) => {
       const n = name.trim();
-      if (!n) throw new Error("Il nome è obbligatorio");
+      if (!n) throw new Error(t("Il nome è obbligatorio"));
       const { data: res, error } = await supabase.functions.invoke("update-reseller", {
         body: { reseller_id: resellerId, name: n },
       });
       if (error) throw new Error(error.message);
       const r = res as { success?: boolean; error?: string } | null;
-      if (r && r.success === false) throw new Error(r.error ?? "Rinomina fallita");
+      if (r && r.success === false) throw new Error(r.error ?? t("Rinomina fallita"));
     },
-    onSuccess: () => { toast.success("Rivenditore rinominato"); setEditingName(false); refetch(); onMutated(); },
-    onError: (e) => toast.error("Rinomina fallita", { description: (e as Error).message }),
+    onSuccess: () => { toast.success(t("Rivenditore rinominato")); setEditingName(false); refetch(); onMutated(); },
+    onError: (e) => toast.error(t("Rinomina fallita"), { description: (e as Error).message }),
   });
 
   const editEmail = useMutation({
     mutationFn: async (email: string) => {
       const e = email.trim().toLowerCase();
-      if (!e || !e.includes("@")) throw new Error("Email non valida");
+      if (!e || !e.includes("@")) throw new Error(t("Email non valida"));
       const { data: res, error } = await supabase.functions.invoke("update-reseller", {
         body: { reseller_id: resellerId, admin_email: e },
       });
       if (error) throw new Error(error.message);
       const r = res as { success?: boolean; error?: string } | null;
-      if (r && r.success === false) throw new Error(r.error ?? "Cambio email fallito");
+      if (r && r.success === false) throw new Error(r.error ?? t("Cambio email fallito"));
     },
-    onSuccess: () => { toast.success("Email aggiornata"); setEditingEmail(false); refetch(); onMutated(); },
-    onError: (e) => toast.error("Cambio email fallito", { description: (e as Error).message }),
+    onSuccess: () => { toast.success(t("Email aggiornata")); setEditingEmail(false); refetch(); onMutated(); },
+    onError: (e) => toast.error(t("Cambio email fallito"), { description: (e as Error).message }),
   });
 
   const resend = useMutation({
@@ -100,16 +102,16 @@ export function ResellerDetailSheet({
       });
       if (error) throw new Error(error.message);
       const r = res as { success?: boolean; error?: string; action_link?: string } | null;
-      if (!r || r.success === false) throw new Error(r?.error ?? "Operazione fallita");
+      if (!r || r.success === false) throw new Error(r?.error ?? t("Operazione fallita"));
       return r.action_link ?? null;
     },
-    onSuccess: (link) => { setAccessLink(link); toast.success("Link d'accesso generato"); },
-    onError: (e) => toast.error("Operazione fallita", { description: (e as Error).message }),
+    onSuccess: (link) => { setAccessLink(link); toast.success(t("Link d'accesso generato")); },
+    onError: (e) => toast.error(t("Operazione fallita"), { description: (e as Error).message }),
   });
 
   const copy = async (text: string) => {
-    try { await navigator.clipboard.writeText(text); toast.success("Copiato negli appunti"); }
-    catch { toast.error("Impossibile copiare"); }
+    try { await navigator.clipboard.writeText(text); toast.success(t("Copiato negli appunti")); }
+    catch { toast.error(t("Impossibile copiare")); }
   };
 
   const reset = () => { setEditingName(false); setEditingEmail(false); setAccessLink(null); };
@@ -120,7 +122,7 @@ export function ResellerDetailSheet({
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>{target?.name}</SheetTitle>
-          <SheetDescription>Dettaglio e gestione del rivenditore.</SheetDescription>
+          <SheetDescription>{t("Dettaglio e gestione del rivenditore.")}</SheetDescription>
         </SheetHeader>
 
         {isLoading ? (
@@ -130,8 +132,8 @@ export function ResellerDetailSheet({
         ) : isError ? (
           <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center text-sm">
             <AlertCircle className="mx-auto mb-2 h-6 w-6 text-destructive opacity-70" />
-            Errore nel caricamento.{" "}
-            <Button variant="link" size="sm" className="px-1" onClick={() => refetch()}>Riprova</Button>
+            {t("Errore nel caricamento.")}{" "}
+            <Button variant="link" size="sm" className="px-1" onClick={() => refetch()}>{t("Riprova")}</Button>
           </div>
         ) : r && data ? (
           <div className="mt-6 space-y-5">
@@ -146,47 +148,47 @@ export function ResellerDetailSheet({
                 </Badge>
               )}
               {r.billing_comped ? (
-                <Badge variant="outline" className="gap-1 border-amber-200 text-amber-700"><Factory className="h-3.5 w-3.5" /> Paghi tu</Badge>
+                <Badge variant="outline" className="gap-1 border-amber-200 text-amber-700"><Factory className="h-3.5 w-3.5" /> {t("Paghi tu")}</Badge>
               ) : (
-                <Badge variant="outline" className="gap-1 border-blue-200 text-blue-700"><CreditCard className="h-3.5 w-3.5" /> Paga lui</Badge>
+                <Badge variant="outline" className="gap-1 border-blue-200 text-blue-700"><CreditCard className="h-3.5 w-3.5" /> {t("Paga lui")}</Badge>
               )}
             </div>
 
-            <Section title="Nome">
+            <Section title={t("Nome")}>
               {editingName ? (
                 <div className="flex items-center gap-1.5">
                   <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} className="h-8" autoFocus />
-                  <Button size="icon" className="h-8 w-8 shrink-0" disabled={rename.isPending} onClick={() => rename.mutate(nameDraft)} aria-label="Salva nome">
+                  <Button size="icon" className="h-8 w-8 shrink-0" disabled={rename.isPending} onClick={() => rename.mutate(nameDraft)} aria-label={t("Salva nome")}>
                     {rename.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditingName(false)} aria-label="Annulla"><X className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditingName(false)} aria-label={t("Annulla")}><X className="h-4 w-4" /></Button>
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm">{r.name}</span>
                   <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => { setNameDraft(r.name); setEditingName(true); }}>
-                    <Pencil className="h-3.5 w-3.5" /> Rinomina
+                    <Pencil className="h-3.5 w-3.5" /> {t("Rinomina")}
                   </Button>
                 </div>
               )}
             </Section>
 
-            <Section title="Contatto admin">
+            <Section title={t("Contatto admin")}>
               <div className="space-y-1.5 text-sm">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
                   {editingEmail ? (
                     <div className="flex flex-1 items-center gap-1.5">
                       <Input type="email" value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)} className="h-7 text-sm" autoFocus />
-                      <Button size="icon" className="h-7 w-7 shrink-0" disabled={editEmail.isPending} onClick={() => editEmail.mutate(emailDraft)} aria-label="Salva email">
+                      <Button size="icon" className="h-7 w-7 shrink-0" disabled={editEmail.isPending} onClick={() => editEmail.mutate(emailDraft)} aria-label={t("Salva email")}>
                         {editEmail.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setEditingEmail(false)} aria-label="Annulla"><X className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setEditingEmail(false)} aria-label={t("Annulla")}><X className="h-3.5 w-3.5" /></Button>
                     </div>
                   ) : (
                     <>
                       <span className="truncate">{data.invite?.email ?? r.email ?? "—"}</span>
-                      <Button size="icon" variant="ghost" className="ml-auto h-6 w-6 shrink-0" onClick={() => { setEmailDraft(data.invite?.email ?? r.email ?? ""); setEditingEmail(true); }} aria-label="Modifica email">
+                      <Button size="icon" variant="ghost" className="ml-auto h-6 w-6 shrink-0" onClick={() => { setEmailDraft(data.invite?.email ?? r.email ?? ""); setEditingEmail(true); }} aria-label={t("Modifica email")}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                     </>
@@ -194,44 +196,44 @@ export function ResellerDetailSheet({
                 </div>
                 <div className="flex items-center gap-2">
                   {data.invite?.confirmed
-                    ? <><CircleCheck className="h-4 w-4 text-emerald-600" /><span className="text-emerald-700">Accesso attivo</span></>
-                    : <><CircleDashed className="h-4 w-4 text-amber-600" /><span className="text-amber-700">Invito in attesa</span></>}
+                    ? <><CircleCheck className="h-4 w-4 text-emerald-600" /><span className="text-emerald-700">{t("Accesso attivo")}</span></>
+                    : <><CircleDashed className="h-4 w-4 text-amber-600" /><span className="text-amber-700">{t("Invito in attesa")}</span></>}
                 </div>
                 {data.invite?.last_sign_in_at && (
-                  <div className="flex items-center gap-2 text-muted-foreground"><Clock className="h-4 w-4" /> Ultimo accesso: {new Date(data.invite.last_sign_in_at).toLocaleDateString("it-IT")}</div>
+                  <div className="flex items-center gap-2 text-muted-foreground"><Clock className="h-4 w-4" /> {t("Ultimo accesso:")} {new Date(data.invite.last_sign_in_at).toLocaleDateString(intlCampo())}</div>
                 )}
               </div>
               <div className="mt-2.5">
                 <Button size="sm" variant="outline" className="gap-1.5" disabled={resend.isPending} onClick={() => resend.mutate()}>
                   {resend.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                  {data.invite?.confirmed ? "Genera link reset" : "Reinvita / Link d'accesso"}
+                  {data.invite?.confirmed ? t("Genera link reset") : t("Reinvita / Link d'accesso")}
                 </Button>
                 {accessLink && (
                   <div className="mt-2 flex items-center gap-1.5">
                     <Input readOnly value={accessLink} className="h-8 text-xs" onFocus={(e) => e.currentTarget.select()} />
-                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => copy(accessLink)} aria-label="Copia link"><Copy className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => copy(accessLink)} aria-label={t("Copia link")}><Copy className="h-4 w-4" /></Button>
                   </div>
                 )}
               </div>
             </Section>
 
-            <Section title="Utilizzo">
+            <Section title={t("Utilizzo")}>
               <div className="grid grid-cols-3 gap-2">
-                <Stat icon={<Users className="h-4 w-4" />} label="Utenti" value={data.counts.users} />
-                <Stat icon={<Briefcase className="h-4 w-4" />} label="Commesse" value={data.counts.orders} />
-                <Stat icon={<Contact className="h-4 w-4" />} label="Clienti" value={data.counts.customers} />
+                <Stat icon={<Users className="h-4 w-4" />} label={t("Utenti")} value={data.counts.users} />
+                <Stat icon={<Briefcase className="h-4 w-4" />} label={t("Commesse")} value={data.counts.orders} />
+                <Stat icon={<Contact className="h-4 w-4" />} label={t("Clienti")} value={data.counts.customers} />
               </div>
             </Section>
 
             {data.activity.length > 0 && (
-              <Section title="Attività recente">
+              <Section title={t("Attività recente")}>
                 <ul className="space-y-2">
                   {data.activity.map((a, i) => (
                     <li key={i} className="flex items-start gap-2 text-xs">
                       <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
                         <div>{a.notes ?? a.event_type}</div>
-                        <div className="text-muted-foreground">{new Date(a.created_at).toLocaleString("it-IT")}</div>
+                        <div className="text-muted-foreground">{new Date(a.created_at).toLocaleString(intlCampo())}</div>
                       </div>
                     </li>
                   ))}
@@ -239,9 +241,7 @@ export function ResellerDetailSheet({
               </Section>
             )}
 
-            <p className="text-xs text-muted-foreground">
-              Creato il {new Date(r.created_at).toLocaleDateString("it-IT")} · Per cambiare piano, chi paga o stato usa il menù ⋮ nell&apos;elenco.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("Creato il {valore} · Per cambiare piano, chi paga o stato usa il menù ⋮ nell'elenco.", { valore: new Date(r.created_at).toLocaleDateString(intlCampo()) })}</p>
           </div>
         ) : null}
       </SheetContent>

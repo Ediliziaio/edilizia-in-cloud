@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sparkles, Image } from "lucide-react";
 import { formatRenderDate } from "@/lib/render/renderStatus";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RenderOption {
   id: string;
@@ -35,6 +36,7 @@ export function QuoteRenderPicker({
   selectedRenderIds,
   onSelectionChange,
 }: QuoteRenderPickerProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -96,10 +98,10 @@ export function QuoteRenderPicker({
     <div className="space-y-2">
       <h3 className="text-sm font-medium flex items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5 text-primary" />
-        Render AI da allegare
+        {t("Render AI da allegare")}
         {(contactId || opportunityId) && (
           <span className="text-muted-foreground font-normal">
-            {opportunityId ? "(dell'opportunità)" : "(del contatto)"}
+            {opportunityId ? t("(dell'opportunità)") : t("(del contatto)")}
           </span>
         )}
       </h3>
@@ -115,7 +117,7 @@ export function QuoteRenderPicker({
               onClick={() => handleToggle(r)}
             >
               {r.result_url ? (
-                <img src={r.result_url} alt="Render" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                <img src={r.result_url} alt={t("Render")} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-muted">
                   <Image className="h-5 w-5 text-muted-foreground/30" />
@@ -126,7 +128,7 @@ export function QuoteRenderPicker({
               </div>
               <div className="absolute bottom-0.5 left-0.5">
                 <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-black/60 text-white border-0">
-                  {typeLabel[r.render_type] ?? r.render_type}
+                  {typeLabel[r.render_type] ? t(typeLabel[r.render_type]) : r.render_type}
                 </Badge>
               </div>
               <div className="absolute bottom-0.5 right-0.5">
@@ -140,7 +142,7 @@ export function QuoteRenderPicker({
       </div>
       {selectedRenderIds.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          {selectedRenderIds.length} render selezionat{selectedRenderIds.length === 1 ? "o" : "i"}
+          {t(selectedRenderIds.length === 1 ? "{n} render selezionato" : "{n} render selezionati", { n: selectedRenderIds.length })}
         </p>
       )}
     </div>

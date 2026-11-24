@@ -44,6 +44,7 @@ import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCa
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 interface Props {
   progetto: RstProgetto;
   computo: RstComputoVoce[];
@@ -68,6 +69,7 @@ interface ChecklistItem {
 }
 
 export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso, onCondizioni, opzioniPdf, onOpzioniPdf }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const { data: templateAzienda } = useRstTemplatePdf();
@@ -124,40 +126,40 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   const computoVuoto = computo.length === 0;
   const logoUrl = company?.logo_url ?? template?.logo_url ?? null;
   const clienteLabel =
-    [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
+    [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || t("Cliente da definire");
   const ivaPct = Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [
     {
       ok: !!(progetto.cliente_nome || progetto.cliente_cognome),
-      label: "Anagrafica cliente",
-      hint: !(progetto.cliente_nome || progetto.cliente_cognome) ? "Aggiungi nome/cognome nello step Cliente" : undefined,
+      label: t("Anagrafica cliente"),
+      hint: !(progetto.cliente_nome || progetto.cliente_cognome) ? t("Aggiungi nome/cognome nello step Cliente") : undefined,
     },
     {
       ok: !!(progetto.cantiere_indirizzo || progetto.cantiere_citta),
-      label: "Indirizzo dei lavori",
-      hint: !(progetto.cantiere_indirizzo || progetto.cantiere_citta) ? "Aggiungilo nello step Cliente" : undefined,
+      label: t("Indirizzo dei lavori"),
+      hint: !(progetto.cantiere_indirizzo || progetto.cantiere_citta) ? t("Aggiungilo nello step Cliente") : undefined,
     },
     {
       ok: !computoVuoto,
-      label: `${computo.length} voci nel computo (${numCapitoli} capitoli)`,
-      hint: computoVuoto ? "Obbligatorio — aggiungi voci nello step Computo" : undefined,
+      label: t("{n} voci nel computo ({numCapitoli} capitoli)", { n: computo.length, numCapitoli }),
+      hint: computoVuoto ? t("Obbligatorio — aggiungi voci nello step Computo") : undefined,
     },
     {
       ok: totali.totale > 0,
-      label: "Totale preventivo calcolato",
-      hint: totali.totale <= 0 ? "Verifica quantità e prezzi nel computo" : undefined,
+      label: t("Totale preventivo calcolato"),
+      hint: totali.totale <= 0 ? t("Verifica quantità e prezzi nel computo") : undefined,
     },
     {
       ok: Boolean((template?.chi_siamo ?? "").trim()) || (template?.usp ?? []).some((u) => (u.titolo ?? "").trim()),
-      label: "Presentazione impresa (chi siamo / USP)",
-      hint: "Configurala nel template per un PDF più convincente",
+      label: t("Presentazione impresa (chi siamo / USP)"),
+      hint: t("Configurala nel template per un PDF più convincente"),
     },
     {
       ok: media.length > 0,
-      label: "Foto o render del progetto",
-      hint: media.length === 0 ? "Opzionale: aggiungi foto nello step Foto" : undefined,
+      label: t("Foto o render del progetto"),
+      hint: media.length === 0 ? t("Opzionale: aggiungi foto nello step Foto") : undefined,
     },
   ];
   const erroriCount = checks.filter((c) => !c.ok).length;
@@ -194,7 +196,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             modulo="rst"
             progettoId={progetto.id}
             ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
-            bloccoMotivo={computoVuoto ? "Aggiungi voci al computo prima di creare la commessa." : null}
+            bloccoMotivo={computoVuoto ? t("Aggiungi voci al computo prima di creare la commessa.") : null}
             capitoli={numCapitoli}
             fasiPianificate={Array.isArray(progetto.fasi_previste) ? progetto.fasi_previste.length : 0}
             codice={progetto.code}
@@ -209,7 +211,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         <CardContent className="space-y-3 p-4 max-md:p-0">
           <div className="flex items-center gap-2 max-md:hidden">
             <FileText className="h-4 w-4 text-orange-600" />
-            <h2 className="text-sm font-semibold text-slate-900">Anteprima del preventivo</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{t("Anteprima del preventivo")}</h2>
           </div>
 
           <div className="overflow-hidden rounded-xl border bg-white">
@@ -225,15 +227,15 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold text-slate-900">
-                    {company?.ragione_sociale ?? "La tua azienda"}
+                    {company?.ragione_sociale ?? t("La tua azienda")}
                   </p>
                   <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {progetto.code ?? "Preventivo"}
+                    {progetto.code ?? t("Preventivo")}
                   </p>
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Totale IVA inclusa</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Totale IVA inclusa")}</p>
                 <p className="text-base font-bold text-orange-700">{formatCurrency(totali.totale)}</p>
               </div>
             </div>
@@ -241,10 +243,10 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             {/* Titolo cover + destinatario */}
             <div className="px-4 py-3">
               <p className="text-sm font-semibold text-slate-900">
-                {titoloModello || "Preventivo di ristrutturazione"}
+                {titoloModello || t("Preventivo di ristrutturazione")}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Preparato per <span className="font-medium text-slate-700">{clienteLabel}</span>
+                {t("Preparato per")} <span className="font-medium text-slate-700">{clienteLabel}</span>
                 {progetto.cantiere_citta && ` · ${progetto.cantiere_citta}`}
               </p>
 
@@ -258,7 +260,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
                           <span className="truncate text-slate-700">{c.nome}</span>
                           <span className="shrink-0 text-[10px] text-muted-foreground">
-                            · {c.voci} {c.voci === 1 ? "voce" : "voci"}
+                            · {t(c.voci === 1 ? "{n} voce" : "{n} voci", { n: c.voci })}
                           </span>
                         </span>
                         {/* Col prezzo scritto a mano le righe possono essere a 0 €:
@@ -272,14 +274,14 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
                     ))}
                   </div>
                   <div className="mt-2.5 space-y-1 border-t pt-2.5">
-                    <RigaTot label="Imponibile" value={formatCurrency(totali.imponibile)} />
-                    <RigaTot label={`IVA ${ivaPct}%`} value={formatCurrency(totali.iva)} />
-                    <RigaTot label="Totale" value={formatCurrency(totali.totale)} strong />
+                    <RigaTot label={t("Imponibile")} value={formatCurrency(totali.imponibile)} />
+                    <RigaTot label={t("IVA {ivaPct}%", { ivaPct })} value={formatCurrency(totali.iva)} />
+                    <RigaTot label={t("Totale")} value={formatCurrency(totali.totale)} strong />
                   </div>
                 </div>
               ) : (
                 <p className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground max-md:hidden">
-                  Nessuna voce nel computo: il preventivo è ancora vuoto. Aggiungi le lavorazioni nello step Computo.
+                  {t("Nessuna voce nel computo: il preventivo è ancora vuoto. Aggiungi le lavorazioni nello step Computo.")}
                 </p>
               )}
             </div>
@@ -291,7 +293,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
           <p>
-            Da completare:{" "}
+            {t("Da completare:")}{" "}
             {mancano.map((m, i) => (
               <span key={m.etichetta}>
                 {i > 0 && ", "}
@@ -301,9 +303,9 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
                     className="tap-compact font-medium underline underline-offset-2"
                     onClick={() => onVaiAlPasso(m.passo)}
                   >
-                    {m.etichetta}
+                    {t(m.etichetta)}
                   </button>
-                ) : m.etichetta}
+                ) : t(m.etichetta)}
               </span>
             ))}
           </p>
@@ -318,17 +320,17 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           <CardContent className="space-y-3 p-4 max-md:p-3">
             <div className="flex items-center gap-2">
               <Settings2 className="h-4 w-4 text-orange-600" />
-              <h2 className="text-sm font-semibold text-slate-900">Come mostrare il computo nel PDF</h2>
+              <h2 className="text-sm font-semibold text-slate-900">{t("Come mostrare il computo nel PDF")}</h2>
             </div>
             <p className="-mt-1 text-[11px] text-muted-foreground max-md:hidden">
-              Vale solo per questo preventivo — non modifica il template.
+              {t("Vale solo per questo preventivo — non modifica il template.")}
             </p>
             {/* Livello di dettaglio */}
             <div className="grid grid-cols-3 gap-2">
               {([
-                { v: "dettagliato", label: "Dettagliato", hint: "Ogni voce" },
-                { v: "sintetico", label: "Sintetico", hint: "Solo capitoli" },
-                { v: "corpo", label: "A corpo", hint: "Solo totale" },
+                { v: "dettagliato", label: t("Dettagliato"), hint: t("Ogni voce") },
+                { v: "sintetico", label: t("Sintetico"), hint: t("Solo capitoli") },
+                { v: "corpo", label: t("A corpo"), hint: t("Solo totale") },
               ] as const).map((opt) => {
                 const active = computoLivello === opt.v;
                 return (
@@ -354,15 +356,15 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             {soloDettaglio && (
               <div className="space-y-2 border-t pt-3">
                 <label className="flex items-center justify-between gap-3">
-                  <span className="text-xs">Mostra prezzi unitari</span>
+                  <span className="text-xs">{t("Mostra prezzi unitari")}</span>
                   <Switch checked={mostraPrezzi} onCheckedChange={setMostraPrezzi} />
                 </label>
                 <label className="flex items-center justify-between gap-3">
-                  <span className="text-xs">Mostra quantità e U.M.</span>
+                  <span className="text-xs">{t("Mostra quantità e U.M.")}</span>
                   <Switch checked={mostraQta} onCheckedChange={setMostraQta} />
                 </label>
                 <label className="flex items-center justify-between gap-3">
-                  <span className="text-xs">Mostra subtotali per capitolo</span>
+                  <span className="text-xs">{t("Mostra subtotali per capitolo")}</span>
                   <Switch checked={mostraSubtotali} onCheckedChange={setMostraSubtotali} />
                 </label>
               </div>
@@ -376,7 +378,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         <CardContent className="space-y-2 p-4">
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-orange-600" />
-            <h2 className="text-sm font-semibold text-slate-900">Checklist completezza</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{t("Checklist completezza")}</h2>
           </div>
           <div className="space-y-1">
             {checks.map((c, i) => (
@@ -401,11 +403,10 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         <CardContent className="space-y-3 p-4">
           <div className="flex items-center gap-2">
             <Download className="h-4 w-4 text-orange-600" />
-            <h2 className="text-sm font-semibold text-slate-900">Scarica il preventivo</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{t("Scarica il preventivo")}</h2>
           </div>
           <p className="text-[11px] text-muted-foreground max-sm:hidden">
-            PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione
-            impresa, computo per capitoli, foto, cronoprogramma e condizioni.
+            {t("PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione impresa, computo per capitoli, foto, cronoprogramma e condizioni.")}
           </p>
 
           {computoVuoto ? (
@@ -413,8 +414,8 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               <div className="flex-1 text-[11px] text-amber-800">
-                <p className="font-medium">Il computo è vuoto: non c'è ancora nulla da mettere nel preventivo.</p>
-                <p className="text-amber-700/80">Torna allo step Computo e aggiungi almeno una voce per generare il PDF.</p>
+                <p className="font-medium">{t("Il computo è vuoto: non c'è ancora nulla da mettere nel preventivo.")}</p>
+                <p className="text-amber-700/80">{t("Torna allo step Computo e aggiungi almeno una voce per generare il PDF.")}</p>
               </div>
             </div>
           ) : (
@@ -422,8 +423,9 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
               <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
                 <p className="flex-1 text-[11px] text-blue-900">
-                  Il PDF è generabile. {erroriCount === 1 ? "Resta 1 elemento consigliato non compilato" : `Restano ${erroriCount} elementi consigliati non compilati`}
-                  (vedi checklist): puoi generarlo comunque, ma compilarli lo rende più convincente.
+                  {t(erroriCount === 1
+                    ? "Il PDF è generabile. Resta 1 elemento consigliato non compilato (vedi checklist): puoi generarlo comunque, ma compilarli lo rende più convincente."
+                    : "Il PDF è generabile. Restano {n} elementi consigliati non compilati (vedi checklist): puoi generarlo comunque, ma compilarli lo rende più convincente.", { n: erroriCount })}
                 </p>
               </div>
             )
@@ -441,7 +443,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
                 className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600"
               >
                 {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Scarica PDF
+                {t("Scarica PDF")}
               </Button>
             )}
             <Button
@@ -452,13 +454,13 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
               className="gap-2"
             >
               {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-              Anteprima PDF
+              {t("Anteprima PDF")}
             </Button>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <ClipboardList className="h-3 w-3" /> Generato nel browser, senza attese server
+              <ClipboardList className="h-3 w-3" /> {t("Generato nel browser, senza attese server")}
             </span>
           </div>
         </CardContent>
@@ -484,7 +486,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           pdfDisponibile={!computoVuoto}
           onIndietro={onIndietro}
           disabled={computoVuoto}
-          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
+          disabledReason={t("Aggiungi voci al computo prima di inviare il preventivo.")}
           generaPdfBlob={async (destinazione) => {
             const url = await renderRstPreviewBlobUrl({ ...payload, progetto: destinazione === "firma" ? perLaFirma(progetto) : progetto });
             try {

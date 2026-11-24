@@ -7,9 +7,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Download } from "lucide-react";
 import { escapeCsvCell } from "@/lib/csvExport";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CampaignRow {
   id: string;
@@ -34,6 +34,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopCampaignsTableProps) {
+  const t = useT();
   const [showNumbers, setShowNumbers] = useState(false);
   const [sortBy, setSortBy] = useState("open_rate");
 
@@ -52,7 +53,7 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
   });
 
   const rate = (num: number, den: number) => den > 0 ? ((num / den) * 100).toFixed(1) + "%" : "0%";
-  const fmt = (num: number, den: number) => showNumbers ? num.toLocaleString("it-IT") : rate(num, den);
+  const fmt = (num: number, den: number) => showNumbers ? num.toLocaleString(intlCampo()) : rate(num, den);
 
   const exportCsv = () => {
     const header = ["Titolo", "Data", "Consegnate", "Aperte", "Cliccate", "Tasso apertura", "Tasso clic", "Tipo"];
@@ -77,10 +78,10 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
     // interruttore, CSV e ordinamento.
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2 max-md:p-3 max-md:pb-1">
-        <CardTitle className="text-base max-md:text-sm">Email con le migliori prestazioni</CardTitle>
+        <CardTitle className="text-base max-md:text-sm">{t("Email con le migliori prestazioni")}</CardTitle>
         <div className="flex items-center gap-4 max-md:hidden">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Valori assoluti</span>
+            <span className="text-muted-foreground">{t("Valori assoluti")}</span>
             <Switch checked={showNumbers} onCheckedChange={setShowNumbers} />
           </div>
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={exportCsv} disabled={sorted.length === 0}>
@@ -89,9 +90,9 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="open_rate">Tasso apertura</SelectItem>
-              <SelectItem value="click_rate">Tasso clic</SelectItem>
-              <SelectItem value="delivered">Consegnate</SelectItem>
+              <SelectItem value="open_rate">{t("Tasso apertura")}</SelectItem>
+              <SelectItem value="click_rate">{t("Tasso clic")}</SelectItem>
+              <SelectItem value="delivered">{t("Consegnate")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -99,7 +100,7 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
       <CardContent className="max-md:p-0">
         {sorted.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm max-md:h-auto max-md:px-3 max-md:pb-3 max-md:text-[13px]">
-            Nessuna campagna inviata ancora.
+            {t("Nessuna campagna inviata ancora.")}
           </div>
         ) : (
           <>
@@ -109,9 +110,9 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
                 key={c.id}
                 onClick={onCampaignClick ? () => onCampaignClick(c.id, c.name) : undefined}
                 titolo={c.name}
-                sottotitolo={`${c.sent_at ? format(new Date(c.sent_at), "dd MMM yyyy", { locale: it }) : "—"} · ${TYPE_LABELS[c.type] || c.type} · ${c.delivered.toLocaleString("it-IT")} consegnate`}
-                valore={`${rate(c.opened, c.delivered)} aperte`}
-                stato={<span className="text-muted-foreground">{rate(c.clicked, c.delivered)} clic</span>}
+                sottotitolo={`${c.sent_at ? format(new Date(c.sent_at), "dd MMM yyyy", { locale: dateFnsCampo() }) : "—"} · ${TYPE_LABELS[c.type] ? t(TYPE_LABELS[c.type]) : c.type} · ${t("{delivered} consegnate", { delivered: c.delivered.toLocaleString(intlCampo()) })}`}
+                valore={t("{opened} aperte", { opened: String(rate(c.opened, c.delivered) ?? "") })}
+                stato={<span className="text-muted-foreground">{t("{clicked} clic", { clicked: String(rate(c.clicked, c.delivered) ?? "") })}</span>}
               />
             ))}
           </div>
@@ -120,12 +121,12 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
           <Table className="max-md:hidden [&_td]:py-3">
             <TableHeader>
               <TableRow className="[&_th]:whitespace-nowrap">
-                <TableHead>Titolo</TableHead>
-                <TableHead>Inviata il</TableHead>
-                <TableHead className="text-right">Consegnate</TableHead>
-                <TableHead className="text-right">Aperture</TableHead>
-                <TableHead className="text-right">Clic</TableHead>
-                <TableHead className="hidden xl:table-cell">Tipo</TableHead>
+                <TableHead>{t("Titolo")}</TableHead>
+                <TableHead>{t("Inviata il")}</TableHead>
+                <TableHead className="text-right">{t("Consegnate")}</TableHead>
+                <TableHead className="text-right">{t("Aperture")}</TableHead>
+                <TableHead className="text-right">{t("Clic")}</TableHead>
+                <TableHead className="hidden xl:table-cell">{t("Tipo")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,13 +138,13 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
                 >
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {c.sent_at ? format(new Date(c.sent_at), "dd MMM yyyy", { locale: it }) : "—"}
+                    {c.sent_at ? format(new Date(c.sent_at), "dd MMM yyyy", { locale: dateFnsCampo() }) : "—"}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{c.delivered.toLocaleString("it-IT")}</TableCell>
+                  <TableCell className="text-right tabular-nums">{c.delivered.toLocaleString(intlCampo())}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmt(c.opened, c.delivered)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmt(c.clicked, c.delivered)}</TableCell>
                   <TableCell className="hidden xl:table-cell">
-                    <Badge variant="outline">{TYPE_LABELS[c.type] || c.type}</Badge>
+                    <Badge variant="outline">{TYPE_LABELS[c.type] ? t(TYPE_LABELS[c.type]) : c.type}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

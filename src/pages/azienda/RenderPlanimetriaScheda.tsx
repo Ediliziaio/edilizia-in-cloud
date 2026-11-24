@@ -49,6 +49,7 @@ import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta
 import { ambitiDi, eAmbienteInterno, type Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Con una piscina disegnata si propone il render della piscina, con una pergola quello della pergola. */
 function moduloEsterno(p: { elementi?: Array<{ tipo: string }> }) {
@@ -65,6 +66,7 @@ const RenderCasaDialog = lazy(() => import("@/components/planimetrie/editor/Rend
 const StudioCanaliTavola = lazy(() => import("@/components/planimetrie/StudioCanaliTavola").then(m => ({ default: m.StudioCanaliTavola })));
 
 export default function RenderPlanimetriaScheda() {
+  const t = useT();
   const { id = "" } = useParams();
   // La galleria di una stanza si apre da sola quando si arriva da «Salva nella galleria» (?galleria=<stanza>).
   const [params, setParams] = useSearchParams();
@@ -235,9 +237,9 @@ export default function RenderPlanimetriaScheda() {
   if (error || !data || !documento || !livello) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
-        <TestataPlanimetrie indietro={percorsiPlanimetrie.elenco} titolo="Pianta" />
+        <TestataPlanimetrie indietro={percorsiPlanimetrie.elenco} titolo={t("Pianta")} />
         <Card>
-          <CardContent className="p-6 text-sm">{error instanceof Error ? error.message : "Pianta non disponibile."}</CardContent>
+          <CardContent className="p-6 text-sm">{error instanceof Error ? error.message : t("Pianta non disponibile.")}</CardContent>
         </Card>
       </div>
     );
@@ -267,30 +269,30 @@ export default function RenderPlanimetriaScheda() {
         <TestataPlanimetrie
           indietro={ritornoProgettoValido(params.get("torna")) ?? percorsiPlanimetrie.elenco}
           titolo={data.riga.titolo}
-          sottotitolo={["Versione "+data.versione.numero, piani+" "+(piani===1 ? "piano" : "piani"), daDwg ? "Importata da DWG" : ""].filter(Boolean).join(" · ")}
+          sottotitolo={[t("Versione {n}", { n: data.versione.numero }), t(piani===1 ? "{n} piano" : "{n} piani", { n: piani }), daDwg ? t("Importata da DWG") : ""].filter(Boolean).join(" · ")}
           azioni={<>
-            {fascicoloVisibile && <Button size="sm" variant="outline" className="gap-2" onClick={()=>setApriUrbanistica(true)}><MapPin className="h-4 w-4"/>{documento.urbanistica ? "Fascicolo urbanistico" : "Regole urbanistiche"}</Button>}
-            <Button asChild size="sm" variant="outline" className="gap-2"><Link to={percorsoEditor}><PenLine className="h-4 w-4"/>{storico ? "Editor versione corrente" : "Apri editor"}</Link></Button>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => primaDi("pdf", () => setEsporta(true))}><FileText className="h-4 w-4"/>PDF progetto</Button>
-            {puoChat && <Button size="sm" className="gap-2 bg-blue-700 text-white hover:bg-blue-800" onClick={()=>chatAperta ? chiudiSilvio() : apriSilvio()} aria-pressed={chatAperta}><Sparkles className="h-4 w-4"/>Chiedi a Silvio</Button>}
+            {fascicoloVisibile && <Button size="sm" variant="outline" className="gap-2" onClick={()=>setApriUrbanistica(true)}><MapPin className="h-4 w-4"/>{documento.urbanistica ? t("Fascicolo urbanistico") : t("Regole urbanistiche")}</Button>}
+            <Button asChild size="sm" variant="outline" className="gap-2"><Link to={percorsoEditor}><PenLine className="h-4 w-4"/>{storico ? t("Editor versione corrente") : t("Apri editor")}</Link></Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => primaDi("pdf", () => setEsporta(true))}><FileText className="h-4 w-4"/>{t("PDF progetto")}</Button>
+            {puoChat && <Button size="sm" className="gap-2 bg-blue-700 text-white hover:bg-blue-800" onClick={()=>chatAperta ? chiudiSilvio() : apriSilvio()} aria-pressed={chatAperta}><Sparkles className="h-4 w-4"/>{t("Chiedi a Silvio")}</Button>}
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altre azioni della planimetria"><Ellipsis className="h-5 w-5"/></Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" className="h-9 w-9" aria-label={t("Altre azioni della planimetria")}><Ellipsis className="h-5 w-5"/></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={()=>primaDi("3d",()=>setProspetti(true))}><Building2 className="mr-2 h-4 w-4"/>Prospetti e sezioni</DropdownMenuItem>
-                {!storico && <DropdownMenuItem disabled={!stanze.length} onSelect={()=>primaDi("render",()=>setEsterni(true))}><Trees className="mr-2 h-4 w-4"/>Render esterni</DropdownMenuItem>}
-                <DropdownMenuItem onSelect={()=>primaDi("pdf",()=>setEsporta(true))}><Download className="mr-2 h-4 w-4"/>Esporta</DropdownMenuItem>
+                <DropdownMenuItem onSelect={()=>primaDi("3d",()=>setProspetti(true))}><Building2 className="mr-2 h-4 w-4"/>{t("Prospetti e sezioni")}</DropdownMenuItem>
+                {!storico && <DropdownMenuItem disabled={!stanze.length} onSelect={()=>primaDi("render",()=>setEsterni(true))}><Trees className="mr-2 h-4 w-4"/>{t("Render esterni")}</DropdownMenuItem>}
+                <DropdownMenuItem onSelect={()=>primaDi("pdf",()=>setEsporta(true))}><Download className="mr-2 h-4 w-4"/>{t("Esporta")}</DropdownMenuItem>
                 {permessi.canViewSopralluoghi && data.riga.survey_id && <DropdownMenuItem asChild>
-                  <Link to={`/azienda/sopralluoghi/${data.riga.survey_id}`}><ClipboardList className="mr-2 h-4 w-4" />Apri il sopralluogo</Link>
+                  <Link to={`/azienda/sopralluoghi/${data.riga.survey_id}`}><ClipboardList className="mr-2 h-4 w-4" />{t("Apri il sopralluogo")}</Link>
                 </DropdownMenuItem>}
                 {permessi.canViewOrders && data.riga.order_id && <DropdownMenuItem asChild>
-                  <Link to={`/azienda/ordini/${data.riga.order_id}`}><Building2 className="mr-2 h-4 w-4" />Apri la commessa</Link>
+                  <Link to={`/azienda/ordini/${data.riga.order_id}`}><Building2 className="mr-2 h-4 w-4" />{t("Apri la commessa")}</Link>
                 </DropdownMenuItem>}
-                {!sola && <DropdownMenuItem onSelect={()=>setGestisciCollegamenti({})}>Associa scheda</DropdownMenuItem>}
+                {!sola && <DropdownMenuItem onSelect={()=>setGestisciCollegamenti({})}>{t("Associa scheda")}</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
           </>}
         />
-        <nav className="flex gap-1 overflow-x-auto border-b" aria-label="Sezioni del progetto">
+        <nav className="flex gap-1 overflow-x-auto border-b" aria-label={t("Sezioni del progetto")}>
           {schede.map(({id,nome,icona:Icona})=><button type="button" key={id} onClick={()=>vaiAllaScheda(id)}
             aria-current={scheda===id ? "page" : undefined}
             className={cn("flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors sm:px-4",
@@ -301,12 +303,12 @@ export default function RenderPlanimetriaScheda() {
       </header>
 
       {controlloUso}
-      {puoRenderLocale && params.get("renderStanze") === "1" && <Suspense fallback={<p role="status">Apro i render delle stanze…</p>}>
+      {puoRenderLocale && params.get("renderStanze") === "1" && <Suspense fallback={<p role="status">{t("Apro i render delle stanze…")}</p>}>
         <RenderCasaDialog key={data.versione.numero + ":" + ambito} documento={documento} vista={ambito === "fatto" ? "fatto" : "progetto"}
           propostaId={ambito.startsWith("progetto:") ? ambito.slice(9) : undefined} modo="foto:render" soloInterni
           archivio={{ planimetriaId: id, versione: data.versione.numero, ambito, serie: "stanze" }} onChiudi={() => apriRenderStanze(false)} />
       </Suspense>}
-      {apriUrbanistica && <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Apro il fascicolo urbanistico…</p>}><UrbanisticaDialog key={data.versione.numero} documento={documento} planimetriaId={id} companyId={data.riga.company_id}
+      {apriUrbanistica && <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">{t("Apro il fascicolo urbanistico…")}</p>}><UrbanisticaDialog key={data.versione.numero} documento={documento} planimetriaId={id} companyId={data.riga.company_id}
         versione={data.versione.numero} varianteIniziale={ambito.startsWith("progetto:") ? ambito.slice(9) : undefined} solaLettura={!!sola}
         apriPratiche={sezioneFascicolo==="pratiche"} apriVerifiche={sezioneFascicolo==="verifiche"} apriTavole={sezioneFascicolo==="tavole"} unita={params.get("unita") ?? undefined}
         apriEsodo={sezioneFascicolo==="esodo"} livelloIniziale={riscontro ? params.get("livelloRiscontro") ?? livello.id : livello.id}
@@ -317,24 +319,24 @@ export default function RenderPlanimetriaScheda() {
           if (sezioneFascicolo) setParams(p=>{const n=new URLSearchParams(p); n.delete("fascicolo"); n.delete("unita"); n.delete("riscontro"); n.delete("livelloRiscontro"); return n;},{replace:true});
         }} /></Suspense>}
 
-      <div className="flex flex-wrap items-end gap-3" aria-label="Contesto della planimetria">
+      <div className="flex flex-wrap items-end gap-3" aria-label={t("Contesto della planimetria")}>
         {documento.livelli.length>1 && <label className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>Piano</span><UniformSelect value={livello.id} onChange={e=>setLivelloId(e.target.value)} className="h-9">
+          <span>{t("Piano")}</span><UniformSelect value={livello.id} onChange={e=>setLivelloId(e.target.value)} className="h-9">
             {documento.livelli.map(l=><option value={l.id} key={l.id}>{l.nome}</option>)}
           </UniformSelect>
         </label>}
         {scheda!=="studio" && ambiti.length>1 && <label className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>Disegno</span><UniformSelect value={ambito} onChange={e=>setAmbito(e.target.value)} className="h-9 max-w-[240px]">
+          <span>{t("Disegno")}</span><UniformSelect value={ambito} onChange={e=>setAmbito(e.target.value)} className="h-9 max-w-[240px]">
             {ambiti.map(a=><option value={a.chiave} key={a.chiave}>{a.nome}</option>)}
           </UniformSelect>
         </label>}
         {scheda === "pianta" && <AccessoAbachiPianta documento={documento} livelloId={livello.id} ambito={ambitoGeometria}
           nomeContesto={`${livello.nome} · ${ambitoGeometria === "fatto" ? "Stato di fatto" : nomeAmbito}`} />}
         {puoRenderLocale && <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => apriRenderStanze(true)}>
-          <ImageIcon className="size-4" />Render tutte le stanze
+          <ImageIcon className="size-4" />{t("Render tutte le stanze")}
         </Button>}
-        {(elencoVersioni.data?.length ?? 0)>1 && <UniformSelect className="ml-auto h-9" aria-label="Versione della planimetria" value={data.versione.numero} onChange={e=>apriVersione(e.target.value)}>
-          {elencoVersioni.data?.map(v=><option key={v.numero} value={v.numero}>Versione {v.numero}{v.numero===corrente.data?.versione.numero ? " · corrente" : ""}</option>)}
+        {(elencoVersioni.data?.length ?? 0)>1 && <UniformSelect className="ml-auto h-9" aria-label={t("Versione della planimetria")} value={data.versione.numero} onChange={e=>apriVersione(e.target.value)}>
+          {elencoVersioni.data?.map(v=><option key={v.numero} value={v.numero}>{t("Versione {n}", { n: v.numero })}{v.numero===corrente.data?.versione.numero ? ` ${t("· corrente")}` : ""}</option>)}
         </UniformSelect>}
       </div>
 
@@ -380,7 +382,7 @@ export default function RenderPlanimetriaScheda() {
         documento={documento} livello={livello} ambito={ambito} planimetriaId={id} versione={data.versione.numero}
         tavola={urlTavola} sovrapponibile={sovrapponibile} puoScrivere={!sola} aperturaIniziale={params.get("apertura") ?? undefined}/>}
 
-      {scheda==="canali" && (urlTavola ? <Suspense fallback={<p role="status">Apro la tavola HVAC…</p>}>
+      {scheda==="canali" && (urlTavola ? <Suspense fallback={<p role="status">{t("Apro la tavola HVAC…")}</p>}>
         <StudioCanaliTavola key={`${data.versione.numero}:${livello.id}`} src={urlTavola} companyId={data.riga.company_id}
           planimetriaId={id} versione={data.versione.numero} livelloId={livello.id} titolo={data.riga.titolo}
           puoComputo={permessi.canEditPreventivi && !sola} vista={vistaPianta === "3d" ? "3d" : "tavola"}
@@ -390,7 +392,7 @@ export default function RenderPlanimetriaScheda() {
             if (nodo) n.set("nodo", nodo); else n.delete("nodo");
             return n;
           }, { replace: true })} />
-      </Suspense> : <p role="status" className="text-sm text-muted-foreground">{tavolaInCaricamento ? "Apro la tavola HVAC…" : "Tavola HVAC non disponibile per questo piano."}</p>)}
+      </Suspense> : <p role="status" className="text-sm text-muted-foreground">{tavolaInCaricamento ? t("Apro la tavola HVAC…") : t("Tavola HVAC non disponibile per questo piano.")}</p>)}
 
       <EsportaPiantaDialog
         key={`esporta:${ambito}:${data.versione.numero}:${formatoDaLink ?? ""}`}
@@ -453,22 +455,22 @@ export default function RenderPlanimetriaScheda() {
         <StatoVerificaDocumento documento={documento} modifica={percorsoEditor} />
         {!storico && <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={tipo=>setGestisciCollegamenti({tipo})} />}
         <MaterialiProgetto key={ambito+":"+data.versione.numero} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
-        {controlliDalDocumento(documento).length > 0 && <section aria-label="Controlli dal documento originale" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <h2 className="mb-2 font-semibold">Controlli dal documento originale</h2>
+        {controlliDalDocumento(documento).length > 0 && <section aria-label={t("Controlli dal documento originale")} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <h2 className="mb-2 font-semibold">{t("Controlli dal documento originale")}</h2>
           <ul className="list-disc space-y-1 pl-5">{controlliDalDocumento(documento).map((s,i)=><li key={i}>{s}</li>)}</ul>
         </section>}
       {/* Scorciatoie: la scheda è lunga, si salta a quello che serve */}
       {stanze.length > 0 && (
-        <nav aria-label="Sezioni della scheda" className="-mx-1 overflow-x-auto px-1 max-md:hidden">
+        <nav aria-label={t("Sezioni della scheda")} className="-mx-1 overflow-x-auto px-1 max-md:hidden">
           <div className="inline-flex gap-1 rounded-lg bg-muted p-1 text-sm">
             {([
-              livello.proposte.length > 0 && ["prima-e-dopo", "Prima e dopo"],
-              ["stanze", "Stanze e render"],
-              ["verifiche", "Verifiche"],
-              piuUnita && ["unita", "Unità e vendite"],
-              ["abachi", "Abachi"],
-              ["materiali", "Materiali"],
-              completati.length > 0 && ["render-fatti", "Render fatti"],
+              livello.proposte.length > 0 && ["prima-e-dopo", t("Prima e dopo")],
+              ["stanze", t("Stanze e render")],
+              ["verifiche", t("Verifiche")],
+              piuUnita && ["unita", t("Unità e vendite")],
+              ["abachi", t("Abachi")],
+              ["materiali", t("Materiali")],
+              completati.length > 0 && ["render-fatti", t("Render fatti")],
             ].filter(Boolean) as Array<[string, string]>).map(([ancora, nome]) => (
               <a key={ancora} href={`#${ancora}`}
                 onClick={(e) => { e.preventDefault(); document.getElementById(ancora)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
@@ -502,24 +504,23 @@ export default function RenderPlanimetriaScheda() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0 space-y-1">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-              Render delle stanze
+              {t("Render delle stanze")}
             </h2>
             <p className="max-w-2xl text-sm text-muted-foreground max-md:hidden">
-              L'AI parte dalla stanza com'è nella pianta (vista 3D o una tua foto), ne rispetta misure, porte e finestre, e la veste con lo stile che scegli.
-              In circa 1–2 minuti hai il risultato.
+              {t("L'AI parte dalla stanza com'è nella pianta (vista 3D o una tua foto), ne rispetta misure, porte e finestre, e la veste con lo stile che scegli. In circa 1–2 minuti hai il risultato.")}
             </p>
           </div>
           {!storico && stanze.length > 1 && (
             <Button size="sm" className="gap-1.5 max-md:w-full" onClick={() => primaDi("render", () => setSerie(""))}>
               <Sparkles className="h-4 w-4" />
-              Render di tutte le stanze
+              {t("Render di tutte le stanze")}
             </Button>
           )}
         </div>
         {stanze.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="p-6 text-center text-sm text-muted-foreground">
-              Questa pianta non ha ancora stanze. Aprila con «Modifica la pianta» e disegnale: poi qui puoi fare il render di ognuna.
+              {t("Questa pianta non ha ancora stanze. Aprila con «Modifica la pianta» e disegnale: poi qui puoi fare il render di ognuna.")}
             </CardContent>
           </Card>
         ) : (
@@ -533,29 +534,29 @@ export default function RenderPlanimetriaScheda() {
               const chip = [
                 `${v.locale.superficie_mq.toFixed(1).replace(".", ",")} m²`,
                 `h ${(v.locale.altezza_cm / 100).toFixed(2).replace(".", ",")} m`,
-                porte ? `${porte} ${porte === 1 ? "porta" : "porte"}` : null,
-                finestre ? `${finestre} ${finestre === 1 ? "finestra" : "finestre"}` : null,
+                porte ? t(porte === 1 ? "{n} porta" : "{n} porte", { n: porte }) : null,
+                finestre ? t(finestre === 1 ? "{n} finestra" : "{n} finestre", { n: finestre }) : null,
               ].filter(Boolean) as string[];
               return (
                 <Card key={v.locale.id} className="overflow-hidden transition-shadow hover:shadow-md max-sm:grid max-sm:grid-cols-[116px_1fr]">
                   <div className="relative border-b bg-white max-sm:border-b-0 max-sm:border-r">
-                    {fatti > 0 && <button type="button" className="absolute inset-0 z-10" onClick={() => setParams((p) => { const n = new URLSearchParams(p); n.set("galleria", v.locale.id); return n; })} aria-label={`Apri la galleria di ${v.locale.nome}`} />}
+                    {fatti > 0 && <button type="button" className="absolute inset-0 z-10" onClick={() => setParams((p) => { const n = new URLSearchParams(p); n.set("galleria", v.locale.id); return n; })} aria-label={t("Apri la galleria di {nome}", { nome: String(v.locale.nome ?? "") })} />}
                     <img
                       loading="lazy"
                       src={ultimo ?? svgUrl(svgPiantaStanza(v, { lato: 480 }))}
-                      alt={ultimo ? `Ultimo render di ${v.locale.nome}` : `Pianta di ${v.locale.nome}`}
+                      alt={ultimo ? t("Ultimo render di {nome}", { nome: String(v.locale.nome ?? "") }) : t("Pianta di {nome}", { nome: String(v.locale.nome ?? "") })}
                       className={cn("w-full bg-white", ultimo ? "aspect-[4/3] object-cover max-sm:aspect-square" : "aspect-[4/3] object-contain p-2 max-sm:aspect-square")}
                     />
                     <span className="absolute left-2 top-2 rounded-full bg-background/90 px-2 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm max-sm:hidden">
-                      {ultimo ? "Ultimo render" : "Pianta della stanza"}
+                      {ultimo ? t("Ultimo render") : t("Pianta della stanza")}
                     </span>
                   </div>
                   <CardContent className="flex min-w-0 flex-col gap-2.5 p-4 max-sm:p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold leading-tight">{v.locale.nome}</p>
                       {stimata && (
-                        <Badge variant="outline" className="shrink-0 border-primary/40 text-primary" title="Misure stimate da controllare">
-                          Stimate
+                        <Badge variant="outline" className="shrink-0 border-primary/40 text-primary" title={t("Misure stimate da controllare")}>
+                          {t("Stimate")}
                         </Badge>
                       )}
                     </div>
@@ -568,17 +569,17 @@ export default function RenderPlanimetriaScheda() {
                       <Button asChild size="sm" className="flex-1 gap-1.5">
                         <Link to={percorsiPlanimetrie.renderStanza(id, v.locale.id, { livelloId: livello.id, ambito: ambitoGeometria, materialiAmbito: ambito, versione:data.versione.numero, torna:params.get("torna") })}>
                           <Wand2 className="h-4 w-4" />
-                          {fatti > 0 ? "Nuovo render" : "Fai il render"}
+                          {fatti > 0 ? t("Nuovo render") : t("Fai il render")}
                         </Link>
                       </Button>
-                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => primaDi("render", () => setSerie(v.locale.id))} aria-label="Più stili insieme" title="Più stili insieme">
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => primaDi("render", () => setSerie(v.locale.id))} aria-label={t("Più stili insieme")} title={t("Più stili insieme")}>
                         <Sparkles className="h-4 w-4" />
-                        <span className="max-xl:hidden">Più stili</span>
+                        <span className="max-xl:hidden">{t("Più stili")}</span>
                       </Button>
                     </div>}
                     {fatti > 0 && (
                       <button type="button" className="w-fit text-left text-xs font-medium text-primary hover:underline" onClick={() => setParams((p) => { const n = new URLSearchParams(p); n.set("galleria", v.locale.id); return n; })}>
-                        Galleria · {fatti === 1 ? "1 render" : `${fatti} render`}
+                        {t("Galleria ·")} {fatti === 1 ? t("1 render") : t("{fatti} render", { fatti: String(fatti ?? "") })}
                       </button>
                     )}
                   </CardContent>
@@ -608,17 +609,17 @@ export default function RenderPlanimetriaScheda() {
       {completati.length > 0 && (
         <section id="render-fatti" className="scroll-mt-4 space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-            Render di questa pianta
+            {t("Render di questa pianta")}
           </h2>
-          <p className="text-xs text-muted-foreground">Le immagini delle versioni precedenti conservano i materiali scelti allora. Genera nuovi render per applicare le ultime scelte del progetto.</p>
+          <p className="text-xs text-muted-foreground">{t("Le immagini delle versioni precedenti conservano i materiali scelti allora. Genera nuovi render per applicare le ultime scelte del progetto.")}</p>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {completati.map((r) => (
               <Link key={r.id} to={`/azienda/render/stanza/gallery/${r.id}`} className="group overflow-hidden rounded-lg border">
-                <img loading="lazy" src={r.result_urls![0]} alt={`Render di ${r.planimetria?.locale_nome ?? "una stanza"}`} className="aspect-[4/3] w-full object-cover transition-transform group-hover:scale-[1.02]" />
+                <img loading="lazy" src={r.result_urls![0]} alt={t("Render di {nome}", { nome: r.planimetria?.locale_nome ?? t("una stanza") })} className="aspect-[4/3] w-full object-cover transition-transform group-hover:scale-[1.02]" />
                 <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs">
                   <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1"><span className="block truncate">{r.planimetria?.locale_nome ?? "Stanza"}</span>{r.planimetria?.versione !== data.versione.numero ? <span className="text-[10px] text-amber-700">Versione precedente</span> : r.planimetria?.ambito !== ambito ? <span className="text-[10px] text-muted-foreground">Altro stato della pianta</span> : null}</span>
-                  {r.planimetria?.partenza === "vista_3d" && <span className="ml-auto shrink-0 text-muted-foreground">dal 3D</span>}
+                  <span className="min-w-0 flex-1"><span className="block truncate">{r.planimetria?.locale_nome ?? t("Stanza")}</span>{r.planimetria?.versione !== data.versione.numero ? <span className="text-[10px] text-amber-700">{t("Versione precedente")}</span> : r.planimetria?.ambito !== ambito ? <span className="text-[10px] text-muted-foreground">{t("Altro stato della pianta")}</span> : null}</span>
+                  {r.planimetria?.partenza === "vista_3d" && <span className="ml-auto shrink-0 text-muted-foreground">{t("dal 3D")}</span>}
                 </div>
               </Link>
             ))}

@@ -17,6 +17,7 @@ import type {
   WidgetTone,
 } from "@/lib/dashboardBuilder/types";
 import { formatValue } from "../formatValue";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   widget: DashboardWidget;
@@ -41,6 +42,7 @@ const TONE_COLOR: Record<WidgetTone, { stroke: string; text: string }> = {
 
 // ─── Progress widget ──────────────────────────────────────────────
 export function ProgressWidget({ widget, resolved }: Props) {
+  const t = useT();
   const cfg = widget.config ?? {};
   const title = cfg.title ?? cfg.metric ?? "Progress";
   const value = resolved?.status === "ok" ? resolved.value ?? 0 : 0;
@@ -69,17 +71,17 @@ export function ProgressWidget({ widget, resolved }: Props) {
           <span className={cn("font-medium", TONE_COLOR[tone].text)}>
             {cfg.statusLabel ??
               (tone === "success"
-                ? "Obiettivo raggiunto"
+                ? t("Obiettivo raggiunto")
                 : tone === "warning"
-                  ? "In linea"
-                  : "Sotto target")}
+                  ? t("In linea")
+                  : t("Sotto target"))}
           </span>
           <span className="text-muted-foreground tabular-nums">
             {pct.toFixed(0)}%
           </span>
         </div>
         {error && (
-          <p className="text-xs text-destructive line-clamp-2">Errore: {error}</p>
+          <p className="text-xs text-destructive line-clamp-2">{t("Errore: {error}", { error: String(error ?? "") })}</p>
         )}
       </CardContent>
     </Card>
@@ -88,6 +90,7 @@ export function ProgressWidget({ widget, resolved }: Props) {
 
 // ─── Gauge widget (ring circolare grande) ──────────────────────────
 export function GaugeWidget({ widget, resolved }: Props) {
+  const t = useT();
   const cfg = widget.config ?? {};
   const title = cfg.title ?? cfg.metric ?? "Gauge";
   const value = resolved?.status === "ok" ? resolved.value ?? 0 : 0;
@@ -159,7 +162,7 @@ export function GaugeWidget({ widget, resolved }: Props) {
             {title}
           </p>
           {error ? (
-            <p className="text-xs text-rose-700 line-clamp-2">Errore: {error}</p>
+            <p className="text-xs text-rose-700 line-clamp-2">{t("Errore: {error}", { error: String(error ?? "") })}</p>
           ) : (
             <>
               <p className={cn("text-base font-bold truncate", color.text)}>

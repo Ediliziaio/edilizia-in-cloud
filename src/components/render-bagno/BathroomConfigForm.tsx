@@ -49,6 +49,7 @@ import {
   VANITY_TOP_PHOTOS,
 } from "../../../shared/render-references/bathroomReferences.ts";
 import { DEFAULT_ILLUMINAZIONE_TIPO, DEFAULT_TERMOARREDO } from "@/components/render-bagno/defaultBathroomConfig";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type BathroomConfig = ConfigurazioneBagno;
 
@@ -414,6 +415,7 @@ function VisualOptionGrid(props: {
   fotoIntera?: boolean;
 }) {
   const { label, helper, options, value, onChange, fotoIntera } = props;
+  const t = useT();
 
   return (
     <div className="space-y-2">
@@ -446,7 +448,7 @@ function VisualOptionGrid(props: {
                   className={cn("h-16 w-full overflow-hidden border-b border-black/5 max-md:h-11", fotoIntera && "bg-white p-0.5")}
                   style={fotoIntera ? undefined : option.previewStyle}
                 >
-                  <ReferenceThumb photo={option.photo} alt={option.alt ?? option.label} className={fotoIntera ? "object-contain" : undefined} />
+                  <ReferenceThumb photo={option.photo} alt={t(option.alt ?? option.label)} className={fotoIntera ? "object-contain" : undefined} />
                 </div>
               ) : (
                 <div
@@ -457,12 +459,12 @@ function VisualOptionGrid(props: {
               )}
               <div className="space-y-1 px-2.5 py-2 max-md:px-2 max-md:py-1.5">
                 <div className="flex items-start justify-between gap-2 max-md:gap-1">
-                  <span className="text-xs font-medium leading-tight max-md:line-clamp-2 max-md:text-[11px]">{option.label}</span>
+                  <span className="text-xs font-medium leading-tight max-md:line-clamp-2 max-md:text-[11px]">{t(option.label)}</span>
                   {selected ? <Check className="mt-0.5 h-3.5 w-3.5 text-primary max-md:h-3 max-md:w-3 max-md:shrink-0" /> : null}
                 </div>
                 {option.hint ? (
                   <p className="line-clamp-2 text-[10px] leading-tight text-muted-foreground max-md:hidden">
-                    {option.hint}
+                    {t(option.hint)}
                   </p>
                 ) : null}
               </div>
@@ -475,6 +477,7 @@ function VisualOptionGrid(props: {
 }
 
 function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
+  const t = useT();
   const wallOption = findVisualOption(TILE_EFFECTS, value.piastrelle_parete.effetto);
   const floorOption = findVisualOption(TILE_EFFECTS, value.pavimento.effetto);
   const vanityTop = findVisualOption(VANITY_TOP_OPTIONS, value.vanity.piano);
@@ -486,13 +489,13 @@ function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
     <div className="overflow-hidden rounded-2xl border border-border/70 bg-background">
       <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-muted/30 px-4 py-3">
         <div>
-          <p className="text-sm font-semibold">Anteprima look bagno</p>
+          <p className="text-sm font-semibold">{t("Anteprima look bagno")}</p>
           <p className="text-xs text-muted-foreground">
-            Visuale rapida dei materiali scelti. Il render finale manterra stanza, taglio foto e proporzioni originali.
+            {t("Visuale rapida dei materiali scelti. Il render finale manterra stanza, taglio foto e proporzioni originali.")}
           </p>
         </div>
         <div className="rounded-full bg-cyan-500/10 px-3 py-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300">
-          Stesso bagno, look nuovo
+          {t("Stesso bagno, look nuovo")}
         </div>
       </div>
 
@@ -525,22 +528,22 @@ function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
 
         <div className="space-y-2">
           <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Parete</p>
-            <p className="text-sm font-semibold">{wallOption.label}</p>
-            <p className="text-[11px] text-muted-foreground">{wallOption.hint}</p>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Parete")}</p>
+            <p className="text-sm font-semibold">{t(wallOption.label)}</p>
+            <p className="text-[11px] text-muted-foreground">{wallOption.hint ? t(wallOption.hint) : null}</p>
           </div>
           <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Pavimento</p>
-            <p className="text-sm font-semibold">{floorOption.label}</p>
-            <p className="text-[11px] text-muted-foreground">{floorOption.hint}</p>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Pavimento")}</p>
+            <p className="text-sm font-semibold">{t(floorOption.label)}</p>
+            <p className="text-[11px] text-muted-foreground">{floorOption.hint ? t(floorOption.hint) : null}</p>
           </div>
           <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Punti forti</p>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("Punti forti")}</p>
             <ul className="space-y-1 text-[11px] text-muted-foreground">
-              <li>- Il render deve mantenere lo stesso bagno e la stessa inquadratura.</li>
-              <li>- Le modifiche riguardano solo gli elementi che attivi qui sotto.</li>
-              <li>- Anche una foto verticale deve restare verticale nel risultato.</li>
-              <li>- Se scegli 120x240, il render deve leggere poche fughe e lastre davvero grandi.</li>
+              <li>{t("- Il render deve mantenere lo stesso bagno e la stessa inquadratura.")}</li>
+              <li>{t("- Le modifiche riguardano solo gli elementi che attivi qui sotto.")}</li>
+              <li>{t("- Anche una foto verticale deve restare verticale nel risultato.")}</li>
+              <li>{t("- Se scegli 120x240, il render deve leggere poche fughe e lastre davvero grandi.")}</li>
             </ul>
           </div>
         </div>
@@ -550,6 +553,7 @@ function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
 }
 
 export function BathroomConfigForm({ value, onChange, companyId }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const update = (partial: Partial<BathroomConfig>) => onChange({ ...value, ...partial });
   /**
@@ -578,7 +582,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
       {!isMobile && <BathroomMoodPreview value={value} />}
 
       <div>
-        <Label className="mb-2 block text-sm font-semibold max-md:text-[13px]">Tipo intervento</Label>
+        <Label className="mb-2 block text-sm font-semibold max-md:text-[13px]">{t("Tipo intervento")}</Label>
         <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2">
           {INTERVENTO_OPTIONS.map((opt) => (
             <button
@@ -594,8 +598,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{opt.label}</p>
-                  <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{opt.desc}</p>
+                  <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{t(opt.label)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{t(opt.desc)}</p>
                 </div>
                 {value.tipo_intervento === opt.value ? (
                   <span className="rounded-full bg-primary/10 p-1 text-primary">
@@ -628,14 +632,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Piastrelle parete</span>
+              <span>{t("Piastrelle parete")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["piastrella_parete"], () => ({ sostituzione: { ...value.sostituzione, piastrelle_parete: true }, piastrelle_parete: { ...value.piastrelle_parete, attivo: true } }))}
             <VisualOptionGrid
-              label="Effetto"
-              helper="Tocca il materiale per vedere subito il mood"
+              label={t("Effetto")}
+              helper={t("Tocca il materiale per vedere subito il mood")}
               options={TILE_EFFECTS}
               value={value.piastrelle_parete.effetto}
               onChange={(effect) =>
@@ -643,7 +647,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs max-md:text-[11px]">Formato</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Formato")}</Label>
               <Select
                 value={value.piastrelle_parete.formato}
                 onValueChange={(format) =>
@@ -653,16 +657,16 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TILE_FORMATS.map((format) => (
-                    <SelectItem key={format.value} value={format.value}>{format.label}</SelectItem>
+                    <SelectItem key={format.value} value={format.value}>{t(format.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
-                120x240 significa lastra reale alta circa 2,4 m: poche fughe, niente griglia 60x60 o piastrelle piccole.
+                {t("120x240 significa lastra reale alta circa 2,4 m: poche fughe, niente griglia 60x60 o piastrelle piccole.")}
               </p>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Posa</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Posa")}</Label>
               <Select
                 value={value.piastrelle_parete.posa}
                 onValueChange={(posa) =>
@@ -672,23 +676,23 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {POSA_OPTIONS.map((posa) => (
-                    <SelectItem key={posa.value} value={posa.value}>{posa.label}</SelectItem>
+                    <SelectItem key={posa.value} value={posa.value}>{t(posa.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Colore fuga</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Colore fuga")}</Label>
               <Input
                 value={value.piastrelle_parete.fuga_colore}
                 onChange={(event) =>
                   update({ piastrelle_parete: { ...value.piastrelle_parete, fuga_colore: event.target.value } })
                 }
-                placeholder="es. grigio chiaro"
+                placeholder={t("es. grigio chiaro")}
               />
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Altezza rivestimento</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Altezza rivestimento")}</Label>
               <Select
                 value={value.piastrelle_parete.altezza_rivestimento || "fino al soffitto"}
                 onValueChange={(height) =>
@@ -700,7 +704,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                   <SelectItem value="120cm">120 cm</SelectItem>
                   <SelectItem value="150cm">150 cm</SelectItem>
                   <SelectItem value="200cm">200 cm</SelectItem>
-                  <SelectItem value="fino al soffitto">Fino al soffitto</SelectItem>
+                  <SelectItem value="fino al soffitto">{t("Fino al soffitto")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -719,14 +723,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Pavimento</span>
+              <span>{t("Pavimento")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["pavimento"], () => ({ sostituzione: { ...value.sostituzione, pavimento: true }, pavimento: { ...value.pavimento, attivo: true } }))}
             <VisualOptionGrid
-              label="Effetto"
-              helper="Così capisci subito il carattere del nuovo pavimento"
+              label={t("Effetto")}
+              helper={t("Così capisci subito il carattere del nuovo pavimento")}
               options={TILE_EFFECTS}
               value={value.pavimento.effetto}
               onChange={(effect) =>
@@ -734,7 +738,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs max-md:text-[11px]">Formato</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Formato")}</Label>
               <Select
                 value={value.pavimento.formato}
                 onValueChange={(format) =>
@@ -744,16 +748,16 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TILE_FORMATS.map((format) => (
-                    <SelectItem key={format.value} value={format.value}>{format.label}</SelectItem>
+                    <SelectItem key={format.value} value={format.value}>{t(format.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
-                Su pavimento il formato scelto deve restare leggibile: grande formato = giunti radi, campi ampi e scala coerente.
+                {t("Su pavimento il formato scelto deve restare leggibile: grande formato = giunti radi, campi ampi e scala coerente.")}
               </p>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Posa</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Posa")}</Label>
               <Select
                 value={value.pavimento.posa}
                 onValueChange={(posa) =>
@@ -763,19 +767,19 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {POSA_OPTIONS.map((posa) => (
-                    <SelectItem key={posa.value} value={posa.value}>{posa.label}</SelectItem>
+                    <SelectItem key={posa.value} value={posa.value}>{t(posa.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Colore fuga</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Colore fuga")}</Label>
               <Input
                 value={value.pavimento.fuga_colore}
                 onChange={(event) =>
                   update({ pavimento: { ...value.pavimento, fuga_colore: event.target.value } })
                 }
-                placeholder="es. grigio"
+                placeholder={t("es. grigio")}
               />
             </div>
           </AccordionContent>
@@ -793,13 +797,13 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Doccia</span>
+              <span>{t("Doccia")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["box_doccia", "piatto_doccia", "soffione"], () => ({ sostituzione: { ...value.sostituzione, doccia: true }, doccia: { ...value.doccia, attivo: true } }))}
             <VisualOptionGrid
-              label="Tipo"
+              label={t("Tipo")}
               options={SHOWER_TYPE_OPTIONS}
               value={value.doccia.tipo}
               fotoIntera
@@ -808,9 +812,9 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs max-md:text-[11px]">Vetro box</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Vetro box")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={SHOWER_GLASS_PHOTOS[value.doccia.box_vetro]} alt="Vetro del box doccia" />
+                <FotoDellaScelta photo={SHOWER_GLASS_PHOTOS[value.doccia.box_vetro]} alt={t("Vetro del box doccia")} />
                 <Select
                   value={value.doccia.box_vetro}
                   onValueChange={(glass) =>
@@ -819,18 +823,18 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="trasparente">Trasparente</SelectItem>
-                    <SelectItem value="satinato">Satinato</SelectItem>
-                    <SelectItem value="fume">Fume</SelectItem>
-                    <SelectItem value="serigrafato">Serigrafato</SelectItem>
+                    <SelectItem value="trasparente">{t("Trasparente")}</SelectItem>
+                    <SelectItem value="satinato">{t("Satinato")}</SelectItem>
+                    <SelectItem value="fume">{t("Fume")}</SelectItem>
+                    <SelectItem value="serigrafato">{t("Serigrafato")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Piatto doccia</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Piatto doccia")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={SHOWER_TRAY_PHOTOS[value.doccia.piatto]} alt="Piatto doccia" />
+                <FotoDellaScelta photo={SHOWER_TRAY_PHOTOS[value.doccia.piatto]} alt={t("Piatto doccia")} />
                 <Select
                   value={value.doccia.piatto}
                   onValueChange={(tray) =>
@@ -839,18 +843,18 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="filo_pavimento">Filo pavimento</SelectItem>
-                    <SelectItem value="rialzato_3cm">Rialzato 3 cm</SelectItem>
-                    <SelectItem value="rialzato_5cm">Rialzato 5 cm</SelectItem>
-                    <SelectItem value="pietra">Pietra</SelectItem>
+                    <SelectItem value="filo_pavimento">{t("Filo pavimento")}</SelectItem>
+                    <SelectItem value="rialzato_3cm">{t("Rialzato 3 cm")}</SelectItem>
+                    <SelectItem value="rialzato_5cm">{t("Rialzato 5 cm")}</SelectItem>
+                    <SelectItem value="pietra">{t("Pietra")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Profilo</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Profilo")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={SHOWER_PROFILE_PHOTOS[value.doccia.profilo]} alt="Profilo del box doccia" />
+                <FotoDellaScelta photo={SHOWER_PROFILE_PHOTOS[value.doccia.profilo]} alt={t("Profilo del box doccia")} />
                 <Select
                   value={value.doccia.profilo}
                   onValueChange={(profile) =>
@@ -859,18 +863,18 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cromato">Cromato</SelectItem>
-                    <SelectItem value="nero_opaco">Nero opaco</SelectItem>
-                    <SelectItem value="oro_spazzolato">Oro spazzolato</SelectItem>
-                    <SelectItem value="senza_profilo">Senza profilo</SelectItem>
+                    <SelectItem value="cromato">{t("Cromato")}</SelectItem>
+                    <SelectItem value="nero_opaco">{t("Nero opaco")}</SelectItem>
+                    <SelectItem value="oro_spazzolato">{t("Oro spazzolato")}</SelectItem>
+                    <SelectItem value="senza_profilo">{t("Senza profilo")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Soffione</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Soffione")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={SHOWER_HEAD_PHOTOS[value.doccia.soffione]} alt="Soffione della doccia" />
+                <FotoDellaScelta photo={SHOWER_HEAD_PHOTOS[value.doccia.soffione]} alt={t("Soffione della doccia")} />
                 <Select
                   value={value.doccia.soffione}
                   onValueChange={(showerhead) =>
@@ -879,39 +883,39 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="a_parete">A parete</SelectItem>
-                    <SelectItem value="pioggia_soffitto">Pioggia soffitto</SelectItem>
-                    <SelectItem value="colonna_completa">Colonna completa</SelectItem>
-                    <SelectItem value="combinato">Combinato</SelectItem>
+                    <SelectItem value="a_parete">{t("A parete")}</SelectItem>
+                    <SelectItem value="pioggia_soffitto">{t("Pioggia soffitto")}</SelectItem>
+                    <SelectItem value="colonna_completa">{t("Colonna completa")}</SelectItem>
+                    <SelectItem value="combinato">{t("Combinato")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 max-md:gap-2">
               <div>
-                <Label className="text-xs max-md:text-[11px]">Nicchia nella parete</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Nicchia nella parete")}</Label>
                 <Select
                   value={value.doccia.nicchia ?? NON_INDICATA}
                   onValueChange={(niche) => update({ doccia: conScelta(value.doccia, "nicchia", niche) })}
                 >
-                  <SelectTrigger aria-label="Nicchia nella parete della doccia"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Nicchia nella parete della doccia")}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {SHOWER_NICHE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs max-md:text-[11px]">Scarico</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Scarico")}</Label>
                 <Select
                   value={value.doccia.scarico ?? NON_INDICATA}
                   onValueChange={(drain) => update({ doccia: conScelta(value.doccia, "scarico", drain) })}
                 >
-                  <SelectTrigger aria-label="Scarico della doccia"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Scarico della doccia")}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {SHOWER_DRAIN_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -932,13 +936,13 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Vasca</span>
+              <span>{t("Vasca")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["vasca"], () => ({ sostituzione: { ...value.sostituzione, vasca: true }, vasca: { ...value.vasca, attivo: true } }))}
             <VisualOptionGrid
-              label="Tipo"
+              label={t("Tipo")}
               options={BATHTUB_TYPE_OPTIONS}
               value={value.vasca.tipo}
               fotoIntera
@@ -947,9 +951,9 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs max-md:text-[11px]">Materiale</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Materiale")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={BATHTUB_MATERIAL_PHOTOS[value.vasca.materiale]} alt="Materiale della vasca" />
+                <FotoDellaScelta photo={BATHTUB_MATERIAL_PHOTOS[value.vasca.materiale]} alt={t("Materiale della vasca")} />
                 <Select
                   value={value.vasca.materiale}
                   onValueChange={(material) =>
@@ -958,18 +962,18 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="acrilico_bianco">Acrilico bianco</SelectItem>
-                    <SelectItem value="solid_surface">Solid surface</SelectItem>
-                    <SelectItem value="ghisa_smaltata">Ghisa smaltata</SelectItem>
-                    <SelectItem value="pietra">Pietra</SelectItem>
+                    <SelectItem value="acrilico_bianco">{t("Acrilico bianco")}</SelectItem>
+                    <SelectItem value="solid_surface">{t("Solid surface")}</SelectItem>
+                    <SelectItem value="ghisa_smaltata">{t("Ghisa smaltata")}</SelectItem>
+                    <SelectItem value="pietra">{t("Pietra")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Rubinetteria vasca</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Rubinetteria vasca")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={BATHTUB_FAUCET_PHOTOS[value.vasca.rubinetteria_vasca]} alt="Rubinetteria della vasca" />
+                <FotoDellaScelta photo={BATHTUB_FAUCET_PHOTOS[value.vasca.rubinetteria_vasca]} alt={t("Rubinetteria della vasca")} />
                 <Select
                   value={value.vasca.rubinetteria_vasca}
                   onValueChange={(tap) =>
@@ -978,15 +982,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="a_parete">A parete</SelectItem>
-                    <SelectItem value="a_pavimento">A pavimento</SelectItem>
-                    <SelectItem value="bordo_vasca">Bordo vasca</SelectItem>
+                    <SelectItem value="a_parete">{t("A parete")}</SelectItem>
+                    <SelectItem value="a_pavimento">{t("A pavimento")}</SelectItem>
+                    <SelectItem value="bordo_vasca">{t("Bordo vasca")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Dimensione vasca</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Dimensione vasca")}</Label>
               <Select
                 value={value.vasca.dimensione_cm || "170x75"}
                 onValueChange={(size) =>
@@ -1003,21 +1007,21 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
-                Questa scala viene forzata nel prompt: la vasca non deve diventare una vaschetta piccola o decorativa.
+                {t("Questa scala viene forzata nel prompt: la vasca non deve diventare una vaschetta piccola o decorativa.")}
               </p>
             </div>
             {/* La parete sopravasca si monta solo su una vasca contro parete. */}
             {!FREESTANDING.includes(value.vasca.tipo) ? (
               <div>
-                <Label className="text-xs max-md:text-[11px]">Parete doccia sulla vasca</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Parete doccia sulla vasca")}</Label>
                 <Select
                   value={value.vasca.parete_doccia ?? NON_INDICATA}
                   onValueChange={(screen) => update({ vasca: conScelta(value.vasca, "parete_doccia", screen) })}
                 >
-                  <SelectTrigger aria-label="Parete doccia sulla vasca"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Parete doccia sulla vasca")}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {BATH_SCREEN_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1038,13 +1042,13 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Mobile bagno</span>
+              <span>{t("Mobile bagno")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["mobile_bagno", "lavabo", "specchio"], () => ({ sostituzione: { ...value.sostituzione, mobile_bagno: true }, vanity: { ...value.vanity, attivo: true } }))}
             <VisualOptionGrid
-              label="Stile"
+              label={t("Stile")}
               options={VANITY_STYLE_OPTIONS}
               value={value.vanity.stile}
               fotoIntera
@@ -1053,18 +1057,18 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs max-md:text-[11px]">Colore mobile</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Colore mobile")}</Label>
               <Input
                 value={value.vanity.colore}
                 onChange={(event) =>
                   update({ vanity: { ...value.vanity, colore: event.target.value } })
                 }
-                placeholder="es. bianco opaco, rovere naturale"
+                placeholder={t("es. bianco opaco, rovere naturale")}
               />
             </div>
             <VisualOptionGrid
-              label="Piano"
-              helper="Anteprima rapida del top del mobile bagno"
+              label={t("Piano")}
+              helper={t("Anteprima rapida del top del mobile bagno")}
               options={VANITY_TOP_OPTIONS}
               value={value.vanity.piano}
               onChange={(top) =>
@@ -1072,9 +1076,9 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs max-md:text-[11px]">Lavabo</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Lavabo")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={BASIN_PHOTOS[value.vanity.lavabo]} alt="Lavabo" />
+                <FotoDellaScelta photo={BASIN_PHOTOS[value.vanity.lavabo]} alt={t("Lavabo")} />
                 <Select
                   value={value.vanity.lavabo}
                   onValueChange={(basin) =>
@@ -1083,16 +1087,16 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="integrato">Integrato</SelectItem>
-                    <SelectItem value="appoggio_ovale">Appoggio ovale</SelectItem>
-                    <SelectItem value="appoggio_rettangolare">Appoggio rettangolare</SelectItem>
-                    <SelectItem value="semincasso">Semincasso</SelectItem>
+                    <SelectItem value="integrato">{t("Integrato")}</SelectItem>
+                    <SelectItem value="appoggio_ovale">{t("Appoggio ovale")}</SelectItem>
+                    <SelectItem value="appoggio_rettangolare">{t("Appoggio rettangolare")}</SelectItem>
+                    <SelectItem value="semincasso">{t("Semincasso")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Larghezza (cm)</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Larghezza (cm)")}</Label>
               <Select
                 value={String(value.vanity.larghezza_cm)}
                 onValueChange={(width) =>
@@ -1110,7 +1114,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Numero lavabi</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Numero lavabi")}</Label>
               <Select
                 value={String(value.vanity.numero_lavabi || 1)}
                 onValueChange={(count) =>
@@ -1119,15 +1123,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Singolo lavabo</SelectItem>
-                  <SelectItem value="2">Doppio lavabo</SelectItem>
+                  <SelectItem value="1">{t("Singolo lavabo")}</SelectItem>
+                  <SelectItem value="2">{t("Doppio lavabo")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs max-md:text-[11px]">Specchio</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Specchio")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={MIRROR_PHOTOS[value.vanity.specchio || "retroilluminato"]} alt="Specchio" />
+                <FotoDellaScelta photo={MIRROR_PHOTOS[value.vanity.specchio || "retroilluminato"]} alt={t("Specchio")} />
                 <Select
                   value={value.vanity.specchio || "retroilluminato"}
                   onValueChange={(mirror) =>
@@ -1137,7 +1141,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {MIRROR_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1158,7 +1162,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Sanitari</span>
+              <span>{t("Sanitari")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
@@ -1173,15 +1177,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mantieni">Mantieni attuale</SelectItem>
-                  <SelectItem value="sostituisci">Sostituisci</SelectItem>
+                  <SelectItem value="mantieni">{t("Mantieni attuale")}</SelectItem>
+                  <SelectItem value="sostituisci">{t("Sostituisci")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {value.sanitari.azione_wc === "sostituisci" ? (
               <>
                 <VisualOptionGrid
-                  label="Tipo WC"
+                  label={t("Tipo WC")}
                   options={TOILET_TYPE_OPTIONS}
                   value={value.sanitari.tipo_wc}
                   fotoIntera
@@ -1192,9 +1196,9 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 {value.sanitari.tipo_wc === "sospeso" || value.sanitari.tipo_wc === "rimless_sospeso" ? (
                   <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
                     <div>
-                      <Label className="text-xs max-md:text-[11px]">Piastra WC a parete</Label>
+                      <Label className="text-xs max-md:text-[11px]">{t("Piastra WC a parete")}</Label>
                       <div className="flex items-center gap-2">
-                        <FotoDellaScelta photo={FLUSH_PLATE_PHOTOS[value.sanitari.piastra_wc || "rettangolare_sottile"]} alt="Placca del WC" />
+                        <FotoDellaScelta photo={FLUSH_PLATE_PHOTOS[value.sanitari.piastra_wc || "rettangolare_sottile"]} alt={t("Placca del WC")} />
                         <Select
                           value={value.sanitari.piastra_wc || "rettangolare_sottile"}
                           onValueChange={(plate) =>
@@ -1204,15 +1208,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                           <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {FLUSH_PLATE_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
                     <VisualOptionGrid
-                      label="Colore piastra"
-                      helper="La piastra deve comparire sulla parete sopra il WC sospeso"
+                      label={t("Colore piastra")}
+                      helper={t("La piastra deve comparire sulla parete sopra il WC sospeso")}
                       options={FLUSH_PLATE_COLOR_OPTIONS}
                       value={value.sanitari.piastra_wc_colore || "nero_opaco"}
                       onChange={(color) =>
@@ -1220,14 +1224,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                       }
                     />
                     <p className="text-[11px] text-muted-foreground max-md:hidden">
-                      Nei WC sospesi forziamo vaso sospeso senza piede a pavimento, cassetta da incasso invisibile e piastra a parete visibile.
+                      {t("Nei WC sospesi forziamo vaso sospeso senza piede a pavimento, cassetta da incasso invisibile e piastra a parete visibile.")}
                     </p>
                   </div>
                 ) : null}
               </>
             ) : null}
             <div>
-              <Label className="text-xs max-md:text-[11px]">Bidet</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Bidet")}</Label>
               <Select
                 value={value.sanitari.azione_bidet}
                 onValueChange={(action) =>
@@ -1236,18 +1240,18 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mantieni">Mantieni attuale</SelectItem>
-                  <SelectItem value="sostituisci">Sostituisci</SelectItem>
-                  <SelectItem value="aggiungi">Aggiungi (non c'è)</SelectItem>
-                  <SelectItem value="rimuovi">Rimuovi</SelectItem>
+                  <SelectItem value="mantieni">{t("Mantieni attuale")}</SelectItem>
+                  <SelectItem value="sostituisci">{t("Sostituisci")}</SelectItem>
+                  <SelectItem value="aggiungi">{t("Aggiungi (non c'è)")}</SelectItem>
+                  <SelectItem value="rimuovi">{t("Rimuovi")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {value.sanitari.azione_bidet === "sostituisci" || value.sanitari.azione_bidet === "aggiungi" ? (
               <div>
-                <Label className="text-xs max-md:text-[11px]">Tipo bidet</Label>
+                <Label className="text-xs max-md:text-[11px]">{t("Tipo bidet")}</Label>
                 <div className="flex items-center gap-2">
-                  <FotoDellaScelta photo={BIDET_PHOTOS[value.sanitari.tipo_bidet || "sospeso"]} alt="Bidet" />
+                  <FotoDellaScelta photo={BIDET_PHOTOS[value.sanitari.tipo_bidet || "sospeso"]} alt={t("Bidet")} />
                   <Select
                     value={value.sanitari.tipo_bidet || "sospeso"}
                     onValueChange={(type) =>
@@ -1256,15 +1260,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                   >
                     <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sospeso">Sospeso</SelectItem>
-                      <SelectItem value="a_terra">A terra</SelectItem>
+                      <SelectItem value="sospeso">{t("Sospeso")}</SelectItem>
+                      <SelectItem value="a_terra">{t("A terra")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             ) : null}
             <VisualOptionGrid
-              label="Colore sanitari"
+              label={t("Colore sanitari")}
               options={SANITARY_COLOR_OPTIONS}
               value={value.sanitari.colore}
               fotoIntera
@@ -1287,14 +1291,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Rubinetteria</span>
+              <span>{t("Rubinetteria")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["rubinetteria"], () => ({ sostituzione: { ...value.sostituzione, rubinetteria: true }, rubinetteria: { ...value.rubinetteria, attivo: true } }))}
             <VisualOptionGrid
-              label="Finitura"
-              helper="Così la rubinetteria resta coerente in tutto il bagno"
+              label={t("Finitura")}
+              helper={t("Così la rubinetteria resta coerente in tutto il bagno")}
               options={FAUCET_FINISH_OPTIONS}
               value={value.rubinetteria.finitura}
               fotoIntera
@@ -1303,9 +1307,9 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs max-md:text-[11px]">Stile</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Stile")}</Label>
               <div className="flex items-center gap-2">
-                <FotoDellaScelta photo={FAUCET_STYLE_PHOTOS[value.rubinetteria.stile]} alt="Stile dei rubinetti" />
+                <FotoDellaScelta photo={FAUCET_STYLE_PHOTOS[value.rubinetteria.stile]} alt={t("Stile dei rubinetti")} />
                 <Select
                   value={value.rubinetteria.stile}
                   onValueChange={(style) =>
@@ -1314,10 +1318,10 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 >
                   <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="quadro_moderno">Quadro moderno</SelectItem>
-                    <SelectItem value="tondo_classico">Tondo classico</SelectItem>
-                    <SelectItem value="industrial">Industrial</SelectItem>
-                    <SelectItem value="vintage_crosshead">Vintage crosshead</SelectItem>
+                    <SelectItem value="quadro_moderno">{t("Quadro moderno")}</SelectItem>
+                    <SelectItem value="tondo_classico">{t("Tondo classico")}</SelectItem>
+                    <SelectItem value="industrial">{t("Industrial")}</SelectItem>
+                    <SelectItem value="vintage_crosshead">{t("Vintage crosshead")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1328,7 +1332,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
         <AccordionItem value="termoarredo" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
           <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
-              aria-label="Cambia il termoarredo"
+              aria-label={t("Cambia il termoarredo")}
               checked={value.sostituzione.termoarredo === true}
               onCheckedChange={(checked) =>
                 update({
@@ -1338,22 +1342,22 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Termoarredo</span>
+              <span>{t("Termoarredo")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             <div>
-              <Label className="text-xs max-md:text-[11px]">Cosa fare</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Cosa fare")}</Label>
               <Select
                 value={(value.termoarredo ?? DEFAULT_TERMOARREDO).azione}
                 onValueChange={(action) =>
                   update({ termoarredo: { ...(value.termoarredo ?? { ...DEFAULT_TERMOARREDO, attivo: false }), azione: action as NonNullable<BathroomConfig["termoarredo"]>["azione"] } })
                 }
               >
-                <SelectTrigger aria-label="Cosa fare col termoarredo"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("Cosa fare col termoarredo")}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TOWEL_WARMER_ACTION_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1361,23 +1365,23 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             {(value.termoarredo ?? DEFAULT_TERMOARREDO).azione !== "rimuovi" ? (
               <>
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Modello</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Modello")}</Label>
                   <Select
                     value={(value.termoarredo ?? DEFAULT_TERMOARREDO).tipo}
                     onValueChange={(type) =>
                       update({ termoarredo: { ...(value.termoarredo ?? { ...DEFAULT_TERMOARREDO, attivo: false }), tipo: type as NonNullable<BathroomConfig["termoarredo"]>["tipo"] } })
                     }
                   >
-                    <SelectTrigger aria-label="Modello del termoarredo"><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label={t("Modello del termoarredo")}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {TOWEL_WARMER_TYPE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <VisualOptionGrid
-                  label="Finitura"
+                  label={t("Finitura")}
                   options={TOWEL_WARMER_FINISH_OPTIONS}
                   value={(value.termoarredo ?? DEFAULT_TERMOARREDO).finitura}
                   onChange={(finish) =>
@@ -1392,7 +1396,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
         <AccordionItem value="illuminazione" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
           <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
-              aria-label="Cambia l'illuminazione"
+              aria-label={t("Cambia l'illuminazione")}
               checked={value.sostituzione.illuminazione}
               onCheckedChange={(checked) =>
                 update({
@@ -1402,25 +1406,25 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Illuminazione</span>
+              <span>{t("Illuminazione")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             <div>
-              <Label className="text-xs max-md:text-[11px]">Luci nuove</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Luci nuove")}</Label>
               <Select
                 value={LIGHTING_OPTIONS.some((option) => option.value === value.illuminazione_tipo) ? value.illuminazione_tipo : ""}
                 onValueChange={(lighting) => update({ illuminazione_tipo: lighting })}
               >
-                <SelectTrigger aria-label="Tipo di luci nuove"><SelectValue placeholder="Scegli il tipo di luci" /></SelectTrigger>
+                <SelectTrigger aria-label={t("Tipo di luci nuove")}><SelectValue placeholder={t("Scegli il tipo di luci")} /></SelectTrigger>
                 <SelectContent>
                   {LIGHTING_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
-                Il soffitto resta com'è: si aggiungono solo le luci scelte. Lo specchio retroilluminato si sceglie nel mobile.
+                {t("Il soffitto resta com'è: si aggiungono solo le luci scelte. Lo specchio retroilluminato si sceglie nel mobile.")}
               </p>
             </div>
           </AccordionContent>
@@ -1438,12 +1442,12 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
-              <span>Pareti non piastrellate</span>
+              <span>{t("Pareti non piastrellate")}</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             <div>
-              <Label className="text-xs max-md:text-[11px]">Azione</Label>
+              <Label className="text-xs max-md:text-[11px]">{t("Azione")}</Label>
               <Select
                 value={value.parete.azione}
                 onValueChange={(action) =>
@@ -1452,16 +1456,16 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mantieni">Mantieni</SelectItem>
-                  <SelectItem value="tinta_unita">Tinta unita</SelectItem>
-                  <SelectItem value="lastra_decorativa">Lastra decorativa</SelectItem>
+                  <SelectItem value="mantieni">{t("Mantieni")}</SelectItem>
+                  <SelectItem value="tinta_unita">{t("Tinta unita")}</SelectItem>
+                  <SelectItem value="lastra_decorativa">{t("Lastra decorativa")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {value.parete.azione === "tinta_unita" || value.parete.azione === "lastra_decorativa" ? (
               <>
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Preset colore rapidi</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Preset colore rapidi")}</Label>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-1.5">
                     {QUICK_PAINT_PRESETS.map((preset) => {
                       const selected = (value.parete.colore_hex || "#F5F5F0").toLowerCase() === preset.value.toLowerCase();
@@ -1476,14 +1480,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                           onClick={() => update({ parete: { ...value.parete, colore_hex: preset.value } })}
                         >
                           <span className="h-6 w-6 rounded-full border border-black/10 max-md:h-5 max-md:w-5 max-md:shrink-0" style={{ backgroundColor: preset.value }} />
-                          <span className="text-xs font-medium max-md:text-[11px] max-md:leading-tight">{preset.label}</span>
+                          <span className="text-xs font-medium max-md:text-[11px] max-md:leading-tight">{t(preset.label)}</span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs max-md:text-[11px]">Colore</Label>
+                  <Label className="text-xs max-md:text-[11px]">{t("Colore")}</Label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -1510,13 +1514,13 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
       </Accordion>
 
       <div>
-        <Label className="text-xs font-semibold max-md:text-[13px]">Note libere</Label>
+        <Label className="text-xs font-semibold max-md:text-[13px]">{t("Note libere")}</Label>
         <Textarea
           value={value.note_libere || ""}
           onChange={(event) => update({ note_libere: event.target.value })}
           placeholder={isMobile
-            ? "Es. molto luminoso, stile hotel, niente decorazioni…"
-            : "Indicazioni aggiuntive per l'AI, ad esempio: 'mantieni il bagno molto luminoso', 'stile hotel di lusso ma realistico', 'niente elementi decorativi extra'."}
+            ? t("Es. molto luminoso, stile hotel, niente decorazioni…")
+            : t("Indicazioni aggiuntive per l'AI, ad esempio: 'mantieni il bagno molto luminoso', 'stile hotel di lusso ma realistico', 'niente elementi decorativi extra'.")}
           rows={4}
           // Telefono: segnaposto a 13px come il resto del testo.
           className="mt-1 max-md:min-h-[88px] max-md:placeholder:text-[13px]"
@@ -1524,9 +1528,9 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
       </div>
 
       <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100 max-md:hidden">
-        <p className="font-semibold">Come ragiona il render</p>
+        <p className="font-semibold">{t("Come ragiona il render")}</p>
         <p className="mt-1 text-emerald-900/80 dark:text-emerald-100/80">
-          Se scegli una doccia walk-in, il sistema forza una vera walk-in aperta. Se selezioni una vasca al posto della doccia, la doccia esistente viene rimossa. Se cambi solo una superficie, il resto deve rimanere coerente con il bagno originale.
+          {t("Se scegli una doccia walk-in, il sistema forza una vera walk-in aperta. Se selezioni una vasca al posto della doccia, la doccia esistente viene rimossa. Se cambi solo una superficie, il resto deve rimanere coerente con il bagno originale.")}
         </p>
       </div>
     </div>

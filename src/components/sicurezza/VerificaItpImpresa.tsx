@@ -48,6 +48,7 @@ import {
   riallineaSoggetti,
   resetNominativo,
 } from "@/lib/sicurezza/soggettiItp";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Sessione = {
   id: string;
@@ -80,6 +81,7 @@ export function VerificaItpImpresa({
   giorno: string;
   faseId?: string;
 }) {
+  const t = useT();
   const p = usePermissions();
   const profili = useProfiliRequisiti(companyId);
   const storico = useVerificheItp(companyId, orderId);
@@ -183,7 +185,7 @@ export function VerificaItpImpresa({
         },
       });
     } catch (e) {
-      setErrore(messaggio(e));
+      setErrore(t(messaggio(e)));
     } finally {
       setPrepara(false);
     }
@@ -214,10 +216,10 @@ export function VerificaItpImpresa({
           : s,
       );
       toast.success(
-        "Soggetti riletti: criteri nominativi e coperture rimessi da verificare",
+        t("Soggetti riletti: criteri nominativi e coperture rimessi da verificare"),
       );
     } catch (e) {
-      setErrore(messaggio(e));
+      setErrore(t(messaggio(e)));
     } finally {
       setRilettura(false);
     }
@@ -235,7 +237,7 @@ export function VerificaItpImpresa({
     );
     if (prima.length + espansi.length > MAX_CRITERI_ITP) {
       setErrore(
-        "La copertura supera i 500 criteri: circoscrivi la verifica a una fase o attività.",
+        t("La copertura supera i 500 criteri: circoscrivi la verifica a una fase o attività."),
       );
       return;
     }
@@ -266,9 +268,9 @@ export function VerificaItpImpresa({
         dati: sessione.dati,
       });
       setSessione(null);
-      toast.success("Verifica registrata nello storico");
+      toast.success(t("Verifica registrata nello storico"));
     } catch (e) {
-      setErrore(messaggio(e));
+      setErrore(t(messaggio(e)));
     }
   }
   if (!p.canViewSicurezzaCantiere) return null;
@@ -276,7 +278,7 @@ export function VerificaItpImpresa({
     <div className="mt-4 space-y-3 border-t pt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-sm font-semibold">
-          Verifica di idoneità tecnico professionale
+          {t("Verifica di idoneità tecnico professionale")}
         </h4>
         {!p.solaLettura && (
           <Button
@@ -285,62 +287,59 @@ export function VerificaItpImpresa({
             disabled={prepara || storico.isLoading || storico.isError}
             onClick={() => void apri()}
           >
-            {prepara ? "Caricamento…" : "Registra verifica ITP"}
+            {prepara ? t("Caricamento…") : t("Registra verifica ITP")}
           </Button>
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        Esito espresso dal responsabile per lavori, fase e periodo indicati. La
-        presenza dei documenti non costituisce una verifica complessiva.
+        {t("Esito espresso dal responsabile per lavori, fase e periodo indicati. La presenza dei documenti non costituisce una verifica complessiva.")}
       </p>
       {storico.isError ? (
         <p role="alert">
-          Storico delle verifiche non disponibile.{" "}
+          {t("Storico delle verifiche non disponibile.")}{" "}
           <Button variant="link" onClick={() => void storico.refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </p>
       ) : storico.isLoading ? (
-        <p>Caricamento verifiche…</p>
+        <p>{t("Caricamento verifiche…")}</p>
       ) : ultima ? (
         <div className="rounded-md border p-3 text-sm space-y-2">
-          <Badge variant="outline">{ESITI_ITP[ultima.esito]}</Badge>
+          <Badge variant="outline">{t(ESITI_ITP[ultima.esito])}</Badge>
           <p>{ultima.attivita}</p>
           <p className="text-xs text-muted-foreground">
-            {ultima.contesto.fase?.name ?? "Ambito commessa"} · {ultima.dal} →{" "}
-            {ultima.al ?? "fine non indicata"} · v{ultima.versione}
+            {ultima.contesto.fase?.name ?? t("Ambito commessa")} · {ultima.dal} →{" "}
+            {ultima.al ?? t("fine non indicata")} · v{ultima.versione}
           </p>
           <p>
             {ultima.responsabile} · {ultima.ruolo_responsabile}
           </p>
           {!faseId && ultima.fase_id && (
             <p className="text-amber-700">
-              Esito relativo alla sola fase indicata; le altre fasi richiedono
-              una valutazione propria.
+              {t("Esito relativo alla sola fase indicata; le altre fasi richiedono una valutazione propria.")}
             </p>
           )}
           {contestoUltima.isLoading ? (
-            <p>Confronto con le fonti correnti…</p>
+            <p>{t("Confronto con le fonti correnti…")}</p>
           ) : contestoUltima.isError ? (
             <p role="alert">
-              Impossibile confrontare il contesto corrente: esito da
-              riesaminare.
+              {t("Impossibile confrontare il contesto corrente: esito da riesaminare.")}
             </p>
           ) : null}
           {ultima.criteri.some((c) => c.profilo_id) &&
             (profili.isError || profili.isLoading) && (
               <p role={profili.isError ? "alert" : undefined}>
                 {profili.isError
-                  ? "Impossibile confrontare i profili correnti: riferimenti da riesaminare."
-                  : "Confronto con i profili correnti…"}
+                  ? t("Impossibile confrontare i profili correnti: riferimenti da riesaminare.")
+                  : t("Confronto con i profili correnti…")}
               </p>
             )}
           {ultima.soggetti &&
             (soggettiCorrenti.isLoading || soggettiCorrenti.isError) && (
               <p role={soggettiCorrenti.isError ? "alert" : undefined}>
                 {soggettiCorrenti.isError
-                  ? "Organico e incarichi correnti non disponibili: copertura da riesaminare."
-                  : "Confronto dell’organico corrente…"}
+                  ? t("Organico e incarichi correnti non disponibili: copertura da riesaminare.")
+                  : t("Confronto dell’organico corrente…")}
               </p>
             )}
           {avvisi.length > 0 && (
@@ -360,20 +359,18 @@ export function VerificaItpImpresa({
                 disabled={prepara}
                 onClick={() => void apri(true)}
               >
-                Registra annullamento motivato
+                {t("Registra annullamento motivato")}
               </Button>
             )}
         </div>
       ) : (
         <p className="text-sm text-amber-700">
-          Nessuna valutazione registrata per questa data e fase.
+          {t("Nessuna valutazione registrata per questa data e fase.")}
         </p>
       )}
       {elenco.length > 0 && (
         <details className="text-sm">
-          <summary className="cursor-pointer">
-            Storico registrazioni · {elenco.length}
-          </summary>
+          <summary className="cursor-pointer">{t("Storico registrazioni · {n}", { n: elenco.length })}</summary>
           <div className="mt-2 space-y-2">
             {elenco.map((v) => (
               <Registrazione key={v.id} verifica={v} />
@@ -402,13 +399,11 @@ export function VerificaItpImpresa({
           <DialogHeader className="shrink-0 border-b p-5 pr-12">
             <DialogTitle>
               {sessione?.dati.esito === "annullata"
-                ? "Annullamento motivato della verifica"
-                : "Registra verifica ITP"}
+                ? t("Annullamento motivato della verifica")
+                : t("Registra verifica ITP")}
             </DialogTitle>
             <DialogDescription>
-              Registrazione attribuita al tuo account e conservata nello
-              storico. I dati esaminati restano quelli caricati all’apertura: se
-              cambiano, il server richiede una nuova verifica.
+              {t("Registrazione attribuita al tuo account e conservata nello storico. I dati esaminati restano quelli caricati all’apertura: se cambiano, il server richiede una nuova verifica.")}
             </DialogDescription>
           </DialogHeader>
           {sessione && (
@@ -425,12 +420,12 @@ export function VerificaItpImpresa({
                     </p>
                     <p>
                       {sessione.dati.contesto_atteso.fase?.name ??
-                        "Ambito commessa senza fase specifica"}
+                        t("Ambito commessa senza fase specifica")}
                     </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm">
-                      Valida dal
+                      {t("Valida dal")}
                       <Input
                         type="date"
                         value={sessione.dati.dal}
@@ -439,7 +434,7 @@ export function VerificaItpImpresa({
                       />
                     </label>
                     <label className="text-sm">
-                      Valida fino al (se definito)
+                      {t("Valida fino al (se definito)")}
                       <Input
                         type="date"
                         value={sessione.dati.al ?? ""}
@@ -449,7 +444,7 @@ export function VerificaItpImpresa({
                     </label>
                   </div>
                   <label className="block text-sm">
-                    Lavori e ambito esaminati
+                    {t("Lavori e ambito esaminati")}
                     <Textarea
                       value={sessione.dati.attivita}
                       onChange={(e) => dati({ attivita: e.target.value })}
@@ -457,14 +452,14 @@ export function VerificaItpImpresa({
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm">
-                      Responsabile della valutazione
+                      {t("Responsabile della valutazione")}
                       <Input
                         value={sessione.dati.responsabile}
                         onChange={(e) => dati({ responsabile: e.target.value })}
                       />
                     </label>
                     <label className="text-sm">
-                      Ruolo del responsabile
+                      {t("Ruolo del responsabile")}
                       <Input
                         value={sessione.dati.ruolo_responsabile}
                         onChange={(e) =>
@@ -475,9 +470,7 @@ export function VerificaItpImpresa({
                   </div>
                   <div className="rounded-md border p-3 text-sm space-y-2">
                     <p>
-                      I soggetti provengono dalle assegnazioni e dagli incarichi
-                      della commessa. La data iniziale e la fase delimitano le
-                      coperture di gruppo.
+                      {t("I soggetti provengono dalle assegnazioni e dagli incarichi della commessa. La data iniziale e la fase delimitano le coperture di gruppo.")}
                     </p>
                     <Button
                       type="button"
@@ -485,7 +478,7 @@ export function VerificaItpImpresa({
                       size="sm"
                       onClick={() => void rileggiSoggetti()}
                     >
-                      Rileggi soggetti e azzera le verifiche nominative
+                      {t("Rileggi soggetti e azzera le verifiche nominative")}
                     </Button>
                   </div>
                   {sessione.dati.esito !== "annullata" && (
@@ -497,21 +490,19 @@ export function VerificaItpImpresa({
                         onError={setErrore}
                       />
                       <div className="space-y-2">
-                        <h4 className="font-medium">Criteri esaminati</h4>
+                        <h4 className="font-medium">{t("Criteri esaminati")}</h4>
                         <p className="text-xs text-muted-foreground">
-                          Definisci i requisiti pertinenti al caso. Il catalogo
-                          propone titoli documentali; applicabilità, riferimenti
-                          ed esiti restano da valutare.
+                          {t("Definisci i requisiti pertinenti al caso. Il catalogo propone titoli documentali; applicabilità, riferimenti ed esiti restano da valutare.")}
                         </p>
                         <div className="flex flex-wrap gap-2">
                           <UniformSelect
-                            aria-label="Aggiungi criterio dal catalogo"
+                            aria-label={t("Aggiungi criterio dal catalogo")}
                             className={stileSelect + " sm:max-w-md"}
                             value={voce}
                             onChange={(e) => setVoce(e.target.value)}
                           >
                             <option value="">
-                              Scegli una voce del catalogo…
+                              {t("Scegli una voce del catalogo…")}
                             </option>
                             {CATALOGO_DOCUMENTI.voci
                               .filter((v) => v.destinazione === "sicurezza")
@@ -551,7 +542,7 @@ export function VerificaItpImpresa({
                               setVoce("");
                             }}
                           >
-                            Aggiungi dal catalogo
+                            {t("Aggiungi dal catalogo")}
                           </Button>
                           <Button
                             variant="outline"
@@ -567,7 +558,7 @@ export function VerificaItpImpresa({
                               })
                             }
                           >
-                            Criterio personalizzato
+                            {t("Criterio personalizzato")}
                           </Button>
                         </div>
                       </div>
@@ -578,7 +569,7 @@ export function VerificaItpImpresa({
                         >
                           <div className="flex items-end gap-2">
                             <label className="flex-1 text-sm">
-                              Criterio {i + 1}
+                              {t("Criterio")} {i + 1}
                               <Input
                                 value={c.titolo}
                                 disabled={!!c.catalogo_id || !!c.profilo_id}
@@ -592,7 +583,7 @@ export function VerificaItpImpresa({
                               disabled={!!c.profilo_id || !!c.gruppo_id}
                               title={
                                 c.profilo_id
-                                  ? "Mantieni i criteri del profilo espliciti oppure rimuovi l’intero profilo."
+                                  ? t("Mantieni i criteri del profilo espliciti oppure rimuovi l’intero profilo.")
                                   : undefined
                               }
                               onClick={() =>
@@ -602,20 +593,14 @@ export function VerificaItpImpresa({
                                   ),
                                 })
                               }
-                            >
-                              Rimuovi criterio {i + 1}
-                            </Button>
+                            >{t("Rimuovi criterio {i}", { i: i + 1 })}</Button>
                           </div>
                           {c.profilo_snapshot && (
-                            <p className="text-xs text-muted-foreground">
-                              Profilo {c.profilo_snapshot.nome} · v
-                              {c.profilo_snapshot.versione}.{" "}
-                              {c.profilo_snapshot.requisito.indicazioni}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{t("Profilo {nome} · v{versione}. {indicazioni}", { nome: String(c.profilo_snapshot.nome ?? ""), versione: String(c.profilo_snapshot.versione ?? ""), indicazioni: String(c.profilo_snapshot.requisito.indicazioni ?? "") })}</p>
                           )}
                           <div className="grid gap-3 sm:grid-cols-2">
                             <label className="text-sm">
-                              Applicabilità
+                              {t("Applicabilità")}
                               <UniformSelect
                                 className={stileSelect}
                                 value={c.applicabilita}
@@ -630,15 +615,15 @@ export function VerificaItpImpresa({
                                   })
                                 }
                               >
-                                <option value="da_chiarire">Da chiarire</option>
-                                <option value="applicabile">Applicabile</option>
+                                <option value="da_chiarire">{t("Da chiarire")}</option>
+                                <option value="applicabile">{t("Applicabile")}</option>
                                 <option value="non_applicabile">
-                                  Non applicabile
+                                  {t("Non applicabile")}
                                 </option>
                               </UniformSelect>
                             </label>
                             <label className="text-sm">
-                              Esito del criterio
+                              {t("Esito del criterio")}
                               <UniformSelect
                                 className={stileSelect}
                                 value={c.esito}
@@ -658,14 +643,14 @@ export function VerificaItpImpresa({
                                     ]
                                 ).map((x) => (
                                   <option key={x} value={x}>
-                                    {
+                                    {t(
                                       {
                                         da_verificare: "Da verificare",
                                         conforme: "Conforme",
                                         non_conforme: "Non conforme",
                                         non_applicabile: "Non applicabile",
-                                      }[x]
-                                    }
+                                      }[x],
+                                    )}
                                   </option>
                                 ))}
                               </UniformSelect>
@@ -686,7 +671,7 @@ export function VerificaItpImpresa({
                             onRiduci={() => riduciGruppo(c)}
                           />
                           <label className="block text-sm">
-                            Riferimento del criterio
+                            {t("Riferimento del criterio")}
                             <Input
                               value={c.riferimento}
                               onChange={(e) =>
@@ -695,7 +680,7 @@ export function VerificaItpImpresa({
                             />
                           </label>
                           <label className="block text-sm">
-                            Note e motivazione della non applicabilità
+                            {t("Note e motivazione della non applicabilità")}
                             <Textarea
                               value={c.note}
                               onChange={(e) =>
@@ -704,9 +689,7 @@ export function VerificaItpImpresa({
                             />
                           </label>
                           <details>
-                            <summary className="cursor-pointer text-sm">
-                              Evidenze esaminate · {c.evidenze.length}
-                            </summary>
+                            <summary className="cursor-pointer text-sm">{t("Evidenze esaminate · {n}", { n: c.evidenze.length })}</summary>
                             <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
                               {sessione.evidenze
                                 .filter(
@@ -738,13 +721,13 @@ export function VerificaItpImpresa({
                                         {e.titolo}
                                         <span className="block text-xs text-muted-foreground">
                                           {e.stato} ·{" "}
-                                          {e.file_name ?? "senza file"}
+                                          {e.file_name ?? t("senza file")}
                                           {e.data_scadenza
-                                            ? ` · scade ${e.data_scadenza}`
+                                            ? t(" · scade {data_scadenza}", { data_scadenza: String(e.data_scadenza ?? "") })
                                             : ""}
                                           {e.catalogo_id
                                             ? ` · ${e.catalogo_id}`
-                                            : " · classificazione non definita"}
+                                            : ` ${t("· classificazione non definita")}`}
                                         </span>
                                       </span>
                                     </label>
@@ -757,20 +740,19 @@ export function VerificaItpImpresa({
                                             e.file_path!,
                                           ).catch(() =>
                                             toast.error(
-                                              "Documento non disponibile",
+                                              t("Documento non disponibile"),
                                             ),
                                           )
                                         }
                                       >
-                                        Leggi
+                                        {t("Leggi")}
                                       </Button>
                                     )}
                                   </div>
                                 ))}
                               {!sessione.evidenze.length && (
                                 <p className="text-sm text-muted-foreground">
-                                  Nessuna evidenza disponibile nel fascicolo
-                                  dell’impresa.
+                                  {t("Nessuna evidenza disponibile nel fascicolo dell’impresa.")}
                                 </p>
                               )}
                             </div>
@@ -778,7 +760,7 @@ export function VerificaItpImpresa({
                         </div>
                       ))}
                       <label className="block text-sm">
-                        Esito complessivo
+                        {t("Esito complessivo")}
                         <UniformSelect
                           className={stileSelect}
                           value={sessione.dati.esito}
@@ -798,7 +780,7 @@ export function VerificaItpImpresa({
                             ] as const
                           ).map((x) => (
                             <option key={x} value={x}>
-                              {ESITI_ITP[x]}
+                              {t(ESITI_ITP[x])}
                             </option>
                           ))}
                         </UniformSelect>
@@ -812,14 +794,13 @@ export function VerificaItpImpresa({
                           }
                         />
                         <span>
-                          Ho definito ed esaminato tutti i requisiti applicabili
-                          al soggetto e ai lavori indicati.
+                          {t("Ho definito ed esaminato tutti i requisiti applicabili al soggetto e ai lavori indicati.")}
                         </span>
                       </label>
                     </>
                   )}
                   <label className="block text-sm">
-                    Motivazione dell’esito e azioni richieste
+                    {t("Motivazione dell’esito e azioni richieste")}
                     <Textarea
                       value={sessione.dati.motivazione}
                       onChange={(e) => dati({ motivazione: e.target.value })}
@@ -838,15 +819,15 @@ export function VerificaItpImpresa({
                   disabled={salva.isPending}
                   onClick={() => setSessione(null)}
                 >
-                  Annulla
+                  {t("Annulla")}
                 </Button>
                 <Button
                   disabled={salva.isPending || p.solaLettura || rilettura}
                   onClick={() => void registra()}
                 >
                   {salva.isPending
-                    ? "Registrazione…"
-                    : "Registra nello storico"}
+                    ? t("Registrazione…")
+                    : t("Registra nello storico")}
                 </Button>
               </div>
             </>
@@ -857,22 +838,20 @@ export function VerificaItpImpresa({
   );
 }
 function Registrazione({ verifica: v }: { verifica: VerificaItp }) {
+  const t = useT();
   return (
     <details className="rounded border p-3">
       <summary className="cursor-pointer">
-        v{v.versione} · {ESITI_ITP[v.esito]} · {v.dal} ·{" "}
-        {v.contesto.fase?.name ?? "Commessa"}
+        v{v.versione} · {t(ESITI_ITP[v.esito])} · {v.dal} ·{" "}
+        {v.contesto.fase?.name ?? t("Commessa")}
       </summary>
       <div className="mt-3 space-y-2">
         <p>{v.attivita}</p>
         <p>{v.motivazione}</p>
-        <p>
-          Responsabile: {v.responsabile} · {v.ruolo_responsabile}
-        </p>
+        <p>{t("Responsabile: {responsabile} · {ruolo_responsabile}", { responsabile: String(v.responsabile ?? ""), ruolo_responsabile: String(v.ruolo_responsabile ?? "") })}</p>
         <p className="text-xs text-muted-foreground">
-          Registrato da {v.registrato_da_nome} il{" "}
-          {new Date(v.registrato_il).toLocaleString("it-IT")} · periodo {v.dal}{" "}
-          → {v.al ?? "fine non indicata"}
+          {t("Registrato da {nome} il {data}", { nome: String(v.registrato_da_nome ?? ""), data: new Date(v.registrato_il).toLocaleString(intlCampo()) })} {t("· periodo")} {v.dal}{" "}
+          → {v.al ?? t("fine non indicata")}
         </p>
         {v.criteri.map((c) => (
           <div key={c.id} className="rounded bg-muted p-2">
@@ -881,14 +860,11 @@ function Registrazione({ verifica: v }: { verifica: VerificaItp }) {
               {c.esito.replaceAll("_", " ")}
             </p>
             {c.profilo_snapshot && (
-              <p className="text-xs text-muted-foreground">
-                Profilo utilizzato: {c.profilo_snapshot.nome} · v
-                {c.profilo_snapshot.versione} · {c.profilo_snapshot.limiti}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("Profilo utilizzato: {nome} · v{versione} · {limiti}", { nome: String(c.profilo_snapshot.nome ?? ""), versione: String(c.profilo_snapshot.versione ?? ""), limiti: String(c.profilo_snapshot.limiti ?? "") })}</p>
             )}
             <p className="text-sm">
-              Titolare: {nomeTitolare(c)}
-              {c.gruppo_id ? " · copertura nominativa di gruppo" : ""}
+              {t("Titolare:")} {nomeTitolare(c)}
+              {c.gruppo_id ? ` ${t("· copertura nominativa di gruppo")}` : ""}
             </p>
             <p>{c.riferimento}</p>
             <p>{c.note}</p>
@@ -897,14 +873,14 @@ function Registrazione({ verifica: v }: { verifica: VerificaItp }) {
                 const e = v.evidenze.find((e) => e.id === id);
                 return (
                   <li key={id}>
-                    {e?.titolo ?? "Evidenza registrata"}
+                    {e?.titolo ?? t("Evidenza registrata")}
                     {e && (
                       <span className="block text-xs text-muted-foreground">
-                        {e.file_name ?? "Senza file"} · {e.stato}
+                        {e.file_name ?? t("Senza file")} · {e.stato}
                         {e.data_scadenza
-                          ? ` · scadenza ${e.data_scadenza}`
+                          ? t(" · scadenza {data_scadenza}", { data_scadenza: String(e.data_scadenza ?? "") })
                           : ""}{" "}
-                        · versione della fonte {e.updated_at}
+                        {t("· versione della fonte")} {e.updated_at}
                       </span>
                     )}
                   </li>
@@ -914,8 +890,7 @@ function Registrazione({ verifica: v }: { verifica: VerificaItp }) {
           </div>
         ))}
         <p className="text-xs text-muted-foreground">
-          Lo storico conserva l’esito e i metadati delle fonti esaminate; non è
-          una copia conservativa dei file originali.
+          {t("Lo storico conserva l’esito e i metadati delle fonti esaminate; non è una copia conservativa dei file originali.")}
         </p>
       </div>
     </details>

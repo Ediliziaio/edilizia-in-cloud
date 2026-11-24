@@ -10,6 +10,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // `breve`: etichetta sul telefono. Meta e Google (report di campagna, grafici
 // larghi) restano al computer: sul telefono le schede sono tre.
@@ -25,6 +26,7 @@ const TABS = [
 const DEFAULT_TAB = TABS[0].key;
 
 const ReportisticaPage = () => {
+  const tr = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab") || DEFAULT_TAB;
   const isValidRequestedTab = TABS.some((tab) => tab.key === requestedTab);
@@ -49,7 +51,7 @@ const ReportisticaPage = () => {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground max-sm:text-lg">
-              Reportistica<span className="max-sm:hidden"> marketing e vendite</span>
+              {tr("Reportistica")}<span className="max-sm:hidden"> {tr("marketing e vendite")}</span>
             </h1>
           </div>
         </div>
@@ -68,11 +70,11 @@ const ReportisticaPage = () => {
             >
               {t.breve ? (
                 <>
-                  <span className="max-sm:hidden">{t.label}</span>
-                  <span className="sm:hidden">{t.breve}</span>
+                  <span className="max-sm:hidden">{tr(t.label)}</span>
+                  <span className="sm:hidden">{tr(t.breve)}</span>
                 </>
               ) : (
-                t.label
+                tr(t.label)
               )}
             </TabsTrigger>
           ))}

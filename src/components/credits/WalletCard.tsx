@@ -23,6 +23,7 @@ import {
   MessageSquare, Image as ImageIcon, TrendingDown, Zap, Calendar,
 } from "lucide-react";
 import type { Wallet } from "@/hooks/credits/useWallets";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   wallet: Wallet;
@@ -51,7 +52,7 @@ const COLORS: Record<Wallet["type"], { border: string; icon: string; bg: string 
 };
 
 function formatBalance(w: Wallet, amount: number): string {
-  if (w.currency === "count") return `${amount.toLocaleString("it-IT")} render`;
+  if (w.currency === "count") return `${amount.toLocaleString(intlCampo())} render`;
   return formatEur(amount);
 }
 
@@ -62,6 +63,7 @@ export function WalletCard({
   onRecharge,
   onAutoTopup,
 }: Props) {
+  const t = useT();
   // Due borsellini: l'omaggio del mese (scade) e la ricarica (resta).
   // Il saldo grande e' la somma — e' quello che il cliente puo' spendere.
   const freeBalance = wallet.freeBalance ?? 0;
@@ -95,7 +97,7 @@ export function WalletCard({
           {wallet.blocked && (
             <Badge variant="destructive" className="gap-0.5 text-[10px]">
               <AlertTriangle className="h-2.5 w-2.5" />
-              Bloccato
+              {t("Bloccato")}
             </Badge>
           )}
           {!wallet.blocked && lowBalance && (
@@ -104,7 +106,7 @@ export function WalletCard({
               className="gap-0.5 border-amber-400 bg-amber-50 text-[10px] text-amber-700"
             >
               <TrendingDown className="h-2.5 w-2.5" />
-              Basso
+              {t("Basso")}
             </Badge>
           )}
         </CardTitle>
@@ -127,30 +129,27 @@ export function WalletCard({
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1 text-muted-foreground">
                 <Zap className="h-3 w-3 text-violet-600" />
-                Inclusi nel piano
+                {t("Inclusi nel piano")}
               </span>
-              <span className="tabular-nums font-medium">
-                {formatEur(freeBalance)} di {formatEur(freeGranted)}
-              </span>
+              <span className="tabular-nums font-medium">{t("{freeBalance} di {freeGranted}", { freeBalance: formatEur(freeBalance), freeGranted: formatEur(freeGranted) })}</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Si usano per primi e il 1° del mese tornano alla quota del piano: quelli avanzati non si accumulano.</p>
+            <p className="text-[11px] text-muted-foreground">{t("Si usano per primi e il 1° del mese tornano alla quota del piano: quelli avanzati non si accumulano.")}</p>
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1 text-muted-foreground">
                 <ArrowUpRight className="h-3 w-3 text-emerald-600" />
-                Ricariche e bonus (restano)
+                {t("Ricariche e bonus (restano)")}
               </span>
               <span className="tabular-nums font-medium">{formatEur(wallet.balance)}</span>
             </div>
             {roundingDifference && (
               <details className="pt-1 text-[11px] text-muted-foreground">
-                <summary>Perché la somma differisce di un centesimo?</summary>
-                <p>Il totale è calcolato prima di arrotondare i singoli saldi ai centesimi.</p>
-                <p>Dettaglio a sei decimali: {formatEur(freeBalance, 6)} inclusi + {formatEur(wallet.balance, 6)} ricaricati = {formatEur(totalBalance, 6)} disponibili.</p>
+                <summary>{t("Perché la somma differisce di un centesimo?")}</summary>
+                <p>{t("Il totale è calcolato prima di arrotondare i singoli saldi ai centesimi.")}</p>
+                <p>{t("Dettaglio a sei decimali: {freeBalance} inclusi + {balance} ricaricati = {totalBalance} disponibili.", { freeBalance: formatEur(freeBalance, 6), balance: formatEur(wallet.balance, 6), totalBalance: formatEur(totalBalance, 6) })}</p>
               </details>
             )}
             <p className="pt-0.5 text-[11px] leading-tight text-muted-foreground">
-              I crediti inclusi si rinnovano il primo del mese e non si sommano.
-              Quelli ricaricati restano finché non li usi.
+              {t("I crediti inclusi si rinnovano il primo del mese e non si sommano. Quelli ricaricati restano finché non li usi.")}
             </p>
           </div>
         )}
@@ -170,8 +169,8 @@ export function WalletCard({
             <Calendar className="h-3 w-3" />
             <span>
               {daysRemaining < 1
-                ? "Esaurimento imminente"
-                : `~${Math.round(daysRemaining)} giorni di autonomia`}
+                ? t("Esaurimento imminente")
+                : t("~{valore} giorni di autonomia", { valore: Math.round(daysRemaining) })}
             </span>
           </div>
         )}
@@ -181,7 +180,7 @@ export function WalletCard({
           <div className="flex items-center gap-1 text-muted-foreground">
             <ArrowDownRight className="h-3 w-3 text-destructive" />
             <span>
-              Speso{" "}
+              {t("Speso")}{" "}
               <strong className="tabular-nums">
                 {wallet.currency === "count"
                   ? `${wallet.spent}`
@@ -192,7 +191,7 @@ export function WalletCard({
           <div className="flex items-center gap-1 text-muted-foreground">
             <ArrowUpRight className="h-3 w-3 text-emerald-500" />
             <span>
-              Ricaricato{" "}
+              {t("Ricaricato")}{" "}
               <strong className="tabular-nums">
                 {wallet.currency === "count"
                   ? `${wallet.recharged}`
@@ -207,7 +206,7 @@ export function WalletCard({
           <CreditUsageBar
             spentEur={wallet.spent}
             rechargedEur={wallet.recharged}
-            label={`Utilizzo ${wallet.label}`}
+            label={t("Utilizzo {label}", { label: String(wallet.label ?? "") })}
             unit={wallet.currency}
             unitSuffix={wallet.currency === "count" ? "render" : ""}
           />
@@ -223,10 +222,10 @@ export function WalletCard({
                 className="flex-1"
                 onClick={onRecharge}
                 disabled={!wallet.rechargeable}
-                title={!wallet.rechargeable ? "Disponibile a breve" : undefined}
+                title={!wallet.rechargeable ? t("Disponibile a breve") : undefined}
               >
                 <Zap className="mr-1.5 h-3.5 w-3.5" />
-                {wallet.rechargeable ? "Ricarica" : "In arrivo"}
+                {wallet.rechargeable ? t("Ricarica") : t("In arrivo")}
               </Button>
             )}
             {onAutoTopup && wallet.rechargeable && (
@@ -234,7 +233,7 @@ export function WalletCard({
                 size="sm"
                 variant="outline"
                 onClick={onAutoTopup}
-                title="Configura ricarica automatica"
+                title={t("Configura ricarica automatica")}
               >
                 <Zap className="h-3.5 w-3.5" />
               </Button>

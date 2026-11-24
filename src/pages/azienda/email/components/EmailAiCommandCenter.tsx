@@ -24,6 +24,7 @@ import {
   type PredictiveEmailCategory,
   type PredictiveEmailResult,
 } from "../lib/predictiveReconciliation";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type RawEmailRow = {
   ai_category: string | null;
@@ -116,9 +117,9 @@ function formatTime(value: string | null) {
   if (!value) return "";
   const diff = Date.now() - new Date(value).getTime();
   if (diff < 24 * 60 * 60 * 1000) {
-    return new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    return new Date(value).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" });
   }
-  return new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+  return new Date(value).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" });
 }
 
 function queueScore(row: RawEmailRow, prediction: PredictiveEmailResult) {
@@ -165,6 +166,7 @@ export function EmailAiCommandCenter({
   onSelectThread,
   onFilterCategory,
 }: EmailAiCommandCenterProps) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
   const companyId = companyIdOverride ?? effectiveCompany?.id;
@@ -209,12 +211,12 @@ export function EmailAiCommandCenter({
       queryClient.invalidateQueries({ queryKey: ["email-ai-command-center"] });
       queryClient.invalidateQueries({ queryKey: ["email-threads"] });
       queryClient.invalidateQueries({ queryKey: ["email-thread-messages"] });
-      toast.success("Regia Email aggiornata", {
+      toast.success(t("Regia Email aggiornata"), {
         description: `${result.processed ?? 0} email classificate.`,
       });
     },
     onError: (error: Error) => {
-      toast.error("Smistamento email non riuscito", { description: error.message });
+      toast.error(t("Smistamento email non riuscito"), { description: error.message });
     },
   });
 
@@ -255,17 +257,17 @@ export function EmailAiCommandCenter({
         className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left"
         aria-expanded={showBody}
         aria-controls="email-ai-command-body"
-        title="Priorità trovate da Silvio"
+        title={t("Priorità trovate da Silvio")}
       >
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-orange-600" />
         <p className="min-w-0 flex-1 truncate text-xs text-orange-950">
           {totale > 0 ? (
             <>
-              <span className="font-semibold tabular-nums">{totale} priorità</span>
-              {metrics.priority > 0 && <span className="tabular-nums text-orange-700"> · {metrics.priority} urgenti</span>}
+              <span className="font-semibold tabular-nums">{t("{totale} priorità", { totale: String(totale ?? "") })}</span>
+              {metrics.priority > 0 && <span className="tabular-nums text-orange-700">{" "}{t("· {priority} urgenti", { priority: String(metrics.priority ?? "") })}</span>}
             </>
           ) : (
-            <span className="font-semibold">Regia email</span>
+            <span className="font-semibold">{t("Regia email")}</span>
           )}
         </p>
         <Button
@@ -275,10 +277,10 @@ export function EmailAiCommandCenter({
           className="h-7 shrink-0 gap-1 px-2 text-xs text-orange-700 hover:bg-orange-100"
           onClick={(e) => { e.stopPropagation(); triageInbox.mutate(); }}
           disabled={triageInbox.isPending}
-          title="Smista le email recenti con AI"
+          title={t("Smista le email recenti con AI")}
         >
           {triageInbox.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Smista
+          {t("Smista")}
         </Button>
         <Button
           type="button"
@@ -287,8 +289,8 @@ export function EmailAiCommandCenter({
           className="h-7 w-7 shrink-0 text-orange-700 hover:bg-orange-100"
           onClick={(e) => { e.stopPropagation(); void refetch(); }}
           disabled={isFetching}
-          title="Aggiorna regia email"
-          aria-label="Aggiorna regia email"
+          title={t("Aggiorna regia email")}
+          aria-label={t("Aggiorna regia email")}
         >
           {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
         </Button>
@@ -304,28 +306,28 @@ export function EmailAiCommandCenter({
           <div id="email-ai-command-body" className="border-t border-orange-100 bg-white p-3">
             <div className="grid grid-cols-4 gap-1.5">
           <MetricPill
-            label="Urgenti"
+            label={t("Urgenti")}
             value={metrics.priority}
             icon={AlertTriangle}
             active={metrics.priority > 0}
             onClick={() => onFilterCategory("priority")}
           />
           <MetricPill
-            label="Vendita"
+            label={t("Vendita")}
             value={metrics.commercial}
             icon={Users}
             active={metrics.commercial > 0}
             onClick={() => onFilterCategory("lead")}
           />
           <MetricPill
-            label="Forn."
+            label={t("Forn.")}
             value={metrics.supplier}
             icon={Truck}
             active={metrics.supplier > 0}
             onClick={() => onFilterCategory("supplier")}
           />
           <MetricPill
-            label="Amm."
+            label={t("Amm.")}
             value={metrics.admin}
             icon={ReceiptText}
             active={metrics.admin > 0}
@@ -336,7 +338,7 @@ export function EmailAiCommandCenter({
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Da gestire
+              {t("Da gestire")}
             </p>
             <Badge variant="outline" className="h-5 border-orange-100 bg-white text-[10px] text-orange-700">
               {queue.length}
@@ -350,15 +352,15 @@ export function EmailAiCommandCenter({
             </div>
           ) : isError ? (
             <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs text-amber-800">
-              Non riesco a leggere la coda AI adesso.
+              {t("Non riesco a leggere la coda AI adesso.")}
               <button type="button" className="ml-1 font-semibold underline" onClick={() => void refetch()}>
-                Riprova
+                {t("Riprova")}
               </button>
               {error instanceof Error && <p className="mt-1 line-clamp-2 text-[11px] opacity-80">{error.message}</p>}
             </div>
           ) : queue.length === 0 ? (
             <div className="rounded-xl border border-dashed border-orange-100 bg-white/80 p-3 text-xs text-slate-500">
-              Nessuna email critica recente. Le nuove email verranno lette e smistate qui.
+              {t("Nessuna email critica recente. Le nuove email verranno lette e smistate qui.")}
             </div>
           ) : (
             queue.slice(0, 3).map((item) => (
@@ -373,14 +375,14 @@ export function EmailAiCommandCenter({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <p className="truncate text-xs font-semibold text-slate-900">
-                        {item.email.from_name || item.email.from_email || "Mittente sconosciuto"}
+                        {item.email.from_name || item.email.from_email || t("Mittente sconosciuto")}
                       </p>
                       <span className="ml-auto shrink-0 text-[10px] text-slate-400">
                         {formatTime(item.email.received_at)}
                       </span>
                     </div>
                     <p className="mt-0.5 truncate text-[11px] text-slate-600">
-                      {item.email.subject || "(senza oggetto)"}
+                      {item.email.subject || t("(senza oggetto)")}
                     </p>
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       <Badge className={cn(
@@ -389,7 +391,7 @@ export function EmailAiCommandCenter({
                           ? "bg-orange-600 hover:bg-orange-600"
                           : "bg-orange-600 hover:bg-orange-600",
                       )}>
-                        {categoryLabel(item.category)}
+                        {t(categoryLabel(item.category))}
                       </Badge>
                       {item.prediction.targets.slice(0, 1).map((target) => (
                         <Badge key={target.type} variant="outline" className="h-5 rounded-full border-emerald-100 bg-emerald-50 px-2 text-[9px] text-emerald-700">

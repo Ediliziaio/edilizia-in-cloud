@@ -20,25 +20,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { CallTranscript } from "@/components/telephony/CallTranscript";
 import { FishCallbackCard } from "./FishCallbackCard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TaskDialog = lazy(() => import("@/components/tasks/TaskDialog").then(({ TaskDialog }) => ({ default: TaskDialog })));
 
 function CallbackTaskEditor({ id, companyId, close }: { id: string; companyId: string; close: () => void }) {
+  const t = useT();
   const cache = useQueryClient();
   const task = useQuery({
     queryKey: ["fish-callback-task", companyId, id],
     retry: false,
     queryFn: async () => {
       const { data, error } = await supabase.from("tasks").select("*").eq("company_id", companyId).eq("id", id).single();
-      if (error) throw new Error("Attività non disponibile.");
+      if (error) throw new Error(t("Attività non disponibile."));
       return data;
     },
   });
-  if (task.isPending) return <p role="status" className="text-sm">Carico l’attività…</p>;
+  if (task.isPending) return <p role="status" className="text-sm">{t("Carico l’attività…")}</p>;
   if (task.isError) return <p role="alert" className="text-sm">{task.error.message}</p>;
   const scope = task.data.activity_scope;
   return (
-    <Suspense fallback={<p role="status" className="text-sm">Apro l’attività…</p>}>
+    <Suspense fallback={<p role="status" className="text-sm">{t("Apro l’attività…")}</p>}>
       <TaskDialog open onOpenChange={open => { if (!open) close(); }}
         task={{
           ...task.data,
@@ -66,6 +68,7 @@ function CallbackRow({ callback, companyId, focused, canViewContact, canEdit, ca
   closed: boolean;
   statusLabel: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(focused);
   const [editing, setEditing] = useState(false);
   const [outcomeOpen, setOutcomeOpen] = useState(false);
@@ -85,7 +88,7 @@ function CallbackRow({ callback, companyId, focused, canViewContact, canEdit, ca
       setOutcomeOpen(false);
       setOutcome("");
       setDetail("");
-      toast.success(selection === "Contattato" ? "Esito salvato. Richiamo completato." : "Esito salvato. Il richiamo resta da gestire.");
+      toast.success(selection === "Contattato" ? t("Esito salvato. Richiamo completato.") : t("Esito salvato. Il richiamo resta da gestire."));
       void cache.invalidateQueries({ queryKey: ["fish-callback-task", companyId, callback.id] });
       void cache.invalidateQueries({ queryKey: queryKeys.tasks.all });
       void cache.invalidateQueries({ queryKey: ["my-task-count"] });
@@ -103,60 +106,60 @@ function CallbackRow({ callback, companyId, focused, canViewContact, canEdit, ca
     <FishCallbackCard callback={callback} statusLabel={statusLabel} open={open} onToggle={() => setOpen(current => !current)}
       primaryActions={canWork && <>
         {canDial && <Button size="sm" disabled={!phone || !softphone || callBusy || result.isPending}
-          className="eic-motion-button" title={phone ?? "Recapito del richiamo non disponibile"} onClick={callBack}>
-          <Phone className="mr-1.5 h-4 w-4" /> Richiama
+          className="eic-motion-button" title={phone ?? t("Recapito del richiamo non disponibile")} onClick={callBack}>
+          <Phone className="mr-1.5 h-4 w-4" /> {t("Richiama")}
         </Button>}
         <Button size="sm" variant="outline" aria-expanded={outcomeOpen} aria-controls={formId}
           onClick={() => setOutcomeOpen(current => !current)}>
-          <ClipboardCheck className="mr-1.5 h-4 w-4" /> Segna esito
+          <ClipboardCheck className="mr-1.5 h-4 w-4" /> {t("Segna esito")}
         </Button>
       </>}
       followUp={canWork && outcomeOpen && (
-        <form id={formId} aria-label="Registra esito" className="eic-workspace-header eic-motion-enter space-y-3 p-3"
+        <form id={formId} aria-label={t("Registra esito")} className="eic-workspace-header eic-motion-enter space-y-3 p-3"
           onSubmit={event => {
             event.preventDefault();
             if (outcome && !callBusy && !result.isPending) result.mutate(outcome);
           }}>
           <div className="grid gap-3 sm:grid-cols-[13rem_1fr]">
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-outcome`}>Esito del richiamo</Label>
+              <Label htmlFor={`${formId}-outcome`}>{t("Esito del richiamo")}</Label>
               <select id={`${formId}-outcome`} required value={outcome} disabled={result.isPending}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                 onChange={event => setOutcome(fishCallbackOutcomes.find(value => value === event.target.value) ?? "")}>
-                <option value="">Seleziona esito</option>
-                {fishCallbackOutcomes.map(value => <option key={value} value={value}>{value}</option>)}
+                <option value="">{t("Seleziona esito")}</option>
+                {fishCallbackOutcomes.map(value => <option key={value} value={value}>{t(value)}</option>)}
               </select>
               {outcome && <p className="text-xs text-muted-foreground">
-                {outcome === "Contattato" ? "Il richiamo verrà completato." : "Il richiamo resterà da gestire."}
+                {outcome === "Contattato" ? t("Il richiamo verrà completato.") : t("Il richiamo resterà da gestire.")}
               </p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-note`}>Nota facoltativa</Label>
+              <Label htmlFor={`${formId}-note`}>{t("Nota facoltativa")}</Label>
               <Textarea id={`${formId}-note`} rows={2} maxLength={500} value={detail} disabled={result.isPending}
                 onChange={event => setDetail(event.target.value)} />
             </div>
           </div>
-          {callBusy && <p role="status" className="text-xs text-muted-foreground">Puoi salvare l’esito al termine della chiamata.</p>}
+          {callBusy && <p role="status" className="text-xs text-muted-foreground">{t("Puoi salvare l’esito al termine della chiamata.")}</p>}
           {result.isError && <p role="alert" className="text-sm text-destructive">{result.error.message}</p>}
           <Button type="submit" size="sm" className="eic-motion-button" disabled={!outcome || callBusy || result.isPending}>
-            {result.isPending ? "Salvataggio…" : "Salva esito"}
+            {result.isPending ? t("Salvataggio…") : t("Salva esito")}
           </Button>
         </form>
       )}
       links={<>
         {canViewContact && callback.contact_id && (
           <Button size="sm" variant="ghost" asChild>
-            <Link to={`/azienda/marketing/contatti/${callback.contact_id}?pannello=chiamate`}>Apri scheda CRM</Link>
+            <Link to={`/azienda/marketing/contatti/${callback.contact_id}?pannello=chiamate`}>{t("Apri scheda CRM")}</Link>
           </Button>
         )}
-        {canEdit && <Button size="sm" variant="ghost" onClick={() => setEditing(current => !current)}>Gestisci richiamo</Button>}
+        {canEdit && <Button size="sm" variant="ghost" onClick={() => setEditing(current => !current)}>{t("Gestisci richiamo")}</Button>}
         {editing && canEdit && <CallbackTaskEditor id={callback.id} companyId={companyId} close={() => setEditing(false)} />}
       </>}
     >
-      {transcript.isPending ? <p role="status" className="text-sm">Carico la trascrizione…</p>
+      {transcript.isPending ? <p role="status" className="text-sm">{t("Carico la trascrizione…")}</p>
         : transcript.isError ? (
           <p role="alert" className="text-sm">{transcript.error.message}{" "}
-            <Button size="sm" variant="ghost" onClick={() => void transcript.refetch()}>Riprova</Button>
+            <Button size="sm" variant="ghost" onClick={() => void transcript.refetch()}>{t("Riprova")}</Button>
           </p>
         ) : <CallTranscript turns={transcript.data} />}
     </FishCallbackCard>
@@ -164,6 +167,7 @@ function CallbackRow({ callback, companyId, focused, canViewContact, canEdit, ca
 }
 
 export function RichiamiCentralino({ callbackId }: { callbackId?: string }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const permissions = usePermissions();
   const [params] = useSearchParams();
@@ -174,31 +178,31 @@ export function RichiamiCentralino({ callbackId }: { callbackId?: string }) {
     "completato", "annullata", "annullato", ...statuses.filter(status => status.stage === "done").map(status => status.value),
   ])];
   const query = useFishCallbacks(companyId, { callbackId, closedStatuses: !callbackId && !showAll ? closedStatuses : undefined }, allowed);
-  if (permissions.isLoading) return <p role="status" className="text-sm">Verifico i permessi…</p>;
-  if (!allowed) return <p className="rounded-lg border p-3 text-sm">Serve l’accesso alle attività per consultare i richiami.</p>;
+  if (permissions.isLoading) return <p role="status" className="text-sm">{t("Verifico i permessi…")}</p>;
+  if (!allowed) return <p className="rounded-lg border p-3 text-sm">{t("Serve l’accesso alle attività per consultare i richiami.")}</p>;
   return (
-    <section aria-label="Richiami del centralino" className="w-full max-w-5xl space-y-3">
+    <section aria-label={t("Richiami del centralino")} className="w-full max-w-5xl space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">{callbackId ? "Richiamo collegato" : "Coda richiami"}</h2>
+        <h2 className="text-base font-semibold">{callbackId ? t("Richiamo collegato") : t("Coda richiami")}</h2>
         {callbackId ? (
-          <Button asChild variant="outline" size="sm"><Link to={centralinoCallbackHref(undefined, params)}>Torna alla coda</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link to={centralinoCallbackHref(undefined, params)}>{t("Torna alla coda")}</Link></Button>
         ) : (
-          <div role="group" aria-label="Stato dei richiami" className="flex gap-1 rounded-lg bg-muted p-1">
+          <div role="group" aria-label={t("Stato dei richiami")} className="flex gap-1 rounded-lg bg-muted p-1">
             <Button size="sm" variant={showAll ? "ghost" : "secondary"} aria-pressed={!showAll}
-              onClick={() => setShowAll(false)}>Da gestire</Button>
+              onClick={() => setShowAll(false)}>{t("Da gestire")}</Button>
             <Button size="sm" variant={showAll ? "secondary" : "ghost"} aria-pressed={showAll}
-              onClick={() => setShowAll(true)}>Tutti</Button>
+              onClick={() => setShowAll(true)}>{t("Tutti")}</Button>
           </div>
         )}
       </div>
-      {!companyId || query.isPending ? <p role="status" className="text-sm">Carico i richiami…</p>
+      {!companyId || query.isPending ? <p role="status" className="text-sm">{t("Carico i richiami…")}</p>
         : query.isError ? (
           <p role="alert" className="text-sm">{query.error.message}{" "}
-            <Button size="sm" variant="ghost" onClick={() => void query.refetch()}>Riprova</Button>
+            <Button size="sm" variant="ghost" onClick={() => void query.refetch()}>{t("Riprova")}</Button>
           </p>
         ) : !query.data.length ? (
           <p className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-            {callbackId ? "Richiamo non disponibile." : showAll ? "La coda è vuota." : "Non ci sono richiami da gestire."}
+            {callbackId ? t("Richiamo non disponibile.") : showAll ? t("La coda è vuota.") : t("Non ci sono richiami da gestire.")}
           </p>
         )
           : query.data.map(callback => (

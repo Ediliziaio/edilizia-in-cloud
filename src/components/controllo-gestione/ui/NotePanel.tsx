@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/formatters";
 import { Plus, Trash2, FileText } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SCOPES: { value: NoteScope; label: string }[] = [
   { value: "CE",       label: "Conto Economico" },
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export function NotePanel({ anno }: Props) {
+  const tr = useT();
   const [scope, setScope] = useState<NoteScope>("CE");
   const q = useNoteVoci(anno, scope);
   const upsert = useUpsertNotaVoce();
@@ -47,8 +49,8 @@ export function NotePanel({ anno }: Props) {
     const t = contenuto.trim();
     if (!c || !t) {
       toast({
-        title: "Dati mancanti",
-        description: "Codice voce e contenuto obbligatori.",
+        title: tr("Dati mancanti"),
+        description: tr("Codice voce e contenuto obbligatori."),
         variant: "destructive",
       });
       return;
@@ -57,9 +59,9 @@ export function NotePanel({ anno }: Props) {
       await upsert.mutateAsync({ anno, scope, codice_voce: c, contenuto: t });
       setCodice("");
       setContenuto("");
-      toast({ title: "Nota salvata" });
+      toast({ title: tr("Nota salvata") });
     } catch (e) {
-      toast({ title: "Errore", description: messaggioErrore(e), variant: "destructive" });
+      toast({ title: tr("Errore"), description: messaggioErrore(e), variant: "destructive" });
     }
   };
 
@@ -67,40 +69,40 @@ export function NotePanel({ anno }: Props) {
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <FileText className="h-4 w-4" /> Note esplicative
+          <FileText className="h-4 w-4" /> {tr("Note esplicative")}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Appunti del controller su voci specifiche dei prospetti. Vengono incluse nei pacchetti banca.
+          {tr("Appunti del controller su voci specifiche dei prospetti. Vengono incluse nei pacchetti banca.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <div>
-            <Label className="text-xs">Prospetto</Label>
+            <Label className="text-xs">{tr("Prospetto")}</Label>
             <Select value={scope} onValueChange={(v) => setScope(v as NoteScope)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {SCOPES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  <SelectItem key={s.value} value={s.value}>{tr(s.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Codice voce</Label>
+            <Label className="text-xs">{tr("Codice voce")}</Label>
             <Input
               value={codice}
               onChange={(e) => setCodice(e.target.value)}
-              placeholder="es. 06 (per Costo personale)"
+              placeholder={tr("es. 06 (per Costo personale)")}
             />
           </div>
           <div className="col-span-2">
-            <Label className="text-xs">Nota</Label>
+            <Label className="text-xs">{tr("Nota")}</Label>
             <Textarea
               rows={2}
               value={contenuto}
               onChange={(e) => setContenuto(e.target.value)}
-              placeholder="es. Aumento dovuto ad assunzione capocantiere a marzo"
+              placeholder={tr("es. Aumento dovuto ad assunzione capocantiere a marzo")}
             />
           </div>
         </div>
@@ -109,18 +111,16 @@ export function NotePanel({ anno }: Props) {
           disabled={upsert.isPending}
           onClick={handleAdd}
         >
-          <Plus className="mr-2 h-4 w-4" /> Aggiungi nota
+          <Plus className="mr-2 h-4 w-4" /> {tr("Aggiungi nota")}
         </Button>
 
         {/* Lista note esistenti */}
         <div className="border-t pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Note esistenti per {SCOPES.find((s) => s.value === scope)?.label} · {anno}
-          </p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Note esistenti per {label} · {anno}", { label: tr(SCOPES.find((s) => s.value === scope)?.label ?? ""), anno })}</p>
           {q.isLoading && <Skeleton className="h-20 w-full" />}
           {q.data && q.data.length === 0 && (
             <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
-              Nessuna nota.
+              {tr("Nessuna nota.")}
             </p>
           )}
           {q.data && q.data.length > 0 && (
@@ -135,21 +135,19 @@ export function NotePanel({ anno }: Props) {
                   </Badge>
                   <div className="min-w-0 flex-1">
                     <p>{n.contenuto}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Aggiornata il {formatDate(n.updated_at)}
-                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{tr("Aggiornata il {updated_at}", { updated_at: formatDate(n.updated_at) })}</p>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label="Elimina nota"
+                    aria-label={tr("Elimina nota")}
                     onClick={async () => {
                       try {
                         await del.mutateAsync(n.id);
-                        toast({ title: "Nota eliminata" });
+                        toast({ title: tr("Nota eliminata") });
                       } catch (e) {
-                        toast({ title: "Errore", description: messaggioErrore(e), variant: "destructive" });
+                        toast({ title: tr("Errore"), description: messaggioErrore(e), variant: "destructive" });
                       }
                     }}
                   >

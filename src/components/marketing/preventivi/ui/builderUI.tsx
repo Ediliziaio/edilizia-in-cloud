@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SelettoreFase } from "@/components/preventivatore/SelettoreFase";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── PAGE HEADER (titolo + chips + actions) ───────────────────────────────────
 
@@ -412,6 +413,7 @@ export function QuoteStepper({
   allowJumpForward,
   className,
 }: QuoteStepperProps) {
+  const t = useT();
   const completedCount = completedSteps?.filter(Boolean).length;
   const selezionabile = (indice: number) => indice <= current + 1 || Boolean(allowJumpForward);
   const pct = Math.round(((completedCount ?? (current + 1)) / steps.length) * 100);
@@ -467,9 +469,7 @@ export function QuoteStepper({
                 {isCompleted ? "✓" : i + 1}
               </span>
               <span className="flex flex-col items-start leading-tight text-left">
-                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider hidden sm:inline">
-                  Step {i + 1}
-                </span>
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider hidden sm:inline">{t("Step {i}", { i: i + 1 })}</span>
                 <span className={s.labelBreve ? "max-sm:hidden" : undefined}>{s.label}</span>
                 {s.labelBreve && <span className="sm:hidden">{s.labelBreve}</span>}
               </span>
@@ -479,9 +479,7 @@ export function QuoteStepper({
       </div>
       <div className="hidden items-center gap-3 border-t border-slate-100 bg-slate-50 px-6 py-2 text-xs text-slate-500 lg:flex">
         <span className="shrink-0">
-          <strong className="text-slate-900">
-            Step {current + 1} di {steps.length}
-          </strong>
+          <strong className="text-slate-900">{t("Step {current} di {n}", { current: current + 1, n: steps.length })}</strong>
           <span className="hidden sm:inline"> · {steps[current]?.label}</span>
         </span>
         <div className="flex-1 max-w-[240px] h-1 bg-slate-200 rounded-full overflow-hidden">
@@ -490,7 +488,7 @@ export function QuoteStepper({
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="hidden sm:inline">{completedCount == null ? `${pct}% completato` : `${completedCount} di ${steps.length} sezioni compilate`}</span>
+        <span className="hidden sm:inline">{completedCount == null ? t("{pct}% completato", { pct: String(pct ?? "") }) : t("{completedCount} di {n} sezioni compilate", { completedCount: String(completedCount ?? ""), n: steps.length })}</span>
       </div>
     </div>
   );
@@ -519,6 +517,7 @@ export function QuoteHubTabs({
   onSelect,
   className,
 }: QuoteHubTabsProps) {
+  const tr = useT();
   return (
     <div
       className={cn(
@@ -530,7 +529,7 @@ export function QuoteHubTabs({
       <nav
         className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3 max-sm:overflow-visible max-sm:px-0"
         role="tablist"
-        aria-label="Sezioni preventivi"
+        aria-label={tr("Sezioni preventivi")}
       >
         {tabs.map((t) => {
           const isActive = t.key === active;
@@ -609,6 +608,7 @@ export function QuoteActionBar({
   numero,
   lastSaveText,
 }: QuoteActionBarProps) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -620,23 +620,23 @@ export function QuoteActionBar({
         <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap">
           {saveState === "saving" && (
             <span className="flex items-center gap-1.5 text-blue-600 font-medium">
-              <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+              <Loader2 className="h-3 w-3 animate-spin" /> {t("Salvataggio…")}
             </span>
           )}
           {saveState === "saved" && (
             <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Salvato automaticamente
+              {t("Salvato automaticamente")}
             </span>
           )}
           {saveState === "error" && (
             <span className="flex items-center gap-1.5 text-red-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
+              <span className="w-2 h-2 rounded-full bg-red-500" /> {t("Errore salvataggio")}
             </span>
           )}
           {saveState === "idle" && (
             <span className="flex items-center gap-1.5 text-slate-400">
-              <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
+              <span className="w-2 h-2 rounded-full bg-slate-300" /> {t("Pronto")}
             </span>
           )}
           {lastSaveText && <span>· {lastSaveText}</span>}
@@ -670,6 +670,7 @@ export function QuotePrimaryButton({
   disabled,
   ...rest
 }: QuotePrimaryButtonProps) {
+  const t = useT();
   const sizeCls =
     size === "sm"
       ? "px-3 py-1.5 text-xs"
@@ -693,7 +694,7 @@ export function QuotePrimaryButton({
       {loading ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Attendere…</span>
+          <span>{t("Attendere…")}</span>
         </>
       ) : (
         children

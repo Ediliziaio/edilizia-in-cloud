@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -12,6 +13,7 @@ interface CreateFolderDialogProps {
 }
 
 export function CreateFolderDialog({ open, onOpenChange, onConfirm, isPending }: CreateFolderDialogProps) {
+  const t = useT();
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -22,15 +24,15 @@ export function CreateFolderDialog({ open, onOpenChange, onConfirm, isPending }:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Nuova cartella</DialogTitle>
-          <DialogDescription>Inserisci il nome della nuova cartella</DialogDescription>
+          <DialogTitle>{t("Nuova cartella")}</DialogTitle>
+          <DialogDescription>{t("Inserisci il nome della nuova cartella")}</DialogDescription>
         </DialogHeader>
         <div>
-          <Label>Nome cartella</Label>
+          <Label>{t("Nome cartella")}</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Es. Promozioni"
+            placeholder={t("Es. Promozioni")}
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter" && name.trim()) {
@@ -40,9 +42,9 @@ export function CreateFolderDialog({ open, onOpenChange, onConfirm, isPending }:
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={() => onConfirm(name.trim())} disabled={!name.trim() || isPending}>
-            {isPending ? "Creazione..." : "Crea cartella"}
+            {isPending ? t("Creazione...") : t("Crea cartella")}
           </Button>
         </DialogFooter>
       </DialogContent>

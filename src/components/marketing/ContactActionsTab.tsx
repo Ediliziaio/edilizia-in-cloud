@@ -11,6 +11,7 @@ import { ConvertToCustomerDialog } from "./ConvertToCustomerDialog";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ContactActionsTabProps {
   contact: any;
@@ -18,6 +19,7 @@ interface ContactActionsTabProps {
 }
 
 export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabProps>(function ContactActionsTab({ contact, companyId }, ref) {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showAICallDialog, setShowAICallDialog] = useState(false);
@@ -45,15 +47,15 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
   // Popup invio rapido (SMS/WhatsApp/Email + AI) — sostituisce la navigazione a /messaggi.
   const [quickSend, setQuickSend] = useState<{ open: boolean; channel: QuickSendChannel }>({ open: false, channel: "whatsapp" });
   const handleSendMessage = (channel: QuickSendChannel) => {
-    if ((channel === "whatsapp" || channel === "sms") && !contact.phone) { toast.error("Numero di telefono mancante"); return; }
-    if (channel === "email" && !contact.email) { toast.error("Email mancante"); return; }
+    if ((channel === "whatsapp" || channel === "sms") && !contact.phone) { toast.error(t("Numero di telefono mancante")); return; }
+    if (channel === "email" && !contact.email) { toast.error(t("Email mancante")); return; }
     setQuickSend({ open: true, channel });
   };
 
   const softphone = useSoftphoneOptional();
   const handleCall = () => {
     if (!contact.phone) {
-      toast.error("Numero di telefono mancante");
+      toast.error(t("Numero di telefono mancante"));
       return;
     }
     // Centralina in-app: parli tu dal browser. Fallback a tel: se non disponibile.
@@ -66,7 +68,7 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
 
   const handleAICall = async () => {
     if (!selectedAgentId) {
-      toast.error("Seleziona un agente AI");
+      toast.error(t("Seleziona un agente AI"));
       return;
     }
     setCallingAI(true);
@@ -76,10 +78,10 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success(data?.message || "Chiamata AI avviata");
+      toast.success(data?.message || t("Chiamata AI avviata"));
       setShowAICallDialog(false);
     } catch (err: any) {
-      toast.error(err.message || "Errore nella chiamata AI");
+      toast.error(err.message || t("Errore nella chiamata AI"));
     } finally {
       setCallingAI(false);
     }
@@ -87,42 +89,42 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
 
   const actions = [
     {
-      label: "Invia WhatsApp",
+      label: t("Invia WhatsApp"),
       icon: MessageSquare,
       color: "text-emerald-600",
       disabled: !contact.phone || contact.optout_whatsapp,
       onClick: () => handleSendMessage("whatsapp"),
     },
     {
-      label: "Invia Email",
+      label: t("Invia Email"),
       icon: Mail,
       color: "text-violet-600",
       disabled: !contact.email || contact.optout_email,
       onClick: () => handleSendMessage("email"),
     },
     {
-      label: "Invia SMS",
+      label: t("Invia SMS"),
       icon: Smartphone,
       color: "text-blue-600",
       disabled: !contact.phone || contact.optout_sms,
       onClick: () => handleSendMessage("sms"),
     },
     {
-      label: "Chiama",
+      label: t("Chiama"),
       icon: Phone,
       color: "text-orange-600",
       disabled: !contact.phone || contact.optout_call,
       onClick: handleCall,
     },
     {
-      label: "Aggiungi ad automazione",
+      label: t("Aggiungi ad automazione"),
       icon: ArrowRight,
       color: "text-primary",
       disabled: false,
       onClick: () => navigate(`/azienda/marketing/automazioni`),
     },
     {
-      label: "Chiama con AI",
+      label: t("Chiama con AI"),
       icon: Bot,
       color: "text-primary",
       // Il consenso serve SOLO alla voce automatica. Una telefonata fatta da
@@ -150,10 +152,10 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
               onClick={() => setConvertOpen(true)}
             >
               <UserCheck className="h-3.5 w-3.5 mr-2" />
-              Converti in Cliente
+              {t("Converti in Cliente")}
             </Button>
             <p className="text-[9px] text-muted-foreground px-0.5">
-              Crea account portale con accesso area riservata
+              {t("Crea account portale con accesso area riservata")}
             </p>
           </div>
         )}
@@ -163,8 +165,8 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
           <div className="flex items-center gap-1.5 p-2 rounded-md bg-emerald-50 border border-emerald-200">
             <UserCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-emerald-700">Cliente attivo</p>
-              <p className="text-[9px] text-emerald-600">Account portale creato</p>
+              <p className="text-[10px] font-semibold text-emerald-700">{t("Cliente attivo")}</p>
+              <p className="text-[9px] text-emerald-600">{t("Account portale creato")}</p>
             </div>
             <Button
               variant="ghost"
@@ -172,13 +174,13 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
               className="h-6 px-1.5 text-[9px] text-emerald-700"
               onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}
             >
-              Apri scheda
+              {t("Apri scheda")}
             </Button>
           </div>
         )}
       </div>
 
-      <p className="text-xs font-semibold">Azioni rapide</p>
+      <p className="text-xs font-semibold">{t("Azioni rapide")}</p>
       <div className="space-y-1.5">
         {actions.map((action) => (
           <Button
@@ -197,10 +199,10 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
                  (action.label.includes("Email") && contact.optout_email) ||
                  (action.label.includes("SMS") && contact.optout_sms) ||
                  (action.label.includes("Chiama") && contact.optout_call)
-                  ? "Opt-out"
+                  ? t("Opt-out")
                   : action.label === "Chiama con AI" && contact.phone && contact.marketing_consent !== true
-                    ? "Senza consenso"
-                    : "Mancante"}
+                    ? t("Senza consenso")
+                    : t("Mancante")}
               </span>
             )}
           </Button>
@@ -239,7 +241,7 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
         companyId={companyId}
         onSuccess={(_id) => {
           queryClient.invalidateQueries({ queryKey: ["marketing_contact", contact.id] });
-          toast.success("Cliente creato con successo!");
+          toast.success(t("Cliente creato con successo!"));
         }}
       />
 
@@ -248,16 +250,16 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary" />
-              Chiama con Agente AI
+              {t("Chiama con Agente AI")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Seleziona un agente AI per chiamare{" "}
+              {t("Seleziona un agente AI per chiamare")}{" "}
               <strong>{contact.first_name} {contact.last_name}</strong> ({contact.phone}).
             </p>
             <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-              <SelectTrigger><SelectValue placeholder="Seleziona agente..." /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("Seleziona agente...")} /></SelectTrigger>
               <SelectContent>
                 {aiAgents.map((a) => (
                   <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
@@ -266,10 +268,10 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAICallDialog(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setShowAICallDialog(false)}>{t("Annulla")}</Button>
             <Button onClick={handleAICall} disabled={callingAI || !selectedAgentId}>
               {callingAI && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Avvia chiamata
+              {t("Avvia chiamata")}
             </Button>
           </DialogFooter>
         </DialogContent>

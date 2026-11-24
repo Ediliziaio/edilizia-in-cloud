@@ -43,6 +43,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   progettoId: string;
@@ -86,6 +87,7 @@ const SERVIZI_RAPIDI: Array<{
 ];
 
 export function ServiziSection({ progettoId, detail }: Props) {
+  const tr = useT();
   const addMut = useAddManodopera(progettoId);
   const updateMut = useUpdateManodopera(progettoId);
   const deleteMut = useDeleteManodopera(progettoId);
@@ -136,8 +138,8 @@ export function ServiziSection({ progettoId, detail }: Props) {
         prezzo_unitario_vendita: t.prezzo_vendita != null ? Number(t.prezzo_vendita) : null,
         position: righe.length,
       });
-      toast.success(`${servizio.label} aggiunto`, {
-        description: `Prezzo €${Number(t.prezzo_vendita ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} dal listino tariffe.`,
+      toast.success(tr("{label} aggiunto", { label: String(servizio.label ?? "") }), {
+        description: tr("Prezzo €{valore} dal listino tariffe.", { valore: Number(t.prezzo_vendita ?? 0).toLocaleString(intlCampo(), { minimumFractionDigits: 2, useGrouping: true }) }),
       });
       return;
     }
@@ -156,8 +158,8 @@ export function ServiziSection({ progettoId, detail }: Props) {
       quantita: 1,
       position: righe.length,
     });
-    toast.info(`${servizio.label} aggiunto (manuale)`, {
-      description: "Configura una tariffa in Impostazioni → Listino → Manodopera e servizi per pre-popolare il prezzo al prossimo click.",
+    toast.info(tr("{label} aggiunto (manuale)", { label: String(servizio.label ?? "") }), {
+      description: tr("Configura una tariffa in Impostazioni → Listino → Manodopera e servizi per pre-popolare il prezzo al prossimo click."),
     });
   };
 
@@ -184,10 +186,10 @@ export function ServiziSection({ progettoId, detail }: Props) {
     setTariffaPickerOpen(false);
     // Feedback coerente con handleAddQuick: l'utente vede subito che il
     // prezzo è stato impostato e da dove proviene.
-    toast.success(`${t.nome} aggiunto`, {
+    toast.success(tr("{nome} aggiunto", { nome: String(t.nome ?? "") }), {
       description: t.prezzo_vendita != null
-        ? `Prezzo €${Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} dal listino tariffe.`
-        : "Voce creata. Inserisci il prezzo nella riga.",
+        ? tr("Prezzo €{valore} dal listino tariffe.", { valore: Number(t.prezzo_vendita).toLocaleString(intlCampo(), { minimumFractionDigits: 2, useGrouping: true }) })
+        : tr("Voce creata. Inserisci il prezzo nella riga."),
     });
   };
 
@@ -197,8 +199,8 @@ export function ServiziSection({ progettoId, detail }: Props) {
 
   return (
     <SrCard
-      title="Servizi aggiuntivi"
-      description="Trasporto, tiro al piano, pratica ENEA, smaltimento, ponteggio… La posa è già inclusa nel prezzo dei serramenti."
+      title={tr("Servizi aggiuntivi")}
+      description={tr("Trasporto, tiro al piano, pratica ENEA, smaltimento, ponteggio… La posa è già inclusa nel prezzo dei serramenti.")}
       icon={<Truck className="h-4 w-4" />}
     >
       {/* Quick-add chip per i servizi tipici: ogni chip cerca la tariffa
@@ -207,16 +209,16 @@ export function ServiziSection({ progettoId, detail }: Props) {
           (verrà creata voce manuale + toast guida). */}
       <div className="mb-3">
         <p className="text-[11px] text-muted-foreground mb-1.5 max-md:hidden">
-          Servizi tipici (click per aggiungere):{" "}
+          {tr("Servizi tipici (click per aggiungere):")}{" "}
           <span className="text-[10px]">
             <span className="inline-flex items-center gap-0.5 ml-1">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span>tariffa pronta</span>
+              <span>{tr("tariffa pronta")}</span>
             </span>
             <span className="mx-1.5">·</span>
             <span className="inline-flex items-center gap-0.5">
               <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-              <span>manuale</span>
+              <span>{tr("manuale")}</span>
             </span>
           </span>
         </p>
@@ -241,11 +243,11 @@ export function ServiziSection({ progettoId, detail }: Props) {
                 title={
                   hasTariffa
                     ? count === 1
-                      ? `Tariffa configurata — prezzo pescato automaticamente dal listino`
-                      : `${count} varianti in listino — al click ti chiederò quale usare`
+                      ? tr("Tariffa configurata — prezzo pescato automaticamente dal listino")
+                      : tr("{count} varianti in listino — al click ti chiederò quale usare", { count: String(count ?? "") })
                     : s.tariffaTipo === null
-                      ? `Servizio personalizzato — voce manuale. Aggiungi prezzo dopo aver creato la riga.`
-                      : `Nessuna tariffa "${s.label}" in Impostazioni → Listino → Manodopera e servizi: verrà creata voce manuale`
+                      ? tr("Servizio personalizzato — voce manuale. Aggiungi prezzo dopo aver creato la riga.")
+                      : tr("Nessuna tariffa \"{label}\" in Impostazioni → Listino → Manodopera e servizi: verrà creata voce manuale", { label: String(s.label ?? "") })
                 }
               >
                 <span
@@ -254,7 +256,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                   }`}
                   aria-hidden="true"
                 />
-                {s.emoji} {s.label}
+                {s.emoji} {tr(s.label)}
               </button>
             );
           })}
@@ -268,7 +270,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
           className="flex-1 gap-1 border-orange-300 text-orange-600 hover:bg-orange-50"
           disabled={addMut.isPending}
         >
-          <Settings className="h-4 w-4" /> Da listino tariffe
+          <Settings className="h-4 w-4" /> {tr("Da listino tariffe")}
         </Button>
         <Button
           onClick={() => addMut.mutate({ descrizione: "Servizio personalizzato", unita: "a_corpo", quantita: 1, position: righe.length })}
@@ -276,7 +278,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
           className="flex-1 gap-1"
           disabled={addMut.isPending}
         >
-          <Plus className="h-4 w-4" /> Voce custom
+          <Plus className="h-4 w-4" /> {tr("Voce custom")}
         </Button>
       </div>
 
@@ -284,7 +286,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
         <div className="border-2 border-dashed border-slate-200 rounded-md p-4 text-center bg-slate-50/30 max-md:p-2.5">
           <Truck className="h-7 w-7 mx-auto text-slate-300 mb-1.5 max-md:hidden" />
           <p className="text-xs text-muted-foreground">
-            Nessun servizio aggiuntivo.<span className="max-md:hidden"> Sono <strong>opzionali</strong>: aggiungi solo quelli effettivamente concordati col cliente.</span>
+            {tr("Nessun servizio aggiuntivo.")}<span className="max-md:hidden"> {tr("Sono")} <strong>{tr("opzionali")}</strong>{tr(": aggiungi solo quelli effettivamente concordati col cliente.")}</span>
           </p>
         </div>
       ) : (
@@ -293,11 +295,11 @@ export function ServiziSection({ progettoId, detail }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Descrizione</TableHead>
-                  <TableHead className="text-xs w-20">Unità</TableHead>
-                  <TableHead className="text-xs w-20">Q.tà</TableHead>
-                  <TableHead className="text-xs w-28">€ vendita</TableHead>
-                  <TableHead className="text-xs w-28">Totale</TableHead>
+                  <TableHead className="text-xs">{tr("Descrizione")}</TableHead>
+                  <TableHead className="text-xs w-20">{tr("Unità")}</TableHead>
+                  <TableHead className="text-xs w-20">{tr("Q.tà")}</TableHead>
+                  <TableHead className="text-xs w-28">{tr("€ vendita")}</TableHead>
+                  <TableHead className="text-xs w-28">{tr("Totale")}</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -321,10 +323,10 @@ export function ServiziSection({ progettoId, detail }: Props) {
                             <Badge
                               variant="outline"
                               className="text-[9px] h-4 px-1 border-orange-300 text-orange-700 bg-white"
-                              title="Voce collegata a «Manodopera e servizi» del listino. Prezzo e unità sono gestiti dal listino — usa il menu per sganciare."
+                              title={tr("Voce collegata a «Manodopera e servizi» del listino. Prezzo e unità sono gestiti dal listino — usa il menu per sganciare.")}
                             >
                               <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                              da listino
+                              {tr("da listino")}
                             </Badge>
                           )}
                         </div>
@@ -334,10 +336,10 @@ export function ServiziSection({ progettoId, detail }: Props) {
                           <Input
                             defaultValue={r.unita ?? ""}
                             onBlur={(e) => onPatch(r.id, { unita: e.target.value || null })}
-                            placeholder="pz"
+                            placeholder={tr("pz")}
                             className={`h-8 text-xs w-16 ${isLinked ? "pr-5 bg-slate-50 cursor-not-allowed" : ""}`}
                             readOnly={isLinked}
-                            title={isLinked ? "Unità gestita dal listino tariffe. Sgancia per modificare." : undefined}
+                            title={isLinked ? tr("Unità gestita dal listino tariffe. Sgancia per modificare.") : undefined}
                           />
                           {isLinked && (
                             <Lock className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 text-orange-500 pointer-events-none" />
@@ -346,7 +348,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                       </TableCell>
                       <TableCell>
                         <CampoNumeroVivo
-                          aria-label={`Quantità ${r.descrizione ?? "servizio"}`}
+                          aria-label={tr("Quantità {nome}", { nome: r.descrizione ?? tr("servizio") })}
                           min={0}
                           step={0.5}
                           valore={r.quantita}
@@ -363,7 +365,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                             onBlur={(e) => onPatch(r.id, { prezzo_unitario_vendita: e.target.value ? Number(e.target.value) : null })}
                             className={`h-8 text-xs w-24 ${isLinked ? "pr-6 bg-slate-50 cursor-not-allowed" : ""}`}
                             readOnly={isLinked}
-                            title={isLinked ? "Prezzo gestito dal listino tariffe. Sgancia per modificare." : undefined}
+                            title={isLinked ? tr("Prezzo gestito dal listino tariffe. Sgancia per modificare.") : undefined}
                           />
                           {isLinked && (
                             <Lock className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-orange-500 pointer-events-none" />
@@ -386,13 +388,13 @@ export function ServiziSection({ progettoId, detail }: Props) {
                               <DropdownMenuItem
                                 onClick={() => {
                                   onPatch(r.id, { tariffa_id: null });
-                                  toast.info("Voce sganciata dal listino", {
-                                    description: "Ora puoi modificare prezzo e unità manualmente.",
+                                  toast.info(tr("Voce sganciata dal listino"), {
+                                    description: tr("Ora puoi modificare prezzo e unità manualmente."),
                                   });
                                 }}
                               >
                                 <Unlink2 className="h-3.5 w-3.5 mr-2" />
-                                Sgancia dal listino
+                                {tr("Sgancia dal listino")}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -400,7 +402,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                                 className="text-rose-600 focus:text-rose-700"
                               >
                                 <Trash2 className="h-3.5 w-3.5 mr-2" />
-                                Elimina riga
+                                {tr("Elimina riga")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -408,7 +410,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                           <Button
                             size="icon" variant="ghost" className="h-8 w-8 sm:h-7 sm:w-7"
                             onClick={() => setToDelete(r)}
-                            title="Elimina"
+                            title={tr("Elimina")}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                           </Button>
@@ -422,7 +424,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
           </div>
 
           <Card className="bg-slate-50 border-slate-200 p-3 flex items-center justify-between flex-wrap gap-2">
-            <span className="text-xs font-semibold text-slate-700">Subtotale servizi</span>
+            <span className="text-xs font-semibold text-slate-700">{tr("Subtotale servizi")}</span>
             <span className="text-lg font-bold text-slate-800 tabular-nums">
               {formatEuro(subtotaleVendita)}
             </span>
@@ -443,13 +445,11 @@ export function ServiziSection({ progettoId, detail }: Props) {
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il servizio?</AlertDialogTitle>
-            <AlertDialogDescription>
-              "{toDelete?.descrizione}" verrà rimosso dal preventivo.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{tr("Eliminare il servizio?")}</AlertDialogTitle>
+            <AlertDialogDescription>{tr("\"{descrizione}\" verrà rimosso dal preventivo.", { descrizione: String(toDelete?.descrizione ?? "") })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
               onClick={() => {
@@ -457,7 +457,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                 setToDelete(null);
               }}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -480,6 +480,7 @@ function TariffaPickerDialog({
    *  le varianti rilevanti. */
   initialFilter?: string;
 }) {
+  const tr = useT();
   const [search, setSearch] = useState(initialFilter ?? "");
   const [debounced, setDebounced] = useState(initialFilter ?? "");
 
@@ -504,9 +505,9 @@ function TariffaPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Seleziona dal listino tariffe</DialogTitle>
+          <DialogTitle>{tr("Seleziona dal listino tariffe")}</DialogTitle>
           <DialogDescription>
-            Tariffe configurate in Impostazioni → Listino → Manodopera e servizi. Filtra per cercare servizi (trasporto, ENEA, ecc.).
+            {tr("Tariffe configurate in Impostazioni → Listino → Manodopera e servizi. Filtra per cercare servizi (trasporto, ENEA, ecc.).")}
           </DialogDescription>
         </DialogHeader>
 
@@ -515,7 +516,7 @@ function TariffaPickerDialog({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca (trasporto, ENEA, smaltimento, sopralluogo…)"
+            placeholder={tr("Cerca (trasporto, ENEA, smaltimento, sopralluogo…)")}
             className="pl-9 h-10"
             autoFocus
           />
@@ -525,13 +526,13 @@ function TariffaPickerDialog({
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-              Caricamento…
+              {tr("Caricamento…")}
             </div>
           ) : tariffe.length === 0 ? (
             <div className="py-8 text-center">
               <Truck className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">
-                Nessuna tariffa trovata. Configurale in Impostazioni → Listino → Manodopera e servizi.
+                {tr("Nessuna tariffa trovata. Configurale in Impostazioni → Listino → Manodopera e servizi.")}
               </p>
             </div>
           ) : (
@@ -553,14 +554,14 @@ function TariffaPickerDialog({
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{t.categoria_prodotto}</span>
                           )}
                           {t.unita && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">per {t.unita}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">{tr("per {data}", { data: String(t.unita ?? "") })}</span>
                           )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
                         {t.prezzo_vendita != null && (
                           <p className="text-sm font-bold text-orange-600 tabular-nums">
-                            € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
+                            € {Number(t.prezzo_vendita).toLocaleString(intlCampo(), { minimumFractionDigits: 2, useGrouping: true })}
                           </p>
                         )}
                       </div>
@@ -573,7 +574,7 @@ function TariffaPickerDialog({
         </div>
 
         <div className="flex justify-end pt-2 border-t">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{tr("Annulla")}</Button>
         </div>
       </DialogContent>
     </Dialog>

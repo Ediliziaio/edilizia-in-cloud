@@ -11,6 +11,7 @@ import type {
   AdsCallCenterPlatform,
   AdsCallCenterProviderFilter,
 } from "@/lib/reporting/adsCallCenterReport";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PROVIDER_LABEL: Record<AdsCallCenterProviderFilter, string> = {
   all: "Meta + Google",
@@ -29,6 +30,7 @@ export function AdsCallCenterReportPanel({
   compact?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { rows, totals, isLoading, error } = useAdsCallCenterReport({ companyId, provider, daysBack });
@@ -41,15 +43,11 @@ export function AdsCallCenterReportPanel({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <PhoneCall className="h-5 w-5 text-sky-600" />
-              Lead ads e chiamate
+              {t("Lead ads e chiamate")}
             </CardTitle>
-            <CardDescription>
-              Verifica se i lead {PROVIDER_LABEL[provider]} vengono chiamati, in quanto tempo e con che esito.
-            </CardDescription>
+            <CardDescription>{t("Verifica se i lead {piattaforma} vengono chiamati, in quanto tempo e con che esito.", { piattaforma: PROVIDER_LABEL[provider] })}</CardDescription>
           </div>
-          <Badge variant="outline" className="w-fit border-sky-200 bg-white text-sky-700">
-            Ultimi {daysBack} giorni
-          </Badge>
+          <Badge variant="outline" className="w-fit border-sky-200 bg-white text-sky-700">{t("Ultimi {daysBack} giorni", { daysBack })}</Badge>
         </div>
       </CardHeader>
 
@@ -57,21 +55,21 @@ export function AdsCallCenterReportPanel({
         {error && (
           <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4" />
-            Dati chiamate parziali: {error}
+            {t("Dati chiamate parziali: {errore}", { errore: String(error) })}
           </div>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricTile icon={Users} label="Lead ads" value={String(totals.leads)} loading={isLoading} />
-          <MetricTile icon={PhoneCall} label="Lead chiamati" value={`${totals.calledLeads} (${formatPct(totals.calledRatePct)})`} loading={isLoading} />
-          <MetricTile icon={Target} label="Risposte" value={`${totals.answeredLeads} (${formatPct(totals.contactRatePct)})`} loading={isLoading} />
-          <MetricTile icon={Clock} label="Speed to lead" value={formatMinutes(totals.avgSpeedToLeadMin)} loading={isLoading} />
+          <MetricTile icon={Users} label={t("Lead ads")} value={String(totals.leads)} loading={isLoading} />
+          <MetricTile icon={PhoneCall} label={t("Lead chiamati")} value={`${totals.calledLeads} (${formatPct(totals.calledRatePct)})`} loading={isLoading} />
+          <MetricTile icon={Target} label={t("Risposte")} value={`${totals.answeredLeads} (${formatPct(totals.contactRatePct)})`} loading={isLoading} />
+          <MetricTile icon={Clock} label={t("Speed to lead")} value={formatMinutes(totals.avgSpeedToLeadMin)} loading={isLoading} />
           {!compact && (
             <>
-              <MetricTile icon={PhoneCall} label="Tentativi / lead" value={formatNumber(totals.attemptsPerLead)} loading={isLoading} />
-              <MetricTile icon={Timer} label="Durata media risposta" value={formatMinutes(totals.avgAnsweredDurationMin)} loading={isLoading} />
-              <MetricTile icon={Target} label="Appuntamenti" value={String(totals.appointments)} loading={isLoading} />
-              <MetricTile icon={Target} label="% App. su lead" value={formatPct(totals.appointmentRatePct)} loading={isLoading} />
+              <MetricTile icon={PhoneCall} label={t("Tentativi / lead")} value={formatNumber(totals.attemptsPerLead)} loading={isLoading} />
+              <MetricTile icon={Timer} label={t("Durata media risposta")} value={formatMinutes(totals.avgAnsweredDurationMin)} loading={isLoading} />
+              <MetricTile icon={Target} label={t("Appuntamenti")} value={String(totals.appointments)} loading={isLoading} />
+              <MetricTile icon={Target} label={t("% App. su lead")} value={formatPct(totals.appointmentRatePct)} loading={isLoading} />
             </>
           )}
         </div>
@@ -84,23 +82,22 @@ export function AdsCallCenterReportPanel({
           </div>
         ) : visibleRows.length === 0 ? (
           <div className="rounded-lg border bg-white p-4 text-sm text-slate-600">
-            Nessuna chiamata attribuita ai lead ads nel periodo. Quando i contatti Meta o Google hanno ID campagna,
-            UTM o GCLID e vengono chiamati dal call center, qui trovi speed to lead, risposte e appuntamenti.
+            {t("Nessuna chiamata attribuita ai lead ads nel periodo. Quando i contatti Meta o Google hanno ID campagna, UTM o GCLID e vengono chiamati dal call center, qui trovi speed to lead, risposte e appuntamenti.")}
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border bg-white">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Piattaforma</TableHead>
-                  <TableHead>Campagna / sorgente</TableHead>
+                  <TableHead>{t("Piattaforma")}</TableHead>
+                  <TableHead>{t("Campagna / sorgente")}</TableHead>
                   <TableHead className="text-right">Lead</TableHead>
-                  <TableHead className="text-right">Chiamati</TableHead>
-                  <TableHead className="text-right">Risposte</TableHead>
-                  <TableHead className="text-right">% risposta</TableHead>
-                  <TableHead className="text-right">Tentativi</TableHead>
-                  <TableHead className="text-right">Speed</TableHead>
-                  <TableHead className="text-right">App.</TableHead>
+                  <TableHead className="text-right">{t("Chiamati")}</TableHead>
+                  <TableHead className="text-right">{t("Risposte")}</TableHead>
+                  <TableHead className="text-right">{t("% risposta")}</TableHead>
+                  <TableHead className="text-right">{t("Tentativi")}</TableHead>
+                  <TableHead className="text-right">{t("Speed")}</TableHead>
+                  <TableHead className="text-right">{t("App.")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -171,7 +168,7 @@ function formatPct(value: number) {
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     maximumFractionDigits: Number.isInteger(value) ? 0 : 1,
   }).format(value);
 }

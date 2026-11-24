@@ -9,11 +9,13 @@ import {documentoDaOrdineAcquisto} from '@/lib/documentiOperativi/daOrdineAcquis
 import type {PurchaseOrder,PurchaseOrderItem} from '@/hooks/usePurchaseOrders';
 import type {DocumentoOperativo} from '@/lib/documentiOperativi/modello';
 import {createPdfPreviewUrl} from '@/lib/pdfPreviewSource';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type {BaseConferma} from '../../../supabase/functions/_shared/revisioniConferma';
 const PdfPanel=lazy(()=>import('@/components/shared/PdfBlobLivePreviewPanel').then(m=>({default:m.PdfBlobLivePreviewPanel})));
 
 /** Una riproduzione da dati congelati resta distinta dal PDF originale spedito. */
 export function PdfRichiestaOrdine({companyId,ordineId,baseCongelata}:{companyId:string;ordineId:string;baseCongelata?:BaseConferma}) {
+ const t=useT();
  const {effectiveCompany}=useAuth();
  const affiancato=useDocumentoAffiancato();
  const q=useQuery({queryKey:['pdf-richiesta-ordine',companyId,ordineId,baseCongelata?.impronta],staleTime:0,queryFn:async()=>{
@@ -29,13 +31,13 @@ export function PdfRichiestaOrdine({companyId,ordineId,baseCongelata}:{companyId
   const storicoNonDisponibile=!!baseCongelata&&!daInvio&&baseCongelata.impronta!==base.data?.impronta;
   return {documento:storicoNonDisponibile?null:daInvio?snapshot as DocumentoOperativo:documentoDaOrdineAcquisto(po.data as PurchaseOrder,items),daInvio:!!daInvio,storicoNonDisponibile};
  }});
- if(q.isLoading)return <p role="status" className="text-xs">Preparazione del PDF dell’ordine…</p>;
- if(q.isError)return <p role="alert" className="text-xs text-red-700">PDF non disponibile. <button className="underline" onClick={()=>void q.refetch()}>Riprova</button></p>;
- if(q.data?.storicoNonDisponibile)return <p className="rounded-lg border border-dashed p-5 text-xs text-slate-600">Il PDF originale di questa revisione non è archiviato. Nella scheda Righe trovi la richiesta usata per questo controllo.</p>;
- if(!q.data?.documento||!effectiveCompany||effectiveCompany.id!==companyId)return <p className="text-xs">Seleziona l’azienda del documento.</p>;
+ if(q.isLoading)return <p role="status" className="text-xs">{t("Preparazione del PDF dell’ordine…")}</p>;
+ if(q.isError)return <p role="alert" className="text-xs text-red-700">{t("PDF non disponibile.")} <button className="underline" onClick={()=>void q.refetch()}>{t("Riprova")}</button></p>;
+ if(q.data?.storicoNonDisponibile)return <p className="rounded-lg border border-dashed p-5 text-xs text-slate-600">{t("Il PDF originale di questa revisione non è archiviato. Nella scheda Righe trovi la richiesta usata per questo controllo.")}</p>;
+ if(!q.data?.documento||!effectiveCompany||effectiveCompany.id!==companyId)return <p className="text-xs">{t("Seleziona l’azienda del documento.")}</p>;
  const {documento,daInvio}=q.data;
- return <div className={`flex ${affiancato?'h-full flex-1':'h-[58dvh]'} min-h-0 flex-col gap-2`}><ComandiDocumento><p className={affiancato?"flex h-8 items-center truncate rounded-md bg-slate-50 px-2 text-[11px] text-slate-600":"rounded-md bg-slate-50 px-3 py-2 text-[11px] text-slate-600"} title={daInvio?"Riproduzione della richiesta inviata: il PDF originale non è archiviato.":"Bozza generata dai dati correnti: questo PDF non risulta inviato al fornitore."}>{affiancato?(daInvio?"Richiesta inviata · riproduzione":"Bozza corrente · non inviata"):(daInvio?"Riproduzione della richiesta inviata: il PDF originale non è archiviato.":"Bozza generata dai dati correnti: questo PDF non risulta inviato al fornitore.")}</p></ComandiDocumento>
-  <div className="min-h-0 flex-1"><Suspense fallback={<p role="status">Apertura PDF…</p>}><PdfPanel depsKey={JSON.stringify([companyId,documento])} debounceMs={0} headerLabel={daInvio?'Richiesta inviata · riproduzione':'Bozza ordine · dati correnti'} downloadFileName={`${documento.numero}.pdf`} showDownloadOnMobile renderBlobUrl={async()=>{
+ return <div className={`flex ${affiancato?'h-full flex-1':'h-[58dvh]'} min-h-0 flex-col gap-2`}><ComandiDocumento><p className={affiancato?"flex h-8 items-center truncate rounded-md bg-slate-50 px-2 text-[11px] text-slate-600":"rounded-md bg-slate-50 px-3 py-2 text-[11px] text-slate-600"} title={daInvio?t("Riproduzione della richiesta inviata: il PDF originale non è archiviato."):t("Bozza generata dai dati correnti: questo PDF non risulta inviato al fornitore.")}>{affiancato?(daInvio?t("Richiesta inviata · riproduzione"):t("Bozza corrente · non inviata")):(daInvio?t("Riproduzione della richiesta inviata: il PDF originale non è archiviato."):t("Bozza generata dai dati correnti: questo PDF non risulta inviato al fornitore."))}</p></ComandiDocumento>
+  <div className="min-h-0 flex-1"><Suspense fallback={<p role="status">{t("Apertura PDF…")}</p>}><PdfPanel depsKey={JSON.stringify([companyId,documento])} debounceMs={0} headerLabel={daInvio?t("Richiesta inviata · riproduzione"):t("Bozza ordine · dati correnti")} downloadFileName={`${documento.numero}.pdf`} showDownloadOnMobile renderBlobUrl={async()=>{
    const {generaPdfOperativo}=await import('@/lib/documentiOperativi/pdf');return createPdfPreviewUrl(await generaPdfOperativo(documento,effectiveCompany));
   }}/></Suspense></div>
  </div>;

@@ -11,6 +11,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import type { Integration } from "@/types/integrations";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Modo = "off" | "segnala" | "blocca";
 
@@ -36,6 +37,7 @@ const SCELTE: { valore: Modo; titolo: string; testo: string }[] = [
  * da sola se è già attiva; chi la cambia e cerca di uscire senza salvare riceve l'avviso delle modifiche non salvate.
  */
 export function RientroLeadCard({ integration, canManage }: { integration: Integration; canManage: boolean }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const salvato = (integration.rientro_lead_modo ?? "off") as Modo;
   const giorniSalvati = integration.rientro_lead_giorni ?? 90;
@@ -58,10 +60,10 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Impostazione salvata");
+      toast.success(t("Impostazione salvata"));
       queryClient.invalidateQueries({ queryKey: queryKeys.metaForms.integration(integration.company_id) });
     },
-    onError: (e: Error) => toast.error("Non salvata", { description: userErrorMessage(e, "Riprova tra poco.") }),
+    onError: (e: Error) => toast.error(t("Non salvata"), { description: userErrorMessage(e, t("Riprova tra poco.")) }),
   });
 
   return (
@@ -71,12 +73,12 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
     >
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-6 py-4">
         <RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <h2 className="text-sm font-medium">Lead che rientrano</h2>
-        <span className="ml-auto text-xs text-muted-foreground">{STATO_SALVATO[salvato]}</span>
+        <h2 className="text-sm font-medium">{t("Lead che rientrano")}</h2>
+        <span className="ml-auto text-xs text-muted-foreground">{t(STATO_SALVATO[salvato])}</span>
       </summary>
       <div className="space-y-4 px-6 pb-6">
         <p className="text-sm text-muted-foreground">
-          Cosa fare quando chi ha la richiesta persa o abbandonata ricompila un modulo Meta, per non far perdere tempo al team.
+          {t("Cosa fare quando chi ha la richiesta persa o abbandonata ricompila un modulo Meta, per non far perdere tempo al team.")}
         </p>
         <RadioGroup value={modo} onValueChange={(v) => setModo(v as Modo)} disabled={!canManage} className="space-y-2">
           {SCELTE.map((s) => (
@@ -87,8 +89,8 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
             >
               <RadioGroupItem id={`rientro-${s.valore}`} value={s.valore} className="mt-0.5" />
               <span>
-                <span className="block text-sm font-medium">{s.titolo}</span>
-                <span className="block text-xs text-muted-foreground">{s.testo}</span>
+                <span className="block text-sm font-medium">{t(s.titolo)}</span>
+                <span className="block text-xs text-muted-foreground">{t(s.testo)}</span>
               </span>
             </label>
           ))}
@@ -96,7 +98,7 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
 
         {modo !== "off" && (
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Label htmlFor="rientro-giorni" className="text-sm font-normal">Vale se l'ultima chiusura è di meno di</Label>
+            <Label htmlFor="rientro-giorni" className="text-sm font-normal">{t("Vale se l'ultima chiusura è di meno di")}</Label>
             <Input
               id="rientro-giorni"
               type="number"
@@ -109,8 +111,8 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
               className="h-8 w-20 text-right tabular-nums"
               aria-invalid={!giorniValidi}
             />
-            <span>giorni fa.</span>
-            {!giorniValidi && <span className="text-xs text-destructive">Da 1 a 3650.</span>}
+            <span>{t("giorni fa.")}</span>
+            {!giorniValidi && <span className="text-xs text-destructive">{t("Da 1 a 3650.")}</span>}
           </div>
         )}
 
@@ -118,12 +120,12 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
           <div className="flex items-center gap-3">
             <Button size="sm" onClick={() => salva.mutate()} disabled={!modificato || !giorniValidi || salva.isPending}>
               {salva.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Salva
+              {t("Salva")}
             </Button>
-            {modificato && <span className="text-xs text-amber-700">Modifiche non salvate.</span>}
+            {modificato && <span className="text-xs text-amber-700">{t("Modifiche non salvate.")}</span>}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">Solo un amministratore dell'azienda può cambiare questa impostazione.</p>
+          <p className="text-xs text-muted-foreground">{t("Solo un amministratore dell'azienda può cambiare questa impostazione.")}</p>
         )}
       </div>
     </details>

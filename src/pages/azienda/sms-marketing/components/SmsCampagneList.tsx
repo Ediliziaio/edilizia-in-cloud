@@ -4,7 +4,6 @@
 import { useState } from "react";
 import { Plus, Play, XCircle, BarChart3, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,8 +24,10 @@ import { SmsCampagnaForm } from "./SmsCampagnaForm";
 import { SmsStatsBadge } from "./SmsStatsBadge";
 import { SmsCampagnaDetail } from "./SmsCampagnaDetail";
 import type { SmsCampagna } from "@/types/sms-marketing";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SmsCampagneList() {
+  const t = useT();
   const { campagne, isLoading, avvia, annulla, isAvviando, isAnnullando } = useSmsCampagne();
   const [newSheetOpen, setNewSheetOpen] = useState(false);
   const [detailCampagna, setDetailCampagna] = useState<SmsCampagna | null>(null);
@@ -56,12 +57,12 @@ export function SmsCampagneList() {
         <Sheet open={newSheetOpen} onOpenChange={setNewSheetOpen}>
           <SheetTrigger asChild>
             <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" /> Nuova campagna
+              <Plus className="h-4 w-4 mr-1" /> {t("Nuova campagna")}
             </Button>
           </SheetTrigger>
           <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
             <SheetHeader>
-              <SheetTitle>Nuova campagna SMS</SheetTitle>
+              <SheetTitle>{t("Nuova campagna SMS")}</SheetTitle>
             </SheetHeader>
             <div className="mt-4">
               <SmsCampagnaForm onSuccess={() => setNewSheetOpen(false)} onCancel={() => setNewSheetOpen(false)} />
@@ -74,7 +75,7 @@ export function SmsCampagneList() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-center">
             <BarChart3 className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Nessuna campagna SMS. Crea la prima.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessuna campagna SMS. Crea la prima.")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -89,13 +90,13 @@ export function SmsCampagneList() {
                   </div>
                   <p className="text-xs text-muted-foreground truncate mb-2">{c.messaggio}</p>
                   <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    <span>📤 {c.inviati.toLocaleString("it-IT")} inviati</span>
-                    <span>✅ {c.consegnati.toLocaleString("it-IT")} consegnati</span>
-                    {c.errori > 0 && <span className="text-destructive">❌ {c.errori.toLocaleString("it-IT")} errori</span>}
+                    <span>{t("📤 {inviati} inviati", { inviati: c.inviati.toLocaleString(intlCampo()) })}</span>
+                    <span>{t("✅ {consegnati} consegnati", { consegnati: c.consegnati.toLocaleString(intlCampo()) })}</span>
+                    {c.errori > 0 && <span className="text-destructive">{t("❌ {errori} errori", { errori: c.errori.toLocaleString(intlCampo()) })}</span>}
                     {c.costo_totale > 0 && (
-                      <span>💶 {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(c.costo_totale)}</span>
+                      <span>💶 {new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(c.costo_totale)}</span>
                     )}
-                    <span>{format(new Date(c.created_at), "d MMM yyyy", { locale: it })}</span>
+                    <span>{format(new Date(c.created_at), "d MMM yyyy", { locale: dateFnsCampo() })}</span>
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -107,17 +108,17 @@ export function SmsCampagneList() {
                             ? <Loader2 className="h-3 w-3 animate-spin" />
                             : <Play className="h-3 w-3" />
                           }
-                          Avvia
+                          {t("Avvia")}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Avviare "{c.nome}"?</AlertDialogTitle>
-                          <AlertDialogDescription>La campagna SMS verrà inviata immediatamente ai destinatari con consenso marketing.</AlertDialogDescription>
+                          <AlertDialogTitle>{t("Avviare \"{nome}\"?", { nome: c.nome })}</AlertDialogTitle>
+                          <AlertDialogDescription>{t("La campagna SMS verrà inviata immediatamente ai destinatari con consenso marketing.")}</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Annulla</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleAvvia(c.id)}>Avvia</AlertDialogAction>
+                          <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleAvvia(c.id)}>{t("Avvia")}</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -126,21 +127,21 @@ export function SmsCampagneList() {
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive" disabled={isAnnullando && annullandoId === c.id}>
-                          <XCircle className="h-3 w-3" /> Annulla
+                          <XCircle className="h-3 w-3" /> {t("Annulla")}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Annullare la campagna?</AlertDialogTitle>
-                          <AlertDialogDescription>Gli SMS non ancora inviati non verranno spediti.</AlertDialogDescription>
+                          <AlertDialogTitle>{t("Annullare la campagna?")}</AlertDialogTitle>
+                          <AlertDialogDescription>{t("Gli SMS non ancora inviati non verranno spediti.")}</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Indietro</AlertDialogCancel>
+                          <AlertDialogCancel>{t("Indietro")}</AlertDialogCancel>
                           <AlertDialogAction
                             className="bg-destructive text-destructive-foreground"
                             onClick={() => { setAnnullandoId(c.id); annulla(c.id).finally(() => setAnnullandoId(null)); }}
                           >
-                            Annulla campagna
+                            {t("Annulla campagna")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -152,7 +153,7 @@ export function SmsCampagneList() {
                     className="h-7 text-xs"
                     onClick={() => setDetailCampagna(c)}
                   >
-                    <BarChart3 className="h-3 w-3 mr-1" /> Log
+                    <BarChart3 className="h-3 w-3 mr-1" /> {t("Log")}
                   </Button>
                 </div>
               </div>
@@ -165,7 +166,7 @@ export function SmsCampagneList() {
       <Sheet open={!!detailCampagna} onOpenChange={(o) => { if (!o) setDetailCampagna(null); }}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Dettaglio campagna</SheetTitle>
+            <SheetTitle>{t("Dettaglio campagna")}</SheetTitle>
           </SheetHeader>
           <div className="mt-4">
             {detailCampagna && <SmsCampagnaDetail campagna={detailCampagna} />}

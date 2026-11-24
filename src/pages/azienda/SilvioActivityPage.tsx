@@ -3,7 +3,9 @@ import { ArrowLeft, Bot, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { centralinoCallbackHref } from "@/lib/centralinoNavigation";
 import { SilvioHub } from "@/components/silvio/SilvioHub";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export default function SilvioActivityPage() {
+  const t = useT();
   const [params] = useSearchParams();
   const callbackId = params.get("richiamo");
   if (callbackId || params.get("vista") === "richiami" || params.get("tab") === "richiami") {
@@ -17,9 +19,9 @@ export default function SilvioActivityPage() {
             <Bot className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-xl font-semibold">Centro attività di Silvio</h1>
+            <h1 className="text-xl font-semibold">{t("Centro attività di Silvio")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Richieste, conferme e risultati del tuo assistente.
+              {t("Richieste, conferme e risultati del tuo assistente.")}
             </p>
           </div>
         </div>
@@ -27,13 +29,13 @@ export default function SilvioActivityPage() {
           <Button asChild variant="ghost" size="sm">
             <Link to="/azienda/silvio-ai">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Chat con Silvio
+              {t("Chat con Silvio")}
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/azienda/centralino">
               <Phone className="mr-2 h-4 w-4" />
-              Centralino
+              {t("Centralino")}
             </Link>
           </Button>
         </div>

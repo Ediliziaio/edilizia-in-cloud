@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, Sparkles, Plus, Settings, Megaphone, Wand2, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STORAGE_KEY_PREFIX = "eic_ads_tour_seen_";
 
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function AdsOnboardingTour({ companyId }: Props) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -92,14 +94,14 @@ export function AdsOnboardingTour({ companyId }: Props) {
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg">
             <Icon className="h-7 w-7" />
           </div>
-          <DialogTitle className="text-xl">{current.title}</DialogTitle>
+          <DialogTitle className="text-xl">{t(current.title)}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-sm leading-relaxed text-slate-600">{current.body}</p>
+          <p className="text-sm leading-relaxed text-slate-600">{t(current.body)}</p>
           {current.tip && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
               <Sparkles className="mr-1 inline h-3 w-3" />
-              <strong>Tip:</strong> {current.tip}
+              <strong>{t("Tip:")}</strong> {t(current.tip)}
             </div>
           )}
         </div>
@@ -128,22 +130,22 @@ export function AdsOnboardingTour({ companyId }: Props) {
             onClick={() => close(false)}
             className="text-xs text-slate-500"
           >
-            Salta tour
+            {t("Salta tour")}
           </Button>
           <div className="flex gap-2">
             {step > 0 && (
               <Button variant="outline" size="sm" onClick={() => setStep(step - 1)}>
                 <ArrowLeft className="h-3 w-3" />
-                Indietro
+                {t("Indietro")}
               </Button>
             )}
             {isLast ? (
               <Button size="sm" onClick={() => close(true)}>
-                Inizia
+                {t("Inizia")}
               </Button>
             ) : (
               <Button size="sm" onClick={() => setStep(step + 1)}>
-                Avanti
+                {t("Avanti")}
                 <ArrowRight className="h-3 w-3" />
               </Button>
             )}

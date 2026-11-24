@@ -25,6 +25,7 @@ import type { FamilyWithAxes } from "@/types/articleFamily";
 import type { SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
 import type { ComplementiFinestra } from "./ComplementiFinestra";
 import type { ListinoPickerDialog, ListinoPickResult, PartenzaPicker } from "./ListinoPickerDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Dove finiscono i complementi: il database nel preventivo, la memoria nell'anteprima. */
 export interface SalvataggiComplementi {
@@ -54,12 +55,14 @@ interface ListinoAperto {
   preferenze: ReturnType<typeof preferenzeDaRiga>;
 }
 
-const misureTesto = (L: number | null, H: number | null) => (L && H ? `${L} × ${H} mm` : "senza misure");
+const misureGrezze = (L: number | null, H: number | null) => (L && H ? `${L} × ${H} mm` : null);
 const nessunErrore = (): void => undefined;
 
 export function useComplementiFinestre({
   serramenti, accessori, famiglie, macrocategorie, categorie, tariffePrezzi, supplierLineMap, salvataggi,
 }: Opzioni) {
+  const tr = useT();
+  const misureTesto = (L: number | null, H: number | null) => misureGrezze(L, H) ?? tr("senza misure");
   const queryClient = useQueryClient();
   const areaListino = useMemo(
     () => areaDelPreventivatore(famiglie, macrocategorie, categorie, "accessorio"),
@@ -92,7 +95,7 @@ export function useComplementiFinestre({
   // Le finestre a cui agganciare un complemento rimasto senza, numerate come nella lista.
   const finestrePerAggancio = useMemo(
     () => serramenti.flatMap((s, i) => (idConBox.has(s.id)
-      ? [{ id: s.id, etichetta: `${i + 1} · ${s.tipologia_label || "Finestra"}${s.larghezza_mm && s.altezza_mm ? ` · ${s.larghezza_mm}×${s.altezza_mm} mm` : ""}` }]
+      ? [{ id: s.id, etichetta: `${i + 1} · ${s.tipologia_label || tr("Finestra")}${s.larghezza_mm && s.altezza_mm ? ` · ${s.larghezza_mm}×${s.altezza_mm} mm` : ""}` }]
       : [])),
     [serramenti, idConBox],
   );
@@ -119,7 +122,7 @@ export function useComplementiFinestre({
   }) => {
     const sostituisce = opts.sostituisce ?? null;
     const [prima] = opts.finestre;
-    const nome = opts.tipologia ? nomeBottone(opts.tipologia) : "Complemento";
+    const nome = opts.tipologia ? nomeBottone(opts.tipologia) : tr("Complemento");
     const cassonetto = !!opts.tipologia && chiedeProfondita(opts.tipologia);
     const ultimoDellaTipologia = opts.tipologia
       ? [...accessori]
@@ -127,10 +130,10 @@ export function useComplementiFinestre({
         .find((a) => haGiaComplemento([a], opts.tipologia as TipologiaListino))
       : undefined;
     const contesto = sostituisce
-      ? `Cambia il modello: ${sostituisce.descrizione || nome} · ${misureTesto(sostituisce.larghezza_mm, sostituisce.altezza_mm)}`
+      ? tr("Cambia il modello: {nome} · {misure}", { nome: sostituisce.descrizione || nome, misure: misureTesto(sostituisce.larghezza_mm, sostituisce.altezza_mm) })
       : opts.finestre.length > 1
-        ? `${nome} su ${opts.finestre.length} finestre: ognuna con le sue misure e il suo prezzo`
-        : `${nome} per la finestra ${numeroFinestra(prima?.id ?? "")} · ${misureTesto(prima?.larghezza_mm ?? null, prima?.altezza_mm ?? null)}`;
+        ? tr("{nome} su {n} finestre: ognuna con le sue misure e il suo prezzo", { nome, n: opts.finestre.length })
+        : tr("{nome} per la finestra {id} · {misure}", { nome, id: numeroFinestra(prima?.id ?? ""), misure: misureTesto(prima?.larghezza_mm ?? null, prima?.altezza_mm ?? null) });
     setListino({
       finestre: opts.finestre,
       sostituisce,
@@ -172,7 +175,7 @@ export function useComplementiFinestre({
         try {
           griglia = await grigliaDi(modello.riga.famiglia.id);
         } catch (e) {
-          toast.error(`${nome}: griglia prezzi non letta`, { description: e instanceof Error ? e.message : String(e) });
+          toast.error(tr("{nome}: griglia prezzi non letta", { nome: String(nome ?? "") }), { description: e instanceof Error ? e.message : String(e) });
           return;
         }
       }
@@ -203,12 +206,12 @@ export function useComplementiFinestre({
       if (perUna) {
         const [scartata] = scartate;
         if (!scartata) {
-          toast.success(`Alla finestra ${numeroFinestra(finestre[0].id)}: ${nomeModello}`, {
-            description: daFinire[0] ?? "Il modello già usato nel preventivo: lo cambi dalla riga.",
+          toast.success(tr("Alla finestra {id}: {nomeModello}", { id: String(numeroFinestra(finestre[0].id) ?? ""), nomeModello: String(nomeModello ?? "") }), {
+            description: daFinire[0] ?? tr("Il modello già usato nel preventivo: lo cambi dalla riga."),
           });
         } else if (scartata.motivo === "misure") {
-          toast.error(`Scrivi prima larghezza e altezza della finestra ${numeroFinestra(finestre[0].id)}`, {
-            description: `${nome}: le misure le prende da lì.`,
+          toast.error(tr("Scrivi prima larghezza e altezza della finestra {id}", { id: String(numeroFinestra(finestre[0].id) ?? "") }), {
+            description: tr("{nome}: le misure le prende da lì.", { nome: String(nome ?? "") }),
           });
         } else {
           toast.warning(scartata.errore);
@@ -217,12 +220,12 @@ export function useComplementiFinestre({
         return;
       }
       if (righe.length > 0) {
-        toast.success(`${nomeModello} su ${righe.length} ${righe.length === 1 ? "finestra" : "finestre"}`, {
-          description: daFinire.length > 0 ? `Da completare sulla riga: ${daFinire[0]}` : undefined,
+        toast.success(tr(righe.length === 1 ? "{nome} su {n} finestra" : "{nome} su {n} finestre", { nome: nomeModello, n: righe.length }), {
+          description: daFinire.length > 0 ? tr("Da completare sulla riga: {valore}", { valore: String(daFinire[0] ?? "") }) : undefined,
         });
       }
       if (scartate.length > 0) {
-        toast.warning(`${nome}: saltate le finestre ${scartate.map((x) => numeroFinestra(x.finestra.id)).join(", ")}`, {
+        toast.warning(tr("{nome}: saltate le finestre {elenco}", { nome, elenco: scartate.map((x) => numeroFinestra(x.finestra.id)).join(", ") }), {
           description: scartate[0].errore,
         });
       }
@@ -235,7 +238,7 @@ export function useComplementiFinestre({
   const aggiungiATutte = (tipologia: TipologiaListino) => {
     const senza = serramenti.filter((f) => idConBox.has(f.id) && !haGiaComplemento(perFinestra.get(f.id) ?? [], tipologia));
     if (senza.length === 0) {
-      toast.info(`${nomeBottone(tipologia)}: ce l'hanno già tutte le finestre`);
+      toast.info(tr("{tipologia}: ce l'hanno già tutte le finestre", { tipologia: String(nomeBottone(tipologia) ?? "") }));
       return;
     }
     void aggiungi(tipologia, senza);
@@ -263,7 +266,7 @@ export function useComplementiFinestre({
       // Cambia il modello, il posto resta: finestra, profondità, posa.
       const { sostituisce } = richiesta;
       salvataggi.aggiorna(sostituisce.id, complementoDaScelta(scelta, tipologia, sostituisce.posa_esclusa));
-      toast.success(`Modello cambiato: ${scelta.family_nome}`);
+      toast.success(tr("Modello cambiato: {family_nome}", { family_nome: String(scelta.family_nome ?? "") }));
       return;
     }
     const [prima, ...altre] = richiesta.finestre;
@@ -311,9 +314,9 @@ export function useComplementiFinestre({
       return; // L'errore del salvataggio lo mostra già chi salva.
     }
     toast.success(
-      righe.length > 1 ? `${scelta.family_nome} su ${righe.length} finestre` : `Alla finestra ${numeroFinestra(prima.id)}: ${scelta.family_nome}`,
+      righe.length > 1 ? tr("{family_nome} su {n} finestre", { family_nome: String(scelta.family_nome ?? ""), n: righe.length }) : tr("Alla finestra {id}: {family_nome}", { id: String(numeroFinestra(prima.id) ?? ""), family_nome: String(scelta.family_nome ?? "") }),
       saltate.length > 0
-        ? { description: `Saltate le finestre ${saltate.join(", ")}: misure fuori dal listino o senza prezzo` }
+        ? { description: tr("Saltate le finestre {saltate}: misure fuori dal listino o senza prezzo", { saltate: saltate.join(", ") }) }
         : undefined,
     );
   };
@@ -357,15 +360,15 @@ export function useComplementiFinestre({
           });
           if ("errore" in esito) {
             daPrezzare = true;
-            toast.warning(`${c.descrizione || nomeBreve(c.tipo)}: prezzo da controllare`, { description: esito.errore });
+            toast.warning(tr("{nome}: prezzo da controllare", { nome: c.descrizione || nomeBreve(c.tipo) }), { description: esito.errore });
           } else {
             patch.prezzo_unitario = esito.unitario;
             if (esito.voce) patch.listino_voce_id = esito.voce;
           }
         } catch {
           daPrezzare = true;
-          toast.warning(`${c.descrizione || nomeBreve(c.tipo)}: prezzo da controllare`, {
-            description: "Listino non leggibile. Le nuove misure non hanno un prezzo verificato.",
+          toast.warning(tr("{nome}: prezzo da controllare", { nome: c.descrizione || nomeBreve(c.tipo) }), {
+            description: tr("Listino non leggibile. Le nuove misure non hanno un prezzo verificato."),
           });
         }
       }
@@ -400,7 +403,7 @@ export function useComplementiFinestre({
       onElimina: setDaEliminare,
       inCorso: inCorso?.dove === finestra.id ? inCorso.tipologia : null,
       occupata: occupati,
-      destinazione: `Alla finestra ${indice + 1}`,
+      destinazione: tr("Alla finestra {n}", { n: indice + 1 }),
       daCompletare: conBox ? daCompletare : [],
     };
   };
@@ -423,10 +426,10 @@ export function useComplementiFinestre({
     partenza: listino?.partenza ?? null,
     preferenzeAssi: listino?.preferenze,
     testoConferma: listino?.sostituisce
-      ? "Cambia modello"
+      ? tr("Cambia modello")
       : (listino?.finestre.length ?? 0) > 1
-        ? `Aggiungi a ${listino?.finestre.length} finestre`
-        : "Aggiungi alla finestra",
+        ? tr("Aggiungi a {n} finestre", { n: listino?.finestre.length ?? 0 })
+        : tr("Aggiungi alla finestra"),
   };
 
   const eliminazione = {

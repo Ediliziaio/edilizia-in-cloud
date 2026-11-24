@@ -10,6 +10,7 @@ import {
 } from "@/lib/sicurezza/testiLavorazionePos";
 import type { PosContenuto } from "../../../../supabase/functions/_shared/posModello";
 import { nuovaDaSchedaStandard } from "../../../../supabase/functions/_shared/posSchedeStandard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   bozza: PosContenuto;
@@ -26,6 +27,7 @@ interface Props {
 
 export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisponibili, rileggiFonti, companyId, orderId,
   onClose, onContinua, onVaiAllaVerifica }: Props) {
+  const tr = useT();
   const confermata = useRef<PosContenuto | null>(null);
   const puoAggiungereFasi = bozza.impresa.ruolo !== "affidataria";
   const fasi = useFasiFascicolo(companyId, puoAggiungereFasi ? orderId : undefined);
@@ -97,18 +99,18 @@ export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisp
       onVaiAllaVerifica(contenuto);
     }} className="flex max-h-[88dvh] min-w-0 max-w-2xl flex-col gap-0 overflow-hidden p-0">
       <DialogHeader className="shrink-0 space-y-1 px-4 pb-3 pt-5 pr-10 sm:px-6 sm:pr-10">
-        <DialogTitle>Prepara la bozza POS</DialogTitle>
-        <DialogDescription>Scegli cosa inserire e passa alla prima voce da verificare.</DialogDescription>
+        <DialogTitle>{tr("Prepara la bozza POS")}</DialogTitle>
+        <DialogDescription>{tr("Scegli cosa inserire e passa alla prima voce da verificare.")}</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 space-y-4 overflow-y-auto border-y px-4 py-3 sm:px-6">
-        <section aria-label="Dati della commessa" className="space-y-2">
-          <h3 className="text-sm font-semibold">Dati della commessa</h3>
+        <section aria-label={tr("Dati della commessa")} className="space-y-2">
+          <h3 className="text-sm font-semibold">{tr("Dati della commessa")}</h3>
           {fontiInCaricamento ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" /> Recupero i dati…
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" /> {tr("Recupero i dati…")}
           </p> : fontiNonDisponibili ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-            Dati della commessa non disponibili.
-            <Button type="button" size="sm" variant="outline" onClick={rileggiFonti}>Riprova a leggere i dati</Button>
-          </div> : !dati.length ? <p className="text-sm text-muted-foreground">Nessun nuovo dato da inserire nei campi vuoti.</p> : null}
+            {tr("Dati della commessa non disponibili.")}
+            <Button type="button" size="sm" variant="outline" onClick={rileggiFonti}>{tr("Riprova a leggere i dati")}</Button>
+          </div> : !dati.length ? <p className="text-sm text-muted-foreground">{tr("Nessun nuovo dato da inserire nei campi vuoti.")}</p> : null}
           {!!dati.length && <ul className="divide-y rounded-md border">
             {dati.map(d => <Suggerimento key={d.campo} titolo={d.titolo} {...selezione(`dato:${d.campo}`)}>
               <p className="whitespace-pre-wrap break-words">{testoConfrontoPos(d.rilevato)}</p>
@@ -116,9 +118,9 @@ export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisp
           </ul>}
         </section>
 
-        <section aria-label="Testi standard suggeriti" className="space-y-2">
-          <h3 className="text-sm font-semibold">Testi standard suggeriti</h3>
-          {!testi.length ? <p className="text-sm text-muted-foreground">Nessun testo per le schede già presenti.</p> :
+        <section aria-label={tr("Testi standard suggeriti")} className="space-y-2">
+          <h3 className="text-sm font-semibold">{tr("Testi standard suggeriti")}</h3>
+          {!testi.length ? <p className="text-sm text-muted-foreground">{tr("Nessun testo per le schede già presenti.")}</p> :
             <ul className="divide-y rounded-md border">
               {testi.map(({ lavorazione, modello, campi }) =>
                 <Suggerimento key={lavorazione.id} titolo={lavorazione.titolo || modello.titolo}
@@ -131,15 +133,15 @@ export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisp
             </ul>}
         </section>
 
-        {puoAggiungereFasi && (fasi.isLoading || fasi.isError || !!nuoveFasi.length) && <section aria-label="Fasi della commessa" className="space-y-2">
-          <h3 className="text-sm font-semibold">Fasi della commessa</h3>
-          {fasi.isLoading && <p role="status" className="text-sm text-muted-foreground">Caricamento delle fasi…</p>}
+        {puoAggiungereFasi && (fasi.isLoading || fasi.isError || !!nuoveFasi.length) && <section aria-label={tr("Fasi della commessa")} className="space-y-2">
+          <h3 className="text-sm font-semibold">{tr("Fasi della commessa")}</h3>
+          {fasi.isLoading && <p role="status" className="text-sm text-muted-foreground">{tr("Caricamento delle fasi…")}</p>}
           {fasi.isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-            Fasi non disponibili.
-            <Button type="button" size="sm" variant="outline" onClick={() => void fasi.refetch()}>Riprova a leggere le fasi</Button>
+            {tr("Fasi non disponibili.")}
+            <Button type="button" size="sm" variant="outline" onClick={() => void fasi.refetch()}>{tr("Riprova a leggere le fasi")}</Button>
           </div>}
           {!!nuoveFasi.length && <>
-            <p className="text-sm text-muted-foreground">Seleziona le fasi che esegue l’impresa di questo POS.</p>
+            <p className="text-sm text-muted-foreground">{tr("Seleziona le fasi che esegue l’impresa di questo POS.")}</p>
             <ul className="divide-y rounded-md border">
               {nuoveFasi.map(({ fase, modello }) => <Suggerimento key={fase.id} titolo={fase.name}
                 dettaglio={modello.titolo} {...selezione(`fase:${fase.id}`, false)}>
@@ -151,9 +153,9 @@ export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisp
         </section>}
       </div>
       <DialogFooter className="shrink-0 gap-2 px-4 py-3 sm:px-6">
-        <Button type="button" variant="outline" onClick={onClose}>Annulla</Button>
+        <Button type="button" variant="outline" onClick={onClose}>{tr("Annulla")}</Button>
         <Button type="button" onClick={continua}>
-          {daInserire ? "Applica e vai alla verifica" : "Vai alla verifica"} <ArrowRight className="size-4" aria-hidden="true" />
+          {daInserire ? tr("Applica e vai alla verifica") : tr("Vai alla verifica")} <ArrowRight className="size-4" aria-hidden="true" />
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -167,6 +169,7 @@ function Suggerimento({ titolo, dettaglio, checked, onChange, children }: {
   onChange: (valore: boolean) => void;
   children: ReactNode;
 }) {
+  const t = useT();
   const id = useId();
   return (
     <li className="space-y-1.5 px-3 py-2.5">
@@ -175,7 +178,7 @@ function Suggerimento({ titolo, dettaglio, checked, onChange, children }: {
         <label htmlFor={id} className="min-w-0 cursor-pointer break-words">{titolo}{dettaglio && <span className="block text-xs font-normal text-muted-foreground">{dettaglio}</span>}</label>
       </div>
       <details className="ml-6 text-xs text-muted-foreground">
-        <summary aria-label={`Mostra anteprima per ${titolo}`} className="w-fit cursor-pointer font-medium text-primary">Mostra anteprima</summary>
+        <summary aria-label={t("Mostra anteprima per {titolo}", { titolo: String(titolo ?? "") })} className="w-fit cursor-pointer font-medium text-primary">{t("Mostra anteprima")}</summary>
         <div className="mt-1.5 space-y-2 rounded bg-muted/50 p-2">{children}</div>
       </details>
     </li>

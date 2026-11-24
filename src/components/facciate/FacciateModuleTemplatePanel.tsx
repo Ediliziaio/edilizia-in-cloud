@@ -5,6 +5,7 @@ import { createFullFacTemplate, FAC_MODULE_TITLES, isFullFacModuleId, type FacBr
 import { loadLocalFacTemplate, localFacTemplateKey, saveLocalFacTemplate } from "@/lib/moduli-vendita/localFacTemplates";
 import { FacciateTemplateEditor } from "./FacciateTemplateEditor";
 import { getFacDraft } from "./facDraftRecovery";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface FacciateModuleTemplatePanelProps {
   moduleId: FullFacModuleId;
@@ -15,12 +16,14 @@ export interface FacciateModuleTemplatePanelProps {
 }
 
 export function FacciateModuleTemplatePanel(props: FacciateModuleTemplatePanelProps) {
-  if (!props.companyId?.trim() || !isFullFacModuleId(props.moduleId)) return <p role="alert">Seleziona un'azienda e un modulo Facciate valido.</p>;
-  if (props.branding?.company_id && props.branding.company_id !== props.companyId) return <p role="alert">Il modello aziendale appartiene a un'altra azienda. Attendi il caricamento dei dati corretti.</p>;
+  const t = useT();
+  if (!props.companyId?.trim() || !isFullFacModuleId(props.moduleId)) return <p role="alert">{t("Seleziona un'azienda e un modulo Facciate valido.")}</p>;
+  if (props.branding?.company_id && props.branding.company_id !== props.companyId) return <p role="alert">{t("Il modello aziendale appartiene a un'altra azienda. Attendi il caricamento dei dati corretti.")}</p>;
   return <Workspace key={`${props.companyId}:${props.moduleId}`} {...props} />;
 }
 
 function Workspace({ companyId, moduleId, branding, onDirtyChange }: FacciateModuleTemplatePanelProps) {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const [initial] = useState(() => {
     try {
@@ -35,10 +38,10 @@ function Workspace({ companyId, moduleId, branding, onDirtyChange }: FacciateMod
   if (!initial.template) return <p role="alert">{initial.error}</p>;
   const remoteLogo = [branding?.logo_url, branding?.cover_logo_url].some(url => url && /^https?:/.test(url));
   return <section className="space-y-4">
-    <Button variant="outline" onClick={() => { const next = new URLSearchParams(params); next.delete("modello"); next.delete("section"); next.delete("edizione"); setParams(next); }}>← Moduli Facciate</Button>
-    <header><p className="text-xs uppercase tracking-wider text-emerald-800">Facciate e isolamento · Modello PDF</p><h2 className="text-2xl font-semibold">{FAC_MODULE_TITLES[moduleId]}</h2></header>
-    <p className="rounded border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">Modello dell'azienda: testi, immagini e impostazioni si salvano online e li vedono tutti i colleghi. Il PDF usa le pagine originali del Piano dei lavori e prezzi dimostrativi; il collegamento al preventivatore è ancora da attivare.</p>
-    {remoteLogo && <p className="text-xs text-muted-foreground">I loghi online non vengono scaricati: puoi caricarne uno nel modello, in Azienda e stile o Copertina.</p>}
+    <Button variant="outline" onClick={() => { const next = new URLSearchParams(params); next.delete("modello"); next.delete("section"); next.delete("edizione"); setParams(next); }}>{t("← Moduli Facciate")}</Button>
+    <header><p className="text-xs uppercase tracking-wider text-emerald-800">{t("Facciate e isolamento · Modello PDF")}</p><h2 className="text-2xl font-semibold">{FAC_MODULE_TITLES[moduleId]}</h2></header>
+    <p className="rounded border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">{t("Modello dell'azienda: testi, immagini e impostazioni si salvano online e li vedono tutti i colleghi. Il PDF usa le pagine originali del Piano dei lavori e prezzi dimostrativi; il collegamento al preventivatore è ancora da attivare.")}</p>
+    {remoteLogo && <p className="text-xs text-muted-foreground">{t("I loghi online non vengono scaricati: puoi caricarne uno nel modello, in Azienda e stile o Copertina.")}</p>}
     <FacciateTemplateEditor moduleId={moduleId} template={initial.template} saved={!!initial.record} getRevision={() => revision.current} onDirtyChange={dirty} save={async template => {
       const commit = () => { revision.current = saveLocalFacTemplate(companyId, moduleId, template, revision.current).savedAt; };
       if (typeof navigator !== "undefined" && navigator.locks) await navigator.locks.request(localFacTemplateKey(companyId, moduleId), commit);

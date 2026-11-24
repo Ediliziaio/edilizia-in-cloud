@@ -65,7 +65,7 @@ export function TimbratureMappa({
             <span className="min-w-0 flex-1 space-y-0.5 break-words text-sm">
               <span className="block font-medium">{partiNelFuso(ev.ora).ora} · {t(label)} · {ev.nome ?? t("Operaio")}</span>
               <span className="block text-xs text-muted-foreground">{riferimento} · {ev.fonte}
-                {ev.precisione != null && ` · GPS ±${Math.round(ev.precisione)} m`}</span>
+                {ev.precisione != null && ` · ${t("GPS ±{metri} m", { metri: Math.round(ev.precisione) })}`}</span>
               {esito && esito !== riferimento && <span className={ev.esito === "fuori"
                 ? "block text-xs font-medium text-amber-800 dark:text-amber-300" : "block text-xs text-muted-foreground"}>{esito}</span>}
             </span>

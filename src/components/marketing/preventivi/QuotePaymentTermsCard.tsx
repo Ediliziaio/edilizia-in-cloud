@@ -28,6 +28,7 @@ import {
   quotePaymentPresets,
   paymentPlanError,
 } from "@/lib/preventivi/paymentTerms";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   total: number;
@@ -46,6 +47,7 @@ const TYPE_LABEL: Record<QuotePaymentPhaseType, string> = {
 export function QuotePaymentTermsCard({
   total, method, phases, onMethodChange, onPhasesChange,
 }: Props) {
+  const t = useT();
   // Importi visualizzati: sempre ricalcolati dal totale corrente.
   const computed = useMemo(() => recalcPhaseAmounts(phases, total), [phases, total]);
   const percentSum = useMemo(() => phasesPercentTotal(phases), [phases]);
@@ -67,23 +69,23 @@ export function QuotePaymentTermsCard({
       <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Wallet className="h-4 w-4 text-orange-600" />
-          Come paga il cliente
+          {t("Come paga il cliente")}
         </CardTitle>
         {/* Telefono no: spiegazioni sotto il titolo e in fondo alla carta. */}
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Compilate nel preventivo, firmate dal cliente e riportate automaticamente nella commessa.
+          {t("Compilate nel preventivo, firmate dal cliente e riportate automaticamente nella commessa.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
         {/* Modalità */}
         <div className="space-y-1.5">
-          <Label htmlFor="payment-method">Modalità di pagamento</Label>
+          <Label htmlFor="payment-method">{t("Modalità di pagamento")}</Label>
           <Input
             id="payment-method"
             list="payment-method-presets"
             value={method}
             onChange={(e) => onMethodChange(e.target.value)}
-            placeholder="Es. Bonifico bancario"
+            placeholder={t("Es. Bonifico bancario")}
           />
           <datalist id="payment-method-presets">
             {PAYMENT_METHOD_PRESETS.map((m) => <option key={m} value={m} />)}
@@ -93,7 +95,7 @@ export function QuotePaymentTermsCard({
         {/* Fasi */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>Fasi di pagamento</Label>
+            <Label>{t("Fasi di pagamento")}</Label>
             {phases.length === 0 ? (
               /* I modi di pagare che si usano davvero: gli stessi dei preventivatori edili. */
               <div className="flex flex-wrap gap-1.5">
@@ -123,42 +125,42 @@ export function QuotePaymentTermsCard({
           {computed.map((p, idx) => (
             <div key={idx} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-lg border bg-slate-50/60 p-3 xl:grid-cols-[minmax(0,1fr)_7rem_minmax(13rem,auto)_5rem_7rem_auto]">
               <div className="col-span-3 min-w-0 space-y-1 xl:col-span-1">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descrizione</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Descrizione")}</span>
                 <Input
                   value={p.label}
-                  aria-label={`Descrizione fase ${idx + 1}`}
+                  aria-label={t("Descrizione fase {idx}", { idx: idx + 1 })}
                   onChange={(e) => updatePhase(idx, { label: e.target.value })}
-                  placeholder="Es. Acconto alla firma"
+                  placeholder={t("Es. Acconto alla firma")}
                   className="h-8"
                 />
               </div>
               <div className="min-w-0 space-y-1">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Tipo")}</span>
                 <Select value={p.type} onValueChange={(v) => updatePhase(idx, { type: v as QuotePaymentPhaseType })}>
-                  <SelectTrigger className="h-8" aria-label={`Tipo fase ${idx + 1}`}><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8" aria-label={t("Tipo fase {idx}", { idx: idx + 1 })}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="deposit">{TYPE_LABEL.deposit}</SelectItem>
-                    <SelectItem value="balance">{TYPE_LABEL.balance}</SelectItem>
-                    <SelectItem value="financing">{TYPE_LABEL.financing}</SelectItem>
+                    <SelectItem value="deposit">{t(TYPE_LABEL.deposit)}</SelectItem>
+                    <SelectItem value="balance">{t(TYPE_LABEL.balance)}</SelectItem>
+                    <SelectItem value="financing">{t(TYPE_LABEL.financing)}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {/* Il «quando» si sceglie qui (04/11/2026): prima viveva solo nel testo della
                   descrizione e diventando commessa si perdeva. «Al SAL numero…» chiede quale. */}
               <div className="col-span-2 min-w-0 space-y-1 xl:col-span-1">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Quando</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Quando")}</span>
                 <div className="flex items-center gap-1">
                   <Select
                     value={p.evento ?? "data_fissa"}
                     onValueChange={(v) => updatePhase(idx, { evento: v as QuotePaymentPhase["evento"], numero: v === "sal_numero" ? p.numero ?? 1 : null })}
                   >
-                    <SelectTrigger className="h-8" aria-label={`Quando si incassa la fase ${idx + 1}`}><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8" aria-label={t("Quando si incassa la fase {idx}", { idx: idx + 1 })}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {GRUPPI_EVENTO.filter((g) => eventiDelGruppo(g.value).some((e) => e.value !== "stato_commessa")).map((g) => (
                         <SelectGroup key={g.value}>
-                          <SelectLabel>{g.label}</SelectLabel>
+                          <SelectLabel>{t(g.label)}</SelectLabel>
                           {eventiDelGruppo(g.value).filter((e) => e.value !== "stato_commessa").map((e) => (
-                            <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                            <SelectItem key={e.value} value={e.value}>{t(e.label)}</SelectItem>
                           ))}
                         </SelectGroup>
                       ))}
@@ -167,7 +169,7 @@ export function QuotePaymentTermsCard({
                   {p.evento === "sal_numero" && (
                     <Input
                       type="number" min={1} max={99} step={1}
-                      aria-label={`Quale SAL per la fase ${idx + 1}`}
+                      aria-label={t("Quale SAL per la fase {idx}", { idx: idx + 1 })}
                       value={p.numero ?? 1}
                       onChange={(e) => updatePhase(idx, { numero: Math.min(99, Math.max(1, Math.trunc(Number(e.target.value)) || 1)) })}
                       className="h-8 w-16 text-right"
@@ -179,14 +181,14 @@ export function QuotePaymentTermsCard({
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">%</span>
                 <Input
                   type="number" min={0} max={100} step={0.01}
-                  aria-label={`Percentuale fase ${idx + 1}`}
+                  aria-label={t("Percentuale fase {idx}", { idx: idx + 1 })}
                   value={p.percent}
                   onChange={(e) => updatePhase(idx, { percent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
                   className="h-8 text-right"
                 />
               </div>
               <div className="col-span-2 min-w-0 space-y-1 text-right xl:col-span-1">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Importo</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Importo")}</span>
                 <div className="flex h-8 items-center justify-end rounded-md border bg-white px-2 text-sm font-medium tabular-nums">
                   {formatCurrency(p.amount)}
                 </div>
@@ -195,7 +197,7 @@ export function QuotePaymentTermsCard({
                 type="button" variant="ghost" size="icon"
                 className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600"
                 onClick={() => removePhase(idx)}
-                aria-label={`Rimuovi fase ${idx + 1}`}
+                aria-label={t("Rimuovi fase {n}", { n: idx + 1 })}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -205,20 +207,16 @@ export function QuotePaymentTermsCard({
           {phases.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <Button type="button" variant="outline" size="sm" className="h-7 gap-1" onClick={addPhase}>
-                <Plus className="h-3.5 w-3.5" /> Aggiungi fase
+                <Plus className="h-3.5 w-3.5" /> {t("Aggiungi fase")}
               </Button>
               {percentSum < 100 && phases.every((p) => Number.isFinite(p.percent) && p.percent >= 0 && p.percent <= 100) && (
                 <Button type="button" variant="outline" size="sm" className="h-7" onClick={() => push([...phases, {
                   label: "Saldo a fine lavori", type: "balance",
                   percent: Math.round((100 - percentSum) * 100) / 100, amount: 0,
-                }])}>
-                  Completa con saldo {Math.round((100 - percentSum) * 100) / 100}%
-                </Button>
+                }])}>{t("Completa con saldo {valore}%", { valore: Math.round((100 - percentSum) * 100) / 100 })}</Button>
               )}
               {!percentOk && (
-                <span role="alert" className="w-full text-xs text-amber-700">
-                  {planError} Gli importi mostrati seguono le percentuali inserite, senza compensazioni nascoste.
-                </span>
+                <span role="alert" className="w-full text-xs text-amber-700">{t("{planError} Gli importi mostrati seguono le percentuali inserite, senza compensazioni nascoste.", { planError: String(planError ?? "") })}</span>
               )}
             </div>
           )}
@@ -227,8 +225,7 @@ export function QuotePaymentTermsCard({
         {/* La regola a monte: la commessa parte coi soldi del cliente, non
             coi tuoi. E le stesse fasi valgono verso il sub (back-to-back). */}
         <p className="text-[11px] text-muted-foreground max-sm:hidden">
-          Regola dell'acconto: copre l'acconto al fornitore più il primo mese di manodopera —
-          la commessa parte coi soldi del cliente. Verso i sub: stesse fasi, pagate a SAL incassato.
+          {t("Regola dell'acconto: copre l'acconto al fornitore più il primo mese di manodopera — la commessa parte coi soldi del cliente. Verso i sub: stesse fasi, pagate a SAL incassato.")}
         </p>
 
         {/* Le sei clausole del manuale (pag. 75): da scrivere nel contratto,
@@ -236,15 +233,15 @@ export function QuotePaymentTermsCard({
             contratto le apre e le copia. */}
         <details className="group rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 max-sm:hidden">
           <summary className="cursor-pointer select-none text-xs font-medium text-slate-700 marker:content-none">
-            Le sei clausole che valgono più di uno sconto — da scrivere nel contratto
+            {t("Le sei clausole che valgono più di uno sconto — da scrivere nel contratto")}
           </summary>
           <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
-            <li><strong className="text-slate-700">Acconto minimo 25-30%</strong>, incassato prima di ordinare qualunque materiale.</li>
-            <li><strong className="text-slate-700">SAL a cadenza fissa mensile</strong>, contabilizzati a misura sul lavoro eseguito — non milestone tipo «a tetto finito», che si prestano a discussione.</li>
-            <li><strong className="text-slate-700">Pagamento del SAL a 30 giorni dall'emissione</strong>, non dall'accettazione: sennò il committente allunga i tempi semplicemente non firmando.</li>
-            <li><strong className="text-slate-700">Sospensione lavori automatica</strong> a 15 giorni dal mancato incasso di un SAL, con ripresa dei termini. Nero su bianco.</li>
-            <li><strong className="text-slate-700">Ritenuta di garanzia svincolata a 6 mesi</strong> dalla fine lavori, non a 12 o 24 — o sostituita da una polizza fideiussoria che costa centinaia di euro e ti lascia i soldi in cassa.</li>
-            <li><strong className="text-slate-700">Back-to-back sui subappalti</strong>: il sub si paga quando incassi il SAL che copre il suo lavoro.</li>
+            <li><strong className="text-slate-700">{t("Acconto minimo 25-30%")}</strong>{t(", incassato prima di ordinare qualunque materiale.")}</li>
+            <li><strong className="text-slate-700">{t("SAL a cadenza fissa mensile")}</strong>{t(", contabilizzati a misura sul lavoro eseguito — non milestone tipo «a tetto finito», che si prestano a discussione.")}</li>
+            <li><strong className="text-slate-700">{t("Pagamento del SAL a 30 giorni dall'emissione")}</strong>{t(", non dall'accettazione: sennò il committente allunga i tempi semplicemente non firmando.")}</li>
+            <li><strong className="text-slate-700">{t("Sospensione lavori automatica")}</strong> {t("a 15 giorni dal mancato incasso di un SAL, con ripresa dei termini. Nero su bianco.")}</li>
+            <li><strong className="text-slate-700">{t("Ritenuta di garanzia svincolata a 6 mesi")}</strong> {t("dalla fine lavori, non a 12 o 24 — o sostituita da una polizza fideiussoria che costa centinaia di euro e ti lascia i soldi in cassa.")}</li>
+            <li><strong className="text-slate-700">{t("Back-to-back sui subappalti")}</strong>{t(": il sub si paga quando incassi il SAL che copre il suo lavoro.")}</li>
           </ul>
         </details>
       </CardContent>

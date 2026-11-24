@@ -14,6 +14,7 @@ import {
 import { exportToCSV, exportToXLSX, type CsvColumn } from "@/lib/csvExport";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ExportButtonProps {
   /** I dati da esportare come array di record */
@@ -41,6 +42,7 @@ export function ExportButton({
   iconOnly = false,
   className,
 }: ExportButtonProps) {
+  const t = useT();
   const [isExporting, setIsExporting] = useState(false);
   const isMobile = useIsMobile();
 
@@ -49,7 +51,7 @@ export function ExportButton({
       setIsExporting(true);
       const data = await getData();
       if (!data.length) {
-        toast.info("Nessun dato da esportare");
+        toast.info(t("Nessun dato da esportare"));
         return;
       }
       const ts = new Date().toISOString().slice(0, 10);
@@ -60,11 +62,11 @@ export function ExportButton({
       } else {
         await exportToXLSX(data, columns, `${fullFilename}.xlsx`);
       }
-      toast.success(`Esportazione ${format.toUpperCase()} completata`, {
-        description: `${data.length} righe esportate`,
+      toast.success(t("Esportazione {format} completata", { format: format.toUpperCase() }), {
+        description: t("{rows} righe esportate", { rows: data.length }),
       });
     } catch (err) {
-      toast.error("Errore durante l'esportazione");
+      toast.error(t("Errore durante l'esportazione"));
       console.error("Export error:", err);
     } finally {
       setIsExporting(false);
@@ -85,17 +87,17 @@ export function ExportButton({
           ) : (
             <Download className="h-4 w-4" />
           )}
-          {!iconOnly && <span className="ml-1.5">Esporta</span>}
+          {!iconOnly && <span className="ml-1.5">{t("Esporta")}</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-2">
           <FileText className="h-4 w-4" />
-          Esporta CSV
+          {t("Esporta CSV")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-2">
           <FileSpreadsheet className="h-4 w-4" />
-          Esporta Excel (XLSX)
+          {t("Esporta Excel (XLSX)")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

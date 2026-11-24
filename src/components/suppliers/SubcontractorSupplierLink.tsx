@@ -4,6 +4,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Link inverso: nessuna duplicazione di anagrafica o documenti. */
 export function SubcontractorSupplierLink({
@@ -11,6 +12,7 @@ export function SubcontractorSupplierLink({
 }: {
   subcontractorId: string;
 }) {
+  const t = useT();
   const permissions = usePermissions(),
     companyId = useEffectiveCompanyId();
   const allowed = !!(
@@ -37,7 +39,7 @@ export function SubcontractorSupplierLink({
   if (query.isError)
     return (
       <p className="text-xs text-amber-700">
-        Collegamento fornitore non verificabile al momento.
+        {t("Collegamento fornitore non verificabile al momento.")}
       </p>
     );
   if (!query.data) return null;
@@ -46,7 +48,7 @@ export function SubcontractorSupplierLink({
       <Link
         to={`/azienda/impostazioni/fornitori?tab=operativo&fornitore=${query.data.supplier_id}`}
       >
-        Apri anagrafica fornitore e contratti generali
+        {t("Apri anagrafica fornitore e contratti generali")}
       </Link>
     </Button>
   );

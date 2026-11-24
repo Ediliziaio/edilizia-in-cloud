@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bot, Phone, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface VoiceAgent {
   id: string;
@@ -52,6 +53,7 @@ export function AiCallButton({
   aperto,
   onAperto,
 }: AiCallButtonProps) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [apertoQui, setApertoQui] = useState(false);
   const open = aperto ?? apertoQui;
@@ -80,7 +82,7 @@ export function AiCallButton({
 
   const handleCall = async () => {
     if (!agentId) {
-      toast.error("Seleziona un agente vocale");
+      toast.error(t("Seleziona un agente vocale"));
       return;
     }
     setCalling(true);
@@ -101,18 +103,18 @@ export function AiCallButton({
         const minimo = typeof esito.min_required_eur === "number" ? esito.min_required_eur.toFixed(2) : "0.10";
         throw new Error(
           esito.reason === "insufficient_balance"
-            ? `Crediti AI insufficienti: saldo ${saldo} €, servono almeno ${minimo} €. Ricarica per chiamare.`
-            : "Chiamate AI bloccate per questa azienda (credito esaurito). Ricarica per riattivarle.",
+            ? t("Crediti AI insufficienti: saldo {saldo} €, servono almeno {minimo} €. Ricarica per chiamare.", { saldo, minimo })
+            : t("Chiamate AI bloccate per questa azienda (credito esaurito). Ricarica per riattivarle."),
         );
       }
       const { data, error } = await supabase.functions.invoke("initiate-outbound-call", { body });
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);
-      toast.success((data as { message?: string })?.message || "Chiamata AI avviata");
+      toast.success((data as { message?: string })?.message || t("Chiamata AI avviata"));
       attempt.current = null;
       setOpen(false);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore nell'avvio della chiamata");
+      toast.error(err instanceof Error ? err.message : t("Errore nell'avvio della chiamata"));
     } finally {
       setCalling(false);
     }
@@ -127,10 +129,10 @@ export function AiCallButton({
           className={className}
           disabled={noTarget}
           onClick={() => setOpen(true)}
-          title={noTarget ? "Numero mancante" : label}
+          title={noTarget ? t("Numero mancante") : t(label)}
         >
           <Phone className={iconOnly ? "h-4 w-4" : "h-3.5 w-3.5 mr-2"} />
-          {!iconOnly && label}
+          {!iconOnly && t(label)}
         </Button>
       )}
 
@@ -139,27 +141,26 @@ export function AiCallButton({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary" />
-              Chiama con Agente AI
+              {t("Chiama con Agente AI")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Seleziona un agente vocale per chiamare
+              {t("Seleziona un agente vocale per chiamare")}
               {contactName ? <strong> {contactName}</strong> : ""}
               {phone ? <span className="font-mono"> ({phone})</span> : ""}.
             </p>
             {isLoading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Caricamento agenti…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento agenti…")}
               </div>
             ) : agents.length === 0 ? (
               <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                Nessun agente vocale attivo. Creane uno in <strong>Agenti AI</strong> e collega un numero
-                nella tab <strong>Telefonia</strong>.
+                {t("Nessun agente vocale attivo. Creane uno in Agenti AI e collega un numero nella tab Telefonia.")}
               </p>
             ) : (
               <Select value={agentId} onValueChange={setAgentId}>
-                <SelectTrigger><SelectValue placeholder="Seleziona agente…" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("Seleziona agente…")} /></SelectTrigger>
                 <SelectContent>
                   {agents.map((a) => (
                     <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
@@ -169,10 +170,10 @@ export function AiCallButton({
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>{t("Annulla")}</Button>
             <Button onClick={handleCall} disabled={calling || !agentId || agents.length === 0}>
               {calling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Avvia chiamata
+              {t("Avvia chiamata")}
             </Button>
           </DialogFooter>
         </DialogContent>

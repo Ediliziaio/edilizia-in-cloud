@@ -20,13 +20,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { computeCreditForecast, formatDaysRemaining } from "@/lib/creditForecasting";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { format, subDays, startOfDay } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import { TrendingDown, AlertTriangle, CheckCircle2, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Saldo attuale per calcolare ETA */
@@ -34,6 +34,7 @@ interface Props {
 }
 
 export function ConsumoForecastChart({ currentBalanceEur }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -73,7 +74,7 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
     });
     return Array.from(byDay.values()).map((d) => ({
       ...d,
-      label: format(new Date(d.date), "dd/MM", { locale: it }),
+      label: format(new Date(d.date), "dd/MM", { locale: dateFnsCampo() }),
     }));
   }, [log]);
 
@@ -103,21 +104,20 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
           <CardTitle className="flex items-center justify-between text-base">
             <span className="flex items-center gap-2">
               <TrendingDown className="h-4 w-4 text-muted-foreground" />
-              Consumo Email — ultimi 14 giorni
+              {t("Consumo Email — ultimi 14 giorni")}
             </span>
             <Badge className="gap-1 bg-emerald-100 text-emerald-800 text-[10px]">
               <CheckCircle2 className="h-2.5 w-2.5" />
-              Nessun consumo
+              {t("Nessun consumo")}
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <TrendingDown className="h-10 w-10 text-muted-foreground/30 mb-2" />
-            <p className="text-sm font-medium">Nessuna email inviata negli ultimi 14 giorni</p>
+            <p className="text-sm font-medium">{t("Nessuna email inviata negli ultimi 14 giorni")}</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              Saldo attuale: <strong>{formatEur(currentBalanceEur)}</strong>.
-              Lo storico apparirà qui appena inizierai a inviare email.
+              {t("Saldo attuale: {saldo}. Lo storico apparirà qui appena inizierai a inviare email.", { saldo: formatEur(currentBalanceEur) })}
             </p>
           </div>
         </CardContent>
@@ -131,7 +131,7 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
         <CardTitle className="flex items-center justify-between text-base">
           <span className="flex items-center gap-2">
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
-            Consumo Email — ultimi 14 giorni
+            {t("Consumo Email — ultimi 14 giorni")}
           </span>
           {forecast && (
             <ForecastBadge forecast={forecast} />
@@ -142,17 +142,17 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
         {/* KPI top */}
         <div className="mb-4 grid grid-cols-3 gap-3">
           <Stat
-            label="Consumo medio/g"
+            label={t("Consumo medio/g")}
             value={formatEur(avgDaily)}
             tone="neutral"
           />
           <Stat
-            label="Saldo attuale"
+            label={t("Saldo attuale")}
             value={formatEur(currentBalanceEur)}
             tone={currentBalanceEur > 5 ? "blue" : "amber"}
           />
           <Stat
-            label="Autonomia stimata"
+            label={t("Autonomia stimata")}
             value={
               forecast?.daysRemaining != null
                 ? formatDaysRemaining(forecast.daysRemaining)
@@ -167,7 +167,7 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
             }
             sub={
               forecast?.depletionDate
-                ? `Esaurim. ~${format(forecast.depletionDate, "d MMM", { locale: it })}`
+                ? t("Esaurim. ~{data}", { data: format(forecast.depletionDate, "d MMM", { locale: dateFnsCampo() }) })
                 : undefined
             }
           />
@@ -182,16 +182,16 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v.toFixed(0)} €`} />
               <Tooltip
                 formatter={(v: number) => formatEur(v)}
-                labelFormatter={(l) => `Giorno ${l}`}
+                labelFormatter={(l) => t("Giorno {giorno}", { giorno: String(l) })}
                 contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
               />
               <ReferenceLine
                 y={avgDaily}
                 stroke="#ef4444"
                 strokeDasharray="3 3"
-                label={{ value: "Media", fontSize: 10, fill: "#ef4444", position: "right" }}
+                label={{ value: t("Media"), fontSize: 10, fill: "#ef4444", position: "right" }}
               />
-              <Bar dataKey="spent" fill="#fb923c" name="Consumo €" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="spent" fill="#fb923c" name={t("Consumo €")} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -199,8 +199,8 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
         {/* Footer info */}
         {forecast && forecast.daysAnalyzed > 0 && (
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Analisi su {forecast.daysAnalyzed}g · Burn rate medio{" "}
-            <strong>{formatEur(forecast.dailyBurnRate)}/giorno</strong>
+            {t("Analisi su {giorni}g · Burn rate medio", { giorni: forecast.daysAnalyzed })}{" "}
+            <strong>{t("{importo}/giorno", { importo: formatEur(forecast.dailyBurnRate) })}</strong>
           </p>
         )}
       </CardContent>
@@ -209,11 +209,12 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
 }
 
 function ForecastBadge({ forecast }: { forecast: ReturnType<typeof computeCreditForecast> }) {
+  const t = useT();
   if (forecast.severity === "critical") {
     return (
       <Badge variant="destructive" className="gap-1 text-[10px]">
         <AlertTriangle className="h-2.5 w-2.5" />
-        Critico
+        {t("Critico")}
       </Badge>
     );
   }
@@ -221,7 +222,7 @@ function ForecastBadge({ forecast }: { forecast: ReturnType<typeof computeCredit
     return (
       <Badge className="gap-1 bg-amber-100 text-amber-800 text-[10px]">
         <Calendar className="h-2.5 w-2.5" />
-        Attenzione
+        {t("Attenzione")}
       </Badge>
     );
   }

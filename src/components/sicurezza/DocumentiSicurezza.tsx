@@ -57,6 +57,7 @@ import {
 } from "@/lib/sicurezza/documentiSicurezza";
 import { extractDurcExpiryFromPdf } from "@/lib/sicurezza/durcExpiry";
 import { LIMITE_PSC_BYTES } from "../../../supabase/functions/_shared/posPsc";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const AZIENDA = "__azienda__";
 const NESSUNA = "__nessuna__";
@@ -135,6 +136,7 @@ export function CaricaDocumentoSicurezzaDialog({
   onCaricati?: (percorsi: string[]) => void;
   soloPsc?: boolean;
 }) {
+  const tr = useT();
   const formId = useId();
   const uploadInCorso = useRef(false);
   const { commesse, subappaltatori } = useCommesseESub(companyId, open);
@@ -175,7 +177,9 @@ export function CaricaDocumentoSicurezzaDialog({
       if (uploadInCorso.current) return;
       if (rifiutati.length)
         toast.error(
-          `${rifiutati.length} file rifiutati. ${soloPsc ? "Usa un PDF fino a 20 MB." : `Limite ${tipo === "psc" ? 20 : 50} MB per file.`}`,
+          soloPsc
+            ? tr("{n} file rifiutati. Usa un PDF fino a 20 MB.", { n: rifiutati.length })
+            : tr("{n} file rifiutati. Limite {mb} MB per file.", { n: rifiutati.length, mb: tipo === "psc" ? 20 : 50 }),
         );
       setFile((f) => [
         ...f,
@@ -209,11 +213,11 @@ export function CaricaDocumentoSicurezzaDialog({
   const salva = () => {
     if (uploadInCorso.current || carica.isPending) return;
     if (tipo === "psc" && (commessa === NESSUNA || commessa === AZIENDA || sub !== NESSUNA)) {
-      toast.error("Il PSC deve riferirsi a una commessa precisa, senza associarlo alla sola anagrafica di un subappaltatore.");
+      toast.error(tr("Il PSC deve riferirsi a una commessa precisa, senza associarlo alla sola anagrafica di un subappaltatore."));
       return;
     }
     if (!file.length) {
-      toast.error("Aggiungi almeno un file");
+      toast.error(tr("Aggiungi almeno un file"));
       return;
     }
     uploadInCorso.current = true;
@@ -234,14 +238,14 @@ export function CaricaDocumentoSicurezzaDialog({
           onCaricati?.(percorsi);
           toast.success(
             file.length === 1
-              ? "Documento caricato"
-              : `${file.length} documenti caricati`,
+              ? tr("Documento caricato")
+              : tr("{n} documenti caricati", { n: file.length }),
           );
           onOpenChange(false);
         },
         onError: (e) =>
           toast.error(
-            e instanceof Error ? e.message : "Caricamento non riuscito",
+            e instanceof Error ? e.message : tr("Caricamento non riuscito"),
           ),
       },
     );
@@ -256,14 +260,14 @@ export function CaricaDocumentoSicurezzaDialog({
     >
       <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{soloPsc ? "Carica il PSC della commessa" : "Carica documenti di sicurezza"}</DialogTitle>
+          <DialogTitle>{soloPsc ? tr("Carica il PSC della commessa") : tr("Carica documenti di sicurezza")}</DialogTitle>
           <DialogDescription>
-            {tipo === "psc" ? "Carica il PDF originale o salva la scansione come PDF. Massimo 20 MB per file." : "Documenti fino a 50 MB per file."}
+            {tipo === "psc" ? tr("Carica il PDF originale o salva la scansione come PDF. Massimo 20 MB per file.") : tr("Documenti fino a 50 MB per file.")}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={carica.isPending} className="min-w-0 space-y-3">
           <div
-            {...getRootProps({ role: "button", "aria-label": "Scegli o trascina i documenti di sicurezza" })}
+            {...getRootProps({ role: "button", "aria-label": tr("Scegli o trascina i documenti di sicurezza") })}
             className={cn(
               "flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center",
               isDragActive
@@ -271,10 +275,10 @@ export function CaricaDocumentoSicurezzaDialog({
                 : "border-muted-foreground/25 hover:bg-muted/40",
             )}
           >
-            <input {...getInputProps({ "aria-label": "File dei documenti di sicurezza" })} />
+            <input {...getInputProps({ "aria-label": tr("File dei documenti di sicurezza") })} />
             <FileUp className="h-6 w-6 text-primary" aria-hidden="true" />
             <p className="text-sm font-medium">
-              Trascina qui i file, o clicca per sceglierli
+              {tr("Trascina qui i file, o clicca per sceglierli")}
             </p>
           </div>
           {file.length > 0 && (
@@ -286,7 +290,7 @@ export function CaricaDocumentoSicurezzaDialog({
                 >
                   <Input
                     value={f.titolo}
-                    aria-label="Titolo del documento"
+                    aria-label={tr("Titolo del documento")}
                     className="h-8 text-sm"
                     onChange={(e) =>
                       setFile((x) =>
@@ -300,7 +304,7 @@ export function CaricaDocumentoSicurezzaDialog({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0"
-                    aria-label={`Togli il file ${f.file.name}`}
+                    aria-label={tr("Togli il file {name}", { name: String(f.file.name ?? "") })}
                     onClick={() => setFile((x) => x.filter((_, j) => j !== i))}
                   >
                     <X className="h-4 w-4" />
@@ -310,7 +314,7 @@ export function CaricaDocumentoSicurezzaDialog({
             </div>
           )}
           <div className="space-y-1">
-            <Label htmlFor={`${formId}-tipo`}>Tipo di documento</Label>
+            <Label htmlFor={`${formId}-tipo`}>{tr("Tipo di documento")}</Label>
             <Select
               value={tipo}
               disabled={soloPsc}
@@ -335,14 +339,14 @@ export function CaricaDocumentoSicurezzaDialog({
           </div>
           {!orderId && (
             <div className="space-y-1">
-              <Label htmlFor={`${formId}-commessa`}>Commessa</Label>
+              <Label htmlFor={`${formId}-commessa`}>{tr("Commessa")}</Label>
               <Select value={commessa} disabled={soloPsc} onValueChange={setCommessa}>
                 <SelectTrigger id={`${formId}-commessa`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NESSUNA}>
-                    Tutta l'azienda (vale per ogni cantiere)
+                    {tr("Tutta l'azienda (vale per ogni cantiere)")}
                   </SelectItem>
                   {commesse.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -356,45 +360,44 @@ export function CaricaDocumentoSicurezzaDialog({
           )}
           {orderId && (
             <div className="space-y-1">
-              <Label htmlFor={`${formId}-ambito`}>Vale per</Label>
+              <Label htmlFor={`${formId}-ambito`}>{tr("Vale per")}</Label>
               <Select value={commessa} disabled={soloPsc} onValueChange={setCommessa}>
                 <SelectTrigger id={`${formId}-ambito`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={orderId}>Solo questa commessa</SelectItem>
+                  <SelectItem value={orderId}>{tr("Solo questa commessa")}</SelectItem>
                   <SelectItem value={AZIENDA}>
-                    Tutta l'azienda (es. patente a crediti, DURC)
+                    {tr("Tutta l'azienda (es. patente a crediti, DURC)")}
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
           <div className="space-y-1">
-            <Label htmlFor={`${formId}-impresa`}>Impresa</Label>
+            <Label htmlFor={`${formId}-impresa`}>{tr("Impresa")}</Label>
             <Select value={sub} disabled={soloPsc} onValueChange={setSub}>
               <SelectTrigger id={`${formId}-impresa`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NESSUNA}>La tua impresa</SelectItem>
+                <SelectItem value={NESSUNA}>{tr("La tua impresa")}</SelectItem>
                 {subVisibili.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.ragione_sociale ?? "Subappaltatore"}
+                    {s.ragione_sociale ?? tr("Subappaltatore")}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {sub !== NESSUNA && (
               <p className="text-xs text-muted-foreground">
-                Va nella scheda del subappaltatore: lo vedi lì e qui, senza
-                caricarlo due volte.
+                {tr("Va nella scheda del subappaltatore: lo vedi lì e qui, senza caricarlo due volte.")}
               </p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor={`${formId}-data`}>Data del documento</Label>
+              <Label htmlFor={`${formId}-data`}>{tr("Data del documento")}</Label>
               <Input id={`${formId}-data`}
                 type="date"
                 value={dataDoc}
@@ -402,7 +405,7 @@ export function CaricaDocumentoSicurezzaDialog({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`${formId}-scadenza`}>Scadenza{conScadenza ? " (consigliata)" : ""}</Label>
+              <Label htmlFor={`${formId}-scadenza`}>{tr("Scadenza")}{conScadenza ? ` ${tr("(consigliata)")}` : ""}</Label>
               <Input id={`${formId}-scadenza`}
                 type="date"
                 value={scadenza}
@@ -410,18 +413,18 @@ export function CaricaDocumentoSicurezzaDialog({
               />
               {scadenzaLetta && scadenza === scadenzaLetta && (
                 <p className="text-xs text-muted-foreground">
-                  Letta dal DURC. Correggila se non corrisponde.
+                  {tr("Letta dal DURC. Correggila se non corrisponde.")}
                 </p>
               )}
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor={`${formId}-note`}>Note</Label>
+            <Label htmlFor={`${formId}-note`}>{tr("Note")}</Label>
             <Textarea id={`${formId}-note`}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              placeholder="Facoltative"
+              placeholder={tr("Facoltative")}
             />
           </div>
         </fieldset>
@@ -431,7 +434,7 @@ export function CaricaDocumentoSicurezzaDialog({
             onClick={() => onOpenChange(false)}
             disabled={carica.isPending}
           >
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button onClick={salva} disabled={carica.isPending || !file.length}>
             {carica.isPending ? (
@@ -439,7 +442,7 @@ export function CaricaDocumentoSicurezzaDialog({
             ) : (
               <FileUp className="mr-1.5 h-4 w-4" />
             )}
-            Carica {file.length > 1 ? `${file.length} file` : ""}
+            {file.length > 1 ? tr("Carica {n} file", { n: file.length }) : tr("Carica")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -459,6 +462,7 @@ export function DocumentiSicurezza({
   sola?: boolean;
   workflow?: boolean;
 }) {
+  const tr = useT();
   const {
     data: documenti = [],
     isLoading,
@@ -479,20 +483,20 @@ export function DocumentiSicurezza({
       new Map(
         commesse.map((c) => [
           c.id,
-          c.order_code ?? c.description ?? "Commessa",
+          c.order_code ?? c.description ?? tr("Commessa"),
         ]),
       ),
-    [commesse],
+    [commesse, tr],
   );
   const nomeSub = useMemo(
     () =>
       new Map(
         subappaltatori.map((s) => [
           s.id,
-          s.ragione_sociale ?? "Subappaltatore",
+          s.ragione_sociale ?? tr("Subappaltatore"),
         ]),
       ),
-    [subappaltatori],
+    [subappaltatori, tr],
   );
 
   const visibili = documenti.filter((d) => {
@@ -519,24 +523,24 @@ export function DocumentiSicurezza({
 
   const apri = (d: DocumentoSicurezza) =>
     apriDocumentoSicurezza(d).catch((e) =>
-      toast.error(e instanceof Error ? e.message : "Documento non disponibile"),
+      toast.error(e instanceof Error ? e.message : tr("Documento non disponibile")),
     );
   const togli = async (d: DocumentoSicurezza) => {
     if (sola) return;
     if (
       !(await confirm({
-        title: "Eliminare il documento?",
-        description: `«${d.titolo}» verrà eliminato insieme al file.`,
-        confirmLabel: "Elimina",
+        title: tr("Eliminare il documento?"),
+        description: tr("«{titolo}» verrà eliminato insieme al file.", { titolo: String(d.titolo ?? "") }),
+        confirmLabel: tr("Elimina"),
         variant: "destructive",
       }))
     )
       return;
     elimina.mutate(d, {
-      onSuccess: () => toast.success("Documento eliminato"),
+      onSuccess: () => toast.success(tr("Documento eliminato")),
       onError: (e) =>
         toast.error(
-          e instanceof Error ? e.message : "Eliminazione non riuscita",
+          e instanceof Error ? e.message : tr("Eliminazione non riuscita"),
         ),
     });
   };
@@ -553,18 +557,18 @@ export function DocumentiSicurezza({
             <Input
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
-              aria-label="Cerca documento"
-              placeholder="Cerca documento"
+              aria-label={tr("Cerca documento")}
+              placeholder={tr("Cerca documento")}
               className="h-8 w-44 pl-7 text-sm"
             />
           </div>
         )}
         <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger aria-label="Tipo di documento" className="h-8 w-52">
+          <SelectTrigger aria-label={tr("Tipo di documento")} className="h-8 w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti i tipi</SelectItem>
+            <SelectItem value="tutti">{tr("Tutti i tipi")}</SelectItem>
             {(Object.keys(TIPI_SICUREZZA) as TipoDocumentoSicurezza[]).map(
               (t) => (
                 <SelectItem key={t} value={t}>
@@ -576,12 +580,12 @@ export function DocumentiSicurezza({
         </Select>
         {!workflow && !orderId && (
           <Select value={filtroCommessa} onValueChange={setFiltroCommessa}>
-            <SelectTrigger aria-label="Commessa dei documenti" className="h-8 w-52">
+            <SelectTrigger aria-label={tr("Commessa dei documenti")} className="h-8 w-52">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutte">Tutte le commesse</SelectItem>
-              <SelectItem value={AZIENDA}>Tutta l'azienda</SelectItem>
+              <SelectItem value="tutte">{tr("Tutte le commesse")}</SelectItem>
+              <SelectItem value={AZIENDA}>{tr("Tutta l'azienda")}</SelectItem>
               {commesse.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.order_code ? `${c.order_code} · ` : ""}
@@ -599,7 +603,7 @@ export function DocumentiSicurezza({
           onClick={() => setSoloScadenze((v) => !v)}
         >
           <CalendarClock className="h-3.5 w-3.5" />
-          Scaduti o in scadenza{daGuardare ? ` (${daGuardare})` : ""}
+          {tr("Scaduti o in scadenza")}{daGuardare ? ` (${daGuardare})` : ""}
         </Button>
         {!sola && (
           <Button
@@ -608,7 +612,7 @@ export function DocumentiSicurezza({
             onClick={() => setCarica(true)}
           >
             <FileUp className="mr-1 h-4 w-4" />
-            Carica documenti
+            {tr("Carica documenti")}
           </Button>
         )}
       </div>
@@ -619,38 +623,38 @@ export function DocumentiSicurezza({
         </div>
       ) : isError ? (
         <p className="py-6 text-center text-sm text-destructive">
-          Non riesco a leggere i documenti. Ricarica la pagina.
+          {tr("Non riesco a leggere i documenti. Ricarica la pagina.")}
         </p>
       ) : workflow ? (
         <SafetyWorkflow<DocumentoSicurezza>
           namespace="documenti"
           onOpen={apri}
           defaultView="elenco"
-          label="Documenti"
+          label={tr("Documenti")}
           items={visibili}
           stages={[
             {
               id: "scaduto",
-              label: "Scaduti",
-              hint: "Data di scadenza superata",
+              label: tr("Scaduti"),
+              hint: tr("Data di scadenza superata"),
               accent: "border-t-rose-500",
             },
             {
               id: "in_scadenza",
-              label: "Entro 30 giorni",
-              hint: "Scadenza vicina",
+              label: tr("Entro 30 giorni"),
+              hint: tr("Scadenza vicina"),
               accent: "border-t-amber-500",
             },
             {
               id: "ok",
-              label: "Data non scaduta",
-              hint: "Scadenza registrata oltre 30 giorni",
+              label: tr("Data non scaduta"),
+              hint: tr("Scadenza registrata oltre 30 giorni"),
               accent: "border-t-emerald-500",
             },
             {
               id: "senza_scadenza",
-              label: "Senza scadenza",
-              hint: "Nessuna scadenza registrata",
+              label: tr("Senza scadenza"),
+              hint: tr("Nessuna scadenza registrata"),
               accent: "border-t-slate-400",
             },
           ]}
@@ -672,12 +676,12 @@ export function DocumentiSicurezza({
             ].join(" ")
           }
           canWrite={!sola}
-          note="Le fasi seguono la scadenza registrata sul file. Per rinnovare un documento carica la versione aggiornata con la sua data effettiva."
+          note={tr("Le fasi seguono la scadenza registrata sul file. Per rinnovare un documento carica la versione aggiornata con la sua data effettiva.")}
           onTransition={(d) => ({
-            title: "Aggiorna il documento",
+            title: tr("Aggiorna il documento"),
             description:
-              "Trascinare un file non cambia la sua scadenza. Controlla il documento e carica la versione aggiornata.",
-            label: "Apri il documento",
+              tr("Trascinare un file non cambia la sua scadenza. Controlla il documento e carica la versione aggiornata."),
+            label: tr("Apri il documento"),
             run: () => apri(d),
           })}
           renderCard={(d) => (
@@ -688,11 +692,11 @@ export function DocumentiSicurezza({
               <p className="text-xs text-muted-foreground">
                 {d.subappaltatore_id
                   ? nomeSub.get(d.subappaltatore_id)
-                  : "Documento di cantiere"}
+                  : tr("Documento di cantiere")}
               </p>
               <p className="text-xs text-muted-foreground">
-                Scadenza:{" "}
-                {d.data_scadenza ? dataIT(d.data_scadenza) : "non indicata"}
+                {tr("Scadenza:")}{" "}
+                {d.data_scadenza ? dataIT(d.data_scadenza) : tr("non indicata")}
               </p>
             </>
           )}
@@ -703,7 +707,7 @@ export function DocumentiSicurezza({
                   size="icon"
                   variant="ghost"
                   className="h-6 w-6 text-destructive"
-                  aria-label="Elimina il documento"
+                  aria-label={tr("Elimina il documento")}
                   onClick={() => togli(d)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -713,7 +717,7 @@ export function DocumentiSicurezza({
           )}
           columns={[
             {
-              label: "Documento",
+              label: tr("Documento"),
               render: (d) => (
                 <button
                   type="button"
@@ -726,30 +730,30 @@ export function DocumentiSicurezza({
               ),
             },
             {
-              label: "Tipo",
+              label: tr("Tipo"),
               render: (d) => TIPI_SICUREZZA[d.tipo]?.label ?? d.tipo,
             },
             {
-              label: "Commessa",
+              label: tr("Commessa"),
               render: (d) =>
                 d.order_id
-                  ? nomeCommessa.get(d.order_id) || "Commessa"
-                  : "Tutta l’azienda",
+                  ? nomeCommessa.get(d.order_id) || tr("Commessa")
+                  : tr("Tutta l’azienda"),
             },
             {
-              label: "Impresa",
+              label: tr("Impresa"),
               render: (d) =>
                 d.subappaltatore_id
                   ? nomeSub.get(d.subappaltatore_id) || "—"
                   : "—",
             },
             {
-              label: "Data documento",
+              label: tr("Data documento"),
               render: (d) =>
                 d.data_documento ? dataIT(d.data_documento) : "—",
             },
             {
-              label: "Scadenza",
+              label: tr("Scadenza"),
               render: (d) => (d.data_scadenza ? dataIT(d.data_scadenza) : "—"),
             },
           ]}
@@ -757,8 +761,8 @@ export function DocumentiSicurezza({
       ) : visibili.length === 0 ? (
         <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
           {documenti.length
-            ? "Nessun documento con questi filtri."
-            : "Nessun documento ancora. Carica PSC, notifica, PiMUS, DURC, attestati…"}
+            ? tr("Nessun documento con questi filtri.")
+            : tr("Nessun documento ancora. Carica PSC, notifica, PiMUS, DURC, attestati…")}
         </p>
       ) : (
         <div className="divide-y rounded-lg border">
@@ -782,17 +786,17 @@ export function DocumentiSicurezza({
                     {stato === "scaduto" && (
                       <Badge className="bg-red-100 text-[11px] text-red-800 hover:bg-red-100">
                         <AlertTriangle className="mr-1 h-3 w-3" />
-                        Scaduto
+                        {tr("Scaduto")}
                       </Badge>
                     )}
                     {stato === "in_scadenza" && (
                       <Badge className="bg-amber-100 text-[11px] text-amber-800 hover:bg-amber-100">
-                        In scadenza
+                        {tr("In scadenza")}
                       </Badge>
                     )}
                     {d.fonte && d.fonte !== "sicurezza" && (
                       <Badge variant="secondary" className="text-[11px]">
-                        Dalla scheda del subappaltatore
+                        {tr("Dalla scheda del subappaltatore")}
                       </Badge>
                     )}
                   </div>
@@ -802,15 +806,15 @@ export function DocumentiSicurezza({
                         ? orderId
                           ? null
                           : nomeCommessa.get(d.order_id)
-                        : "Tutta l'azienda",
+                        : tr("Tutta l'azienda"),
                       d.subappaltatore_id
                         ? nomeSub.get(d.subappaltatore_id)
                         : null,
                       d.data_documento
-                        ? `del ${dataIT(d.data_documento)}`
+                        ? tr("del {data}", { data: dataIT(d.data_documento) })
                         : null,
                       d.data_scadenza
-                        ? `scade il ${dataIT(d.data_scadenza)}`
+                        ? tr("scade il {data}", { data: dataIT(d.data_scadenza) })
                         : null,
                       d.note,
                     ]
@@ -822,7 +826,7 @@ export function DocumentiSicurezza({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  aria-label="Apri il documento"
+                  aria-label={tr("Apri il documento")}
                   onClick={() => apri(d)}
                 >
                   <Download className="h-4 w-4" />
@@ -832,7 +836,7 @@ export function DocumentiSicurezza({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label="Elimina il documento"
+                    aria-label={tr("Elimina il documento")}
                     onClick={() => togli(d)}
                   >
                     <Trash2 className="h-4 w-4" />

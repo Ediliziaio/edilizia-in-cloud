@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { COLONNE } from "./CampaignTable";
 import { DEFAULT_COLUMNS } from "@/hooks/useMetaAdsReport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const GRUPPI: { titolo: string; chiavi: string[] }[] = [
   { titolo: "Impostazione", chiavi: ["account_name", "status", "budget", "quality_ranking"] },
@@ -21,6 +22,7 @@ interface Props {
 }
 
 const ColumnsDrawer = ({ open, onOpenChange, visibleColumns, onColumnsChange }: Props) => {
+  const t = useT();
   const toggle = (key: string, checked: boolean) => {
     if (checked) {
       onColumnsChange([...visibleColumns, key]);
@@ -34,21 +36,21 @@ const ColumnsDrawer = ({ open, onOpenChange, visibleColumns, onColumnsChange }: 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:w-[360px] overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Gestione colonne</SheetTitle>
-          <SheetDescription>Le scelte restano salvate per te su questo report.</SheetDescription>
+          <SheetTitle>{t("Gestione colonne")}</SheetTitle>
+          <SheetDescription>{t("Le scelte restano salvate per te su questo report.")}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-6">
           {GRUPPI.map((g) => (
             <div key={g.titolo} className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{g.titolo}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(g.titolo)}</p>
               {g.chiavi.map((k) => {
                 const col = perChiave.get(k);
                 if (!col) return null;
                 return (
                   <div key={k} className="flex items-start justify-between gap-3">
                     <div>
-                      <Label className="text-sm">{col.label}</Label>
-                      {col.aiuto && <p className="text-xs text-muted-foreground">{col.aiuto}</p>}
+                      <Label className="text-sm">{t(col.label)}</Label>
+                      {col.aiuto && <p className="text-xs text-muted-foreground">{t(col.aiuto)}</p>}
                     </div>
                     <Switch checked={visibleColumns.includes(k)} onCheckedChange={(v) => toggle(k, v)} />
                   </div>
@@ -57,7 +59,7 @@ const ColumnsDrawer = ({ open, onOpenChange, visibleColumns, onColumnsChange }: 
             </div>
           ))}
           <Button variant="outline" size="sm" className="w-full" onClick={() => onColumnsChange(DEFAULT_COLUMNS)}>
-            Ripristina colonne predefinite
+            {t("Ripristina colonne predefinite")}
           </Button>
         </div>
       </SheetContent>

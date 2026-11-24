@@ -36,6 +36,7 @@ import {
   type NotifPrefs,
 } from "@/hooks/useUserNotificationPrefs";
 import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type ChiaveApp =
   | "message_whatsapp_in_app"
@@ -98,6 +99,7 @@ const chiaviDi = (avvisi: typeof AVVISI): Chiave[] => avvisi.flatMap((a) => (a.e
 const RIGA = "grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] items-center gap-x-2 px-4 max-sm:px-3";
 
 export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: { conDispositivo?: boolean; evidenziata?: boolean } = {}) {
+  const t = useT();
   const { user, effectiveCompany, profile } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? undefined;
   const { data: prefs, isError, isFetching, refetch } = useUserNotifPrefs(user?.id);
@@ -124,7 +126,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
       // partirebbe dai valori vecchi e rimetterebbe indietro questo.
       queryClient.setQueryData(chiavePrefs, prossime);
     } catch (errore) {
-      toast.error("Non sono riuscito a salvare", { description: motivoDelRifiuto(errore, "Riprova tra qualche secondo.") });
+      toast.error(t("Non sono riuscito a salvare"), { description: motivoDelRifiuto(errore, t("Riprova tra qualche secondo.")) });
     } finally {
       setInCorso((prima) => {
         const resto = { ...prima };
@@ -141,13 +143,13 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
   return (
     <SezioneImpostazione
       id="avvisi"
-      titolo="Avvisi"
-      descrizione="Arrivano nella campanella in alto e, se vuoi, anche con l'app chiusa. Le email sono un riepilogo al mattino. Si salvano da soli."
-      ambito={<AmbitoImpostazione>Per te</AmbitoImpostazione>}
+      titolo={t("Avvisi")}
+      descrizione={t("Arrivano nella campanella in alto e, se vuoi, anche con l'app chiusa. Le email sono un riepilogo al mattino. Si salvano da soli.")}
+      ambito={<AmbitoImpostazione>{t("Per te")}</AmbitoImpostazione>}
       evidenziata={evidenziata}
       azione={
         <Button type="button" size="sm" variant="outline" className="h-8 px-3 text-xs" disabled={!puoModificare || salva.isPending} onClick={cambiaTutto}>
-          {tuttoSpento ? "Attiva tutto" : "Disattiva tutto"}
+          {tuttoSpento ? t("Attiva tutto") : t("Disattiva tutto")}
         </Button>
       }
     >
@@ -159,15 +161,15 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
       )}
       {isError && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm text-destructive">
-          <p>Impossibile caricare le preferenze di notifica.</p>
+          <p>{t("Impossibile caricare le preferenze di notifica.")}</p>
           <Button type="button" size="sm" variant="outline" disabled={isFetching} onClick={() => void refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       )}
       <div className={`${RIGA} py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground`} aria-hidden="true">
         <span />
-        <span className="text-center">Nell'app</span>
+        <span className="text-center">{t("Nell'app")}</span>
         <span className="text-center">Email</span>
       </div>
       {avvisi.map(({ app, email, icona: Icona, etichetta, dettaglio }) => (
@@ -175,8 +177,8 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
           <div className="flex min-w-0 items-start gap-3">
             <Icona className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <div className="min-w-0">
-              <p className="text-sm font-medium leading-snug">{etichetta}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{dettaglio}</p>
+              <p className="text-sm font-medium leading-snug">{t(etichetta)}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{t(dettaglio)}</p>
             </div>
           </div>
           <div className="flex justify-center">
@@ -184,7 +186,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
               checked={valore(app)}
               disabled={!puoModificare}
               onCheckedChange={(acceso) => void scrivi({ [app]: acceso })}
-              aria-label={`${etichetta}, nell'app`}
+              aria-label={t("{etichetta}, nell'app", { etichetta: t(etichetta) })}
             />
           </div>
           <div className="flex justify-center">
@@ -193,7 +195,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
                 checked={valore(email)}
                 disabled={!puoModificare}
                 onCheckedChange={(acceso) => void scrivi({ [email]: acceso })}
-                aria-label={`${etichetta}, per email`}
+                aria-label={t("{etichetta}, per email", { etichetta: t(etichetta) })}
               />
             ) : (
               <span className="text-muted-foreground/40" aria-hidden="true">—</span>

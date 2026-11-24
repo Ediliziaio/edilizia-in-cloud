@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, ArrowRight, CheckCircle2, Info } from "lucide-react";
 import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
 import { margineCantieriAperti, andamentoIncassi, ordinaAttenzioni, type CantiereMargine, type VoceAttenzione } from "@/lib/comeStiamoAndando";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * `comeSezione` la monta dentro il Cruscotto Aziendale invece che come pagina
@@ -67,6 +68,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
   /** Dal 08/11/2026 lo scaduto è quello del Previsionale. Senza, si ripiega sulle sole rate. */
   scaduto?: ScadutoPrevisionale;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { operations, finance, todayData, companyTargets, workOrders, isLoading, error } = dati;
@@ -116,7 +118,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       voci.push({
         id: "scaduto",
         gravita: "urgente",
-        titolo: `${scadutoQuanti} ${scadutoQuanti === 1 ? "incasso scaduto" : "incassi scaduti"} da sollecitare`,
+        titolo: t(scadutoQuanti === 1 ? "{n} incasso scaduto da sollecitare" : "{n} incassi scaduti da sollecitare", { n: scadutoQuanti }),
         dettaglio: formatCurrency(scadutoEuro),
         url: scadutoUrl ?? "/azienda/cruscotto/aziendale",
         importo: scadutoEuro,
@@ -130,9 +132,9 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       voci.push({
         id: "margine-basso",
         gravita: "attenzione",
-        titolo: `${sottoSoglia.length} ${sottoSoglia.length === 1 ? "cantiere aperto è" : "cantieri aperti sono"} sotto il margine minimo (${soglia}%)`,
-        dettaglio: sottoSoglia.slice(0, 3).map((c) => `${c.order_code || c.description || "—"} al ${(c.margine_perc ?? 0).toFixed(1)}%`).join(" · ")
-          + (sottoSoglia.length > 3 ? ` e altri ${sottoSoglia.length - 3}` : ""),
+        titolo: t(sottoSoglia.length === 1 ? "{n} cantiere aperto è sotto il margine minimo ({soglia}%)" : "{n} cantieri aperti sono sotto il margine minimo ({soglia}%)", { n: sottoSoglia.length, soglia }),
+        dettaglio: sottoSoglia.slice(0, 3).map((c) => t("{commessa} al {percento}%", { commessa: c.order_code || c.description || "—", percento: (c.margine_perc ?? 0).toFixed(1) })).join(" · ")
+          + (sottoSoglia.length > 3 ? ` ${t("e altri {n}", { n: sottoSoglia.length - 3 })}` : ""),
         url: "/azienda/ordini?tab=marginalita",
       });
     }
@@ -142,8 +144,8 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       voci.push({
         id: "costi-da-completare",
         gravita: "attenzione",
-        titolo: `${senzaCosti} ${senzaCosti === 1 ? "cantiere aperto non ha" : "cantieri aperti non hanno"} costi registrati`,
-        dettaglio: "Margine non calcolabile",
+        titolo: t(senzaCosti === 1 ? "{n} cantiere aperto non ha costi registrati" : "{n} cantieri aperti non hanno costi registrati", { n: senzaCosti }),
+        dettaglio: t("Margine non calcolabile"),
         url: "/azienda/ordini?tab=marginalita",
       });
     }
@@ -155,7 +157,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       voci.push({
         id: "fornitori-scaduti",
         gravita: "urgente",
-        titolo: "Fornitori scaduti da pagare",
+        titolo: t("Fornitori scaduti da pagare"),
         dettaglio: formatCurrency(fornitoriScaduti),
         url: "/azienda/scadenzario",
         importo: fornitoriScaduti,
@@ -168,8 +170,8 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       voci.push({
         id: "fornitori",
         gravita: "attenzione",
-        titolo: "Fornitori da pagare entro 7 giorni",
-        dettaglio: `${formatCurrency(daPagare)} in scadenza${debito > 0 ? ` su ${formatCurrency(debito)} di debito totale` : ""}.`,
+        titolo: t("Fornitori da pagare entro 7 giorni"),
+        dettaglio: debito > 0 ? t("{importo} in scadenza su {debito} di debito totale.", { importo: formatCurrency(daPagare), debito: formatCurrency(debito) }) : t("{importo} in scadenza.", { importo: formatCurrency(daPagare) }),
         url: "/azienda/scadenzario",
         importo: daPagare,
       });
@@ -185,10 +187,10 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         id: "fatture-da-emettere",
         gravita: "attenzione",
         titolo: bozze > 0
-          ? `${bozze} ${bozze === 1 ? "fattura in bozza" : "fatture in bozza"} da emettere`
-          : `${proforma} ${proforma === 1 ? "proforma da convertire" : "proforma da convertire"} in fattura`,
+          ? t(bozze === 1 ? "{n} fattura in bozza da emettere" : "{n} fatture in bozza da emettere", { n: bozze })
+          : t("{n} proforma da convertire in fattura", { n: proforma }),
         dettaglio: bozze > 0 && proforma > 0
-          ? `E ${proforma} proforma da convertire`
+          ? t("E {n} proforma da convertire", { n: proforma })
           : "",
         url: bozze > 0 ? "/azienda/documenti?stato=bozza" : "/azienda/documenti",
       });
@@ -198,25 +200,23 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       voci.push({
         id: "incassi",
         gravita: "attenzione",
-        titolo: "Gli incassi del mese sono sotto il ritmo",
-        dettaglio: `${formatCurrency(incassi.incassato)} su ${formatCurrency(incassi.previsione ?? 0)} previsti, a mese trascorso al ${Math.round(incassi.meseTrascorso * 100)}%.`,
+        titolo: t("Gli incassi del mese sono sotto il ritmo"),
+        dettaglio: t("{incassato} su {previsti} previsti, a mese trascorso al {percento}%.", { incassato: formatCurrency(incassi.incassato), previsti: formatCurrency(incassi.previsione ?? 0), percento: Math.round(incassi.meseTrascorso * 100) }),
         url: "/azienda/tesoreria",
         importo: incassi.mancante ?? 0,
       });
     }
 
     return ordinaAttenzioni(voci);
-  }, [todayData, scadutoEuro, scadutoQuanti, scadutoUrl, margini.ordinati, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, finance.priorPayables, incassi, fatturazione]);
+  }, [todayData, scadutoEuro, scadutoQuanti, scadutoUrl, margini.ordinati, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, finance.priorPayables, incassi, fatturazione, t]);
 
   if (error) {
     return (
       <div className="p-4">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Non riesco a caricare i numeri</AlertTitle>
-          <AlertDescription>
-            {error.message} — ricarica la pagina. Meglio nessun numero che un numero sbagliato.
-          </AlertDescription>
+          <AlertTitle>{t("Non riesco a caricare i numeri")}</AlertTitle>
+          <AlertDescription>{t("{messaggio} — ricarica la pagina. Meglio nessun numero che un numero sbagliato.", { messaggio: String(error.message ?? "") })}</AlertDescription>
         </Alert>
       </div>
     );
@@ -228,9 +228,9 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
     <div className={comeSezione ? "space-y-3" : "space-y-4 p-3 md:p-6"}>
       {!comeSezione && (
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Come stiamo andando</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("Come stiamo andando")}</h1>
           <p className="text-sm text-muted-foreground">
-            Quello che serve sapere stamattina, in una schermata sola.
+            {t("Quello che serve sapere stamattina, in una schermata sola.")}
           </p>
         </div>
       )}
@@ -244,30 +244,29 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         // cifre a 26px uscivano dal riquadro («319.058,0…»).
         <div className="grid grid-cols-2 gap-2 md:gap-3 xl:grid-cols-4">
           <RiquadroNumero
-            etichetta="Incassato commesse"
-            periodo="Questo mese"
+            etichetta={t("Incassato commesse")}
+            periodo={t("Questo mese")}
             to="/azienda/tesoreria"
             tendenza={tendenzaIncassato}
-            etichettaTendenza="Incassato degli ultimi sei mesi"
+            etichettaTendenza={t("Incassato degli ultimi sei mesi")}
             valore={formatCurrency(incassi.incassato)}
             tono={incassi.sottoRitmo === true ? "attenzione" : incassi.sottoRitmo === false ? "buono" : "neutro"}
             contesto={
               incassi.previsione == null ? (
                 // Nessuna pagina delle impostazioni scrive la previsione (companies.monthly_revenue_target): finché non
                 // c'è un posto dove metterla, qui è solo una constatazione, senza rimando.
-                finance.collectedUndatedCount ? `${finance.collectedUndatedCount} rate pagate senza data, contate alla data prevista · IVA inclusa` : "IVA inclusa"
+                finance.collectedUndatedCount ? t("{n} rate pagate senza data, contate alla data prevista · IVA inclusa", { n: finance.collectedUndatedCount }) : t("IVA inclusa")
               ) : (
                 <>
                   <Progress value={Math.min(100, incassi.percentuale ?? 0)} className="my-1 h-1.5" />
-                  {Math.round(incassi.percentuale ?? 0)}% di {formatCurrency(incassi.previsione)}
-                  {" · "}mese al {Math.round(incassi.meseTrascorso * 100)}%
+                  {t("{percento}% di {previsione} · mese al {mese}%", { percento: Math.round(incassi.percentuale ?? 0), previsione: formatCurrency(incassi.previsione), mese: Math.round(incassi.meseTrascorso * 100) })}
                 </>
               )
             }
           />
           <RiquadroNumero
-            etichetta="Margine cantieri avviati"
-            periodo="Cantieri aperti, a oggi"
+            etichetta={t("Margine cantieri avviati")}
+            periodo={t("Cantieri aperti, a oggi")}
             to="/azienda/ordini?tab=marginalita"
             valore={margini.marginePerc == null ? "—" : `${margini.marginePerc.toFixed(1)}%`}
             tono={
@@ -276,22 +275,22 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
                 : "buono"
             }
             contesto={
-              cantieriError ? "Marginalità non disponibile"
-                : margini.quanti === 0 ? "Nessun cantiere aperto"
-                : margini.quantiValutabili === 0 ? "Costi da completare sui cantieri aperti"
-                : <>{formatCurrency(margini.margineEuro)} · {margini.quantiValutabili} di {margini.quanti} cantieri valutabili</>
+              cantieriError ? t("Marginalità non disponibile")
+                : margini.quanti === 0 ? t("Nessun cantiere aperto")
+                : margini.quantiValutabili === 0 ? t("Costi da completare sui cantieri aperti")
+                : <>{t("{margine} · {n} di {totale} cantieri valutabili", { margine: formatCurrency(margini.margineEuro), n: margini.quantiValutabili, totale: margini.quanti })}</>
             }
           />
           <RiquadroNumero
-            etichetta="Scaduto da incassare"
-            periodo="A oggi"
+            etichetta={t("Scaduto da incassare")}
+            periodo={t("A oggi")}
             to={scadutoUrl}
             valore={formatCurrency(scadutoEuro)}
             tono={scadutoQuanti > 0 ? "male" : "buono"}
             contesto={
               scaduto?.fontiMancanti.length
-                ? `${scadutoQuanti} incassi oltre la scadenza · non letti: ${scaduto.fontiMancanti.join(", ")}`
-                : `${scadutoQuanti} ${scadutoQuanti === 1 ? "incasso" : "incassi"} oltre la scadenza`
+                ? t("{n} incassi oltre la scadenza · non letti: {fonti}", { n: scadutoQuanti, fonti: scaduto.fontiMancanti.join(", ") })
+                : t(scadutoQuanti === 1 ? "{n} incasso oltre la scadenza" : "{n} incassi oltre la scadenza", { n: scadutoQuanti })
             }
           />
           {/* Qui stava «Cantieri in ritardo»: un numero di cantiere, non di soldi,
@@ -299,8 +298,8 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
               fra rate da incassare e costi da pagare nel mese: non è la cassa
               (il saldo in banca non entra), ed è scritto. */}
           <RiquadroNumero
-            etichetta="Saldo delle scadenze"
-            periodo="Da oggi a fine mese"
+            etichetta={t("Saldo delle scadenze")}
+            periodo={t("Da oggi a fine mese")}
             to="/azienda/scadenzario"
             valore={formatCurrency(finance.cashFlowNet ?? 0)}
             tono={(finance.cashFlowNet ?? 0) < 0 ? "male" : "buono"}
@@ -313,7 +312,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Margine dei cantieri non disponibile in questo momento.
+            {t("Margine dei cantieri non disponibile in questo momento.")}
           </AlertDescription>
         </Alert>
       )}
@@ -326,7 +325,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
           che da un'etichetta ripetuta quattro volte. */}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border/60 px-4 py-2.5">
-          <h2 className="text-sm font-semibold text-foreground">Da guardare oggi</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t("Da guardare oggi")}</h2>
         </div>
 
         {caricando ? (
@@ -334,7 +333,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         ) : attenzioni.length === 0 ? (
           <div className="flex items-center gap-2 px-4 py-4 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-            Niente da guardare oggi.
+            {t("Niente da guardare oggi.")}
           </div>
         ) : (
           <ul className={comeSezione ? "grid grid-cols-1 divide-y divide-border/60 lg:grid-cols-2 lg:divide-y-0" : "divide-y divide-border/60"}>

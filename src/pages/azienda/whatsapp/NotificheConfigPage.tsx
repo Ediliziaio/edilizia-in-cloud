@@ -2,7 +2,7 @@
 // Ogni trigger: toggle on/off + template_name input + destinatario select +
 // wa_number_id select + soglie config custom (giorni/percentuale).
 
-import { useMemo } from "react";
+import { Fragment, useMemo, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -28,6 +28,15 @@ import {
 import { useWhatsAppNumbers } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { useWAMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
 import type { Json } from "@/integrations/supabase/types";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Mette pezzi di interfaccia (grassetti, numeri) al posto dei segnaposto di una frase già tradotta. */
+function conPezzi(frase: string, pezzi: Record<string, ReactNode>): ReactNode[] {
+  return frase.split(/(\{\w+\})/).map((p, i) => {
+    const nome = /^\{(\w+)\}$/.exec(p)?.[1];
+    return <Fragment key={i}>{nome && nome in pezzi ? pezzi[nome] : p}</Fragment>;
+  });
+}
 
 const KIND_ORDER: NotificaKind[] = [
   "fattura_scaduta",
@@ -62,6 +71,7 @@ const TRIGGER_DESCRIPTIONS: Record<NotificaKind, string> = {
 };
 
 export default function NotificheConfigPage() {
+  const tr = useT();
   const {
     data: triggers,
     isLoading,
@@ -108,13 +118,13 @@ export default function NotificheConfigPage() {
   }
 
   if (triggersError || numbersError) {
-    const message = triggersQueryError?.message || numbersQueryError?.message || "Errore nel caricamento delle notifiche WhatsApp.";
+    const message = triggersQueryError?.message || numbersQueryError?.message || tr("Errore nel caricamento delle notifiche WhatsApp.");
     return (
       <div className="p-6 md:p-0">
         <Card className="p-6 border-destructive/20 bg-destructive/5">
           <div className="flex flex-col items-center text-center">
             <AlertTriangle className="h-10 w-10 text-destructive" />
-            <h3 className="mt-3 font-semibold">Notifiche non caricate</h3>
+            <h3 className="mt-3 font-semibold">{tr("Notifiche non caricate")}</h3>
             <p className="mt-1 max-w-lg text-sm text-muted-foreground">{message}</p>
             <Button
               className="mt-4"
@@ -126,7 +136,7 @@ export default function NotificheConfigPage() {
               disabled={triggersFetching || numbersFetching}
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${triggersFetching || numbersFetching ? "animate-spin" : ""}`} />
-              Riprova
+              {tr("Riprova")}
             </Button>
           </div>
         </Card>
@@ -141,9 +151,9 @@ export default function NotificheConfigPage() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold">Nessun numero disponibile per notifiche</h3>
+              <h3 className="font-semibold">{tr("Nessun numero disponibile per notifiche")}</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Prima collega un numero con scopo <strong>Notifiche Transazionali</strong> o <strong>Bot Operativo</strong>.
+                {conPezzi(tr("Prima collega un numero con scopo {uno} o {due}."), { uno: <strong>{tr("Notifiche Transazionali")}</strong>, due: <strong>{tr("Bot Operativo")}</strong> })}
               </p>
             </div>
           </div>
@@ -187,27 +197,23 @@ export default function NotificheConfigPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base">{TRIGGER_LABELS[kind]}</CardTitle>
+                      <CardTitle className="text-base">{tr(TRIGGER_LABELS[kind])}</CardTitle>
                       {t?.fire_count != null && t.fire_count > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          Inviate: {t.fire_count}
-                        </Badge>
+                        <Badge variant="outline" className="text-xs">{tr("Inviate: {n}", { n: t.fire_count })}</Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {TRIGGER_DESCRIPTIONS[kind]}
+                      {tr(TRIGGER_DESCRIPTIONS[kind])}
                     </p>
                     {t?.last_fired_at && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Ultima: {new Date(t.last_fired_at).toLocaleString("it-IT")}
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">{tr("Ultima: {data}", { data: new Date(t.last_fired_at).toLocaleString(intlCampo()) })}</p>
                     )}
                   </div>
                   <Switch
                     checked={enabled}
                     disabled={toggle.isPending || upsert.isPending}
                     onCheckedChange={(v) => handleToggleAndCreateIfNeeded(kind, v)}
-                    aria-label={`Abilita ${TRIGGER_LABELS[kind]}`}
+                    aria-label={tr("Abilita {nome}", { nome: tr(TRIGGER_LABELS[kind]) })}
                   />
                 </div>
               </CardHeader>
@@ -216,12 +222,12 @@ export default function NotificheConfigPage() {
                 <CardContent className="space-y-3 border-t pt-4">
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-1">
-                      <Label>Numero mittente</Label>
+                      <Label>{tr("Numero mittente")}</Label>
                       <Select
                         value={t.wa_number_id ?? ""}
                         onValueChange={(v) => patch.mutate({ id: t.id, wa_number_id: v })}
                       >
-                        <SelectTrigger><SelectValue placeholder="Scegli..." /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={tr("Scegli...")} /></SelectTrigger>
                         <SelectContent>
                           {notificheNumbers.map((n) => (
                             <SelectItem key={n.id} value={n.id}>
@@ -232,7 +238,7 @@ export default function NotificheConfigPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label>Template Meta</Label>
+                      <Label>{tr("Template Meta")}</Label>
                       <Input
                         defaultValue={t.template_name ?? ""}
                         onBlur={(e) => {
@@ -245,7 +251,7 @@ export default function NotificheConfigPage() {
                       {t.template_name && approvedTemplates.length > 0 && !approvedNames.has(t.template_name) && (
                         <p className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                           <AlertTriangle className="h-3 w-3 shrink-0" />
-                          Template non trovato tra quelli APPROVATI su Meta: gli invii falliranno finché non usi un template approvato (tab Template).
+                          {tr("Template non trovato tra quelli APPROVATI su Meta: gli invii falliranno finché non usi un template approvato (tab Template).")}
                         </p>
                       )}
                     </div>
@@ -255,7 +261,7 @@ export default function NotificheConfigPage() {
                     <ConfigNumberField
                       id={t.id}
                       configKey="giorni_soglia"
-                      label="Giorni dopo scadenza"
+                      label={tr("Giorni dopo scadenza")}
                       config={t.config}
                       patch={(c) => patch.mutate({ id: t.id, config: c as Json })}
                       default={7}
@@ -266,7 +272,7 @@ export default function NotificheConfigPage() {
                     <ConfigNumberField
                       id={t.id}
                       configKey="ore_soglia"
-                      label="Ore senza validazione"
+                      label={tr("Ore senza validazione")}
                       config={t.config}
                       patch={(c) => patch.mutate({ id: t.id, config: c as Json })}
                       default={48}
@@ -277,7 +283,7 @@ export default function NotificheConfigPage() {
                     <ConfigNumberField
                       id={t.id}
                       configKey="percentuale"
-                      label="Soglia margine % (sotto questa)"
+                      label={tr("Soglia margine % (sotto questa)")}
                       config={t.config}
                       patch={(c) => patch.mutate({ id: t.id, config: c as Json })}
                       default={10}
@@ -288,7 +294,7 @@ export default function NotificheConfigPage() {
                     <ConfigNumberField
                       id={t.id}
                       configKey="giorni_soglia"
-                      label="Giorni in attesa"
+                      label={tr("Giorni in attesa")}
                       config={t.config}
                       patch={(c) => patch.mutate({ id: t.id, config: c as Json })}
                       default={3}
@@ -303,14 +309,14 @@ export default function NotificheConfigPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Come funzionano</CardTitle>
+          <CardTitle>{tr("Come funzionano")}</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>• Un cron gira ogni 15 minuti e valuta le condizioni di ogni trigger attivo.</p>
-          <p>• Anti-spam: la stessa notifica per lo stesso soggetto è inviata al massimo 1 volta ogni 24h.</p>
-          <p>• <b>Cron-based</b> (fattura_scaduta, ddt_pendente, margine_basso, approvazione_pendente): valutati a intervalli.</p>
-          <p>• <b>Event-driven</b> (preventivo_inviato, sal_raggiunto, fattura_emessa): attivati dai DB trigger su INSERT/UPDATE.</p>
-          <p>• Per iniziare serve: (1) numero con purpose=notifiche, (2) template UTILITY approvato su Meta, (3) trigger abilitato qui sopra.</p>
+          <p>{tr("• Un cron gira ogni 15 minuti e valuta le condizioni di ogni trigger attivo.")}</p>
+          <p>{tr("• Anti-spam: la stessa notifica per lo stesso soggetto è inviata al massimo 1 volta ogni 24h.")}</p>
+          <p>{conPezzi(tr("• {tipo} (fattura_scaduta, ddt_pendente, margine_basso, approvazione_pendente): valutati a intervalli."), { tipo: <b>Cron-based</b> })}</p>
+          <p>{conPezzi(tr("• {tipo} (preventivo_inviato, sal_raggiunto, fattura_emessa): attivati dai DB trigger su INSERT/UPDATE."), { tipo: <b>Event-driven</b> })}</p>
+          <p>{tr("• Per iniziare serve: (1) numero con purpose=notifiche, (2) template UTILITY approvato su Meta, (3) trigger abilitato qui sopra.")}</p>
         </CardContent>
       </Card>
     </div>

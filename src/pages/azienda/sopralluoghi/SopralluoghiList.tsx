@@ -73,6 +73,7 @@ import {
   leggiFiltriBacheca,
   scriviFiltriBacheca,
 } from "@/lib/sopralluoghi/filtriBacheca";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORI: Record<
   FasePratica,
@@ -126,6 +127,7 @@ const PERIODI: { value: PeriodoFiltro; label: string }[] = [
 ];
 
 function Scheda({ s, adesso }: { s: SopralluogoBacheca; adesso: Date }) {
+  const t = useT();
   const fase = fasePratica(s);
   if (!fase) return null;
   const fatto = ["completato", "firmato", "preventivo"].includes(fase);
@@ -148,9 +150,9 @@ function Scheda({ s, adesso }: { s: SopralluogoBacheca; adesso: Date }) {
           <Link
             to={`/azienda/sopralluoghi/${s.id}`}
             className="block truncate text-sm font-semibold text-slate-900 hover:text-primary"
-            title={s.cliente_nome || "Cliente non indicato"}
+            title={s.cliente_nome || t("Cliente non indicato")}
           >
-            {s.cliente_nome || "Cliente non indicato"}
+            {s.cliente_nome || t("Cliente non indicato")}
           </Link>
           <p className={cn("flex items-start gap-1.5 text-xs", TONO[q.tono])}>
             <Calendar className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -163,13 +165,13 @@ function Scheda({ s, adesso }: { s: SopralluogoBacheca; adesso: Date }) {
               title={[s.address, s.city].filter(Boolean).join(", ")}
             >
               {[s.address, s.city].filter(Boolean).join(", ") ||
-                "Indirizzo da indicare"}
+                t("Indirizzo da indicare")}
             </span>
           </p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1">
               <User className="h-3 w-3" />
-              {s.tecnico_nome || "Tecnico da assegnare"}
+              {s.tecnico_nome || t("Tecnico da assegnare")}
             </span>
             {s.cliente_telefono && (
               <a
@@ -205,6 +207,7 @@ function PipelineSopralluoghi({
   onMove: (id: string, target: string) => void;
   saving: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const accent: Record<FasePratica, string> = {
     da_pianificare: "border-t-slate-500",
@@ -217,7 +220,7 @@ function PipelineSopralluoghi({
   return (
     <>
       <OperationalBoard
-        label="Pipeline sopralluoghi"
+        label={t("Pipeline sopralluoghi")}
         onOpen={(s) => navigate(`/azienda/sopralluoghi/${s.id}`)}
         renderActions={(s) =>
           puoCreare &&
@@ -226,8 +229,8 @@ function PipelineSopralluoghi({
               size="icon"
               variant="ghost"
               className="h-6 w-6"
-              aria-label="Pianifica"
-              title="Pianifica sopralluogo"
+              aria-label={t("Pianifica")}
+              title={t("Pianifica sopralluogo")}
               onClick={() => pianifica(s)}
             >
               <CalendarClock className="h-3.5 w-3.5" />
@@ -239,8 +242,8 @@ function PipelineSopralluoghi({
         getLabel={(s) => s.code}
         columns={FASI.map(({ fase, etichetta }) => ({
           id: fase,
-          label: etichetta,
-          hint: COLORI[fase].descrizione,
+          label: t(etichetta),
+          hint: t(COLORI[fase].descrizione),
           accent: accent[fase],
           items: righe
             .filter((s) => fasePratica(s) === fase)
@@ -263,6 +266,7 @@ function PipelineSopralluoghi({
 }
 
 export default function SopralluoghiList() {
+  const t = useT();
   const permessi = usePermissions();
   const puoCreare = !permessi.solaLettura;
   const companyId = useEffectiveCompanyId();
@@ -374,16 +378,15 @@ export default function SopralluoghiList() {
       {/* Telefono: «+» tondo sulla riga delle sezioni di Commesse, niente titolo (lo dice la pillola). */}
       {slotAzioni && puoCreare && createPortal(
         <Button asChild size="icon" className="h-9 w-9 rounded-full bg-orange-600 hover:bg-orange-700">
-          <Link to="/azienda/sopralluoghi/nuovo" aria-label="Nuovo sopralluogo"><Plus className="h-4 w-4" /></Link>
+          <Link to="/azienda/sopralluoghi/nuovo" aria-label={t("Nuovo sopralluogo")}><Plus className="h-4 w-4" /></Link>
         </Button>, slotAzioni)}
       <header className={cn("flex flex-wrap items-center justify-between gap-3", slotAzioni && "hidden")}>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 max-md:text-xl">
-            Sopralluoghi
+            {t("Sopralluoghi")}
           </h1>
           <p className="mt-1 text-sm text-slate-500 max-md:hidden">
-            Dalla pianificazione al preventivo: cliente, tecnico e prossima
-            azione sempre visibili.
+            {t("Dalla pianificazione al preventivo: cliente, tecnico e prossima azione sempre visibili.")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -396,7 +399,7 @@ export default function SopralluoghiList() {
             >
               <Link to="/azienda/impostazioni/sopralluoghi">
                 <Settings className="h-3.5 w-3.5" />
-                Modelli e impostazioni
+                {t("Modelli e impostazioni")}
               </Link>
             </Button>
           )}
@@ -408,14 +411,14 @@ export default function SopralluoghiList() {
             >
               <Link to="/azienda/sopralluoghi/nuovo">
                 <Plus className="h-4 w-4" />
-                Nuovo sopralluogo
+                {t("Nuovo sopralluogo")}
               </Link>
             </Button>
           )}
         </div>
       </header>
       {!isError && (
-        <OperationalSummary label="Riepilogo sopralluoghi" title="Dalla visita al preventivo" icon={Calendar} note="I numeri principali seguono le regole dell’agenda e delle fasi. Seleziona un indicatore per filtrare.">
+        <OperationalSummary label={t("Riepilogo sopralluoghi")} title={t("Dalla visita al preventivo")} icon={Calendar} note={t("I numeri principali seguono le regole dell’agenda e delle fasi. Seleziona un indicatore per filtrare.")}>
           {isLoading ? (
             [0, 1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-24 rounded-xl" />
@@ -423,7 +426,7 @@ export default function SopralluoghiList() {
           ) : (
             <>
               <OperationalSummaryMetric
-                label="Oggi in agenda"
+                label={t("Oggi in agenda")}
                 value={ora.oggi.length}
                 icon={Calendar}
                 tone="blue"
@@ -433,7 +436,7 @@ export default function SopralluoghiList() {
                 active={filtri.periodo === "oggi"}
               />
               <OperationalSummaryMetric
-                label="Da pianificare"
+                label={t("Da pianificare")}
                 value={contaPerFase(tutti).da_pianificare}
                 icon={CalendarClock}
                 tone="amber"
@@ -443,7 +446,7 @@ export default function SopralluoghiList() {
                 active={filtri.fase === "da_pianificare"}
               />
               <OperationalSummaryMetric
-                label="In ritardo"
+                label={t("In ritardo")}
                 value={ora.inRitardo.length}
                 icon={AlertCircle}
                 tone={ora.inRitardo.length > 0 ? "red" : "green"}
@@ -453,11 +456,11 @@ export default function SopralluoghiList() {
                 active={filtri.periodo === "in_ritardo"}
               />
               <OperationalSummaryMetric
-                label="Da preventivare"
+                label={t("Da preventivare")}
                 value={ora.senzaPreventivo.length}
                 icon={FileCheck}
                 tone="green"
-                hint="completati o firmati"
+                hint={t("completati o firmati")}
                 onClick={() =>
                   imposta({ ...FILTRI_SOPRALLUOGHI, soloSenzaPreventivo: true })
                 }
@@ -467,25 +470,25 @@ export default function SopralluoghiList() {
           )}
         </OperationalSummary>
       )}
-      <section aria-label="Filtri sopralluoghi" className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <section aria-label={t("Filtri sopralluoghi")} className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[180px] max-w-sm flex-1 max-sm:min-w-0 max-sm:max-w-none">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
             <Input
-              aria-label="Cerca per cliente, telefono, indirizzo o codice"
-              placeholder="Cliente, indirizzo, codice o telefono…"
+              aria-label={t("Cerca per cliente, telefono, indirizzo o codice")}
+              placeholder={t("Cliente, indirizzo, codice o telefono…")}
               className="h-8 pl-8 text-xs max-sm:h-9 max-sm:text-sm"
               value={filtri.testo}
               onChange={(e) => imposta({ testo: e.target.value })}
             />
           </div><Select value={filtri.fase} onValueChange={value => imposta({fase:value as FasePratica | "tutte"})}>
-          <SelectTrigger aria-label="Fase dei sopralluoghi" className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="tutte">Tutte le fasi</SelectItem>{FASI.map(f => <SelectItem key={f.fase} value={f.fase}>{f.etichetta}</SelectItem>)}</SelectContent>
+          <SelectTrigger aria-label={t("Fase dei sopralluoghi")} className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="tutte">{t("Tutte le fasi")}</SelectItem>{FASI.map(f => <SelectItem key={f.fase} value={f.fase}>{t(f.etichetta)}</SelectItem>)}</SelectContent>
         </Select><Select value={filtri.ambito ?? "tutti"} onValueChange={value => imposta({ambito:value as FiltriBacheca["ambito"]})}>
-          <SelectTrigger aria-label="Tipo di sopralluogo" className="h-8 w-[150px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="tutti">Commerciali e tecnici</SelectItem><SelectItem value="commerciali">Commerciali</SelectItem><SelectItem value="tecnici">Tecnici</SelectItem></SelectContent>
+          <SelectTrigger aria-label={t("Tipo di sopralluogo")} className="h-8 w-[150px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="tutti">{t("Commerciali e tecnici")}</SelectItem><SelectItem value="commerciali">{t("Commerciali")}</SelectItem><SelectItem value="tecnici">{t("Tecnici")}</SelectItem></SelectContent>
         </Select>{!telefono && <OperationalViewSwitch
             value={vista}
-            label="Vista sopralluoghi"
+            label={t("Vista sopralluoghi")}
             onChange={(v) =>
               setParams(
                 (prima) => {
@@ -501,9 +504,7 @@ export default function SopralluoghiList() {
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
-            Trascina la scheda nella fase desiderata oppure usa l’icona con le
-            frecce. Firma, preventivo e pianificazione aprono il passaggio
-            dedicato.
+            {t("Trascina la scheda nella fase desiderata oppure usa l’icona con le frecce. Firma, preventivo e pianificazione aprono il passaggio dedicato.")}
           </OperationalHelp>
 
           <Select
@@ -511,7 +512,7 @@ export default function SopralluoghiList() {
             onValueChange={(v) => imposta({ periodo: v as PeriodoFiltro })}
           >
             <SelectTrigger
-              aria-label="Periodo sopralluoghi"
+              aria-label={t("Periodo sopralluoghi")}
               className="h-8 w-44 text-xs "
             >
               <SelectValue />
@@ -519,7 +520,7 @@ export default function SopralluoghiList() {
             <SelectContent>
               {PERIODI.map((p) => (
                 <SelectItem key={p.value} value={p.value}>
-                  {p.label}
+                  {t(p.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -529,16 +530,16 @@ export default function SopralluoghiList() {
             value={filtri.tecnico}
             onValueChange={(v) => imposta({ tecnico: v })}
           >
-            <SelectTrigger aria-label="Tecnico" className="h-8 w-44 text-xs ">
+            <SelectTrigger aria-label={t("Tecnico")} className="h-8 w-44 text-xs ">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti i tecnici</SelectItem>
-              <SelectItem value="nessuno">Senza tecnico</SelectItem>
+              <SelectItem value="tutti">{t("Tutti i tecnici")}</SelectItem>
+              <SelectItem value="nessuno">{t("Senza tecnico")}</SelectItem>
               {staff.map((u) => (
                 <SelectItem key={u.id} value={u.id}>
                   {[u.first_name, u.last_name].filter(Boolean).join(" ") ||
-                    "Utente"}
+                    t("Utente")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -551,14 +552,14 @@ export default function SopralluoghiList() {
               onClick={azzera}
             >
               <X className="h-3.5 w-3.5" />
-              Azzera filtri ({attivi})
+              {t("Azzera filtri ({n})", { n: attivi })}
             </Button>
           )}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <OperationalArchive
-            label="sopralluoghi"
+            label={t("sopralluoghi")}
             scope={archive.scope}
             onChange={(v) => archive.setScope(v, ["sop_fase", "sop_pagina"])}
             active={base.filter((s) => fasePratica(s) !== "preventivo").length}
@@ -566,10 +567,10 @@ export default function SopralluoghiList() {
           />
           <span>
             {isLoading
-              ? "Caricamento…"
+              ? t("Caricamento…")
               : isError
-                ? "Dati non disponibili"
-                : `${elenco.length} di ${totale} sopralluoghi`}
+                ? t("Dati non disponibili")
+                : t("{n} di {totale} sopralluoghi", { n: elenco.length, totale })}
           </span>
           <div className="flex flex-wrap gap-3">
             <button
@@ -583,7 +584,7 @@ export default function SopralluoghiList() {
                 filtri.soloSenzaPreventivo && "font-medium text-orange-700",
               )}
             >
-              Solo completati senza preventivo
+              {t("Solo completati senza preventivo")}
             </button>
             {ora.bozzeFerme.length > 0 && (
               <button
@@ -596,9 +597,7 @@ export default function SopralluoghiList() {
                   "hover:text-primary",
                   filtri.soloBozzeFerme && "font-medium text-orange-700",
                 )}
-              >
-                Bozze ferme da oltre 14 giorni ({ora.bozzeFerme.length})
-              </button>
+              >{t("Bozze ferme da oltre 14 giorni ({n})", { n: ora.bozzeFerme.length })}</button>
             )}
           </div>
         </div>
@@ -614,13 +613,13 @@ export default function SopralluoghiList() {
         <Card role="alert">
           <CardContent className="p-8 text-center">
             <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-500" />
-            <p className="font-semibold">Impossibile caricare i sopralluoghi</p>
+            <p className="font-semibold">{t("Impossibile caricare i sopralluoghi")}</p>
             <Button
               variant="outline"
               className="mt-3"
               onClick={() => refetch()}
             >
-              Riprova
+              {t("Riprova")}
             </Button>
           </CardContent>
         </Card>
@@ -629,16 +628,16 @@ export default function SopralluoghiList() {
           <CardContent className="p-10 text-center">
             <ClipboardList className="mx-auto mb-3 h-8 w-8 text-slate-300" />
             <p className="font-semibold">
-              Nessun sopralluogo{attivi ? " per questi filtri" : ""}
+              {attivi ? t("Nessun sopralluogo per questi filtri") : t("Nessun sopralluogo")}
             </p>
             <p className="mt-1 text-sm text-slate-500">
               {attivi
-                ? "Modifica la ricerca o azzera i filtri per rivedere le pratiche."
-                : "Crea il primo sopralluogo per iniziare a pianificare i rilievi."}
+                ? t("Modifica la ricerca o azzera i filtri per rivedere le pratiche.")
+                : t("Crea il primo sopralluogo per iniziare a pianificare i rilievi.")}
             </p>
             {!!attivi && (
               <Button variant="outline" className="mt-3" onClick={azzera}>
-                Azzera filtri
+                {t("Azzera filtri")}
               </Button>
             )}
           </CardContent>
@@ -656,7 +655,7 @@ export default function SopralluoghiList() {
       ) : (
         <>
           {telefono && (
-            <ul aria-label="Elenco sopralluoghi" className="divide-y overflow-hidden rounded-lg border bg-card">
+            <ul aria-label={t("Elenco sopralluoghi")} className="divide-y overflow-hidden rounded-lg border bg-card">
               {elenco.slice((paginaAttuale - 1) * 24, paginaAttuale * 24).map((s) => {
                 const fase = fasePratica(s)!;
                 const data = quando(s.scheduled_at, adesso, ["completato", "firmato", "preventivo"].includes(fase));
@@ -664,10 +663,10 @@ export default function SopralluoghiList() {
                   <li key={s.id}>
                     <Link to={`/azienda/sopralluoghi/${s.id}`} className="flex items-center gap-3 px-3 py-2.5">
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{s.cliente_nome || "Cliente non indicato"}</span>
+                        <span className="block truncate text-sm font-medium">{s.cliente_nome || t("Cliente non indicato")}</span>
                         <span className={cn("block truncate text-xs", TONO[data.tono])}>{s.code} · {data.testo}</span>
                       </span>
-                      <Badge className={cn("shrink-0 whitespace-nowrap", COLORI[fase].badge)}>{FASI.find((f) => f.fase === fase)?.etichetta}</Badge>
+                      <Badge className={cn("shrink-0 whitespace-nowrap", COLORI[fase].badge)}>{t(FASI.find((f) => f.fase === fase)?.etichetta ?? "")}</Badge>
                     </Link>
                   </li>
                 );
@@ -676,7 +675,7 @@ export default function SopralluoghiList() {
           )}
           {!telefono && selection.toolbar}
           {!telefono && selection.confirmation}
-          {!telefono && <OperationalTable label="Elenco sopralluoghi">
+          {!telefono && <OperationalTable label={t("Elenco sopralluoghi")}>
             <thead>
               <tr>
                 {selection.enabled && <th scope="col">{selection.header}</th>}
@@ -691,7 +690,7 @@ export default function SopralluoghiList() {
                   "Azioni",
                 ].map((label) => (
                   <th key={label} scope="col">
-                    {label}
+                    {t(label)}
                   </th>
                 ))}
               </tr>
@@ -729,7 +728,7 @@ export default function SopralluoghiList() {
                           className="block min-w-36 max-w-48 truncate font-medium hover:text-primary hover:underline"
                           title={s.cliente_nome ?? undefined}
                         >
-                          {s.cliente_nome || "Cliente non indicato"}
+                          {s.cliente_nome || t("Cliente non indicato")}
                         </Link>
                       </td>
                       <td>
@@ -739,7 +738,7 @@ export default function SopralluoghiList() {
                             COLORI[fase].badge,
                           )}
                         >
-                          {FASI.find((f) => f.fase === fase)?.etichetta}
+                          {t(FASI.find((f) => f.fase === fase)?.etichetta ?? "")}
                         </Badge>
                       </td>
                       <td className="whitespace-nowrap">
@@ -748,7 +747,7 @@ export default function SopralluoghiList() {
                         </span>
                       </td>
                       <td className="whitespace-nowrap text-xs text-slate-500">
-                        {s.tecnico_nome || "Da assegnare"}
+                        {s.tecnico_nome || t("Da assegnare")}
                       </td>
                       <td>
                         <span
@@ -756,7 +755,7 @@ export default function SopralluoghiList() {
                           title={[s.address, s.city].filter(Boolean).join(", ")}
                         >
                           {[s.address, s.city].filter(Boolean).join(", ") ||
-                            "Indirizzo da indicare"}
+                            t("Indirizzo da indicare")}
                         </span>
                       </td>
                       <td className="whitespace-nowrap text-xs">
@@ -781,8 +780,8 @@ export default function SopralluoghiList() {
                               onClick={() => setDaPianificare(s)}
                             >
                               {fase === "da_pianificare"
-                                ? "Pianifica"
-                                : "Sposta data"}
+                                ? t("Pianifica")
+                                : t("Sposta data")}
                             </Button>
                           )}
                           <Button
@@ -792,7 +791,7 @@ export default function SopralluoghiList() {
                             className="h-7 px-2 text-xs"
                           >
                             <Link to={href}>
-                              Apri
+                              {t("Apri")}
                               <ArrowRight className="ml-1 h-3 w-3" />
                             </Link>
                           </Button>
@@ -805,10 +804,7 @@ export default function SopralluoghiList() {
           </OperationalTable>}
           {pagine > 1 && (
             <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-              <span>
-                Pagina {paginaAttuale} di {pagine} · {elenco.length}{" "}
-                sopralluoghi
-              </span>
+              <span>{t("Pagina {pagina} di {pagine} · {n} sopralluoghi", { pagina: paginaAttuale, pagine, n: elenco.length })}</span>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -816,7 +812,7 @@ export default function SopralluoghiList() {
                   disabled={paginaAttuale === 1}
                   onClick={() => setPagina((p) => Math.max(1, p - 1))}
                 >
-                  Precedenti
+                  {t("Precedenti")}
                 </Button>
                 <Button
                   variant="outline"
@@ -824,7 +820,7 @@ export default function SopralluoghiList() {
                   disabled={paginaAttuale === pagine}
                   onClick={() => setPagina((p) => p + 1)}
                 >
-                  Successivi
+                  {t("Successivi")}
                 </Button>
               </div>
             </div>

@@ -9,6 +9,7 @@ import type { SrAiDraftItem } from "@/lib/serramenti/aiDraft";
 import { verifiedSerramentiAiItem } from "@/lib/serramenti/aiDraftValidation";
 import { useAuth } from "@/contexts/AuthContext";
 import { consentiPreventivoConversazionale } from '@/lib/preventivi/quoteRollout';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const ConversationalDialog=lazy(()=>import('./SerramentiConversationalAiDialog'));
 
 type AiLauncherContext = "contact" | "bom";
@@ -49,6 +50,7 @@ export function AiSerramentiDraftLauncher({
   onGoToComposition,
   autoOpen,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const { effectiveCompany } = useAuth();
   const addMut = useAddSerramento(progettoId);
@@ -71,7 +73,7 @@ export function AiSerramentiDraftLauncher({
 
   const handleApproveAiDraftItem = async (proposal: SrAiDraftItem) => {
     if (detail.progetto.id !== progettoId || !effectiveCompany?.id || detail.progetto.company_id !== effectiveCompany.id)
-      throw new Error('Il progetto o l’azienda attiva sono cambiati. Riapri il preventivo corretto.');
+      throw new Error(t("Il progetto o l’azienda attiva sono cambiati. Riapri il preventivo corretto."));
     const item = verifiedSerramentiAiItem(proposal);
     const qty = item.quantita;
     const noteParts = [
@@ -121,13 +123,13 @@ export function AiSerramentiDraftLauncher({
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950 max-md:text-[13px]">
               <Sparkles className="h-4 w-4 shrink-0 text-orange-500" />
-              {copy.title}
+              {t(copy.title)}
             </p>
-            <p className="text-xs leading-relaxed text-slate-600 max-md:hidden">{copy.description}</p>
+            <p className="text-xs leading-relaxed text-slate-600 max-md:hidden">{t(copy.description)}</p>
             <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 max-md:hidden">
-              <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> Foto rilievo</span>
-              <span className="inline-flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Detta a voce</span>
-              <span className="inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Testo</span>
+              <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> {t("Foto rilievo")}</span>
+              <span className="inline-flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> {t("Detta a voce")}</span>
+              <span className="inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> {t("Testo")}</span>
             </div>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -138,7 +140,7 @@ export function AiSerramentiDraftLauncher({
                 className="h-8 gap-1.5 text-xs text-slate-700 hover:bg-orange-50 max-md:hidden"
                 onClick={onGoToComposition}
               >
-                Vai alla composizione
+                {t("Vai alla composizione")}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             )}
@@ -153,14 +155,14 @@ export function AiSerramentiDraftLauncher({
               disabled={addMut.isPending}
             >
               <Sparkles className="h-4 w-4 max-md:hidden" />
-              <span className="max-md:hidden">{copy.cta}</span>
-              <span className="md:hidden">Apri</span>
+              <span className="max-md:hidden">{t(copy.cta)}</span>
+              <span className="md:hidden">{t("Apri")}</span>
             </Button>
           </div>
         </div>
       </div>
 
-      {open && consentiPreventivoConversazionale(effectiveCompany?.id) ? <Suspense fallback={<p role="status">Apro Silvio AI…</p>}><ConversationalDialog key={progettoId} detail={detail} onClose={()=>setOpen(false)} onInserted={onInserted}/></Suspense> : open && <AiSerramentiDraftDialog
+      {open && consentiPreventivoConversazionale(effectiveCompany?.id) ? <Suspense fallback={<p role="status">{t("Apro Silvio AI…")}</p>}><ConversationalDialog key={progettoId} detail={detail} onClose={()=>setOpen(false)} onInserted={onInserted}/></Suspense> : open && <AiSerramentiDraftDialog
         key={progettoId}
         open={open}
         onOpenChange={setOpen}

@@ -37,9 +37,11 @@ import { SmsContattoForm } from "./SmsContattoForm";
 import type { SmsContatto } from "@/types/sms-marketing";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 type OptOutFiltro = "tutti" | "attivi" | "opt_out";
 
 export function SmsContattiList() {
+  const t = useT();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   // Numeri e nomi dei contatti: si esportano solo con «Esporta Clienti».
@@ -106,7 +108,7 @@ export function SmsContattiList() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca per nome, cognome o telefono..."
+            placeholder={t("Cerca per nome, cognome o telefono...")}
             className="pl-8"
           />
         </div>
@@ -115,28 +117,28 @@ export function SmsContattiList() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti</SelectItem>
-            <SelectItem value="attivi">Attivi</SelectItem>
-            <SelectItem value="opt_out">Opt-out</SelectItem>
+            <SelectItem value="tutti">{t("Tutti")}</SelectItem>
+            <SelectItem value="attivi">{t("Attivi")}</SelectItem>
+            <SelectItem value="opt_out">{t("Opt-out")}</SelectItem>
           </SelectContent>
         </Select>
         {/* Niente export su telefono, né senza «Esporta Clienti». */}
         {!isMobile && canExportClients && (
           <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={contatti.length === 0 || esportando}>
             {esportando ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
-            Esporta CSV
+            {t("Esporta CSV")}
           </Button>
         )}
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
             <Button size="sm" onClick={() => setEditContatto(null)}>
               <Plus className="h-4 w-4 mr-1" />
-              Aggiungi
+              {t("Aggiungi")}
             </Button>
           </SheetTrigger>
           <SheetContent>
             <SheetHeader>
-              <SheetTitle>{editContatto ? "Modifica contatto" : "Nuovo contatto"}</SheetTitle>
+              <SheetTitle>{editContatto ? t("Modifica contatto") : t("Nuovo contatto")}</SheetTitle>
             </SheetHeader>
             <div className="mt-4">
               <SmsContattoForm
@@ -161,9 +163,9 @@ export function SmsContattiList() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-center">
             <UserCheck className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Nessun contatto trovato.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun contatto trovato.")}</p>
             <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Aggiungi il primo contatto
+              <Plus className="h-4 w-4 mr-1" /> {t("Aggiungi il primo contatto")}
             </Button>
           </CardContent>
         </Card>
@@ -176,11 +178,11 @@ export function SmsContattiList() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Contatto</th>
-                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Telefono</th>
-                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Consenso</th>
-                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Stato</th>
-                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Tag</th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">{t("Contatto")}</th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">{t("Telefono")}</th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">{t("Consenso")}</th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">{t("Stato")}</th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">{t("Tag")}</th>
                   <th className="px-4 py-2 w-20" />
                 </tr>
               </thead>
@@ -189,28 +191,28 @@ export function SmsContattiList() {
                   <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5">
                       <span className="font-medium">
-                        {[c.nome, c.cognome].filter(Boolean).join(" ") || <span className="text-muted-foreground italic">Senza nome</span>}
+                        {[c.nome, c.cognome].filter(Boolean).join(" ") || <span className="text-muted-foreground italic">{t("Senza nome")}</span>}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-xs">{c.telefono}</td>
                     <td className="px-4 py-2.5">
                       {c.consenso_marketing ? (
                         <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
-                          <UserCheck className="h-3 w-3 mr-1" /> Consenso
+                          <UserCheck className="h-3 w-3 mr-1" /> {t("Consenso")}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
-                          No consenso
+                          {t("No consenso")}
                         </Badge>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
                       {c.opt_out ? (
                         <Badge variant="outline" className="text-xs text-muted-foreground">
-                          <UserX className="h-3 w-3 mr-1" /> Opt-out
+                          <UserX className="h-3 w-3 mr-1" /> {t("Opt-out")}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">Attivo</Badge>
+                        <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">{t("Attivo")}</Badge>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
@@ -245,18 +247,18 @@ export function SmsContattiList() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare il contatto?</AlertDialogTitle>
+                              <AlertDialogTitle>{t("Eliminare il contatto?")}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Questa azione è irreversibile. Il contatto verrà eliminato definitivamente.
+                                {t("Questa azione è irreversibile. Il contatto verrà eliminato definitivamente.")}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                               <AlertDialogAction
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 onClick={() => remove(c.id)}
                               >
-                                Elimina
+                                {t("Elimina")}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -268,9 +270,7 @@ export function SmsContattiList() {
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-2 border-t text-xs text-muted-foreground">
-            {contatti.length.toLocaleString("it-IT")} contatti
-          </div>
+          <div className="px-4 py-2 border-t text-xs text-muted-foreground">{t("{n} contatti", { n: contatti.length.toLocaleString(intlCampo()) })}</div>
         </Card>
       )}
     </div>

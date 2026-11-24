@@ -69,6 +69,7 @@ import {
   type PortalLearningCourse,
   type PortalLearningEnrollment,
 } from "@/lib/portalLearningApi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Helpers locali ──────────────────────────────────────────────────────────
 
@@ -160,6 +161,7 @@ function ctaLabel(progress: number): string {
 // ─── Pagina ──────────────────────────────────────────────────────────────────
 
 export default function FormazioneDipendente() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
   const userId = user?.id ?? null;
@@ -301,17 +303,17 @@ export default function FormazioneDipendente() {
             <GraduationCap className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">La mia formazione</h1>
+            <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">{t("La mia formazione")}</h1>
             <p className="mt-1 text-sm text-slate-600 max-sm:hidden">
-              Corsi, procedure e materiali assegnati. Il tuo avanzamento viene salvato automaticamente.
+              {t("Corsi, procedure e materiali assegnati. Il tuo avanzamento viene salvato automaticamente.")}
             </p>
           </div>
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-3 max-sm:hidden">
-          <StatCard icon={BookOpen} label="Corsi" value={stats.total} tone="blue" />
-          <StatCard icon={Loader2} label="In corso" value={stats.inProgress} tone="amber" />
-          <StatCard icon={CheckCircle2} label="Completati" value={stats.completed} tone="emerald" />
+          <StatCard icon={BookOpen} label={t("Corsi")} value={stats.total} tone="blue" />
+          <StatCard icon={Loader2} label={t("In corso")} value={stats.inProgress} tone="amber" />
+          <StatCard icon={CheckCircle2} label={t("Completati")} value={stats.completed} tone="emerald" />
         </div>
       </header>
 
@@ -320,14 +322,14 @@ export default function FormazioneDipendente() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca corso o procedura"
+          placeholder={t("Cerca corso o procedura")}
           className="pl-9"
         />
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 text-slate-500">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Caricamento corsi…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> {t("Caricamento corsi…")}
         </div>
       ) : coursesQuery.isError || enrollmentsQuery.isError ? (
         // Errore reale (rete/RLS): NON mostrare "nessun corso" — sarebbe una
@@ -336,10 +338,10 @@ export default function FormazioneDipendente() {
         <div className="rounded-2xl border border-red-200 bg-red-50/50 py-16 text-center">
           <AlertTriangle className="mx-auto h-10 w-10 text-red-400" />
           <p className="mt-3 text-sm font-semibold text-slate-700">
-            Impossibile caricare i corsi
+            {t("Impossibile caricare i corsi")}
           </p>
           <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-            C'è stato un problema di connessione. Riprova tra un momento.
+            {t("C'è stato un problema di connessione. Riprova tra un momento.")}
           </p>
           <Button
             variant="outline"
@@ -350,19 +352,19 @@ export default function FormazioneDipendente() {
               void enrollmentsQuery.refetch();
             }}
           >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Riprova
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> {t("Riprova")}
           </Button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center max-sm:py-6">
           <GraduationCap className="mx-auto h-10 w-10 text-slate-300 max-sm:hidden" />
           <p className="mt-3 text-sm font-semibold text-slate-700">
-            {published.length === 0 ? "Nessun corso pubblicato" : "Nessun corso trovato"}
+            {published.length === 0 ? t("Nessun corso pubblicato") : t("Nessun corso trovato")}
           </p>
           <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 max-sm:hidden">
             {published.length === 0
-              ? "Quando l'azienda pubblica un corso lo troverai qui, con il tuo avanzamento."
-              : "Prova a modificare la ricerca."}
+              ? t("Quando l'azienda pubblica un corso lo troverai qui, con il tuo avanzamento.")
+              : t("Prova a modificare la ricerca.")}
           </p>
         </div>
       ) : (
@@ -371,7 +373,7 @@ export default function FormazioneDipendente() {
             <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
               <div className="mb-3 flex items-center gap-2 max-sm:mb-2">
                 <UserCheck className="h-5 w-5 text-blue-600" />
-                <h2 className="font-bold text-slate-950">Assegnati a te</h2>
+                <h2 className="font-bold text-slate-950">{t("Assegnati a te")}</h2>
                 <Badge variant="outline" className="border-blue-200 bg-white text-blue-700">
                   {assignedTodo.length}
                 </Badge>
@@ -396,7 +398,7 @@ export default function FormazioneDipendente() {
             <section className="rounded-2xl border border-red-200 bg-red-50/40 p-4 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
               <div className="mb-3 flex items-center gap-2 max-sm:mb-2">
                 <ShieldAlert className="h-5 w-5 text-red-600" />
-                <h2 className="font-bold text-slate-950">Obbligatori da completare</h2>
+                <h2 className="font-bold text-slate-950">{t("Obbligatori da completare")}</h2>
                 <Badge variant="outline" className="border-red-200 bg-white text-red-700">
                   {mandatoryTodo.length}
                 </Badge>
@@ -419,7 +421,7 @@ export default function FormazioneDipendente() {
 
           {rest.length > 0 && (
             <div>
-              {mandatoryTodo.length > 0 && <h2 className="mb-3 font-bold text-slate-950 max-sm:mb-2">Tutti i corsi</h2>}
+              {mandatoryTodo.length > 0 && <h2 className="mb-3 font-bold text-slate-950 max-sm:mb-2">{t("Tutti i corsi")}</h2>}
               <div className={ELENCO_CORSI}>
                 {rest.map((course) => (
                   <CourseCard
@@ -463,6 +465,7 @@ function CourseCard({
   now: number;
   onOpen: () => void;
 }) {
+  const t = useT();
   const area = AREA_META[course.area];
   const st = statusTone(progress, enrollment);
   const materials = course.assets.length;
@@ -488,55 +491,55 @@ function CourseCard({
       <span className="min-w-0 flex-1 sm:hidden">
         <span className="block truncate text-sm font-medium text-slate-950">{course.title}</span>
         <span className={cn("block truncate text-xs text-slate-500", overdue && "font-medium text-red-600")}>
-          {course.modules.length} moduli · {progress}%
+          {t("{n} moduli · {percentuale}%", { n: course.modules.length, percentuale: progress })}
           {dueAt &&
-            ` · ${overdue ? "scaduto" : "entro"} ${new Date(dueAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}`}
+            ` · ${overdue ? "scaduto" : "entro"} ${new Date(dueAt).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" })}`}
         </span>
       </span>
-      <span className="shrink-0 text-xs font-semibold text-blue-700 sm:hidden">{ctaLabel(progress)}</span>
+      <span className="shrink-0 text-xs font-semibold text-blue-700 sm:hidden">{t(ctaLabel(progress))}</span>
       <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline" className={cn("w-fit", area?.className)}>
-            {area?.label ?? course.area}
+            {area?.label ? t(area.label) : course.area}
           </Badge>
           {mandatory && (
             <Badge variant="outline" className="w-fit border-red-200 bg-red-50 text-red-700">
-              Obbligatorio
+              {t("Obbligatorio")}
             </Badge>
           )}
           {assigned && (
             <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
-              Assegnato a te
+              {t("Assegnato a te")}
             </Badge>
           )}
         </div>
         <Badge variant="outline" className={cn("w-fit", st.className)}>
-          {st.label}
+          {t(st.label)}
         </Badge>
       </div>
       <h3 className="mt-3 line-clamp-2 font-bold text-slate-950 max-sm:hidden">{course.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm text-slate-500 max-sm:hidden">{course.description || "—"}</p>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500 max-sm:hidden">
         <span className="inline-flex items-center gap-1">
-          <Layers className="h-3.5 w-3.5" /> {course.modules.length} moduli
+          <Layers className="h-3.5 w-3.5" /> {course.modules.length} {t("moduli")}
         </span>
         {materials > 0 && (
           <span className="inline-flex items-center gap-1">
-            <BookOpen className="h-3.5 w-3.5" /> {materials} material{materials === 1 ? "e" : "i"}
+            <BookOpen className="h-3.5 w-3.5" /> {t(materials === 1 ? "{n} materiale" : "{n} materiali", { n: materials })}
           </span>
         )}
         {dueAt && (
           <span className={cn("inline-flex items-center gap-1", overdue && "font-medium text-red-600")}>
             <CalendarClock className="h-3.5 w-3.5" />
-            {overdue ? "Scaduto " : "Scadenza "}
-            {new Date(dueAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
+            {overdue ? `${t("Scaduto")} ` : `${t("Scadenza")} `}
+            {new Date(dueAt).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short", year: "numeric" })}
           </span>
         )}
       </div>
       <div className="mt-auto pt-4 max-sm:hidden">
         <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
           <span>{progress}%</span>
-          <span className="font-medium text-blue-700">{ctaLabel(progress)} →</span>
+          <span className="font-medium text-blue-700">{t(ctaLabel(progress))} →</span>
         </div>
         <Progress value={progress} className="h-2" />
       </div>
@@ -587,6 +590,7 @@ function CoursePlayer({
   onBack: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const totalModules = course.modules.length;
 
   const avanzamentoSalvato = enrollment?.progressPercent ?? 0;
@@ -630,7 +634,7 @@ function CoursePlayer({
       });
       onSaved();
     } catch {
-      toast.error("Avanzamento non salvato. Riprova.");
+      toast.error(t("Avanzamento non salvato. Riprova."));
     } finally {
       setSaving(false);
     }
@@ -646,7 +650,7 @@ function CoursePlayer({
     const ids = totalModules === 0 ? ["__corso__"] : course.modules.map((m) => m.id);
     setCompleted(ids);
     void persist(ids);
-    toast.success("Corso segnato come completato.");
+    toast.success(t("Corso segnato come completato."));
   };
 
   // Segna un materiale come "visto"; se tutti i materiali del modulo sono visti → modulo completato.
@@ -663,7 +667,7 @@ function CoursePlayer({
         const nextCompleted = [...completed, mod.id];
         setCompleted(nextCompleted);
         void persist(nextCompleted);
-        toast.success(`Modulo «${mod.title}» completato.`);
+        toast.success(t("Modulo «{title}» completato.", { title: String(mod.title ?? "") }));
       }
     }
   };
@@ -681,7 +685,7 @@ function CoursePlayer({
     }
     const raw = asset.downloadUrl || asset.source || "";
     if (!raw || raw.startsWith("locale/")) {
-      toast.error("Materiale non ancora disponibile.");
+      toast.error(t("Materiale non ancora disponibile."));
       return;
     }
     let url: string | null = raw;
@@ -693,7 +697,7 @@ function CoursePlayer({
       }
     }
     if (!url) {
-      toast.error("Impossibile aprire il materiale.");
+      toast.error(t("Impossibile aprire il materiale."));
       return;
     }
     // Apertura IN-PLACE (video/PDF/immagine embeddati nel visore), niente nuova scheda.
@@ -711,18 +715,18 @@ function CoursePlayer({
         onClick={onBack}
         className="tap-compact inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900 max-sm:py-1"
       >
-        <ArrowLeft className="h-4 w-4" /> Tutti i corsi
+        <ArrowLeft className="h-4 w-4" /> {t("Tutti i corsi")}
       </button>
 
       <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 max-sm:rounded-xl max-sm:p-3">
         {/* Mobile: titolo e avanzamento; area e descrizione no. */}
         <div className="flex flex-wrap items-center gap-2 max-sm:hidden">
           <Badge variant="outline" className={cn("w-fit", area?.className)}>
-            {area?.label ?? course.area}
+            {area?.label ? t(area.label) : course.area}
           </Badge>
           {progress >= 100 && (
             <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-              Completato
+              {t("Completato")}
             </Badge>
           )}
         </div>
@@ -734,9 +738,9 @@ function CoursePlayer({
             <span className="font-medium text-slate-700">
               {totalModules === 0
                 ? progress >= 100
-                  ? "Completato"
-                  : "Da completare"
-                : `${completed.length}/${totalModules} moduli completati`}
+                  ? t("Completato")
+                  : t("Da completare")
+                : t("{n}/{totalModules} moduli completati", { n: completed.length, totalModules: String(totalModules ?? "") })}
             </span>
             <span className="flex items-center gap-2 text-slate-500">
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -749,9 +753,9 @@ function CoursePlayer({
 
       {totalModules === 0 ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-950">Materiali del corso</h2>
+          <h2 className="text-lg font-bold text-slate-950">{t("Materiali del corso")}</h2>
           {courseAssets.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">Questo corso non ha ancora materiali strutturati.</p>
+            <p className="mt-2 text-sm text-slate-500">{t("Questo corso non ha ancora materiali strutturati.")}</p>
           ) : (
             <div className="mt-3 space-y-2">
               {courseAssets.map((asset) => (
@@ -781,7 +785,7 @@ function CoursePlayer({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 max-sm:hidden">Modulo {idx + 1}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 max-sm:hidden">{t("Modulo {index}", { index: idx + 1 })}</p>
                     <h3 className="mt-0.5 font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm">
                       <span className="sm:hidden">{idx + 1}. </span>
                       {module.title}
@@ -797,9 +801,7 @@ function CoursePlayer({
                                 ? "font-medium text-emerald-600"
                                 : undefined
                             }
-                          >
-                            {moduleViewed}/{moduleAssets.length} materiali visti
-                          </span>
+                          >{t("{moduleViewed}/{n} materiali visti", { moduleViewed: String(moduleViewed ?? ""), n: moduleAssets.length })}</span>
                         )}
                       </div>
                     )}
@@ -812,8 +814,8 @@ function CoursePlayer({
                     className={cn("tap-compact shrink-0 gap-2", done && "border-emerald-200 text-emerald-700")}
                   >
                     {done ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-                    <span className="max-sm:hidden">{done ? "Completato" : "Segna fatto"}</span>
-                    <span className="sm:hidden">{done ? "Fatto" : "Segna"}</span>
+                    <span className="max-sm:hidden">{done ? t("Completato") : t("Segna fatto")}</span>
+                    <span className="sm:hidden">{done ? t("Fatto") : t("Segna")}</span>
                   </Button>
                 </div>
 
@@ -838,11 +840,11 @@ function CoursePlayer({
       <div className="flex items-center justify-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         {progress >= 100 ? (
           <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-            <CheckCircle2 className="h-4 w-4" /> Corso completato — ottimo lavoro!
+            <CheckCircle2 className="h-4 w-4" /> {t("Corso completato — ottimo lavoro!")}
           </span>
         ) : (
           <Button type="button" onClick={completeCourse} className="gap-2 bg-emerald-600 hover:bg-emerald-700 max-sm:flex-1">
-            <CheckCircle2 className="h-4 w-4" /> Segna corso come completato
+            <CheckCircle2 className="h-4 w-4" /> {t("Segna corso come completato")}
           </Button>
         )}
       </div>
@@ -872,7 +874,7 @@ function CoursePlayer({
                           if (prev) void openAsset(prev, viewer.siblings);
                         }}
                       >
-                        <ArrowLeft className="h-4 w-4" /> Precedente
+                        <ArrowLeft className="h-4 w-4" /> {t("Precedente")}
                       </Button>
                       <span className="px-1 text-xs text-slate-500">
                         {viewer.index + 1} / {viewer.siblings.length}
@@ -887,7 +889,7 @@ function CoursePlayer({
                           if (next) void openAsset(next, viewer.siblings);
                         }}
                       >
-                        Successivo <ArrowRight className="h-4 w-4" />
+                        {t("Successivo")} <ArrowRight className="h-4 w-4" />
                       </Button>
                     </>
                   )}
@@ -897,13 +899,13 @@ function CoursePlayer({
                     {viewer.asset.downloadable && (
                       <a href={viewer.url} download target="_blank" rel="noopener noreferrer">
                         <Button variant="outline" size="sm" className="gap-2">
-                          <Download className="h-4 w-4" /> Scarica
+                          <Download className="h-4 w-4" /> {t("Scarica")}
                         </Button>
                       </a>
                     )}
                     <a href={viewer.url} target="_blank" rel="noopener noreferrer">
                       <Button variant="outline" size="sm" className="gap-2">
-                        <ExternalLink className="h-4 w-4" /> Apri
+                        <ExternalLink className="h-4 w-4" /> {t("Apri")}
                       </Button>
                     </a>
                   </div>
@@ -936,14 +938,15 @@ const IS_IOS =
     (navigator.userAgent.includes("Macintosh") && navigator.maxTouchPoints > 1));
 
 function MaterialViewer({ asset, url }: { asset: PortalLearningAsset; url: string | null }) {
+  const t = useT();
   if (asset.type === "testo") {
     return (
       <div className="max-h-[55dvh] overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700 sm:max-h-[70dvh]">
-        {asset.content || "Nessun contenuto."}
+        {asset.content || t("Nessun contenuto.")}
       </div>
     );
   }
-  if (!url) return <p className="py-8 text-center text-sm text-slate-500">Materiale non disponibile.</p>;
+  if (!url) return <p className="py-8 text-center text-sm text-slate-500">{t("Materiale non disponibile.")}</p>;
 
   if (asset.type === "immagine") {
     return <img src={url} alt={asset.title} className="mx-auto max-h-[72vh] rounded-lg object-contain" />;
@@ -985,10 +988,10 @@ function MaterialViewer({ asset, url }: { asset: PortalLearningAsset; url: strin
     if (IS_IOS) {
       return (
         <div className="rounded-lg bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">Su iPhone e iPad il documento si apre a schermo intero.</p>
+          <p className="text-sm text-slate-600">{t("Su iPhone e iPad il documento si apre a schermo intero.")}</p>
           <a href={url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block">
             <Button className="gap-2">
-              <ExternalLink className="h-4 w-4" /> Apri il documento
+              <ExternalLink className="h-4 w-4" /> {t("Apri il documento")}
             </Button>
           </a>
         </div>
@@ -1000,10 +1003,10 @@ function MaterialViewer({ asset, url }: { asset: PortalLearningAsset; url: strin
   // link / quiz / altro non embeddabile → apri esterno
   return (
     <div className="rounded-lg bg-slate-50 p-8 text-center">
-      <p className="text-sm text-slate-600">Questo materiale si apre in una nuova scheda.</p>
+      <p className="text-sm text-slate-600">{t("Questo materiale si apre in una nuova scheda.")}</p>
       <a href={url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block">
         <Button className="gap-2">
-          <ExternalLink className="h-4 w-4" /> Apri il materiale
+          <ExternalLink className="h-4 w-4" /> {t("Apri il materiale")}
         </Button>
       </a>
     </div>
@@ -1019,6 +1022,7 @@ function AssetRow({
   viewed?: boolean;
   onOpen: () => void;
 }) {
+  const t = useT();
   const hasContent = asset.type === "testo" && !!asset.content;
   const hasFile = !!(asset.downloadUrl || asset.source) && !(asset.source ?? "").startsWith("locale/");
   const canOpen = hasFile || hasContent;
@@ -1041,15 +1045,15 @@ function AssetRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-900">{asset.title}</p>
         <p className="text-xs text-slate-500">
-          {ASSET_TYPE_LABEL[asset.type]}
+          {t(ASSET_TYPE_LABEL[asset.type])}
           {asset.duration ? ` · ${asset.duration}` : ""}
-          {viewed ? " · visto" : ""}
+          {viewed ? ` ${t("· visto")}` : ""}
         </p>
       </div>
       {canOpen && (
         <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-blue-700">
           {asset.type === "video" ? <PlayCircle className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          {viewed ? "Rivedi" : asset.type === "video" ? "Guarda" : "Apri"}
+          {viewed ? t("Rivedi") : asset.type === "video" ? t("Guarda") : t("Apri")}
         </span>
       )}
     </button>

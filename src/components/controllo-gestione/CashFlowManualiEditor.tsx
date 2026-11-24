@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MESI_LABELS = [
   "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
@@ -51,6 +52,7 @@ export function CashFlowManualiEditor({
   onOpenChange: (v: boolean) => void;
   anno: number;
 }) {
+  const t = useT();
   const q = useCashFlowManuali(anno);
   const upsert = useUpsertCashFlowManuale();
   const del = useDeleteCashFlowManuale();
@@ -83,8 +85,8 @@ export function CashFlowManualiEditor({
     const importo = Number(form.importo);
     if (!form.descrizione.trim() || !Number.isFinite(importo) || importo <= 0) {
       toast({
-        title: "Dati incompleti",
-        description: "Descrizione e importo positivo sono obbligatori.",
+        title: t("Dati incompleti"),
+        description: t("Descrizione e importo positivo sono obbligatori."),
         variant: "destructive",
       });
       return;
@@ -100,18 +102,18 @@ export function CashFlowManualiEditor({
         note: form.note.trim() || null,
       });
       setForm((f) => ({ ...f, descrizione: "", importo: "", note: "" }));
-      toast({ title: "Voce aggiunta" });
+      toast({ title: t("Voce aggiunta") });
     } catch (e) {
-      toast({ title: "Voce non salvata", description: messaggioErrore(e), variant: "destructive" });
+      toast({ title: t("Voce non salvata"), description: t(messaggioErrore(e)), variant: "destructive" });
     }
   };
 
   const handleDelete = async (r: CashFlowManuale) => {
     try {
       await del.mutateAsync(r.id);
-      toast({ title: "Voce eliminata" });
+      toast({ title: t("Voce eliminata") });
     } catch (e) {
-      toast({ title: "Voce non eliminata", description: messaggioErrore(e), variant: "destructive" });
+      toast({ title: t("Voce non eliminata"), description: t(messaggioErrore(e)), variant: "destructive" });
     }
   };
 
@@ -119,23 +121,20 @@ export function CashFlowManualiEditor({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle>Voci manuali Cash Flow · {anno}</SheetTitle>
+          <SheetTitle>{t("Voci manuali Cash Flow · {anno}", { anno })}</SheetTitle>
           <p className="text-xs text-muted-foreground">
-            Solo ciò che il gestionale non vede già: versamenti dei soci, dividendi,
-            finanziamenti, spese fuori dallo scadenzario. Scadenze, rate delle commesse,
-            stipendi, F24 registrati e IVA stimata sono già nel conto: inserirli qui
-            li conterebbe due volte.
+            {t("Solo ciò che il gestionale non vede già: versamenti dei soci, dividendi, finanziamenti, spese fuori dallo scadenzario. Scadenze, rate delle commesse, stipendi, F24 registrati e IVA stimata sono già nel conto: inserirli qui li conterebbe due volte.")}
           </p>
         </SheetHeader>
 
         {/* Form di inserimento rapido */}
         <div className="mt-4 space-y-3 rounded-xl border bg-muted/20 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Aggiungi voce
+            {t("Aggiungi voce")}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs">Mese</Label>
+              <Label className="text-xs">{t("Mese")}</Label>
               <Select
                 value={String(form.mese)}
                 onValueChange={(v) => setForm((f) => ({ ...f, mese: Number(v) }))}
@@ -143,26 +142,26 @@ export function CashFlowManualiEditor({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MESI_LABELS.map((m, i) => (
-                    <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
+                    <SelectItem key={i} value={String(i + 1)}>{t(m)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs">{t("Tipo")}</Label>
               <Select
                 value={form.tipo}
                 onValueChange={(v) => setForm((f) => ({ ...f, tipo: v as "entrata" | "uscita" }))}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="entrata">Entrata</SelectItem>
-                  <SelectItem value="uscita">Uscita</SelectItem>
+                  <SelectItem value="entrata">{t("Entrata")}</SelectItem>
+                  <SelectItem value="uscita">{t("Uscita")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Categoria</Label>
+              <Label className="text-xs">{t("Categoria")}</Label>
               <Select
                 value={form.categoria}
                 onValueChange={(v) => setForm((f) => ({ ...f, categoria: v }))}
@@ -170,38 +169,38 @@ export function CashFlowManualiEditor({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIE_DEFAULT.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c}>{t(c)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Importo (€)</Label>
+              <Label className="text-xs">{t("Importo (€)")}</Label>
               <Input
                 type="number"
                 step="0.01"
                 min="0"
                 value={form.importo}
                 onChange={(e) => setForm((f) => ({ ...f, importo: e.target.value }))}
-                placeholder="es. 8500"
+                placeholder={t("es. 8500")}
               />
             </div>
           </div>
           <div>
-            <Label className="text-xs">Descrizione *</Label>
+            <Label className="text-xs">{t("Descrizione *")}</Label>
             <Input
               value={form.descrizione}
               onChange={(e) => setForm((f) => ({ ...f, descrizione: e.target.value }))}
-              placeholder="es. F24 IVA mensile maggio"
+              placeholder={t("es. F24 IVA mensile maggio")}
             />
           </div>
           <div>
-            <Label className="text-xs">Note</Label>
+            <Label className="text-xs">{t("Note")}</Label>
             <Textarea
               rows={2}
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              placeholder="opzionale"
+              placeholder={t("opzionale")}
             />
           </div>
           <Button
@@ -210,7 +209,7 @@ export function CashFlowManualiEditor({
             onClick={handleAdd}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Aggiungi voce
+            {t("Aggiungi voce")}
           </Button>
         </div>
 
@@ -218,7 +217,7 @@ export function CashFlowManualiEditor({
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Voci esistenti ({q.data?.length ?? 0})
+              {t("Voci esistenti ({n})", { n: q.data?.length ?? 0 })}
             </p>
             <p className="text-xs text-muted-foreground">
               <span className="text-emerald-700">+{formatCurrency(totals.e)}</span>
@@ -228,9 +227,7 @@ export function CashFlowManualiEditor({
           </div>
           {q.isLoading && <Skeleton className="h-20 w-full" />}
           {q.data && q.data.length === 0 && (
-            <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Nessuna voce manuale per il {anno}.
-            </p>
+            <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">{t("Nessuna voce manuale per il {anno}.", { anno })}</p>
           )}
           {q.data && q.data.length > 0 && (
             <ul className="divide-y rounded-xl border">
@@ -240,7 +237,7 @@ export function CashFlowManualiEditor({
                     variant={r.tipo === "entrata" ? "default" : "destructive"}
                     className="mt-0.5 shrink-0"
                   >
-                    {MESI_LABELS[r.mese - 1]}
+                    {t(MESI_LABELS[r.mese - 1])}
                   </Badge>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{r.descrizione}</p>
@@ -263,7 +260,7 @@ export function CashFlowManualiEditor({
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={() => handleDelete(r)}
-                    aria-label="Elimina riga cash flow"
+                    aria-label={t("Elimina riga cash flow")}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

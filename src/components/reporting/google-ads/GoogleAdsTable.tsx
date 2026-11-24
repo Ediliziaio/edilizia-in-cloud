@@ -16,13 +16,14 @@ import {
   type GoogleRow,
 } from "@/lib/googleAdsReportModel";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Report = ReturnType<typeof useGoogleAdsReport>;
 
-const fmtNum = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);
-const fmtDec = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(n);
-const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
-const fmtPct = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
+const fmtNum = (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 0 }).format(n);
+const fmtDec = (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 1 }).format(n);
+const fmtEur = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+const fmtPct = (n: number) => new Intl.NumberFormat(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
 /** Google restituisce le quote come frazione 0-1. */
 const fmtQuota = (v: number | null | undefined) => (v == null ? "—" : fmtPct(v * 100));
 
@@ -87,12 +88,13 @@ const toni = {
 };
 
 function Stato({ r, level }: { r: GoogleRow; level: GoogleLevel }) {
+  const t = useT();
   // Per le campagne lo stato "primario" dice se stanno davvero girando
   // (idonea, limitata, non idonea); lo stato semplice dice solo acceso/spento.
   const chiave = level === "campaign" && r.status === "ENABLED" && r.primary_status ? r.primary_status : r.status ?? "";
   const s = STATO_GOOGLE[chiave];
   if (!chiave) return <span className="text-xs text-muted-foreground">—</span>;
-  return <Badge className={cn("text-xs font-medium whitespace-nowrap", toni[s?.tono ?? "grigio"])}>{s?.testo ?? chiave}</Badge>;
+  return <Badge className={cn("text-xs font-medium whitespace-nowrap", toni[s?.tono ?? "grigio"])}>{s ? t(s.testo) : chiave}</Badge>;
 }
 
 function tonoCosto(v: number, media: number) {
@@ -103,6 +105,7 @@ function tonoCosto(v: number, media: number) {
 }
 
 export default function GoogleAdsTable({ report }: { report: Report }) {
+  const tr = useT();
   const level = report.level;
   const colonne = COLONNE.filter((c) => !c.livelli || c.livelli.includes(level));
   const t = report.rows.reduce(
@@ -147,7 +150,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
       (level === "ad" || level === "keyword" || level === "search_term") && !report.percorso.adGroupId ? r.ad_group_name : null,
     ].filter(Boolean).join(" · ");
     if (level === "ad") {
-      const titolo = (r.headlines ?? []).slice(0, 3).join(" | ") || r.name || `Annuncio ${r.id}`;
+      const titolo = (r.headlines ?? []).slice(0, 3).join(" | ") || r.name || tr("Annuncio {id}", { id: String(r.id ?? "") });
       const dominio = (() => {
         try { return r.final_url ? new URL(r.final_url).hostname.replace(/^www\./, "") : null; } catch { return null; }
       })();
@@ -166,9 +169,9 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
     }
     const sotto =
       level === "campaign"
-        ? r.figli ? `${r.figli} ${r.figli === 1 ? "gruppo" : "gruppi"} di annunci` : ""
+        ? r.figli ? tr(r.figli === 1 ? "{n} gruppo di annunci" : "{n} gruppi di annunci", { n: r.figli }) : ""
         : level === "ad_group"
-          ? [contesto, r.figli ? `${r.figli} annunc${r.figli === 1 ? "io" : "i"}` : null].filter(Boolean).join(" · ")
+          ? [contesto, r.figli ? tr(r.figli === 1 ? "{n} annuncio" : "{n} annunci", { n: r.figli }) : null].filter(Boolean).join(" · ")
           : contesto;
     return (
       <div className="min-w-[200px] max-w-[340px]">
@@ -177,7 +180,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
             type="button"
             onClick={() => (level === "campaign" ? report.apriCampagna(r) : report.apriGruppo(r))}
             className="group/n flex items-center gap-1 text-left font-medium text-primary hover:underline"
-            title={level === "campaign" ? "Vedi i gruppi di annunci" : "Vedi gli annunci"}
+            title={level === "campaign" ? tr("Vedi i gruppi di annunci") : tr("Vedi gli annunci")}
           >
             <span className="truncate">{r.name || "—"}</span>
             <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50 group-hover/n:opacity-100" />
@@ -195,7 +198,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
     if (c.key === "status") return <Stato r={r} level={level} />;
     if (c.key === "ad_strength") {
       const e = EFFICACIA_ANNUNCIO[r.ad_strength ?? ""];
-      return e && e.testo !== "—" ? <Badge className={cn("text-xs", toni[e.tono])}>{e.testo}</Badge> : <span className="text-xs text-muted-foreground">—</span>;
+      return e && e.testo !== "—" ? <Badge className={cn("text-xs", toni[e.tono])}>{tr(e.testo)}</Badge> : <span className="text-xs text-muted-foreground">—</span>;
     }
     const tono =
       c.key === "cpa" && r.conversions > 0 ? tonoCosto(r.cpa, mediaCpa)
@@ -203,7 +206,9 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
           : c.key === "quality_score" && r.quality_score ? (r.quality_score <= 4 ? "text-red-600 font-medium" : r.quality_score >= 8 ? "text-emerald-700 font-medium" : "")
             : c.key === "lost_budget_is" && (r.lost_budget_is ?? 0) > 0.2 ? "text-amber-700 font-medium"
               : "";
-    return <span className={cn("text-sm", tono)}>{c.format(r)}</span>;
+    // Tipo di campagna e corrispondenza sono etichette italiane del modello: si traducono a schermo.
+    const testo = c.key === "channel" || c.key === "match_type" ? tr(c.format(r)) : c.format(r);
+    return <span className={cn("text-sm", tono)}>{testo}</span>;
   };
 
   return (
@@ -220,7 +225,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
                 level === l.value ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {l.label}
+              {tr(l.label)}
               <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] tabular-nums", level === l.value ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
                 {report.isLoading ? "…" : report.conteggi[l.value]}
               </span>
@@ -230,7 +235,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
 
         {level !== "campaign" && (report.percorso.campaignId || report.percorso.adGroupId) && (
           <div className="flex flex-wrap items-center gap-1 border-b bg-primary/5 px-4 py-2 text-xs">
-            <button type="button" className="text-primary hover:underline" onClick={() => report.setLevel("campaign")}>Tutte le campagne</button>
+            <button type="button" className="text-primary hover:underline" onClick={() => report.setLevel("campaign")}>{tr("Tutte le campagne")}</button>
             {report.percorso.campaignId && (
               <>
                 <ChevronRight className="h-3 w-3 text-muted-foreground" />
@@ -254,8 +259,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
 
         {level === "search_term" && (
           <p className="border-b bg-amber-50/60 px-4 py-2 text-xs text-amber-900">
-            Cosa hanno cercato davvero le persone prima di cliccare. Le ricerche che costano senza portare contatti
-            (es. «lavoro», «fai da te», «usato») vanno aggiunte come parole chiave negative in Google Ads.
+            {tr("Cosa hanno cercato davvero le persone prima di cliccare. Le ricerche che costano senza portare contatti (es. «lavoro», «fai da te», «usato») vanno aggiunte come parole chiave negative in Google Ads.")}
           </p>
         )}
 
@@ -263,7 +267,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
           <div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder={`Cerca ${UNITA[level]}...`}
+              placeholder={tr("Cerca {unita}...", { unita: tr(UNITA[level]) })}
               value={report.search}
               onChange={(e) => report.setSearch(e.target.value)}
               className="h-8 pl-8 text-xs"
@@ -272,7 +276,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
           {level !== "search_term" && (
             <div className="flex items-center gap-1.5">
               <Switch checked={report.soloAttive} onCheckedChange={report.setSoloAttive} className="h-4 w-7" />
-              <span className="whitespace-nowrap text-xs text-muted-foreground">Solo attive</span>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">{tr("Solo attive")}</span>
             </div>
           )}
         </div>
@@ -296,12 +300,12 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
                     {c.aiuto ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-1 underline decoration-dotted underline-offset-2">{c.label}<SortIcon col={c.key} /></span>
+                          <span className="inline-flex items-center gap-1 underline decoration-dotted underline-offset-2">{tr(c.label)}<SortIcon col={c.key} /></span>
                         </TooltipTrigger>
-                        <TooltipContent className="max-w-[240px] text-xs">{c.aiuto}</TooltipContent>
+                        <TooltipContent className="max-w-[240px] text-xs">{tr(c.aiuto)}</TooltipContent>
                       </Tooltip>
                     ) : (
-                      <span className="inline-flex items-center gap-1">{c.label}<SortIcon col={c.key} /></span>
+                      <span className="inline-flex items-center gap-1">{tr(c.label)}<SortIcon col={c.key} /></span>
                     )}
                   </th>
                 ))}
@@ -316,9 +320,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
                 ))
               ) : report.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={colonne.length} className="py-12 text-center text-sm text-muted-foreground">
-                    Nessun dato per {UNITA[level]} nel periodo selezionato
-                  </td>
+                  <td colSpan={colonne.length} className="py-12 text-center text-sm text-muted-foreground">{tr("Nessun dato per {unita} nel periodo selezionato", { unita: tr(UNITA[level]) })}</td>
                 </tr>
               ) : (
                 report.rows.map((r) => (
@@ -352,7 +354,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
                         c.key === "name" && "sticky left-0 z-[2] bg-muted",
                       )}
                     >
-                      {c.key === "name" ? `Totale · ${report.rows.length} ${UNITA[level]}` : totali[c.key] ?? ""}
+                      {c.key === "name" ? tr("Totale · {n} {unita}", { n: report.rows.length, unita: tr(UNITA[level]) }) : totali[c.key] ?? ""}
                     </td>
                   ))}
                 </tr>

@@ -8,6 +8,7 @@ import {
   type Lavorazione, type LivelloRischio, type RischioLavorazione, type ValutazioneLavorazione,
 } from "../../../../supabase/functions/_shared/posModello";
 import { Area } from "./campi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   l: Lavorazione;
@@ -27,6 +28,7 @@ const NESSUN_LIVELLO = "nessuno";
  * del cantiere e app non aggiornate continuano a leggere quelli.
  */
 export function RischiLavorazionePos({ l, n, ro, cambia }: Props) {
+  const tr = useT();
   const v = valutazioneAttiva(l);
   if (!v) {
     const campo = (k: "rischi" | "misure" | "dpi", label: string, righe: number, placeholder: string) => (
@@ -35,14 +37,14 @@ export function RischiLavorazionePos({ l, n, ro, cambia }: Props) {
     );
     return (
       <>
-        {campo("rischi", "Rischi", 4, "Uno per riga")}
-        {campo("misure", "Misure preventive e protettive", 4, "Una per riga")}
-        {campo("dpi", "DPI", 3, "Uno per riga, con la norma se la conosci")}
+        {campo("rischi", tr("Rischi"), 4, tr("Uno per riga"))}
+        {campo("misure", tr("Misure preventive e protettive"), 4, tr("Una per riga"))}
+        {campo("dpi", "DPI", 3, tr("Uno per riga, con la norma se la conosci"))}
         {!ro && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-white p-2 text-xs text-muted-foreground sm:col-span-2">
-            <span className="min-w-0 flex-1">Per ogni rischio, le sue misure e i suoi DPI: così li legge chi controlla il POS.</span>
+            <span className="min-w-0 flex-1">{tr("Per ogni rischio, le sue misure e i suoi DPI: così li legge chi controlla il POS.")}</span>
             <Button type="button" size="sm" variant="outline" className="tap-compact shrink-0" onClick={() => cambia((lav) => applicaValutazione(lav, valutazioneDaElenchi(lav)))}>
-              <ListChecks className="mr-1 h-4 w-4" aria-hidden="true" />Organizza per rischio
+              <ListChecks className="mr-1 h-4 w-4" aria-hidden="true" />{tr("Organizza per rischio")}
             </Button>
           </div>
         )}
@@ -55,16 +57,16 @@ export function RischiLavorazionePos({ l, n, ro, cambia }: Props) {
   const modificaRiga = (k: number, fn: (r: RischioLavorazione) => void) => modificaValutazione((x) => fn(x.righe[k]));
 
   return (
-    <section id={`lv-${n}-rischi-misure`} tabIndex={-1} className="space-y-2 sm:col-span-2" aria-label={`Rischi, misure e DPI della lavorazione ${n + 1}`}>
+    <section id={`lv-${n}-rischi-misure`} tabIndex={-1} className="space-y-2 sm:col-span-2" aria-label={tr("Rischi, misure e DPI della lavorazione {n}", { n: n + 1 })}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-700">Rischi, misure e DPI</p>
+        <p className="text-xs font-medium text-slate-700">{tr("Rischi, misure e DPI")}</p>
         {!ro && (
           <div className="flex min-w-0 flex-wrap gap-1">
             <Button type="button" size="sm" variant="outline" className="tap-compact h-8" onClick={() => modificaValutazione((x) => { x.righe.push(rigaVuota()); })}>
-              <Plus className="mr-1 h-4 w-4" aria-hidden="true" />Aggiungi un rischio
+              <Plus className="mr-1 h-4 w-4" aria-hidden="true" />{tr("Aggiungi un rischio")}
             </Button>
-            <Button type="button" size="sm" variant="ghost" className="tap-compact h-8 text-xs text-muted-foreground" title="Torna ai tre elenchi separati: il contenuto resta"
-              onClick={() => cambia((lav) => { lav.valutazione = undefined; })}>Elenchi semplici</Button>
+            <Button type="button" size="sm" variant="ghost" className="tap-compact h-8 text-xs text-muted-foreground" title={tr("Torna ai tre elenchi separati: il contenuto resta")}
+              onClick={() => cambia((lav) => { lav.valutazione = undefined; })}>{tr("Elenchi semplici")}</Button>
           </div>
         )}
       </div>
@@ -72,48 +74,48 @@ export function RischiLavorazionePos({ l, n, ro, cambia }: Props) {
         <div key={k} className="space-y-2 rounded-lg border bg-white p-2.5">
           <div className="flex flex-wrap items-end gap-2 max-sm:flex-nowrap max-sm:flex-col max-sm:items-stretch">
             <div className="min-w-0 flex-1 space-y-1">
-              <Label htmlFor={`lv-${n}-r${k}-rischio`} className="text-xs font-medium text-slate-700">Rischio {k + 1}</Label>
-              <Input id={`lv-${n}-r${k}-rischio`} className="h-9" value={r.rischio} disabled={ro} placeholder="Es. Caduta dall’alto"
+              <Label htmlFor={`lv-${n}-r${k}-rischio`} className="text-xs font-medium text-slate-700">{tr("Rischio {livello}", { livello: k + 1 })}</Label>
+              <Input id={`lv-${n}-r${k}-rischio`} className="h-9" value={r.rischio} disabled={ro} placeholder={tr("Es. Caduta dall’alto")}
                 onChange={(e) => modificaRiga(k, (x) => { x.rischio = e.target.value; })} />
             </div>
             <div className="flex items-end gap-1">
               <div className="space-y-1 max-sm:flex-1">
-                <Label htmlFor={`lv-${n}-r${k}-residuo`} className="text-xs font-medium text-slate-700">Rischio residuo</Label>
+                <Label htmlFor={`lv-${n}-r${k}-residuo`} className="text-xs font-medium text-slate-700">{tr("Rischio residuo")}</Label>
                 <Select value={r.residuo || NESSUN_LIVELLO} disabled={ro}
                   onValueChange={(val) => modificaRiga(k, (x) => { x.residuo = val === NESSUN_LIVELLO ? "" : (val as LivelloRischio); })}>
                   <SelectTrigger id={`lv-${n}-r${k}-residuo`} className="h-9 w-full min-w-[7.5rem]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NESSUN_LIVELLO}>Non valutato</SelectItem>
-                    {(Object.keys(LIVELLO_RISCHIO_LABEL) as LivelloRischio[]).map((x) => <SelectItem key={x} value={x}>{LIVELLO_RISCHIO_LABEL[x]}</SelectItem>)}
+                    <SelectItem value={NESSUN_LIVELLO}>{tr("Non valutato")}</SelectItem>
+                    {(Object.keys(LIVELLO_RISCHIO_LABEL) as LivelloRischio[]).map((x) => <SelectItem key={x} value={x}>{tr(LIVELLO_RISCHIO_LABEL[x])}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               {!ro && (
                 <div className="flex">
-                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9" disabled={k === 0} aria-label={`Sposta su il rischio ${k + 1}`}
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9" disabled={k === 0} aria-label={tr("Sposta su il rischio {k}", { k: k + 1 })}
                     onClick={() => modificaValutazione((x) => { const [it] = x.righe.splice(k, 1); x.righe.splice(k - 1, 0, it); })}><ArrowUp className="h-4 w-4" /></Button>
-                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9" disabled={k === v.righe.length - 1} aria-label={`Sposta giù il rischio ${k + 1}`}
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9" disabled={k === v.righe.length - 1} aria-label={tr("Sposta giù il rischio {k}", { k: k + 1 })}
                     onClick={() => modificaValutazione((x) => { const [it] = x.righe.splice(k, 1); x.righe.splice(k + 1, 0, it); })}><ArrowDown className="h-4 w-4" /></Button>
-                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-destructive" aria-label={`Elimina il rischio ${k + 1}`}
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-destructive" aria-label={tr("Elimina il rischio {k}", { k: k + 1 })}
                     onClick={() => modificaValutazione((x) => { x.righe.splice(k, 1); if (!x.righe.length) x.righe.push(rigaVuota()); })}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               )}
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <Area id={`lv-${n}-r${k}-misure`} label={`Misure preventive e protettive (rischio ${k + 1})`} rows={3} value={r.misure} readOnly={ro} placeholder="Una per riga"
+            <Area id={`lv-${n}-r${k}-misure`} label={tr("Misure preventive e protettive (rischio {k})", { k: k + 1 })} rows={3} value={r.misure} readOnly={ro} placeholder={tr("Una per riga")}
               onChange={(t) => modificaRiga(k, (x) => { x.misure = t; })} />
-            <Area id={`lv-${n}-r${k}-dpi`} label={`DPI (rischio ${k + 1})`} rows={3} value={r.dpi} readOnly={ro} placeholder="Uno per riga, con la norma se la conosci"
+            <Area id={`lv-${n}-r${k}-dpi`} label={tr("DPI (rischio {k})", { k: k + 1 })} rows={3} value={r.dpi} readOnly={ro} placeholder={tr("Uno per riga, con la norma se la conosci")}
               onChange={(t) => modificaRiga(k, (x) => { x.dpi = t; })} />
           </div>
         </div>
       ))}
       <div className="space-y-2 rounded-lg border border-dashed bg-slate-50/70 p-2.5">
-        <p className="text-xs font-medium text-slate-700">Comuni a tutta la lavorazione</p>
+        <p className="text-xs font-medium text-slate-700">{tr("Comuni a tutta la lavorazione")}</p>
         <div className="grid gap-2 sm:grid-cols-2">
-          <Area id={`lv-${n}-comuni-misure`} label="Misure valide per tutti i rischi" rows={2} value={v.misure_comuni} readOnly={ro} placeholder="Es. formazione specifica, sorveglianza del preposto"
+          <Area id={`lv-${n}-comuni-misure`} label={tr("Misure valide per tutti i rischi")} rows={2} value={v.misure_comuni} readOnly={ro} placeholder={tr("Es. formazione specifica, sorveglianza del preposto")}
             onChange={(t) => modificaValutazione((x) => { x.misure_comuni = t; })} />
-          <Area id={`lv-${n}-comuni-dpi`} label="DPI per tutti i rischi" rows={2} value={v.dpi_comuni} readOnly={ro} placeholder="Es. elmetto, calzature di sicurezza"
+          <Area id={`lv-${n}-comuni-dpi`} label={tr("DPI per tutti i rischi")} rows={2} value={v.dpi_comuni} readOnly={ro} placeholder={tr("Es. elmetto, calzature di sicurezza")}
             onChange={(t) => modificaValutazione((x) => { x.dpi_comuni = t; })} />
         </div>
       </div>

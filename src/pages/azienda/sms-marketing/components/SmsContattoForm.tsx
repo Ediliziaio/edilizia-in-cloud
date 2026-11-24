@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react";
 import { SmsConsensoToggle } from "./SmsConsensoToggle";
 import { useSmsContatti } from "@/hooks/useSmsContatti";
 import type { SmsContatto, SmsContattoFormData } from "@/types/sms-marketing";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SmsContattoFormProps {
   initialData?: SmsContatto;
@@ -35,6 +36,7 @@ function validaE164(tel: string): boolean {
 }
 
 export function SmsContattoForm({ initialData, onSuccess, onCancel }: SmsContattoFormProps) {
+  const tr = useT();
   const { create, update, isCreating, isUpdating } = useSmsContatti();
   const isEditing = !!initialData;
   const isSaving = isCreating || isUpdating;
@@ -56,8 +58,8 @@ export function SmsContattoForm({ initialData, onSuccess, onCancel }: SmsContatt
 
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof SmsContattoFormData, string>> = {};
-    if (!form.telefono) newErrors.telefono = "Il numero di telefono è obbligatorio";
-    else if (!validaE164(form.telefono)) newErrors.telefono = "Inserisci un numero in formato E.164 (es: +39333123456)";
+    if (!form.telefono) newErrors.telefono = tr("Il numero di telefono è obbligatorio");
+    else if (!validaE164(form.telefono)) newErrors.telefono = tr("Inserisci un numero in formato E.164 (es: +39333123456)");
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -82,17 +84,17 @@ export function SmsContattoForm({ initialData, onSuccess, onCancel }: SmsContatt
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="nome" className="text-sm">Nome</Label>
+          <Label htmlFor="nome" className="text-sm">{tr("Nome")}</Label>
           <Input id="nome" value={form.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Mario" />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="cognome" className="text-sm">Cognome</Label>
+          <Label htmlFor="cognome" className="text-sm">{tr("Cognome")}</Label>
           <Input id="cognome" value={form.cognome} onChange={(e) => set("cognome", e.target.value)} placeholder="Rossi" />
         </div>
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="telefono" className="text-sm font-medium">Telefono *</Label>
+        <Label htmlFor="telefono" className="text-sm font-medium">{tr("Telefono *")}</Label>
         <Input
           id="telefono"
           value={form.telefono}
@@ -101,11 +103,11 @@ export function SmsContattoForm({ initialData, onSuccess, onCancel }: SmsContatt
           className={errors.telefono ? "border-destructive" : ""}
         />
         {errors.telefono && <p className="text-xs text-destructive">{errors.telefono}</p>}
-        <p className="text-xs text-muted-foreground">Formato internazionale E.164 (es: +39333123456)</p>
+        <p className="text-xs text-muted-foreground">{tr("Formato internazionale E.164 (es: +39333123456)")}</p>
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="tags" className="text-sm">Tag (separati da virgola)</Label>
+        <Label htmlFor="tags" className="text-sm">{tr("Tag (separati da virgola)")}</Label>
         <Input
           id="tags"
           value={tagsInput}
@@ -120,24 +122,24 @@ export function SmsContattoForm({ initialData, onSuccess, onCancel }: SmsContatt
       />
 
       <div className="space-y-1">
-        <Label htmlFor="note" className="text-sm">Note</Label>
+        <Label htmlFor="note" className="text-sm">{tr("Note")}</Label>
         <Textarea
           id="note"
           value={form.note}
           onChange={(e) => set("note", e.target.value)}
           rows={2}
-          placeholder="Informazioni aggiuntive..."
+          placeholder={tr("Informazioni aggiuntive...")}
           className="resize-none text-sm"
         />
       </div>
 
       <div className="flex gap-2 justify-end pt-2">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
-          Annulla
+          {tr("Annulla")}
         </Button>
         <Button type="submit" disabled={isSaving}>
           {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          {isEditing ? "Salva modifiche" : "Aggiungi contatto"}
+          {isEditing ? tr("Salva modifiche") : tr("Aggiungi contatto")}
         </Button>
       </div>
     </form>

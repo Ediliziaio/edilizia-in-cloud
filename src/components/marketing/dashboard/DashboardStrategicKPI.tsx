@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, Minus, Euro, Trophy, Target, CalendarCheck, B
 import { cn } from "@/lib/utils";
 import type { KpiData, KpiPrevData } from "@/hooks/useMarketingDashboard";
 import { formatValue, calcDelta } from "./utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   kpi: KpiData | undefined;
@@ -36,6 +37,7 @@ const STRATEGIC_CARDS: StrategicCard[] = [
 ];
 
 export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {
+  const t = useT();
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
@@ -69,7 +71,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                 {/* Telefono: nome, cifra e variazione; via icona e barra dell'obiettivo. */}
                 <Card className={cn("cursor-default overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-muted/40 p-3 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md max-sm:rounded-xl max-sm:px-3 max-sm:py-2", c.borderClass)}>
                   <div className="mb-2 flex items-start justify-between gap-2 max-sm:mb-0.5">
-                    <span className="truncate text-[10px] font-bold uppercase tracking-wider sm:tracking-[0.16em] text-muted-foreground">{c.label}</span>
+                    <span className="truncate text-[10px] font-bold uppercase tracking-wider sm:tracking-[0.16em] text-muted-foreground">{t(c.label)}</span>
                     <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-card shadow-sm ring-1 ring-border max-sm:hidden">
                       <Icon className={cn("h-4 w-4", c.accentClass)} />
                     </span>
@@ -84,7 +86,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                     {delta.direction === "up" && <TrendingUp className="h-3.5 w-3.5 flex-shrink-0" />}
                     {delta.direction === "down" && <TrendingDown className="h-3.5 w-3.5 flex-shrink-0" />}
                     {delta.direction === "flat" && <Minus className="h-3.5 w-3.5 flex-shrink-0" />}
-                    <span className="truncate">{delta.value}% vs prec.</span>
+                    <span className="truncate">{t("{value}% vs prec.", { value: String(delta.value ?? "") })}</span>
                   </div>
                   ) : (
                     <div className="mb-2 text-xs text-muted-foreground max-sm:mb-0 max-sm:text-[11px]">&nbsp;</div>
@@ -92,7 +94,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                   {targetPct !== null && (
                     <div className="space-y-1 max-sm:hidden">
                       <div className="flex justify-between gap-1 text-[10px] text-muted-foreground">
-                        <span className="truncate">Target: {formatValue(c.target!, c.format)}</span>
+                        <span className="truncate">{t("Target: {valore}", { valore: formatValue(c.target!, c.format) })}</span>
                         <span className="flex-shrink-0">{Math.round(targetPct)}%</span>
                       </div>
                       <Progress value={targetPct} className={cn("h-1.5", c.progressClass)} />
@@ -100,7 +102,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                   )}
                 </Card>
               </TooltipTrigger>
-              <TooltipContent><p>{c.tooltip}</p></TooltipContent>
+              <TooltipContent><p>{t(c.tooltip)}</p></TooltipContent>
             </Tooltip>
           );
         })}

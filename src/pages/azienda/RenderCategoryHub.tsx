@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { ArrowUpRight, Bath, Building2, DoorOpen, Grid3X3, Hammer, Home, Image, LayoutPanelTop, PanelLeftClose, Plus, Search, ShieldCheck, Sofa, Sun, TreePine, Waves, type LucideIcon } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type CategoryGroup = "all" | "interni" | "involucro" | "outdoor" | "aperture" | "multi";
 
@@ -224,6 +225,7 @@ const groupLabels: Record<CategoryGroup, string> = {
 };
 
 export default function RenderCategoryHub() {
+  const t = useT();
   const permessi = usePermissions();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -244,7 +246,7 @@ export default function RenderCategoryHub() {
   }, [recentRenders]);
   const filteredCategories = categories.filter((category) =>
     (groupFilter === "all" || category.group === groupFilter) &&
-    [category.title, category.description, category.groupLabel, ...category.tags].join(" ").toLowerCase().includes(categorySearch.trim().toLowerCase()));
+    [category.title, category.description, category.groupLabel, t(category.title), t(category.description), t(category.groupLabel), ...category.tags].join(" ").toLowerCase().includes(categorySearch.trim().toLowerCase()));
   const openModulePicker = () => {
     setCategorySearch("");
     setGroupFilter("all");
@@ -256,13 +258,13 @@ export default function RenderCategoryHub() {
   return <div className="mx-auto max-w-[96rem] space-y-6 sm:space-y-7">
     <header className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Render AI</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Render AI")}</h1>
         <div className="flex flex-wrap items-center gap-1 sm:gap-3">
           {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
             <Button asChild variant="ghost" size="sm">
-              <Link to="/azienda/impostazioni/catalogo-render" aria-label="Catalogo render" title="Catalogo render">
+              <Link to="/azienda/impostazioni/catalogo-render" aria-label={t("Catalogo render")} title={t("Catalogo render")}>
                 <Image className="h-4 w-4 sm:mr-1.5" aria-hidden="true" />
-                <span className="hidden sm:inline">Catalogo render</span>
+                <span className="hidden sm:inline">{t("Catalogo render")}</span>
               </Link>
             </Button>
           )}
@@ -273,53 +275,53 @@ export default function RenderCategoryHub() {
         <button
           type="button"
           onClick={openModulePicker}
-          aria-label="Nuovo render"
+          aria-label={t("Nuovo render")}
           className="group flex min-w-0 items-center gap-3 rounded-xl bg-primary p-3.5 text-left text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:p-4"
         >
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/15">
             <Plus className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold sm:text-base">Nuovo render</span>
-            <span className="mt-0.5 block text-xs text-primary-foreground/90 sm:text-sm">Scegli un ambiente o un intervento e carica una foto.</span>
+            <span className="block text-sm font-semibold sm:text-base">{t("Nuovo render")}</span>
+            <span className="mt-0.5 block text-xs text-primary-foreground/90 sm:text-sm">{t("Scegli un ambiente o un intervento e carica una foto.")}</span>
           </span>
           <ArrowUpRight className="h-4 w-4 shrink-0 opacity-75 group-hover:opacity-100" aria-hidden="true" />
         </button>
         <Link
           to={percorsiPlanimetrie.elenco}
-          aria-label="Planimetrie e progetti"
+          aria-label={t("Planimetrie e progetti")}
           className="group flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3.5 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:p-4"
         >
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <LayoutPanelTop className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold sm:text-base">Planimetrie e progetti</span>
-            <span className="mt-0.5 block text-xs text-muted-foreground sm:text-sm">Importa una tavola o apri un progetto per lavorare sulle stanze.</span>
+            <span className="block text-sm font-semibold sm:text-base">{t("Planimetrie e progetti")}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground sm:text-sm">{t("Importa una tavola o apri un progetto per lavorare sulle stanze.")}</span>
           </span>
           <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
         </Link>
       </div>
     </header>
-    <RecentRendersPanel key={companyId} title="Archivio render" items={recentRenders} modules={categories} isLoading={history.isLoading} isFetching={history.isFetching} error={history.isError && !history.items.length ? history.error : null} onRefresh={() => { void history.refetch(); }} companyId={companyId} total={history.total} hasMore={history.hasNextPage} loadingMore={history.isFetchingNextPage} moreError={history.isFetchNextPageError} scanning={history.scanAll} onLoadMore={() => { void history.fetchNextPage(); }} onExpandHistory={history.expandHistory} onNewRender={openModulePicker} />
+    <RecentRendersPanel key={companyId} title={t("Archivio render")} items={recentRenders} modules={categories} isLoading={history.isLoading} isFetching={history.isFetching} error={history.isError && !history.items.length ? history.error : null} onRefresh={() => { void history.refetch(); }} companyId={companyId} total={history.total} hasMore={history.hasNextPage} loadingMore={history.isFetchingNextPage} moreError={history.isFetchNextPageError} scanning={history.scanAll} onLoadMore={() => { void history.fetchNextPage(); }} onExpandHistory={history.expandHistory} onNewRender={openModulePicker} />
     <Dialog open={modulePicker} onOpenChange={setModulePicker}>
       <DialogContent className="max-h-[85dvh] max-w-4xl overflow-y-auto">
-        <DialogHeader><DialogTitle>Che cosa vuoi trasformare?</DialogTitle><DialogDescription>Scegli un ambiente o un intervento per iniziare il render.</DialogDescription></DialogHeader>
-        <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input ref={categorySearchRef} aria-label="Cerca modulo render" value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder="Cerca bagno, cucina, infissi, giardino…" className="pl-9" /></div>
-        <div role="group" aria-label="Categorie dei moduli" className="flex flex-wrap gap-1.5">
-          {(Object.keys(groupLabels) as CategoryGroup[]).map((group) => <Button key={group} size="sm" variant={groupFilter === group ? "secondary" : "ghost"} aria-pressed={groupFilter === group} onClick={() => setGroupFilter(group)}>{groupLabels[group]}</Button>)}
+        <DialogHeader><DialogTitle>{t("Che cosa vuoi trasformare?")}</DialogTitle><DialogDescription>{t("Scegli un ambiente o un intervento per iniziare il render.")}</DialogDescription></DialogHeader>
+        <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input ref={categorySearchRef} aria-label={t("Cerca modulo render")} value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder={t("Cerca bagno, cucina, infissi, giardino…")} className="pl-9" /></div>
+        <div role="group" aria-label={t("Categorie dei moduli")} className="flex flex-wrap gap-1.5">
+          {(Object.keys(groupLabels) as CategoryGroup[]).map((group) => <Button key={group} size="sm" variant={groupFilter === group ? "secondary" : "ghost"} aria-pressed={groupFilter === group} onClick={() => setGroupFilter(group)}>{t(groupLabels[group])}</Button>)}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredCategories.map((category) => {
             const Icon = category.icon;
-            return <Link key={category.id} to={category.path} aria-label={category.title} aria-disabled={!category.active} onClick={() => setModulePicker(false)} className="group flex items-start gap-3 rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            return <Link key={category.id} to={category.path} aria-label={t(category.title)} aria-disabled={!category.active} onClick={() => setModulePicker(false)} className="group flex items-start gap-3 rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${category.color}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>
-              <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2 text-sm font-semibold">{category.title}<ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" /></span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{category.description}</span><span className="mt-2 block text-[11px] text-muted-foreground">{recentStatsAvailable ? categoryCounts[category.id] ?? 0 : "—"} render recenti</span></span>
+              <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2 text-sm font-semibold">{t(category.title)}<ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" /></span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{t(category.description)}</span><span className="mt-2 block text-[11px] text-muted-foreground">{t("{n} render recenti", { n: recentStatsAvailable ? categoryCounts[category.id] ?? 0 : "—" })}</span></span>
             </Link>;
           })}
         </div>
-        {!filteredCategories.length && <div className="py-8 text-center"><p role="status" className="text-sm text-muted-foreground">Nessun modulo trovato.</p><Button size="sm" variant="ghost" onClick={() => { setCategorySearch(""); setGroupFilter("all"); categorySearchRef.current?.focus(); }}>Mostra tutti i moduli</Button></div>}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted-foreground"><span>Vuoi partire dal disegno di una casa?</span><Button variant="link" size="sm" asChild><Link to={percorsiPlanimetrie.elenco} onClick={() => setModulePicker(false)}>Apri Planimetrie e progetti<ArrowUpRight className="ml-1 h-3.5 w-3.5" /></Link></Button></div>
+        {!filteredCategories.length && <div className="py-8 text-center"><p role="status" className="text-sm text-muted-foreground">{t("Nessun modulo trovato.")}</p><Button size="sm" variant="ghost" onClick={() => { setCategorySearch(""); setGroupFilter("all"); categorySearchRef.current?.focus(); }}>{t("Mostra tutti i moduli")}</Button></div>}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted-foreground"><span>{t("Vuoi partire dal disegno di una casa?")}</span><Button variant="link" size="sm" asChild><Link to={percorsiPlanimetrie.elenco} onClick={() => setModulePicker(false)}>{t("Apri Planimetrie e progetti")}<ArrowUpRight className="ml-1 h-3.5 w-3.5" /></Link></Button></div>
       </DialogContent>
     </Dialog>
   </div>;

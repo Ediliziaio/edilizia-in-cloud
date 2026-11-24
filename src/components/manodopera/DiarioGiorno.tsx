@@ -8,6 +8,7 @@ import { AlertTriangle, BookOpen, Camera, FileText, Loader2, Truck, Wrench } fro
 import { useDiarioGiorno, type EventoDiario, type OperaioOggi, type TipoEventoDiario } from "@/hooks/useOperai";
 import { formatOra } from "@/lib/manodopera/giornata";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const ICONA: Record<TipoEventoDiario | "timbratura", typeof FileText> = {
   rapportino: FileText,
@@ -29,7 +30,7 @@ const TONO: Record<TipoEventoDiario | "timbratura", string> = {
 };
 
 function ora(iso: string | null): string | null {
-  return iso ? new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }) : null;
+  return iso ? new Date(iso).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }) : null;
 }
 
 export function DiarioGiorno({
@@ -44,6 +45,7 @@ export function DiarioGiorno({
   cerca: string;
   linkCommesse: boolean;
 }) {
+  const t = useT();
   const { data = [], isLoading, error } = useDiarioGiorno(giorno);
 
   const strani: (EventoDiario & { tipoVisto: "timbratura" })[] = giornata
@@ -52,8 +54,8 @@ export function DiarioGiorno({
       quando: null,
       tipo: "rapportino",
       tipoVisto: "timbratura",
-      titolo: r.stato === "uscita_mancante" ? "Uscita non timbrata" : "Timbratura lontana dal cantiere",
-      testo: r.prima_entrata ? `Entrata alle ${formatOra(r.prima_entrata)}` : null,
+      titolo: r.stato === "uscita_mancante" ? t("Uscita non timbrata") : t("Timbratura lontana dal cantiere"),
+      testo: r.prima_entrata ? t("Entrata alle {prima_entrata}", { prima_entrata: formatOra(r.prima_entrata) }) : null,
       chi: `${r.nome} ${r.cognome}`,
       order_id: r.cantiere_id ?? r.previsto_id,
       cantiere: r.cantiere ?? r.previsto,
@@ -67,14 +69,14 @@ export function DiarioGiorno({
 
   return (
     <section className="rounded-2xl border bg-white shadow-sm" aria-labelledby="diario-giorno">
-      <h3 id="diario-giorno" className="border-b px-4 py-2.5 text-sm font-semibold text-slate-900">Cosa è successo</h3>
+      <h3 id="diario-giorno" className="border-b px-4 py-2.5 text-sm font-semibold text-slate-900">{t("Cosa è successo")}</h3>
       {error ? (
-        <p className="px-4 py-4 text-sm text-muted-foreground">Non riesco a leggere il diario di questo giorno.</p>
+        <p className="px-4 py-4 text-sm text-muted-foreground">{t("Non riesco a leggere il diario di questo giorno.")}</p>
       ) : isLoading ? (
         <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : eventi.length === 0 ? (
         <p className="px-4 py-4 text-sm text-muted-foreground">
-          {q ? "Niente che corrisponda alla ricerca." : "Nessun rapportino, giornale, foto o movimento dei mezzi in questo giorno."}
+          {q ? t("Niente che corrisponda alla ricerca.") : t("Nessun rapportino, giornale, foto o movimento dei mezzi in questo giorno.")}
         </p>
       ) : (
         <ol className="divide-y">
@@ -98,7 +100,7 @@ export function DiarioGiorno({
                       ? <Link to={`/azienda/ordini/${e.order_id}`} className="tap-compact hover:text-orange-700 hover:underline">{e.cantiere}</Link>
                       : e.cantiere)}
                     {e.mezzo_id && !e.cantiere && (
-                      <>{e.chi && " · "}<Link to={`/azienda/mezzi/${e.mezzo_id}`} className="tap-compact hover:text-orange-700 hover:underline">apri il mezzo</Link></>
+                      <>{e.chi && " · "}<Link to={`/azienda/mezzi/${e.mezzo_id}`} className="tap-compact hover:text-orange-700 hover:underline">{t("apri il mezzo")}</Link></>
                     )}
                   </p>
                 </div>

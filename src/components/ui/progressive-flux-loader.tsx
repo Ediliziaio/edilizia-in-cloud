@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -14,7 +15,8 @@ interface ProgressiveFluxLoaderProps {
 }
 
 /** Progress values come from the job. An unknown total uses a sweep without an invented percentage. */
-export function ProgressiveFluxLoader({ label, value, active = true, ariaLabel = "Avanzamento analisi", className }: ProgressiveFluxLoaderProps) {
+export function ProgressiveFluxLoader({ label, value, active = true, ariaLabel, className }: ProgressiveFluxLoaderProps) {
+  const t = useT();
   const reduced = useReducedMotion();
   const percent = value != null && Number.isFinite(value) ? Math.floor(Math.max(0, Math.min(100, value))) : undefined;
   return (
@@ -31,7 +33,7 @@ export function ProgressiveFluxLoader({ label, value, active = true, ariaLabel =
         </AnimatePresence>
         {percent !== undefined && <span className="font-semibold tabular-nums text-foreground" aria-hidden>{percent}%</span>}
       </div>
-      <div className="relative h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={ariaLabel}
+      <div className="relative h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={ariaLabel ?? t("Avanzamento analisi")}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
         aria-valuetext={percent === undefined ? label : `${percent}% · ${label}`}>
         {percent === undefined ? (

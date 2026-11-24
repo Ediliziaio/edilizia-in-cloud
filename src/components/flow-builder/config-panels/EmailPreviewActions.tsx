@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { emailContentEmpty } from "../../../../supabase/functions/_shared/automationEmail";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface EmailPreviewActionsProps {
   oggetto?: string;
@@ -29,6 +30,7 @@ interface EmailPreviewActionsProps {
 }
 
 export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, companyId, disabled }: EmailPreviewActionsProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const [previewing, setPreviewing] = useState(false);
   const [sending, setSending] = useState(false);
@@ -40,7 +42,7 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, compan
   const body = { corpo: corpo || "", oggetto: oggetto || "", mittente_nome: mittenteNome || "", company_id: companyId ?? effectiveCompany?.id, vars };
 
   const handlePreview = async () => {
-    if (emailContentEmpty(corpo) || !oggetto?.trim()) { toast.error("Compila prima oggetto e corpo dell'email"); return; }
+    if (emailContentEmpty(corpo) || !oggetto?.trim()) { toast.error(t("Compila prima oggetto e corpo dell'email")); return; }
     setPreviewing(true);
     try {
       const { data, error } = await supabase.functions.invoke("automation-email-render", {
@@ -60,7 +62,7 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, compan
   };
 
   const handleTest = async () => {
-    if (emailContentEmpty(corpo) || !oggetto?.trim()) { toast.error("Compila prima oggetto e corpo dell'email"); return; }
+    if (emailContentEmpty(corpo) || !oggetto?.trim()) { toast.error(t("Compila prima oggetto e corpo dell'email")); return; }
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("automation-email-render", {
@@ -68,7 +70,7 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, compan
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Invio fallito");
-      toast.success(`Email di prova inviata a ${data.sentTo}`);
+      toast.success(t("Email di prova inviata a {sentTo}", { sentTo: String(data.sentTo ?? "") }));
     } catch (e) {
       toast.error(`Invio prova fallito: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -82,12 +84,12 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, compan
         <Button type="button" variant="outline" size="sm" className="h-8 flex-1 gap-1.5 text-xs"
           onClick={handlePreview} disabled={disabled || previewing || sending}>
           {previewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
-          Anteprima
+          {t("Anteprima")}
         </Button>
         <Button type="button" variant="outline" size="sm" className="h-8 flex-1 gap-1.5 text-xs"
           onClick={handleTest} disabled={disabled || sending || previewing}>
           {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-          Invia prova a me
+          {t("Invia prova a me")}
         </Button>
       </div>
 
@@ -95,24 +97,24 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, compan
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-sm font-medium">
-              Anteprima email{previewSubject ? ` — ${previewSubject}` : ""}
+              {t("Anteprima email")}{previewSubject ? ` — ${previewSubject}` : ""}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Esempio grafico con dati fittizi. Le variabili saranno sostituite con i dati dell'evento durante l'invio reale.
+              {t("Esempio grafico con dati fittizi. Le variabili saranno sostituite con i dati dell'evento durante l'invio reale.")}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border bg-white overflow-hidden">
             <iframe
-              title="Anteprima email"
+              title={t("Anteprima email")}
               srcDoc={previewHtml}
               sandbox=""
               className="w-full h-[60vh] bg-white"
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Dati di esempio, non dati del destinatario. La prova arriva solo a te e non avvia il flusso; non verifica mittente, CC, allegati o recapito al cliente.
+            {t("Dati di esempio, non dati del destinatario. La prova arriva solo a te e non avvia il flusso; non verifica mittente, CC, allegati o recapito al cliente.")}
           </p>
-          {missingVariables.length > 0 && <p role="alert" className="text-xs text-amber-700">Variabili senza esempio: {missingVariables.join(", ")}. Verifica che siano disponibili prima di attivare il flusso.</p>}
+          {missingVariables.length > 0 && <p role="alert" className="text-xs text-amber-700">{t("Variabili senza esempio: {missingVariables}. Verifica che siano disponibili prima di attivare il flusso.", { missingVariables: missingVariables.join(", ") })}</p>}
         </DialogContent>
       </Dialog>
     </>

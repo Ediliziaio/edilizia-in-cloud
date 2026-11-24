@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type SyncStatus = "pending" | "syncing" | "synced" | "error";
 type DocType = "url" | "file" | "text";
@@ -54,6 +54,7 @@ const SYNC_BADGE: Record<string, { label: string; icon: typeof Clock; variant: "
 };
 
 export function KnowledgeBaseTab() {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -153,11 +154,11 @@ export function KnowledgeBaseTab() {
       return doc;
     },
     onSuccess: () => {
-      toast.success("Documento aggiunto");
+      toast.success(tr("Documento aggiunto"));
       queryClient.invalidateQueries({ queryKey: ["kb-docs-v2"] });
       resetForm();
     },
-    onError: (err) => toast.error(`Errore: ${err.message}`),
+    onError: (err) => toast.error(tr("Errore: {message}", { message: String(err.message ?? "") })),
   });
 
   const syncDoc = useMutation({
@@ -171,11 +172,11 @@ export function KnowledgeBaseTab() {
       if (data?.error || !data?.success) throw new Error(data?.error || "Sincronizzazione non completata");
     },
     onSuccess: () => {
-      toast.success("Documento sincronizzato");
+      toast.success(tr("Documento sincronizzato"));
       queryClient.invalidateQueries({ queryKey: ["kb-docs-v2"] });
       queryClient.invalidateQueries({ queryKey: ["kb-last-sync"] });
     },
-    onError: (err) => toast.error(`Errore sync: ${err.message}`),
+    onError: (err) => toast.error(tr("Errore sync: {message}", { message: String(err.message ?? "") })),
   });
 
   const deleteDoc = useMutation({
@@ -189,10 +190,10 @@ export function KnowledgeBaseTab() {
       if (data?.error || !data?.success) throw new Error(data?.error || "Documento non eliminato");
     },
     onSuccess: () => {
-      toast.success("Documento eliminato");
+      toast.success(tr("Documento eliminato"));
       queryClient.invalidateQueries({ queryKey: ["kb-docs-v2"] });
     },
-    onError: (err) => toast.error(`Errore: ${err.message}`),
+    onError: (err) => toast.error(tr("Errore: {message}", { message: String(err.message ?? "") })),
   });
 
   const resetForm = () => {
@@ -238,7 +239,7 @@ export function KnowledgeBaseTab() {
           <Input
             value={cerca}
             onChange={(e) => setCerca(e.target.value)}
-            placeholder="Cerca documento..."
+            placeholder={tr("Cerca documento...")}
             className="pl-8 h-8 text-sm"
           />
         </div>
@@ -247,30 +248,28 @@ export function KnowledgeBaseTab() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti gli stati</SelectItem>
-            <SelectItem value="pending">In attesa</SelectItem>
-            <SelectItem value="synced">Sincronizzati</SelectItem>
-            <SelectItem value="error">Errore</SelectItem>
+            <SelectItem value="tutti">{tr("Tutti gli stati")}</SelectItem>
+            <SelectItem value="pending">{tr("In attesa")}</SelectItem>
+            <SelectItem value="synced">{tr("Sincronizzati")}</SelectItem>
+            <SelectItem value="error">{tr("Errore")}</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex-1" />
         {lastSync && (
-          <p className="text-xs text-muted-foreground">
-            Ultimo sync: {format(new Date(lastSync), "dd/MM/yyyy HH:mm", { locale: it })}
-          </p>
+          <p className="text-xs text-muted-foreground">{tr("Ultimo sync: {valore}", { valore: format(new Date(lastSync), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() }) })}</p>
         )}
         <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus className="h-4 w-4 mr-1.5" /> Aggiungi documento
+          <Plus className="h-4 w-4 mr-1.5" /> {tr("Aggiungi documento")}
         </Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: "Totali", value: docs.length, icon: BookOpen },
-          { label: "Sincronizzati", value: docs.filter(d => d.sync_status === "synced").length, icon: CheckCircle2 },
-          { label: "In attesa", value: docs.filter(d => d.sync_status === "pending").length, icon: Clock },
-          { label: "Errori", value: docs.filter(d => d.sync_status === "error").length, icon: AlertTriangle },
+          { label: tr("Totali"), value: docs.length, icon: BookOpen },
+          { label: tr("Sincronizzati"), value: docs.filter(d => d.sync_status === "synced").length, icon: CheckCircle2 },
+          { label: tr("In attesa"), value: docs.filter(d => d.sync_status === "pending").length, icon: Clock },
+          { label: tr("Errori"), value: docs.filter(d => d.sync_status === "error").length, icon: AlertTriangle },
         ].map((s) => (
           <Card key={s.label}>
             <CardContent className="p-3 flex items-center gap-3">
@@ -292,12 +291,12 @@ export function KnowledgeBaseTab() {
       ) : docs.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center">
           <BookOpen className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="font-semibold text-foreground">Nessun documento</p>
+          <p className="font-semibold text-foreground">{tr("Nessun documento")}</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Aggiungi URL, file o testo per la Knowledge Base dei tuoi agenti.
+            {tr("Aggiungi URL, file o testo per la Knowledge Base dei tuoi agenti.")}
           </p>
           <Button className="mt-4" size="sm" onClick={() => setShowAdd(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> Aggiungi
+            <Plus className="h-4 w-4 mr-1.5" /> {tr("Aggiungi")}
           </Button>
         </div>
       ) : (
@@ -305,11 +304,11 @@ export function KnowledgeBaseTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Documento</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Stato sync</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead>{tr("Documento")}</TableHead>
+                <TableHead>{tr("Tipo")}</TableHead>
+                <TableHead>{tr("Stato sync")}</TableHead>
+                <TableHead>{tr("Data")}</TableHead>
+                <TableHead className="text-right">{tr("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -345,7 +344,7 @@ export function KnowledgeBaseTab() {
                     <TableCell>
                       <Badge variant={syncCfg.variant} className="text-[10px] gap-1">
                         <SyncIcon className="h-2.5 w-2.5" />
-                        {syncCfg.label}
+                        {tr(syncCfg.label)}
                       </Badge>
                       {doc.sync_error && (
                         <p className="text-[9px] text-destructive mt-0.5 truncate max-w-[200px]">
@@ -354,7 +353,7 @@ export function KnowledgeBaseTab() {
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {format(new Date(doc.creato_il), "d MMM yyyy", { locale: it })}
+                      {format(new Date(doc.creato_il), "d MMM yyyy", { locale: dateFnsCampo() })}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -371,12 +370,12 @@ export function KnowledgeBaseTab() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-destructive"
-                          aria-label={`Elimina documento ${doc.titolo}`}
+                          aria-label={tr("Elimina documento {titolo}", { titolo: String(doc.titolo ?? "") })}
                           onClick={async () => {
                             if (
                               await confirm({
-                                title: "Eliminare il documento dalla knowledge base?",
-                                description: `"${doc.titolo}" verrà rimosso definitivamente e l'agente AI non potrà più usarlo.`,
+                                title: tr("Eliminare il documento dalla knowledge base?"),
+                                description: tr("\"{titolo}\" verrà rimosso definitivamente e l'agente AI non potrà più usarlo.", { titolo: String(doc.titolo ?? "") }),
                                 confirmLabel: "Elimina",
                                 variant: "destructive",
                               })
@@ -402,7 +401,7 @@ export function KnowledgeBaseTab() {
       <Dialog open={showAdd} onOpenChange={(v) => !v && resetForm()}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Aggiungi documento</DialogTitle>
+            <DialogTitle>{tr("Aggiungi documento")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Type selector */}
@@ -420,14 +419,14 @@ export function KnowledgeBaseTab() {
                     }`}
                   >
                     <Icon className="h-5 w-5" />
-                    <span className="text-xs font-medium capitalize">{t === "url" ? "URL" : t === "file" ? "File" : "Testo"}</span>
+                    <span className="text-xs font-medium capitalize">{t === "url" ? "URL" : t === "file" ? tr("File") : tr("Testo")}</span>
                   </button>
                 );
               })}
             </div>
 
             <Input
-              placeholder="Titolo documento"
+              placeholder={tr("Titolo documento")}
               value={addTitle}
               onChange={(e) => setAddTitle(e.target.value)}
             />
@@ -442,7 +441,7 @@ export function KnowledgeBaseTab() {
 
             {addType === "text" && (
               <Textarea
-                placeholder="Incolla qui il contenuto testuale..."
+                placeholder={tr("Incolla qui il contenuto testuale...")}
                 value={addText}
                 onChange={(e) => setAddText(e.target.value)}
                 rows={6}
@@ -461,15 +460,13 @@ export function KnowledgeBaseTab() {
                   <div className="flex items-center justify-center gap-2">
                     <FileText className="h-5 w-5 text-primary" />
                     <span className="text-sm font-medium">{addFile.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({(addFile.size / 1024).toFixed(0)} KB)
-                    </span>
+                    <span className="text-xs text-muted-foreground">{tr("({valore} KB)", { valore: (addFile.size / 1024).toFixed(0) })}</span>
                   </div>
                 ) : (
                   <>
                     <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      Trascina un file o clicca per selezionare
+                      {tr("Trascina un file o clicca per selezionare")}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
                       PDF, TXT, MD, DOC, DOCX
@@ -480,13 +477,13 @@ export function KnowledgeBaseTab() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={resetForm}>Annulla</Button>
+            <Button variant="outline" onClick={resetForm}>{tr("Annulla")}</Button>
             <Button
               onClick={() => addDoc.mutate()}
               disabled={!addTitle || addDoc.isPending || (addType === "url" && !addUrl) || (addType === "text" && !addText) || (addType === "file" && !addFile)}
             >
               {addDoc.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Plus className="h-4 w-4 mr-1.5" />}
-              Aggiungi
+              {tr("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -19,6 +19,7 @@ import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PillolaVariazione, idSvg } from "@/components/charts/grafici/comune";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type TonoNumero = "neutro" | "buono" | "attenzione" | "male";
 
@@ -88,6 +89,7 @@ export function RiquadroNumero({
   /** Variazione % contro il periodo prima: pillola verde/rossa accanto al periodo. */
   variazione?: { pct: number | null; piuEMeglio?: boolean; nota?: string };
 }) {
+  const t = useT();
   const stile = STILE[tono];
   const corpo = (
     <>
@@ -106,7 +108,7 @@ export function RiquadroNumero({
           <p className={cn("min-w-0 truncate text-xl font-bold leading-none tracking-tight tabular-nums md:text-2xl", typeof valore === "string" && valore.length > 10 && "max-sm:text-base", stile.valore)} title={typeof valore === "string" ? valore : undefined}>{valore}</p>
           {tendenza && (
             <span className="hidden sm:block">
-              <Tendenza valori={tendenza} colore={stile.linea} etichetta={etichettaTendenza ?? `Andamento di ${etichetta}`} />
+              <Tendenza valori={tendenza} colore={stile.linea} etichetta={etichettaTendenza ?? t("Andamento di {etichetta}", { etichetta: String(etichetta ?? "") })} />
             </span>
           )}
         </div>

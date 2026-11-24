@@ -16,6 +16,7 @@ import { useTemplateFields } from '@/hooks/useDocumentoTemplates';
 import type { DocumentoTemplate, FieldTipo } from '@/types/fea';
 import { slugCampo } from '@/lib/documenti/templateCompilazione';
 import { TemplatePdfPositions } from './TemplatePdfPositions';
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TemplateFieldEditorProps {
   templateId: string;
@@ -38,6 +39,7 @@ function toSlug(s: string): string {
 }
 
 export function TemplateFieldEditor({ templateId, companyId, template }: TemplateFieldEditorProps) {
+  const tr = useT();
   const { fields, isLoading, error: fieldsError, refetch, addField, removeField, updatePositions } = useTemplateFields(templateId);
   const confirm = useConfirm();
 
@@ -63,11 +65,11 @@ export function TemplateFieldEditor({ templateId, companyId, template }: Templat
 
   const handleAdd = () => {
     if (!nome || !etichetta) return;
-    if (fields.some(f => f.nome.toLowerCase() === nome.toLowerCase())) { setErrore('Esiste già un campo con questo nome.'); return; }
+    if (fields.some(f => f.nome.toLowerCase() === nome.toLowerCase())) { setErrore(tr("Esiste già un campo con questo nome.")); return; }
     const opzioniScelta = tipo === 'scelta'
       ? opzioniRaw.split(',').map((s) => s.trim()).filter(Boolean)
       : null;
-    if (tipo === 'scelta' && !opzioniScelta?.length) { setErrore('Inserisci almeno un’opzione per il campo scelta.'); return; }
+    if (tipo === 'scelta' && !opzioniScelta?.length) { setErrore(tr("Inserisci almeno un’opzione per il campo scelta.")); return; }
     setErrore('');
 
     addField.mutate({
@@ -96,11 +98,11 @@ export function TemplateFieldEditor({ templateId, companyId, template }: Templat
 
   return (
     <div className="space-y-6">
-      {fieldsError && <p role="alert" className="text-sm text-red-700">Impossibile caricare i campi. <button className="underline" onClick={() => void refetch()}>Riprova</button></p>}
+      {fieldsError && <p role="alert" className="text-sm text-red-700">{tr("Impossibile caricare i campi.")} <button className="underline" onClick={() => void refetch()}>{tr("Riprova")}</button></p>}
       {/* Lista campi esistenti */}
       {!isLoading && fields.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-slate-700">Campi configurati</h4>
+          <h4 className="text-sm font-medium text-slate-700">{tr("Campi configurati")}</h4>
           <div className="space-y-1.5">
             {fields.map((f) => (
               <div
@@ -112,19 +114,19 @@ export function TemplateFieldEditor({ templateId, companyId, template }: Templat
                   <p className="text-sm font-medium text-slate-800">{f.etichetta}</p>
                   <p className="text-xs text-slate-500">
                     {f.segnaposto} · {f.tipo}
-                    {f.obbligatorio && ' · obbligatorio'}
+                    {f.obbligatorio && ` ${tr("· obbligatorio")}`}
                   </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                  aria-label={`Elimina campo ${f.etichetta}`}
+                  aria-label={tr("Elimina campo {etichetta}", { etichetta: String(f.etichetta ?? "") })}
                   onClick={async () => {
                     if (
                       await confirm({
-                        title: 'Eliminare il campo dal template?',
-                        description: `Il campo "${f.etichetta}" (${f.segnaposto}) verrà rimosso dal template.`,
+                        title: tr("Eliminare il campo dal template?"),
+                        description: tr("Il campo \"{etichetta}\" ({segnaposto}) verrà rimosso dal template.", { etichetta: String(f.etichetta ?? ""), segnaposto: String(f.segnaposto ?? "") }),
                         confirmLabel: 'Elimina',
                         variant: 'destructive',
                       })
@@ -143,20 +145,20 @@ export function TemplateFieldEditor({ templateId, companyId, template }: Templat
 
       {/* Form aggiungi campo */}
       <div className="space-y-4 border rounded-xl p-4 bg-slate-50">
-        <h4 className="text-sm font-semibold text-slate-700">Aggiungi campo</h4>
+        <h4 className="text-sm font-semibold text-slate-700">{tr("Aggiungi campo")}</h4>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="field-etichetta">Etichetta visibile *</Label>
+            <Label htmlFor="field-etichetta">{tr("Etichetta visibile *")}</Label>
             <Input
               id="field-etichetta"
               value={etichetta}
               onChange={(e) => handleEtichettaChange(e.target.value)}
-              placeholder="Es. Nome cliente"
+              placeholder={tr("Es. Nome cliente")}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="field-nome">Nome tecnico</Label>
+            <Label htmlFor="field-nome">{tr("Nome tecnico")}</Label>
             <Input
               id="field-nome"
               value={nome}
@@ -164,47 +166,47 @@ export function TemplateFieldEditor({ templateId, companyId, template }: Templat
               placeholder="nome_cliente"
             />
             {segnaposto && (
-              <p className="text-xs text-slate-500">Segnaposto: <code>{segnaposto}</code></p>
+              <p className="text-xs text-slate-500">{tr("Segnaposto:")} <code>{segnaposto}</code></p>
             )}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>Tipo campo</Label>
+            <Label>{tr("Tipo campo")}</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as FieldTipo)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {TIPI_CAMPO.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="obbligatorio">Obbligatorio</Label>
+            <Label htmlFor="obbligatorio">{tr("Obbligatorio")}</Label>
             <div className="flex items-center gap-2 pt-2">
               <Switch
                 id="obbligatorio"
                 checked={obbligatorio}
                 onCheckedChange={setObbligatorio}
               />
-              <span className="text-sm text-slate-600">{obbligatorio ? 'Sì' : 'No'}</span>
+              <span className="text-sm text-slate-600">{obbligatorio ? tr("Sì") : tr("No")}</span>
             </div>
           </div>
         </div>
 
         {tipo === 'scelta' && (
           <div className="space-y-1.5">
-            <Label htmlFor="opzioni">Opzioni (separate da virgola)</Label>
+            <Label htmlFor="opzioni">{tr("Opzioni (separate da virgola)")}</Label>
             <Input
               id="opzioni"
               value={opzioniRaw}
               onChange={(e) => setOpzioniRaw(e.target.value)}
-              placeholder="Opzione 1, Opzione 2, Opzione 3"
+              placeholder={tr("Opzione 1, Opzione 2, Opzione 3")}
             />
           </div>
         )}
@@ -216,7 +218,7 @@ export function TemplateFieldEditor({ templateId, companyId, template }: Templat
           className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
         >
           <Plus className="h-4 w-4" />
-          Aggiungi campo
+          {tr("Aggiungi campo")}
         </Button>
         {errore && <p role="alert" className="text-sm text-red-700">{errore}</p>}
       </div>

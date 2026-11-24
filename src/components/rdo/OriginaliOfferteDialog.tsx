@@ -9,10 +9,11 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { supabase } from "@/integrations/supabase/client";
 import type { RfqSupplier } from "@/hooks/useSupplierRfqs";
 import { originaleDaRiferimento, type OriginaleConfronto } from "@/lib/fatturazione/originaliConfronto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const nomeFornitore = (offerta: RfqSupplier) => offerta.suppliers?.name ?? "Fornitore";
 
 function OriginaliOfferta({ offerta, companyId }: { offerta: RfqSupplier; companyId: string }) {
+  const t = useT();
   const allegato = originaleDaRiferimento(
     offerta.allegato_url,
     offerta.allegato_url?.startsWith("email-attachments/") ? "email-attachments" : "order-attachments",
@@ -47,14 +48,14 @@ function OriginaliOfferta({ offerta, companyId }: { offerta: RfqSupplier; compan
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-3 pt-0 sm:px-5 sm:pb-5">
       {email.isError && (
         <p role="alert" className="rounded-md border p-3 text-sm text-muted-foreground">
-          Allegati dell’email non disponibili.{" "}
-          <button type="button" className="underline" onClick={() => void email.refetch()}>Riprova</button>
+          {t("Allegati dell’email non disponibili.")}{" "}
+          <button type="button" className="underline" onClick={() => void email.refetch()}>{t("Riprova")}</button>
         </p>
       )}
       {files.size ? <OriginaliConfronto files={[...files.values()]} companyId={companyId} /> : email.isLoading ? (
-        <p role="status" className="p-3 text-sm text-muted-foreground">Cerco i file allegati all’email…</p>
+        <p role="status" className="p-3 text-sm text-muted-foreground">{t("Cerco i file allegati all’email…")}</p>
       ) : !email.isError && (
-        <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Nessun originale disponibile per questa offerta.</p>
+        <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">{t("Nessun originale disponibile per questa offerta.")}</p>
       )}
     </div>
   );
@@ -67,6 +68,7 @@ export function OriginaliOfferteDialog({ companyId, numero, offerte, iniziale, o
   iniziale: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const altreOfferte = offerte.filter(f => f.id !== iniziale);
   const secondaIniziale = altreOfferte.find(f => f.allegato_url)
     ?? altreOfferte.find(f => f.email_inbox_id)
@@ -85,17 +87,17 @@ export function OriginaliOfferteDialog({ companyId, numero, offerte, iniziale, o
         <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 sm:px-5 sm:pr-12">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <FileText className="size-4 text-primary" aria-hidden="true" />
-            Originali delle offerte
+            {t("Originali delle offerte")}
           </DialogTitle>
-          <DialogDescription className="truncate text-xs">{numero} · Preventivi ricevuti dai fornitori</DialogDescription>
+          <DialogDescription className="truncate text-xs">{t("{numero} · Preventivi ricevuti dai fornitori", { numero })}</DialogDescription>
         </DialogHeader>
         {seconda && (
-          <PannelliConfrontoMobile valore={pannello} onChange={setPannello} sinistra="Offerta 1" destra="Offerta 2" />
+          <PannelliConfrontoMobile valore={pannello} onChange={setPannello} sinistra={t("Offerta {n}", { n: 1 })} destra={t("Offerta {n}", { n: 2 })} />
         )}
         <ConfrontoDocumentiLayout singolo={!seconda}>
           {scelta.map((offerta, indice) => {
             const lato = indice === 0 ? "sinistra" : "destra";
-            const etichetta = `Offerta ${indice + 1}`;
+            const etichetta = t("Offerta {n}", { n: indice + 1 });
             return (
               <PannelloDocumento key={lato} nome={etichetta} lato={lato} attivo={!seconda || pannello === lato} viste={null}
                 testata={
@@ -106,7 +108,7 @@ export function OriginaliOfferteDialog({ companyId, numero, offerte, iniziale, o
                         const id = event.target.value;
                         setSelezione(scelta.map((f, i) => i === indice ? id : f.id === id ? offerta.id : f.id));
                       }}>
-                      {offerte.map(f => <option key={f.id} value={f.id}>{nomeFornitore(f)}</option>)}
+                      {offerte.map(f => <option key={f.id} value={f.id}>{f.suppliers?.name ?? t("Fornitore")}</option>)}
                     </UniformSelect>
                   </label>
                 }>

@@ -13,13 +13,15 @@ import type { SrTemplatePdfRow } from "@/types/serramenti";
 import { SerramentiTemplateEditor } from "./SerramentiTemplateEditor";
 import { SerramentiLocalModuleEditor } from "./SerramentiLocalModuleEditor";
 import { createFullSerramentiTemplate, FULL_SERRAMENTI_MODULES, isFullSerramentiTemplate, upgradeSerramentiModuleTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SerramentiModuleTemplatesPanel() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const { data: template, isLoading, isError } = useTemplatePdf();
   const company = useCompanyAnagraficaForTemplate();
-  if (!companyId || isLoading) return <p role="status">Caricamento moduli Serramenti…</p>;
-  if (isError) return <p role="alert">Impossibile leggere il modello aziendale. Riprova prima di creare copie.</p>;
+  if (!companyId || isLoading) return <p role="status">{t("Caricamento moduli Serramenti…")}</p>;
+  if (isError) return <p role="alert">{t("Impossibile leggere il modello aziendale. Riprova prima di creare copie.")}</p>;
   const base: Partial<SrTemplatePdfRow> = { ...template, company_id: companyId };
   for (const field of ["ragione_sociale", "indirizzo_completo", "telefono", "email", "partita_iva"] as const) {
     base[field] = base[field] || company?.[field] || null;
@@ -28,6 +30,7 @@ export function SerramentiModuleTemplatesPanel() {
 }
 
 function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTemplatePdfRow> }) {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const { canEditSettingsPricing: canEdit } = usePermissions();
   const dirty = useRef(false);
@@ -40,7 +43,7 @@ function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTem
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]')) return;
       if (!dirty.current || !target?.closest("a,button,[role=tab]") || target.closest("[data-serramenti-local-editor]")) return;
-      if (window.confirm("Uscire senza salvare le modifiche al modulo?")) dirty.current = false;
+      if (window.confirm(t("Uscire senza salvare le modifiche al modulo?"))) dirty.current = false;
       else { event.preventDefault(); event.stopPropagation(); }
     };
     document.addEventListener("click", guard, true);
@@ -53,53 +56,54 @@ function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTem
     };
   }, []);
   const open = (id: string | null) => {
-    if (dirty.current && !window.confirm("Uscire senza salvare le modifiche al modulo?")) return;
+    if (dirty.current && !window.confirm(t("Uscire senza salvare le modifiche al modulo?"))) return;
     dirty.current = false;
     const next = new URLSearchParams(params);
     if (id) { next.set("modello", id); next.set("section", "page_cover"); }
     else { next.delete("modello"); next.delete("section"); }
     setParams(next);
   };
-  const notice = <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950"><Monitor className="h-4 w-4 shrink-0" /><p><strong>Modelli dell'azienda.</strong> Si salvano online e li vedono tutti i colleghi. Quando crei un preventivo Serramenti con uno di questi interventi, il PDF usa il suo modello; i prodotti restano quelli di tutto il listino, porte e zanzariere comprese. Il template aziendale resta invariato.</p></div>;
+  const notice = <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950"><Monitor className="h-4 w-4 shrink-0" /><p><strong>{t("Modelli dell'azienda.")}</strong> {t("Si salvano online e li vedono tutti i colleghi. Quando crei un preventivo Serramenti con uno di questi interventi, il PDF usa il suo modello; i prodotti restano quelli di tutto il listino, porte e zanzariere comprese. Il template aziendale resta invariato.")}</p></div>;
   if (selected) return <div className="space-y-4">
-    <Button variant="outline" size="sm" onClick={() => open(null)}><ArrowLeft className="mr-2 h-4 w-4" />Tutti i moduli Serramenti</Button>
-    {selected === "generale" ? <><p className="rounded-lg border p-3 text-sm">Template generale esistente: il suo salvataggio aggiorna il modello aziendale online.</p>{canEdit && <SerramentiTemplateEditor embedded />}</>
-      : !module ? <p role="alert">Modulo non riconosciuto. Torna all'elenco.</p>
-      : <><div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">Area Serramenti / Modulo PDF</p><h2 className="mt-1 text-2xl font-semibold">{module.title}</h2><p className="mt-1 text-sm text-muted-foreground">{module.summary}</p></div>{notice}
-        {canEdit ? <LocalEditor key={companyId + ":" + module.id} companyId={companyId} moduleId={module.id} base={base} onDirtyChange={onDirtyChange} /> : <p>Non hai i permessi per configurare i moduli.</p>}</>}
+    <Button variant="outline" size="sm" onClick={() => open(null)}><ArrowLeft className="mr-2 h-4 w-4" />{t("Tutti i moduli Serramenti")}</Button>
+    {selected === "generale" ? <><p className="rounded-lg border p-3 text-sm">{t("Template generale esistente: il suo salvataggio aggiorna il modello aziendale online.")}</p>{canEdit && <SerramentiTemplateEditor embedded />}</>
+      : !module ? <p role="alert">{t("Modulo non riconosciuto. Torna all'elenco.")}</p>
+      : <><div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">{t("Area Serramenti / Modulo PDF")}</p><h2 className="mt-1 text-2xl font-semibold">{module.title}</h2><p className="mt-1 text-sm text-muted-foreground">{module.summary}</p></div>{notice}
+        {canEdit ? <LocalEditor key={companyId + ":" + module.id} companyId={companyId} moduleId={module.id} base={base} onDirtyChange={onDirtyChange} /> : <p>{t("Non hai i permessi per configurare i moduli.")}</p>}</>}
   </div>;
-  return <section className="space-y-5"><div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">Area Serramenti</p><h2 className="mt-1 text-2xl font-semibold">Scegli il modulo da preparare</h2><p className="mt-2 text-sm text-muted-foreground">{SERRAMENTI_TEMPLATE_MODULES.length} modelli distinti. Configura le pagine una volta, controlla il PDF e salva la tua versione.</p></div>{notice}
+  return <section className="space-y-5"><div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">{t("Area Serramenti")}</p><h2 className="mt-1 text-2xl font-semibold">{t("Scegli il modulo da preparare")}</h2><p className="mt-2 text-sm text-muted-foreground">{t("{n} modelli distinti. Configura le pagine una volta, controlla il PDF e salva la tua versione.", { n: SERRAMENTI_TEMPLATE_MODULES.length })}</p></div>{notice}
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{SERRAMENTI_TEMPLATE_MODULES.map((m, index) => {
-      let status = "Pronto da personalizzare";
+      let status = t("Pronto da personalizzare");
       const fullEdition = FULL_SERRAMENTI_MODULES.includes(m.id);
       let cover = fullEdition ? createFullSerramentiTemplate(base, m.id).pdf_cover_image_url : null;
       try {
         const record = loadLocalSerramentiTemplate(companyId, m.id);
         if (record) {
-          status = fullEdition && !isFullSerramentiTemplate(record.template) ? "Aggiornamento completo disponibile" : "Salvato";
+          status = fullEdition && !isFullSerramentiTemplate(record.template) ? t("Aggiornamento completo disponibile") : t("Salvato");
           // Explicit image removal must not be silently reversed in the catalog.
           if (isFullSerramentiTemplate(record.template)) cover = record.template.pdf_cover_image_url;
         }
-      } catch { status = "Modello da verificare"; }
+      } catch { status = t("Modello da verificare"); }
       return <article key={m.id} className="flex flex-col overflow-hidden rounded-xl border bg-background">
         <div className="relative flex h-36 items-end justify-between overflow-hidden p-4 text-white" style={{ backgroundColor: m.color }}>
-          {cover && <img src={cover} alt={`Immagine illustrativa — ${m.title}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover object-top" />}
+          {cover && <img src={cover} alt={t("Immagine illustrativa — {title}", { title: String(m.title ?? "") })} loading="lazy" className="absolute inset-0 h-full w-full object-cover object-top" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 to-transparent" />
           <FileText className="relative h-6 w-6" /><span className="relative text-xs tracking-widest">MODULO {String(index + 1).padStart(2, "0")}</span>
         </div>
         <div className="flex flex-1 flex-col p-5">
-          <span className={`w-fit rounded-full px-2 py-1 text-xs ${fullEdition ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{fullEdition ? "Edizione PDF completa" : "Edizione essenziale · da completare"}</span>
+          <span className={`w-fit rounded-full px-2 py-1 text-xs ${fullEdition ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{fullEdition ? t("Edizione PDF completa") : t("Edizione essenziale · da completare")}</span>
           <h3 className="mt-3 font-semibold">{m.title}</h3><p className="mt-2 text-sm text-muted-foreground">{m.summary}</p>
           <p className="mb-4 mt-3 text-xs text-muted-foreground">{status}</p>
-          <Button className="mt-auto justify-between" disabled={!canEdit} onClick={() => open(m.id)} aria-label={`Configura ${m.title}`}>Configura modulo<ArrowRight className="h-4 w-4" /></Button>
+          <Button className="mt-auto justify-between" disabled={!canEdit} onClick={() => open(m.id)} aria-label={t("Configura {title}", { title: String(m.title ?? "") })}>{t("Configura modulo")}<ArrowRight className="h-4 w-4" /></Button>
         </div>
       </article>;
     })}</div>
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-4"><div><h3 className="text-sm font-semibold">Template generale esistente</h3><p className="text-xs text-muted-foreground">Rimane quello usato dal preventivatore Serramenti.</p></div><Button variant="outline" onClick={() => open("generale")}>Apri template generale</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-4"><div><h3 className="text-sm font-semibold">{t("Template generale esistente")}</h3><p className="text-xs text-muted-foreground">{t("Rimane quello usato dal preventivatore Serramenti.")}</p></div><Button variant="outline" onClick={() => open("generale")}>{t("Apri template generale")}</Button></div>
   </section>;
 }
 
 function LocalEditor({ companyId, moduleId, base, onDirtyChange }: { companyId: string; moduleId: SerramentiTemplateModuleId; base: Partial<SrTemplatePdfRow>; onDirtyChange: (dirty: boolean) => void }) {
+  const t = useT();
   const [initial] = useState(() => {
     try { const record = loadLocalSerramentiTemplate(companyId, moduleId); return { record, template: record?.template ?? createFullSerramentiTemplate(base, moduleId), error: null as string | null }; }
     catch (error) { return { record: null, template: null, error: error instanceof Error ? error.message : "Modello non leggibile." }; }
@@ -117,17 +121,17 @@ function LocalEditor({ companyId, moduleId, base, onDirtyChange }: { companyId: 
     };
     return <div data-serramenti-local-editor className="space-y-4">
       {moduleId === "combinato" && current.pdf_blocchi?.modulo_visual_revision !== 3 && initial.record && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">
-        <p className="font-medium">Nuova veste grafica del Combinato</p>
-        <p className="mt-1 text-muted-foreground">Copertina dedicata e immagini meno ripetitive. Aggiorna soltanto le immagini di serie riconosciute: testi e foto personalizzati restano invariati. Controlla l'anteprima prima di salvare.</p>
-        <Button variant="outline" className="mt-3" disabled={editing} onClick={() => setUpgraded(refreshCombinatoVisuals(current))}>Prepara aggiornamento immagini</Button>
-        {editing && <p className="mt-2">Salva prima le modifiche in corso.</p>}
+        <p className="font-medium">{t("Nuova veste grafica del Combinato")}</p>
+        <p className="mt-1 text-muted-foreground">{t("Copertina dedicata e immagini meno ripetitive. Aggiorna soltanto le immagini di serie riconosciute: testi e foto personalizzati restano invariati. Controlla l'anteprima prima di salvare.")}</p>
+        <Button variant="outline" className="mt-3" disabled={editing} onClick={() => setUpgraded(refreshCombinatoVisuals(current))}>{t("Prepara aggiornamento immagini")}</Button>
+        {editing && <p className="mt-2">{t("Salva prima le modifiche in corso.")}</p>}
       </div>}
       {!isFullSerramentiTemplate(current) && <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
-        <p>Questa è la tua copia precedente. Puoi aggiungere le sezioni complete del modello originale conservando i campi che hai personalizzato. Il salvataggio resta manuale.</p>
-        {editing && <p className="mt-2">Salva le modifiche in corso prima di preparare l'edizione completa.</p>}
+        <p>{t("Questa è la tua copia precedente. Puoi aggiungere le sezioni complete del modello originale conservando i campi che hai personalizzato. Il salvataggio resta manuale.")}</p>
+        {editing && <p className="mt-2">{t("Salva le modifiche in corso prima di preparare l'edizione completa.")}</p>}
         <Button disabled={editing} className="mt-3" variant="outline" onClick={() => {
           setUpgraded(upgradeSerramentiModuleTemplate(current, base, moduleId));
-        }}>Prepara edizione completa</Button>
+        }}>{t("Prepara edizione completa")}</Button>
       </div>}
       <SerramentiTemplateEditor key={upgraded ? "upgraded" : "existing"} embedded localModule={{ id: moduleId, template: current, saved: !!initial.record && !upgraded, onDirtyChange: trackDirty, save }} />
     </div>;

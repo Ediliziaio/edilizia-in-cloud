@@ -34,6 +34,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useIndicatoriGuida, type IndicatoriGuidaData } from "@/hooks/useIndicatoriGuida";
 import { SOGLIE_INDICATORI, type Indicatore, type StatoIndicatore } from "@/lib/indicatoriGuida";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const STATO_UI: Record<StatoIndicatore, {
   label: string; badge: string; valore: string; bordo: string; icona: string;
@@ -75,7 +76,9 @@ interface DefIndicatore {
   icona: LucideIcon;
   unita: string;
   decimali?: number;
+  /** Frase con {n}: la soglia d'allarme, tradotta dove si mostra. */
   soglia: string;
+  sogliaValore: number;
   href: string;
   comeSiCalcola: string;
 }
@@ -87,7 +90,8 @@ const DEFINIZIONI: DefIndicatore[] = [
     titolo: "Giorni di copertura",
     icona: Gauge,
     unita: " gg",
-    soglia: `allarme < ${s.coperturaGiorniAllarme}`,
+    soglia: "allarme < {n}",
+    sogliaValore: s.coperturaGiorniAllarme,
     href: "/azienda/prima-nota",
     comeSiCalcola:
       "Saldo di Prima Nota ÷ (costi fissi mensili ÷ 30). Stima la copertura dei costi fissi mensili a partire dal saldo registrato, assumendo mesi di 30 giorni.",
@@ -98,7 +102,8 @@ const DEFINIZIONI: DefIndicatore[] = [
     icona: Briefcase,
     unita: " mesi",
     decimali: 1,
-    soglia: `allarme < ${s.portafoglioMesiAllarme} mesi`,
+    soglia: "allarme < {n} mesi",
+    sogliaValore: s.portafoglioMesiAllarme,
     href: "/azienda/ordini",
     comeSiCalcola:
       "Venduto ancora da fare sulle commesse aperte (preventivo con le variazioni approvate, per la parte non ancora avanzata, IVA esclusa) ÷ venduto medio mensile degli ultimi 12 mesi. Esprime il portafoglio in mesi equivalenti alla media storica di venduto.",
@@ -109,7 +114,8 @@ const DEFINIZIONI: DefIndicatore[] = [
     icona: Scale,
     unita: "×",
     decimali: 2,
-    soglia: `allarme > ${s.accontiSuSaldiAllarme.toLocaleString("it-IT")}`,
+    soglia: "allarme > {n}",
+    sogliaValore: s.accontiSuSaldiAllarme,
     href: "/azienda/ordini",
     comeSiCalcola:
       "Acconti incassati ÷ saldi incassati negli ultimi 90 giorni. Confronta il valore degli acconti con quello dei saldi registrati come incassati nel periodo.",
@@ -119,7 +125,8 @@ const DEFINIZIONI: DefIndicatore[] = [
     titolo: "Quota primo cliente",
     icona: UserRound,
     unita: "%",
-    soglia: `allarme > ${s.quotaPrimoClienteAllarme}%`,
+    soglia: "allarme > {n}%",
+    sogliaValore: s.quotaPrimoClienteAllarme,
     href: "/azienda/documenti",
     comeSiCalcola:
       "Fatturato del cliente più grande ÷ fatturato totale degli ultimi 12 mesi, IVA esclusa e al netto delle note di credito (fatture emesse dall'app e importate, senza contarle due volte). Misura la concentrazione dei ricavi sul cliente principale.",
@@ -129,7 +136,8 @@ const DEFINIZIONI: DefIndicatore[] = [
     titolo: "Margine di sicurezza",
     icona: ShieldCheck,
     unita: "%",
-    soglia: `allarme < ${s.margineSicurezzaAllarme}%`,
+    soglia: "allarme < {n}%",
+    sogliaValore: s.margineSicurezzaAllarme,
     href: "/azienda/costi",
     comeSiCalcola:
       "(Venduto 12 mesi − break-even annuo) ÷ venduto. Scostamento del venduto degli ultimi 12 mesi rispetto al break-even annuo stimato, rapportato al venduto.",
@@ -141,10 +149,11 @@ function formattaValore(ind: Indicatore, unita: string, decimali = 0): string {
     // Caso speciale: allarme senza valore calcolabile (es. solo acconti, ∞).
     return ind.stato === "allarme" ? "∞" : "—";
   }
-  return `${ind.valore.toLocaleString("it-IT", { maximumFractionDigits: decimali })}${unita}`;
+  return `${ind.valore.toLocaleString(intlCampo(), { maximumFractionDigits: decimali })}${unita}`;
 }
 
 function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: Indicatore }) {
+  const t = useT();
   const navigate = useNavigate();
   const ui = STATO_UI[indicatore.stato];
   const cliccabile = indicatore.stato !== "nd";
@@ -180,7 +189,7 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
           {/* Due righe anche da tablet: a quattro per riga «Giorni di copertura»
               diventava «GIORNI DI COPE…». */}
           <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-muted-foreground line-clamp-2 sm:text-xs">
-            {def.titolo}
+            {t(def.titolo)}
           </p>
         </div>
         <div className="hidden items-center gap-1.5 sm:flex">
@@ -188,7 +197,7 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label={`Come si calcola: ${def.titolo}`}
+                aria-label={t("Come si calcola: {titolo}", { titolo: t(def.titolo) })}
                 onClick={(e) => e.stopPropagation()}
                 className="rounded-full p-0.5 text-muted-foreground/60 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -196,22 +205,22 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[260px] text-xs">
-              {def.comeSiCalcola}
+              {t(def.comeSiCalcola)}
             </TooltipContent>
           </Tooltip>
           <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap", ui.badge)}>
-            {ui.label}
+            {t(ui.label)}
           </span>
         </div>
       </div>
 
       <div className="flex items-baseline gap-2">
         <span className={cn("text-xl font-bold tabular-nums sm:text-2xl", ui.valore)}>
-          {formattaValore(indicatore, def.unita, def.decimali)}
+          {formattaValore(indicatore, def.unita === " gg" ? ` ${t("gg")}` : def.unita === " mesi" ? ` ${t("mesi")}` : def.unita, def.decimali)}
         </span>
-        <span className="hidden text-[11px] text-muted-foreground sm:inline">{def.soglia}</span>
+        <span className="hidden text-[11px] text-muted-foreground sm:inline">{t(def.soglia, { n: def.sogliaValore.toLocaleString(intlCampo()) })}</span>
         <span className={cn("ml-auto self-center rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap sm:hidden", ui.badge)}>
-          {ui.label}
+          {t(ui.label)}
         </span>
       </div>
 
@@ -219,7 +228,7 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
         <div className="rounded-lg border border-dashed bg-muted/40 p-2.5 space-y-1.5 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
           {indicatore.mancanti.map((m) => (
             <div key={m.cosa} className="text-xs">
-              <p className="text-muted-foreground max-sm:hidden">Manca: {m.cosa}.</p>
+              <p className="text-muted-foreground max-sm:hidden">{t("Manca: {cosa}.", { cosa: String(m.cosa ?? "") })}</p>
               <Link
                 to={m.link}
                 className="inline-flex items-center gap-1 font-medium text-primary hover:underline max-sm:hidden"
@@ -239,6 +248,7 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
 }
 
 export function IndicatoriGuida() {
+  const t = useT();
   const dati = useIndicatoriGuida();
   const isMobile = useIsMobile();
 
@@ -250,11 +260,11 @@ export function IndicatoriGuida() {
         <CardHeader className="p-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <CircleGauge className="h-4 w-4 text-primary" />
-            I numeri che comandano
+            {t("I numeri che comandano")}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-0 text-sm text-muted-foreground">
-          Numeri non disponibili in questo momento: ricarica la pagina tra poco.
+          {t("Numeri non disponibili in questo momento: ricarica la pagina tra poco.")}
         </CardContent>
       </Card>
     );
@@ -287,7 +297,7 @@ export function IndicatoriGuida() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <CircleGauge className="h-4 w-4 text-primary" />
-              I numeri che comandano
+              {t("I numeri che comandano")}
             </CardTitle>
             {dati.isLoading ? (
               <Skeleton className="h-5 w-40" />
@@ -303,7 +313,7 @@ export function IndicatoriGuida() {
                           STATO_UI[stato].badge,
                         )}
                       >
-                        {conteggi[stato]} {STATO_UI[stato].label.toLowerCase()}
+                        {conteggi[stato]} {t(STATO_UI[stato].label).toLowerCase()}
                       </span>
                     ),
                 )}
@@ -322,7 +332,7 @@ export function IndicatoriGuida() {
             // da computer «vuoto» può voler dire che è tutto da attivare (azienda
             // nuova): allora va detto cosa attivare, non «nessun allarme»
             visibili.length === 0 && daAttivare.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">Nessun indicatore in allarme.</p>
+              <p className="py-2 text-sm text-muted-foreground">{t("Nessun indicatore in allarme.")}</p>
             ) : (
               <>
                 {visibili.length > 0 && <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
@@ -332,12 +342,12 @@ export function IndicatoriGuida() {
                 </div>}
                 {daAttivare.length > 0 && (
                   <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs">
-                    <span className="font-semibold text-muted-foreground">Da attivare:</span>
+                    <span className="font-semibold text-muted-foreground">{t("Da attivare:")}</span>
                     {daAttivare.map((def) => {
                       const m = dati[def.chiave].mancanti?.[0];
                       return (
                         <span key={def.chiave} className="text-muted-foreground">
-                          {def.titolo}
+                          {t(def.titolo)}
                           {m && <> — <Link to={m.link} className="font-medium text-primary hover:underline">{m.azione}</Link></>}
                         </span>
                       );

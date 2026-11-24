@@ -10,6 +10,7 @@ import { ACCEPT_INPUT, estensione, problemaFile } from "@/lib/commesse/documenti
 import { SMART_ACCEPTED_EXT, SMART_IMPORT_MAX_SIZE } from "@/lib/documenti/smartDocumentImport";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BUCKET = "eic-drive";
 type Stato = "attesa" | "invio" | "salvataggio" | "salvato" | "errore";
@@ -38,6 +39,7 @@ function analizzabile(file: File) {
 }
 
 export function CaricaFileDriveDialog({ open, companyId, userId, iniziali, cartelle, cartellaIniziale, onClose, onArchiviati, onAnalizza, analizzati }: Props) {
+  const t = useT();
   const [voci, setVoci] = useState(() => prepara(iniziali));
   const [cartella, setCartella] = useState(cartellaIniziale ?? "");
   const [condiviso, setCondiviso] = useState(false);
@@ -99,9 +101,9 @@ export function CaricaFileDriveDialog({ open, companyId, userId, iniziali, carte
     } catch (errore) {
       const dettaglio = errore as { code?: string; statusCode?: number; message?: string };
       const messaggio = dettaglio?.code === "42501" || dettaglio?.statusCode === 403
-        ? "Verifica i permessi e che la cartella sia ancora attiva."
-        : /network|timeout|fetch/i.test(dettaglio?.message ?? "") ? "Connessione interrotta. Riprova il file."
-          : dettaglio?.message || "Archiviazione non riuscita.";
+        ? t("Verifica i permessi e che la cartella sia ancora attiva.")
+        : /network|timeout|fetch/i.test(dettaglio?.message ?? "") ? t("Connessione interrotta. Riprova il file.")
+          : dettaglio?.message || t("Archiviazione non riuscita.");
       aggiorna(id, { stato: "errore", errore: messaggio });
       return undefined;
     }
@@ -133,24 +135,24 @@ export function CaricaFileDriveDialog({ open, companyId, userId, iniziali, carte
   const fileDrag = (event: DragEvent) => event.dataTransfer.types.includes("Files");
   return <Dialog open={open} onOpenChange={stato => { if (!stato && !occupato.current) onClose(); }}>
     <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col">
-      <DialogHeader><DialogTitle>Carica nel Drive</DialogTitle><DialogDescription>Archivia più file insieme o passali a Silvio per analizzarli uno alla volta.</DialogDescription></DialogHeader>
-      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Modalità di caricamento">
-        <Button type="button" variant={modalita === "archivia" ? "default" : "outline"} aria-pressed={modalita === "archivia"} disabled={inCorso} onClick={() => setModalita("archivia")}>Archivia</Button>
-        <Button type="button" variant={modalita === "analizza" ? "default" : "outline"} aria-pressed={modalita === "analizza"} disabled={inCorso} onClick={() => setModalita("analizza")}><Sparkles className="mr-2 h-4 w-4" />Analizza con Silvio</Button>
+      <DialogHeader><DialogTitle>{t("Carica nel Drive")}</DialogTitle><DialogDescription>{t("Archivia più file insieme o passali a Silvio per analizzarli uno alla volta.")}</DialogDescription></DialogHeader>
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label={t("Modalità di caricamento")}>
+        <Button type="button" variant={modalita === "archivia" ? "default" : "outline"} aria-pressed={modalita === "archivia"} disabled={inCorso} onClick={() => setModalita("archivia")}>{t("Archivia")}</Button>
+        <Button type="button" variant={modalita === "analizza" ? "default" : "outline"} aria-pressed={modalita === "analizza"} disabled={inCorso} onClick={() => setModalita("analizza")}><Sparkles className="mr-2 h-4 w-4" />{t("Analizza con Silvio")}</Button>
       </div>
       <input ref={input} type="file" multiple accept={ACCEPT_INPUT} className="hidden" onChange={event => { aggiungi(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <div onDragOver={event => { if (fileDrag(event)) { event.preventDefault(); event.stopPropagation(); setTrascina(!inCorso); } }}
         onDragLeave={() => setTrascina(false)} onDrop={event => { event.preventDefault(); event.stopPropagation(); setTrascina(false); aggiungi(Array.from(event.dataTransfer.files)); }}>
-        <Button type="button" variant="outline" className={`w-full border-dashed ${trascina ? "border-primary bg-primary/10" : ""}`} disabled={inCorso} onClick={() => input.current?.click()}><Upload className="mr-2 h-4 w-4" /> Seleziona o trascina i file</Button>
+        <Button type="button" variant="outline" className={`w-full border-dashed ${trascina ? "border-primary bg-primary/10" : ""}`} disabled={inCorso} onClick={() => input.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t("Seleziona o trascina i file")}</Button>
       </div>
       {modalita === "archivia" && <div className="space-y-2">
-        <label className="block text-sm font-medium" htmlFor="drive-archivia-cartella">Cartella di destinazione</label>
+        <label className="block text-sm font-medium" htmlFor="drive-archivia-cartella">{t("Cartella di destinazione")}</label>
         <UniformSelect id="drive-archivia-cartella" className="w-full rounded-md border bg-background p-2 text-sm" value={cartella} disabled={inCorso} onChange={event => setCartella(event.target.value)}>
-          <option value="">Archivio generale</option>
+          <option value="">{t("Archivio generale")}</option>
           {cartelle.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
         </UniformSelect>
-        <label className="flex items-center gap-2 text-sm"><Checkbox checked={condiviso} disabled={inCorso} onCheckedChange={value => setCondiviso(value === true)} /> Condividi con chi ha accesso al Drive aziendale</label>
-        <p className="text-xs text-muted-foreground">Con la condivisione disattivata, i file sono visibili a te e agli amministratori.</p>
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={condiviso} disabled={inCorso} onCheckedChange={value => setCondiviso(value === true)} /> {t("Condividi con chi ha accesso al Drive aziendale")}</label>
+        <p className="text-xs text-muted-foreground">{t("Con la condivisione disattivata, i file sono visibili a te e agli amministratori.")}</p>
       </div>}
       {voci.length > 0 && <ul className="min-h-12 divide-y overflow-y-auto rounded-md border">
         {voci.map(voce => {
@@ -160,22 +162,22 @@ export function CaricaFileDriveDialog({ open, companyId, userId, iniziali, carte
             {fatto ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : voce.stato === "errore" ? <AlertCircle className="h-4 w-4 shrink-0 text-destructive" /> : null}
             <div className="min-w-0 flex-1">
               <p className="break-words text-sm font-medium [overflow-wrap:anywhere]">{voce.file.name}</p>
-              {giaAnalizzato ? <p className="text-xs text-muted-foreground">Analizzato con Silvio</p> : voce.errore ? <p className="text-xs text-destructive">{voce.errore}</p> : voce.stato === "salvataggio" ? <p className="text-xs text-muted-foreground">Salvataggio in archivio…</p> : null}
-              {voce.stato === "invio" && <Progress className="mt-1 h-1.5" value={Math.min(voce.percentuale, 99)} aria-label={`Caricamento ${voce.file.name}`} />}
+              {giaAnalizzato ? <p className="text-xs text-muted-foreground">{t("Analizzato con Silvio")}</p> : voce.errore ? <p className="text-xs text-destructive">{voce.errore}</p> : voce.stato === "salvataggio" ? <p className="text-xs text-muted-foreground">{t("Salvataggio in archivio…")}</p> : null}
+              {voce.stato === "invio" && <Progress className="mt-1 h-1.5" value={Math.min(voce.percentuale, 99)} aria-label={t("Caricamento {name}", { name: String(voce.file.name ?? "") })} />}
             </div>
-            {modalita === "analizza" && !fatto && <Button type="button" size="sm" variant="outline" disabled={inCorso || !analizzabile(voce.file)} title={analizzabile(voce.file) ? undefined : "Formato o dimensione non supportati da Silvio"} onClick={() => onAnalizza(voce.file)}>Analizza</Button>}
-            {!fatto && <Button type="button" size="icon" variant="ghost" disabled={inCorso} aria-label={`Togli ${voce.file.name}`} onClick={() => setVoci(prev => prev.filter(v => v.id !== voce.id))}><X className="h-4 w-4" /></Button>}
+            {modalita === "analizza" && !fatto && <Button type="button" size="sm" variant="outline" disabled={inCorso || !analizzabile(voce.file)} title={analizzabile(voce.file) ? undefined : t("Formato o dimensione non supportati da Silvio")} onClick={() => onAnalizza(voce.file)}>{t("Analizza")}</Button>}
+            {!fatto && <Button type="button" size="icon" variant="ghost" disabled={inCorso} aria-label={t("Togli {name}", { name: String(voce.file.name ?? "") })} onClick={() => setVoci(prev => prev.filter(v => v.id !== voce.id))}><X className="h-4 w-4" /></Button>}
           </li>;
         })}
       </ul>}
       {modalita === "archivia" && (completati > 0 || inCorso) && <div className="space-y-1.5" role="status">
-        <p className="text-sm font-medium">{inCorso ? `Caricamento in corso · ${completati} di ${totaleArchivio} archiviati` : inAttesa.length ? `${completati} file archiviati · ${inAttesa.length} da riprovare` : `${completati} file archiviati`}</p>
-        <Progress className="h-2" value={totaleArchivio ? 100 * completati / totaleArchivio : 0} aria-label="Avanzamento archivio" />
+        <p className="text-sm font-medium">{inCorso ? t("Caricamento in corso · {completati} di {totaleArchivio} archiviati", { completati: String(completati ?? ""), totaleArchivio: String(totaleArchivio ?? "") }) : inAttesa.length ? t("{completati} file archiviati · {n} da riprovare", { completati: String(completati ?? ""), n: inAttesa.length }) : t("{completati} file archiviati", { completati: String(completati ?? "") })}</p>
+        <Progress className="h-2" value={totaleArchivio ? 100 * completati / totaleArchivio : 0} aria-label={t("Avanzamento archivio")} />
       </div>}
       <DialogFooter>
-        <Button type="button" variant="outline" disabled={inCorso} onClick={onClose}>Chiudi caricamento</Button>
+        <Button type="button" variant="outline" disabled={inCorso} onClick={onClose}>{t("Chiudi caricamento")}</Button>
         {modalita === "archivia" && (inAttesa.length > 0 || inCorso) && <Button type="button" disabled={inCorso} onClick={() => void archivia()}>
-          {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{inCorso ? "Caricamento…" : `${inAttesa.every(v => v.stato === "errore") ? "Riprova" : "Archivia"} ${inAttesa.length} file`}
+          {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{inCorso ? t("Caricamento…") : inAttesa.every(v => v.stato === "errore") ? t("Riprova {n} file", { n: inAttesa.length }) : t("Archivia {n} file", { n: inAttesa.length })}
         </Button>}
       </DialogFooter>
     </DialogContent>

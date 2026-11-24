@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { condividiFile } from "@/lib/mobile/condividiFile";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MandaRenderMobileProps {
   /** L'immagine del render finito. */
@@ -33,6 +34,7 @@ async function scaricaImmagine(url: string): Promise<Blob> {
  * secondo tocco.
  */
 export function MandaRenderMobile({ resultUrl, nomeFile, soloIcona = false, className }: MandaRenderMobileProps) {
+  const t = useT();
   const immagineRef = useRef<Promise<Blob> | null>(null);
   const [inCorso, setInCorso] = useState(false);
 
@@ -53,13 +55,13 @@ export function MandaRenderMobile({ resultUrl, nomeFile, soloIcona = false, clas
       const estensione = immagine.type.includes("jpeg") ? "jpg" : immagine.type.includes("webp") ? "webp" : "png";
       const esito = await condividiFile(immagine, `${nomeFile}.${estensione}`, "Render");
       if (esito === "serve-un-tocco") {
-        toast("Render pronto", { action: { label: "Manda", onClick: () => void manda() } });
+        toast(t("Render pronto"), { action: { label: t("Manda"), onClick: () => void manda() } });
       } else if (esito === "non-supportato") {
         // Nessun foglio di condivisione: si apre l'immagine, da lì si tiene premuto per salvarla.
         window.open(resultUrl, "_blank", "noopener");
       }
     } catch {
-      toast.error("Non riesco a preparare l'immagine. Riprova tra poco.");
+      toast.error(t("Non riesco a preparare l'immagine. Riprova tra poco."));
     } finally {
       setInCorso(false);
     }
@@ -71,11 +73,11 @@ export function MandaRenderMobile({ resultUrl, nomeFile, soloIcona = false, clas
       onClick={() => void manda()}
       disabled={inCorso}
       variant={soloIcona ? "outline" : "default"}
-      aria-label={soloIcona ? "Manda al cliente" : undefined}
+      aria-label={soloIcona ? t("Manda al cliente") : undefined}
       className={cn("gap-2", soloIcona && "w-11 shrink-0 px-0", className)}
     >
       {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-      {!soloIcona && "Manda al cliente"}
+      {!soloIcona && t("Manda al cliente")}
     </Button>
   );
 }

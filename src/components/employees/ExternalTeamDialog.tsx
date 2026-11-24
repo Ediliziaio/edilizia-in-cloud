@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { VAT_RATES } from "@/lib/vatUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const teamSchema = z.object({
   name: z.string().trim().min(1, "Nome squadra obbligatorio"),
@@ -90,6 +91,7 @@ export function ExternalTeamDialog({
   utenti,
   tipoBloccato = false,
 }: ExternalTeamDialogProps) {
+  const t = useT();
   const form = useForm<ExternalTeamFormData>({
     resolver: zodResolver(teamSchema),
     defaultValues: {
@@ -150,12 +152,12 @@ export function ExternalTeamDialog({
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {team ? "Modifica squadra" : "Nuova squadra"}
+            {team ? t("Modifica squadra") : t("Nuova squadra")}
           </DialogTitle>
           <DialogDescription>
             {team
-              ? "Modifica i dati della squadra"
-              : "Una squadra di posa: interna o esterna, con il suo colore nel calendario"}
+              ? t("Modifica i dati della squadra")
+              : t("Una squadra di posa: interna o esterna, con il suo colore nel calendario")}
           </DialogDescription>
         </DialogHeader>
 
@@ -166,9 +168,9 @@ export function ExternalTeamDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome Ditta/Squadra *</FormLabel>
+                  <FormLabel>{t("Nome Ditta/Squadra *")}</FormLabel>
                   <FormControl>
-                    <Input placeholder={kind === "interna" ? "Squadra ristrutturazioni" : "ABC Installazioni Srl"} {...field} />
+                    <Input placeholder={kind === "interna" ? t("Squadra ristrutturazioni") : "ABC Installazioni Srl"} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -181,7 +183,7 @@ export function ExternalTeamDialog({
                 name="kind"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tipo</FormLabel>
+                    <FormLabel>{t("Tipo")}</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange} disabled={tipoBloccato}>
                       <FormControl>
                         <SelectTrigger>
@@ -189,8 +191,8 @@ export function ExternalTeamDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="esterna">Esterna (ditta)</SelectItem>
-                        <SelectItem value="interna">Interna (dipendenti)</SelectItem>
+                        <SelectItem value="esterna">{t("Esterna (ditta)")}</SelectItem>
+                        <SelectItem value="interna">{t("Interna (dipendenti)")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -202,7 +204,7 @@ export function ExternalTeamDialog({
                 name="color"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Colore nel calendario</FormLabel>
+                    <FormLabel>{t("Colore nel calendario")}</FormLabel>
                     <FormControl>
                       <Input
                         type="color"
@@ -222,18 +224,18 @@ export function ExternalTeamDialog({
                 name="subappaltatore_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Accesso all&apos;app cantiere</FormLabel>
+                    <FormLabel>{t("Accesso all'app cantiere")}</FormLabel>
                     <Select
                       value={field.value ?? "__nessuno__"}
                       onValueChange={(v) => field.onChange(v === "__nessuno__" ? null : v)}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Nessun accesso" />
+                          <SelectValue placeholder={t("Nessun accesso")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="__nessuno__">Nessun accesso</SelectItem>
+                        <SelectItem value="__nessuno__">{t("Nessun accesso")}</SelectItem>
                         {subappaltatori.map((sub) => (
                           <SelectItem key={sub.id} value={sub.id}>
                             {sub.ragione_sociale}
@@ -242,7 +244,7 @@ export function ExternalTeamDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>Con un accesso, la squadra vede le sue pose in /campo.</FormDescription>
+                    <FormDescription>{t("Con un accesso, la squadra vede le sue pose in /campo.")}</FormDescription>
                   </FormItem>
                 )}
               />
@@ -254,37 +256,37 @@ export function ExternalTeamDialog({
                 name="leader_user_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Referente organizzativo</FormLabel>
+                    <FormLabel>{t("Referente organizzativo")}</FormLabel>
                     <Select
                       value={field.value ?? "__nessuno__"}
                       onValueChange={(v) => field.onChange(v === "__nessuno__" ? null : v)}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Nessuno" />
+                          <SelectValue placeholder={t("Nessuno")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="__nessuno__">Nessuno</SelectItem>
+                        <SelectItem value="__nessuno__">{t("Nessuno")}</SelectItem>
                         {utenti.map((u) => (
                           <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>Questo riferimento non concede il ruolo di capocantiere nell'app Campo. La delega si gestisce sul singolo cantiere.</FormDescription>
+                    <FormDescription>{t("Questo riferimento non concede il ruolo di capocantiere nell'app Campo. La delega si gestisce sul singolo cantiere.")}</FormDescription>
                   </FormItem>
                 )}
               />
             )}
 
-            {kind === "interna" && <p className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">Componenti e responsabile si gestiscono in Manodopera e Mezzi → Operai → Squadre. Il calendario Google resta collegato alla stessa squadra.</p>}
+            {kind === "interna" && <p className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">{t("Componenti e responsabile si gestiscono in Manodopera e Mezzi → Operai → Squadre. Il calendario Google resta collegato alla stessa squadra.")}</p>}
 
             {kind === "esterna" && <FormField
               control={form.control}
               name="vat_rate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Regime IVA</FormLabel>
+                  <FormLabel>{t("Regime IVA")}</FormLabel>
                   <Select
                     value={field.value.toString()}
                     onValueChange={(v) => field.onChange(parseInt(v))}
@@ -297,13 +299,13 @@ export function ExternalTeamDialog({
                     <SelectContent>
                       {VAT_RATES.map((rate) => (
                         <SelectItem key={rate.value} value={rate.value.toString()}>
-                          {rate.value === 0 ? "0% - Reverse charge (subappalto edile)" : rate.label}
+                          {rate.value === 0 ? t("0% - Reverse charge (subappalto edile)") : rate.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Il subappalto edile è in reverse charge: IVA 0, il costo è l’imponibile. Scegli un’aliquota solo se la ditta mette l’IVA in fattura.
+                    {t("Il subappalto edile è in reverse charge: IVA 0, il costo è l’imponibile. Scegli un’aliquota solo se la ditta mette l’IVA in fattura.")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -315,7 +317,7 @@ export function ExternalTeamDialog({
               name="contact_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome Referente</FormLabel>
+                  <FormLabel>{t("Nome Referente")}</FormLabel>
                   <FormControl>
                     <Input placeholder="Mario Rossi" {...field} />
                   </FormControl>
@@ -344,7 +346,7 @@ export function ExternalTeamDialog({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefono</FormLabel>
+                    <FormLabel>{t("Telefono")}</FormLabel>
                     <FormControl>
                       <Input placeholder="+39 333 1234567" {...field} />
                     </FormControl>
@@ -359,10 +361,10 @@ export function ExternalTeamDialog({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Note</FormLabel>
+                  <FormLabel>{t("Note")}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Note aggiuntive sulla squadra..."
+                      placeholder={t("Note aggiuntive sulla squadra...")}
                       rows={3}
                       {...field}
                     />
@@ -378,9 +380,9 @@ export function ExternalTeamDialog({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
-                    <FormLabel>Squadra Attiva</FormLabel>
+                    <FormLabel>{t("Squadra Attiva")}</FormLabel>
                     <FormDescription>
-                      Le squadre inattive non sono selezionabili per nuovi ordini
+                      {t("Le squadre inattive non sono selezionabili per nuovi ordini")}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -399,10 +401,10 @@ export function ExternalTeamDialog({
                 variant="outline"
                 onClick={() => onOpenChange(false)}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button type="submit" disabled={isSaving}>
-                {isSaving ? "Salvataggio..." : team ? "Salva Modifiche" : "Crea Squadra"}
+                {isSaving ? t("Salvataggio...") : team ? t("Salva Modifiche") : t("Crea Squadra")}
               </Button>
             </DialogFooter>
           </form>

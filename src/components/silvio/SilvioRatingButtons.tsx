@@ -12,8 +12,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { ThumbsUp, ThumbsDown, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SilvioRatingButtons({ messageId }: { messageId: string }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [rated, setRated] = useState<1 | 5 | null>(null);
 
@@ -29,12 +31,12 @@ export function SilvioRatingButtons({ messageId }: { messageId: string }) {
     },
     onMutate: (rating) => setRated(rating),
     onSuccess: () => {
-      toast.success("Grazie del feedback");
+      toast.success(t("Grazie del feedback"));
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages"] });
     },
     onError: (e) => {
       setRated(null);
-      toast.error("Errore rating", { description: String(e) });
+      toast.error(t("Errore rating"), { description: String(e) });
     },
   });
 
@@ -51,8 +53,8 @@ export function SilvioRatingButtons({ messageId }: { messageId: string }) {
           rated === 5 ? "bg-emerald-100 text-emerald-700" : "hover:bg-emerald-50 text-muted-foreground hover:text-emerald-600",
           isPending && "cursor-wait"
         )}
-        title="Risposta utile"
-        aria-label="Thumbs up"
+        title={t("Risposta utile")}
+        aria-label={t("Thumbs up")}
       >
         {rated === 5 ? <Check className="h-3 w-3" /> : <ThumbsUp className="h-3 w-3" />}
       </button>
@@ -65,14 +67,14 @@ export function SilvioRatingButtons({ messageId }: { messageId: string }) {
           rated === 1 ? "bg-rose-100 text-rose-700" : "hover:bg-rose-50 text-muted-foreground hover:text-rose-600",
           isPending && "cursor-wait"
         )}
-        title="Risposta da migliorare"
-        aria-label="Thumbs down"
+        title={t("Risposta da migliorare")}
+        aria-label={t("Thumbs down")}
       >
         {rated === 1 ? <Check className="h-3 w-3" /> : <ThumbsDown className="h-3 w-3" />}
       </button>
       {rated && (
         <span className="text-[10px] text-muted-foreground ml-1">
-          {rated === 5 ? "👍 utile" : "👎 da migliorare"}
+          {rated === 5 ? t("👍 utile") : t("👎 da migliorare")}
         </span>
       )}
     </div>

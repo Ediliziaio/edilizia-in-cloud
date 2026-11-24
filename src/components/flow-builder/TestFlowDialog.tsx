@@ -13,6 +13,7 @@ import { ShieldCheck, CheckCircle, XCircle } from "lucide-react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 import { filterErrors, matchesAutomationTriggerConfig } from "../../../supabase/functions/_shared/automationFilters";
 import { previewAutomationConfiguration, previewAutomationPath, type PreviewEdge } from "@/lib/automationPreview";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = [] }: Props) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [checked, setChecked] = useState(false);
@@ -63,7 +65,7 @@ export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = 
     const parsed = JSON.parse(scenarioJson);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
     scenarioPayload = parsed;
-  } catch { scenarioError = "I dati dell’evento devono essere un oggetto JSON valido."; }
+  } catch { scenarioError = t("I dati dell’evento devono essere un oggetto JSON valido."); }
   const selectedRecord = platform ? company : contact;
   const selectedTrigger = triggers.find(n => n.id === scenarioTriggerId);
   const eventId = String(selectedTrigger?.data.itemId ?? selectedTrigger?.data.item_id ?? selectedTrigger?.data.trigger_type ?? "");
@@ -80,12 +82,12 @@ export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = 
     const errors = filterErrors(cfg.trigger_filters ?? cfg.filters);
     const needsCustomFields = JSON.stringify(cfg.trigger_filters ?? cfg.filters ?? {}).includes("custom_field.");
     return {
-      id: n.id, label: cfg.label || id || "Trigger",
+      id: n.id, label: cfg.label || id || t("Trigger"),
       detail: errors[0] || (!contactEvent || needsCustomFields
-        ? "Serve il record e il contesto dell’evento: questa anteprima verifica solo i campi standard del contatto."
+        ? t("Serve il record e il contesto dell’evento: questa anteprima verifica solo i campi standard del contatto.")
         : matchesAutomationTriggerConfig(cfg, contact, timeZone)
-          ? "Il contatto soddisfa i filtri di questo trigger."
-          : "Il contatto non soddisfa i filtri: non entrerebbe da questo trigger."),
+          ? t("Il contatto soddisfa i filtri di questo trigger.")
+          : t("Il contatto non soddisfa i filtri: non entrerebbe da questo trigger.")),
       matched: errors.length === 0 && contactEvent && !needsCustomFields && matchesAutomationTriggerConfig(cfg, contact, timeZone),
     };
   }) : [];
@@ -97,18 +99,18 @@ export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = 
     <Dialog open={open} onOpenChange={v => { if (!v) close(); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Verifica il flusso</DialogTitle>
-          <DialogDescription>Filtri, percorso e testi della bozza aperta. Non è una prova di consegna né un’esecuzione delle azioni.</DialogDescription>
+          <DialogTitle>{t("Verifica il flusso")}</DialogTitle>
+          <DialogDescription>{t("Filtri, percorso e testi della bozza aperta. Non è una prova di consegna né un’esecuzione delle azioni.")}</DialogDescription>
         </DialogHeader>
         <div className="flex gap-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
           <ShieldCheck className="h-4 w-4 shrink-0" />
-          <p>Nessun messaggio inviato, nessun dato modificato e nessuna iscrizione creata. Le azioni e i servizi esterni non vengono eseguiti.</p>
+          <p>{t("Nessun messaggio inviato, nessun dato modificato e nessuna iscrizione creata. Le azioni e i servizi esterni non vengono eseguiti.")}</p>
         </div>
-        <Input aria-label={platform ? "Cerca azienda per anteprima" : "Cerca contatto per anteprima"} placeholder={platform ? "Cerca un’azienda per nome…" : "Cerca un contatto per nome o email…"}
+        <Input aria-label={platform ? t("Cerca azienda per anteprima") : t("Cerca contatto per anteprima")} placeholder={platform ? t("Cerca un’azienda per nome…") : t("Cerca un contatto per nome o email…")}
           value={search} onChange={e => { setSearch(e.target.value); setSelectedId(""); setChecked(false); }} />
-        {(platform ? companyError : error) && <p role="alert" className="text-sm text-destructive">Impossibile leggere i dati per l’anteprima. Riprova.</p>}
+        {(platform ? companyError : error) && <p role="alert" className="text-sm text-destructive">{t("Impossibile leggere i dati per l’anteprima. Riprova.")}</p>}
         <div className="max-h-52 overflow-y-auto divide-y rounded-lg border">
-          {platform && (loadingCompanies ? <p className="p-3 text-sm">Caricamento aziende…</p> : companies.map(c => (
+          {platform && (loadingCompanies ? <p className="p-3 text-sm">{t("Caricamento aziende…")}</p> : companies.map(c => (
             <button key={c.id} type="button" aria-pressed={selectedId === c.id} className={"w-full p-3 text-left text-sm hover:bg-muted " + (selectedId === c.id ? "bg-primary/10" : "")}
               onClick={() => {
                 setSelectedId(c.id); setChecked(false);
@@ -119,39 +121,39 @@ export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = 
               <span className="font-medium">{c.name}</span><span className="block text-xs text-muted-foreground">{c.status}</span>
             </button>
           )))}
-          {!platform && (isLoading ? <p className="p-3 text-sm">Caricamento…</p> : contacts.map(c => (
+          {!platform && (isLoading ? <p className="p-3 text-sm">{t("Caricamento…")}</p> : contacts.map(c => (
             <button key={c.id} type="button" aria-pressed={selectedId === c.id}
               className={"w-full p-3 text-left text-sm hover:bg-muted " + (selectedId === c.id ? "bg-primary/10" : "")}
               onClick={() => { setSelectedId(c.id); setChecked(false); }}>
               <span className="font-medium">{c.first_name} {c.last_name}</span>
-              <span className="block text-xs text-muted-foreground">{c.email || "Senza email"}</span>
+              <span className="block text-xs text-muted-foreground">{c.email || t("Senza email")}</span>
             </button>
           )))}
-          {!(platform ? loadingCompanies : isLoading) && !(platform ? companyError : error) && !(platform ? companies.length : contacts.length) && <p className="p-3 text-sm text-muted-foreground">Nessun risultato trovato.</p>}
+          {!(platform ? loadingCompanies : isLoading) && !(platform ? companyError : error) && !(platform ? companies.length : contacts.length) && <p className="p-3 text-sm text-muted-foreground">{t("Nessun risultato trovato.")}</p>}
         </div>
         {platform && <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="platform-preview-trigger">Evento da simulare</label>
+          <label className="text-sm font-medium" htmlFor="platform-preview-trigger">{t("Evento da simulare")}</label>
           <UniformSelect id="platform-preview-trigger" className="w-full rounded border bg-background p-2 text-sm" value={scenarioTriggerId} onChange={e => { setScenarioTriggerId(e.target.value); setChecked(false); }}>
-            <option value="">Scegli un ingresso del flusso</option>
-            {triggers.map(n => <option key={n.id} value={n.id}>{n.data.label || n.data.itemId || n.data.item_id || n.data.trigger_type || "Trigger"}</option>)}
+            <option value="">{t("Scegli un ingresso del flusso")}</option>
+            {triggers.map(n => <option key={n.id} value={n.id}>{n.data.label || n.data.itemId || n.data.item_id || n.data.trigger_type || t("Trigger")}</option>)}
           </UniformSelect>
-          <p className="text-xs text-muted-foreground">Nome e stato vengono dall’azienda scelta. Completa i valori null per la prova: crediti, ritardi e cambio piano non sono letti dai servizi esterni e non attestano un evento reale.</p>
+          <p className="text-xs text-muted-foreground">{t("Nome e stato vengono dall’azienda scelta. Completa i valori null per la prova: crediti, ritardi e cambio piano non sono letti dai servizi esterni e non attestano un evento reale.")}</p>
           {[["trial_in_scadenza", "trial.giorni_rimasti", "Giorni rimasti nel trial"], ["crediti_ai_bassi", "crediti.saldo", "Crediti disponibili (€)"], ["fattura_piattaforma_scaduta", "fattura.giorni_ritardo", "Giorni di ritardo"]].filter(([trigger]) => trigger === eventId).map(([, key, label]) => (
-            <label key={key} className="block space-y-1 text-sm">{label}<Input aria-label={label} type="number" step={key === "crediti.saldo" ? "0.01" : "1"} value={scenarioPayload?.[key] == null ? "" : String(scenarioPayload[key])} onChange={e => setScenarioValue(key, e.target.value === "" ? null : Number(e.target.value))} /></label>
+            <label key={key} className="block space-y-1 text-sm">{t(label)}<Input aria-label={t(label)} type="number" step={key === "crediti.saldo" ? "0.01" : "1"} value={scenarioPayload?.[key] == null ? "" : String(scenarioPayload[key])} onChange={e => setScenarioValue(key, e.target.value === "" ? null : Number(e.target.value))} /></label>
           ))}
-          {eventId === "piano_cambiato" && <label className="block space-y-1 text-sm">Tipo cambio piano<UniformSelect aria-label="Tipo cambio piano" className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["piano.tipo_cambio"] ?? "")} onChange={e => setScenarioValue("piano.tipo_cambio", e.target.value || null)}>
-            <option value="">Scegli il caso da provare</option><option value="upgrade">Upgrade</option><option value="downgrade">Downgrade</option><option value="change">Cambio senza differenza di prezzo</option>
+          {eventId === "piano_cambiato" && <label className="block space-y-1 text-sm">{t("Tipo cambio piano")}<UniformSelect aria-label={t("Tipo cambio piano")} className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["piano.tipo_cambio"] ?? "")} onChange={e => setScenarioValue("piano.tipo_cambio", e.target.value || null)}>
+            <option value="">{t("Scegli il caso da provare")}</option><option value="upgrade">{t("Upgrade")}</option><option value="downgrade">{t("Downgrade")}</option><option value="change">{t("Cambio senza differenza di prezzo")}</option>
           </UniformSelect></label>}
-          {eventId === "ticket_piattaforma_aperto" && <label className="block space-y-1 text-sm">Priorità ticket<UniformSelect aria-label="Priorità ticket" className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["ticket.priorita"] ?? "")} onChange={e => setScenarioValue("ticket.priorita", e.target.value || null)}>
-            <option value="">Scegli il caso da provare</option><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="normale">Normale</option>
+          {eventId === "ticket_piattaforma_aperto" && <label className="block space-y-1 text-sm">{t("Priorità ticket")}<UniformSelect aria-label={t("Priorità ticket")} className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["ticket.priorita"] ?? "")} onChange={e => setScenarioValue("ticket.priorita", e.target.value || null)}>
+            <option value="">{t("Scegli il caso da provare")}</option><option value="urgente">{t("Urgente")}</option><option value="alta">{t("Alta")}</option><option value="normale">{t("Normale")}</option>
           </UniformSelect></label>}
-          <details className="text-sm"><summary className="cursor-pointer">Dati avanzati dell’evento (JSON)</summary>
-            <label className="block pt-2 font-medium" htmlFor="platform-preview-payload">Dati dell’evento simulato</label>
+          <details className="text-sm"><summary className="cursor-pointer">{t("Dati avanzati dell’evento (JSON)")}</summary>
+            <label className="block pt-2 font-medium" htmlFor="platform-preview-payload">{t("Dati dell’evento simulato")}</label>
             <Textarea id="platform-preview-payload" value={scenarioJson} rows={8} className="font-mono text-xs" onChange={e => { setScenarioJson(e.target.value); setChecked(false); }} />
           </details>
           {scenarioError && <p role="alert" className="text-xs text-destructive">{scenarioError}</p>}
         </div>}
-        {!triggers.length && <p className="text-xs text-muted-foreground">Il flusso non ha trigger: può ricevere iscrizioni da un’altra automazione.</p>}
+        {!triggers.length && <p className="text-xs text-muted-foreground">{t("Il flusso non ha trigger: può ricevere iscrizioni da un’altra automazione.")}</p>}
         {results.length > 0 && <div className="max-h-48 space-y-2 overflow-y-auto" aria-live="polite">
           {results.map(r => <div key={r.id} className="rounded-lg border p-3 text-sm">
             <div className="flex items-center gap-2 font-medium">{r.matched ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-amber-600" />}{r.label}</div>
@@ -159,25 +161,25 @@ export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = 
           </div>)}
         </div>}
         {configuration.length > 0 && <details className="rounded-lg border p-3 text-sm">
-          <summary className="cursor-pointer font-medium">Controlli base di tutti i {configuration.length} passi</summary>
-          <p className="mt-2 text-xs text-muted-foreground">Campi obbligatori e valori di configurazione, inclusi i passi non percorsi. Non verifica i servizi esterni.</p>
+          <summary className="cursor-pointer font-medium">{t("Controlli base di tutti i {n} passi", { n: configuration.length })}</summary>
+          <p className="mt-2 text-xs text-muted-foreground">{t("Campi obbligatori e valori di configurazione, inclusi i passi non percorsi. Non verifica i servizi esterni.")}</p>
           <ul className="mt-2 space-y-2">
             {configuration.map(step => <li key={step.nodeId} className="text-xs">
               <span className="font-medium">{step.label}: </span>
               <span className={step.errors.length ? "text-destructive" : "text-muted-foreground"}>
-                {step.errors.length ? step.errors.join(" ") : "nessun errore nei controlli base"}
+                {step.errors.length ? step.errors.join(" ") : t("nessun errore nei controlli base")}
               </span>
             </li>)}
           </ul>
         </details>}
-        {path.length > 0 && <section className="space-y-2" aria-label="Anteprima percorso">
-          <h3 className="text-sm font-medium">Percorso previsto</h3>
-          <p className="text-xs text-muted-foreground">“Da verificare” non significa riuscito: per le azioni servono anche record, permessi e servizi disponibili.</p>
+        {path.length > 0 && <section className="space-y-2" aria-label={t("Anteprima percorso")}>
+          <h3 className="text-sm font-medium">{t("Percorso previsto")}</h3>
+          <p className="text-xs text-muted-foreground">{t("“Da verificare” non significa riuscito: per le azioni servono anche record, permessi e servizi disponibili.")}</p>
           <ol className="max-h-64 space-y-2 overflow-y-auto">
             {path.map((step, index) => <li key={step.nodeId} className="rounded-lg border p-3 text-sm">
               <div className="flex items-center justify-between gap-2"><span className="font-medium">{index + 1}. {step.label}</span>
                 <span className={step.status === "blocked" ? "text-destructive" : "text-muted-foreground"}>
-                  {{ planned: "Previsto", blocked: "Da correggere", skipped: "Non attivato", unverified: "Da verificare" }[step.status]}
+                  {t({ planned: "Previsto", blocked: "Da correggere", skipped: "Non attivato", unverified: "Da verificare" }[step.status])}
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{step.detail}</p>
@@ -186,8 +188,8 @@ export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = 
           </ol>
         </section>}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={close}>Chiudi</Button>
-          <Button disabled={!selectedRecord || (platform && (!!scenarioError || (!!triggers.length && !scenarioTriggerId)))} onClick={() => setChecked(true)}>Verifica percorso e testi</Button>
+          <Button variant="outline" onClick={close}>{t("Chiudi")}</Button>
+          <Button disabled={!selectedRecord || (platform && (!!scenarioError || (!!triggers.length && !scenarioTriggerId)))} onClick={() => setChecked(true)}>{t("Verifica percorso e testi")}</Button>
         </div>
       </DialogContent>
     </Dialog>

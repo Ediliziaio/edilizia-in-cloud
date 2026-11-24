@@ -11,6 +11,7 @@ import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import {
   COLORI_GRAFICO, Comparsa, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg,
 } from "./comune";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface MeseEntrateUscite {
   /** etichetta sull'asse («nov 26») */
@@ -35,6 +36,7 @@ export function GraficoEntrateUscite({
   /** Indice del mese scelto: gli altri si attenuano. */
   meseScelto?: number | null;
 }) {
+  const t = useT();
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
 
@@ -48,24 +50,24 @@ export function GraficoEntrateUscite({
   return (
     <Comparsa className="rounded-2xl border bg-card p-3 sm:p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-semibold">{titolo}</h3>
+        <h3 className="text-base font-semibold">{t(titolo)}</h3>
         <div className="flex items-center gap-3 text-xs">
           <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.verde }} /> {nomeEntrate}
+            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.verde }} /> {t(nomeEntrate)}
           </span>
           <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.rosso }} /> {nomeUscite}
+            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.rosso }} /> {t(nomeUscite)}
           </span>
         </div>
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-        <StatGrafico etichetta={nomeEntrate} valore={formatEuroRiquadro(tot.entrate)} nota={notaPeriodo} tono="buono" />
-        <StatGrafico etichetta={nomeUscite} valore={formatEuroRiquadro(tot.uscite)} nota={notaPeriodo} />
+        <StatGrafico etichetta={t(nomeEntrate)} valore={formatEuroRiquadro(tot.entrate)} nota={t(notaPeriodo)} tono="buono" />
+        <StatGrafico etichetta={t(nomeUscite)} valore={formatEuroRiquadro(tot.uscite)} nota={t(notaPeriodo)} />
         <StatGrafico
-          etichetta="Saldo"
+          etichetta={t("Saldo")}
           valore={`${tot.saldo > 0 ? "+" : ""}${formatEuroRiquadro(tot.saldo)}`}
-          nota="entrate meno uscite"
+          nota={t("entrate meno uscite")}
           tono={tot.saldo >= 0 ? "buono" : "cattivo"}
         />
       </div>
@@ -97,7 +99,7 @@ export function GraficoEntrateUscite({
                     const saldo = Number(r[nomeEntrate] ?? 0) - Number(r[nomeUscite] ?? 0);
                     return (
                       <p className="mt-1.5 border-t pt-1.5 text-[11px] text-muted-foreground">
-                        Saldo del mese{" "}
+                        {t("Saldo del mese")}{" "}
                         <span className={saldo >= 0 ? "font-semibold text-emerald-600 dark:text-emerald-400" : "font-semibold text-rose-600 dark:text-rose-400"}>
                           {saldo > 0 ? "+" : ""}{formatCurrency(saldo)}
                         </span>

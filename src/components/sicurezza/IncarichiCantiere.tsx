@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Form = {
   figura_id: string;
@@ -73,6 +74,7 @@ export function IncarichiCantiere({
   compact = false,
   dataRiferimento,
 }: AmbitoFascicolo & { compact?: boolean;dataRiferimento?:string }) {
+  const t = useT();
   const giorno=dataRiferimento||oggiSicurezza();
   const perms = usePermissions();
   const q = useIncarichiCantiere({ companyId, subId, orderId });
@@ -120,7 +122,7 @@ export function IncarichiCantiere({
       (!form.nominante.trim() || !form.atto_riferimento.trim())
     ) {
       toast.error(
-        "Indica chi ha nominato la persona e il riferimento dell’atto.",
+        t("Indica chi ha nominato la persona e il riferimento dell’atto."),
       );
       return;
     }
@@ -136,30 +138,30 @@ export function IncarichiCantiere({
         figura_id: form.figura_id || null,
       });
       setForm(null);
-      toast.success("Incarico salvato");
+      toast.success(t("Incarico salvato"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Incarico non salvato");
+      toast.error(err instanceof Error ? err.message : t("Incarico non salvato"));
     }
   };
   const elenco = (
     <>
         {q.isLoading ? (
           <p className="text-sm text-muted-foreground">
-            Caricamento incarichi…
+            {t("Caricamento incarichi…")}
           </p>
         ) : q.isError ? (
           <div role="alert" className="text-sm text-destructive">
-            Non riesco a leggere gli incarichi.{" "}
+            {t("Non riesco a leggere gli incarichi.")}{" "}
             <Button variant="link" onClick={() => q.refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : !visibili.length ? (
           <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            Nessun incarico corrente registrato.{" "}
+            {t("Nessun incarico corrente registrato.")}{" "}
             {scrive
-              ? "Assegna le figure pertinenti a questo cantiere."
-              : "Chiedi al responsabile della sicurezza di verificarli."}
+              ? t("Assegna le figure pertinenti a questo cantiere.")
+              : t("Chiedi al responsabile della sicurezza di verificarli.")}
           </p>
         ) : (
           <div className="divide-y rounded-lg border">
@@ -170,19 +172,19 @@ export function IncarichiCantiere({
               >
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">
-                    {RUOLI_INCARICO[i.ruolo]}
+                    {t(RUOLI_INCARICO[i.ruolo])}
                     {i.area ? ` · ${i.area}` : ""}
                   </p>
                   <p className="break-words text-sm font-semibold">
                     {i.nominativo}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{statoIncarico(i,giorno)}</Badge>
+                    <Badge variant="outline">{t(statoIncarico(i,giorno))}</Badge>
                     {subId && (
                       <span className="text-xs text-muted-foreground">
                         {i.order_id
-                          ? "Incarico di cantiere"
-                          : "Figura dell’impresa"}
+                          ? t("Incarico di cantiere")
+                          : t("Figura dell’impresa")}
                       </span>
                     )}
                   </div>
@@ -194,22 +196,19 @@ export function IncarichiCantiere({
                       {i.telefono}
                     </a>
                   )}
-                  {documenti.isError?<p className="text-xs text-destructive">Documenti collegati non disponibili</p>:<div className="mt-1 space-y-1">{documenti.data?.filter(e=>e.incarico_id===i.id&&e.stato!=="superato").map(e=><div key={e.id} className="text-xs">{e.file_path?<Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={()=>void apriFileFascicolo(e.file_path!).catch(err=>toast.error(err.message))}>{e.titolo}</Button>:<span>{e.titolo}</span>}<span className="text-muted-foreground"> · {e.stato==="verificato"?"Verifica registrata":"Evidenza da completare / verificare"}</span></div>)}</div>}
+                  {documenti.isError?<p className="text-xs text-destructive">{t("Documenti collegati non disponibili")}</p>:<div className="mt-1 space-y-1">{documenti.data?.filter(e=>e.incarico_id===i.id&&e.stato!=="superato").map(e=><div key={e.id} className="text-xs">{e.file_path?<Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={()=>void apriFileFascicolo(e.file_path!).catch(err=>toast.error(err.message))}>{e.titolo}</Button>:<span>{e.titolo}</span>}<span className="text-muted-foreground"> · {e.stato==="verificato"?t("Verifica registrata"):t("Evidenza da completare / verificare")}</span></div>)}</div>}
                   {i.atto_riferimento && (
-                    <p className="mt-1 break-words text-xs text-muted-foreground">
-                      Atto: {i.atto_riferimento}
-                    </p>
+                    <p className="mt-1 break-words text-xs text-muted-foreground">{t("Atto: {atto_riferimento}", { atto_riferimento: String(i.atto_riferimento ?? "") })}</p>
                   )}
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Dal {i.dal.split("-").reverse().join("/")}
-                    {i.al ? ` al ${i.al.split("-").reverse().join("/")}` : ""}
+                    {i.al ? t("Dal {dal} al {al}", { dal: i.dal.split("-").reverse().join("/"), al: i.al.split("-").reverse().join("/") }) : t("Dal {dal}", { dal: i.dal.split("-").reverse().join("/") })}
                   </p>
                 </div>
                 {scrive && (
                   <Button
                     size="icon"
                     variant="ghost"
-                    aria-label={`Modifica incarico di ${i.nominativo}`}
+                    aria-label={t("Modifica incarico di {nominativo}", { nominativo: String(i.nominativo ?? "") })}
                     onClick={() => modifica(i)}
                   >
                     <Pencil className="h-4 w-4" />
@@ -227,8 +226,8 @@ export function IncarichiCantiere({
             onClick={() => setTutti(!tutti)}
           >
             {tutti
-              ? "Mostra incarichi correnti"
-              : `Vedi tutti e storico (${q.data!.length})`}
+              ? t("Mostra incarichi correnti")
+              : t("Vedi tutti e storico ({n})", { n: q.data!.length })}
           </Button>
         )}
     </>
@@ -243,11 +242,10 @@ export function IncarichiCantiere({
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {form?.id ? "Modifica incarico" : "Assegna una figura"}
+              {form?.id ? t("Modifica incarico") : t("Assegna una figura")}
             </DialogTitle>
             <DialogDescription>
-              Registra l’incarico reale, il suo periodo e l’evidenza della
-              nomina. Nessun invito viene inviato.
+              {t("Registra l’incarico reale, il suo periodo e l’evidenza della nomina. Nessun invito viene inviato.")}
             </DialogDescription>
           </DialogHeader>
           {form && (
@@ -255,7 +253,7 @@ export function IncarichiCantiere({
               {!!orderId && !subId && (
                 <div className="rounded-lg border bg-slate-50 p-3">
                   <Label htmlFor="inc-fonte">
-                    Riprendi una figura dall’anagrafica aziendale
+                    {t("Riprendi una figura dall’anagrafica aziendale")}
                   </Label>
                   <UniformSelect
                     id="inc-fonte"
@@ -290,7 +288,7 @@ export function IncarichiCantiere({
                       );
                     }}
                   >
-                    <option value="">Inserisci un nuovo nominativo</option>
+                    <option value="">{t("Inserisci un nuovo nominativo")}</option>
                     {figure.data?.map((f) => (
                       <option
                         key={f.id}
@@ -299,33 +297,32 @@ export function IncarichiCantiere({
                       >
                         {f.nominativo} · {f.ruolo}
                         {f.scadenza && f.scadenza < giorno
-                          ? " · scaduto"
+                          ? ` ${t("· scaduto")}`
                           : ""}
                       </option>
                     ))}
                   </UniformSelect>
                   {figure.isError && (
                     <p role="alert" className="text-xs text-destructive">
-                      Anagrafica delle figure non disponibile.{" "}
+                      {t("Anagrafica delle figure non disponibile.")}{" "}
                       <Button
                         type="button"
                         variant="link"
                         onClick={() => void figure.refetch()}
                       >
-                        Riprova
+                        {t("Riprova")}
                       </Button>
                     </p>
                   )}
                   <p className="mt-1 text-xs text-muted-foreground">
-                    La selezione propone i dati di contatto. Registra
-                    separatamente nomina e periodo per questa commessa.
+                    {t("La selezione propone i dati di contatto. Registra separatamente nomina e periodo per questa commessa.")}
                   </p>
                 </div>
               )}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="inc-ruolo">Ruolo</Label>
+                  <Label htmlFor="inc-ruolo">{t("Ruolo")}</Label>
                   <UniformSelect
                     id="inc-ruolo"
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -334,13 +331,13 @@ export function IncarichiCantiere({
                   >
                     {Object.entries(RUOLI_INCARICO).map(([v, l]) => (
                       <option key={v} value={v}>
-                        {l}
+                        {t(l)}
                       </option>
                     ))}
                   </UniformSelect>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="inc-nome">Nome e cognome</Label>
+                  <Label htmlFor="inc-nome">{t("Nome e cognome")}</Label>
                   <Input
                     id="inc-nome"
                     required
@@ -359,7 +356,7 @@ export function IncarichiCantiere({
                 {(["telefono", "email"] as const).map((k) => (
                   <div key={k} className="space-y-1">
                     <Label htmlFor={`inc-${k}`}>
-                      {k === "telefono" ? "Telefono" : "Email"}
+                      {k === "telefono" ? t("Telefono") : "Email"}
                     </Label>
                     <Input
                       id={`inc-${k}`}
@@ -372,7 +369,7 @@ export function IncarichiCantiere({
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="inc-dal">Inizio incarico</Label>
+                  <Label htmlFor="inc-dal">{t("Inizio incarico")}</Label>
                   <Input
                     id="inc-dal"
                     type="date"
@@ -382,7 +379,7 @@ export function IncarichiCantiere({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="inc-al">Fine incarico</Label>
+                  <Label htmlFor="inc-al">{t("Fine incarico")}</Label>
                   <Input
                     id="inc-al"
                     type="date"
@@ -393,7 +390,7 @@ export function IncarichiCantiere({
                 </div>
               </div>
               <div>
-                <Label htmlFor="inc-area">Area o fase</Label>
+                <Label htmlFor="inc-area">{t("Area o fase")}</Label>
                 <Input
                   id="inc-area"
                   value={form.area}
@@ -401,20 +398,20 @@ export function IncarichiCantiere({
                 />
               </div>
               <div>
-                <Label htmlFor="inc-stato">Stato della nomina</Label>
+                <Label htmlFor="inc-stato">{t("Stato della nomina")}</Label>
                 <UniformSelect
                   id="inc-stato"
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={form.stato}
                   onChange={(e) => cambia("stato", e.target.value)}
                 >
-                  <option value="proposto">Da verificare</option>
-                  <option value="documentato">Nomina documentata</option>
-                  <option value="cessato">Cessato / sostituito</option>
+                  <option value="proposto">{t("Da verificare")}</option>
+                  <option value="documentato">{t("Nomina documentata")}</option>
+                  <option value="cessato">{t("Cessato / sostituito")}</option>
                 </UniformSelect>
               </div>
               <div>
-                <Label htmlFor="inc-nominante">Soggetto nominante</Label>
+                <Label htmlFor="inc-nominante">{t("Soggetto nominante")}</Label>
                 <Input
                   id="inc-nominante"
                   required={form.stato === "documentato"}
@@ -424,18 +421,18 @@ export function IncarichiCantiere({
               </div>
               <div>
                 <Label htmlFor="inc-atto">
-                  Riferimento dell’atto di nomina
+                  {t("Riferimento dell’atto di nomina")}
                 </Label>
                 <Input
                   id="inc-atto"
                   required={form.stato === "documentato"}
-                  placeholder="Numero, data e riferimento al documento nel fascicolo"
+                  placeholder={t("Numero, data e riferimento al documento nel fascicolo")}
                   value={form.atto_riferimento}
                   onChange={(e) => cambia("atto_riferimento", e.target.value)}
                 />
               </div>
               <div>
-                <Label htmlFor="inc-mansioni">Mansioni di sicurezza</Label>
+                <Label htmlFor="inc-mansioni">{t("Mansioni di sicurezza")}</Label>
                 <Textarea
                   id="inc-mansioni"
                   value={form.mansioni_sicurezza}
@@ -449,13 +446,13 @@ export function IncarichiCantiere({
                   disabled={salva.isPending}
                   onClick={() => setForm(null)}
                 >
-                  Annulla
+                  {t("Annulla")}
                 </Button>
                 <Button type="submit" disabled={salva.isPending}>
                   {salva.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   )}
-                  Salva incarico
+                  {t("Salva incarico")}
                 </Button>
               </DialogFooter>
             </form>
@@ -466,19 +463,19 @@ export function IncarichiCantiere({
   // Nella pagina Lavorazioni (compact): una riga sola come «Organizzazione», l'elenco si apre a richiesta (31/10/2026).
   if (compact) {
     const correnti = (q.data ?? []).filter((i) => !["Cessato", "Futuro"].includes(statoIncarico(i, giorno)));
-    const riassunto = q.isLoading ? "caricamento…" : q.isError ? "dato non disponibile"
-      : correnti.length === 0 ? "nessun incarico registrato"
-      : correnti.slice(0, 3).map((i) => `${RUOLI_INCARICO[i.ruolo]}: ${i.nominativo}`).join(" · ") + (correnti.length > 3 ? ` · +${correnti.length - 3}` : "");
+    const riassunto = q.isLoading ? t("caricamento…") : q.isError ? t("dato non disponibile")
+      : correnti.length === 0 ? t("nessun incarico registrato")
+      : correnti.slice(0, 3).map((i) => `${t(RUOLI_INCARICO[i.ruolo])}: ${i.nominativo}`).join(" · ") + (correnti.length > 3 ? ` · +${correnti.length - 3}` : "");
     return (
-      <section aria-label="Figure e responsabilità" className="rounded-lg border bg-slate-50/60 px-3 py-2.5">
+      <section aria-label={t("Figure e responsabilità")} className="rounded-lg border bg-slate-50/60 px-3 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-muted-foreground" />Figure e responsabilità</h3>
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-muted-foreground" />{t("Figure e responsabilità")}</h3>
             <p className="mt-0.5 break-words text-xs text-muted-foreground">{riassunto}</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {scrive && <Button size="sm" variant="outline" onClick={() => setForm(vuoto())}><Plus className="mr-1 h-4 w-4" />Assegna</Button>}
-            {(q.data?.length ?? 0) > 0 && <Button size="sm" variant="ghost" aria-expanded={apertoCompatto} onClick={() => setApertoCompatto(!apertoCompatto)}>{apertoCompatto ? "Chiudi" : "Dettagli"}</Button>}
+            {scrive && <Button size="sm" variant="outline" onClick={() => setForm(vuoto())}><Plus className="mr-1 h-4 w-4" />{t("Assegna")}</Button>}
+            {(q.data?.length ?? 0) > 0 && <Button size="sm" variant="ghost" aria-expanded={apertoCompatto} onClick={() => setApertoCompatto(!apertoCompatto)}>{apertoCompatto ? t("Chiudi") : t("Dettagli")}</Button>}
           </div>
         </div>
         {apertoCompatto && <div className="mt-3 space-y-3">{elenco}</div>}
@@ -492,19 +489,19 @@ export function IncarichiCantiere({
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="h-4 w-4" />
-            Figure e responsabilità
+            {t("Figure e responsabilità")}
           </CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
             {orderId
-              ? "Incarichi di questa commessa."
-              : "Figure dell’impresa e incarichi nei suoi cantieri."}{" "}
-            La proposta di un nominativo non sostituisce la nomina.
+              ? t("Incarichi di questa commessa.")
+              : t("Figure dell’impresa e incarichi nei suoi cantieri.")}{" "}
+            {t("La proposta di un nominativo non sostituisce la nomina.")}
           </p>
         </div>
         {scrive && (
           <Button size="sm" variant="outline" onClick={() => setForm(vuoto())}>
             <Plus className="mr-1 h-4 w-4" />
-            Assegna
+            {t("Assegna")}
           </Button>
         )}
       </CardHeader>

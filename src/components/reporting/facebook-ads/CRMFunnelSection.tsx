@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, Users, Target, FileSignature, CheckCircle2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "@/hooks/useMetaAdsReport";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   dateRange: DateRange;
@@ -23,6 +24,7 @@ const fmtDuration = (seconds: number | null) => {
 };
 
 export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
 
@@ -128,14 +130,14 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
   const steps = [
     {
       icon: Users,
-      label: "Lead ricevuti",
+      label: t("Lead ricevuti"),
       value: funnelData?.eventsReceived ?? 0,
       color: "text-blue-500",
       bg: "bg-blue-50",
     },
     {
       icon: Users,
-      label: "Contatti CRM",
+      label: t("Contatti CRM"),
       value: funnelData?.contactsCreated ?? 0,
       color: "text-violet-500",
       bg: "bg-violet-50",
@@ -143,7 +145,7 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
     },
     {
       icon: Target,
-      label: "Opportunità",
+      label: t("Opportunità"),
       value: funnelData?.opportunitiesCount ?? 0,
       color: "text-orange-500",
       bg: "bg-orange-50",
@@ -151,7 +153,7 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
     },
     {
       icon: FileSignature,
-      label: "Preventivi",
+      label: t("Preventivi"),
       value: funnelData?.preventiviCount ?? 0,
       color: "text-amber-500",
       bg: "bg-amber-50",
@@ -159,7 +161,7 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
     },
     {
       icon: CheckCircle2,
-      label: "Chiusi",
+      label: t("Chiusi"),
       value: funnelData?.preventiviAccettati ?? 0,
       color: "text-emerald-500",
       bg: "bg-emerald-50",
@@ -171,12 +173,12 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
     <Card className="p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Funnel CRM — Lead Facebook
+          {t("Funnel CRM — Lead Facebook")}
         </h3>
         {funnelData?.avgSpeedToLead != null && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded-full px-3 py-1">
             <Clock className="h-3.5 w-3.5" />
-            Speed-to-lead medio: <strong>{fmtDuration(funnelData.avgSpeedToLead)}</strong>
+            {t("Speed-to-lead medio:")} <strong>{fmtDuration(funnelData.avgSpeedToLead)}</strong>
           </div>
         )}
       </div>
@@ -195,9 +197,7 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
               )}
               <span className="text-xs text-muted-foreground">{step.label}</span>
               {step.rate && (
-                <span className="text-[11px] font-medium text-muted-foreground/70 mt-0.5">
-                  {step.rate} conv.
-                </span>
+                <span className="text-[11px] font-medium text-muted-foreground/70 mt-0.5">{t("{rate} conv.", { rate: String(step.rate ?? "") })}</span>
               )}
             </div>
             {i < steps.length - 1 && (

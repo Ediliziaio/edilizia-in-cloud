@@ -27,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, CreditCard, Wallet, Bot, MessageSquare, Image as ImageIcon, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WalletType } from "@/hooks/credits/useWallets";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -94,6 +95,7 @@ const META: Record<WalletType, { label: string; icon: React.ReactNode; color: st
 };
 
 export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const meta = META[walletType];
@@ -144,15 +146,15 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
 
   async function purchase(amount: number) {
     if (!companyId) {
-      toast.error("Sessione non valida");
+      toast.error(t("Sessione non valida"));
       return;
     }
     if (amount < 5) {
-      toast.error("Importo minimo: €5");
+      toast.error(t("Importo minimo: €5"));
       return;
     }
     if (amount > 1000) {
-      toast.error("Importo massimo: €1.000 per ricarica. Per importi superiori contatta il supporto.");
+      toast.error(t("Importo massimo: €1.000 per ricarica. Per importi superiori contatta il supporto."));
       return;
     }
     setLoadingAmount(amount);
@@ -173,10 +175,10 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
       if (data?.url) {
         safeRedirect(data.url);
       } else {
-        toast.error(data?.error ?? "Errore creazione sessione di pagamento");
+        toast.error(data?.error ?? t("Errore creazione sessione di pagamento"));
       }
     } catch (e) {
-      toast.error((e as Error).message ?? "Errore");
+      toast.error((e as Error).message ?? t("Errore"));
     } finally {
       setLoadingAmount(null);
     }
@@ -184,7 +186,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
 
   /** Per render: pacchetto a quantita fissa, edge function riceve qty non amount_eur */
   async function purchaseRender(qty: number) {
-    if (!companyId) { toast.error("Sessione non valida"); return; }
+    if (!companyId) { toast.error(t("Sessione non valida")); return; }
     setLoadingAmount(qty);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
@@ -201,9 +203,9 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.url) safeRedirect(data.url);
-      else toast.error(data?.error ?? "Errore creazione sessione di pagamento");
+      else toast.error(data?.error ?? t("Errore creazione sessione di pagamento"));
     } catch (e) {
-      toast.error((e as Error).message ?? "Errore");
+      toast.error((e as Error).message ?? t("Errore"));
     } finally {
       setLoadingAmount(null);
     }
@@ -218,11 +220,10 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className={meta.color}>{meta.icon}</span>
-            Ricarica {meta.label}
+            {t("Ricarica {cosa}", { cosa: t(meta.label) })}
           </DialogTitle>
           <DialogDescription>
-            Pagamento sicuro via Stripe (carta o SEPA). I crediti vengono accreditati immediatamente
-            dopo il pagamento.
+            {t("Pagamento sicuro via Stripe (carta o SEPA). I crediti vengono accreditati immediatamente dopo il pagamento.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -231,7 +232,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
           {isRender && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Pacchetti Render
+                {t("Pacchetti Render")}
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {RENDER_PACKAGES.map((pkg) => {
@@ -251,15 +252,13 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                           <p className="text-xs font-medium text-muted-foreground">{pkg.label}</p>
                         )}
                         {pkg.popular && (
-                          <Badge className="text-[10px]">Più scelto</Badge>
+                          <Badge className="text-[10px]">{t("Più scelto")}</Badge>
                         )}
                         <p className="text-3xl font-extrabold text-primary tabular-nums">
                           €{pkg.priceEur}
                         </p>
-                        <p className="text-base font-semibold">{pkg.qty} render</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          €{pricePerRender} / render
-                        </p>
+                        <p className="text-base font-semibold">{t("{qty} render", { qty: String(pkg.qty ?? "") })}</p>
+                        <p className="text-[11px] text-muted-foreground">{t("€{pricePerRender} / render", { pricePerRender: String(pricePerRender ?? "") })}</p>
                         <Button
                           size="sm"
                           variant={pkg.popular ? "default" : "outline"}
@@ -269,7 +268,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                           {isLoading ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <>Acquista <ArrowRight className="ml-1 h-3 w-3" /></>
+                            <>{t("Acquista")} <ArrowRight className="ml-1 h-3 w-3" /></>
                           )}
                         </Button>
                       </CardContent>
@@ -278,7 +277,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                 })}
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Ogni render consuma 1 credito. I crediti non scadono.
+                {t("Ogni render consuma 1 credito. I crediti non scadono.")}
               </p>
             </div>
           )}
@@ -287,7 +286,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
           {!isRender && (
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Pacchetti consigliati
+              {t("Pacchetti consigliati")}
             </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {packages.map((pkg) => {
@@ -308,16 +307,14 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                           variant={pkg.popular ? "default" : "outline"}
                           className="text-[10px]"
                         >
-                          {pkg.label}
+                          {t(pkg.label)}
                         </Badge>
                       )}
                       <p className="text-2xl font-extrabold text-primary tabular-nums">
                         €{pkg.amount}
                       </p>
                       {walletType === "email" && estimatedEmails > 0 && (
-                        <p className="text-[10px] text-muted-foreground">
-                          ~{estimatedEmails.toLocaleString("it-IT")} email
-                        </p>
+                        <p className="text-[10px] text-muted-foreground">{t("~{estimatedEmails} email", { estimatedEmails: estimatedEmails.toLocaleString(intlCampo()) })}</p>
                       )}
                       <Button
                         size="sm"
@@ -329,7 +326,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <>
-                            Acquista <ArrowRight className="ml-1 h-3 w-3" />
+                            {t("Acquista")} <ArrowRight className="ml-1 h-3 w-3" />
                           </>
                         )}
                       </Button>
@@ -345,7 +342,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
           {!isRender && (
           <div className="rounded-xl border bg-muted/20 p-3">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Importo personalizzato
+              {t("Importo personalizzato")}
             </Label>
             <div className="mt-2 flex items-end gap-2">
               <div className="flex-1">
@@ -354,12 +351,12 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                   min="5"
                   max="1000"
                   step="5"
-                  placeholder="es. 75"
+                  placeholder={t("es. 75")}
                   value={customAmount}
                   onChange={(e) => setCustomAmount(e.target.value)}
                   className="text-lg font-semibold"
                 />
-                <p className="mt-1 text-[10px] text-muted-foreground">Min €5 · Max €1.000</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{t("Min €5 · Max €1.000")}</p>
               </div>
               <Button
                 onClick={() => purchase(Math.floor(Number(customAmount)))}
@@ -376,7 +373,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                 ) : (
                   <CreditCard className="mr-1.5 h-4 w-4" />
                 )}
-                Paga €{customAmount || "—"}
+                {t("Paga €{importo}", { importo: customAmount || "—" })}
               </Button>
             </div>
           </div>
@@ -384,7 +381,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
         </div>
 
         <DialogFooter className="text-xs text-muted-foreground">
-          🔒 Pagamenti gestiti da Stripe · Conformi PCI-DSS · Ricevuta via email
+          {t("🔒 Pagamenti gestiti da Stripe · Conformi PCI-DSS · Ricevuta via email")}
         </DialogFooter>
       </DialogContent>
     </Dialog>

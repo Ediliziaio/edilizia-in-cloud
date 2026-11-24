@@ -22,6 +22,7 @@ import { Sparkles, Loader2, AlertTriangle, ArrowRight } from "lucide-react";
 import { useGenerateAiDraft, type DraftResponse, type DraftVariante } from "@/lib/email-ai/hooks";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AiDraftButtonProps {
   email_id: string;
@@ -63,6 +64,7 @@ export function AiDraftButton({
   iconOnly = false,
   disabled = false,
 }: AiDraftButtonProps) {
+  const t = useT();
   const generateDraft = useGenerateAiDraft();
   const [draft, setDraft] = useState<DraftResponse | null>(null);
   const [open, setOpen] = useState(false);
@@ -71,13 +73,13 @@ export function AiDraftButton({
     try {
       const result = await generateDraft.mutateAsync(email_id);
       if (result.no_reply) {
-        toast.info("Nessuna risposta necessaria", {
-          description: `Le email di tipo "${result.categoria}" non richiedono una bozza.`,
+        toast.info(t("Nessuna risposta necessaria"), {
+          description: t("Le email di tipo \"{categoria}\" non richiedono una bozza.", { categoria: String(result.categoria ?? "") }),
         });
         return;
       }
       if (!result.varianti || result.varianti.length === 0) {
-        toast.error("Bozza non disponibile", { description: "Il modello non ha prodotto varianti utilizzabili." });
+        toast.error(t("Bozza non disponibile"), { description: t("Il modello non ha prodotto varianti utilizzabili.") });
         return;
       }
       setDraft(result);
@@ -108,10 +110,10 @@ export function AiDraftButton({
           variant === "default" && "bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 text-white",
           className,
         )}
-        aria-label={isLoading ? "Generazione bozza in corso" : "Genera bozza con AI"}
+        aria-label={isLoading ? t("Generazione bozza in corso") : t("Genera bozza con AI")}
       >
         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-        {!iconOnly && <span>{isLoading ? "Genero..." : "Rispondi con AI"}</span>}
+        {!iconOnly && <span>{isLoading ? t("Genero...") : t("Rispondi con AI")}</span>}
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setDraft(null); }}>
@@ -119,12 +121,12 @@ export function AiDraftButton({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-violet-500" />
-              Scegli la bozza di risposta
+              {t("Scegli la bozza di risposta")}
             </DialogTitle>
             <DialogDescription>
-              Bozze generate dall'AI. Scegline una, poi potrai modificarla prima di inviare.
+              {t("Bozze generate dall'AI. Scegline una, poi potrai modificarla prima di inviare.")}
               {draft?.playbook_used && (
-                <span className="ml-1 text-xs opacity-70">(playbook: {draft.playbook_used})</span>
+                <span className="ml-1 text-xs opacity-70">{t("(playbook: {playbook_used})", { playbook_used: String(draft.playbook_used ?? "") })}</span>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -134,7 +136,7 @@ export function AiDraftButton({
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
               <div className="flex items-center gap-2 text-amber-800 font-medium text-sm mb-1.5">
                 <AlertTriangle className="h-4 w-4" />
-                Dati da completare prima di inviare
+                {t("Dati da completare prima di inviare")}
               </div>
               <ul className="list-disc list-inside text-xs text-amber-700 space-y-0.5">
                 {draft.dati_mancanti.map((d, i) => (
@@ -142,7 +144,7 @@ export function AiDraftButton({
                 ))}
               </ul>
               <p className="text-[11px] text-amber-600 mt-1.5">
-                I segnaposto <mark className="bg-amber-200 px-1 rounded">[DA VERIFICARE: ...]</mark> nel testo vanno sostituiti con i dati reali.
+                {t("I segnaposto")} <mark className="bg-amber-200 px-1 rounded">[DA VERIFICARE: ...]</mark> {t("nel testo vanno sostituiti con i dati reali.")}
               </p>
             </div>
           )}
@@ -150,7 +152,7 @@ export function AiDraftButton({
           {/* Oggetto */}
           {draft?.oggetto && (
             <div className="text-sm">
-              <span className="text-muted-foreground">Oggetto: </span>
+              <span className="text-muted-foreground">{t("Oggetto:")} </span>
               <span className="font-medium">{draft.oggetto}</span>
             </div>
           )}
@@ -172,7 +174,7 @@ export function AiDraftButton({
                     className="h-7 gap-1 text-violet-600 hover:text-violet-700 hover:bg-violet-50"
                     onClick={() => handleChoose(v)}
                   >
-                    Usa questa <ArrowRight className="h-3.5 w-3.5" />
+                    {t("Usa questa")} <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
                 <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
@@ -184,7 +186,7 @@ export function AiDraftButton({
 
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => { setOpen(false); setDraft(null); }}>
-              Annulla
+              {t("Annulla")}
             </Button>
           </DialogFooter>
         </DialogContent>

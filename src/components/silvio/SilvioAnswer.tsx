@@ -2,6 +2,7 @@ import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkd
 import { SilvioCopyAnswer } from "./SilvioCopyAnswer";
 import { publicAiAnswer, readableStreamingMarkdown, visibleAiAnswer } from "@/lib/silvio/visibleAnswer";
 import { PixelDotsLoader } from "@/components/ui/ai-agent-response";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Preserve the complete answer and its caveats without a separate sources panel. */
 export function SilvioAnswer({ content, sources, className, streaming = false }: {
@@ -10,6 +11,7 @@ export function SilvioAnswer({ content, sources, className, streaming = false }:
   className?: string;
   streaming?: boolean;
 }) {
+  const tr = useT();
   const answer = streaming ? visibleAiAnswer(content, { streaming: true }) : content.trim() ? publicAiAnswer(content) : "";
   const references = (Array.isArray(sources) ? sources : []).filter((s, i, all) =>
     s && typeof s.id === "string" && typeof s.title === "string" && s.title.trim() && all.findIndex(t => t?.id === s.id) === i);
@@ -17,7 +19,7 @@ export function SilvioAnswer({ content, sources, className, streaming = false }:
     <ChatMarkdown content={streaming ? readableStreamingMarkdown(answer) : answer} sources={references} className={className} mobileCards />
     {streaming && <div role="status" aria-live="polite" aria-atomic="true" className="mt-1 flex items-center gap-2 text-xs text-slate-500">
       <PixelDotsLoader className="text-orange-500" />
-      <span className="silvio-thinking-shimmer">{answer ? "Silvio sta scrivendo…" : "Silvio sta preparando la risposta…"}</span>
+      <span className="silvio-thinking-shimmer">{answer ? tr("Silvio sta scrivendo…") : tr("Silvio sta preparando la risposta…")}</span>
     </div>}
     {!streaming && <SilvioCopyAnswer key={answer} content={answer} />}
   </div>;

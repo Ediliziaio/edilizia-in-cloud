@@ -9,6 +9,7 @@ import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import { resolveRouteAccessRole } from "@/lib/auth/multiCompany";
 import { COMPANY_APP_HOME, getRoleHomePath } from "@/lib/auth/appHome";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const t = useT();
   const { user, role, isLoading, multiCompanyAccesses, selectedMultiCompanyId } = useAuth();
   const location = useLocation();
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
@@ -56,9 +58,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     if (loadingTimedOut) {
       return (
         <LoadingTimeoutFallback
-          title="Accesso ancora in verifica"
-          description="La sessione non ha completato il caricamento. Può succedere con rete instabile o database lento: riprova senza restare bloccato sulla rotellina."
-          detail={`Verifica sessione oltre 25 secondi: ${location.pathname}`}
+          title={t("Accesso ancora in verifica")}
+          description={t("La sessione non ha completato il caricamento. Può succedere con rete instabile o database lento: riprova senza restare bloccato sulla rotellina.")}
+          detail={t("Verifica sessione oltre 25 secondi: {percorso}", { percorso: location.pathname })}
           homePath="/login"
         />
       );
@@ -68,7 +70,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Caricamento...</p>
+          <p className="text-muted-foreground">{t("Caricamento...")}</p>
         </div>
       </div>
     );

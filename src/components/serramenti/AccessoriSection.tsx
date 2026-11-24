@@ -21,6 +21,7 @@ import { useDeleteAccessorio, useTariffeManodopera, useUpdateAccessorio } from "
 import { SrCard } from "@/lib/serramenti/wizardUI";
 import type { SrAccessorioRow, SrProgettoDetail } from "@/types/serramenti";
 import { ComplementoRiga } from "./ComplementiFinestra";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   progettoId: string;
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function AccessoriSection({ progettoId, detail, finestre }: Props) {
+  const tr = useT();
   const updateMut = useUpdateAccessorio(progettoId);
   const deleteMut = useDeleteAccessorio(progettoId);
   const [toDelete, setToDelete] = useState<SrAccessorioRow | null>(null);
@@ -61,8 +63,8 @@ export function AccessoriSection({ progettoId, detail, finestre }: Props) {
   return (
     <>
       <SrCard
-        title="Complementi senza finestra"
-        description="Aggiunti prima che i complementi stessero nel box della finestra, o importati dal sopralluogo. Agganciali alla loro finestra: ne seguiranno misure e posa."
+        title={tr("Complementi senza finestra")}
+        description={tr("Aggiunti prima che i complementi stessero nel box della finestra, o importati dal sopralluogo. Agganciali alla loro finestra: ne seguiranno misure e posa.")}
         icon={<Link2 className="h-4 w-4" />}
       >
         <div className="space-y-1.5">
@@ -83,13 +85,13 @@ export function AccessoriSection({ progettoId, detail, finestre }: Props) {
       <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il complemento?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare il complemento?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {toDelete ? toDelete.descrizione || nomeBreve(toDelete.tipo) : ""} verrà rimosso dal preventivo.
+              {tr("{nome} verrà rimosso dal preventivo.", { nome: toDelete ? toDelete.descrizione || nomeBreve(toDelete.tipo) : "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (toDelete) deleteMut.mutate(toDelete.id);
@@ -97,7 +99,7 @@ export function AccessoriSection({ progettoId, detail, finestre }: Props) {
               }}
               className="bg-rose-600 hover:bg-rose-700"
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

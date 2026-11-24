@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { caricaDatiSocietari } from "../../../supabase/functions/_shared/datiSocietari";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // I tipi generati non conoscono le tabelle dell'appalto.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,6 +60,7 @@ const nomeDi = (c: { business_name?: string | null; first_name?: string | null; 
 const selectClasse = "h-9 w-full rounded-md border bg-background px-2 text-sm";
 
 export default function ContrattoCommittentePagina() {
+  const tr = useT();
   const { id = "", contrattoId = "nuovo" } = useParams();
   const nuovo = contrattoId === "nuovo";
   const navigate = useNavigate();
@@ -135,14 +137,14 @@ export default function ContrattoCommittentePagina() {
   const base: Bozza | null = useMemo(() => {
     const c = contratto.data;
     if (!nuovo && !c) return null;
-    const t = (k: string, d = ""): string => String(c?.[k] ?? d);
+    const campoStr = (k: string, d = ""): string => String(c?.[k] ?? d);
     return {
-      nome: t("nome", `Accordo ${new Date().getFullYear()}`), oggetto_lavori: t("oggetto_lavori"), luogo_lavori: t("luogo_lavori"), firmatario_committente: t("firmatario_committente"),
-      valido_dal: t("valido_dal", oggiISO()), valido_al: t("valido_al"), riferimento_committente: t("riferimento_committente"),
-      giorni_pagamento: t("giorni_pagamento", "30"), ritenuta_pct: t("ritenuta_pct", "0"),
-      maggiorazione_straordinario_pct: t("maggiorazione_straordinario_pct", "0"), maggiorazione_festivo_pct: t("maggiorazione_festivo_pct", "0"),
-      modo_fatturazione: t("modo_fatturazione", "per_commessa"), regime_iva: t("regime_iva", "ordinaria"), include_fornitura: !!c?.include_fornitura,
-      condizioni: nuovo ? testoDelModello(predefinito) : t("condizioni"),
+      nome: campoStr("nome", `Accordo ${new Date().getFullYear()}`), oggetto_lavori: campoStr("oggetto_lavori"), luogo_lavori: campoStr("luogo_lavori"), firmatario_committente: campoStr("firmatario_committente"),
+      valido_dal: campoStr("valido_dal", oggiISO()), valido_al: campoStr("valido_al"), riferimento_committente: campoStr("riferimento_committente"),
+      giorni_pagamento: campoStr("giorni_pagamento", "30"), ritenuta_pct: campoStr("ritenuta_pct", "0"),
+      maggiorazione_straordinario_pct: campoStr("maggiorazione_straordinario_pct", "0"), maggiorazione_festivo_pct: campoStr("maggiorazione_festivo_pct", "0"),
+      modo_fatturazione: campoStr("modo_fatturazione", "per_commessa"), regime_iva: campoStr("regime_iva", "ordinaria"), include_fornitura: !!c?.include_fornitura,
+      condizioni: nuovo ? testoDelModello(predefinito) : campoStr("condizioni"),
     };
   }, [nuovo, contratto.data, predefinito]);
   const [modifiche, setModifiche] = useState<Partial<Bozza>>({});
@@ -162,7 +164,7 @@ export default function ContrattoCommittentePagina() {
   const togli = (r: RigaTariffa): void => setRighe(r.id ? righe.map((x) => (x.chiave === r.chiave ? { ...x, tolta: true } : x)) : righe.filter((x) => x.chiave !== r.chiave));
   const copiaDa = async (origine: string): Promise<void> => {
     const { data, error } = await db.from("appalto_tariffe").select("tipo, descrizione, unita_misura, prezzo_unitario, tariffa_id").eq("contratto_id", origine).eq("attivo", true).order("ordine", { ascending: true });
-    if (error) { toast({ title: "Tariffe non copiate", description: "Riprova.", variant: "destructive" }); return; }
+    if (error) { toast({ title: tr("Tariffe non copiate"), description: tr("Riprova."), variant: "destructive" }); return; }
     const nuove = ((data ?? []) as Array<Record<string, unknown>>).map((t) => ({ chiave: `n${++contatore}`, tipo: String(t.tipo), descrizione: String(t.descrizione), unita_misura: String(t.unita_misura), prezzo: formatDecimalIT(Number(t.prezzo_unitario)), tariffa_id: (t.tariffa_id as string | null) ?? null }));
     setRighe([...righe.filter((r) => r.id || r.descrizione.trim()), ...nuove]);
   };
@@ -188,7 +190,7 @@ export default function ContrattoCommittentePagina() {
     return createPdfPreviewUrl(await contrattoClienteBlob(await datiPdf()));
   }, [datiPdf]);
 
-  const mancante = !b?.nome.trim() ? "Scrivi il nome del contratto." : campiLavori && !b.oggetto_lavori.trim() ? "Scrivi l'oggetto dei lavori." : "";
+  const mancante = !b?.nome.trim() ? tr("Scrivi il nome del contratto.") : campiLavori && !b.oggetto_lavori.trim() ? tr("Scrivi l'oggetto dei lavori.") : "";
   const salva = useMutation({
     mutationFn: async () => {
       if (!b) return;
@@ -222,14 +224,14 @@ export default function ContrattoCommittentePagina() {
     },
     onSuccess: () => {
       for (const k of ["appalto-contratti", "appalto-contratto", "appalto-tariffe"]) void queryClient.invalidateQueries({ queryKey: [k] });
-      toast({ title: "Contratto salvato" });
+      toast({ title: tr("Contratto salvato") });
       navigate(`/azienda/committenti/${id}`);
     },
-    onError: (e) => toast({ title: "Contratto non salvato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: tr("Contratto non salvato"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" }),
   });
 
-  if (!b || committente.isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Apro il contratto…</p>;
-  if (!committente.data) return <p role="alert" className="p-4 text-sm">Committente non trovato.</p>;
+  if (!b || committente.isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">{tr("Apro il contratto…")}</p>;
+  if (!committente.data) return <p role="alert" className="p-4 text-sm">{tr("Committente non trovato.")}</p>;
   const numero = (k: keyof Bozza, etichetta: string, max: number) => (
     <div className="space-y-1"><Label htmlFor={k}>{etichetta}</Label>
       <Input id={k} type="number" min={0} max={max} value={String(b[k])} disabled={!puoModificare} onChange={(e) => cambia({ [k]: e.target.value })} /></div>
@@ -238,53 +240,53 @@ export default function ContrattoCommittentePagina() {
   return (
     <div className="space-y-3 p-3 sm:p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant="ghost" size="sm" className="h-9 px-2"><Link to={`/azienda/committenti/${id}`} aria-label="Torna al committente"><ArrowLeft className="h-4 w-4" /></Link></Button>
-        <Input aria-label="Nome del contratto" className="h-9 min-w-[12rem] flex-1" value={b.nome} disabled={!puoModificare} onChange={(e) => cambia({ nome: e.target.value })} />
+        <Button asChild variant="ghost" size="sm" className="h-9 px-2"><Link to={`/azienda/committenti/${id}`} aria-label={tr("Torna al committente")}><ArrowLeft className="h-4 w-4" /></Link></Button>
+        <Input aria-label={tr("Nome del contratto")} className="h-9 min-w-[12rem] flex-1" value={b.nome} disabled={!puoModificare} onChange={(e) => cambia({ nome: e.target.value })} />
         <span className="text-sm text-muted-foreground">{nomeDi(committente.data)}</span>
         {puoModificare && (
           <Button size="sm" className="h-9 gap-1.5" disabled={!!mancante || salva.isPending} title={mancante} onClick={() => salva.mutate()}>
-            {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Salva e scarica PDF
+            {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}{tr("Salva e scarica PDF")}
           </Button>
         )}
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)]">
         <div className="min-w-0 space-y-3">
-          <div className="flex rounded-lg border p-0.5" role="tablist" aria-label="Passi del contratto">
+          <div className="flex rounded-lg border p-0.5" role="tablist" aria-label={tr("Passi del contratto")}>
             {PASSI.map((p, i) => (
               <button key={p} type="button" role="tab" aria-selected={passo === i} onClick={() => setPasso(i)}
-                className={cn("flex-1 rounded-md px-3 py-1.5 text-sm font-medium", passo === i ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{i + 1}. {p}</button>
+                className={cn("flex-1 rounded-md px-3 py-1.5 text-sm font-medium", passo === i ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{i + 1}. {tr(p)}</button>
             ))}
           </div>
 
           {passo === 0 && (
-            <section aria-label="Lavori" className="grid gap-3 sm:grid-cols-2">
+            <section aria-label={tr("Lavori")} className="grid gap-3 sm:grid-cols-2">
               {campiLavori && <>
-                <div className="space-y-1 sm:col-span-2"><Label htmlFor="oggetto">Oggetto dei lavori</Label>
-                  <Textarea id="oggetto" rows={3} value={b.oggetto_lavori} disabled={!puoModificare} placeholder="Opere di manodopera per posa e finiture nei cantieri del committente" onChange={(e) => cambia({ oggetto_lavori: e.target.value })} /></div>
-                <div className="space-y-1 sm:col-span-2"><Label htmlFor="luogo">Luogo dei lavori</Label>
-                  <Input id="luogo" value={b.luogo_lavori} disabled={!puoModificare} placeholder="Un indirizzo, oppure: vari, come da singoli ordini" onChange={(e) => cambia({ luogo_lavori: e.target.value })} /></div>
-                <div className="space-y-1"><Label htmlFor="firmatario">Chi firma per il committente</Label>
+                <div className="space-y-1 sm:col-span-2"><Label htmlFor="oggetto">{tr("Oggetto dei lavori")}</Label>
+                  <Textarea id="oggetto" rows={3} value={b.oggetto_lavori} disabled={!puoModificare} placeholder={tr("Opere di manodopera per posa e finiture nei cantieri del committente")} onChange={(e) => cambia({ oggetto_lavori: e.target.value })} /></div>
+                <div className="space-y-1 sm:col-span-2"><Label htmlFor="luogo">{tr("Luogo dei lavori")}</Label>
+                  <Input id="luogo" value={b.luogo_lavori} disabled={!puoModificare} placeholder={tr("Un indirizzo, oppure: vari, come da singoli ordini")} onChange={(e) => cambia({ luogo_lavori: e.target.value })} /></div>
+                <div className="space-y-1"><Label htmlFor="firmatario">{tr("Chi firma per il committente")}</Label>
                   <Input id="firmatario" value={b.firmatario_committente} disabled={!puoModificare} onChange={(e) => cambia({ firmatario_committente: e.target.value })} /></div>
               </>}
-              <div className="space-y-1"><Label htmlFor="riferimento">Loro riferimento (n° ordine)</Label>
+              <div className="space-y-1"><Label htmlFor="riferimento">{tr("Loro riferimento (n° ordine)")}</Label>
                 <Input id="riferimento" value={b.riferimento_committente} disabled={!puoModificare} onChange={(e) => cambia({ riferimento_committente: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="dal">Valido dal</Label><Input id="dal" type="date" value={b.valido_dal} disabled={!puoModificare} onChange={(e) => cambia({ valido_dal: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="al">Valido al</Label><Input id="al" type="date" value={b.valido_al} disabled={!puoModificare} onChange={(e) => cambia({ valido_al: e.target.value })} /></div>
-              <div className="sm:col-span-2"><Button size="sm" variant="outline" onClick={() => setPasso(1)}>Avanti: tariffe</Button></div>
+              <div className="space-y-1"><Label htmlFor="dal">{tr("Valido dal")}</Label><Input id="dal" type="date" value={b.valido_dal} disabled={!puoModificare} onChange={(e) => cambia({ valido_dal: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="al">{tr("Valido al")}</Label><Input id="al" type="date" value={b.valido_al} disabled={!puoModificare} onChange={(e) => cambia({ valido_al: e.target.value })} /></div>
+              <div className="sm:col-span-2"><Button size="sm" variant="outline" onClick={() => setPasso(1)}>{tr("Avanti: tariffe")}</Button></div>
             </section>
           )}
 
           {passo === 1 && (
-            <section aria-label="Tariffe e pagamento" className="space-y-4">
+            <section aria-label={tr("Tariffe e pagamento")} className="space-y-4">
               {vedeImporti ? (
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold">Tariffe concordate</h2>
+                    <h2 className="text-sm font-semibold">{tr("Tariffe concordate")}</h2>
                     {puoModificare && (altriContratti.data ?? []).filter((c) => c.id !== contrattoId).length > 0 && (
-                      <UniformSelect aria-label="Copia le tariffe da un altro contratto" className="h-8 rounded-md border bg-background px-2 text-xs" value=""
+                      <UniformSelect aria-label={tr("Copia le tariffe da un altro contratto")} className="h-8 rounded-md border bg-background px-2 text-xs" value=""
                         onChange={(e) => { if (e.target.value) void copiaDa(e.target.value); }}>
-                        <option value="">Copia le tariffe da…</option>
+                        <option value="">{tr("Copia le tariffe da…")}</option>
                         {(altriContratti.data ?? []).filter((c) => c.id !== contrattoId).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                       </UniformSelect>
                     )}
@@ -292,65 +294,65 @@ export default function ContrattoCommittentePagina() {
                   <div className="space-y-1.5">
                     {visibili.map((r, i) => (
                       <div key={r.chiave} className="grid grid-cols-[minmax(0,1fr)_7.5rem_6.5rem_6rem_2rem] items-center gap-1.5">
-                        <Input aria-label={`Descrizione tariffa ${i + 1}`} className="h-9" value={r.descrizione} disabled={!puoModificare} placeholder="Operaio specializzato" onChange={(e) => cambiaRiga(r.chiave, { descrizione: e.target.value })} />
-                        <UniformSelect aria-label={`Tipo tariffa ${i + 1}`} className={selectClasse} value={r.tipo} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { tipo: e.target.value })}>{TIPI.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</UniformSelect>
-                        <UniformSelect aria-label={`Unità tariffa ${i + 1}`} className={selectClasse} value={r.unita_misura} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { unita_misura: e.target.value })}>{UNITA.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</UniformSelect>
-                        <Input aria-label={`Prezzo tariffa ${i + 1}`} className="h-9 text-right tabular-nums" inputMode="decimal" value={r.prezzo} disabled={!puoModificare} placeholder="0,00"
+                        <Input aria-label={tr("Descrizione tariffa {i}", { i: i + 1 })} className="h-9" value={r.descrizione} disabled={!puoModificare} placeholder={tr("Operaio specializzato")} onChange={(e) => cambiaRiga(r.chiave, { descrizione: e.target.value })} />
+                        <UniformSelect aria-label={tr("Tipo tariffa {i}", { i: i + 1 })} className={selectClasse} value={r.tipo} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { tipo: e.target.value })}>{TIPI.map(([v, l]) => <option key={v} value={v}>{tr(l)}</option>)}</UniformSelect>
+                        <UniformSelect aria-label={tr("Unità tariffa {i}", { i: i + 1 })} className={selectClasse} value={r.unita_misura} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { unita_misura: e.target.value })}>{UNITA.map(([v, l]) => <option key={v} value={v}>{tr(l)}</option>)}</UniformSelect>
+                        <Input aria-label={tr("Prezzo tariffa {i}", { i: i + 1 })} className="h-9 text-right tabular-nums" inputMode="decimal" value={r.prezzo} disabled={!puoModificare} placeholder="0,00"
                           onChange={(e) => cambiaRiga(r.chiave, { prezzo: e.target.value })}
                           onBlur={() => r.prezzo.trim() && cambiaRiga(r.chiave, { prezzo: formatDecimalIT(parseDecimalIT(r.prezzo)) })}
                           onKeyDown={(e) => { if (e.key === "Enter" && i === visibili.length - 1) { e.preventDefault(); aggiungi(); } }} />
-                        {puoModificare && <Button variant="ghost" size="sm" className="h-9 px-1.5" aria-label={`Togli ${r.descrizione || "tariffa"}`} onClick={() => togli(r)}><X className="h-4 w-4" /></Button>}
+                        {puoModificare && <Button variant="ghost" size="sm" className="h-9 px-1.5" aria-label={tr("Togli {nome}", { nome: r.descrizione || tr("tariffa") })} onClick={() => togli(r)}><X className="h-4 w-4" /></Button>}
                         <VoceDelListino indice={i} riga={r} voci={vociGenerali} disabled={!puoModificare}
                           onScegli={(v) => cambiaRiga(r.chiave, { tariffa_id: v?.id ?? null, ...(v && !r.descrizione.trim() ? { descrizione: v.nome } : {}) })} />
                       </div>
                     ))}
                   </div>
-                  {puoModificare && <Button size="sm" variant="outline" onClick={aggiungi}><Plus className="mr-1.5 h-3.5 w-3.5" />Aggiungi tariffa</Button>}
+                  {puoModificare && <Button size="sm" variant="outline" onClick={aggiungi}><Plus className="mr-1.5 h-3.5 w-3.5" />{tr("Aggiungi tariffa")}</Button>}
                 </div>
-              ) : <p className="text-sm text-muted-foreground">Le tariffe le vede chi ha il permesso «Importi delle commesse».</p>}
+              ) : <p className="text-sm text-muted-foreground">{tr("Le tariffe le vede chi ha il permesso «Importi delle commesse».")}</p>}
 
               <div className="grid gap-3 sm:grid-cols-2">
-                {numero("giorni_pagamento", "Giorni di pagamento", 365)}
-                {numero("ritenuta_pct", "Ritenuta a garanzia %", 100)}
-                <div className="space-y-1"><Label htmlFor="fatturazione">Come si fattura</Label>
+                {numero("giorni_pagamento", tr("Giorni di pagamento"), 365)}
+                {numero("ritenuta_pct", tr("Ritenuta a garanzia %"), 100)}
+                <div className="space-y-1"><Label htmlFor="fatturazione">{tr("Come si fattura")}</Label>
                   <UniformSelect id="fatturazione" className={selectClasse} value={b.modo_fatturazione} disabled={!puoModificare} onChange={(e) => cambia({ modo_fatturazione: e.target.value })}>
-                    <option value="per_commessa">Per commessa</option><option value="mensile_cumulativa">Mensile, tutte le commesse</option></UniformSelect></div>
-                <div className="space-y-1"><Label htmlFor="iva">IVA in fattura</Label>
+                    <option value="per_commessa">{tr("Per commessa")}</option><option value="mensile_cumulativa">{tr("Mensile, tutte le commesse")}</option></UniformSelect></div>
+                <div className="space-y-1"><Label htmlFor="iva">{tr("IVA in fattura")}</Label>
                   <UniformSelect id="iva" className={selectClasse} value={b.regime_iva} disabled={!puoModificare} onChange={(e) => cambia({ regime_iva: e.target.value })}>
-                    <option value="ordinaria">Ordinaria</option><option value="reverse_charge">Reverse charge</option></UniformSelect></div>
+                    <option value="ordinaria">{tr("Ordinaria")}</option><option value="reverse_charge">{tr("Reverse charge")}</option></UniformSelect></div>
               </div>
               <details>
-                <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">Altre opzioni</summary>
+                <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">{tr("Altre opzioni")}</summary>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  {numero("maggiorazione_straordinario_pct", "Maggiorazione straordinario %", 200)}
-                  {numero("maggiorazione_festivo_pct", "Maggiorazione festivo %", 200)}
-                  <label className="flex items-center gap-2 text-sm sm:col-span-2"><Switch checked={b.include_fornitura} disabled={!puoModificare} onCheckedChange={(v) => cambia({ include_fornitura: v })} />Comprende la fornitura dei materiali</label>
+                  {numero("maggiorazione_straordinario_pct", tr("Maggiorazione straordinario %"), 200)}
+                  {numero("maggiorazione_festivo_pct", tr("Maggiorazione festivo %"), 200)}
+                  <label className="flex items-center gap-2 text-sm sm:col-span-2"><Switch checked={b.include_fornitura} disabled={!puoModificare} onCheckedChange={(v) => cambia({ include_fornitura: v })} />{tr("Comprende la fornitura dei materiali")}</label>
                 </div>
               </details>
-              <Button size="sm" variant="outline" onClick={() => setPasso(2)}>Avanti: condizioni</Button>
+              <Button size="sm" variant="outline" onClick={() => setPasso(2)}>{tr("Avanti: condizioni")}</Button>
             </section>
           )}
 
           {passo === 2 && (
-            <section aria-label="Condizioni" className="space-y-3">
-              <div className="space-y-1"><Label htmlFor="modello">Modello di condizioni</Label>
+            <section aria-label={tr("Condizioni")} className="space-y-3">
+              <div className="space-y-1"><Label htmlFor="modello">{tr("Modello di condizioni")}</Label>
                 <UniformSelect id="modello" className={selectClasse} value={modello?.id ?? ""} disabled={!puoModificare || !puoRiscrivere} onChange={(e) => scegliModello(e.target.value)}>
-                  {!modello && <option value="">Nessun modello</option>}
+                  {!modello && <option value="">{tr("Nessun modello")}</option>}
                   {modelli.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </UniformSelect>
-                {modello && <p className="text-xs text-muted-foreground">{modello.clausole.length} clausole{modello.clausole.some((c) => c.vessatoria) ? `, ${modello.clausole.filter((c) => c.vessatoria).length} da approvare a parte con la seconda firma` : ""}. Le prende da Contratti e condizioni.</p>}
+                {modello && <p className="text-xs text-muted-foreground">{modello.clausole.some((c) => c.vessatoria) ? tr("{n} clausole, {vessatorie} da approvare a parte con la seconda firma. Le prende da Contratti e condizioni.", { n: modello.clausole.length, vessatorie: modello.clausole.filter((c) => c.vessatoria).length }) : tr("{n} clausole. Le prende da Contratti e condizioni.", { n: modello.clausole.length })}</p>}
               </div>
-              <div className="space-y-1"><Label htmlFor="condizioni">Per questo committente</Label>
+              <div className="space-y-1"><Label htmlFor="condizioni">{tr("Per questo committente")}</Label>
                 <Textarea id="condizioni" rows={14} value={b.condizioni} disabled={!puoModificare || !puoRiscrivere} onChange={(e) => cambia({ condizioni: e.target.value })} />
-                <p className="text-xs text-muted-foreground">{puoRiscrivere ? "Se cambi qualcosa qui, il modello resta com'è." : "Per cambiarle serve il permesso «Riscrivere le condizioni su un documento»."}</p>
+                <p className="text-xs text-muted-foreground">{puoRiscrivere ? tr("Se cambi qualcosa qui, il modello resta com'è.") : tr("Per cambiarle serve il permesso «Riscrivere le condizioni su un documento».")}</p>
               </div>
             </section>
           )}
         </div>
 
-        <aside aria-label="Il PDF del contratto" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+        <aside aria-label={tr("Il PDF del contratto")} className="min-w-0 lg:sticky lg:top-4 lg:self-start">
           <div className="h-[78dvh] min-h-[420px]">
-            <PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={JSON.stringify([b, visibili, modello?.id])} debounceMs={700} downloadFileName={`Contratto ${b.nome}.pdf`} headerLabel="PDF del contratto" />
+            <PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={JSON.stringify([b, visibili, modello?.id])} debounceMs={700} downloadFileName={`Contratto ${b.nome}.pdf`} headerLabel={tr("PDF del contratto")} />
           </div>
         </aside>
       </div>
@@ -366,15 +368,16 @@ export default function ContrattoCommittentePagina() {
 function VoceDelListino({ indice, riga, voci, disabled, onScegli }: {
   indice: number; riga: RigaTariffa; voci: VoceGenerale[]; disabled: boolean; onScegli: (v: VoceGenerale | null) => void;
 }) {
+  const tr = useT();
   const scelta = voci.find((v) => v.id === riga.tariffa_id) ?? null;
   const [testo, setTesto] = useState<string | null>(null);
   const valore = testo ?? (scelta ? nomeVoce(scelta) : "");
   const idLista = `voci-listino-${riga.chiave}`;
   return (
     <div className="col-span-full -mt-0.5 mb-1 flex items-center gap-1.5 pl-1 text-xs text-muted-foreground">
-      <span className="shrink-0">Voce del listino generale:</span>
-      <Input aria-label={`Voce del listino generale per la tariffa ${indice + 1}`} list={idLista} className="h-7 max-w-md text-xs" disabled={disabled}
-        placeholder="Nessuna: cerca per codice o descrizione" value={valore}
+      <span className="shrink-0">{tr("Voce del listino generale:")}</span>
+      <Input aria-label={tr("Voce del listino generale per la tariffa {indice}", { indice: indice + 1 })} list={idLista} className="h-7 max-w-md text-xs" disabled={disabled}
+        placeholder={tr("Nessuna: cerca per codice o descrizione")} value={valore}
         onChange={(e) => {
           const t = e.target.value;
           setTesto(t);
@@ -383,7 +386,7 @@ function VoceDelListino({ indice, riga, voci, disabled, onScegli }: {
         }}
         onBlur={() => setTesto(null)} />
       <datalist id={idLista}>{voci.map((v) => <option key={v.id} value={nomeVoce(v)} />)}</datalist>
-      {riga.tariffa_id && !scelta && voci.length > 0 && <span className="text-amber-700">voce non più attiva</span>}
+      {riga.tariffa_id && !scelta && voci.length > 0 && <span className="text-amber-700">{tr("voce non più attiva")}</span>}
     </div>
   );
 }

@@ -32,6 +32,7 @@ import {
   type FatturaDaAbbinare,
   type Confidenza,
 } from "@/lib/fatture/riconciliazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -56,6 +57,7 @@ const ETICHETTA_CONFIDENZA: Record<Confidenza, string> = {
 };
 
 export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const [inCorso, setInCorso] = useState(false);
   /** Scelte fatte a mano nel menu, che vincono sulla proposta. */
@@ -194,7 +196,7 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
     setInCorso(true);
     try {
       await abbina(fatturaId, commessaId, rataId, "manuale");
-      toast.success("Fattura collegata alla commessa.");
+      toast.success(t("Fattura collegata alla commessa."));
       await refetch();
       qc.invalidateQueries({ queryKey: ["invoices"] });
     } catch (e) {
@@ -214,13 +216,13 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
         await abbina(p.fattura.id, m.commessaId, m.rataId ?? null, origine);
         fatte++;
       }
-      toast.success(`${fatte} fatture collegate.`);
+      toast.success(t("{fatte} fatture collegate.", { fatte }));
       await refetch();
       qc.invalidateQueries({ queryKey: ["invoices"] });
     } catch (e) {
       // Quelle già fatte restano fatte: si dice quante, per non far ripartire
       // l'utente da zero senza sapere a che punto si era.
-      toast.error(`Collegate ${fatte}, poi errore: ` + (e instanceof Error ? e.message : "riprova"));
+      toast.error(t("Collegate {fatte}, poi errore: {errore}", { fatte, errore: e instanceof Error ? e.message : t("riprova") }));
     } finally {
       setInCorso(false);
     }
@@ -231,31 +233,29 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-orange-500" /> Abbina le fatture alle commesse
+            <Link2 className="h-4 w-4 text-orange-500" /> {t("Abbina le fatture alle commesse")}
           </DialogTitle>
           <DialogDescription>
-            Le fatture che arrivano dal gestionale esterno non dicono a quale cantiere appartengono.
-            Qui trovi quelle ancora senza commessa, con la proposta e il motivo per cui è stata fatta.
-            Confermi tu.
+            {t("Le fatture che arrivano dal gestionale esterno non dicono a quale cantiere appartengono. Qui trovi quelle ancora senza commessa, con la proposta e il motivo per cui è stata fatta. Confermi tu.")}
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Caricamento…</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("Caricamento…")}</p>
         ) : proposte.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Tutte le fatture hanno già la loro commessa.
+            {t("Tutte le fatture hanno già la loro commessa.")}
           </p>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-sm">
               <span className="text-muted-foreground">
-                {proposte.length} fatture senza commessa · {conProposta.length} con una proposta ·{" "}
-                <span className="font-medium text-emerald-700">{automatiche.length} certe</span>
+                {t("{n} fatture senza commessa · {m} con una proposta ·", { n: proposte.length, m: conProposta.length })}{" "}
+                <span className="font-medium text-emerald-700">{t("{n} certe", { n: automatiche.length })}</span>
               </span>
               <Button size="sm" disabled={inCorso || automatiche.length === 0} onClick={abbinaTutteLeCerte}>
                 <CheckCheck className="mr-1 h-4 w-4" />
-                Conferma le {automatiche.length} certe
+                {t("Conferma le {n} certe", { n: automatiche.length })}
               </Button>
             </div>
 
@@ -270,24 +270,24 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
                       <span className="font-medium">{fattura.numeroVisibile}</span>
                       <span className="text-sm text-muted-foreground">
                         {fattura.clienteRagioneSociale ?? "—"} ·{" "}
-                        {fattura.totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                        {fattura.data ? ` · ${new Date(fattura.data).toLocaleDateString("it-IT")}` : ""}
+                        {fattura.totale.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" })}
+                        {fattura.data ? ` · ${new Date(fattura.data).toLocaleDateString(intlCampo())}` : ""}
                       </span>
                       {candidato && (
                         <Badge variant="outline" className={`ml-auto text-[10px] ${COLORE_CONFIDENZA[candidato.confidenza]}`}>
-                          {ETICHETTA_CONFIDENZA[candidato.confidenza]}
+                          {t(ETICHETTA_CONFIDENZA[candidato.confidenza])}
                         </Badge>
                       )}
                     </div>
 
                     {esito.candidati.length === 0 ? (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Nessuna commessa somigliante: va scelta a mano dalla scheda della fattura.
+                        {t("Nessuna commessa somigliante: va scelta a mano dalla scheda della fattura.")}
                       </p>
                     ) : (
                       <>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Commessa</span>
+                          <span className="text-xs text-muted-foreground">{t("Commessa")}</span>
                           <Select
                             value={scelta}
                             onValueChange={(v) => setScelte((p) => ({ ...p, [fattura.id]: v }))}
@@ -296,7 +296,7 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
                             <SelectContent>
                               {esito.candidati.map((c) => (
                                 <SelectItem key={c.commessaId} value={c.commessaId}>
-                                  {data?.etichetta.get(c.commessaId) ?? c.commessaId} · {ETICHETTA_CONFIDENZA[c.confidenza]}
+                                  {data?.etichetta.get(c.commessaId) ?? c.commessaId} · {t(ETICHETTA_CONFIDENZA[c.confidenza])}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -308,7 +308,7 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
                             disabled={inCorso || !scelta}
                             onClick={() => abbinaUna(fattura.id, scelta, candidato?.rataId ?? null)}
                           >
-                            Collega
+                            {t("Collega")}
                           </Button>
                         </div>
 
@@ -321,7 +321,7 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
                             ))}
                             {candidato.rataId && (
                               <li className="text-emerald-700">
-                                · Verrà legata alla rata: quando la fattura risulta pagata, la rata si segna incassata da sola.
+                                {t("· Verrà legata alla rata: quando la fattura risulta pagata, la rata si segna incassata da sola.")}
                               </li>
                             )}
                           </ul>
@@ -336,7 +336,7 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Chiudi</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

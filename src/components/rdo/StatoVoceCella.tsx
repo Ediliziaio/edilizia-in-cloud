@@ -10,6 +10,7 @@ import {
   type StatoVoceOfferta,
 } from "@/lib/acquisti/statoVoceOfferta";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORE: Partial<Record<StatoVoceOfferta, string>> = {
   non_disponibile: "bg-red-50 text-red-700 border-red-200",
@@ -28,13 +29,14 @@ export function StatoVoceCella({
   disabled?: boolean;
   onChange: (stato: Exclude<StatoVoceOfferta, "da_quotare">) => void;
 }) {
+  const t = useT();
   return (
     <span
       className={cn(
         "relative inline-flex h-8 w-5 shrink-0 items-center justify-center rounded text-slate-400",
         !disabled && "hover:bg-slate-100 hover:text-slate-700",
       )}
-      title="Disponibilità della voce"
+      title={t("Disponibilità della voce")}
     >
       <MoreVertical className="h-3.5 w-3.5" aria-hidden />
       <UniformSelect
@@ -48,12 +50,12 @@ export function StatoVoceCella({
       >
         {stato === "da_quotare" && (
           <option value="" disabled>
-            Da quotare
+            {t("Da quotare")}
           </option>
         )}
         {STATI_VOCE_OFFERTA.map((s) => (
           <option key={s.valore} value={s.valore}>
-            {s.etichetta}
+            {t(s.etichetta)}
           </option>
         ))}
       </UniformSelect>
@@ -63,10 +65,11 @@ export function StatoVoceCella({
 
 /** L'etichetta nella cella: solo per le eccezioni. */
 export function EtichettaStatoVoce({ stato }: { stato: StatoVoceOfferta }) {
+  const t = useT();
   if (stato === "disponibile" || stato === "da_quotare") return null;
   return (
     <span className={cn("mt-0.5 inline-block rounded border px-1 text-[10px] font-medium", COLORE[stato])}>
-      {ETICHETTA_CELLA[stato]}
+      {t(ETICHETTA_CELLA[stato])}
     </span>
   );
 }

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { SlidersHorizontal, X, Layers, Briefcase, Wallet, Calendar, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PreventivoTipo, UnifiedStato } from "./UnifiedPreventiviList";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type UnifiedSort =
   | "recent" | "oldest" | "value_desc" | "value_asc"
@@ -106,6 +107,7 @@ export function UnifiedFiltersSheet({
   open, onOpenChange, filters, onApply, commerciali,
   serramentiEnabled, fotovoltaicoEnabled, ristrutturazioneEnabled, bagniEnabled, tettiEnabled, climatizzazioneEnabled, elettricoEnabled, termoidraulicoEnabled, pavimentiEnabled, piscineEnabled, totalResults,
 }: Props) {
+  const tr = useT();
   const toggleTipo = (t: PreventivoTipo) => {
     const set = new Set(filters.tipi);
     if (set.has(t)) set.delete(t); else set.add(t);
@@ -126,21 +128,19 @@ export function UnifiedFiltersSheet({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-orange-600" />
-            Filtri preventivi
+            {tr("Filtri preventivi")}
             {activeCount > 0 && (
-              <Badge className="bg-orange-500 hover:bg-orange-500 text-[10px]">
-                {activeCount} attivi
-              </Badge>
+              <Badge className="bg-orange-500 hover:bg-orange-500 text-[10px]">{tr("{activeCount} attivi", { activeCount: String(activeCount ?? "") })}</Badge>
             )}
           </SheetTitle>
           <SheetDescription>
-            Affina la lista per tipo, stato, commerciale, importo, periodo.
+            {tr("Affina la lista per tipo, stato, commerciale, importo, periodo.")}
           </SheetDescription>
         </SheetHeader>
 
         <div className="space-y-6 py-5">
           {/* TIPO PREVENTIVO */}
-          <Section icon={<Layers className="h-3.5 w-3.5" />} title="Tipo preventivo">
+          <Section icon={<Layers className="h-3.5 w-3.5" />} title={tr("Tipo preventivo")}>
             <div className="flex flex-wrap gap-2">
               {TIPO_OPTIONS.map((t) => {
                 if (t.value === "serramenti" && !serramentiEnabled) return null;
@@ -166,18 +166,18 @@ export function UnifiedFiltersSheet({
                         : "bg-white text-muted-foreground border-slate-200 hover:bg-slate-50"
                     )}
                   >
-                    {t.emoji} {t.label}
+                    {t.emoji} {tr(t.label)}
                   </button>
                 );
               })}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Nessuna selezione = mostra tutti i tipi.
+              {tr("Nessuna selezione = mostra tutti i tipi.")}
             </p>
           </Section>
 
           {/* STATO */}
-          <Section icon={<Layers className="h-3.5 w-3.5" />} title="Stato unificato">
+          <Section icon={<Layers className="h-3.5 w-3.5" />} title={tr("Stato unificato")}>
             <div className="flex flex-wrap gap-2">
               {STATO_OPTIONS.map((s) => {
                 const on = filters.stati.includes(s.value);
@@ -193,23 +193,23 @@ export function UnifiedFiltersSheet({
                       s.toneCls,
                     )}
                   >
-                    {s.label}
+                    {tr(s.label)}
                   </button>
                 );
               })}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Multi-selezione. Combinabile con le sub-tab inline.
+              {tr("Multi-selezione. Combinabile con le sub-tab inline.")}
             </p>
           </Section>
 
           {/* COMMERCIALE */}
-          <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Commerciale">
+          <Section icon={<Briefcase className="h-3.5 w-3.5" />} title={tr("Commerciale")}>
             <Select value={filters.commercialeId} onValueChange={(v) => onApply({ ...filters, commercialeId: v })}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i commerciali</SelectItem>
-                <SelectItem value="none">Non assegnato</SelectItem>
+                <SelectItem value="all">{tr("Tutti i commerciali")}</SelectItem>
+                <SelectItem value="none">{tr("Non assegnato")}</SelectItem>
                 {commerciali.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
@@ -218,10 +218,10 @@ export function UnifiedFiltersSheet({
           </Section>
 
           {/* IMPORTO */}
-          <Section icon={<Wallet className="h-3.5 w-3.5" />} title="Importo (€)">
+          <Section icon={<Wallet className="h-3.5 w-3.5" />} title={tr("Importo (€)")}>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Min</Label>
+                <Label className="text-[11px] text-muted-foreground">{tr("Min")}</Label>
                 <Input
                   type="number" inputMode="decimal" placeholder="0"
                   value={filters.importoMin}
@@ -230,7 +230,7 @@ export function UnifiedFiltersSheet({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Max</Label>
+                <Label className="text-[11px] text-muted-foreground">{tr("Max")}</Label>
                 <Input
                   type="number" inputMode="decimal" placeholder="∞"
                   value={filters.importoMax}
@@ -242,10 +242,10 @@ export function UnifiedFiltersSheet({
           </Section>
 
           {/* PERIODO */}
-          <Section icon={<Calendar className="h-3.5 w-3.5" />} title="Periodo">
+          <Section icon={<Calendar className="h-3.5 w-3.5" />} title={tr("Periodo")}>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Da</Label>
+                <Label className="text-[11px] text-muted-foreground">{tr("Da")}</Label>
                 <Input
                   type="date"
                   value={filters.dateFrom}
@@ -264,29 +264,29 @@ export function UnifiedFiltersSheet({
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <QuickPeriod label="7 giorni" days={7}  onApply={onApply} filters={filters} />
-              <QuickPeriod label="30 giorni" days={30} onApply={onApply} filters={filters} />
-              <QuickPeriod label="90 giorni" days={90} onApply={onApply} filters={filters} />
-              <QuickPeriod label="Anno corrente" ytd onApply={onApply} filters={filters} />
+              <QuickPeriod label={tr("7 giorni")} days={7}  onApply={onApply} filters={filters} />
+              <QuickPeriod label={tr("30 giorni")} days={30} onApply={onApply} filters={filters} />
+              <QuickPeriod label={tr("90 giorni")} days={90} onApply={onApply} filters={filters} />
+              <QuickPeriod label={tr("Anno corrente")} ytd onApply={onApply} filters={filters} />
               {(filters.dateFrom || filters.dateTo) && (
                 <button
                   type="button"
                   onClick={() => onApply({ ...filters, dateFrom: "", dateTo: "" })}
                   className="text-[10px] text-muted-foreground hover:text-foreground underline"
                 >
-                  Reset periodo
+                  {tr("Reset periodo")}
                 </button>
               )}
             </div>
           </Section>
 
           {/* ORDINAMENTO */}
-          <Section icon={<ArrowUpDown className="h-3.5 w-3.5" />} title="Ordinamento">
+          <Section icon={<ArrowUpDown className="h-3.5 w-3.5" />} title={tr("Ordinamento")}>
             <Select value={filters.sort} onValueChange={(v) => onApply({ ...filters, sort: v as UnifiedSort })}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {SORT_OPTIONS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  <SelectItem key={s.value} value={s.value}>{tr(s.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -295,10 +295,10 @@ export function UnifiedFiltersSheet({
 
         <SheetFooter className="gap-2 sm:gap-0 border-t pt-4">
           <Button variant="ghost" onClick={resetAll} className="text-xs gap-1">
-            <X className="h-3.5 w-3.5" /> Azzera tutti
+            <X className="h-3.5 w-3.5" /> {tr("Azzera tutti")}
           </Button>
           <Button onClick={() => onOpenChange(false)} className="bg-orange-500 hover:bg-orange-600">
-            Mostra {totalResults} risultat{totalResults === 1 ? "o" : "i"}
+            {tr(totalResults === 1 ? "Mostra {n} risultato" : "Mostra {n} risultati", { n: totalResults })}
           </Button>
         </SheetFooter>
       </SheetContent>

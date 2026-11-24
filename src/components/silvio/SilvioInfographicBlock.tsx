@@ -21,6 +21,7 @@
  */
 import { lazy, Suspense } from "react";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const SilvioChartBlock = lazy(() => import("./SilvioChartBlock"));
 
@@ -45,7 +46,7 @@ export interface InfographicSpec {
 const fmtVal = (v: unknown, unit?: string) => {
   const n = typeof v === "number" ? v : parseFloat(String(v));
   if (!isFinite(n)) return String(v ?? "");
-  const s = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
+  const s = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 }).format(n);
   return unit === "€" ? `€ ${s}` : unit ? `${s} ${unit}` : s;
 };
 
@@ -63,8 +64,9 @@ function DeltaChip({ delta, trend }: { delta?: number; trend?: Stat["trend"] }) 
 }
 
 export default function SilvioInfographicBlock({ spec }: { spec: InfographicSpec }) {
+  const t = useT();
   if (!spec || (!spec.stats?.length && !spec.chart)) {
-    return <div className="my-2 px-3 py-4 rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500 text-center">Infografica non disponibile (dati mancanti).</div>;
+    return <div className="my-2 px-3 py-4 rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500 text-center">{t("Infografica non disponibile (dati mancanti).")}</div>;
   }
   const accent = spec.accent || "#F97316";
   const stats = spec.stats || [];

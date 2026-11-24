@@ -19,6 +19,7 @@ import {
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useFeaturePreviewContextOptional } from "./useFeaturePreview";
 import { UnlockFeatureDialog } from "./UnlockFeatureDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Se non fornito, legge dal FeaturePreviewProvider. */
@@ -51,9 +52,10 @@ export function FeatureActionGuard({
   showIndicator = true,
   children,
 }: Props) {
+  const t = useT();
   const ctx = useFeaturePreviewContextOptional();
   const featureKey = keyProp ?? ctx?.featureKey ?? "";
-  const featureLabel = labelProp ?? ctx?.featureLabel ?? "questa funzione";
+  const featureLabel = labelProp ?? ctx?.featureLabel ?? t("questa funzione");
   const description = ctx?.description;
   const benefits = ctx?.benefits;
 
@@ -99,8 +101,8 @@ export function FeatureActionGuard({
           "data-preview-attempt": "true",
           "aria-disabled": "true",
           title: actionLabel
-            ? `Demo · Clicca per sbloccare ${featureLabel}`
-            : originalTitle || `Demo · Clicca per sbloccare`,
+            ? t("Demo · Clicca per sbloccare {featureLabel}", { featureLabel: String(featureLabel ?? "") })
+            : originalTitle || t("Demo · Clicca per sbloccare"),
           className: `${originalClassName} ring-1 ring-amber-300/40 hover:ring-amber-400/60 transition-all`,
         })}
         {showIndicator && (

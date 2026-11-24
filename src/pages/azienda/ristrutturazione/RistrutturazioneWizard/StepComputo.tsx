@@ -34,6 +34,7 @@ import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
 import { LavorazioniDelModello } from "@/components/moduli/InterventoScelto";
 import type { StatoSalvataggio } from "@/components/preventivatore";
 import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   aiContext?: NativeComputoAiContext;
@@ -53,6 +54,7 @@ const LISTINO_SETTINGS_HREF =
   "/azienda/ristrutturazione/listino";
 
 export default function StepComputo({ progettoId, initialComputo, initialDirty = false, onVociChange, onStato, model, aiContext }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const saveMut = useSaveComputo(progettoId);
 
@@ -101,8 +103,8 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       ordine: base + i,
     }));
     handleChange([...computo, ...nuove]);
-    toast.success(`${nuove.length} voci importate nel computo`, {
-      description: "Verifica quantità e prezzi prima di salvare.",
+    toast.success(t("{n} voci importate nel computo", { n: nuove.length }), {
+      description: t("Verifica quantità e prezzi prima di salvare."),
     });
   };
 
@@ -162,8 +164,8 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
           if (computoRef.current === computo) setDirty(false);
           setSavedOnce(true);
         } catch (e) {
-          toast.error("Salvataggio computo fallito", {
-            description: e instanceof Error ? e.message : "Errore sconosciuto",
+          toast.error(t("Salvataggio computo fallito"), {
+            description: e instanceof Error ? e.message : t("Errore sconosciuto"),
           });
         }
       })();
@@ -204,9 +206,9 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
   }, [stato]);
 
   const statusLabel = useMemo(() => {
-    if (saveMut.isPending) return { icon: "spin" as const, text: "Salvataggio…", cls: "text-muted-foreground" };
-    if (dirty) return { icon: "dot" as const, text: "Modifiche non salvate", cls: "text-amber-600" };
-    if (savedOnce) return { icon: "ok" as const, text: "Computo salvato", cls: "text-emerald-600" };
+    if (saveMut.isPending) return { icon: "spin" as const, text: t("Salvataggio…"), cls: "text-muted-foreground" };
+    if (dirty) return { icon: "dot" as const, text: t("Modifiche non salvate"), cls: "text-amber-600" };
+    if (savedOnce) return { icon: "ok" as const, text: t("Computo salvato"), cls: "text-emerald-600" };
     return null;
   }, [saveMut.isPending, dirty, savedOnce]);
 
@@ -217,9 +219,9 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       <div className={cn("flex flex-wrap items-center justify-between gap-2", !statusLabel && "max-sm:hidden")}>
         {/* Telefono: il titolo lo dice già il passo in alto. */}
         <div className="max-sm:hidden">
-          <h2 className="text-sm font-semibold text-slate-900">Computo metrico</h2>
+          <h2 className="text-sm font-semibold text-slate-900">{t("Computo metrico")}</h2>
           <p className="text-[11px] text-muted-foreground max-sm:hidden">
-            Aggiungi capitoli e voci dai listini. I totali si aggiornano in tempo reale e si salvano da soli.
+            {t("Aggiungi capitoli e voci dai listini. I totali si aggiornano in tempo reale e si salvano da soli.")}
           </p>
         </div>
         {statusLabel && (
@@ -239,16 +241,15 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
         <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5 max-sm:hidden">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
           <div className="flex-1 text-[11px] text-blue-900">
-            <p className="font-medium">Il tuo listino lavorazioni è ancora vuoto.</p>
+            <p className="font-medium">{t("Il tuo listino lavorazioni è ancora vuoto.")}</p>
             <p className="text-blue-800/80">
-              Puoi comunque comporre il computo con voci libere o prodotti/manodopera. Per
-              velocizzare, popola il listino ristrutturazione nelle impostazioni.
+              {t("Puoi comunque comporre il computo con voci libere o prodotti/manodopera. Per velocizzare, popola il listino ristrutturazione nelle impostazioni.")}
             </p>
             <Link
               to={LISTINO_SETTINGS_HREF}
               className="mt-1 inline-flex items-center gap-1 font-medium text-blue-700 underline-offset-2 hover:underline"
             >
-              <Settings2 className="h-3 w-3" /> Vai al listino ristrutturazione
+              <Settings2 className="h-3 w-3" /> {t("Vai al listino ristrutturazione")}
             </Link>
           </div>
         </div>
@@ -264,7 +265,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
           disabled={!companyId}
           onClick={() => setImportOpen(true)}
         >
-          <FileUp className="h-3.5 w-3.5 text-orange-500" /> Importa voci
+          <FileUp className="h-3.5 w-3.5 text-orange-500" /> {t("Importa voci")}
         </Button>
         <Button
           type="button"
@@ -274,11 +275,11 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
           disabled={!companyId}
           onClick={() => setVoiceOpen(true)}
         >
-          <Mic className="h-3.5 w-3.5 text-violet-500" /> <span className="max-sm:hidden">{nativeAi ? "Apri Silvio AI" : "Descrivi a voce (AI)"}</span><span className="sm:hidden">{nativeAi ? "Silvio AI" : "Detta a voce"}</span>
+          <Mic className="h-3.5 w-3.5 text-violet-500" /> <span className="max-sm:hidden">{nativeAi ? t("Apri Silvio AI") : t("Descrivi a voce (AI)")}</span><span className="sm:hidden">{nativeAi ? t("Silvio AI") : t("Detta a voce")}</span>
         </Button>
         {/* Telefono: due bottoni affiancati, senza la frase di spiegazione. */}
         <span className="text-[11px] text-muted-foreground max-sm:hidden">
-          Da PriMus, PDF, Excel, CSV, Word o una foto: rivedi le voci prima di aggiungerle.
+          {t("Da PriMus, PDF, Excel, CSV, Word o una foto: rivedi le voci prima di aggiungerle.")}
         </span>
       </div>
 
@@ -292,17 +293,17 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
         />
       ) : (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Caricamento azienda…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento azienda…")}
         </div>
       )}
 
       {/* Voce/descrizione → voci computo (stessa onConfirmVoci dell'import file) */}
-      {nativeAi && voiceOpen ? <Suspense fallback={<p role="status">Apro Silvio AI…</p>}><NativeComputoAiDialog context={aiContext!} rows={computo} companyId={companyId!} projectId={progettoId} open={voiceOpen} onOpenChange={setVoiceOpen} onApply={handleChange} /></Suspense> : <VoiceComputoDialog
+      {nativeAi && voiceOpen ? <Suspense fallback={<p role="status">{t("Apro Silvio AI…")}</p>}><NativeComputoAiDialog context={aiContext!} rows={computo} companyId={companyId!} projectId={progettoId} open={voiceOpen} onOpenChange={setVoiceOpen} onApply={handleChange} /></Suspense> : <VoiceComputoDialog
         open={voiceOpen}
         onOpenChange={setVoiceOpen}
         onConfirmVoci={handleImportVoci}
         tipoLavoro="ristrutturazione"
-        confirmLabel="Aggiungi al computo"
+        confirmLabel={t("Aggiungi al computo")}
       />}
 
       <ImportaVociDialog
