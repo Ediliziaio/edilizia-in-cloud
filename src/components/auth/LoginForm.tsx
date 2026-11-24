@@ -31,7 +31,7 @@ import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { messaggioErroreLogin } from "@/lib/auth/erroriLogin";
-import { leggiAccountSenzaAzienda, MESSAGGIO_ACCOUNT_SENZA_AZIENDA } from "@/lib/auth/accountSenzaAzienda";
+import { leggiAccountSenzaAzienda, MESSAGGIO_ACCOUNT_SENZA_AZIENDA, registraContattoSenzaAzienda } from "@/lib/auth/accountSenzaAzienda";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -220,6 +220,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
           ]);
           if (esito && !esito.error && Array.isArray(esito.data) && esito.data.length === 0) {
+            await registraContattoSenzaAzienda(sessione.session?.user.email);
             await supabase.auth.signOut({ scope: "local" });
             setSenzaAzienda(true);
             setFormError(MESSAGGIO_ACCOUNT_SENZA_AZIENDA);

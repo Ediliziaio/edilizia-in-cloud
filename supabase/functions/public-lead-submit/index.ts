@@ -64,6 +64,7 @@ type LeadPayload = {
   azienda?: string;
   messaggio?: string | null;
   source?: string;
+  session_id?: string;
   marketing_consent?: boolean;
   tags?: string[];
   render_slug?: string | null;
@@ -99,10 +100,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json().catch(() => ({}))) as LeadPayload;
-    const nome = cleanText(body.nome, 180);
-    const email = cleanText(body.email, 254).toLowerCase();
-    const telefono = cleanText(body.telefono, 80);
-    const azienda = cleanText(body.azienda, 180);
+    let nome = cleanText(body.nome, 180);
+    let email = cleanText(body.email, 254).toLowerCase();
+    let telefono = cleanText(body.telefono, 80);
+    let azienda = cleanText(body.azienda, 180);
     const source = cleanText(body.source || "site_public_form", 80);
     // Sito di provenienza per l'oggetto dell'email admin.
     const siteLabel =
@@ -139,6 +140,29 @@ Deno.serve(async (req) => {
     const renderTags = renderSlug.startsWith("render-")
       ? ["richiesta-render"]  // unico tag tipologico, slug specifica resta in metadata
       : [];
+
+    // Accesso senza azienda (24/11/2026): chi entra con «Continua con Google»
+    // senza essere cliente diventa un contatto per il commerciale. Email e nome
+    // vengono dall'account verificato, mai dal corpo; vale solo per chi non ha
+    // un profilo (cioè nessuna azienda). Telefono e azienda Google non li dà.
+    if (source === "accesso_senza_azienda") {
+      const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+      const adminAuth = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        { auth: { persistSession: false } },
+      );
+      const { data: ud, error: ue } = await adminAuth.auth.getUser(token);
+      const utente = ud?.user;
+      if (ue || !utente?.email) return jsonResponse(req, { error: "Accesso non valido" }, 401);
+      const { data: profilo } = await adminAuth.from("profiles").select("id").eq("id", utente.id).maybeSingle();
+      if (profilo) return jsonResponse(req, { ok: true, skipped: "ha_un_profilo" });
+      const meta = (utente.user_metadata ?? {}) as Record<string, unknown>;
+      email = utente.email.toLowerCase();
+      nome = cleanText(meta.full_name ?? meta.name, 180) || email.split("@")[0];
+      telefono = telefono || "da chiedere";
+      azienda = azienda || "da chiedere";
+    }
 
     if (!nome || !email || !telefono || !azienda) {
       return jsonResponse(req, { error: "Campi obbligatori mancanti" }, 400);

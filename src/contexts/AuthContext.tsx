@@ -22,7 +22,7 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import { quandoSiRiapre } from "@/lib/sicurezza/accessiBloccati";
 import { credenzialiNonValide } from "@/lib/auth/erroriLogin";
 import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
-import { segnalaAccountSenzaAzienda } from "@/lib/auth/accountSenzaAzienda";
+import { registraContattoSenzaAzienda, segnalaAccountSenzaAzienda } from "@/lib/auth/accountSenzaAzienda";
 import { avvisaAltreSchede } from "@/lib/auth/aziendaServer";
 import { avviaIntervalloVisibile } from "@/lib/intervalloVisibile";
 import { isNative } from "@/lib/mobile/platform";
@@ -33,7 +33,9 @@ import { isNative } from "@/lib/mobile/platform";
 // login in silenzio con la sessione ancora aperta (24/11/2026).
 function chiudiAccountSenzaAzienda(email: string | null | undefined): void {
   segnalaAccountSenzaAzienda(email);
-  void supabase.auth.signOut({ scope: "local" }).catch((): void => undefined);
+  // Prima il contatto per il commerciale (serve la sessione), poi l'uscita.
+  void registraContattoSenzaAzienda(email)
+    .finally(() => supabase.auth.signOut({ scope: "local" }).catch((): void => undefined));
 }
 
 /**

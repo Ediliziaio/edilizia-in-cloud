@@ -10,6 +10,8 @@
  * Ora chi risulta senza ruolo viene disconnesso e la pagina di accesso
  * spiega perché, con il link alla demo.
  */
+import { supabase } from "@/integrations/supabase/client";
+
 const CHIAVE = "eic_account_senza_azienda";
 
 export function segnalaAccountSenzaAzienda(email: string | null | undefined): void {
@@ -33,3 +35,33 @@ export function leggiAccountSenzaAzienda(): string | null {
 
 export const MESSAGGIO_ACCOUNT_SENZA_AZIENDA =
   "Questo account non è collegato a nessuna azienda su Edilizia in Cloud. Se vuoi provare il gestionale, richiedi la demo: ti attiviamo l'accesso noi.";
+
+/**
+ * Fa diventare contatto per il commerciale chi è entrato senza azienda, una
+ * volta per email su questo browser. Va chiamata PRIMA di chiudere la sessione:
+ * la funzione legge email e nome dall'account verificato, non da qui.
+ * Non lancia mai: un contatto mancato non deve bloccare l'uscita.
+ */
+export async function registraContattoSenzaAzienda(email: string | null | undefined): Promise<void> {
+  const chiave = `eic_contatto_senza_azienda:${(email || "").toLowerCase()}`;
+  try {
+    if (localStorage.getItem(chiave)) return;
+  } catch {
+    /* si prova comunque */
+  }
+  try {
+    await Promise.race([
+      supabase.functions.invoke("public-lead-submit", {
+        body: { source: "accesso_senza_azienda", tags: ["richiesta-demo"], page_path: "/login" },
+      }),
+      new Promise((resolve) => setTimeout(resolve, 4_000)),
+    ]);
+    try {
+      localStorage.setItem(chiave, "1");
+    } catch {
+      /* niente */
+    }
+  } catch {
+    /* best-effort */
+  }
+}
