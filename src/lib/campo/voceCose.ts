@@ -36,3 +36,27 @@ export function trovaNelleFrasi(racconto: string, voci: Voce[]): string[] {
   const frasi = racconto.split(/[.;!?\n]+|\b(?:poi|e poi|inoltre|dopo)\b/i).map(f => f.trim()).filter(Boolean);
   return [...new Set([...trovaNelRacconto(racconto, voci), ...frasi.flatMap(f => trovaNelRacconto(f, voci))])];
 }
+
+/**
+ * Materiali detti a voce o letti dal foglio → articoli del cantiere (24/11/2026). «Dieci sacchi di collante» diventa
+ * l'articolo «Collante cementizio per cappotto» se è l'unico che corrisponde: così il costo si calcola da solo.
+ * Senza un articolo chiaro resta com'era detto (testo libero), come prima.
+ */
+export interface ArticoloPerVoce { id: string; name: string; order_item_id?: string | null; stock_item_id?: string | null; unita?: string | null }
+export interface MaterialeDetto { nome: string; quantita: number; unita?: string }
+
+export function collegaMateriali(detti: MaterialeDetto[], articoli: ArticoloPerVoce[]): {
+  nome: string; quantita: number; unita?: string; order_item_id?: string; stock_item_id?: string;
+}[] {
+  return detti.map(m => {
+    const [id] = trovaNelRacconto(m.nome, articoli.map(a => ({ key: a.id, nome: a.name })));
+    const a = id ? articoli.find(x => x.id === id) : undefined;
+    if (!a) return { nome: m.nome, quantita: m.quantita, ...(m.unita ? { unita: m.unita } : {}) };
+    return {
+      nome: a.name, quantita: m.quantita,
+      ...((a.unita || m.unita) ? { unita: (a.unita || m.unita)! } : {}),
+      ...(a.order_item_id ? { order_item_id: a.order_item_id } : {}),
+      ...(a.stock_item_id ? { stock_item_id: a.stock_item_id } : {}),
+    };
+  });
+}

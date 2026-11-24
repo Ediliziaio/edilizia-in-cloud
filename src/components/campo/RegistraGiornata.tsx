@@ -7,6 +7,7 @@
  * solo. Sotto i 3 secondi non parte niente: «parla un po' di più». Senza rete lo dice subito, prima di registrare.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createStore, del, get, set } from "idb-keyval";
 import { Loader2, Mic, Square, Sparkles, WifiOff } from "lucide-react";
 import { useRapportinoVocale, type RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
@@ -15,6 +16,10 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Stato = "pronto" | "permesso" | "registra" | "compila";
+
+/** Senza rete la registrazione resta sul telefono e si compila appena torna il segnale (24/11/2026). */
+const archivioVoce = () => createStore("campo-voce-in-attesa", "registrazioni");
+interface VoceInAttesa { blob: Blob; durata: number; tipo: string }
 
 function formatoAudio(): string {
   if (typeof MediaRecorder === "undefined") return "";
@@ -49,6 +54,8 @@ export function RegistraGiornata({ orderId, workDay, disabilitato, onCompilato, 
   const anima = useRef<number | null>(null);
   const audioCtx = useRef<AudioContext | null>(null);
   const annullato = useRef(false);
+  const chiave = `${orderId}:${workDay}`;
+  const [inAttesa, setInAttesa] = useState<VoceInAttesa | null>(null);
 
   const spegni = useCallback(() => {
     if (timer.current) window.clearInterval(timer.current);
@@ -68,6 +75,32 @@ export function RegistraGiornata({ orderId, workDay, disabilitato, onCompilato, 
     spegni();
   }, [spegni]);
 
+  // Una registrazione fatta senza rete, ritrovata riaprendo il rapportino.
+  useEffect(() => {
+    let vivo = true;
+    void get<VoceInAttesa>(chiave, archivioVoce()).then(v => { if (vivo && v?.blob) setInAttesa(v); }).catch((): undefined => undefined);
+    return () => { vivo = false; };
+  }, [chiave]);
+
+  const compila = useCallback(async (v: VoceInAttesa) => {
+    setStato("compila");
+    const draft = await processAudio(v.blob, Math.min(v.durata, CAMPO_AUDIO_MAX_SECONDI), v.tipo, orderId, workDay);
+    if (annullato.current) return;
+    setStato("pronto");
+    if (draft) {
+      setInAttesa(null);
+      void del(chiave, archivioVoce()).catch((): undefined => undefined);
+      onCompilato(draft);
+    }
+  }, [processAudio, orderId, workDay, chiave, onCompilato]);
+
+  // Torna la rete: la registrazione in attesa si compila da sola.
+  useEffect(() => {
+    if (!inAttesa || !online || stato !== "pronto") return;
+    const id = window.setTimeout((): void => { void compila(inAttesa); }, 0);
+    return () => window.clearTimeout(id);
+  }, [inAttesa, online, stato, compila]);
+
   const ferma = useCallback(() => {
     const r = rec.current;
     if (r && r.state !== "inactive") r.stop();
@@ -75,7 +108,6 @@ export function RegistraGiornata({ orderId, workDay, disabilitato, onCompilato, 
 
   const avvia = async () => {
     setAvviso(null);
-    if (!online) { setAvviso(t("Per compilare con la voce serve internet. Scrivi pure: la bozza resta sul telefono.")); return; }
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setAvviso(t("Questo telefono non registra l'audio dal browser. Scrivi la giornata.")); return;
     }
@@ -96,11 +128,15 @@ export function RegistraGiornata({ orderId, workDay, disabilitato, onCompilato, 
         const blob = new Blob(pezzi.current, { type: tipo });
         if (annullato.current) return;
         if (durata < CAMPO_AUDIO_MIN_SECONDI) { setStato("pronto"); setAvviso(t("Troppo corto: racconta la giornata per qualche secondo in più.")); return; }
-        setStato("compila");
-        const draft = await processAudio(blob, Math.min(durata, CAMPO_AUDIO_MAX_SECONDI), tipo.split(";")[0], orderId, workDay);
-        if (annullato.current) return;
-        setStato("pronto");
-        if (draft) onCompilato(draft);
+        const voce: VoceInAttesa = { blob, durata, tipo: tipo.split(";")[0] };
+        if (!navigator.onLine) {
+          // Senza rete: si tiene sul telefono, si compila al ritorno del segnale.
+          setStato("pronto");
+          setInAttesa(voce);
+          try { await set(chiave, voce, archivioVoce()); } catch { /* resta in memoria finché la pagina è aperta */ }
+          return;
+        }
+        await compila(voce);
       };
       // Il livello della voce muove il bottone: si vede che sta ascoltando.
       try {
@@ -139,7 +175,7 @@ export function RegistraGiornata({ orderId, workDay, disabilitato, onCompilato, 
   };
 
   const registra = stato === "registra";
-  const compila = stato === "compila";
+  const compilando = stato === "compila";
   const scala = 1 + livello * 0.35;
 
   return (
@@ -149,13 +185,13 @@ export function RegistraGiornata({ orderId, workDay, disabilitato, onCompilato, 
           <span aria-hidden="true" className="absolute inset-0 rounded-full bg-red-500/20 motion-safe:animate-ping" />
           <span aria-hidden="true" className="absolute inset-2 rounded-full bg-red-500/25 transition-transform duration-75" style={{ transform: `scale(${scala})` }} />
         </>}
-        {compila && <span aria-hidden="true" className="absolute inset-0 rounded-full border-4 border-primary/30 border-t-primary motion-safe:animate-spin" />}
+        {compilando && <span aria-hidden="true" className="absolute inset-0 rounded-full border-4 border-primary/30 border-t-primary motion-safe:animate-spin" />}
         <button type="button" onClick={registra ? ferma : () => void avvia()}
-          disabled={disabilitato || compila || stato === "permesso"}
+          disabled={disabilitato || compilando || stato === "permesso"}
           aria-label={registra ? t("Ferma e compila il rapportino") : t("Racconta la giornata a voce")}
           className={cn("relative flex size-20 items-center justify-center rounded-full text-white shadow-lg transition-colors disabled:opacity-60",
             registra ? "bg-red-600" : "bg-primary motion-safe:hover:scale-105")}>
-          {compila ? <Sparkles className="size-8" aria-hidden="true" />
+          {compilando ? <Sparkles className="size-8" aria-hidden="true" />
             : stato === "permesso" ? <Loader2 className="size-8 motion-safe:animate-spin" aria-hidden="true" />
             : registra ? <Square className="size-7 fill-current" aria-hidden="true" />
             : <Mic className="size-9" aria-hidden="true" />}
@@ -163,16 +199,21 @@ export function RegistraGiornata({ orderId, workDay, disabilitato, onCompilato, 
       </div>
       <p role="status" className="text-[15px] font-bold">
         {registra ? t("Ti ascolto… {tempo}", { tempo: tempo(secondi) })
-          : compila ? t("Sto compilando il rapportino…")
+          : compilando ? t("Sto compilando il rapportino…")
           : t("Racconta la giornata")}
       </p>
       <p className="max-w-xs text-[13px] text-muted-foreground">
         {registra ? t("Tocca di nuovo quando hai finito.")
-          : compila ? t("Ci vuole qualche secondo.")
+          : compilando ? t("Ci vuole qualche secondo.")
           : suggerimento ?? t("Tocca e parla: cosa avete fatto, chi c'era, quante ore, i materiali. Compilo io.")}
       </p>
-      {!online && !registra && <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-700"><WifiOff className="size-3.5" aria-hidden="true" />{t("Senza rete: scrivi pure, la voce torna con internet.")}</p>}
-      {(avviso || (error && !registra && !compila)) && <p role="alert" className="rounded-xl bg-destructive/5 px-3 py-2 text-[13px] text-destructive">{avviso ?? t(error!)}</p>}
+      {inAttesa && !compilando ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
+          <WifiOff className="size-3.5 shrink-0" aria-hidden="true" />
+          {online ? t("Registrazione pronta: la compilo adesso.") : t("Registrazione salvata sul telefono: la compilo appena torna la rete.")}
+        </p>
+      ) : !online && !registra && <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-700"><WifiOff className="size-3.5" aria-hidden="true" />{t("Senza rete puoi registrare lo stesso: compilo appena torna internet.")}</p>}
+      {(avviso || (error && !registra && !compilando)) && <p role="alert" className="rounded-xl bg-destructive/5 px-3 py-2 text-[13px] text-destructive">{avviso ?? t(error!)}</p>}
     </section>
   );
 }

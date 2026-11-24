@@ -47,3 +47,23 @@ describe("Racconto a voce → fasi, voci e mezzi", () => {
     expect(trovaNelRacconto("oggi tutto bene", fasi)).toEqual([]);
   });
 });
+
+describe("Materiali detti → articoli del cantiere", () => {
+  it("collega quello chiaro, lascia libero il resto", async () => {
+    const { collegaMateriali } = await import("@/lib/campo/voceCose");
+    const articoli = [
+      { id: "a1", name: "Collante cementizio per cappotto", order_item_id: "oi1", unita: "sacco" },
+      { id: "a2", name: "Pannello EPS grafitato 10 cm", order_item_id: "oi2", unita: "m²" },
+      { id: "a3", name: "Pannello EPS bianco 8 cm", order_item_id: "oi3", unita: "m²" },
+    ];
+    expect(collegaMateriali([
+      { nome: "collante", quantita: 10, unita: "sacchi" },
+      { nome: "pannelli", quantita: 30, unita: "pannelli" },
+      { nome: "tubo corrugato", quantita: 20, unita: "metri" },
+    ], articoli)).toEqual([
+      { nome: "Collante cementizio per cappotto", quantita: 10, unita: "sacco", order_item_id: "oi1" },
+      { nome: "pannelli", quantita: 30, unita: "pannelli" },
+      { nome: "tubo corrugato", quantita: 20, unita: "metri" },
+    ]);
+  });
+});

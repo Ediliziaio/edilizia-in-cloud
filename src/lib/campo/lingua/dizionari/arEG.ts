@@ -3855,5 +3855,8 @@ const dizionario: Dizionario = {
   "Libero in deposito": "فاضية في المخزن",
   "Assegnato: {dove}": "متخصص: {dove}",
   "Usato": "اتستخدم",
+  "Registrazione pronta: la compilo adesso.": "التسجيل جاهز: هملاه دلوقتي.",
+  "Registrazione salvata sul telefono: la compilo appena torna la rete.": "التسجيل محفوظ على الموبايل: هملاه أول ما الشبكة ترجع.",
+  "Senza rete puoi registrare lo stesso: compilo appena torna internet.": "من غير شبكة تقدر تسجل عادي: هملا أول ما النت يرجع.",
 };
 export default dizionario;

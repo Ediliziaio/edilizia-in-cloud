@@ -3855,5 +3855,8 @@ const dizionario: Dizionario = {
   "Libero in deposito": "Liber în depozit",
   "Assegnato: {dove}": "Atribuit: {dove}",
   "Usato": "Folosit",
+  "Registrazione pronta: la compilo adesso.": "Înregistrare gata: o completez acum.",
+  "Registrazione salvata sul telefono: la compilo appena torna la rete.": "Înregistrare salvată pe telefon: o completez când revine semnalul.",
+  "Senza rete puoi registrare lo stesso: compilo appena torna internet.": "Fără semnal poți înregistra oricum: completez când revine internetul.",
 };
 export default dizionario;

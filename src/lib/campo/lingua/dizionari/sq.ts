@@ -3855,5 +3855,8 @@ const dizionario: Dizionario = {
   "Libero in deposito": "I lirë në depo",
   "Assegnato: {dove}": "Caktuar: {dove}",
   "Usato": "I përdorur",
+  "Registrazione pronta: la compilo adesso.": "Regjistrimi gati: e plotësoj tani.",
+  "Registrazione salvata sul telefono: la compilo appena torna la rete.": "Regjistrimi u ruajt në telefon: e plotësoj sapo të kthehet rrjeti.",
+  "Senza rete puoi registrare lo stesso: compilo appena torna internet.": "Pa rrjet mund të regjistrosh njësoj: plotësoj sapo të kthehet interneti.",
 };
 export default dizionario;

@@ -47,7 +47,7 @@ import { MezzoAlVolo } from "@/components/campo/MezzoAlVolo";
 import type { RapportinoLetto } from "../../../supabase/functions/ai-rapportini-da-documento/mappa";
 import { chiParlaCera, presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
 import { daRicopiare, type UltimoRapportino } from "@/lib/campo/comeIeri";
-import { trovaNelleFrasi } from "@/lib/campo/voceCose";
+import { collegaMateriali, trovaNelleFrasi } from "@/lib/campo/voceCose";
 import { MAX_FASI_IN_VISTA, corrisponde, fasiInVista } from "@/lib/campo/sceltaRapida";
 import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
 import { useRilevazioniMezziRapportino } from "@/hooks/campo/useRilevazioniMezziRapportino";
@@ -682,6 +682,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     queryFn: () => loadRapportinoArticles(orderId!, companyId!),
   });
   const materialiCommessa = articoliCommessa.filter(item => rapportinoArticleKind(item) === "material");
+  const articoliPerVoce = materialiCommessa.map(a => ({ id: a.id, name: a.name, order_item_id: a.order_item_id ?? null,
+    stock_item_id: a.stock_item_id ?? null, unita: a.template?.unit_of_measure ?? null }));
   const articoliDaVerificare = articoliCommessa.filter(item => rapportinoArticleKind(item) === "unknown");
   const prestazioniCommessa = articoliCommessa.filter(item => rapportinoArticleKind(item) === "service");
   const delivered = useQuery({
@@ -1727,7 +1729,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     if (puoSuggerireOre && ore !== null && !segneraPersone) { modificaOre(ore); voci.push(t("{ore} ordinarie", { ore: oreInTesto(ore) })); }
     const materiali = (e.materiali ?? []).filter(m => m.nome?.trim() && m.quantita > 0);
     if (puoSuggerireMateriali && materiali.length) {
-      setMaterialiSel(restoreRapportinoMaterials(materiali));
+      // Collegati agli articoli del cantiere quando il nome è chiaro: così il costo si calcola da solo (24/11/2026).
+      setMaterialiSel(restoreRapportinoMaterials(collegaMateriali(materiali, articoliPerVoce)));
       voci.push(t(materiali.length === 1 ? "{n} materiale" : "{n} materiali", { n: materiali.length }));
     }
     if (registraSquadra && e.team_presenti?.length) {
@@ -1797,7 +1800,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       if (mie) { modificaOre(mie.ore); voci.push(t("{ore} ordinarie", { ore: oreInTesto(mie.ore) })); }
     }
     if (puoSuggerireMateriali && r.materiali.length) {
-      setMaterialiSel(restoreRapportinoMaterials(r.materiali.map(m => ({ nome: m.nome, quantita: m.quantita, unita: "" }))));
+      setMaterialiSel(restoreRapportinoMaterials(r.materiali.map(m => m.order_item_id
+        ? { nome: m.nome, quantita: m.quantita, order_item_id: m.order_item_id }
+        : collegaMateriali([{ nome: m.nome, quantita: m.quantita }], articoliPerVoce)[0])));
       voci.push(t(r.materiali.length === 1 ? "{n} materiale" : "{n} materiali", { n: r.materiali.length }));
     }
     const ammessi = new Set((mezziPerArrivo.data ?? []).map(m => m.id));

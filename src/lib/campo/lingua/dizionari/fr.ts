@@ -3855,5 +3855,8 @@ const dizionario: Dizionario = {
   "Libero in deposito": "Libre au dépôt",
   "Assegnato: {dove}": "Attribué : {dove}",
   "Usato": "Utilisé",
+  "Registrazione pronta: la compilo adesso.": "Enregistrement prêt : je le remplis maintenant.",
+  "Registrazione salvata sul telefono: la compilo appena torna la rete.": "Enregistrement gardé sur le téléphone : je le remplis dès que le réseau revient.",
+  "Senza rete puoi registrare lo stesso: compilo appena torna internet.": "Sans réseau tu peux enregistrer quand même : je remplis dès qu'internet revient.",
 };
 export default dizionario;
