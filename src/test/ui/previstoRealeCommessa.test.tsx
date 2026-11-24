@@ -5,8 +5,8 @@ import { confrontoPrevistoReale } from "@/lib/planimetrie/previstoReale";
 
 const previsione: Previsione = {
   fasi: [
-    { fase: "Demolizioni", importo: 3266, manodopera: 1415, materiali: 1851, giorni: 5, attesa: 0, voci: 2 },
-    { fase: "Tinteggiature", importo: 3201, manodopera: 2401, materiali: 800, giorni: 6, attesa: 14, voci: 6 },
+    { fase: "Demolizioni", importo: 3266, manodopera: 1415, materiali: 1851, giorni: 5, giorniBase: 5, attesa: 0, voci: 2 },
+    { fase: "Tinteggiature", importo: 3201, manodopera: 2401, materiali: 800, giorni: 6, giorniBase: 6, attesa: 14, voci: 6 },
   ],
   lavori: 6467, manodopera: 3816, materiali: 2651, extra: [], totaleExtra: 0, totale: 6467,
   intervallo: { minimo: 6000, probabile: 6467, massimo: 7000, incertezzaPct: 8 },

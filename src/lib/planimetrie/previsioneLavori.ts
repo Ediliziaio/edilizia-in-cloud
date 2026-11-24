@@ -80,8 +80,12 @@ export interface FaseStimata {
   importo: number;
   manodopera: number;
   materiali: number;
-  /** Giorni di lavoro della squadra, arrotondati al mezzo giorno. */
+  /** Giorni di lavoro della squadra, arrotondati al mezzo giorno (con la correzione dell'azienda, se c'è). */
   giorni: number;
+  /** Giorni con le rese tipiche, prima della correzione: è da questi che la correzione impara. */
+  giorniBase: number;
+  /** Fattore delle rese dell'azienda applicato a questa fase (correzioneRese.ts); assente se nessuno. */
+  correzione?: number;
   /** Giorni di attesa obbligata prima di questa fase. */
   attesa: number;
   perche?: string;
@@ -116,7 +120,12 @@ export function extraPredefiniti(righe: readonly Pick<RigaStudio, "id" | "descri
   return COSTI_EXTRA.filter((e) => e.quando !== "pareti" || pareti).map((e) => e.id);
 }
 
-export function previsioneLavori(righe: readonly RigaStudio[], extraAccesi: readonly string[] = extraPredefiniti(righe)): Previsione {
+export function previsioneLavori(
+  righe: readonly RigaStudio[],
+  extraAccesi: readonly string[] = extraPredefiniti(righe),
+  /** Giorni veri / giorni previsti per fase, dalle commesse chiuse dell'azienda (correzioneRese). */
+  correzione: Partial<Record<FasePrevisione, number>> = {},
+): Previsione {
   const perFase = new Map<FasePrevisione, FaseStimata & { giorniEsatti: number }>();
   const fuori = { senzaPrezzo: 0, senzaQuantita: 0, nonStimate: 0 };
   let indicativi = 0, importoIndicativo = 0, importoProposto = 0, altriLavori = 0;
@@ -129,7 +138,7 @@ export function previsioneLavori(righe: readonly RigaStudio[], extraAccesi: read
     const tipo = tipoLavorazione(r);
     if (!tipo) { fuori.nonStimate++; altriLavori += importo; continue; }
     const regola = REGOLE_POSA[tipo];
-    const f = perFase.get(regola.fase) ?? { fase: regola.fase, importo: 0, manodopera: 0, materiali: 0, giorni: 0, attesa: 0, voci: 0, giorniEsatti: 0 };
+    const f = perFase.get(regola.fase) ?? { fase: regola.fase, importo: 0, manodopera: 0, materiali: 0, giorni: 0, giorniBase: 0, attesa: 0, voci: 0, giorniEsatti: 0 };
     f.importo += importo;
     f.manodopera += importo * regola.manodopera;
     f.giorniEsatti += r.quantita / regola.resa;
@@ -141,7 +150,9 @@ export function previsioneLavori(righe: readonly RigaStudio[], extraAccesi: read
     if (!f) return [];
     const attesa = ATTESE[nome];
     const { giorniEsatti, ...resto } = f;
-    return [{ ...resto, importo: euro2(f.importo), manodopera: euro2(f.manodopera), materiali: euro2(f.importo - f.manodopera), giorni: mezzoGiorno(giorniEsatti),
+    const k = correzione[nome];
+    return [{ ...resto, importo: euro2(f.importo), manodopera: euro2(f.manodopera), materiali: euro2(f.importo - f.manodopera),
+      giorni: mezzoGiorno(giorniEsatti * (k ?? 1)), giorniBase: mezzoGiorno(giorniEsatti), ...(k ? { correzione: k } : {}),
       attesa: attesa && perFase.has(attesa.dopo) ? attesa.giorni : 0, perche: attesa && perFase.has(attesa.dopo) ? attesa.perche : undefined }];
   });
   const stimati = fasi.reduce((s, f) => s + f.importo, 0);

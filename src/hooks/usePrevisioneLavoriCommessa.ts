@@ -10,6 +10,7 @@ import { ripartisciCostiDiretti } from "@/lib/orders/costiDirettiFasi";
 import { economiaFasi } from "@/lib/orders/economiaFasi";
 import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
 import { confrontoPrevistoReale, previsioneSalvata, type RapportinoGiorni } from "@/lib/planimetrie/previstoReale";
+import { correzioneRese, type CampioneCommessa } from "@/lib/planimetrie/correzioneRese";
 
 /**
  * La previsione dei lavori salvata con la commessa (24/11/2026) e il confronto col reale.
@@ -30,6 +31,23 @@ export function useUltimaPrevisioneCommessa(orderId: string | null | undefined, 
         .eq("order_id", orderId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+/**
+ * Le rese dell'azienda corrette con le sue commesse chiuse (correzioneRese.ts). Solo giorni,
+ * niente importi: la funzione la può chiamare chi fa la previsione anche senza il permesso sui costi.
+ */
+export function useCorrezioneRese(companyId: string | null | undefined, abilitato: boolean) {
+  return useQuery({
+    queryKey: ["previsione-lavori-rese", companyId],
+    enabled: !!companyId && abilitato,
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("previsioni_lavori_campioni", { p_company: companyId! });
+      if (error) throw error;
+      return correzioneRese(Array.isArray(data) ? (data as unknown as CampioneCommessa[]) : []);
     },
   });
 }

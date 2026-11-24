@@ -339,7 +339,22 @@ e a lavori finiti si confronta col consuntivo.
   previsti, 7 di rapportini); intonaci, pavimenti e tinteggiature senza una fase con quel nome.
   Il pannello in commessa non è stato visto a schermo: nel browser di anteprima non c'è login.
 
-**Passo successivo, non fatto: correggere le rese per azienda.** Oggi le previsioni salvate
+**Rese corrette per azienda (24/11/2026, fatto dopo).** `lib/planimetrie/correzioneRese.ts`
+e la funzione `previsioni_lavori_campioni(azienda)` (migrazione `20290529130000`):
+- Campioni: le commesse con i lavori finiti e una previsione salvata (l'ultima). Per ogni fase
+  abbinata (stessa regola di «Previsto e reale») e con rapportini, giorni veri / giorni previsti
+  con le rese tipiche (`giorniBase`, salvato con la previsione: la correzione non impara da sé).
+- Correzione di una fase = mediana dei rapporti, arrotondata a 0,05, solo con almeno **5
+  commesse**; i rapporti fuori da 0,2–5 sono errori di dati e si scartano.
+- Si correggono i **giorni**, non gli importi (il previsto è un prezzo, il reale un costo).
+- La funzione dà solo giorni, niente importi: la chiama chi fa la previsione anche senza il
+  permesso sui costi, così la durata è la stessa per tutti. Fuori dall'azienda risponde 42501.
+- Il pannello dice da dove vengono le rese: «corrette con le tue commesse chiuse: demolizioni
+  +40% (6 commesse)», con i giorni tipici accanto; oppure quante commesse mancano.
+- Oggi: Demo Azienda 2 ha 1 campione (Demolizioni 7 giorni contro 5), nessuna azienda vera ne ha:
+  la correzione non è accesa da nessuna parte e partirà da sola alla quinta commessa.
+
+**Il ragionamento di prima, che resta vero:** Oggi le previsioni salvate
 sono una (la demo) e nessuna commessa vera ne ha una. Una correzione ha senso quando un'azienda
 ha almeno una decina di commesse chiuse con previsione salvata e fasi abbinate: allora per
 fase il rapporto medio reale/previsto (costo e giorni) diventa un coefficiente dell'azienda

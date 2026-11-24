@@ -4,9 +4,9 @@ import { confrontoPrevistoReale, fasePrevisioneDi, istantaneaPrevisione, previsi
 
 const previsione: Previsione = {
   fasi: [
-    { fase: "Demolizioni", importo: 2000, manodopera: 1700, materiali: 300, giorni: 3, attesa: 0, voci: 2 },
-    { fase: "Pavimenti e rivestimenti", importo: 5000, manodopera: 2000, materiali: 3000, giorni: 6, attesa: 0, voci: 3 },
-    { fase: "Tinteggiature", importo: 1000, manodopera: 750, materiali: 250, giorni: 2, attesa: 14, perche: "asciugatura", voci: 1 },
+    { fase: "Demolizioni", importo: 2000, manodopera: 1700, materiali: 300, giorni: 3, giorniBase: 3, attesa: 0, voci: 2 },
+    { fase: "Pavimenti e rivestimenti", importo: 5000, manodopera: 2000, materiali: 3000, giorni: 6, giorniBase: 6, attesa: 0, voci: 3 },
+    { fase: "Tinteggiature", importo: 1000, manodopera: 750, materiali: 250, giorni: 2, giorniBase: 2, attesa: 14, perche: "asciugatura", voci: 1 },
   ],
   lavori: 8000, manodopera: 4450, materiali: 3550, extra: [], totaleExtra: 0, totale: 8000,
   intervallo: { minimo: 7600, probabile: 8000, massimo: 8400, incertezzaPct: 5 },

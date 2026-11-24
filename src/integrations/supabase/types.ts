@@ -157435,6 +157435,10 @@ export type Database = {
           type: string
         }[]
       }
+      previsioni_lavori_campioni: {
+        Args: { p_company: string }
+        Returns: Json
+      }
       prezzo_voce_commessa: {
         Args: { p_data?: string; p_order_id: string; p_tariffa_id: string }
         Returns: Json

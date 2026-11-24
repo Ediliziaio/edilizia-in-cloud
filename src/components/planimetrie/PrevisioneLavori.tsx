@@ -8,7 +8,9 @@ import { CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useSalvaPrevisioneCommessa, useUltimaPrevisioneCommessa } from "@/hooks/usePrevisioneLavoriCommessa";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCorrezioneRese, useSalvaPrevisioneCommessa, useUltimaPrevisioneCommessa } from "@/hooks/usePrevisioneLavoriCommessa";
+import { CAMPIONI_MINIMI, type CorrezioneRese } from "@/lib/planimetrie/correzioneRese";
 import { COSTI_EXTRA, extraPredefiniti, previsioneLavori, type Previsione } from "@/lib/planimetrie/previsioneLavori";
 import { istantaneaPrevisione, type FonteIstantanea } from "@/lib/planimetrie/previstoReale";
 import type { RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
@@ -42,12 +44,29 @@ function SalvaConCommessa({ fonte, previsione, accesi }: { fonte: FonteIstantane
   </div>;
 }
 
+/** Da dove vengono le rese: tipiche, oppure corrette con le commesse chiuse dell'azienda. */
+function ReseUsate({ c }: { c: CorrezioneRese | undefined }) {
+  if (!c) return null;
+  const corrette = c.perFase.filter((f) => f.fattore !== null);
+  const pct = (k: number) => `${k > 1 ? "+" : ""}${Math.round((k - 1) * 100)}%`;
+  if (corrette.length) return <p className="text-xs text-muted-foreground">
+    Durate corrette con le tue commesse chiuse: {corrette.map((f) => `${f.fase.toLowerCase()} ${f.fattore === 1 ? "come previsto" : pct(f.fattore!)} (${f.campioni} commesse)`).join(", ")}.
+    {corrette.length < c.perFase.length && " Le altre fasi usano le rese tipiche."}
+  </p>;
+  const piu = Math.max(0, ...c.perFase.map((f) => f.campioni));
+  return <p className="text-xs text-muted-foreground">
+    Rese tipiche: per correggerle con le tue commesse ne servono {CAMPIONI_MINIMI} chiuse con la previsione salvata e i rapportini sulle fasi{piu ? ` (la fase più seguita ne ha ${piu})` : c.commesse ? ` (ce ${c.commesse === 1 ? "n'è 1" : `ne sono ${c.commesse}`}, senza fasi abbinate)` : " (per ora nessuna)"}.
+  </p>;
+}
+
 export function PrevisioneLavori({ righe, fonte }: { righe: readonly RigaStudio[]; fonte?: FonteIstantanea | null }) {
   const { canViewCosts, solaLettura } = usePermissions();
+  const { effectiveCompany } = useAuth();
+  const rese = useCorrezioneRese(effectiveCompany?.id, true);
   const iniziali = useMemo(() => extraPredefiniti(righe), [righe]);
   const [scelti, setScelti] = useState<string[] | null>(null);
   const accesi = scelti ?? iniziali;
-  const p = previsioneLavori(righe, accesi);
+  const p = previsioneLavori(righe, accesi, rese.data?.fattori);
   if (!p.lavori) return null;
   const fuori = p.fuori.senzaPrezzo + p.fuori.senzaQuantita;
   return (
@@ -55,6 +74,7 @@ export function PrevisioneLavori({ righe, fonte }: { righe: readonly RigaStudio[
       <div>
         <h3 className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className="h-4 w-4 text-primary" />Previsione dei lavori</h3>
         <p className="text-xs text-muted-foreground">Costo, extra e durata stimati dalle lavorazioni della pianta, con rese tipiche di una squadra di due persone. È un ordine di grandezza per decidere, non un consuntivo.</p>
+        <ReseUsate c={rese.data} />
       </div>
       <dl className="grid gap-2 sm:grid-cols-3">
         <div className="rounded-lg border bg-muted/30 p-3">
@@ -81,7 +101,7 @@ export function PrevisioneLavori({ righe, fonte }: { righe: readonly RigaStudio[
       <ul className="divide-y text-xs sm:hidden" aria-label="Costo e durata per fase">
         {p.fasi.map((f) => <li key={f.fase} className="space-y-0.5 py-2">
           <p className="flex justify-between gap-3 font-medium"><span>{f.fase}</span><span className="tabular-nums">{euro.format(f.importo)}</span></p>
-          <p className="flex justify-between gap-3 text-muted-foreground"><span>Manodopera {euro.format(f.manodopera)} · materiali {euro.format(f.materiali)}</span><span className="shrink-0 tabular-nums">{giorni(f.giorni)}</span></p>
+          <p className="flex justify-between gap-3 text-muted-foreground"><span>Manodopera {euro.format(f.manodopera)} · materiali {euro.format(f.materiali)}</span><span className="shrink-0 tabular-nums">{giorni(f.giorni)}{f.correzione ? ` (tipiche ${f.giorniBase})` : ""}</span></p>
           {f.attesa > 0 && <p className="text-muted-foreground">Dopo {f.attesa} giorni: {f.perche}</p>}
         </li>)}
         {p.fuori.nonStimate > 0 && <li className="flex justify-between gap-3 py-2 text-muted-foreground"><span>Altre voci quotate, senza stima dei tempi</span>
@@ -96,7 +116,7 @@ export function PrevisioneLavori({ righe, fonte }: { righe: readonly RigaStudio[
             <td className="px-2 py-1.5 text-right tabular-nums">{euro.format(f.manodopera)}</td>
             <td className="px-2 py-1.5 text-right tabular-nums">{euro.format(f.materiali)}</td>
             <td className="px-2 py-1.5 text-right font-medium tabular-nums">{euro.format(f.importo)}</td>
-            <td className="py-1.5 text-right tabular-nums">{giorni(f.giorni)}</td>
+            <td className="py-1.5 text-right tabular-nums">{giorni(f.giorni)}{f.correzione ? <span className="block text-muted-foreground">tipiche {giorni(f.giorniBase)}</span> : null}</td>
           </tr>)}
           {p.fuori.nonStimate > 0 && <tr><th scope="row" className="py-1.5 text-left font-normal text-muted-foreground" colSpan={3}>Altre voci quotate (impianti e opere a corpo), senza stima dei tempi</th>
             <td className="px-2 py-1.5 text-right font-medium tabular-nums">{euro.format(p.lavori - p.fasi.reduce((s, f) => s + f.importo, 0))}</td><td className="py-1.5 text-right">—</td></tr>}
