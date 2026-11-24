@@ -10,6 +10,13 @@
 import { ePrezzoProposto, FONTE_INDICATIVA, tipoLavorazione, type TipoLavorazione } from "./prezziProposti";
 import type { RigaStudio } from "./studioImmobiliare";
 
+/**
+ * Quando cambiano rese, quote di manodopera, attese o extra, cambia questa data: le previsioni
+ * salvate con la commessa (commessa_previsioni_lavori) dicono con quali regole sono nate, e il
+ * confronto col consuntivo non mescola regole diverse.
+ */
+export const VERSIONE_REGOLE_PREVISIONE = "2026-11-23";
+
 interface RegolaPosa {
   /** Quantità al giorno per una squadra di due persone (nell'unità della voce). */
   resa: number;

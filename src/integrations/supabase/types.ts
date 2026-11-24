@@ -26451,6 +26451,152 @@ export type Database = {
           },
         ]
       }
+      commessa_previsioni_lavori: {
+        Row: {
+          company_id: string
+          created_at: string
+          extra_accesi: string[]
+          giorni_calendario: number
+          giorni_lavoro: number
+          id: string
+          order_id: string
+          planimetria_id: string | null
+          previsione: Json
+          salvata_da: string | null
+          totale: number
+          variante_id: string | null
+          variante_nome: string | null
+          versione: number | null
+          versione_regole: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          extra_accesi?: string[]
+          giorni_calendario: number
+          giorni_lavoro: number
+          id?: string
+          order_id: string
+          planimetria_id?: string | null
+          previsione: Json
+          salvata_da?: string | null
+          totale: number
+          variante_id?: string | null
+          variante_nome?: string | null
+          versione?: number | null
+          versione_regole: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          extra_accesi?: string[]
+          giorni_calendario?: number
+          giorni_lavoro?: number
+          id?: string
+          order_id?: string
+          planimetria_id?: string | null
+          previsione?: Json
+          salvata_da?: string | null
+          totale?: number
+          variante_id?: string | null
+          variante_nome?: string | null
+          versione?: number | null
+          versione_regole?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commessa_previsioni_lavori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "commesse_valore_pattuito"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commessa_previsioni_lavori_planimetria_id_fkey"
+            columns: ["planimetria_id"]
+            isOneToOne: false
+            referencedRelation: "planimetrie"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commesse_generali: {
         Row: {
           company_id: string

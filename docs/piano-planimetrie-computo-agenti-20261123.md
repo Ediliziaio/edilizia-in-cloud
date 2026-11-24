@@ -293,3 +293,42 @@ Misura dal vivo dopo la pubblicazione: 10 piante riuscite, 9 senza difetti (4 gr
 riparatore), 1 con una camera isolata. Prima: circa una su tre con 6-8 stanze isolate.
 Due chiamate su dodici hanno risposto 402 del provider perché lanciate in parallelo: le prove
 dal vivo vanno fatte una alla volta.
+
+## 8 sexies. Previsto e reale (24/11/2026)
+
+Primo passo della «previsione che impara» (sezione 9): la previsione si salva con la commessa
+e a lavori finiti si confronta col consuntivo.
+
+- **Salvataggio** — nel pannello «Previsione dei lavori» di una variante collegata a una
+  commessa, «Salva con la commessa» (solo con il permesso sui costi). Una riga in
+  `commessa_previsioni_lavori` (migrazione `20290529100000`): la previsione intera in jsonb,
+  totale, giorni, extra accesi, pianta, versione, variante e `versione_regole`
+  (`VERSIONE_REGOLE_PREVISIONE` in `previsioneLavori.ts`: va cambiata quando cambiano rese o
+  extra). Le righe non si riscrivono: un nuovo salvataggio aggiunge, vale l'ultima.
+  Lettura e scrittura solo con `puo_vedere_costi`; un trigger controlla che commessa e pianta
+  siano dell'azienda della riga.
+- **Confronto** — in commessa, Margini e costi, sezione «Previsto e reale»
+  (`PrevistoRealeCommessa`, calcolo in `lib/planimetrie/previstoReale.ts`): spesa prevista
+  contro consuntivo (`economia_commesse`), durata contro le date di inizio e fine lavori (o
+  primo e ultimo rapportino), giorni di lavoro contro i giorni con un rapportino, e per fase
+  il costo vero della scheda Lavorazioni (`economiaFasi`, consuntivo) sulle fasi della commessa
+  che hanno lo stesso nome (parole chiave: «Allestimento e demolizioni» → Demolizioni). Dove
+  il dato manca, la cella dice «manca».
+- **Limite noto**: il previsto viene dai prezzi delle voci (con spese generali e utile), il
+  reale è un costo: lo scarto non è solo errore di previsione. Le fasi dai nomi generici
+  («Finiture», «Opere edili») non si abbinano e restano fuori dalle righe.
+- **Prova su Demo Azienda 2** (DEMO-2025-047, trilocale Via Roma 12): salvata come utente con
+  il permesso sui costi (passando dalla RLS), rifiutata a un utente senza. La variante «Proposta
+  A» della pianta aggiunge solo impianti, che la previsione non stima per fasi: la previsione
+  di prova è un rifacimento sulle superfici della pianta (19.236 €, 47 giorni), calcolata con
+  `previsioneLavori`. Contro la commessa: 129.996 € di consuntivo, 56 giorni dalle date,
+  40 giorni di rapportini; Demolizioni abbinata ad «Allestimento e demolizioni» (5 giorni
+  previsti, 7 di rapportini); intonaci, pavimenti e tinteggiature senza una fase con quel nome.
+  Il pannello in commessa non è stato visto a schermo: nel browser di anteprima non c'è login.
+
+**Passo successivo, non fatto: correggere le rese per azienda.** Oggi le previsioni salvate
+sono una (la demo) e nessuna commessa vera ne ha una. Una correzione ha senso quando un'azienda
+ha almeno una decina di commesse chiuse con previsione salvata e fasi abbinate: allora per
+fase il rapporto medio reale/previsto (costo e giorni) diventa un coefficiente dell'azienda
+che `previsioneLavori` applica alle rese, mostrato come tale («le tue demolizioni durano in
+media il 40% in più»). Prima di allora sarebbe un numero inventato.

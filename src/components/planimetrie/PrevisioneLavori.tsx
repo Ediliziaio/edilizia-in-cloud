@@ -5,13 +5,45 @@
  */
 import { useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
-import { COSTI_EXTRA, extraPredefiniti, previsioneLavori } from "@/lib/planimetrie/previsioneLavori";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useSalvaPrevisioneCommessa, useUltimaPrevisioneCommessa } from "@/hooks/usePrevisioneLavoriCommessa";
+import { COSTI_EXTRA, extraPredefiniti, previsioneLavori, type Previsione } from "@/lib/planimetrie/previsioneLavori";
+import { istantaneaPrevisione, type FonteIstantanea } from "@/lib/planimetrie/previstoReale";
 import type { RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
 
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 const giorni = (n: number) => `${n.toLocaleString("it-IT")} ${n === 1 ? "giorno" : "giorni"}`;
 
-export function PrevisioneLavori({ righe }: { righe: readonly RigaStudio[] }) {
+/**
+ * Con una commessa collegata, la previsione si salva con la commessa (una copia ferma): a lavori
+ * finiti la commessa la mette accanto a costo e durata veri («Previsto e reale»).
+ */
+function SalvaConCommessa({ fonte, previsione, accesi }: { fonte: FonteIstantanea; previsione: Previsione; accesi: readonly string[] }) {
+  const ultima = useUltimaPrevisioneCommessa(fonte.orderId, true);
+  const salva = useSalvaPrevisioneCommessa();
+  const u = ultima.data;
+  const stessa = u && u.variante_id === fonte.varianteId && u.versione === fonte.versione && Number(u.totale) === previsione.totale && Number(u.giorni_calendario) === previsione.giorniCalendario;
+  const quando = u ? new Date(u.created_at).toLocaleDateString("it-IT") : null;
+  const registra = () => salva.mutate(istantaneaPrevisione(previsione, accesi, fonte), {
+    onSuccess: () => toast.success("Previsione salvata con la commessa"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Previsione non salvata"),
+  });
+  return <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+    <p className="min-w-0 text-muted-foreground">
+      {ultima.isLoading ? "…" : stessa ? `Salvata con la commessa il ${quando}: a lavori finiti la commessa la confronta con costi e giorni veri.`
+        : u ? `Con la commessa c'è la previsione del ${quando}${u.variante_nome ? ` (${u.variante_nome})` : ""}, diversa da questa.`
+        : "Salvala con la commessa: a lavori finiti la commessa la confronta con costi e giorni veri."}
+    </p>
+    {!stessa && !ultima.isLoading && <Button size="sm" variant="outline" disabled={salva.isPending} onClick={registra}>
+      {salva.isPending ? "Salvataggio…" : u ? "Sostituisci con questa" : "Salva con la commessa"}
+    </Button>}
+  </div>;
+}
+
+export function PrevisioneLavori({ righe, fonte }: { righe: readonly RigaStudio[]; fonte?: FonteIstantanea | null }) {
+  const { canViewCosts, solaLettura } = usePermissions();
   const iniziali = useMemo(() => extraPredefiniti(righe), [righe]);
   const [scelti, setScelti] = useState<string[] | null>(null);
   const accesi = scelti ?? iniziali;
@@ -89,6 +121,7 @@ export function PrevisioneLavori({ righe }: { righe: readonly RigaStudio[] }) {
         </ul>
         <p className="flex justify-between text-sm font-semibold"><span>Totale previsto</span><span className="tabular-nums">{euro.format(p.totale)}</span></p>
         <p className="text-xs text-muted-foreground">Spese generali e utile sono già nei prezzi delle voci. Gli importi a corpo sono valori tipici: correggili nel computo.</p>
+        {fonte && canViewCosts && !solaLettura && <SalvaConCommessa fonte={fonte} previsione={p} accesi={accesi} />}
       </div>
     </section>
   );

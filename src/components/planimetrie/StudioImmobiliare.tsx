@@ -355,7 +355,8 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
         </div>
       </div>
       {/* Cambia con la variante: frazionare o spostare un tramezzo aggiorna i materiali. */}
-      {permessi.canViewPreventivi && studio && <PrevisioneLavori key={variante} righe={studio.righe} />}
+      {permessi.canViewPreventivi && studio && <PrevisioneLavori key={variante} righe={studio.righe}
+        fonte={orderId && variante ? { companyId, orderId, planimetriaId, versione, varianteId:variante, varianteNome:titolo } : null} />}
       <FabbisognoMateriali documento={documento} ambito={`progetto:${variante}`} titolo={`Materiali da comprare · ${varianti.find(v=>v.propostaId===variante)?.nome ?? "variante"}`} />
       <AccessiProposta accessi={accessi}/>
       {puoSimulare && !!studio.unita.length && !studio.sovrapposti.length && !localiDaRivedere.length && <div className="flex flex-wrap items-center gap-2">

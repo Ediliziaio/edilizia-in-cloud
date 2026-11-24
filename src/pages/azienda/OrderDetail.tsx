@@ -86,6 +86,7 @@ const RendicontoAppalto = lazy(() => import("@/components/orders/RendicontoAppal
 const SicurezzaCommessa = lazy(() => import("@/components/sicurezza/SicurezzaCommessa").then((m) => ({ default: m.SicurezzaCommessa })));
 const PianoMezziCantiere = lazy(() => import("@/components/mezzi/PianoMezziCantiere").then((m) => ({ default: m.PianoMezziCantiere })));
 const CantiereLogistica = lazy(() => import("@/components/orders/CantiereLogistica").then((m) => ({ default: m.CantiereLogistica })));
+const PrevistoRealeCommessa = lazy(() => import("@/components/orders/PrevistoRealeCommessa").then((m) => ({ default: m.PrevistoRealeCommessa })));
 const OrderEconomicsSummary = lazy(() => import("@/components/orders/OrderEconomicsSummary").then((m) => ({ default: m.OrderEconomicsSummary })));
 const RapportiniUfficio = lazy(() => import("@/components/orders/RapportiniUfficio").then((m) => ({ default: m.RapportiniUfficio })));
 const OrderAcceptanceReports = lazy(() => import("@/components/orders/OrderAcceptanceReports").then((m) => ({ default: m.OrderAcceptanceReports })));
@@ -1976,6 +1977,12 @@ function OrderDetailInner() {
                   workStartDate={order.work_start_date}
                   workEndDate={order.work_end_date}
                 />
+              </ErrorBoundary>
+            )}
+            {/* Previsione dei lavori dalla pianta, salvata con la commessa, contro costi e giorni veri (24/11/2026). */}
+            {activeEconomiaView === "margini" && permissions.canViewCosts && (
+              <ErrorBoundary fallback={null}>
+                <PrevistoRealeCommessa orderId={id!} workStartDate={order.work_start_date} workEndDate={order.work_end_date} />
               </ErrorBoundary>
             )}
 
