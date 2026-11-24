@@ -45,10 +45,12 @@ import {
 import {
   ClipboardList, Copy, Trash2, Save, Loader2, ChevronDown, ChevronUp,
   Lock, Camera, FormInput, FileEdit, Plus, AlertCircle, Eye, List,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { usePermissions } from "@/hooks/usePermissions";
+import { GeneraModelloAi } from "@/components/sopralluoghi/GeneraModelloAi";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
@@ -740,7 +742,8 @@ function NewTemplateDialog({
   onClose: () => void;
   onCreated: (newId: string) => void | Promise<void>;
 }) {
-  const [mode, setMode] = useState<"blank" | "clone">("blank");
+  const [mode, setMode] = useState<"blank" | "clone" | "ai">("blank");
+  const [modelloAi, setModelloAi] = useState<{ schema: TemplateSchema; avvisi: string[] } | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string>("custom");
   const [description, setDescription] = useState("");
@@ -756,10 +759,14 @@ function NewTemplateDialog({
         if (!sourceId) throw new ErroreControllo("Scegli il modello di serie da copiare.");
         return cloneTemplate(sourceId, name);
       }
+      if (mode === "ai") {
+        if (!modelloAi) throw new ErroreControllo("Genera prima l'anteprima del modello.");
+        return createBlankTemplate({ name, category, description: description || null, schema: modelloAi.schema });
+      }
       return createBlankTemplate({ name, category, description: description || null });
     },
     onSuccess: (id) => {
-      toast.success(mode === "clone" ? "Modello copiato: ora puoi personalizzarlo" : "Modello creato");
+      toast.success(mode === "clone" ? "Modello copiato: ora puoi personalizzarlo" : mode === "ai" ? "Modello creato dall'AI: controllalo nell'editor" : "Modello creato");
       onCreated(id);
     },
     onError: (e) => toast.error("Modello non creato", {
@@ -777,7 +784,7 @@ function NewTemplateDialog({
     createMut.mutate();
   };
 
-  const canSubmit = name.trim().length >= 3 && (mode === "blank" || sourceId);
+  const canSubmit = name.trim().length >= 3 && (mode === "blank" || (mode === "clone" && sourceId) || (mode === "ai" && !!modelloAi));
 
   return (
     <Dialog open onOpenChange={(aperta) => { if (!aperta) chiudi(); }}>
@@ -793,7 +800,7 @@ function NewTemplateDialog({
         </DialogHeader>
 
         {/* Mode picker */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <button
             type="button"
             onClick={() => setMode("blank")}
@@ -820,6 +827,19 @@ function NewTemplateDialog({
             <p className="font-semibold text-sm">Parti da uno di serie</p>
             <p className="text-[11px] text-muted-foreground">Copia un modello di serie (Infissi, Bagno…) e cambialo</p>
           </button>
+          <button
+            type="button"
+            onClick={() => setMode("ai")}
+            aria-pressed={mode === "ai"}
+            className={cn(
+              "rounded-lg border-2 p-3 text-left transition-all",
+              mode === "ai" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/40",
+            )}
+          >
+            <Sparkles className="h-5 w-5 text-primary mb-1" />
+            <p className="font-semibold text-sm">Descrivilo all'AI</p>
+            <p className="text-[11px] text-muted-foreground">Racconta cosa si rileva: l'AI propone sezioni, campi e righe di preventivo</p>
+          </button>
         </div>
 
         <div className="space-y-3">
@@ -833,7 +853,7 @@ function NewTemplateDialog({
             />
           </div>
 
-          {mode === "blank" && (
+          {(mode === "blank" || mode === "ai") && (
             <>
               <div>
                 <Label htmlFor="nuovo-modello-categoria" className="text-xs">Categoria</Label>
@@ -873,6 +893,8 @@ function NewTemplateDialog({
               </div>
             </>
           )}
+
+          {mode === "ai" && <GeneraModelloAi categoria={category} esito={modelloAi} onEsito={setModelloAi} />}
 
           {mode === "clone" && (
             <div>

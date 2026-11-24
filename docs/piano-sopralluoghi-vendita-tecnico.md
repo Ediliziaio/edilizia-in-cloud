@@ -231,10 +231,27 @@ Fatto:
   e quanto è arrivato. Dati da `sopralluogo_stato_righe` (migrazione 20290530100300), senza
   prezzi.
 
-### Lotto 6 — Modelli più facili da costruire
+### Lotto 6 — Modelli più facili da costruire *(fatto 24/11/2026)*
 - Editor: condizioni («mostra se»), campi annidati, minimi e massimi, mappatura verso il
   preventivo.
 - Nuovo modello da un foglio di carta o da una descrizione (AI), con anteprima prima di salvare.
+
+Fatto:
+- Editor: «Mostra solo se» (un campo a scelta o sì/no dello stesso elemento comanda la
+  visibilità; le condizioni complesse dei modelli di serie restano com'erano e lo si dice),
+  minimo e massimo per numeri e misure, «Riga nel preventivo» per ogni tipo di elemento
+  (descrizione coi campi tra graffe, unità, quantità dai pezzi o da un campo numerico; segnala i
+  campi inesistenti). Prima la mappatura si conservava senza poterla vedere.
+- «Descrivilo all'AI» in «Nuovo modello»: si descrive cosa si rileva, l'AI propone ambienti, tipi
+  di elemento, campi (anche «solo tecnico»), foto e righe di preventivo; anteprima con le
+  correzioni fatte, il modello si crea solo confermando. Edge function
+  `ai-genera-modello-sopralluogo` (Sonnet 4.5, addebitata all'azienda, rimborso se la risposta non
+  è usabile); la risposta passa sempre da `shared/sopralluoghi/modelloGenerato.ts`, che corregge tipi,
+  chiavi, scelte senza opzioni e righe che puntano a campi inventati.
+
+Resta: i campi annidati (`compound_boolean`) non si costruiscono dall'editor; il modello da una
+foto di un foglio di carta (oggi solo da descrizione); la generazione non è mai stata provata con
+l'AI vera (solo con risposte finte nei test).
 
 ## 4. Cosa resta fuori
 - Rilievo compilato dal commerciale senza rete: va provato col lotto 2 sul telefono vero.

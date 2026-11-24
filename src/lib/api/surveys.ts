@@ -739,6 +739,8 @@ export async function createBlankTemplate(opts: {
   name: string;
   category: string;
   description?: string | null;
+  /** Modello già pronto (es. scritto dall'AI e ripulito): senza, nasce vuoto. */
+  schema?: TemplateSchema;
 }): Promise<string> {
   // Crea un template vuoto company-owned. companyId via profiles.
   const { data: profile } = await supabase
@@ -760,10 +762,10 @@ export async function createBlankTemplate(opts: {
       description: opts.description ?? null,
       is_system: false,
       is_active: true,
-      area_label: "Area",
-      area_label_plural: "Aree",
+      area_label: String(opts.schema?.area_definition?.label || "Area"),
+      area_label_plural: String(opts.schema?.area_definition?.label_plural || "Aree"),
       element_label: "Elemento",
-      schema: {
+      schema: opts.schema ?? {
         version: 1,
         header_schema: [],
         area_definition: {

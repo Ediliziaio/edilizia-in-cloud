@@ -152,6 +152,7 @@ corpo della richiesta, ma il server verifica che l'utente le appartenga.
 | Email: embedding storico | `email-ai-embed-backfill/index.ts:88` | OpenAI embedding | token | `ai_pricing_markup` (default) | dalla email | D | bastava un JWT qualunque, su tutte le aziende | solo cron o super admin; addebito per email all'azienda della email |
 | Ricerca semantica | `semantic-search-global/index.ts:56` | OpenAI embedding | token | `ai_pricing_markup` (default) | **era il corpo**, ora il profilo (il corpo solo per il super admin) | D | bastava il prefisso «Bearer»: chiave anonima pubblica | `auth.getUser`, azienda dal profilo, addebito |
 | Assistente sopralluogo | `survey-ai-assistant/index.ts` | OpenRouter (Haiku) | token | `ai_pricing_markup` | dal sopralluogo | era nessuno | IDOR: sopralluogo di un'altra azienda letto via service role; non addebitato | `requireCompanyAccess` sull'azienda del sopralluogo; `claudeMessagesBilled`; 402 chiaro |
+| Modello di sopralluogo dall'AI (24/11/2026) | `ai-genera-modello-sopralluogo/index.ts` | OpenRouter (Sonnet 4.5) | token | `ai_pricing_markup` | dal corpo, verificata con `requireCompanyAccess` | nata addebitata | — | `claudeMessagesBilled` (compito `survey_template_generation`), chiave per chiamata; rimborso con `rimborsaAddebitoAi` se il JSON non si legge o non ha elementi |
 | Video per le inserzioni | `ai-ads-video-generate/index.ts:170` | Replicate (SVD, MiniMax) | video | tier `t2_vision` su costo stimato in `MODELS` (3 / 20 centesimi) | profilo (super admin escluso) | era nessuno → U | il costo unitario più alto, mai addebitato | `controllaCreditoUnitario` prima, `addebitaUnitario` con chiave `video_replicate_<id>`. Se l'addebito non passa dopo l'avvio, il lavoro Replicate si **annulla** (`/cancel`) e la risposta è 502: nessun video gratis, nessun video «orfano» che lo stato non sa dare |
 | Stato del video | `ai-ads-video-status/index.ts:68` | Replicate GET | — | — | **era il corpo** | — | URL dal corpo chiamato col token Replicate (furto del token, SSRF); scrittura su qualunque azienda | URL costruito dal server; appartenenza verificata; la previsione deve essere addebitata a quell'azienda |
 | Immagini per le inserzioni | `ai-ads-image-generate` → `image.ts` | OpenRouter / OpenAI | immagine | tier | profilo | U (`chargeDirectAiCall`) | chiave casuale senza `client_request_id` | **verificato, giusto**: ogni generazione richiama il provider, quindi una chiamata = un addebito; con `client_request_id` il retry dello stesso clic non conta due volte |
@@ -253,6 +254,7 @@ In ordine di costo unitario:
 - `email-ai-embed-backfill`
 - `semantic-search-global`
 - `survey-ai-assistant`
+- `ai-genera-modello-sopralluogo`
 - `ai-ads-video-generate`
 - `ai-ads-video-status`
 - `silvio-generation-worker`

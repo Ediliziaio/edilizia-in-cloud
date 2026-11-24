@@ -45,6 +45,10 @@ import {
   Settings, FormInput, MapPin, Boxes, Camera, GripVertical, Pencil, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  campoComanda, leggiMostraSe, limitiNumero, operatorePer, rigaDiPartenza, scriviMostraSe, segnapostoSconosciuti,
+} from "@/lib/surveys/editorModello";
+import type { EstimateLineMapping } from "@/types/surveys";
 
 const CATEGORIES: { value: SurveyCategory; label: string; emoji: string }[] = [
   { value: "infissi",          label: "Infissi",          emoji: "🪟" },
@@ -124,6 +128,11 @@ export function SurveyTemplateEditor({
   const [generalPhotos, setGeneralPhotos] = useState<PhotoChecklistItem[]>(
     initialSchema?.general_required_photos ?? [],
   );
+  // Come ogni tipo di elemento diventa una riga del preventivo (lotto 6): prima si conservava
+  // senza poterla vedere né cambiare.
+  const [righePreventivo, setRighePreventivo] = useState<Record<string, EstimateLineMapping>>(
+    initialSchema?.output_mapping?.estimate_lines ?? {},
+  );
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -133,7 +142,11 @@ export function SurveyTemplateEditor({
         area_definition: areaDefinition,
         element_types: elementTypes,
         general_required_photos: generalPhotos,
-        output_mapping: initialSchema?.output_mapping,
+        output_mapping: {
+          ...initialSchema?.output_mapping,
+          // Solo i tipi che esistono ancora.
+          estimate_lines: Object.fromEntries(Object.entries(righePreventivo).filter(([k]) => elementTypes.some((t) => t.key === k))),
+        },
       };
       await updateTemplate(templateId, {
         name: name.trim(),
@@ -158,7 +171,7 @@ export function SurveyTemplateEditor({
   // Bozza protetta: «cambiato» = lo stato modificabile è diverso da quello con cui si è aperto l'editor.
   const istantanea = JSON.stringify([
     name, description, category, areaLabel, areaLabelPlural, elementLabel,
-    headerSchema, areaDefinition, elementTypes, generalPhotos,
+    headerSchema, areaDefinition, elementTypes, generalPhotos, righePreventivo,
   ]);
   const [istantaneaIniziale] = useState(istantanea);
   const confermaUscita = useSettingsDraftGuard(saveMut.isPending || istantanea !== istantaneaIniziale);
@@ -295,7 +308,7 @@ export function SurveyTemplateEditor({
               </TabsContent>
 
               <TabsContent value="elements" className="mt-0">
-                <ElementTypesEditor elementTypes={elementTypes} onChange={setElementTypes} />
+                <ElementTypesEditor elementTypes={elementTypes} onChange={setElementTypes} righe={righePreventivo} onRighe={setRighePreventivo} />
               </TabsContent>
 
               <TabsContent value="photos" className="mt-0">
@@ -414,6 +427,7 @@ function SectionListEditor({
                 <FieldsEditor
                   fields={sec.fields ?? []}
                   onChange={(f) => updateSection(idx, { fields: f })}
+                  campiDisponibili={sections.flatMap((x) => x.fields ?? [])}
                 />
               </CardContent>
             )}
@@ -432,8 +446,14 @@ function SectionListEditor({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function FieldsEditor({
-  fields, onChange,
-}: { fields: FieldDefinition[]; onChange: (f: FieldDefinition[]) => void }) {
+  fields, onChange, campiDisponibili,
+}: {
+  fields: FieldDefinition[];
+  onChange: (f: FieldDefinition[]) => void;
+  /** I campi tra cui scegliere quello che comanda «mostra solo se» (di base, quelli di questa lista). */
+  campiDisponibili?: FieldDefinition[];
+}) {
+  const comandanti = (campiDisponibili ?? fields).filter(campoComanda);
   const addField = () => {
     const key = `field_${Date.now()}`;
     onChange([...fields, { key, label: "Nuovo campo", type: "text", width: 12 }]);
@@ -572,6 +592,10 @@ function FieldsEditor({
                 <Switch checked={!!f.solo_tecnico} onCheckedChange={(v) => updateField(idx, { solo_tecnico: v || undefined })} aria-label={`Solo nel sopralluogo tecnico: ${f.label}`} />
                 Solo nel sopralluogo tecnico (il commerciale non lo vede)
               </label>
+              {(f.type === "number" || f.type === "dimension" || f.type === "currency") && (
+                <LimitiCampo campo={f} onChange={(patch) => updateField(idx, patch)} />
+              )}
+              <MostraSeEditor campo={f} comandanti={comandanti.filter((c) => c.key !== f.key)} onChange={(r) => updateField(idx, { show_if: r })} />
               <div className="col-span-12">
                 <Label className="text-[10px]">Testo di esempio nel campo</Label>
                 <Input
@@ -662,8 +686,13 @@ function PhotosEditor({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ElementTypesEditor({
-  elementTypes, onChange,
-}: { elementTypes: ElementTypeDefinition[]; onChange: (e: ElementTypeDefinition[]) => void }) {
+  elementTypes, onChange, righe, onRighe,
+}: {
+  elementTypes: ElementTypeDefinition[];
+  onChange: (e: ElementTypeDefinition[]) => void;
+  righe: Record<string, EstimateLineMapping>;
+  onRighe: (r: Record<string, EstimateLineMapping>) => void;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const addType = () => {
@@ -728,6 +757,15 @@ function ElementTypesEditor({
                     onChange={(s) => updateType(idx, { sections: s })}
                   />
                 </div>
+                <RigaPreventivoEditor
+                  tipo={et}
+                  riga={righe[et.key]}
+                  onChange={(r) => {
+                    const next = { ...righe };
+                    if (r) next[et.key] = r; else delete next[et.key];
+                    onRighe(next);
+                  }}
+                />
                 <div>
                   <Label className="text-xs mb-1.5 block">Foto richieste per questo elemento</Label>
                   <PhotosEditor
@@ -746,3 +784,139 @@ function ElementTypesEditor({
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOTTO 6 — condizioni, limiti, riga del preventivo
+// ─────────────────────────────────────────────────────────────────────────────
+
+function LimitiCampo({ campo, onChange }: { campo: FieldDefinition; onChange: (p: Partial<FieldDefinition>) => void }) {
+  const [min, setMin] = useState(campo.min === undefined ? "" : String(campo.min));
+  const [max, setMax] = useState(campo.max === undefined ? "" : String(campo.max));
+  const esito = limitiNumero(min, max);
+  const scrivi = (a: string, b: string) => {
+    const e = limitiNumero(a, b);
+    if (!e.errore) onChange({ min: e.min, max: e.max });
+  };
+  return (
+    <div className="col-span-12 grid grid-cols-2 gap-2">
+      <div>
+        <Label className="text-[10px]">Minimo (vuoto = nessuno)</Label>
+        <Input value={min} inputMode="decimal" className="h-7 text-xs" aria-label={`Minimo di ${campo.label}`}
+          onChange={(e) => { setMin(e.target.value); scrivi(e.target.value, max); }} />
+      </div>
+      <div>
+        <Label className="text-[10px]">Massimo (vuoto = nessuno)</Label>
+        <Input value={max} inputMode="decimal" className="h-7 text-xs" aria-label={`Massimo di ${campo.label}`}
+          onChange={(e) => { setMax(e.target.value); scrivi(min, e.target.value); }} />
+      </div>
+      {esito.errore && <p role="alert" className="col-span-2 text-[11px] text-rose-700">{esito.errore}: il limite non è salvato.</p>}
+    </div>
+  );
+}
+
+const NESSUNO = "__sempre__";
+
+function MostraSeEditor({ campo, comandanti, onChange }: {
+  campo: FieldDefinition;
+  comandanti: FieldDefinition[];
+  onChange: (r: FieldDefinition["show_if"]) => void;
+}) {
+  const attuale = leggiMostraSe(campo);
+  if (attuale === "complessa") {
+    return (
+      <p className="col-span-12 text-[11px] text-muted-foreground">
+        Questo campo ha una condizione del modello di serie che qui non si modifica: resta com'è.
+      </p>
+    );
+  }
+  const comanda = comandanti.find((c) => c.key === attuale?.campo);
+  return (
+    <div className="col-span-12 space-y-1">
+      <Label className="text-[10px]">Mostra solo se</Label>
+      <div className="flex flex-wrap gap-2">
+        <Select
+          value={attuale?.campo ?? NESSUNO}
+          onValueChange={(v) => {
+            if (v === NESSUNO) return onChange(undefined);
+            const c = comandanti.find((x) => x.key === v);
+            const op = operatorePer(c);
+            onChange(scriviMostraSe({ campo: v, operatore: op, valore: op === "truthy" ? "" : c?.options?.[0]?.value ?? "" }));
+          }}
+        >
+          <SelectTrigger className="h-8 w-48 text-xs" aria-label={`Condizione di ${campo.label}`}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NESSUNO}>Sempre</SelectItem>
+            {comandanti.map((c) => <SelectItem key={c.key} value={c.key}>{c.label || c.key}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {attuale && comanda && attuale.operatore !== "truthy" && (
+          <>
+            <span className="self-center text-xs text-muted-foreground">{attuale.operatore === "contains" ? "contiene" : "è"}</span>
+            <Select value={attuale.valore} onValueChange={(v) => onChange(scriviMostraSe({ ...attuale, valore: v }))}>
+              <SelectTrigger className="h-8 w-44 text-xs" aria-label={`Valore della condizione di ${campo.label}`}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(comanda.options ?? []).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </>
+        )}
+        {attuale?.operatore === "truthy" && <span className="self-center text-xs text-muted-foreground">è attivo</span>}
+      </div>
+      {comandanti.length === 0 && <p className="text-[11px] text-muted-foreground">Serve prima un campo a scelta o sì/no in questo gruppo.</p>}
+    </div>
+  );
+}
+
+const UNITA_RIGA = ["pz", "mq", "ml", "m", "kg", "h", "corpo"];
+
+function RigaPreventivoEditor({ tipo, riga, onChange }: {
+  tipo: ElementTypeDefinition;
+  riga: EstimateLineMapping | undefined;
+  onChange: (r: EstimateLineMapping | undefined) => void;
+}) {
+  const numerici = campiDelTipoNumerici(tipo);
+  const sconosciuti = riga ? segnapostoSconosciuti(riga.description_template, tipo) : [];
+  return (
+    <div className="space-y-2 rounded-md border border-dashed p-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs">Riga nel preventivo</Label>
+        {riga
+          ? <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onChange(undefined)}>Togli</Button>
+          : <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onChange(rigaDiPartenza(tipo))}>Imposta</Button>}
+      </div>
+      {!riga && <p className="text-[11px] text-muted-foreground">Senza, nel preventivo dal rilievo la riga ha solo il nome dell'elemento.</p>}
+      {riga && (
+        <>
+          <div>
+            <Label className="text-[10px]">Descrizione (i campi tra graffe si riempiono: {"{larghezza_foro}"})</Label>
+            <Input value={riga.description_template} className="h-8 font-mono text-xs" aria-label={`Descrizione nel preventivo di ${tipo.label}`}
+              onChange={(e) => onChange({ ...riga, description_template: e.target.value })} />
+            {sconosciuti.length > 0 && <p className="mt-0.5 text-[11px] text-amber-700">Non sono campi di questo elemento: {sconosciuti.map((k) => `{${k}}`).join(", ")}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px]">Unità</Label>
+              <Select value={riga.unit} onValueChange={(v) => onChange({ ...riga, unit: v })}>
+                <SelectTrigger className="h-8 text-xs" aria-label={`Unità nel preventivo di ${tipo.label}`}><SelectValue /></SelectTrigger>
+                <SelectContent>{UNITA_RIGA.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px]">Quantità da</Label>
+              <Select value={riga.quantity_field ?? "quantity"} onValueChange={(v) => onChange({ ...riga, quantity_field: v })}>
+                <SelectTrigger className="h-8 text-xs" aria-label={`Quantità nel preventivo di ${tipo.label}`}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quantity">Numero di pezzi</SelectItem>
+                  {numerici.map((f) => <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const campiDelTipoNumerici = (t: ElementTypeDefinition) =>
+  (t.sections ?? []).flatMap((s) => s.fields ?? []).filter((f) => f.type === "number" || f.type === "dimension");
