@@ -24,6 +24,7 @@ import {
   contornoIncrociato,
   distanza,
   distanzaPuntoSegmento,
+  facceDellApertura,
   lunghezzaMuro,
   puntoInterno,
   puntoNelPoligono,
@@ -144,7 +145,14 @@ function controllaStato(stato: StatoPianta, livello: Livello, ambito: Ambito, ou
     const servite = new Set(stato.locali.flatMap(l => apertureDelLocale(l, stato).map(a => a.id)));
     for (const a of valide) {
       if (a.stato === "da_demolire" || perMuro.get(a.muroId)!.stato === "da_demolire") continue;
-      if (!servite.has(a.id)) avviso("apertura_senza_locale", a.id, `${nome(a.tipo)} non dà su nessun locale.`);
+      if (servite.has(a.id)) continue;
+      // Demolita una parete, il tratto che resta può finire dentro una stanza sola: la porta
+      // c'è ancora ma non separa più niente. Si dice quale stanza e cosa fare.
+      const facce = facceDellApertura(a, perMuro.get(a.muroId)!);
+      const dentro = stato.locali.find(l => facce.every(f => puntoNelPoligono(f, l.contorno)));
+      avviso("apertura_senza_locale", a.id, dentro
+        ? `${nome(a.tipo)} resta dentro «${dentro.nome}», su un tratto di parete che non separa più due stanze: toglila o demolisci anche quel tratto.`
+        : `${nome(a.tipo)} non dà su nessun locale.`);
     }
   }
 }

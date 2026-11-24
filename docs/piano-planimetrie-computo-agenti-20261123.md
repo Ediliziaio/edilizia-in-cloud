@@ -392,3 +392,21 @@ media il 40% in più»). Prima di allora sarebbe un numero inventato.
   da tablet in su, parola «Ambito» solo per i lettori di schermo): testata da 138 a 58 px,
   barre degli strumenti da 227 a 189, disegno da 245 a 363 px. Resta da rivedere la barra
   degli strumenti di disegno, che sul telefono occupa ancora tre righe.
+
+## 8 octies. Prove a schermo senza login (24/11/2026)
+
+Sulla pagina di prova dell'editor (`vite.planimetria-local.config.ts`, trilocale con progetto),
+dall'ultimo main, senza database. Passate: apertura, misure della parete, vista Progetto,
+demolizione dalla chat con anteprima e scheda «Computo» (demolizione 8,51 m², rimozione porta,
+macerie, ripristino 0,32 m²), Applica, Annulla e Ripeti, vista 3D, salva e riapri, seconda
+alternativa, telefono a 375 px. I prezzi qui risultano «Da quotare», com'è giusto: senza login
+non c'è il permesso sugli importi.
+Corretti tre difetti:
+- nel progetto la chat non trovava le stanze nate da una demolizione («Soggiorno con cucina
+  non è presente»): ora cerca prima le stanze come la tavola le mostra, e accetta «fra» oltre a «tra»;
+- «Bagno 2,40 × 2,50 m» nel progetto rispondeva «Seleziona lo stato in cui la stanza è
+  modificabile»: ora dice che le pareti di oggi nel progetto non si spostano e cosa scrivere;
+- una porta rimasta su un tratto di parete dentro una stanza sola diceva «non dà su nessun
+  locale»: ora dice in quale stanza resta e cosa fare.
+Da fare con il login: le stesse prove su Demo 2 con i prezzi, il salvataggio nel database e il
+computo del preventivo.

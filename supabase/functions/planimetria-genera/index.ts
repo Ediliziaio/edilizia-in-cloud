@@ -24,6 +24,7 @@
  * (controlloAI.ts → shared/planimetrie/controllo.ts): una pianta con errori non
  * arriva al browser. Fanno eccezione il DXF (pianta vuota, da ricalcare) e il
  * sopralluogo, che passano comunque dal controllo nei test.
+ * (24/11/2026: il controllo dice anche quando una porta resta dentro una stanza sola.)
  *
  * Crediti: come i render (deductRenderCreditSafe), rimborsati se la pianta non
  * viene. Le chiamate al modello non si addebitano una seconda volta

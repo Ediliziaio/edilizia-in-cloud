@@ -293,3 +293,34 @@ it("protegge muri portanti e aperture esistenti dalle istruzioni ambigue", () =>
   expect(fuoriVariante.passi).toEqual([]);
   expect(fuoriVariante.avvisi[0]).toContain("Passa a «Progetto»");
 });
+
+it("nel progetto una stanza di oggi non si allarga: la chat dice perché e cosa scrivere", () => {
+  const oggi = comandiDaChatDisegno(piantaVuota(), "fatto", "Bagno 2,40 × 2,50 m").passi[0].pianta;
+  const { passi, avvisi } = comandiDaChatDisegno(oggi, "progetto", "Bagno 3,00 × 2,50 m");
+  expect(passi).toHaveLength(0);
+  expect(avvisi.join(" ")).toMatch(/Bagno è com'è oggi: nel progetto le sue pareti non si spostano/);
+  expect(avvisi.join(" ")).toMatch(/«demolisci la parete tra bagno e …»/);
+  expect(avvisi.join(" ")).not.toMatch(/Seleziona lo stato/);
+});
+
+it("nel progetto la chat trova anche le stanze nate da una demolizione («Soggiorno con cucina»)", async () => {
+  const { default: trilocale } = await import("../../../shared/planimetrie/esempi/trilocale.json");
+  const doc = trilocale as unknown as Parameters<typeof daPlanimetria>[0];
+  const pianta = daPlanimetria(doc);
+  const contesto = { documento: doc, livelloId: doc.livelli[0].id, propostaId: doc.livelli[0].proposte[0].id } as never;
+  const prova = (frase: string) => comandiDaChatDisegno(pianta, "progetto", frase, contesto);
+  // Il nome che si vede sulla tavola si trova, e con la forma del progetto la parete è una sola.
+  const ingresso = prova("demolisci la parete fra ingresso e soggiorno con cucina");
+  expect(ingresso.passi[0]?.testo).toMatch(/^Demolizione proposta · Ingresso e Soggiorno con cucina · 3,15 m × /);
+  expect(ingresso.passi[0]?.evidenza).toEqual({ tipo: "muro", id: "t3" });
+  // La porta fra ingresso e soggiorno resta su un tratto che ora sta dentro la stanza unita.
+  const avvisi = controllaPlanimetria(aPlanimetria(ingresso.passi[0].pianta, doc)).map(p => p.messaggio);
+  expect(avvisi).toContain("Una porta resta dentro «Soggiorno con cucina», su un tratto di parete che non separa più due stanze: toglila o demolisci anche quel tratto.");
+  // Con la camera la parete in comune è solo in parte: la chat chiede il tratto, non dice che non c'è.
+  const camera = prova("demolisci la parete fra camera matrimoniale e soggiorno con cucina").avvisi.join(" ");
+  expect(camera).not.toMatch(/non è presente/);
+  expect(camera).toMatch(/Seleziona il tratto sulla tavola/);
+  // Due stanze che si vedono al filo interno, con una parete intera in comune.
+  const { passi } = prova("demolisci la parete tra bagno e cameretta");
+  expect(passi[0].testo).toMatch(/^Demolizione proposta · Bagno e Cameretta · 3,15 m × /);
+});

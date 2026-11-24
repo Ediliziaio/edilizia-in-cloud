@@ -88,7 +88,7 @@ const COMANDO_SUCCESSIVO = String.raw`(?:aggiungi|disegna|crea|fai|genera|metti|
 // «… 3 × 1,2 m e la cameretta 3 × 2,8 m»: «e» + stanza + misure è una seconda richiesta.
 const ALTRA_STANZA_CON_MISURE = String.raw`,?\s+e\s+(?=(?:(?:il|lo|la|i|gli|le)\s+|l['’])?[\p{L}' ]{2,40}?\s+(?:misura\s+|di\s+|a\s+)?${MISURA}\s*(?:×|x|\bper\b)\s*${MISURA})`;
 const TAGLIO = new RegExp(String.raw`\s*(?:\r?\n|;)\s*|[.!?,]\s*(?=(?:(?:e\s+)?(?:poi|quindi|infine)\s+)?${COMANDO_SUCCESSIVO})|\s+(?:e\s+)?(?:poi|quindi|infine)\s+(?=${COMANDO_SUCCESSIVO})|${ALTRA_STANZA_CON_MISURE}`, "iu");
-const DEMOLIZIONE = /^demolisci\s+(?:(?:il|la|un|una)\s+)?(?:tramezzo|parete)\s+tra\s+(.+?\s+e\s+.+)$/iu;
+const DEMOLIZIONE = /^demolisci\s+(?:(?:il|la|un|una)\s+)?(?:tramezzo|parete)\s+(?:tra|fra)\s+(.+?\s+e\s+.+)$/iu;
 const DEMOLIZIONE_TRATTO = /^demolisci\s+(?:(?:il|la)\s+)?(?:tramezzo|parete)\s+([\w-]+)$/iu;
 const NUOVO_TRAMEZZO = new RegExp(String.raw`^tramezzo\s+(?:in|nel|nella|nello)\s+(.+?)\s+a\s+(${MISURA})\s+dal\s+lato\s+(sinistro|destro|alto|basso)(?:\s+alto\s+(${MISURA}))?$`, "iu");
 const SPOSTA_TRAMEZZO = new RegExp(String.raw`^sposta\s+(?:(?:il|la)\s+)?(?:tramezzo|parete)(?:\s+selezionat[oa])?\s+di\s+(${MISURA})\s+verso\s+(.+)$`, "iu");
@@ -170,6 +170,29 @@ function localiDelProgetto(pianta: Pianta, contesto?: ContestoChatDisegno) {
   const livello = documento.livelli.find(l => l.id === contesto?.livelloId) ?? documento.livelli[0];
   const proposta = livello.proposte.find(p => p.id === contesto?.propostaId) ?? (contesto?.propostaId ? undefined : livello.proposte[0]);
   return proposta ?? livello.fatto;
+}
+
+/** Le stanze come le mostra il progetto, ricalcolate dalle pareti, nel formato dell'editor. */
+function localiProgettoComeLocali(pianta: Pianta, contesto?: ContestoChatDisegno): Locale[] {
+  return localiDelProgetto(pianta, contesto).locali.map(l => ({
+    id: l.id, nome: l.nome, destinazione: l.destinazione, altezza: l.altezza, finiture: l.finiture,
+    aperto: l.aperto, unita: l.unita, contorno: l.contorno.map(p => ({ x: p.x, y: -p.y })), alFiloInterno: true,
+    stato: "esistente", origine: l.origine,
+  }));
+}
+
+/**
+ * Nel progetto le stanze si ricalcolano dalle pareti: una demolizione ne unisce due in una
+ * nuova («Soggiorno con cucina») e un tramezzo nuovo ne restringe una. Il nome si cerca prima
+ * lì, con la forma che la tavola mostra, e poi fra le stanze di oggi.
+ */
+function localeConNomeAncheNelProgetto(pianta: Pianta, vista: C.Vista, nome: string, contesto?: ContestoChatDisegno) {
+  if (vista !== "progetto") return localeConNome(pianta, vista, nome);
+  try {
+    return localeConNome({ ...pianta, locali: localiProgettoComeLocali(pianta, contesto) }, vista, nome);
+  } catch {
+    return localeConNome(pianta, vista, nome);
+  }
 }
 
 function spostaTramezzoDaChat(pianta: Pianta, vista: C.Vista, istruzione: string, contesto?: ContestoChatDisegno): PassoChatDisegno | null {
@@ -261,11 +284,18 @@ function modificaTramezzo(pianta: Pianta, vista: C.Vista, testo: string, contest
     let indica = muro?.id;
     if (demolizione) {
       const [nomeA, nomeB] = nomiDeiDueLocali(pianta, vista, demolizione[1]);
-      const a = localeConNome(pianta, vista, nomeA), b = localeConNome(pianta, vista, nomeB);
+      const a = localeConNomeAncheNelProgetto(pianta, vista, nomeA, contesto), b = localeConNomeAncheNelProgetto(pianta, vista, nomeB, contesto);
       if (a.id === b.id) throw new Error("Scegli due ambienti diversi.");
       const locali = localiDelProgetto(pianta, contesto).locali;
       if (![a, b].every(l => locali.some(e => e.id === l.id))) throw new Error("Uno degli ambienti è cambiato. Seleziona il tratto sulla tavola per indicare la parete.");
-      const condivisi = muri.filter(m => [a, b].every(l => latiSuMuro(l, m).some(t => t.da <= 1 && t.a >= dist(m.p1, m.p2) - 1)));
+      // Una stanza ricalcolata dal progetto sta al filo interno: dista mezzo spessore dall'asse,
+      // e ai due capi si ferma contro le pareti che incontra.
+      const mezzoMuro = Math.max(...muri.map(m => m.spessore)) / 2 + 1;
+      const copre = (l: Locale, m: Muro) => {
+        const margine = l.alFiloInterno ? mezzoMuro : 1;
+        return latiSuMuro(l, m, margine).some(t => t.da <= margine && t.a >= dist(m.p1, m.p2) - margine);
+      };
+      const condivisi = muri.filter(m => [a, b].every(l => copre(l, m)));
       if (condivisi.length !== 1) throw new Error("Seleziona il tratto sulla tavola quando i locali condividono più pareti o solo una parte della parete.");
       muro = condivisi[0];
       indica = `${nomeLocale(pianta, vista, a)} e ${nomeLocale(pianta, vista, b)}`;
@@ -502,11 +532,7 @@ function arredamentoEImpianti(pianta: Pianta, vista: C.Vista, istruzione: string
   const unitaRichiesta = impianto && /^unit[àa]\s+(.+)$/iu.exec(nome ?? "")?.[1].trim();
   const piano = contesto?.documento.livelli.find(l => l.id === contesto.livelloId) ?? contesto?.documento.livelli[0];
   const distribuzione = vista === "progetto" && piano?.proposte.find(p => p.id === contesto?.propostaId)?.distribuzioneBilocali;
-  const localiDistribuiti: Locale[] | undefined = distribuzione ? localiDelProgetto(pianta, contesto).locali.map(l => ({
-    id: l.id, nome: l.nome, destinazione: l.destinazione, altezza: l.altezza, finiture: l.finiture,
-    aperto: l.aperto, unita: l.unita, contorno: l.contorno.map(p => ({ x: p.x, y: -p.y })), alFiloInterno: true,
-    stato: "esistente", origine: l.origine,
-  })) : undefined;
+  const localiDistribuiti: Locale[] | undefined = distribuzione ? localiProgettoComeLocali(pianta, contesto) : undefined;
   const destinazione = (l: Locale) => (vista === "progetto" && pianta.nomiProgetto?.[l.id]?.destinazione) || l.destinazione;
   const unita = (l: Locale) => {
     const progetto = vista === "progetto" ? pianta.nomiProgetto?.[l.id]?.unita : undefined;
@@ -640,8 +666,16 @@ function areaEsterna(pianta: Pianta, vista: C.Vista, istruzione: string): PassoC
     daVerificare: "Controlla quota del terreno, accesso e distanze dal confine sul rilievo." };
 }
 
+/** Perché una stanza non si ridimensiona in questa vista, e cosa fare invece. */
+export function messaggioStanzaNonModificabile(locale: Pick<Locale, "nome">, vista: C.Vista): string {
+  const nome = locale.nome?.trim() || "La stanza";
+  return vista === "progetto"
+    ? `${nome} è com'è oggi: nel progetto le sue pareti non si spostano. Scrivi per esempio «demolisci la parete tra ${nome.toLowerCase()} e …» e poi disegna quella nuova, oppure passa a «Com'è oggi» se stai correggendo il rilievo.`
+    : `${nome} è una stanza nuova del progetto: per cambiarne le misure passa a «Progetto».`;
+}
+
 function ridimensiona(pianta: Pianta, vista: C.Vista, locale: Locale, w: number, h: number) {
-  if (!C.modificabile(locale.stato, vista)) throw new Error("Seleziona lo stato in cui la stanza è modificabile.");
+  if (!C.modificabile(locale.stato, vista)) throw new Error(messaggioStanzaNonModificabile(locale, vista));
   const c = locale.contorno;
   const orizzontale = c.findIndex((p, i) => Math.abs(p.y - c[(i + 1) % c.length].y) < .5);
   const verticale = c.findIndex((p, i) => Math.abs(p.x - c[(i + 1) % c.length].x) < .5);
