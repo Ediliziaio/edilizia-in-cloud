@@ -68817,5 +68817,8 @@ const dizionario: Dizionario = {
   "Fatture fornitori": "Facturi furnizori",
   "Contratti subappaltatori": "Contracte subcontractori",
   "{fatti} di {finiti} periodi già finiti confermati · si confermano in ordine, poi si scarica il file": "{fatti} din {finiti} perioade deja încheiate confirmate · se confirmă în ordine, apoi se descarcă fișierul",
+  // Fatture: collega dalla commessa (lotto 3), 24/11/2026.
+  "Solo alcune bolle di questa fattura sono della commessa: le righe delle bolle caricate sono già assegnate alla loro commessa, le altre scegli tu. Quello che non assegni resta da collegare.": "Doar unele avize din această factură sunt ale lucrării: rândurile avizelor încărcate sunt deja atribuite lucrării lor, pe celelalte le alegi tu. Ce nu atribui rămâne de asociat.",
+  "La fattura è già in parte su altre commesse: qui sotto c’è anche questa, col resto da assegnare. Correggi l’importo se è solo una parte.": "Factura este deja parțial pe alte lucrări: mai jos este și aceasta, cu restul de atribuit. Corectează suma dacă este doar o parte.",
 };
 export default dizionario;

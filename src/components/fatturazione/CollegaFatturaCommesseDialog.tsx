@@ -27,7 +27,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { leggiImporto } from "@/lib/fatturazione/quoteOrdini";
 import { leggiXmlRicevuta } from "@/lib/fatturazione/originaleRicevuta";
 import { leggiRiferimentiFattura } from "../../../shared/acquisti/riferimentiFattura";
-import { bolleDellaFattura, DESTINAZIONE_MAGAZZINO, magazzinoDaVoci, magazzinoInNetto, problemaRipartizione, quotaMagazzinoDelCosto, righeMagazzinoDelCosto, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura, type QuotaCommessa, type RigaFatturaXml } from "@/lib/fatturazione/ripartizioneFattura";
+import { aperturaDallaCommessa, bolleDellaFattura, DESTINAZIONE_MAGAZZINO, magazzinoDaVoci, magazzinoInNetto, problemaRipartizione, quotaMagazzinoDelCosto, righeMagazzinoDelCosto, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura, type QuotaCommessa, type RigaFatturaXml } from "@/lib/fatturazione/ripartizioneFattura";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -125,6 +125,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
     return dest.length === 1 && dest[0] && dest[0] !== DESTINAZIONE_MAGAZZINO ? [{ numero: b.numero, data: b.data, order_id: dest[0] }] : [];
   }) : [];
   const [letto, setLetto] = useState(false);
+  const [apertura, setApertura] = useState<"come_sempre" | "aggiungi_riga" | "per_bolla">("come_sempre");
 
   // Si riparte da come è ora: cambiare una quota non deve voler dire riscriverle tutte.
   useEffect(() => {
@@ -133,10 +134,24 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
     const giaInMagazzino = quotaMagazzinoDelCosto(data.costo);
     const righeInMagazzino = righeMagazzinoDelCosto(data.costo);
     if (giaInMagazzino > 0) setMagazzino(testoImporto(imponibile ? (giaInMagazzino * totale) / imponibile : giaInMagazzino));
+    // Aperta dalla commessa: la fattura arriva già impostata per lei (lotto 3, vedi aperturaDallaCommessa).
+    const apertura = aperturaDallaCommessa(commessaIniziale, data.bolle, salvate, vociFattura(data.righe));
+    setApertura(apertura.modo);
+    if (apertura.modo === "per_bolla") {
+      setScelte(apertura.scelte);
+      setVistaBolle(true);
+      setPerVoci(true);
+      return;
+    }
     if (salvate.length === 0 && righeInMagazzino.length === 0) return;
-    setRighe(salvate.length
-      ? salvate.map((q, i) => ({ chiave: i, order_id: q.order_id, importo: testoImporto(suImponibile && q.importo != null ? q.importo : (totale * q.pct) / 100) }))
-      : [{ chiave: 0, order_id: "", importo: "" }]);
+    const giaSalvate = salvate.map((q, i) => ({ chiave: i, order_id: q.order_id, importo: testoImporto(suImponibile && q.importo != null ? q.importo : (totale * q.pct) / 100) }));
+    if (apertura.modo === "aggiungi_riga" && commessaIniziale) {
+      // Il resto della fattura, tolto quello già sulle altre commesse e a magazzino, va proposto a questa.
+      const gia = giaSalvate.reduce((somma, r) => somma + (leggiImporto(r.importo) || 0), 0)
+        + (imponibile ? (giaInMagazzino * totale) / imponibile : giaInMagazzino);
+      giaSalvate.push({ chiave: giaSalvate.length, order_id: commessaIniziale, importo: testoImporto(Math.max(0, Math.round((totale - gia) * 100) / 100)) });
+    }
+    setRighe(giaSalvate.length ? giaSalvate : [{ chiave: 0, order_id: "", importo: "" }]);
     if (salvate.length === 1 && salvate[0].pct < 99.99) setSoloUnaParte(true);
     if (salvate.some((q) => q.righe?.length) || righeInMagazzino.length > 0) {
       setPerVoci(true);
@@ -145,7 +160,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
         ...Object.fromEntries(righeInMagazzino.map((n) => [n, DESTINAZIONE_MAGAZZINO])),
       });
     }
-  }, [data, letto, salvate, totale, imponibile, suImponibile]);
+  }, [data, letto, salvate, totale, imponibile, suImponibile, commessaIniziale]);
 
   // `leggiImporto` dà NaN per la casella vuota o scritta a metà: senza questo filtro
   // il NaN si propagherebbe negli importi delle commesse e le svuoterebbe.
@@ -290,6 +305,13 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
           <DialogTitle>{t("A quale commessa va?")}</DialogTitle>
           <DialogDescription>{fattura.fornitore ?? t("Fornitore")} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> {suImponibile ? t("imponibile") : t("IVA inclusa")}</DialogDescription>
         </DialogHeader>
+        {!suOrdine && apertura !== "come_sempre" && (
+          <p role="status" className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+            {apertura === "per_bolla"
+              ? t("Solo alcune bolle di questa fattura sono della commessa: le righe delle bolle caricate sono già assegnate alla loro commessa, le altre scegli tu. Quello che non assegni resta da collegare.")
+              : t("La fattura è già in parte su altre commesse: qui sotto c’è anche questa, col resto da assegnare. Correggi l’importo se è solo una parte.")}
+          </p>
+        )}
         {suOrdine ? (
           <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             {t("È su un ordine d’acquisto: la commessa viene da lì. Per sceglierla qui, scollegala prima dall’ordine.")}
