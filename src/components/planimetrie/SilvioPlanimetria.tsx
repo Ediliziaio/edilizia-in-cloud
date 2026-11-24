@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowRight, Check, Loader2, ScanSearch, Send, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, Loader2, ScanSearch, Send, Sparkles, Undo2, X } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { InterventiChatDisegno } from "./editor/InterventiChatDisegno";
+import { anteprimaInterventi } from "./editor/interventiChat";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { cn } from "@/lib/utils";
 import { chiediSulProgetto, interpretaComando } from "@/lib/planimetrie/assistenzaStudio";
-import { eseguiDisegnoSullaScheda, nomiAmbientiDelPiano, selezionePerDomanda, sembraDomanda, unisciAlDisegno, type EsitoDisegnoScheda } from "@/lib/planimetrie/chatUnicaPlanimetria";
+import { aggiornaRevisioneDisegno, annullaUltimoDisegno, eAnnullaUltimo, eseguiDisegnoSullaScheda, nomiAmbientiDelPiano, selezionePerDomanda, sembraDomanda, unisciAlDisegno, type EsitoDisegnoScheda } from "@/lib/planimetrie/chatUnicaPlanimetria";
 import {
   anteprimaCorrezioniProgetto, anteprimaDaChatProgetto, contestoChatProgetto, idAmbienteChat, type AmbitoChatProgetto,
   type AnteprimaChatProgetto, type RiferimentoAmbienteChat,
@@ -49,7 +52,7 @@ const TUTTA_LA_CASA = "__tutto_il_piano";
  * domande sul progetto e le finiture. Le modifiche, da qualunque strada arrivino, si vedono
  * prima in anteprima con il costo e si salvano come variante. Vedi `chatUnicaPlanimetria.ts`.
  */
-export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo, onVista3D }: {
+export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo, onVista3D, muroId }: {
   documento: Planimetria; selezione: AmbitoChatProgetto; locali: Locale[]; companyId: string; puoScrivere: boolean;
   bozza: AnteprimaChatProgetto | null; salvataggio: boolean; erroreSalvataggio?: string;
   mostraPrima: boolean;
@@ -64,7 +67,10 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
   gruppoIniziale?: RiferimentoAmbienteChat[]; onGruppo?: (gruppo: RiferimentoAmbienteChat[]) => void;
   /** «3D» scritto nella chat: apre la vista 3D della scheda. */
   onVista3D?: () => void;
+  /** La parete scelta sulla tavola: i comandi senza nomi («sposta il tramezzo di 20 cm») valgono per lei. */
+  muroId?: string;
 }) {
+  const { canViewPreventivi } = usePermissions();
   const [messaggi,setMessaggi]=useState<MessaggioScheda[]>([]);
   const [fase,setFase]=useState("");
   // Senza una stanza scelta la prima domanda sceglie da sé gli ambienti: le successive ripartono da lì,
@@ -101,7 +107,7 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
   const scegliAmbiente=(valore:string)=>{
     if (valore!==TUTTA_LA_CASA) { onSeleziona(valore); return; }
     if (!locali.length || invio || salvataggio) return;
-    if (bozza) onAnteprima(null);
+    if (bozza && !bozza.disegno) onAnteprima(null);
     const gruppo=locali.slice(1,MASSIMO_AMBIENTI_CHAT).map(l=>({livelloId:selezione.livelloId,localeId:l.id}));
     onSeleziona(locali[0].id);
     onGruppo?.(gruppo);
@@ -110,10 +116,13 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
   };
   const modificaSelezione=(riferimento:RiferimentoAmbienteChat, scelto:boolean)=>{
     if (invio || salvataggio) return;
-    if (bozza) onAnteprima(null);
+    if (bozza && !bozza.disegno) onAnteprima(null);
     setAltri(v=>scelto ? [...v,riferimento].slice(0,MASSIMO_AMBIENTI_CHAT-1) : v.filter(a=>idAmbienteChat(a)!==idAmbienteChat(riferimento)));
     setErrore("");
   };
+  // Il pannello resta lo stesso quando cambia la stanza (la conversazione e i comandi del disegno
+  // non si perdono): il gruppo riparte da quello che il genitore conserva («Tutto il piano»).
+  useEffect(()=>{ setAltri(gruppoIniziale ?? []); },[localeId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{
     attivo.current=true;
     return ()=>{attivo.current=false;};
@@ -144,6 +153,15 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     setMessaggi(m=>[...m,...(capito ? [{ruolo:"silvio" as const,testo:capito}] : []),{ruolo:"silvio",testo,fatti,avvisi}]);
     if (esito.anteprima) onAnteprima(esito.anteprima);
     else if (vuole3D) onVista3D?.();
+  }
+
+  /** «Annulla l'ultimo»: il bottone e la frase fanno la stessa cosa, senza AI. */
+  function annullaUltimo() {
+    if (!bozza?.revisioneDisegno) return false;
+    const { anteprima, tolto } = annullaUltimoDisegno(bozza);
+    onAnteprima(anteprima);
+    setMessaggi(m=>[...m,{ruolo:"silvio",testo:tolto ? `Ho tolto «${tolto}» dalla variante.${anteprima ? "" : " Non resta altro da salvare."}` : "Non ci sono comandi da annullare."}]);
+    return true;
   }
 
   async function chiediASilvio(testo: string, esito?: SegnalazioneProgetto) {
@@ -186,9 +204,11 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     setMessaggi(m=>[...m,nuovo]);
     try {
       if (esito) { await chiediASilvio(testo,esito); return; }
+      if (eAnnullaUltimo(testo) && annullaUltimo()) return;
       // 1. Le regole del disegno: gratis, e se capiscono non serve nessuna AI.
       setFase("Eseguo il comando…");
-      const disegno=eseguiDisegnoSullaScheda(documento,selezione,testo,bozza);
+      const oggetto=muroId ? {tipo:"muro" as const,id:muroId} : undefined;
+      const disegno=eseguiDisegnoSullaScheda(documento,selezioneChat,testo,bozza,oggetto);
       if (disegno.capito) { mostraDisegno(disegno); return; }
       // 2. Una modifica che le regole non capiscono: l'interprete la riscrive in comandi.
       if (!sembraDomanda(testo)) {
@@ -196,7 +216,7 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
         const r=await interpretaComando(companyId,testo,nomiAmbientiDelPiano(bozza?.documento ?? documento,selezione.livelloId,bozza?.ambito ?? ambito),"progetto");
         if (!attivo.current) return;
         if (r.comandi.length) {
-          const tradotto=eseguiDisegnoSullaScheda(documento,selezione,r.comandi.join("\n"),bozza);
+          const tradotto=eseguiDisegnoSullaScheda(documento,selezioneChat,r.comandi.join("\n"),bozza,oggetto);
           mostraDisegno(tradotto,`Ho capito così: ${r.comandi.join(" · ")}`);
           return;
         }
@@ -219,15 +239,26 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     }
   }
 
+  const rd = bozza?.revisioneDisegno;
+  const fisse = rd ? rd.modificheFisse : bozza?.modifiche ?? [];
   const riepilogo = bozza && puoScrivere && <section aria-label="Proposta di Silvio" className="border-t border-teal-200 bg-teal-50/65 px-4 py-3 dark:border-teal-900 dark:bg-teal-950/30">
     <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-teal-800 dark:text-teal-200">Anteprima sulla tavola</p>
     <h3 className="text-sm font-semibold">{bozza.nomeVariante}</h3>
-    <ul className="mt-2 max-h-36 space-y-1.5 overflow-auto text-xs">{bozza.modifiche.map((m,i)=><li className="flex flex-wrap items-baseline gap-1.5" key={i}>
+    {fisse.length>0 && <ul className="mt-2 max-h-36 space-y-1.5 overflow-auto text-xs">{fisse.map((m,i)=><li className="flex flex-wrap items-baseline gap-1.5" key={i}>
       <span className="w-full font-medium">{m.etichetta}{m.ambiente && <span className="ml-1 font-normal text-muted-foreground">· {m.ambiente}</span>}</span>{(m.prima || m.dopo) && <><span className="text-muted-foreground">{m.prima}</span><ArrowRight className="h-3 w-3 self-center text-teal-700"/><span className="font-medium">{m.dopo}</span></>}
-    </li>)}</ul>
+    </li>)}</ul>}
+    {/* I comandi del disegno, come nell'editor: spunta per intervento, computo prima/dopo e prezzi a mano. */}
+    {rd && <div className="mt-2 flex max-h-[420px] min-h-0 flex-col">
+      <InterventiChatDisegno proposta={anteprimaInterventi(rd.revisione)} revisione={rd.revisione} vista="progetto"
+        contesto={{documento:rd.partenza,livelloId:rd.livelloId,propostaId:rd.id}} consentiListino={canViewPreventivi}
+        onModifica={r=>onAnteprima(aggiornaRevisioneDisegno(bozza,r))} onPosizione={()=>{}}
+        onEvidenzia={e=>onAnteprima({...bozza,evidenzaLocali:e.tipo==="locale" ? [e.id] : bozza.evidenzaLocali,evidenzaMuri:e.tipo==="muro" ? [e.id] : bozza.evidenzaMuri})}/>
+    </div>}
     <AccessiProposta accessi={accessi} className="mt-2.5 max-h-40 overflow-auto"/>
+    {bozza.bloccata && <p role="status" className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">{bozza.bloccata}</p>}
     <div className="mt-3 flex flex-wrap gap-2">
-      <Button size="sm" className="gap-1.5 bg-teal-800 text-white hover:bg-teal-900" disabled={salvataggio || invio} onClick={onSalva}><Check className="h-4 w-4"/>{salvataggio ? "Salvo…" : "Salva come variante"}</Button>
+      <Button size="sm" className="gap-1.5 bg-teal-800 text-white hover:bg-teal-900" disabled={salvataggio || invio || !!bozza.bloccata} onClick={onSalva}><Check className="h-4 w-4"/>{salvataggio ? "Salvo…" : "Salva come variante"}</Button>
+      {rd && rd.revisione.interventi.length>0 && <Button size="sm" variant="outline" className="gap-1.5" disabled={salvataggio || invio} onClick={()=>annullaUltimo()}><Undo2 className="h-4 w-4"/>Annulla l’ultimo</Button>}
       <Button size="sm" variant="ghost" disabled={salvataggio || invio} onClick={()=>onAnteprima(null)}>Scarta</Button>
     </div>
   </section>;
@@ -264,7 +295,7 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
       {contesto && puoScrivere && !correzioniInCorso && opzioni.some(p=>p.locali.length>0) && <details ref={elencoAmbienti} className="mt-2 rounded-md border bg-background text-xs">
         <summary className="cursor-pointer px-2.5 py-2 font-medium">Aggiungi ambienti{altri.length>0 ? ` · ${altri.length} ${altri.length===1 ? "aggiunto" : "aggiunti"}` : ""}</summary>
         <div className="max-h-48 space-y-2 overflow-auto border-t p-2.5">
-          {bozza && <p className="text-muted-foreground">Se cambi gli ambienti, l’anteprima corrente viene scartata.</p>}
+          {bozza && !bozza.disegno && <p className="text-muted-foreground">Se cambi gli ambienti, l’anteprima corrente viene scartata.</p>}
           {opzioni.filter(p=>p.locali.length>0).map(p=><fieldset key={p.id} disabled={invio || salvataggio}>
             <legend className="mb-1 font-medium text-muted-foreground">{p.nome}</legend>
             {p.locali.map(l=>{

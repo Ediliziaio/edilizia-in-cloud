@@ -112,7 +112,8 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
   };
   const seleziona=(id:string)=>{
     if (salvataggio.isPending || id===(locale?.id ?? "")) return;
-    anteprima(null);
+    // I comandi del disegno non dipendono dalla stanza scelta: cambiarla non butta via la variante.
+    if (!bozza?.disegno) anteprima(null);
     setGruppoChat([]);
     onSeleziona(id);
   };
@@ -189,7 +190,7 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
           evidenzaLocali={mostraBozza ? traccia?.evidenzaLocali : undefined} evidenzaMuri={mostraBozza ? traccia?.evidenzaMuri : undefined}
           muroSelezionato={mostraBozza || confrontoCorrezioni ? undefined : muro}
           segnalazione={risalto} correzioni={risalto ? undefined : confrontoCorrezioni}
-          onSeleziona={mostraBozza || confrontoCorrezioni || livelloVista.id!==livello.id || salvataggio.isPending ? undefined : seleziona} comandi />}
+          onSeleziona={(mostraBozza && !mostraBozza.disegno) || confrontoCorrezioni || livelloVista.id!==livello.id || salvataggio.isPending ? undefined : seleziona} comandi />}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
         {risalto?.posizione ? <span role="status" className="font-medium text-foreground">{risalto.posizione.etichetta} · {livelloVista.nome}</span>
           : muro && !mostraBozza ? <span role="status" className="font-medium text-blue-800 dark:text-blue-300">Parete selezionata · {(lunghezzaMuro(muro)/100).toLocaleString("it-IT")} m × {(muro.altezza/100).toLocaleString("it-IT")} m</span>
@@ -199,13 +200,13 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
         {tavolaVista && !(vista === "3d" && inVisita) && <a href={tavolaVista} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">Apri la tavola originale <ArrowUpRight className="h-3.5 w-3.5"/></a>}
       </div>
     </section>
-    {chatAperta ? <div ref={pannelloChat} className="min-w-0 scroll-mt-20"><SilvioPlanimetria key={locale?.id ?? "nessuno"} documento={documento} selezione={{livelloId:livello.id,ambito,localeId:locale?.id ?? ""}}
+    {chatAperta ? <div ref={pannelloChat} className="min-w-0 scroll-mt-20"><SilvioPlanimetria documento={documento} selezione={{livelloId:livello.id,ambito,localeId:locale?.id ?? ""}}
       locali={locali} companyId={companyId} puoScrivere={puoScrivere} bozza={bozza} salvataggio={salvataggio.isPending} erroreSalvataggio={errore}
       analisi={analisiAperta} onAnalisi={onAnalisi} mostraPrima={confronta} onEsodo={onEsodo} onRiscontro={onRiscontro}
       evidenziata={risalto} onMostraSegnalazione={mostraSegnalazione}
       gruppoIniziale={gruppoChat} onGruppo={setGruppoChat}
       onSeleziona={seleziona} onAnteprima={anteprima} onSalva={()=>void salva()} onChiudi={chiudiChat} onVaiAllaCorrente={onApriCorrente}
-      onVista3D={haGeometria ? ()=>onVista("3d") : undefined}/></div> :
+      onVista3D={haGeometria ? ()=>onVista("3d") : undefined} muroId={muro?.id}/></div> :
       !studioInterni && <aside aria-label="Ambienti del piano" className="min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-2 border-b px-4 py-3.5">
           <h2 className="text-sm font-semibold">Ambienti del piano</h2><span className="text-xs tabular-nums text-muted-foreground">{locali.length}</span>

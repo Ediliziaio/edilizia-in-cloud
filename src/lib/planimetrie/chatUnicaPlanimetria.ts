@@ -14,14 +14,15 @@
  * anteprima, lo stesso costo e lo stesso «Salva come variante» delle proposte di Silvio.
  */
 import { aPlanimetria, daPlanimetria, prossimaProposta, type Pianta } from "@/components/planimetrie/editor/adattatore";
-import { comandiDaChatDisegno, type PassoChatDisegno, type VistaChatDisegno } from "@/components/planimetrie/editor/comandiChat";
-import { propostaChatApplicabile } from "@/components/planimetrie/editor/interventiChat";
+import type { PassoChatDisegno, VistaChatDisegno } from "@/components/planimetrie/editor/comandiChat";
+import { piantaDaApplicare, preparaInterventi, selezionatiInterventi, togliIntervento, type RevisioneInterventi } from "@/components/planimetrie/editor/interventiChat";
+import type { Selezione } from "@/components/planimetrie/editor/TelaPlanimetria";
 import { messaggioParetiBloccate, paretiBloccateToccate } from "../../../shared/planimetrie/vincoli.ts";
 import type { Locale, Planimetria, Proposta } from "../../../shared/planimetrie/modello.ts";
 import { MASSIMO_AMBIENTI_CHAT } from "../../../shared/planimetrie/chatProgetto.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
 import { controllaAccessiPiano, type EsitoAccesso } from "./accessiPlanimetria";
-import { idAmbienteChat, type AmbitoChatProgetto, type AnteprimaChatProgetto, type CambioVisibile, type PianoAnteprimaChat, type RiferimentoAmbienteChat } from "./chatProgetto";
+import { idAmbienteChat, type AmbitoChatProgetto, type AnteprimaChatProgetto, type PianoAnteprimaChat, type RevisioneDisegno, type RiferimentoAmbienteChat } from "./chatProgetto";
 
 export interface EsitoDisegnoScheda {
   /** Le regole hanno riconosciuto almeno un comando (anche solo una misura o il 3D). */
@@ -113,62 +114,96 @@ function evidenze(passi: readonly PassoChatDisegno[], pianta: Pianta) {
 }
 
 /**
- * Esegue la frase con le regole del disegno sulla variante che si sta preparando: la nuova se non
- * c'è un'anteprima aperta, altrimenti quella dell'anteprima, così più comandi si sommano. Non
- * chiama nessuna AI: se le regole non capiscono, `capito` è falso e decide chi chiama.
+ * L'anteprima che corrisponde alla revisione degli interventi: le sole richieste spuntate, con i
+ * prezzi scritti a mano. Null se non resta niente da mostrare.
  */
-export function eseguiDisegnoSullaScheda(documento: Planimetria, selezione: AmbitoChatProgetto, testo: string,
-  precedente?: AnteprimaChatProgetto | null): EsitoDisegnoScheda {
-  const id = precedente?.ambito.startsWith("progetto:") ? precedente.ambito.slice(9)
-    : prossimaProposta({ proposte: documento.livelli.flatMap(l => l.proposte) });
-  const nome = precedente?.nomeVariante ?? `Variante ${id} · Disegno`;
-  const partenza = conVarianteSulPiano(precedente?.documento ?? documento, precedente?.ambito ?? selezione.ambito, selezione.livelloId, id, nome);
-  const base = daPlanimetria(partenza, selezione.livelloId, id);
-  const contesto = { documento: partenza, livelloId: selezione.livelloId, propostaId: id,
-    selezione: selezione.localeId ? { tipo: "locale" as const, id: selezione.localeId } : null };
-  const { passi, avvisi } = comandiDaChatDisegno(base, "progetto", testo, contesto);
-  const viste = [...new Set(passi.flatMap(p => p.vistaRichiesta ? [p.vistaRichiesta] : []))];
-  const sulDisegno = passi.filter(p => !p.vistaRichiesta);
-  const fatti = [...new Set(sulDisegno.map(p => p.testo).filter(Boolean))];
-  const esito: EsitoDisegnoScheda = { capito: passi.length > 0, anteprima: null, fatti, avvisi: [...avvisi], viste };
-  const ultimo = sulDisegno.at(-1);
-  if (!ultimo || ultimo.pianta === base) return esito;
-  if (!propostaChatApplicabile(ultimo)) {
-    esito.avvisi.push("Il tramezzo spostato urta altri elementi: correggi la misura o usa l’editor della planimetria.");
-    return esito;
-  }
-
-  const risultato = aPlanimetria(ultimo.pianta, partenza, selezione.livelloId, id, base);
-  const piano = risultato.livelli.find(l => l.id === selezione.livelloId)!;
-  const prima = partenza.livelli.find(l => l.id === selezione.livelloId)!.proposte.find(p => p.id === id)!;
+export function anteprimaDaRevisione(rd: RevisioneDisegno, nome: string, comandi: AnteprimaChatProgetto["comandi"] = []): AnteprimaChatProgetto | null {
+  const { revisione, partenza, livelloId, id } = rd;
+  const attivi = selezionatiInterventi(revisione).filter(i => i.passo && !i.errore);
+  if (!attivi.length && !rd.modificheFisse.length) return null;
+  const contesto = { documento: partenza, livelloId, propostaId: id };
+  const pianta = piantaDaApplicare({ pianta: revisione.piantaValida, testo: "", revisioneInterventi: revisione }, contesto);
+  const documento = aPlanimetria(pianta, partenza, livelloId, id, revisione.base);
+  const piano = documento.livelli.find(l => l.id === livelloId)!;
+  const prima = partenza.livelli.find(l => l.id === livelloId)!.proposte.find(p => p.id === id)!;
   const dopo = piano.proposte.find(p => p.id === id)!;
   const bloccate = paretiBloccateToccate(prima.muri, dopo.muri);
-  if (bloccate.length) {
-    esito.avvisi.push(messaggioParetiBloccate(bloccate));
-    return esito;
-  }
-  const alloggio = risultato.ambitoDocumento === "alloggio" && risultato.livelli.length === 1;
+  const urta = attivi.find(i => i.passo?.confrontoTramezzo?.interferenze.length);
+  const alloggio = documento.ambitoDocumento === "alloggio" && documento.livelli.length === 1;
   const accessi = controllaAccessiPiano(dopo, alloggio, piano.quota).ingressi.map((a): EsitoAccesso => ({
     localeId: `${piano.id}/${a.sigla}`, nome: a.sigla === "Alloggio" ? a.sigla : `Unità ${a.sigla}`,
     esito: a.tipo === "mancante" ? "assente" : a.ambientiScollegati.length ? "da_verificare" : "collegato",
     dettaglio: a.ambientiScollegati.length ? `Da collegare all’ingresso: ${a.ambientiScollegati.join(", ")}.` : undefined,
   }));
-  const segni = evidenze(sulDisegno, ultimo.pianta);
-  const vecchio = precedente?.piani.find(p => p.livelloId === piano.id);
+  const segni = evidenze(attivi.flatMap(i => i.passo ? [i.passo] : []), pianta);
+  const fisso = rd.pianiFissi.find(p => p.livelloId === livelloId);
   const pianoAnteprima: PianoAnteprimaChat = {
-    livelloId: piano.id, nome: piano.nome, accessi,
-    evidenzaLocali: [...new Set([...(vecchio?.evidenzaLocali ?? []), ...segni.evidenzaLocali])],
-    evidenzaMuri: [...new Set([...(vecchio?.evidenzaMuri ?? []), ...segni.evidenzaMuri])],
+    livelloId, nome: piano.nome, accessi,
+    evidenzaLocali: [...new Set([...(fisso?.evidenzaLocali ?? []), ...segni.evidenzaLocali])],
+    evidenzaMuri: [...new Set([...(fisso?.evidenzaMuri ?? []), ...segni.evidenzaMuri])],
   };
-  const nuove: CambioVisibile[] = fatti.map(f => ({ etichetta: f, prima: "", dopo: "" }));
-  esito.anteprima = {
-    documento: risultato, ambito: `progetto:${id}`, livelloId: piano.id,
-    localeId: pianoAnteprima.evidenzaLocali[0] ?? selezione.localeId,
+  return {
+    documento, ambito: `progetto:${id}`, livelloId,
+    localeId: pianoAnteprima.evidenzaLocali[0] ?? "",
     evidenzaLocali: pianoAnteprima.evidenzaLocali, evidenzaMuri: pianoAnteprima.evidenzaMuri,
-    modifiche: [...(precedente?.modifiche ?? []), ...nuove],
-    piani: [...(precedente?.piani ?? []).filter(p => p.livelloId !== piano.id), pianoAnteprima],
-    comandi: precedente?.comandi ?? [], nomeVariante: nome, disegno: true,
+    modifiche: [...rd.modificheFisse, ...attivi.map(i => ({ etichetta: i.passo!.testo, prima: "", dopo: "" }))],
+    piani: [...rd.pianiFissi.filter(p => p.livelloId !== livelloId), pianoAnteprima],
+    comandi, nomeVariante: nome, disegno: true, revisioneDisegno: rd,
+    ...(bloccate.length ? { bloccata: messaggioParetiBloccate(bloccate) }
+      : urta ? { bloccata: "Un tramezzo spostato urta altri elementi: correggi la quota nella scheda «Interventi» o togli la spunta." } : {}),
   };
+}
+
+/** Le spunte o i prezzi cambiati dalla scheda «Interventi» / «Computo». */
+export function aggiornaRevisioneDisegno(anteprima: AnteprimaChatProgetto, revisione: RevisioneInterventi): AnteprimaChatProgetto | null {
+  const rd = anteprima.revisioneDisegno;
+  return rd ? anteprimaDaRevisione({ ...rd, revisione }, anteprima.nomeVariante, anteprima.comandi) : anteprima;
+}
+
+/** «Annulla l'ultimo»: toglie l'ultimo comando del disegno dalla variante in preparazione. */
+export function annullaUltimoDisegno(anteprima: AnteprimaChatProgetto): { anteprima: AnteprimaChatProgetto | null; tolto?: string } {
+  const rd = anteprima.revisioneDisegno;
+  const ultimo = rd?.revisione.interventi.at(-1);
+  if (!rd || !ultimo) return { anteprima };
+  const revisione = togliIntervento(rd.revisione, "progetto", { documento: rd.partenza, livelloId: rd.livelloId, propostaId: rd.id }, ultimo.richiesta.id);
+  return { anteprima: anteprimaDaRevisione({ ...rd, revisione }, anteprima.nomeVariante, anteprima.comandi), tolto: ultimo.richiesta.frase };
+}
+
+/** «annulla», «annulla l'ultimo», «togli l'ultimo comando»… */
+export const eAnnullaUltimo = (testo: string) =>
+  /^(?:annulla|togli|elimina|cancella)(?: (?:l ?)?ultim[oa](?: (?:comando|modifica|intervento))?)?$/.test(normalizza(testo.trim()).replace(/[.!\s]+$/, "").replace(/\s+/g, " "));
+
+/**
+ * Esegue la frase con le regole del disegno sulla variante che si sta preparando: la nuova se non
+ * c'è un'anteprima aperta, altrimenti quella dell'anteprima, così più comandi si sommano. Come
+ * nell'editor, ogni comando diventa un intervento della revisione (spunte, prezzi, annulla). Non
+ * chiama nessuna AI: se le regole non capiscono, `capito` è falso e decide chi chiama.
+ */
+export function eseguiDisegnoSullaScheda(documento: Planimetria, selezione: AmbitoChatProgetto, testo: string,
+  precedente?: AnteprimaChatProgetto | null, oggetto?: Selezione | null): EsitoDisegnoScheda {
+  const continua = precedente?.revisioneDisegno?.livelloId === selezione.livelloId ? precedente.revisioneDisegno : undefined;
+  const id = continua?.id ?? (precedente?.ambito.startsWith("progetto:") ? precedente.ambito.slice(9)
+    : prossimaProposta({ proposte: documento.livelli.flatMap(l => l.proposte) }));
+  const nome = precedente?.nomeVariante ?? `Variante ${id} · Disegno`;
+  const partenza = continua?.partenza
+    ?? conVarianteSulPiano(precedente?.documento ?? documento, precedente?.ambito ?? selezione.ambito, selezione.livelloId, id, nome);
+  const base = continua?.revisione.base ?? daPlanimetria(partenza, selezione.livelloId, id);
+  // Come nell'editor: il comando senza nomi vale per l'oggetto scelto (una stanza, una parete),
+  // con «Tutto il piano» per il piano intero.
+  const scelto = oggetto !== undefined ? oggetto : selezione.localeId && !selezione.altri?.length ? { tipo: "locale" as const, id: selezione.localeId } : null;
+  const contesto = { documento: partenza, livelloId: selezione.livelloId, propostaId: id, selezione: scelto };
+  const { revisione, passi, avvisi } = preparaInterventi(base, "progetto", testo, contesto, continua?.revisione);
+  const viste = [...new Set(passi.flatMap(p => p.vistaRichiesta ? [p.vistaRichiesta] : []))];
+  const sulDisegno = passi.filter(p => !p.vistaRichiesta);
+  const fatti = [...new Set(sulDisegno.map(p => p.testo).filter(Boolean))];
+  const esito: EsitoDisegnoScheda = { capito: passi.length > 0, anteprima: null, fatti, avvisi: [...avvisi], viste };
+  if (!sulDisegno.some(p => p.pianta !== base && revisione.interventi.some(i => i.passo === p))) return esito;
+  const rd: RevisioneDisegno = continua ? { ...continua, revisione } : {
+    revisione, partenza, livelloId: selezione.livelloId, id,
+    modificheFisse: precedente?.modifiche ?? [], pianiFissi: precedente?.piani ?? [],
+  };
+  esito.anteprima = anteprimaDaRevisione(rd, nome, precedente?.comandi);
+  if (esito.anteprima?.bloccata) esito.avvisi.push(esito.anteprima.bloccata);
   return esito;
 }
 
@@ -189,6 +224,7 @@ export function unisciAlDisegno(disegno: AnteprimaChatProgetto, silvio: Anteprim
     })),
   };
   const piani = [...disegno.piani.filter(p => !silvio.piani.some(s => s.livelloId === p.livelloId)), ...silvio.piani];
-  return { ...silvio, documento, ambito: disegno.ambito, nomeVariante: disegno.nomeVariante, disegno: true,
+  // I comandi del disegno si fondono con la proposta di Silvio: da qui non si tolgono più uno per uno.
+  return { ...silvio, documento, ambito: disegno.ambito, nomeVariante: disegno.nomeVariante, disegno: true, revisioneDisegno: undefined, bloccata: disegno.bloccata,
     modifiche: [...disegno.modifiche, ...silvio.modifiche], piani, comandi: [...disegno.comandi, ...silvio.comandi] };
 }

@@ -291,10 +291,23 @@ durata per fase e margine, e cambiando una parete cambiano tutti insieme.
   variante»; più comandi, e le proposte di Silvio fatte sopra, si sommano in una variante sola
   (`unisciAlDisegno`). Restano: scelta degli ambienti e «Tutto il piano», cronologia, analisi,
   correzioni sulla tavola. Senza una stanza scelta la domanda va alla stanza nominata o a tutto
-  il piano (prima la chat era spenta). Non portato sulla scheda: la scheda «Computo» di
-  `InterventiChatDisegno` con le spunte per intervento e i prezzi a mano (resta nell'editor; sulla
-  scheda c'è il costo complessivo), allegati DWG/schizzo, dettatura, render dalla chat. La chat
-  del disegno nell'editor e nel computo del preventivo (`inSilvio`) non è cambiata.
+  il piano (prima la chat era spenta). La chat del disegno nell'editor e nel computo del
+  preventivo (`inSilvio`) non è cambiata.
+  **Secondo giro (24/11, sera).** Sulla scheda i comandi del disegno sono interventi di una
+  revisione, come nell'editor (`preparaInterventi`, `RevisioneDisegno` in `chatProgetto.ts`):
+  l'anteprima mostra `InterventiChatDisegno` così com'è, con la scheda «Interventi» (una spunta
+  per comando, correzione della frase o della quota) e la scheda «Computo» (quantità prima/dopo,
+  prezzi a mano o dal listino, che entrano nella variante e nel costo). La lista è la cronologia
+  dei comandi: «Annulla l'ultimo» (bottone, o «annulla l'ultimo» scritto in chat, senza AI) lo
+  toglie dalla variante (`togliIntervento`). Un comando senza nomi vale per la stanza scelta o la
+  parete scelta; con «Tutto il piano» per il piano intero, come l'editor senza selezione. Cambiare
+  stanza non butta più la variante del disegno né la conversazione (prima il pannello si
+  ricreava). «Salva come variante» si spegne, con il motivo, se un tramezzo urta o tocca una
+  parete bloccata. Provato dal vivo su Demo Azienda 2: due porte, Computo «+875,00 €» col listino
+  aziendale, «annulla l'ultimo» → 438 €. Limite: dopo una proposta di Silvio sopra i comandi del
+  disegno, questi si fondono con la sua e non si tolgono più uno per uno (restano elencati in
+  alto). Non portati sulla scheda: allegati DWG/schizzo, dettatura, render dalla chat (stanno
+  nell'editor); «Inquadra» delle interferenze non sposta la tavola.
 - **Lotto I — telefono.** Scheda e studio della variante stanno in 375 px senza scorrere di
   lato; la previsione dei lavori ha una disposizione a righe per il telefono. L'editor sul
   telefono non è stato rivisto.

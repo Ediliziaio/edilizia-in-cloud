@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { aPlanimetria, piantaVuota } from "@/components/planimetrie/editor/adattatore";
 import { comandiDaChatDisegno } from "@/components/planimetrie/editor/comandiChat";
 import { anteprimaDaChatProgetto } from "@/lib/planimetrie/chatProgetto";
-import { ambientiNominati, eseguiDisegnoSullaScheda, nomiAmbientiDelPiano, selezionePerDomanda, sembraDomanda, unisciAlDisegno } from "@/lib/planimetrie/chatUnicaPlanimetria";
+import { modificaIntervento } from "@/components/planimetrie/editor/interventiChat";
+import { ambientiNominati, aggiornaRevisioneDisegno, annullaUltimoDisegno, eAnnullaUltimo, eseguiDisegnoSullaScheda, nomiAmbientiDelPiano, selezionePerDomanda, sembraDomanda, unisciAlDisegno } from "@/lib/planimetrie/chatUnicaPlanimetria";
 import { PAVIMENTI_STANZA } from "../../../shared/planimetrie/finiture";
 import { validaPlanimetria } from "../../../shared/planimetrie/modello";
 
@@ -80,5 +81,44 @@ describe("chat unica della scheda planimetria", () => {
     expect(variante.aperture.some(x => x.tipo === "porta")).toBe(true);
     expect(variante.locali.find(l => l.id === cucina.id)?.finiture?.pavimento).toBe(PAVIMENTI_STANZA[0].descrizione);
     expect(unita.modifiche).toHaveLength(2);
+  });
+
+  it("ogni comando è un intervento: si toglie la spunta, si annulla l'ultimo", () => {
+    const { documento, selezione } = casa();
+    const prima = eseguiDisegnoSullaScheda(documento, selezione, "Porta tra Cucina e Soggiorno da 80 cm").anteprima!;
+    const dopo = eseguiDisegnoSullaScheda(documento, selezione, "Finestra Cucina sul lato alto da 120 cm", prima).anteprima!;
+    const rd = dopo.revisioneDisegno!;
+    expect(rd.revisione.interventi.map(i => i.richiesta.frase)).toEqual(["Porta tra Cucina e Soggiorno da 80 cm", "Finestra Cucina sul lato alto da 120 cm"]);
+    // Senza la porta resta la sola finestra, nella stessa variante.
+    const contesto = { documento: rd.partenza, livelloId: rd.livelloId, propostaId: rd.id };
+    const senzaPorta = aggiornaRevisioneDisegno(dopo, modificaIntervento(rd.revisione, "progetto", contesto, rd.revisione.interventi[0].richiesta.id, { selezionata: false }))!;
+    expect(senzaPorta.documento.livelli[0].proposte[0].aperture.map(a => a.tipo)).toEqual(["finestra"]);
+    expect(senzaPorta.modifiche).toHaveLength(1);
+    // «Annulla l'ultimo» toglie la finestra; poi la porta; poi non resta niente.
+    const unoMeno = annullaUltimoDisegno(dopo);
+    expect(unoMeno.tolto).toBe("Finestra Cucina sul lato alto da 120 cm");
+    expect(unoMeno.anteprima!.documento.livelli[0].proposte[0].aperture.map(a => a.tipo)).toEqual(["porta"]);
+    expect(annullaUltimoDisegno(unoMeno.anteprima!).anteprima).toBeNull();
+    for (const f of ["annulla", "Annulla l'ultimo", "togli l’ultimo comando.", "annulla ultima modifica"]) expect([f, eAnnullaUltimo(f)]).toEqual([f, true]);
+    expect(eAnnullaUltimo("annulla la porta in cucina")).toBe(false);
+  });
+
+  it("i prezzi scritti a mano nel computo entrano nella variante", () => {
+    const { documento, selezione } = casa();
+    const a = eseguiDisegnoSullaScheda(documento, selezione, "Porta tra Cucina e Soggiorno da 80 cm").anteprima!;
+    const rd = a.revisioneDisegno!;
+    const conPrezzo = aggiornaRevisioneDisegno(a, { ...rd.revisione, prezzi: { "voce-di-prova": { importo: 10, unita: "cad", fonte: "Prezzo inserito", tariffa: "" } } })!;
+    expect(conPrezzo.revisioneDisegno!.revisione.prezzi).toBeDefined();
+    expect(conPrezzo.ambito).toBe(a.ambito);
+  });
+
+  it("«Tutto il piano» lascia il comando senza stanza scelta, come nell'editor senza selezione", () => {
+    const { documento, piano, selezione } = casa();
+    const [soggiorno, cucina] = piano.fatto.locali;
+    const gruppo = { ...selezione, localeId: soggiorno.id, altri: [{ livelloId: piano.id, localeId: cucina.id }] };
+    const esito = eseguiDisegnoSullaScheda(documento, gruppo, "Arreda tutte le stanze");
+    expect(esito.anteprima?.revisioneDisegno?.revisione.interventi[0].richiesta.riferimento).toBeNull();
+    const sola = eseguiDisegnoSullaScheda(documento, { ...selezione, localeId: cucina.id }, "Arreda Cucina");
+    expect(sola.anteprima?.revisioneDisegno?.revisione.interventi[0].richiesta.riferimento).toEqual({ tipo: "locale", id: cucina.id });
   });
 });

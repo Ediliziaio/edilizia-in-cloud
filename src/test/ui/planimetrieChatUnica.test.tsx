@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderBase, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { useState } from "react";
 import { aPlanimetria, piantaVuota } from "@/components/planimetrie/editor/adattatore";
 import { comandiDaChatDisegno } from "@/components/planimetrie/editor/comandiChat";
@@ -7,8 +9,13 @@ import type { AnteprimaChatProgetto } from "@/lib/planimetrie/chatProgetto";
 
 const assistenza = vi.hoisted(() => ({ chiediSulProgetto: vi.fn(), interpretaComando: vi.fn() }));
 vi.mock("@/lib/planimetrie/assistenzaStudio", () => assistenza);
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewPreventivi: true, canViewRenderAi: true }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda-1" } }) }));
+vi.mock("@/lib/planimetrie/fontiPrezzi", () => ({ useFontiPrezzi: () => ({ fonti: undefined as never, pronte: true }) }));
 
 import { SilvioPlanimetria } from "@/components/planimetrie/SilvioPlanimetria";
+
+const render = (ui: ReactElement) => renderBase(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
 
 function casa() {
   const esito = comandiDaChatDisegno(piantaVuota(), "fatto", "Soggiorno 5,00 x 4,00 m\nCucina 3,00 x 4,00 m a destra di Soggiorno\nCamera 3,00 x 4,00 m a destra di Cucina\nCorridoio 2,00 x 4,00 m a destra di Camera");
@@ -19,10 +26,11 @@ function casa() {
 function Prova({ onAnteprima, onVista3D }: { onAnteprima: (a: AnteprimaChatProgetto | null) => void; onVista3D?: () => void }) {
   const [documento] = useState(casa);
   const [bozza, setBozza] = useState<AnteprimaChatProgetto | null>(null);
+  const [localeId, setLocaleId] = useState("");
   const piano = documento.livelli[0];
-  return <SilvioPlanimetria documento={documento} selezione={{ livelloId: piano.id, ambito: "fatto", localeId: "" }} locali={piano.fatto.locali}
+  return <SilvioPlanimetria documento={documento} selezione={{ livelloId: piano.id, ambito: "fatto", localeId }} locali={piano.fatto.locali}
     companyId="azienda-1" puoScrivere bozza={bozza} mostraPrima={false} salvataggio={false} analisi={false} onAnalisi={() => {}}
-    onSeleziona={() => {}} onAnteprima={a => { setBozza(a); onAnteprima(a); }} onSalva={() => {}} onChiudi={() => {}} onVista3D={onVista3D} />;
+    onSeleziona={setLocaleId} onAnteprima={a => { setBozza(a); onAnteprima(a); }} onSalva={() => {}} onChiudi={() => {}} onVista3D={onVista3D} />;
 }
 
 async function scrivi(testo: string) {
@@ -88,6 +96,33 @@ describe("una sola chat sulla scheda della planimetria", () => {
     render(<Prova onAnteprima={() => {}} onVista3D={onVista3D} />);
     await scrivi("3D");
     expect(onVista3D).toHaveBeenCalledOnce();
+    expect(assistenza.interpretaComando).not.toHaveBeenCalled();
+  });
+
+  it("i comandi del disegno si spuntano, si annullano e restano quando cambia la stanza", async () => {
+    const onAnteprima = vi.fn();
+    render(<Prova onAnteprima={onAnteprima} />);
+    await scrivi("Porta tra Cucina e Soggiorno da 80 cm");
+    await scrivi("Finestra Cucina sul lato alto da 120 cm");
+    const proposta = within(screen.getByRole("region", { name: "Proposta di Silvio" }));
+    expect(proposta.getByRole("list", { name: "Proposte di modifica" }).querySelectorAll("li")).toHaveLength(2);
+    expect(proposta.getByRole("tab", { name: "Computo" })).toBeInTheDocument();
+
+    fireEvent.click(proposta.getByRole("checkbox", { name: "Includi Porta tra Cucina e Soggiorno da 80 cm" }));
+    const senzaPorta = onAnteprima.mock.calls.at(-1)![0] as AnteprimaChatProgetto;
+    expect(senzaPorta.documento.livelli[0].proposte[0].aperture.map(a => a.tipo)).toEqual(["finestra"]);
+
+    // Cambiare stanza non scarta la variante né la conversazione.
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: (onAnteprima.mock.calls[0][0] as AnteprimaChatProgetto).documento.livelli[0].fatto.locali[1].id } });
+    expect(screen.getByRole("region", { name: "Proposta di Silvio" })).toBeInTheDocument();
+    expect(screen.getAllByText("Finestra Cucina sul lato alto da 120 cm").length).toBeGreaterThan(1);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Includi Porta tra Cucina e Soggiorno da 80 cm" }));
+    await scrivi("annulla l'ultimo");
+    expect(await screen.findByText(/Ho tolto «Finestra Cucina sul lato alto da 120 cm»/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Annulla l’ultimo/ }));
+    expect(onAnteprima.mock.calls.at(-1)![0]).toBeNull();
+    expect(screen.queryByRole("region", { name: "Proposta di Silvio" })).not.toBeInTheDocument();
     expect(assistenza.interpretaComando).not.toHaveBeenCalled();
   });
 });

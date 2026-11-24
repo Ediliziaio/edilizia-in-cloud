@@ -10,6 +10,7 @@ import {
   type ContestoChatProgetto, type ModificaAmbiente, type RispostaChatProgetto,
 } from "../../../shared/planimetrie/chatProgetto.ts";
 import { prossimaProposta } from "@/components/planimetrie/editor/adattatore";
+import type { RevisioneInterventi } from "@/components/planimetrie/editor/interventiChat";
 import { alternativeFrazionamento, frazionaContorno, inserisciFrazionamento } from "./frazionamento";
 import { controllaAccessiLocali, controllaAccessiPiano, type EsitoAccesso } from "./accessiPlanimetria";
 import { analizzaProgetto, type CorrezioneSegnalazioneProgetto, type SegnalazioneProgetto } from "./analisiProgetto";
@@ -43,6 +44,24 @@ export interface AnteprimaChatProgetto {
   nomeVariante: string;
   /** Viene (anche) dai comandi del disegno: Silvio non la ricalcola dal documento salvato, ci lavora sopra. */
   disegno?: true;
+  /** I comandi del disegno ancora modificabili, uno per uno (spunte, prezzi, «annulla l'ultimo»). */
+  revisioneDisegno?: RevisioneDisegno;
+  /** La proposta si vede ma non si può salvare così (un tramezzo che urta, una parete bloccata). */
+  bloccata?: string;
+}
+
+/**
+ * I comandi del disegno di questa anteprima, come nell'editor: la revisione degli interventi sopra
+ * `partenza`, il documento con la variante com'era prima del primo comando. Le modifiche venute
+ * prima (Silvio, o comandi ormai fusi con una sua proposta) restano in `modificheFisse`.
+ */
+export interface RevisioneDisegno {
+  revisione: RevisioneInterventi;
+  partenza: Planimetria;
+  livelloId: string;
+  id: string;
+  modificheFisse: CambioVisibile[];
+  pianiFissi: PianoAnteprimaChat[];
 }
 
 const mq = (n: number) => `${n.toLocaleString("it-IT",{ maximumFractionDigits:2 })} m²`;

@@ -90,6 +90,12 @@ export function modificaIntervento(revisione: RevisioneInterventi, vista: Vista,
   return eseguiInterventi(revisione.base, vista, richieste, contesto, revisione).revisione;
 }
 
+/** Toglie un intervento dalla revisione (la chat della scheda: «annulla l'ultimo»); i successivi si ricalcolano. */
+export function togliIntervento(revisione: RevisioneInterventi, vista: Vista, contesto: ContestoChatDisegno, id: number): RevisioneInterventi {
+  const richieste = revisione.interventi.map(i => i.richiesta).filter(r => r.id !== id);
+  return eseguiInterventi(revisione.base, vista, richieste, contesto, revisione).revisione;
+}
+
 export function anteprimaInterventi(revisione: RevisioneInterventi): PassoChatDisegno {
   const attivi = selezionatiInterventi(revisione);
   const bloccato = attivi.find(i => interferisce(i.passo))?.passo;
