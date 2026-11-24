@@ -383,7 +383,7 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div>
             <h3 className="font-semibold">{tr("Liquidazione IVA {anno}", { anno })}</h3>
-            <p className="text-xs text-muted-foreground">{tr("{fatti} di {n} confermati · si confermano in ordine, poi si scarica il file", { fatti, n: periodi.length })}</p>
+            <p className="text-xs text-muted-foreground">{tr("{fatti} di {finiti} periodi già finiti confermati · si confermano in ordine, poi si scarica il file", { fatti, finiti: periodi.filter((p) => finito(p.dal)).length })}</p>
           </div>
           <div className="flex items-center gap-3">
           {fatti > 0 && <button type="button" onClick={esportaCsv} className="text-xs text-primary hover:underline">{tr("Esporta tabella")}</button>}

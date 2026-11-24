@@ -68816,5 +68816,6 @@ const dizionario: Dizionario = {
   "Contratti e verbali": "Contracte și procese-verbale",
   "Fatture fornitori": "Facturi furnizori",
   "Contratti subappaltatori": "Contracte subcontractori",
+  "{fatti} di {finiti} periodi già finiti confermati · si confermano in ordine, poi si scarica il file": "{fatti} din {finiti} perioade deja încheiate confirmate · se confirmă în ordine, apoi se descarcă fișierul",
 };
 export default dizionario;

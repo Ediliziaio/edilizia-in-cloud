@@ -33,6 +33,8 @@ export interface RigaIva {
   nature: string;
   /** Proiezione del reverse charge: non è una registrazione. */
   synthetic?: boolean;
+  /** Cosa resta da verificare sulla riga (dal prospetto documentale). */
+  issues?: readonly string[];
 }
 
 export interface TotaliIva {
@@ -134,6 +136,7 @@ export function htmlRegistroIva(d: {
   );
   const t = totaliIva(righe);
   const gruppi = perAliquota(righe);
+  const rcDaConfermare = righe.filter((r) => !r.synthetic && r.issues?.some((x) => x.startsWith("Reverse charge: aliquota di integrazione non confermata")));
   const proiezioni = righe.filter((r) => r.synthetic).length;
 
   return htmlDocumentoContabile<RigaIva>({
@@ -171,6 +174,14 @@ export function htmlRegistroIva(d: {
       })),
       { etichetta: `Totale imponibile (${t.documenti} documenti)`, valore: euro(t.imponibile) },
       { etichetta: "Totale imposta", valore: euro(t.imposta), forte: true },
+      // Reverse charge senza integrazione confermata (24/11/2026): la loro IVA non è in questo registro,
+      // ma la liquidazione la conta (aliquota presunta). Sul foglio va detto, sennò i due numeri non tornano.
+      ...(rcDaConfermare.length
+        ? [{
+            etichetta: `Reverse charge senza integrazione confermata: ${rcDaConfermare.length} ${rcDaConfermare.length === 1 ? "riga" : "righe"}, imposta non inclusa sopra — imponibile`,
+            valore: euro(rcDaConfermare.reduce((s, r) => s + inEuro(r.base), 0)),
+          }]
+        : []),
     ],
     vuoto: "Nessun documento in questo periodo.",
     ...(proiezioni

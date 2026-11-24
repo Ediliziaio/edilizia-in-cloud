@@ -225,6 +225,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
     });
   };
 
+  const dataCsv = (d?: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "");
   const exportCsv = () => {
     const cells = [
       [
@@ -244,21 +245,22 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
         "Origine",
         "Da verificare",
       ],
+      // Date all'italiana (24/11/2026): il file va allo studio, che legge 01/10/2026, non 2026-10-01.
       ...filtered.map((r) => [
-        r.date,
-        r.periodDate,
-        r.received?.slice(0, 10) || "",
+        dataCsv(r.date),
+        dataCsv(r.periodDate),
+        dataCsv(r.received),
         r.receivedOrigin || "",
         r.number,
         r.protocol,
         r.section,
-        r.registrationDate,
+        dataCsv(r.registrationDate),
         r.counterparty,
         r.base === null ? "" : (r.base / 100).toFixed(2).replace(".", ","),
         r.tax === null ? "" : (r.tax / 100).toFixed(2).replace(".", ","),
         r.rate ?? "",
         r.nature,
-        r.synthetic ? "Proiezione RC, non registrazione" : r.documentId,
+        r.synthetic ? "Proiezione RC, non registrazione" : "Documento",
         r.issues.join(" · "),
       ]),
     ];

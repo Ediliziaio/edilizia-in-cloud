@@ -68816,5 +68816,6 @@ const dizionario: Dizionario = {
   "Contratti e verbali": "Kontrata dhe procesverbale",
   "Fatture fornitori": "Faturat e furnitorëve",
   "Contratti subappaltatori": "Kontratat e nënkontraktorëve",
+  "{fatti} di {finiti} periodi già finiti confermati · si confermano in ordine, poi si scarica il file": "{fatti} nga {finiti} periudha tashmë të mbyllura të konfirmuara · konfirmohen me radhë, pastaj shkarkohet skedari",
 };
 export default dizionario;
