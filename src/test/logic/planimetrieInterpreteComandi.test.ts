@@ -10,12 +10,17 @@ describe("interprete della chat del disegno", () => {
     expect(leggiRispostaInterprete({ comandi: Array(9).fill("3D") })?.comandi).toHaveLength(6);
     expect(leggiRispostaInterprete({ comandi: [], domanda: "" })).toBeNull();
     expect(leggiRispostaInterprete("testo libero")).toBeNull();
+    expect(leggiRispostaInterprete({ comandi: [], domanda: "", silvio: true })).toEqual({ comandi: [], domanda: "", silvio: true });
+    expect(leggiRispostaInterprete({ comandi: ["3D"], silvio: true })).toEqual({ comandi: ["3D"], domanda: "" });
+    expect(leggiRispostaInterprete({ comandi: [], domanda: "", silvio: "sì" })).toBeNull();
   });
 
   it("manda al modello la richiesta e gli ambienti, senza doppioni", () => {
     expect(JSON.parse(messaggioInterprete("allarga il bagno", ["Bagno", " Bagno ", "Cucina", ""], "progetto")))
       .toEqual({ richiesta: "allarga il bagno", vista: "progetto", ambienti: ["Bagno", "Cucina"] });
     expect(PROMPT_INTERPRETE).toMatch(/SEMPRE e solo con un oggetto JSON/);
+    expect(PROMPT_INTERPRETE).not.toMatch(/testo semplice/);
+    expect(PROMPT_INTERPRETE).toMatch(/"silvio": true/);
   });
 
   it("le forme che il prompt promette sono davvero comandi che le regole eseguono", () => {

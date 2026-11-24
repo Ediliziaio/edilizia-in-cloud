@@ -204,7 +204,8 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
       analisi={analisiAperta} onAnalisi={onAnalisi} mostraPrima={confronta} onEsodo={onEsodo} onRiscontro={onRiscontro}
       evidenziata={risalto} onMostraSegnalazione={mostraSegnalazione}
       gruppoIniziale={gruppoChat} onGruppo={setGruppoChat}
-      onSeleziona={seleziona} onAnteprima={anteprima} onSalva={()=>void salva()} onChiudi={chiudiChat} onVaiAllaCorrente={onApriCorrente}/></div> :
+      onSeleziona={seleziona} onAnteprima={anteprima} onSalva={()=>void salva()} onChiudi={chiudiChat} onVaiAllaCorrente={onApriCorrente}
+      onVista3D={haGeometria ? ()=>onVista("3d") : undefined}/></div> :
       !studioInterni && <aside aria-label="Ambienti del piano" className="min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-2 border-b px-4 py-3.5">
           <h2 className="text-sm font-semibold">Ambienti del piano</h2><span className="text-xs tabular-nums text-muted-foreground">{locali.length}</span>

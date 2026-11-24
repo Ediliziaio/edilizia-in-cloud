@@ -41,6 +41,8 @@ export interface AnteprimaChatProgetto {
   piani: PianoAnteprimaChat[];
   comandi: ModificaAmbiente[];
   nomeVariante: string;
+  /** Viene (anche) dai comandi del disegno: Silvio non la ricalcola dal documento salvato, ci lavora sopra. */
+  disegno?: true;
 }
 
 const mq = (n: number) => `${n.toLocaleString("it-IT",{ maximumFractionDigits:2 })} m²`;

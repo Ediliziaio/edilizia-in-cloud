@@ -145,6 +145,8 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       const richiesta = typeof body.richiesta === "string" ? body.richiesta.trim() : "";
       // L'interprete della chat del disegno: riscrive una frase libera nei comandi che la chat
       // esegue a regole. Costa poco e si paga a consumo (router), non un credito render intero.
+      // Dal 24/11/2026 risponde anche "silvio": true per le domande sul progetto e le finiture:
+      // la chat unica della scheda le passa a Silvio (chat-progetto) invece di chiedere chiarimenti.
       if (assistenza === "comando") {
         const ambienti = Array.isArray(body.ambienti) ? body.ambienti.filter((a: unknown): a is string => typeof a === "string") : [];
         if (!richiesta || richiesta.length > LIMITE_RICHIESTA_INTERPRETE) return rifiuto("richiesta","Scrivi una richiesta più breve.",400,cors);

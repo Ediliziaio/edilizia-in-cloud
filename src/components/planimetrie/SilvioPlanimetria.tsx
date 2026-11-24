@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { cn } from "@/lib/utils";
-import { chiediSulProgetto } from "@/lib/planimetrie/assistenzaStudio";
+import { chiediSulProgetto, interpretaComando } from "@/lib/planimetrie/assistenzaStudio";
+import { eseguiDisegnoSullaScheda, nomiAmbientiDelPiano, selezionePerDomanda, sembraDomanda, unisciAlDisegno, type EsitoDisegnoScheda } from "@/lib/planimetrie/chatUnicaPlanimetria";
 import {
   anteprimaCorrezioniProgetto, anteprimaDaChatProgetto, contestoChatProgetto, idAmbienteChat, type AmbitoChatProgetto,
   type AnteprimaChatProgetto, type RiferimentoAmbienteChat,
@@ -26,6 +27,12 @@ const ESEMPI_GRUPPO = [
   {etichetta:"Confronta le superfici",testo:"Confronta le superfici degli ambienti selezionati."},
   {etichetta:"Prova il parquet nelle stanze",testo:"Prova un parquet in rovere in tutti gli ambienti selezionati."},
 ];
+/** Un messaggio della chat unica: le risposte del disegno portano anche cosa è stato fatto e gli avvisi. */
+interface MessaggioScheda extends MessaggioChatProgetto { fatti?: string[]; avvisi?: string[] }
+const perSilvio = (m: MessaggioScheda): MessaggioChatProgetto =>
+  ({ruolo:m.ruolo,testo:[m.testo,...m.fatti ?? [],...m.avvisi ?? []].join("\n").slice(0,1400)});
+const descriviCambio = (m: {etichetta:string;prima:string;dopo:string;ambiente?:string}) =>
+  [m.ambiente,m.prima || m.dopo ? `${m.etichetta} → ${m.dopo}` : m.etichetta].filter(Boolean).join(" · ");
 const superficie = (l:Locale) => `${(areaPoligono(l.contorno)/10_000).toLocaleString("it-IT",{maximumFractionDigits:2})} m²`;
 
 /** Il grassetto «**testo**» che a volte scrive l'AI, mostrato come grassetto e non con gli asterischi. */
@@ -36,7 +43,13 @@ function conGrassetto(testo: string) {
 
 const TUTTA_LA_CASA = "__tutto_il_piano";
 
-export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo }: {
+/**
+ * L'unica chat della scheda planimetria (24/11/2026): esegue i comandi del disegno con le regole
+ * (gratis), passa all'interprete le modifiche che le regole non capiscono, e lascia a Silvio le
+ * domande sul progetto e le finiture. Le modifiche, da qualunque strada arrivino, si vedono
+ * prima in anteprima con il costo e si salvano come variante. Vedi `chatUnicaPlanimetria.ts`.
+ */
+export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo, onVista3D }: {
   documento: Planimetria; selezione: AmbitoChatProgetto; locali: Locale[]; companyId: string; puoScrivere: boolean;
   bozza: AnteprimaChatProgetto | null; salvataggio: boolean; erroreSalvataggio?: string;
   mostraPrima: boolean;
@@ -49,8 +62,14 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
   onSalva: () => void; onChiudi: () => void; onVaiAllaCorrente?: () => void;
   /** Ambienti già nel gruppo quando il pannello si ricrea su un'altra stanza («Tutto il piano»). */
   gruppoIniziale?: RiferimentoAmbienteChat[]; onGruppo?: (gruppo: RiferimentoAmbienteChat[]) => void;
+  /** «3D» scritto nella chat: apre la vista 3D della scheda. */
+  onVista3D?: () => void;
 }) {
-  const [messaggi,setMessaggi]=useState<MessaggioChatProgetto[]>([]);
+  const [messaggi,setMessaggi]=useState<MessaggioScheda[]>([]);
+  const [fase,setFase]=useState("");
+  // Senza una stanza scelta la prima domanda sceglie da sé gli ambienti: le successive ripartono da lì,
+  // così «principale» resta la stessa stanza mentre le proposte si sommano.
+  const sceltaDomanda=useRef<AmbitoChatProgetto|null>(null);
   const [richiesta,setRichiesta]=useState("");
   const [invio,setInvio]=useState(false);
   const [errore,setErrore]=useState("");
@@ -68,6 +87,11 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
       .filter(l=>piano.id!==livelloId || l.id!==localeId),
   })),[documento,ambito,livelloId,localeId]);
   const quanti=contesto ? (contesto.altriAmbienti?.length ?? 0)+1 : 0;
+  const esempi=useMemo(()=>{
+    const base=quanti>1 ? ESEMPI_GRUPPO : contesto ? ESEMPI : [];
+    const [a,b]=locali;
+    return a && b ? [{etichetta:"Aggiungi una porta",testo:`Porta tra ${a.nome} e ${b.nome} da 80 cm`},...base] : base;
+  },[quanti,contesto,locali]);
   const accessi=bozza?.piani.flatMap(p=>p.accessi.map(a=>({...a,piano:p.nome}))) ?? [];
   const correzioniInCorso = !!bozza?.piani.some(p => p.correzioni?.length);
   const propostaAnalizzata = mostraPrima ? null : bozza;
@@ -109,6 +133,41 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     onAnteprima(proposta);
   };
 
+  /** La risposta delle regole del disegno, con l'anteprima se la pianta cambia. */
+  function mostraDisegno(esito: EsitoDisegnoScheda, capito?: string) {
+    const fatti=esito.fatti, avvisi=[...esito.avvisi];
+    const vuole3D=esito.viste.includes("3d");
+    if (esito.viste.some(v=>v!=="3d")) avvisi.push("I render si preparano dall’editor della planimetria o con «Render tutte le stanze».");
+    if (vuole3D && esito.anteprima) avvisi.push("Salva la variante per vederla in 3D.");
+    const testo=esito.anteprima ? "Proposta pronta: la vedi sulla tavola con il costo. Salvala come variante o scartala."
+      : fatti.length ? "Risultato sulla tavola" : vuole3D ? "Apro la vista 3D." : "Non riesco ad applicare il comando.";
+    setMessaggi(m=>[...m,...(capito ? [{ruolo:"silvio" as const,testo:capito}] : []),{ruolo:"silvio",testo,fatti,avvisi}]);
+    if (esito.anteprima) onAnteprima(esito.anteprima);
+    else if (vuole3D) onVista3D?.();
+  }
+
+  async function chiediASilvio(testo: string, esito?: SegnalazioneProgetto) {
+    // Su un'anteprima del disegno Silvio lavora sopra la variante non ancora salvata.
+    const sopra=bozza?.disegno ? {documento:bozza.documento,ambito:bozza.ambito} : {documento,ambito};
+    const partenza=esito ? selezioneChat : (selezione.localeId ? selezioneChat : sceltaDomanda.current ?? {...selezioneChat,altri:[]});
+    const scelta=esito ? partenza : selezionePerDomanda({...partenza,ambito:sopra.ambito},locali,testo);
+    if (!esito && !selezione.localeId && scelta) sceltaDomanda.current={...scelta,ambito};
+    const contestoDomanda=scelta && contestoChatProgetto(sopra.documento,{...scelta,ambito:sopra.ambito});
+    if (!scelta || !contestoDomanda) throw new Error("Scegli un ambiente sulla tavola o dal menu per chiedere a Silvio.");
+    setFase("Silvio sta elaborando la risposta…");
+    const cronologia=(bozza
+      ? [...messaggi,{ruolo:"silvio" as const,testo:`Anteprima aperta · ${bozza.modifiche.map(descriviCambio).join("\n")}`}]
+      : messaggi).map(perSilvio);
+    const risposta=await chiediSulProgetto(companyId,testo,contestoDomanda,cronologia.slice(-8));
+    if (!attivo.current) return;
+    setMessaggi(m=>[...m,{ruolo:"silvio",testo:risposta.testo}]);
+    if (!risposta.modifiche.length || esito) return;
+    const sel={...scelta,ambito:sopra.ambito};
+    const proposta=bozza?.disegno ? anteprimaDaChatProgetto(sopra.documento,sel,risposta,testo,null) : anteprimaDaChatProgetto(documento,sel,risposta,testo,bozza);
+    if (proposta) onAnteprima(bozza?.disegno ? unisciAlDisegno(bozza,proposta) : proposta);
+    else setErrore("La richiesta non produce una modifica applicabile agli ambienti selezionati.");
+  }
+
   async function invia(esito?: SegnalazioneProgetto) {
     const domanda = esito ? `Cosa devo verificare per «${esito.titolo}»?` : richiesta.trim();
     const testo = esito ? [
@@ -118,25 +177,36 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
       esito.verifica,
       esito.fonte?.nome,
     ].filter(Boolean).join("\n").slice(0, LIMITE_CHAT_PROGETTO) : domanda;
-    if (!testo || !contesto || !puoScrivere || occupato.current || salvataggio || (!esito && correzioniInCorso)) return;
+    if (!testo || !puoScrivere || occupato.current || salvataggio || (esito ? !contesto : correzioniInCorso || !locali.length)) return;
     occupato.current=true;
     if (elencoAmbienti.current) elencoAmbienti.current.open=false;
     setInvio(true); setErrore("");
     if (!esito) setRichiesta("");
-    const nuovo: MessaggioChatProgetto = {ruolo:"utente",testo:domanda};
+    const nuovo: MessaggioScheda = {ruolo:"utente",testo:domanda};
     setMessaggi(m=>[...m,nuovo]);
     try {
-      const cronologia=bozza
-        ? [...messaggi,{ruolo:"silvio" as const,testo:`Anteprima aperta · ${bozza.modifiche.map(m=>[m.ambiente,`${m.etichetta} → ${m.dopo}`].filter(Boolean).join(" · ")).join("\n")}`.slice(0,1400)}]
-        : messaggi;
-      const risposta=await chiediSulProgetto(companyId,testo,contesto,cronologia.slice(-8));
-      if (!attivo.current) return;
-      setMessaggi(m=>[...m,{ruolo:"silvio",testo:risposta.testo}]);
-      if (risposta.modifiche.length && !esito) {
-        const anteprima=anteprimaDaChatProgetto(documento,selezioneChat,risposta,testo,bozza);
-        if (anteprima) onAnteprima(anteprima);
-        else setErrore("La richiesta non produce una modifica applicabile agli ambienti selezionati.");
+      if (esito) { await chiediASilvio(testo,esito); return; }
+      // 1. Le regole del disegno: gratis, e se capiscono non serve nessuna AI.
+      setFase("Eseguo il comando…");
+      const disegno=eseguiDisegnoSullaScheda(documento,selezione,testo,bozza);
+      if (disegno.capito) { mostraDisegno(disegno); return; }
+      // 2. Una modifica che le regole non capiscono: l'interprete la riscrive in comandi.
+      if (!sembraDomanda(testo)) {
+        setFase("Silvio interpreta la richiesta…");
+        const r=await interpretaComando(companyId,testo,nomiAmbientiDelPiano(bozza?.documento ?? documento,selezione.livelloId,bozza?.ambito ?? ambito),"progetto");
+        if (!attivo.current) return;
+        if (r.comandi.length) {
+          const tradotto=eseguiDisegnoSullaScheda(documento,selezione,r.comandi.join("\n"),bozza);
+          mostraDisegno(tradotto,`Ho capito così: ${r.comandi.join(" · ")}`);
+          return;
+        }
+        if (!r.silvio) {
+          setMessaggi(m=>[...m,{ruolo:"silvio",testo:r.domanda || "Non ho capito la richiesta. Prova a dirla con il nome della stanza e la misura."}]);
+          return;
+        }
       }
+      // 3. Una domanda sul progetto, una finitura o un nome: risponde Silvio, come prima.
+      await chiediASilvio(testo);
     } catch(e) {
       if (attivo.current) {
         setErrore(e instanceof Error ? e.message : "Silvio non è disponibile.");
@@ -145,7 +215,7 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
       }
     } finally {
       occupato.current=false;
-      if (attivo.current) setInvio(false);
+      if (attivo.current) { setInvio(false); setFase(""); }
     }
   }
 
@@ -153,7 +223,7 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-teal-800 dark:text-teal-200">Anteprima sulla tavola</p>
     <h3 className="text-sm font-semibold">{bozza.nomeVariante}</h3>
     <ul className="mt-2 max-h-36 space-y-1.5 overflow-auto text-xs">{bozza.modifiche.map((m,i)=><li className="flex flex-wrap items-baseline gap-1.5" key={i}>
-      <span className="w-full font-medium">{m.etichetta}{m.ambiente && <span className="ml-1 font-normal text-muted-foreground">· {m.ambiente}</span>}</span><span className="text-muted-foreground">{m.prima}</span><ArrowRight className="h-3 w-3 self-center text-teal-700"/><span className="font-medium">{m.dopo}</span>
+      <span className="w-full font-medium">{m.etichetta}{m.ambiente && <span className="ml-1 font-normal text-muted-foreground">· {m.ambiente}</span>}</span>{(m.prima || m.dopo) && <><span className="text-muted-foreground">{m.prima}</span><ArrowRight className="h-3 w-3 self-center text-teal-700"/><span className="font-medium">{m.dopo}</span></>}
     </li>)}</ul>
     <AccessiProposta accessi={accessi} className="mt-2.5 max-h-40 overflow-auto"/>
     <div className="mt-3 flex flex-wrap gap-2">
@@ -216,26 +286,30 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     </div> : <>
       <div role="log" aria-label="Conversazione con Silvio" className="min-h-32 flex-1 space-y-3 overflow-auto px-4 py-4 lg:max-h-[315px]">
         {messaggi.length===0 && <div className="space-y-3">
-          <p className="text-sm leading-relaxed text-muted-foreground">{quanti>1 ? "Indica quali ambienti vuoi modificare o chiedi una modifica per tutti." : contesto ? "Chiedi una misura o proponi una modifica per l’ambiente selezionato." : "Seleziona una stanza sulla tavola oppure dal menu."}</p>
-          {contesto && <div className="flex flex-wrap gap-1.5">{(quanti>1 ? ESEMPI_GRUPPO : ESEMPI).map(e=><button type="button" key={e.etichetta} onClick={()=>setRichiesta(e.testo)}
+          <p className="text-sm leading-relaxed text-muted-foreground">{quanti>1 ? "Indica quali ambienti vuoi modificare o chiedi una modifica per tutti." : contesto ? "Chiedi una misura, scrivi una modifica al disegno o proponi una finitura per l’ambiente selezionato." : locali.length ? "Scrivi una modifica al disegno («Porta tra cucina e soggiorno da 80 cm») o una domanda sul progetto." : "Traccia le stanze nell’editor per usare la chat."}</p>
+          {esempi.length>0 && <div className="flex flex-wrap gap-1.5">{esempi.map(e=><button type="button" key={e.etichetta} onClick={()=>setRichiesta(e.testo)}
             className="rounded-md border bg-background px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">
             {e.etichetta}<ArrowDown className="ml-1 inline h-3 w-3 text-muted-foreground"/>
           </button>)}</div>}
         </div>}
-        {messaggi.map((m,i)=><p key={i} className={cn("max-w-[91%] whitespace-pre-wrap break-words rounded-xl px-3 py-2.5 text-sm leading-relaxed",
-          m.ruolo==="utente" ? "ml-auto bg-blue-700 text-white" : "bg-muted text-foreground")}>{m.ruolo==="utente" ? m.testo : conGrassetto(m.testo)}</p>)}
-        {invio && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin"/>Silvio sta elaborando la risposta…</p>}
+        {messaggi.map((m,i)=><div key={i} className={cn("max-w-[91%] whitespace-pre-wrap break-words rounded-xl px-3 py-2.5 text-sm leading-relaxed",
+          m.ruolo==="utente" ? "ml-auto bg-blue-700 text-white" : "bg-muted text-foreground")}>
+          <p>{m.ruolo==="utente" ? m.testo : conGrassetto(m.testo)}</p>
+          {!!m.fatti?.length && <ul className="mt-1.5 space-y-1 text-xs">{m.fatti.map((f,j)=><li key={j} className="flex gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-teal-700"/>{f}</li>)}</ul>}
+          {!!m.avvisi?.length && <ul className="mt-1.5 space-y-1 text-xs text-amber-900 dark:text-amber-200">{m.avvisi.map((a,j)=><li key={j}>{a}</li>)}</ul>}
+        </div>)}
+        {invio && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin"/>{fase || "Silvio sta elaborando la risposta…"}</p>}
         <div ref={fine}/>
       </div>
       {!correzioniInCorso && riepilogo}
       {(errore || erroreSalvataggio) && <p role="alert" className="mx-4 mb-2 mt-1 rounded-md bg-destructive/10 p-2 text-xs text-destructive">{erroreSalvataggio || errore}</p>}
       <form onSubmit={e=>{e.preventDefault();void invia();}} className="border-t p-3">
         <div className="flex items-end gap-2">
-          <Textarea aria-label="Scrivi a Silvio" placeholder={correzioniInCorso ? "Salva o scarta la proposta" : contesto ? "Scrivi a Silvio…" : "Scegli un ambiente per iniziare"}
+          <Textarea aria-label="Scrivi a Silvio" placeholder={correzioniInCorso ? "Salva o scarta la proposta" : locali.length ? "Una modifica o una domanda…" : "Traccia le stanze nell’editor"}
             className="min-h-[58px] resize-y text-sm" value={richiesta} onChange={e=>setRichiesta(e.target.value)}
-            maxLength={LIMITE_CHAT_PROGETTO} disabled={!contesto || invio || salvataggio || correzioniInCorso}
+            maxLength={LIMITE_CHAT_PROGETTO} disabled={!locali.length || invio || salvataggio || correzioniInCorso}
             onKeyDown={e=>{if(e.key==="Enter" && !e.shiftKey && !e.nativeEvent.isComposing){e.preventDefault();void invia();}}}/>
-          <Button type="submit" size="icon" aria-label="Invia a Silvio" disabled={!contesto || !richiesta.trim() || invio || salvataggio || correzioniInCorso}><Send className="h-4 w-4"/></Button>
+          <Button type="submit" size="icon" aria-label="Invia a Silvio" disabled={!locali.length || !richiesta.trim() || invio || salvataggio || correzioniInCorso}><Send className="h-4 w-4"/></Button>
         </div>
       </form>
     </>}

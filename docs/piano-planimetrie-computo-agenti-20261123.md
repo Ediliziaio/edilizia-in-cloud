@@ -275,7 +275,20 @@ durata per fase e margine, e cambiando una parete cambiano tutti insieme.
   (`shared/planimetrie/interpreteComandi.ts`, assistenza `comando` di `planimetria-genera`).
   L'AI non disegna: geometria, vincoli, anteprima e costi restano quelli della chat. Si paga a
   consumo, non un credito render. Se manca un dato, fa una domanda sola.
-  Non fatto: fondere anche la chat di Silvio sulla scheda (ha un'anteprima sua, per ambiente).
+  **Fusione con Silvio sulla scheda (24/11, pomeriggio).** Sulla scheda della planimetria la
+  chat è una sola (`SilvioPlanimetria`, logica in `src/lib/planimetrie/chatUnicaPlanimetria.ts`):
+  1. regole del disegno (gratis) sulla variante in preparazione; 2. se non capiscono e la frase
+  non è una domanda, l'interprete (a consumo); 3. le domande e ciò che il disegno non fa
+  (finiture, nomi, destinazioni, «si può?») a Silvio (un credito render). L'interprete ora può
+  rispondere `"silvio": true` per passargli la frase. I comandi del disegno non toccano la pianta:
+  producono una variante nuova con la stessa anteprima, costo (`CostoProposta`) e «Salva come
+  variante»; più comandi, e le proposte di Silvio fatte sopra, si sommano in una variante sola
+  (`unisciAlDisegno`). Restano: scelta degli ambienti e «Tutto il piano», cronologia, analisi,
+  correzioni sulla tavola. Senza una stanza scelta la domanda va alla stanza nominata o a tutto
+  il piano (prima la chat era spenta). Non portato sulla scheda: la scheda «Computo» di
+  `InterventiChatDisegno` con le spunte per intervento e i prezzi a mano (resta nell'editor; sulla
+  scheda c'è il costo complessivo), allegati DWG/schizzo, dettatura, render dalla chat. La chat
+  del disegno nell'editor e nel computo del preventivo (`inSilvio`) non è cambiata.
 - **Lotto I — telefono.** Scheda e studio della variante stanno in 375 px senza scorrere di
   lato; la previsione dei lavori ha una disposizione a righe per il telefono. L'editor sul
   telefono non è stato rivisto.
