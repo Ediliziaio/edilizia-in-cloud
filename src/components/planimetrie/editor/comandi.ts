@@ -65,6 +65,8 @@ export interface OpzioniStanza {
   stato?: StatoElemento;
   spessore?: number;
   origine?: Origine;
+  /** La stanza sta già fra pareti (o linee della tavola): non si aggiungono muri sui lati scoperti. */
+  senzaMuri?: boolean;
 }
 
 /**
@@ -127,7 +129,7 @@ function nomeLibero(pianta: Pianta): string {
 export function aggiungiStanza(pianta: Pianta, contorno: Punto[], o: OpzioniStanza = {}): { pianta: Pianta; id: string } {
   const stato = o.stato ?? "esistente";
   const muri = [...pianta.muri];
-  for (let i = 0; i < contorno.length; i++) {
+  for (let i = 0; i < (o.senzaMuri ? 0 : contorno.length); i++) {
     const a = contorno[i];
     const b = contorno[(i + 1) % contorno.length];
     for (const [p1, p2] of trattiScoperti({ ...pianta, muri }, a, b)) {

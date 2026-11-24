@@ -22,7 +22,7 @@ import { ambitoGeometriaDelPiano } from "../../../shared/planimetrie/materialiPr
  */
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
-import { Building2, ClipboardList, Download, Ellipsis, FileText, ImageIcon, Layers2, MapPin, PenLine, Ruler, Sparkles, Trees, Wand2, Wind } from "lucide-react";
+import { Building2, ClipboardList, Download, Ellipsis, FileText, History, ImageIcon, Layers2, MapPin, PenLine, Ruler, Sparkles, Trees, Wand2, Wind } from "lucide-react";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,8 @@ import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
 import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { fotorealisticoDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
-import { usePlanimetria, useVersionePlanimetria, useVersioniPlanimetria } from "@/lib/planimetrie/archivio";
+import { usePlanimetria, useSalvaVersionePlanimetria, useVersionePlanimetria, useVersioniPlanimetria } from "@/lib/planimetrie/archivio";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { percorsiPlanimetrie, ritornoProgettoValido } from "@/lib/planimetrie/render/percorsi";
@@ -87,6 +88,24 @@ export default function RenderPlanimetriaScheda() {
   const isLoading = corrente.isLoading || (!!corrente.data && storico && revisione.isLoading);
   const error = corrente.error || (storico ? revisione.error : null);
   const sola = permessi.solaLettura || storico || (data && data.riga.company_id !== effectiveCompany?.id);
+  // Tornare a una versione vecchia (24/11/2026): non c'era modo di annullare un salvataggio sbagliato.
+  // Il contenuto della versione scelta diventa una versione nuova; lo storico resta tutto.
+  const ripristino = useSalvaVersionePlanimetria();
+  const [confermaRipristino, setConfermaRipristino] = useState(false);
+  const puoRipristinare = !permessi.solaLettura && !!data && data.riga.company_id === effectiveCompany?.id && !!corrente.data;
+  const ripristina = async () => {
+    if (!data || !corrente.data) return;
+    if (!confermaRipristino) { setConfermaRipristino(true); return; }
+    try {
+      const nuova = await ripristino.mutateAsync({ planimetriaId: id, versioneAttesa: corrente.data.versione.numero, documento: data.versione.documento,
+        nota: `Ripristinata la versione ${data.versione.numero}` });
+      toast.success(t("Ripristinata la versione {n}: ora è la corrente.", { n: data.versione.numero }));
+      setConfermaRipristino(false);
+      apriVersione(String(nuova));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("Il ripristino non è riuscito."));
+    }
+  };
   const apriVersione = (numero: string) => setParams(p=>{
     const n = new URLSearchParams(p);
     if (Number(numero) === corrente.data?.versione.numero) n.delete("versione");
@@ -150,7 +169,10 @@ export default function RenderPlanimetriaScheda() {
   const vaiDallaGuida = (verso: DestinazioneGuida) => {
     const { params: nuovi, ancora } = parametriGuida(params, verso);
     setParams(nuovi, { replace: false });
+    // Si va dove la cosa si fa: un punto della scheda, oppure in cima alla pianta (la guida sta in
+    // fondo, accanto alla chat, e la pianta cambiata restava fuori dallo schermo).
     if (ancora) setTimeout(() => document.getElementById(ancora)?.scrollIntoView({ block: "start", behavior: "smooth" }), 250);
+    else setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 150);
   };
   const sezioneFascicolo = params.get("fascicolo");
   const riscontro = sezioneFascicolo === "verifiche" ? params.get("riscontro") : null;
@@ -285,6 +307,8 @@ export default function RenderPlanimetriaScheda() {
           azioni={<>
             {fascicoloVisibile && <Button size="sm" variant="outline" className="gap-2" onClick={()=>setApriUrbanistica(true)}><MapPin className="h-4 w-4"/>{documento.urbanistica ? t("Fascicolo urbanistico") : t("Regole urbanistiche")}</Button>}
             <Button asChild size="sm" variant="outline" className="gap-2"><Link to={percorsoEditor}><PenLine className="h-4 w-4"/>{storico ? t("Editor versione corrente") : t("Apri editor")}</Link></Button>
+            {storico && puoRipristinare && <Button size="sm" variant={confermaRipristino ? "default" : "outline"} className="gap-2" disabled={ripristino.isPending}
+              onClick={() => void ripristina()}><History className="h-4 w-4"/>{confermaRipristino ? t("Conferma: torna alla versione {n}", { n: data.versione.numero }) : t("Ripristina questa versione")}</Button>}
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => primaDi("pdf", () => setEsporta(true))}><FileText className="h-4 w-4"/>{t("PDF progetto")}</Button>
             {puoChat && <Button size="sm" className="gap-2 bg-blue-700 text-white hover:bg-blue-800" onClick={()=>chatAperta ? chiudiSilvio() : apriSilvio()} aria-pressed={chatAperta}><Sparkles className="h-4 w-4"/>{t("Chiedi a Silvio")}</Button>}
             <DropdownMenu>

@@ -1054,10 +1054,15 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       }
       const tavola = tavolaDwgRef.current;
       const esito = stanzaDaMuri(pi.muri.filter((m) => C.visibile(m.stato, v) && m.stato !== "da_demolire"), p,
-        tavola ? segmentiTavolaDwg(tavola, ricalcoRef.current) : []);
+        tavola ? segmentiTavolaDwg(tavola, ricalcoRef.current) : [],
+        pi.locali.filter((l) => C.visibile(l.stato, v) && l.stato !== "da_demolire").map((l) => l.contorno));
       if ("errore" in esito) { setAvviso(tr(esito.errore)); return; }
-      chiudiPoligono(esito.punti);
-      setStrumento("riempi");
+      // La stanza sta fra pareti già disegnate: nessun muro nuovo sui suoi lati (il contorno a gradini
+      // della griglia ne creava decine, e le stanze vicine finivano a 0 m²).
+      const r = C.aggiungiStanza(stato.current.storia.presente, esito.punti, { stato: C.statoNuovo(v), senzaMuri: true });
+      applica(r.pianta);
+      setSelezione({ tipo: "locale", id: r.id });
+      setStanzaNuova(r.id);
       setAvviso(esito.varcoChiusoCm ? tr("Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.", { mq: String(esito.areaMq).replace(".", ","), cm: esito.varcoChiusoCm }) : null);
       return;
     }

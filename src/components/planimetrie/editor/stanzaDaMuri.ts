@@ -22,11 +22,13 @@ const MASSIMO_CELLE = 3_000_000;
  * la stanza aperta: nella cantina di Callimaco il convertitore aveva ricavato pochi muri, ma il
  * contorno dei locali c'era tutto nelle linee della tavola.
  */
-export function stanzaDaMuri(muri: MuroPerRiempimento[], punto: Punto, linee: Array<[Punto, Punto]> = []): EsitoStanzaDaMuri {
+export function stanzaDaMuri(muri: MuroPerRiempimento[], punto: Punto, linee: Array<[Punto, Punto]> = [], stanze: Punto[][] = []): EsitoStanzaDaMuri {
   if (!muri.length && !linee.length) return { errore: "Non ci sono pareti: disegna prima i muri, o usa «Stanza libera»." };
-  const soloMuri = muri.length ? riempiDaPareti(muri, punto, [0, 40, 80]) : null;
+  // Le stanze già disegnate sono pieno anche loro: la nuova le tocca ma non le invade (prima l'editor
+  // ritagliava le vecchie e restavano a 0 m², piano terra di Callimaco, 24/11/2026).
+  const soloMuri = muri.length ? riempiDaPareti(muri, punto, [0, 40, 80], stanze) : null;
   if (soloMuri && !("errore" in soloMuri && soloMuri.errore === APERTA)) return soloMuri;
-  if (!linee.length) return muri.length ? riempiDaPareti(muri, punto, [110, 140]) : { errore: APERTA };
+  if (!linee.length) return muri.length ? riempiDaPareti(muri, punto, [110, 140], stanze) : { errore: APERTA };
   // Le linee della tavola diventano pareti sottili (4 cm), ma solo dentro l'ingombro delle pareti
   // (più 1 m): la tavola contiene anche le altre piante, il lotto, i cartigli, e senza questo limite
   // lo spazio fuori dall'edificio si chiudeva contro linee lontane (Callimaco: una «stanza» di
@@ -36,7 +38,7 @@ export function stanzaDaMuri(muri: MuroPerRiempimento[], punto: Punto, linee: Ar
     ? (p: Punto) => p.x >= Math.min(...xs) - 100 && p.x <= Math.max(...xs) + 100 && p.y >= Math.min(...ys) - 100 && p.y <= Math.max(...ys) + 100
     : () => true;
   const vicine = linee.filter(([a, b]) => dentro(a) && dentro(b));
-  return riempiDaPareti([...muri, ...vicine.map(([a, b]) => ({ p1: a, p2: b, spessore: 4 }))], punto, [0, 40, 80, 110, 140]);
+  return riempiDaPareti([...muri, ...vicine.map(([a, b]) => ({ p1: a, p2: b, spessore: 4 }))], punto, [0, 40, 80, 110, 140], stanze);
 }
 
 const APERTA = "Le pareti intorno non chiudono una stanza (c'è un varco più largo di 1,40 m): completa i muri o usa «Stanza libera».";
@@ -67,7 +69,7 @@ export function segmentiDaTracciato(d: string): Array<[Punto, Punto]> {
   return out;
 }
 
-function riempiDaPareti(muri: MuroPerRiempimento[], punto: Punto, varchi: number[]): EsitoStanzaDaMuri {
+function riempiDaPareti(muri: MuroPerRiempimento[], punto: Punto, varchi: number[], stanze: Punto[][] = []): EsitoStanzaDaMuri {
   const xs = muri.flatMap((m) => [m.p1.x, m.p2.x]), ys = muri.flatMap((m) => [m.p1.y, m.p2.y]);
   const margine = 60;
   const x0 = Math.min(...xs) - margine, y0 = Math.min(...ys) - margine;
@@ -89,6 +91,15 @@ function riempiDaPareti(muri: MuroPerRiempimento[], punto: Punto, varchi: number
       const t = l2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
       const qx = ax + t * dx - px, qy = ay + t * dy - py;
       if (qx * qx + qy * qy <= meta * meta) pareti[j * W + i] = 1;
+    }
+  }
+  for (const contorno of stanze) {
+    if (contorno.length < 3) continue;
+    const sx = contorno.map((p) => p.x), sy = contorno.map((p) => p.y);
+    const i0 = Math.max(0, Math.floor((Math.min(...sx) - x0) / passo)), i1 = Math.min(W - 1, Math.ceil((Math.max(...sx) - x0) / passo));
+    const j0 = Math.max(0, Math.floor((Math.min(...sy) - y0) / passo)), j1 = Math.min(H - 1, Math.ceil((Math.max(...sy) - y0) / passo));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      if (dentroPoligono(x0 + (i + 0.5) * passo, y0 + (j + 0.5) * passo, contorno)) pareti[j * W + i] = 1;
     }
   }
   let ci = Math.floor((punto.x - x0) / passo), cj = Math.floor((punto.y - y0) / passo);
@@ -120,6 +131,14 @@ function riempiDaPareti(muri: MuroPerRiempimento[], punto: Punto, varchi: number
     return { punti, areaMq: Math.round(areaMq * 100) / 100, varcoChiusoCm: varco };
   }
   return { errore: APERTA };
+}
+
+function dentroPoligono(x: number, y: number, p: Punto[]): boolean {
+  let dentro = false;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    if ((p[i].y > y) !== (p[j].y > y) && x < ((p[j].x - p[i].x) * (y - p[i].y)) / (p[j].y - p[i].y) + p[i].x) dentro = !dentro;
+  }
+  return dentro;
 }
 
 /** Dilatazione e poi erosione con un quadrato di lato 2r+1: chiude i varchi fino a 2r celle. */

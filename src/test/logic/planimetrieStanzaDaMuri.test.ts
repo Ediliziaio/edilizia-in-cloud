@@ -37,6 +37,15 @@ describe("stanza dai muri", () => {
     expect("errore" in e).toBe(true);
   });
 
+  it("non invade le stanze già disegnate: si ferma al loro bordo", () => {
+    // Un locale da 8 × 3 m senza il tramezzo, ma con la stanza di sinistra già disegnata.
+    const senzaTramezzo = pareti.filter((m) => m.p1.x !== 400);
+    const sinistra = [{ x: 15, y: 15 }, { x: 400, y: 15 }, { x: 400, y: 285 }, { x: 15, y: 285 }];
+    const e = stanzaDaMuri(senzaTramezzo, { x: 600, y: 150 }, [], [sinistra]);
+    expect("punti" in e).toBe(true);
+    if ("punti" in e) expect(Math.min(...e.punti.map((p) => p.x))).toBeGreaterThanOrEqual(400);
+  });
+
   it("legge i tracciati SVG della tavola, relativi e assoluti", () => {
     expect(segmentiDaTracciato("M0 0l10 0v5h-10z")).toEqual([
       [{ x: 0, y: 0 }, { x: 10, y: 0 }], [{ x: 10, y: 0 }, { x: 10, y: 5 }], [{ x: 10, y: 5 }, { x: 0, y: 5 }], [{ x: 0, y: 5 }, { x: 0, y: 0 }],
