@@ -68869,5 +68869,7 @@ const dizionario: Dizionario = {
   "Per farla tornare con la tavola cambia un lato (l'opposto lo segue):": "Që të përputhet me tabelën, ndrysho një brinjë (e kundërta e ndjek):",
   "Lato {i}: {da} → {a} m": "Brinja {i}: {da} → {a} m",
   "Correggi i lati qui sotto scrivendo le misure della tavola.": "Korrigjo brinjët më poshtë duke shkruar masat e tabelës.",
+  "Clic dentro le pareti: la stanza si chiude da sola lungo il filo interno. Poi dalle un nome a destra.": "Kliko brenda mureve: dhoma mbyllet vetë përgjatë faqes së brendshme. Pastaj jepi një emër djathtas.",
+  "Tocca dentro le pareti: la stanza si chiude da sola.": "Prek brenda mureve: dhoma mbyllet vetë.",
 };
 export default dizionario;

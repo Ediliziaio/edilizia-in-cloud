@@ -68869,5 +68869,7 @@ const dizionario: Dizionario = {
   "Per farla tornare con la tavola cambia un lato (l'opposto lo segue):": "Ca să se potrivească cu planșa, schimbă o latură (cea opusă o urmează):",
   "Lato {i}: {da} → {a} m": "Latura {i}: {da} → {a} m",
   "Correggi i lati qui sotto scrivendo le misure della tavola.": "Corectează laturile de mai jos scriind măsurile din planșă.",
+  "Clic dentro le pareti: la stanza si chiude da sola lungo il filo interno. Poi dalle un nome a destra.": "Clic în interiorul pereților: camera se închide singură pe fața interioară. Apoi dă-i un nume în dreapta.",
+  "Tocca dentro le pareti: la stanza si chiude da sola.": "Atinge în interiorul pereților: camera se închide singură.",
 };
 export default dizionario;

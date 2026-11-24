@@ -9,7 +9,7 @@ const stanza = (id: string, nome: string, destinazione: string, x: number, unita
   contorno: [{ x, y: 0 }, { x: x + 400, y: 0 }, { x: x + 400, y: 300 }, { x, y: 300 }],
 });
 const piano = (id: string, quota: number, locali: unknown[], aree: unknown[] = []) => ({
-  id, nome: id, quota, proposte: [], fatto: { muri: [], aperture: [], elementi: [], quote: [], testi: [], locali, aree },
+  id, nome: id, quota, proposte: [] as unknown[], fatto: { muri: [] as unknown[], aperture: [] as unknown[], elementi: [] as unknown[], quote: [] as unknown[], testi: [] as unknown[], locali, aree },
 });
 const lotto = { id: "l", tipo: "lotto", nome: "Lotto (da verificare)", contorno: [{ x: -1000, y: -1000 }, { x: 3000, y: -1000 }, { x: 3000, y: 3000 }] };
 const dwg = {
@@ -25,7 +25,7 @@ describe("guida di Silvio dopo il DWG", () => {
   it("chiede prima il tipo di lavori, poi le unità che non tornano, poi il lotto, poi propone le consegne", () => {
     expect(passiGuidaProgetto(dwg, "fatto").map((p) => p.id)).toEqual(["tipo", "unita", "lotto", "completezza", "consegne"]);
     const conScelte = { ...dwg, costruzione: { piani: {} }, unitaDichiarate: [{ nome: "Int. 01", suMq: 24 }, { nome: "Int. 02", suMq: 12 }],
-      livelli: dwg.livelli.map((l, i) => ({ ...l, ...(i === 1 ? { tetto: { tipo: "piano" } } : {}), fatto: { ...l.fatto, aree: [],
+      livelli: dwg.livelli.map((l, i) => ({ ...l, ...(i === 1 ? { tetto: { tipo: "piano" } } : {}), fatto: { ...l.fatto, aree: [] as unknown[],
         elementi: i === 0 ? [{ id: "s", tipo: "scala", posizione: { x: 0, y: 0 }, rotazione: 0, larghezza: 100, profondita: 300 }] : [] } })) } as unknown as Planimetria;
     const [solo] = passiGuidaProgetto(conScelte, "fatto");
     expect(solo.id).toBe("consegne");
