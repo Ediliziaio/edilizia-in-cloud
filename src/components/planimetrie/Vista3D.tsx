@@ -888,6 +888,9 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             preparaRenderDaQui(vista);
             return true;
           } : undefined} />}
+        {/* L'edificio intero in vista: prima stava solo nel menu «Vista» e non lo trovava nessuno (24/11/2026). */}
+        {conPiani && !inVisita && !schemaCanali && <Button type="button" size="sm" variant={edificio ? "secondary" : "outline"} aria-pressed={edificio}
+          className="gap-1.5" onClick={() => setEdificio((v) => !v)}><Building className="size-4" />{tr("Edificio intero")}</Button>}
         {!inVisita && !schemaCanali && <Button type="button" size="sm" variant={strutturaStrati ? "secondary" : "outline"} aria-pressed={strutturaStrati}
           className="gap-1.5" onClick={cambiaVistaEsplosa}><Layers className="size-4" />{tr("Vista esplosa")}</Button>}
         {!inVisita && !schemaCanali && !!pianta.pavimentoRadiante?.length &&
