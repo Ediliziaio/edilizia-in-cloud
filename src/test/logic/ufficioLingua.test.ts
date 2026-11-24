@@ -5,8 +5,8 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import ro from "@/lib/campo/lingua/dizionari/ro";
-import sq from "@/lib/campo/lingua/dizionari/sq";
+import ro from "@/lib/campo/lingua/dizionari/ro?dizionario";
+import sq from "@/lib/campo/lingua/dizionari/sq?dizionario";
 
 const LINGUE_UFFICIO = { ro, sq };
 

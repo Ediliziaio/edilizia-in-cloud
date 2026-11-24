@@ -33,7 +33,6 @@ import { useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento, useParametriDocumento } from "@/lib/orders/documentoPopup";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
 import { DocumentiBollaCard } from "@/components/ddt/DocumentiBollaCard";

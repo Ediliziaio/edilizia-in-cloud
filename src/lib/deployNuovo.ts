@@ -8,8 +8,8 @@
 
 /** Lo script principale dell'app (`/assets/index-<hash>.js`) dentro un HTML. */
 export function scriptPrincipale(html: string): string | null {
-  const m = html.match(/<script[^>]*type=["']module["'][^>]*src=["']([^"']*\/assets[^\/"']*\/index-[^"']+\.js)["']/i)
-    ?? html.match(/src=["']([^"']*\/assets[^\/"']*\/index-[^"']+\.js)["'][^>]*type=["']module["']/i);
+  const m = html.match(/<script[^>]*type=["']module["'][^>]*src=["']([^"']*\/assets[^/"']*\/index-[^"']+\.js)["']/i)
+    ?? html.match(/src=["']([^"']*\/assets[^/"']*\/index-[^"']+\.js)["'][^>]*type=["']module["']/i);
   return m ? m[1] : null;
 }
 

@@ -21,6 +21,7 @@ import { CreateListDialog } from "./CreateListDialog";
 import type { ContactFilters } from "./ContactFiltersSheet";
 import { countActiveContactFilters } from "./ContactFiltersSheet";
 import { RigaMobile } from "@/components/mobile/FiltriMobile";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Quanti iscritti mostrare per pagina nel dettaglio di una lista. */
 const MEMBRI_PER_PAGINA = 50;
@@ -506,7 +507,6 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
 // ─── List Detail View ───────────────────────────────────────────────────────
 
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
-import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ListDetailViewProps {
   listId: string;

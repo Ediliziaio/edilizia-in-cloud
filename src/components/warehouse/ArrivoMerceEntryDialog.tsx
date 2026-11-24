@@ -16,7 +16,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, PackageSearch, Search, ArrowDownToLine, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { readAllOrderRows } from "@/lib/orders/listScope";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";

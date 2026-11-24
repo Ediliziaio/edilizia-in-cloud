@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 import { MODELLI_NOTIFICA, traduciTestoNotifica } from "@/lib/campo/lingua/notifiche";
 import { italiano, type Traduttore } from "@/lib/campo/lingua/traduttore";
 import { traduci } from "@/lib/campo/lingua/LinguaCampo";
-import en from "@/lib/campo/lingua/dizionari/en";
-import arMA from "@/lib/campo/lingua/dizionari/arMA";
+import en from "@/lib/campo/lingua/dizionari/en?dizionario";
+import arMA from "@/lib/campo/lingua/dizionari/arMA?dizionario";
 
 const inglese: Traduttore = (testo, valori) => traduci(en, testo, valori);
 

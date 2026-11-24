@@ -1734,6 +1734,9 @@ function FotovoltaicoWizard() {
     [step, completedSteps, readOnlyMode, progettoId, data, draftScope],
   );
 
+  // Il React Compiler non è nella build: la regola è solo del lint, e il passaggio a t() le ha fatto perdere
+  // il filo su goTo. La memoizzazione a mano resta quella che funziona.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const goPrev = useCallback(() => goTo(step - 1), [step, goTo]);
   // goNext non è memoizzato: dipende dagli handler salva* che catturano data
   // freschi a ogni render — un useCallback con deps complete forzerebbe ricreazione

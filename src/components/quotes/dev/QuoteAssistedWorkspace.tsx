@@ -9,7 +9,7 @@ import { planningChatIntent } from '@/lib/preventivi/quotePlanningChat';
 import { margineChatIntent, margineChatReply } from '@/lib/preventivi/margineChat';
 import { leggiComandiCostoSilvio, MESSAGGIO_AI_COSTI_SILVIO, MESSAGGIO_AI_COSTO_SILVIO, type ControlliCostiSilvio, type RichiestaCostoSilvio, type RiscontroCostoSilvio } from '@/lib/preventivi/modificaCostoSilvio';
 import { useQuoteChatScroll } from './useQuoteChatScroll';
-import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const QuotePlanningChat = lazy(() => import('./QuotePlanningChat'));
 import { QuoteTaxPanel } from './QuoteTaxPanel';
 import { QuoteSchedulePanel } from './QuoteSchedulePanel';

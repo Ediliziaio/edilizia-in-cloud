@@ -31,17 +31,19 @@ type ModuloDizionario = { default: Dizionario | null; carica?: () => Promise<Diz
 const daModulo = async (m: ModuloDizionario): Promise<{ default: Dizionario }> =>
   ({ default: m.carica ? await m.carica() : (m.default ?? {}) });
 
+// «?dizionario»: Vite toglie il suffisso, TypeScript prende il tipo da dizionari.d.ts senza leggere 567.000
+// righe di frasi (tsconfig.app.json esclude la cartella): il typecheck del CI dal 24/11/2026 andava oltre i 12 GB.
 const CARICA: Record<Exclude<CodiceLingua, "it">, () => Promise<{ default: Dizionario }>> = {
-  ro: () => import("./dizionari/ro").then(daModulo),
-  sq: () => import("./dizionari/sq").then(daModulo),
-  "ar-MA": () => import("./dizionari/arMA").then(daModulo),
-  "ar-EG": () => import("./dizionari/arEG").then(daModulo),
-  de: () => import("./dizionari/de").then(daModulo),
-  fr: () => import("./dizionari/fr").then(daModulo),
-  en: () => import("./dizionari/en").then(daModulo),
-  es: () => import("./dizionari/es").then(daModulo),
-  "es-AR": () => import("./dizionari/esAR").then(daModulo),
-  "es-PE": () => import("./dizionari/esPE").then(daModulo),
+  ro: () => import("./dizionari/ro?dizionario").then(daModulo),
+  sq: () => import("./dizionari/sq?dizionario").then(daModulo),
+  "ar-MA": () => import("./dizionari/arMA?dizionario").then(daModulo),
+  "ar-EG": () => import("./dizionari/arEG?dizionario").then(daModulo),
+  de: () => import("./dizionari/de?dizionario").then(daModulo),
+  fr: () => import("./dizionari/fr?dizionario").then(daModulo),
+  en: () => import("./dizionari/en?dizionario").then(daModulo),
+  es: () => import("./dizionari/es?dizionario").then(daModulo),
+  "es-AR": () => import("./dizionari/esAR?dizionario").then(daModulo),
+  "es-PE": () => import("./dizionari/esPE?dizionario").then(daModulo),
 };
 
 /**
