@@ -1,5 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
+import { AuthProvider } from "../../src/contexts/AuthContext";
 import { Vista3DPigra } from "../../src/components/planimetrie/Vista3DPigra";
 import { pianteDaPlanimetria } from "../../src/lib/planimetrie/tred/adattatore";
 import { PAVIMENTI_STANZA, PARETI_STANZA } from "../../shared/planimetrie/finiture.ts";
@@ -92,4 +95,13 @@ function Prova() {
   );
 }
 
-if (import.meta.env.DEV || import.meta.env.MODE === "planimetria-local") createRoot(document.getElementById("root")!).render(<Prova />);
+// La chat del disegno legge l'azienda e i permessi (useAuth, usePermissions): servono gli stessi
+// provider dell'app. Senza sessione l'utente resta vuoto, come in un browser non loggato.
+const clientQuery = new QueryClient();
+if (import.meta.env.DEV || import.meta.env.MODE === "planimetria-local") createRoot(document.getElementById("root")!).render(
+  <QueryClientProvider client={clientQuery}>
+    <MemoryRouter>
+      <AuthProvider><Prova /></AuthProvider>
+    </MemoryRouter>
+  </QueryClientProvider>,
+);
