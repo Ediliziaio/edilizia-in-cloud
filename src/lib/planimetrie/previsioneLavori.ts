@@ -99,7 +99,7 @@ export const REGOLE_POSA: Record<TipoLavorazione, RegolaPosa> = {
   parcheggio_esterno: { resa: 25, manodopera: 0.45, fase: "Esterni" },
   aiuola: { resa: 30, manodopera: 0.55, fase: "Esterni" },
   recinzione: { resa: 15, manodopera: 0.5, fase: "Esterni" },
-  piscina: { resa: 1.5, manodopera: 0.45, fase: "Esterni" },
+  piscina: { resa: 4, manodopera: 0.45, fase: "Esterni" },
   pergola: { resa: 0.5, manodopera: 0.4, fase: "Esterni" },
   idromassaggio: { resa: 1, manodopera: 0.3, fase: "Esterni" },
 };
