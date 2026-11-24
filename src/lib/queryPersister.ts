@@ -125,6 +125,15 @@ const PERSIST_WHITELIST = new Set<string>([
   "branding",                   // useBrandingByDomain
   "platform-changelog",         // changelog widget sidebar
   "platform-feature-flags",     // feature toggles globali
+  // 24/11/2026 — le funzioni del piano dell'azienda (resolve_company_features).
+  // Senza, a ogni ricarica della pagina ogni sezione protetta mostrava a tutto
+  // schermo «Verifica accesso…» finché la lettura non tornava, in coda dietro
+  // alle altre venti dell'avvio. Con l'ultima risposta in memoria la pagina si
+  // apre subito e la lettura fresca arriva dietro (dato vecchio di oltre un
+  // minuto = rilettura all'apertura). Decide comunque il database: una funzione
+  // tolta nel frattempo chiude la pagina appena arriva la risposta, e i dati
+  // restano protetti dalle regole di accesso.
+  "company-features-resolved",
   "platform-announcements",     // banner annunci platform
   "subscription-plans",         // KPI piano corrente
   "integrations",               // hub /azienda/impostazioni/integrazioni

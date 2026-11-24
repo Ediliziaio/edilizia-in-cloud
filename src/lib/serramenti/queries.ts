@@ -54,8 +54,27 @@ const salvataggiDel = (progettoId: string | undefined) => ["sr-progetto-autosave
 function rileggiAFineSalvataggi(qc: QueryClient, progettoId: string | undefined) {
   if (!progettoId) return;
   // Il salvataggio che chiama è ancora in corso e si conta.
-  if (qc.isMutating({ mutationKey: salvataggiDel(progettoId) }) > 1) return;
+  if (qc.isMutating({ mutationKey: salvataggiDel(progettoId) }) > 1) {
+    // Rimandata, non dimenticata: la fa l'ultimo salvataggio che finisce.
+    RILETTURE_RIMANDATE.add(progettoId);
+    return;
+  }
+  RILETTURE_RIMANDATE.delete(progettoId);
   void qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+}
+
+/**
+ * I preventivi con una rilettura chiesta mentre altri salvataggi erano in corso
+ * (di solito un salvataggio fallito). Ora che un salvataggio riuscito non rilegge
+ * più da solo, senza questo promemoria la modifica mai scritta resterebbe a schermo.
+ */
+const RILETTURE_RIMANDATE = new Set<string>();
+
+/** C'era una rilettura rimandata? La si fa (o la si rimanda ancora) e chi chiama si ferma. */
+function riprendeRilettura(qc: QueryClient, progettoId: string): boolean {
+  if (!RILETTURE_RIMANDATE.has(progettoId)) return false;
+  rileggiAFineSalvataggi(qc, progettoId);
+  return true;
 }
 
 /**
@@ -70,7 +89,7 @@ function rileggiAFineSalvataggi(qc: QueryClient, progettoId: string | undefined)
  * arrivata in ritardo, più vecchia di quello che c'è già, si scarta.
  */
 function mettiRigaSalvata(qc: QueryClient, progettoId: string | undefined, riga: SrProgettoRow | null | undefined) {
-  if (!progettoId) return;
+  if (!progettoId || riprendeRilettura(qc, progettoId)) return;
   const chiave = SR_QK.progetto(progettoId);
   const aperto = qc.getQueryData<SrProgettoDetail>(chiave);
   if (!riga || !aperto || qc.isFetching({ queryKey: chiave }) > 0) {
@@ -80,6 +99,39 @@ function mettiRigaSalvata(qc: QueryClient, progettoId: string | undefined, riga:
   const quando = (r: { updated_at?: string | null }) => (r.updated_at ? new Date(r.updated_at).getTime() : 0);
   if (quando(riga) < quando(aperto.progetto)) return;
   qc.setQueryData<SrProgettoDetail>(chiave, (dati) => (dati ? { ...dati, progetto: riga } : dati));
+}
+
+/**
+ * Come `mettiRigaSalvata`, per una posizione o un complemento: la modifica è già
+ * nei dati aperti (vedi `modificaInCache`), quindi a salvataggio riuscito basta
+ * sostituire la riga con quella tornata dal database, senza rileggere le altre
+ * cinque tabelle. Con altri salvataggi ancora in corso non si tocca niente: a
+ * schermo c'è già l'ultima modifica, e la riga tornata sarebbe quella di prima.
+ */
+function mettiRigaFigliaSalvata<C extends "serramenti" | "accessori">(
+  qc: QueryClient,
+  progettoId: string | undefined,
+  elenco: C,
+  riga: SrProgettoDetail[C][number] | null | undefined,
+) {
+  if (!progettoId || riprendeRilettura(qc, progettoId)) return;
+  const chiave = SR_QK.progetto(progettoId);
+  if (!riga || !qc.getQueryData<SrProgettoDetail>(chiave) || qc.isFetching({ queryKey: chiave }) > 0) {
+    rileggiAFineSalvataggi(qc, progettoId);
+    return;
+  }
+  // Il salvataggio che chiama è ancora in corso e si conta. La riga saltata
+  // potrebbe essere l'ultima scritta (risposte arrivate in ordine inverso):
+  // l'ultimo salvataggio che finisce rilegge, così a schermo resta quella giusta.
+  if (qc.isMutating({ mutationKey: salvataggiDel(progettoId) }) > 1) {
+    RILETTURE_RIMANDATE.add(progettoId);
+    return;
+  }
+  qc.setQueryData<SrProgettoDetail>(chiave, (dati) => {
+    if (!dati) return dati;
+    const righe = (dati[elenco] as Array<{ id: string }>).map((r) => (r.id === riga.id ? riga : r));
+    return { ...dati, [elenco]: righe };
+  });
 }
 
 /**
@@ -216,8 +268,12 @@ export function useUpdateSerramento(progettoId: string | undefined) {
         ...dati,
         serramenti: dati.serramenti.map((s) => (s.id === id ? { ...s, ...patch } : s)),
       })),
-    onSettled: () => rileggiAFineSalvataggi(qc, progettoId),
-    onError: (e) => toast.error("Modifica serramento fallita", { description: String(e) }),
+    onSuccess: (riga) => mettiRigaFigliaSalvata(qc, progettoId, "serramenti", riga),
+    onError: (e) => {
+      // Non salvata: si rilegge, per togliere dallo schermo la modifica mai scritta.
+      rileggiAFineSalvataggi(qc, progettoId);
+      toast.error("Modifica serramento fallita", { description: String(e) });
+    },
   });
 }
 
@@ -262,8 +318,11 @@ export function useUpdateAccessorio(progettoId: string | undefined) {
         ...dati,
         accessori: dati.accessori.map((a) => (a.id === id ? { ...a, ...patch } : a)),
       })),
-    onSettled: () => rileggiAFineSalvataggi(qc, progettoId),
-    onError: (e) => toast.error("Modifica complemento fallita", { description: String(e) }),
+    onSuccess: (riga) => mettiRigaFigliaSalvata(qc, progettoId, "accessori", riga),
+    onError: (e) => {
+      rileggiAFineSalvataggi(qc, progettoId);
+      toast.error("Modifica complemento fallita", { description: String(e) });
+    },
   });
 }
 

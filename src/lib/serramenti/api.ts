@@ -250,8 +250,7 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
           if (firmata) urlByPath.set(path, firmata);
         }
         // Sostituisce l'url in memoria (NON salvato in DB: la signed URL
-        // resta valida per 7gg dal page load; al prossimo getProgetto si
-        // rigenera). Lasciamo il DB pulito.
+        // vale 7gg e si riusa per un'ora, poi si rifà). Lasciamo il DB pulito.
         mediaList.forEach((m) => {
           if (m.storage_path) {
             const fresh = urlByPath.get(m.storage_path);
@@ -583,11 +582,13 @@ export async function addSerramento(
   return data as SrSerramentoRow;
 }
 
-export async function updateSerramento(id: string, patch: Partial<SrSerramentoRow>): Promise<void> {
+/** Salva la posizione e la restituisce com'è rimasta nel database (`null` se non torna indietro): vedi updateProgetto. */
+export async function updateSerramento(id: string, patch: Partial<SrSerramentoRow>): Promise<SrSerramentoRow | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
-    .from("sr_serramenti_progetto").update(patch).eq("id", id);
+  const { data, error } = await (supabase as any)
+    .from("sr_serramenti_progetto").update(patch).eq("id", id).select("*").maybeSingle();
   if (error) throw new Error("Modifica serramento fallita");
+  return (data as SrSerramentoRow | null) ?? null;
 }
 
 /**
@@ -677,11 +678,13 @@ function nuovoAccessorio(progetto_id: string, companyId: string, accessorio: Par
   };
 }
 
-export async function updateAccessorio(id: string, patch: Partial<SrAccessorioRow>): Promise<void> {
+/** Salva il complemento e lo restituisce com'è rimasto nel database (`null` se non torna indietro): vedi updateProgetto. */
+export async function updateAccessorio(id: string, patch: Partial<SrAccessorioRow>): Promise<SrAccessorioRow | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
-    .from("sr_accessori_progetto").update(patch).eq("id", id);
+  const { data, error } = await (supabase as any)
+    .from("sr_accessori_progetto").update(patch).eq("id", id).select("*").maybeSingle();
   if (error) throw new Error("Modifica accessorio fallita");
+  return (data as SrAccessorioRow | null) ?? null;
 }
 
 export async function deleteAccessorio(id: string): Promise<void> {

@@ -10,6 +10,7 @@
 import { useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnteprimaPdfVero } from "@/components/preventivatore/AnteprimaPdfVero";
+import { chiaveAnteprimaPdf } from "@/lib/preventivatore/chiaveAnteprimaPdf";
 
 export interface BozzaPerIlPdf {
   quote: Record<string, unknown>;
@@ -39,7 +40,7 @@ interface Props {
 }
 
 export function PdfVeroPreventivoClassico({ quoteId, bozza, attivo }: Props) {
-  const chiave = useMemo(() => JSON.stringify([quoteId ?? null, bozza]), [quoteId, bozza]);
+  const chiave = useMemo(() => chiaveAnteprimaPdf([quoteId ?? null, bozza]), [quoteId, bozza]);
   const genera = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
       body: { quote_id: quoteId ?? undefined, solo_anteprima: true, bozza },

@@ -35,11 +35,19 @@ export function FeatureRoute({
   const location = useLocation();
   // v8.6.62 — Tri-state: enabled = passa, preview = lascia passare (UI demo
   // + guard sulle azioni), disabled = redirect a fallback.
-  const { isEnabled, isPreview, isLoading, isError, errorMessage, refetch, isFetching } = useFeatureAccess(featureKey);
+  const accesso = useFeatureAccess(featureKey);
+  const { isEnabled, isPreview, isError, errorMessage, refetch, isFetching } = accesso;
+  // Le funzioni del piano restano nella memoria del browser tra una ricarica e
+  // l'altra (24/11/2026): un «sì» ricordato apre subito la pagina, ma un «no»
+  // ricordato non basta per mandare via. Finché la lettura fresca è in viaggio
+  // si aspetta, altrimenti una funzione attivata a scheda chiusa rimbalzava
+  // alla pagina dei piani al primo accesso.
+  const noDaConfermare = !isEnabled && !isPreview && isFetching && !isError;
+  const isLoading = accesso.isLoading || noDaConfermare;
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const shouldSoftOpenWhileResolving = shouldSoftOpenFeatureCheck({
     featureKey,
-    isLoading,
+    isLoading: accesso.isLoading,
     isError,
   });
 

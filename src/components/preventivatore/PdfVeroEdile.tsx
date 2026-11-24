@@ -9,6 +9,7 @@ import { useCallback, useMemo } from "react";
 import { readPdfPreviewBlob, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { opzioniEffettive, useAziendaDelPdf, type OpzioniPdfComputo } from "@/lib/preventivatore/datiPdfEdile";
 import { AnteprimaPdfVero } from "./AnteprimaPdfVero";
+import { chiaveAnteprimaPdf } from "@/lib/preventivatore/chiaveAnteprimaPdf";
 
 /** La funzione del modulo che fa il PDF (quella del bottone «Anteprima PDF»): restituisce un blob URL. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,12 +29,6 @@ interface Props {
   attivo: boolean;
 }
 
-/** I campi che cambiano a ogni salvataggio senza cambiare il documento: non rifanno il PDF. */
-const SENZA_TIMBRI = (p: Record<string, unknown>) => {
-  const { updated_at: _u, ...resto } = p;
-  return resto;
-};
-
 export function PdfVeroEdile({ progetto, computo, media, templateAzienda, opzioni, disegna, attivo }: Props) {
   const azienda = useAziendaDelPdf(progetto.company_id);
   const company = azienda.data;
@@ -44,7 +39,7 @@ export function PdfVeroEdile({ progetto, computo, media, templateAzienda, opzion
     [progetto, computo, media, template, company, pdfOptions],
   );
   const chiave = useMemo(
-    () => JSON.stringify([SENZA_TIMBRI(progetto), computo, media, template, company ?? null, pdfOptions]),
+    () => chiaveAnteprimaPdf([progetto, computo, media, template, company ?? null, pdfOptions]),
     [progetto, computo, media, template, company, pdfOptions],
   );
   const genera = useCallback(async () => {
