@@ -371,6 +371,39 @@ class LegendaEStanzeDaiNomiTest(unittest.TestCase):
         self.assertEqual(esito[1], "Int. 04")
 
 
+class SistemazioniDelLottoTest(unittest.TestCase):
+    def test_ritrova_l_edificio_nella_planimetria_e_porta_il_lotto_nella_pianta(self):
+        from ricostruisciDxf import leggi_sistemazioni
+        doc = ezdxf.new()
+        doc.layers.new("MRT")
+        blocco = doc.blocks.new("EDIFICIO")
+        # L'edificio come nella pianta: 12 × 10 m, muri da 30 cm, fatti di tanti tratti.
+        def bordo(spazio, x0, y0, x1, y1):
+            for (ax, ay), (bx, by) in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))]:
+                for i in range(10):
+                    spazio.add_line((ax + (bx - ax) * i / 10, ay + (by - ay) * i / 10), (ax + (bx - ax) * (i + 1) / 10, ay + (by - ay) * (i + 1) / 10), dxfattribs={"layer": "MRT"})
+        bordo(blocco, 0, 0, 12, 10)
+        bordo(blocco, .3, .3, 11.7, 9.7)
+        spazio = doc.modelspace()
+        spazio.add_blockref("EDIFICIO", (500, 300))  # la planimetria generale sta altrove nel foglio
+        spazio.add_lwpolyline([(495, 295), (520, 295), (520, 299), (495, 299)], close=True, dxfattribs={"layer": "Verde Privato"})
+        spazio.add_lwpolyline([(505, 290), (513, 290), (513, 295), (505, 295)], close=True, dxfattribs={"layer": "sist_est"})
+        spazio.add_text("PISCINA", dxfattribs={"insert": (507, 292)})
+        spazio.add_circle((498, 297), .25, dxfattribs={"layer": "ALBERI"})
+        # Le pareti del piano terra, nella pianta: lo stesso edificio a (0, 0).
+        muri = [Asse(0, 15, 0, 1200, 30), Asse(0, 985, 0, 1200, 30), Asse(90, -15, 0, 1000, 30), Asse(90, -1185, 0, 1000, 30)]  # assi a metà muro
+        esito = leggi_sistemazioni(list(spazio), muri, "MRT", 100)
+        self.assertIsNotNone(esito)
+        self.assertGreaterEqual(esito["allineamento"], .7)
+        (verde,) = esito["verdi"]
+        self.assertAlmostEqual(verde.bounds[0], -500, delta=5)  # 495 m → 5 m a sinistra dell'edificio
+        (vasca,) = esito["piscine"]
+        self.assertAlmostEqual(vasca.area / 10_000, 40, delta=.5)
+        (albero,) = esito["alberi"]
+        self.assertAlmostEqual(albero[0].x, -200, delta=5)
+        self.assertTrue(esito["lottoStimato"])
+
+
 class PianiPropostiTest(unittest.TestCase):
     def test_trova_le_piante_con_i_nomi_e_scarta_il_prospetto(self):
         from anteprimaDxf import proponi_piani

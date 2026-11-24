@@ -19,6 +19,7 @@ from ezdxf.addons.drawing import Frontend, RenderContext, config, recorder
 from ezdxf.path import Command, make_path
 from shapely import LineString, Point, Polygon, STRtree, box, set_precision, union_all
 from shapely.geometry.polygon import orient
+from shapely.affinity import translate
 from shapely.ops import polygonize, split
 
 
@@ -689,6 +690,146 @@ def completa_unita_con_legenda(locali, unita, legenda, vicino=40, tolleranza=0.1
         _, i, u = min(scelte)
         esito[i] = u
         misurata[u] += aree[i]
+
+
+LAYER_VERDE = re.compile(r"verde|prato|giardin|green|grass|aiuol", re.IGNORECASE)
+LAYER_ALBERI = re.compile(r"alber|tree", re.IGNORECASE)
+LAYER_CONFINE = re.compile(r"lotto|confine|recinz|perimetr|property|boundary", re.IGNORECASE)
+PISCINA = re.compile(r"\bpiscin", re.IGNORECASE)
+
+
+def _contorno_chiuso(e, cm):
+    """I contorni chiusi di una polilinea o di un tratteggio, in cm."""
+    try:
+        if e.dxftype() == "LWPOLYLINE" and e.closed:
+            percorsi = [make_path(e)]
+        elif e.dxftype() == "HATCH":
+            from ezdxf import path as percorso  # noqa: PLC0415
+            percorsi = list(percorso.from_hatch(e))
+        else:
+            return []
+    except (ezdxf.DXFError, ValueError, TypeError, IndexError):
+        return []
+    poligoni = []
+    for p in percorsi:
+        punti = [(v.x * cm, v.y * cm) for v in p.flattening(max(5 / cm, 1e-5))]
+        if len(punti) >= 3:
+            poligono = Polygon(punti).buffer(0)
+            if poligono.geom_type == "Polygon" and poligono.area > 0:
+                poligoni.append(poligono)
+    return poligoni
+
+
+def allinea_blocco_edificio(entita, muri_terra, layer, cm):
+    """Nella planimetria generale l'edificio è spesso un blocco con le stesse pareti del piano
+    terra (Callimaco: A$C3119025d sul layer MRT). Si cerca il blocco le cui pareti, spostate,
+    cadono sulle pareti del piano terra: lo spostamento porta il lotto nelle coordinate della pianta."""
+    if not muri_terra or not layer:
+        return None
+    assi = [LineString(m.estremi()) for m in muri_terra]
+    rete = union_all(assi).buffer(max(m.spessore for m in muri_terra) / 2 + 10)
+    gx0, gy0, gx1, gy1 = union_all(assi).bounds
+    migliore = None
+    for e in entita:
+        if e.dxftype() != "INSERT":
+            continue
+        try:
+            pezzi = [v for v in e.virtual_entities() if v.dxf.layer.casefold() == layer.casefold()]
+        except (ezdxf.DXFError, ValueError, TypeError, AttributeError, IndexError):
+            continue
+        tratti = [s for v in pezzi for s in segmenti(v, cm) or ()]
+        if len(tratti) < 30:
+            continue
+        bx0, by0, bx1, by1 = union_all([LineString(t) for t in tratti]).bounds
+        if abs((bx1 - bx0) - (gx1 - gx0)) > 0.05 * (gx1 - gx0) + 60 or abs((by1 - by0) - (gy1 - gy0)) > 0.05 * (gy1 - gy0) + 60:
+            continue
+        dx, dy = gx0 - bx0, gy0 - by0
+        sopra = sum(rete.covers(Point((p[0] + q[0]) / 2 + dx, (p[1] + q[1]) / 2 + dy)) for p, q in tratti) / len(tratti)
+        if sopra >= 0.7 and (migliore is None or sopra > migliore[2]):
+            migliore = (dx, dy, sopra, (bx0, by0, bx1, by1))
+    return migliore
+
+
+def leggi_sistemazioni(entita, muri_terra, layer, cm, raggio=8000):
+    """Il lotto della planimetria generale nelle coordinate del piano terra: verde, piscine,
+    alberi e confine. Restituisce None se l'edificio non si ritrova nella planimetria."""
+    allineamento = allinea_blocco_edificio(entita, muri_terra, layer, cm)
+    if not allineamento:
+        return None
+    dx, dy, quota, (bx0, by0, bx1, by1) = allineamento
+    zona = box(bx0 - raggio, by0 - raggio, bx1 + raggio, by1 + raggio)
+    edificio = box(bx0, by0, bx1, by1)
+    sposta = lambda g: translate(g, dx, dy)  # noqa: E731
+    verdi, piscine, alberi, confini, testi = [], [], [], [], []
+    chiusi = []
+    for e in entita:
+        tipo = e.dxftype()
+        nome_layer = e.dxf.layer
+        if tipo in ("TEXT", "MTEXT"):
+            p = e.dxf.insert
+            punto_testo = Point(p.x * cm, p.y * cm)
+            if zona.covers(punto_testo):
+                testi.append((punto_testo, " ".join((e.plain_text() if tipo == "MTEXT" else e.dxf.text).split())))
+            continue
+        if tipo == "INSERT" and (LAYER_ALBERI.search(nome_layer) or LAYER_ALBERI.search(e.dxf.name)):
+            p = e.ocs().to_wcs(e.dxf.insert)  # blocchi specchiati: il punto è nel loro sistema
+            punto_albero = Point(p.x * cm, p.y * cm)
+            if zona.covers(punto_albero) and not edificio.covers(punto_albero):
+                alberi.append((punto_albero, 300))
+            continue
+        if tipo == "CIRCLE" and LAYER_ALBERI.search(nome_layer):
+            c = e.ocs().to_wcs(e.dxf.center)
+            punto_albero, r = Point(c.x * cm, c.y * cm), e.dxf.radius * cm
+            # Un cerchio piccolo è il tronco (Callimaco: 25 cm): la chioma la si dà di 3 m.
+            if 10 <= r <= 600 and zona.covers(punto_albero) and not edificio.covers(punto_albero):
+                alberi.append((punto_albero, round(r * 2) if r >= 80 else 300))
+            continue
+        for poligono in _contorno_chiuso(e, cm):
+            if not zona.covers(poligono.representative_point()):
+                continue
+            if LAYER_VERDE.search(nome_layer) and poligono.area >= 20_000:
+                verdi.append(poligono)
+            elif LAYER_CONFINE.search(nome_layer) and poligono.covers(edificio.centroid):
+                confini.append(poligono)
+            else:
+                chiusi.append(poligono)
+    def stessa(a, b):
+        return a.symmetric_difference(b).area <= 0.05 * max(a.area, b.area)
+    for p, testo in testi:
+        if not PISCINA.search(testo):
+            continue
+        vasche = sorted((c for c in chiusi if 80_000 <= c.area <= 1_500_000 and c.distance(p) <= 300), key=lambda c: c.distance(p))
+        if vasche and not any(stessa(v, vasche[0]) for v in piscine):
+            piscine.append(vasche[0])
+    # Una vasca uguale a una già riconosciuta (stessa misura, rettangolare) è un'altra piscina,
+    # anche senza scritta: a Callimaco la scritta c'è su una sola delle due.
+    for vasca in list(piscine):
+        for c in chiusi:
+            rettangolare = c.area >= 0.95 * c.minimum_rotated_rectangle.area
+            if rettangolare and abs(c.area - vasca.area) <= 0.05 * vasca.area and not any(stessa(c, v) or c.intersects(v) for v in piscine):
+                piscine.append(c)
+    # Gli stessi alberi disegnati due volte (cerchio e blocco) restano uno.
+    unici = []
+    for p, d in alberi:
+        if all(p.distance(q) > 60 for q, _ in unici):
+            unici.append((p, d))
+    # Lo stesso verde come polilinea e come tratteggio resta uno; una vasca non è un prato.
+    verdi = [v for i, v in enumerate(verdi) if not any(stessa(v, w) for w in verdi[:i]) and not any(stessa(v, vasca) for vasca in piscine)]
+    if confini:
+        lotto = max(confini, key=lambda c: c.area)
+        stimato = False
+    elif verdi or piscine:
+        # Nessun confine disegnato: il rettangolo che tiene edificio, verde e vasche. Gli alberi no:
+        # quelli del viale stanno fuori (Callimaco: con gli alberi il lotto veniva 8.150 m², non 2.600).
+        lotto = union_all([edificio, *verdi, *piscine]).envelope
+        stimato = True
+    else:
+        return None
+    unici = [(p, d) for p, d in unici if lotto.buffer(200).covers(p)]
+    return {
+        "lotto": sposta(lotto), "lottoStimato": stimato, "verdi": [sposta(v) for v in verdi],
+        "piscine": [sposta(v) for v in piscine], "alberi": [(sposta(p), d) for p, d in unici], "allineamento": round(quota, 3),
+    }
 
 
 def misure_da_sigle(vani, sigle, distanza=250):
@@ -1895,6 +2036,7 @@ def ricostruisci(documento, opzioni):
     altezza_richiesta = altezza
     legenda = leggi_legenda_unita(entita)
     quote_piani = sorted({r["quota"] for _, r, _, _, _ in letti})
+    piano_terra = min((q for q in quote_piani if q >= 0), default=quote_piani[0] if quote_piani else None)
     for numero, regione, piano, (ox, oy), _ in letti:
         # I riscontri tra piani usano i tratti della tavola prima della normalizzazione per l’editor.
         accorpa_assi_sovrapposti(piano.muri, piano.aperture)
@@ -1977,6 +2119,43 @@ def ricostruisci(documento, opzioni):
             "posizione": pos((p.x, p.y)),
             "testo": "Scala in tavola · verificare quote e verso",
         } for i, p in enumerate(scale_in_tavola, 1))
+        # Il lotto della planimetria generale va sul piano terra, nelle sue coordinate.
+        if regione["quota"] == piano_terra and layer:
+            # Qui servono anche cerchi (alberi) e tratteggi (verde), che la lettura delle piante scarta.
+            esterni = [e for e in documento.modelspace() if e.dxftype() in tipi + ("CIRCLE", "HATCH")
+                       and not e.dxf.get("invisible", 0) and e.dxf.layer.casefold() not in nascosti]
+            sistemazioni = leggi_sistemazioni(esterni, piano.muri, layer, cm)
+            if sistemazioni:
+                def contorno_area(poligono):
+                    return [pos(p) for p in list(orient(poligono, sign=1).exterior.coords)[:-1]]
+                aree = [{"id": f"{prefisso}-lotto", "tipo": "lotto",
+                         "nome": "Lotto (da verificare)" if sistemazioni["lottoStimato"] else "Lotto",
+                         "contorno": contorno_area(sistemazioni["lotto"]), "recinzione": True, "stato": "esistente"}]
+                aree += [{"id": f"{prefisso}-verde{i}", "tipo": "prato", "nome": "Verde", "contorno": contorno_area(v)}
+                         for i, v in enumerate(sistemazioni["verdi"], 1)]
+                stato["aree"] = aree
+                for i, vasca in enumerate(sistemazioni["piscine"], 1):
+                    rettangolo = vasca.minimum_rotated_rectangle
+                    vertici = list(rettangolo.exterior.coords)[:4]
+                    lati = [LineString([vertici[k], vertici[(k + 1) % 4]]) for k in range(2)]
+                    lungo = max(lati, key=lambda l: l.length)
+                    angolo = degrees(atan2(lungo.coords[1][1] - lungo.coords[0][1], lungo.coords[1][0] - lungo.coords[0][0]))
+                    centro = rettangolo.centroid
+                    stato["elementi"].append({
+                        "id": f"{prefisso}-piscina{i}", "tipo": "piscina", "posizione": pos((centro.x, centro.y)),
+                        "rotazione": round(angolo % 180, 1), "larghezza": round(lungo.length), "profondita": round(min(l.length for l in lati)),
+                        # Nello stato di fatto tutto è esistente: la variante decide cosa si costruisce.
+                        "altezza": 140, "origine": "da_documento",
+                    })
+                for i, (punto_albero, diametro) in enumerate(sistemazioni["alberi"], 1):
+                    stato["elementi"].append({
+                        "id": f"{prefisso}-albero{i}", "tipo": "albero", "posizione": pos((punto_albero.x, punto_albero.y)),
+                        "rotazione": 0, "larghezza": diametro, "profondita": diametro, "origine": "da_documento",
+                    })
+                riepilogo[numero]["lotto"] = {
+                    "allineamento": sistemazioni["allineamento"], "stimato": sistemazioni["lottoStimato"], "verdi": len(sistemazioni["verdi"]),
+                    "piscine": len(sistemazioni["piscine"]), "alberi": len(sistemazioni["alberi"]),
+                }
         livello = {
             "id": prefisso, "nome": regione["nome"], "quota": regione["quota"], "fatto": stato, "proposte": [],
         }
