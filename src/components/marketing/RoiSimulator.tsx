@@ -815,6 +815,7 @@ interface PctSliderProps {
 
 /** Slider per una percentuale espressa in 0..max (non 0..1). */
 function PctSlider({ label, value, onChange, max = 100, step = 5, decimals = 0, hint }: PctSliderProps) {
+  const t = useT();
   const safe = Number.isFinite(value) ? Math.min(Math.max(value, 0), max) : 0;
   return (
     <div className="space-y-1.5">

@@ -982,7 +982,7 @@ function ElencoMezzi({
                 <TableCell className="text-sm text-slate-600">
                   {classe === "attrezzatura" ? (m.categoria_id ? nomeCategoria.get(m.categoria_id) : null) ?? "—" : t(tipoMezzoLabel(m.tipo))}
                 </TableCell>
-                <TableCell className="max-w-[220px] truncate text-sm text-slate-600">{dovePerElenco(m, disponibilita?.get(m.id), libero)}</TableCell>
+                <TableCell className="max-w-[220px] truncate text-sm text-slate-600">{dovePerElenco(m, disponibilita?.get(m.id), libero, t)}</TableCell>
                 <TableCell>{m.assegnato_persona || "—"}</TableCell>
                 <TableCell className="whitespace-nowrap text-sm">
                   {m.stato !== "in_servizio"

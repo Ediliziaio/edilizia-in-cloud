@@ -808,7 +808,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                 (le stesse impostazioni di «Opzioni avanzate»). */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="text-xs h-7">{t("+ Sconto sul totale{valore}", { valore: String((state.sconto_globale_percentuale ? ` (${state.sconto_globale_percentuale}%)` : "") ?? "") })}</Button>
+                <Button variant="outline" size="sm" className="text-xs h-7">{t("+ Sconto sul totale{valore}", { valore: String(state.sconto_globale_percentuale ? ` (${state.sconto_globale_percentuale}%)` : "") })}</Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-3" align="start">
                 <label className="text-[10px] text-muted-foreground">{t("Sconto % sul totale")}</label>

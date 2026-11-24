@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, ArrowRight } from "lucide-react";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * @param warnBelowEur soglia opzionale: se il saldo e' sotto (ma gli invii non

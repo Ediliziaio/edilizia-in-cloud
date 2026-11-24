@@ -50,7 +50,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
         <Label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80">{t("Dati documento")}</Label>
         {/* Tipo SDI e valuta: si leggono, non si scelgono. */}
-        <span className="truncate text-[10px] text-muted-foreground" title={td ? t("Tipo SDI {td} – {valore}", { td: String(td ?? ""), valore: String((TIPI_DOC[td as keyof typeof TIPI_DOC] ?? "") ?? "") }) : undefined}>
+        <span className="truncate text-[10px] text-muted-foreground" title={td ? t("Tipo SDI {td} – {valore}", { td: String(td ?? ""), valore: String(TIPI_DOC[td as keyof typeof TIPI_DOC] ?? "") }) : undefined}>
           {t("Tipo SDI")} <span className="font-mono">{td ?? "—"}</span>{td && TIPI_DOC[td as keyof typeof TIPI_DOC] ? ` – ${TIPI_DOC[td as keyof typeof TIPI_DOC]}` : ""} {t("· EUR")}
         </span>
       </div>

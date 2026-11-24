@@ -42,7 +42,7 @@ export function EditorTotaliSection({ state, errori, errorePieno = true, onVaiAl
       {/* Sconto globale */}
       {(state.sconto_globale_valore ?? 0) > 0 && (
         <div className="flex justify-between text-xs text-destructive">
-          <span>{t("Sconto ({sconto_globale_percentuale}%)", { sconto_globale_percentuale: String((state.sconto_globale_percentuale ?? 0) ?? "") })}</span>
+          <span>{t("Sconto ({sconto_globale_percentuale}%)", { sconto_globale_percentuale: String(state.sconto_globale_percentuale ?? 0) })}</span>
           <span className="tabular-nums">-{formatCurrency(state.sconto_globale_valore ?? 0)}</span>
         </div>
       )}
@@ -69,7 +69,7 @@ export function EditorTotaliSection({ state, errori, errorePieno = true, onVaiAl
       {/* Cassa previdenziale */}
       {!isDDT && state.cassa_previdenziale && (state.cassa_importo ?? 0) > 0 && (
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">{t("Cassa prev. ({cassa_aliquota}%)", { cassa_aliquota: String((state.cassa_aliquota ?? 4) ?? "") })}</span>
+          <span className="text-muted-foreground">{t("Cassa prev. ({cassa_aliquota}%)", { cassa_aliquota: String(state.cassa_aliquota ?? 4) })}</span>
           <span className="tabular-nums">+{formatCurrency(state.cassa_importo ?? 0)}</span>
         </div>
       )}
@@ -77,7 +77,7 @@ export function EditorTotaliSection({ state, errori, errorePieno = true, onVaiAl
       {/* Rivalsa INPS */}
       {!isDDT && state.rivalsa_inps && (state.rivalsa_importo ?? 0) > 0 && (
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">{t("Rivalsa INPS ({rivalsa_aliquota}%)", { rivalsa_aliquota: String((state.rivalsa_aliquota ?? 4) ?? "") })}</span>
+          <span className="text-muted-foreground">{t("Rivalsa INPS ({rivalsa_aliquota}%)", { rivalsa_aliquota: String(state.rivalsa_aliquota ?? 4) })}</span>
           <span className="tabular-nums">+{formatCurrency(state.rivalsa_importo ?? 0)}</span>
         </div>
       )}
@@ -101,7 +101,7 @@ export function EditorTotaliSection({ state, errori, errorePieno = true, onVaiAl
       {/* Ritenuta */}
       {!isDDT && state.ritenuta_acconto && (state.ritenuta_importo ?? 0) > 0 && (
         <div className="flex justify-between text-xs text-destructive">
-          <span>{t("Ritenuta d'acconto ({ritenuta_aliquota}%)", { ritenuta_aliquota: String((state.ritenuta_aliquota ?? 20) ?? "") })}</span>
+          <span>{t("Ritenuta d'acconto ({ritenuta_aliquota}%)", { ritenuta_aliquota: String(state.ritenuta_aliquota ?? 20) })}</span>
           <span className="tabular-nums">-{formatCurrency(state.ritenuta_importo ?? 0)}</span>
         </div>
       )}
@@ -109,7 +109,7 @@ export function EditorTotaliSection({ state, errori, errorePieno = true, onVaiAl
       {/* Altra ritenuta */}
       {!isDDT && state.altra_ritenuta && (state.altra_ritenuta_importo ?? 0) > 0 && (
         <div className="flex justify-between text-xs text-destructive">
-          <span>{t("Altra ritenuta ({altra_ritenuta_aliquota}%)", { altra_ritenuta_aliquota: String((state.altra_ritenuta_aliquota ?? 0) ?? "") })}</span>
+          <span>{t("Altra ritenuta ({altra_ritenuta_aliquota}%)", { altra_ritenuta_aliquota: String(state.altra_ritenuta_aliquota ?? 0) })}</span>
           <span className="tabular-nums">-{formatCurrency(state.altra_ritenuta_importo ?? 0)}</span>
         </div>
       )}

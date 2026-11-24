@@ -263,7 +263,7 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
       ))}
       {esito.ripartizione_da_completare && <p className="text-xs text-amber-700">{t("Il documento è su più commesse senza le quote: la ripartizione va completata.")}</p>}
       {esito.scartato_at && (
-        <p className="text-xs text-muted-foreground">{t("Proposta scartata il {scartato_at}{valore}", { scartato_at: formatDateIt(esito.scartato_at), valore: String((esito.scartato_motivo ? `: ${esito.scartato_motivo}` : "") ?? "") })}</p>
+        <p className="text-xs text-muted-foreground">{t("Proposta scartata il {scartato_at}{valore}", { scartato_at: formatDateIt(esito.scartato_at), valore: String(esito.scartato_motivo ? `: ` : "") })}</p>
       )}
       <div className="flex flex-wrap items-center gap-3">
         {confermaClic && (

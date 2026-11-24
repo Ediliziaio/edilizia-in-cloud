@@ -177,7 +177,7 @@ export function Investitori({ riepilogo, puoModificare }: PropsScheda) {
     : inv.numeri ? conti.scopertoImpegni > 0 ? t("Impegni al picco del piano") : t("Copertura del piano")
     : t("Serve un calendario di cassa");
   const fontiInVista = conti.fonti.filter(c => (!filtro || gruppoFonte(c.fonte.tipo) === filtro)
-    && cercaNellOperazione(ricerca, [c.fonte.nome, descrizioneFonte(c.fonte)]));
+    && cercaNellOperazione(ricerca, [c.fonte.nome, descrizioneFonte(c.fonte, t)]));
   const daConfermare = conti.fonti.reduce((totale, c) => totale + (c.programmati ?? []).filter(m => m.data <= inv.oggi).length, 0);
   const nuova = (tipo?: TipoFonte) => setModifica({ fonte: null, tipo });
   const dettaglio = (c: ContoFonte) => <DettaglioFonte
@@ -211,7 +211,7 @@ export function Investitori({ riepilogo, puoModificare }: PropsScheda) {
         <IndicatoreScheda titolo={t("Da versare")} valore={euro(conti.totali.daVersare)} nota={t("Impegni ancora da incassare")} tono="ambra" />
         <IndicatoreScheda titolo={t("Da coprire nel piano")} valore={inv.numeri ? euro(conti.scoperto) : "—"}
           nota={scopertoDaDate && datePiano.has(scopertoDaDate) ? <Link className="inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline"
-            aria-label={t("Analizza lo scoperto di {scopertoDaDate}", { scopertoDaDate: String(nomeMese(scopertoDaDate) ?? "") })}
+            aria-label={t("Analizza lo scoperto di {scopertoDaDate}", { scopertoDaDate: String(nomeMese(scopertoDaDate)) })}
             to={{ search: parametriAnalisi(scopertoDaDate).toString() }}>
             {notaScoperto} <ArrowUpRight className="size-3" aria-hidden="true" />
           </Link> : notaScoperto}
@@ -658,7 +658,7 @@ export function CoperturaCapitale({ conti, capitaleMassimo, meseMassimo, investi
           {investitoOggi !== null && <span className="text-muted-foreground"> {t("A oggi l'operazione ha assorbito {importo}.", { importo: euro(investitoOggi) })}</span>}
         </p>
       )}
-      {mese && importo > conti.scopertoImpegni && <p className="mt-1 text-sm text-destructive">{t("Nel calendario mancano {importo} a {mese}.", { importo: euro(importo), mese: String(nomeMese(mese) ?? "") })}</p>}
+      {mese && importo > conti.scopertoImpegni && <p className="mt-1 text-sm text-destructive">{t("Nel calendario mancano {importo} a {mese}.", { importo: euro(importo), mese: String(nomeMese(mese)) })}</p>}
     </section>
   );
 }

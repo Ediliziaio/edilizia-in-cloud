@@ -579,7 +579,7 @@ function CustomersListInner() {
     const jsPDF = jsPDFModule.default ?? jsPDFModule.jsPDF;
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     doc.setFontSize(14);
-    doc.text(`Elenco Clienti — ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: it })}`, 40, 40);
+    doc.text(`Elenco Clienti — ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() })}`, 40, 40);
     doc.setFontSize(9);
 
     const columns = ["Nome", "Email", "Telefono", "CF", "N. Ordini"];

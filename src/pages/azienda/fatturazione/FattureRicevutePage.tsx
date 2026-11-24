@@ -1603,7 +1603,7 @@ export default function FattureRicevutePage() {
                     ) : nonSiPaga(f.tipo_documento) || f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : stornataDelTutto(f) ? (
                       <StatoPill tono="grigio">{tr("Stornata")}</StatoPill>
                     ) : pagataSulCosto(f) && !pagataIl(f.id) ? (
-                      <StatoPill tono="verde">{tr("Pagata{valore}", { valore: String((saldo?.data_saldo ? ` ${formatDateShort(saldo.data_saldo)}` : "") ?? "") })}</StatoPill>
+                      <StatoPill tono="verde">{tr("Pagata{valore}", { valore: (saldo?.data_saldo ? ` ${formatDateShort(saldo.data_saldo)}` : "") })}</StatoPill>
                     ) : pagataIl(f.id) ? (
                       <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                     ) : (

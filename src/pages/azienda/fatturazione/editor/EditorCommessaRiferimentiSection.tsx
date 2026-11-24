@@ -198,7 +198,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
     if (id === state.ordine_id) dispatch({ type: "SET_COMMESSA", ordine_id: null, riferimenti: risultato });
     else dispatch({ type: "SET_RIFERIMENTI_PA", riferimenti: risultato });
     if (fatturaId && altreLegate.includes(id)) await supabase.from("fattura_ordine").delete().eq("fattura_id", fatturaId).eq("ordine_id", id);
-    if (tolti.length) toast.warning(tr("Tolti i riferimenti della commessa {order_code}", { order_code: String((commesse.find((c) => c.id === id)?.order_code ?? "") ?? "") }), { description: tolti.map(etichettaRiferimento).join(" — ") });
+    if (tolti.length) toast.warning(tr("Tolti i riferimenti della commessa {order_code}", { order_code: String(commesse.find((c) => c.id === id)?.order_code ?? "") }), { description: tolti.map(etichettaRiferimento).join(" — ") });
     void queryClient.invalidateQueries({ queryKey: ["fattura-ordini-pa", fatturaId] });
     void queryClient.invalidateQueries({ queryKey: ["contesto-controlli-pa"] });
   }
@@ -324,7 +324,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
               <Link to={`/azienda/ordini/${c.id}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
             </Button>
             {!disabled && (
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" aria-label={tr("Scollega la commessa {order_code}", { order_code: String((c.order_code ?? "") ?? "") })} onClick={() => void scollega(c.id)}>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" aria-label={tr("Scollega la commessa {order_code}", { order_code: String(c.order_code ?? "") })} onClick={() => void scollega(c.id)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             )}

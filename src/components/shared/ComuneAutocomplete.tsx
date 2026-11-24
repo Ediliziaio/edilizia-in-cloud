@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { MapPin, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useComuni, type Comune } from "@/lib/comuni/useComuni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ComuneAutocompleteProps {
   /** Testo nel campo. */
@@ -36,6 +37,7 @@ export function ComuneAutocomplete({
   className,
   disabled,
 }: ComuneAutocompleteProps) {
+  const t = useT();
   const { ensure, search, loading, ready } = useComuni();
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<Comune[]>([]);
