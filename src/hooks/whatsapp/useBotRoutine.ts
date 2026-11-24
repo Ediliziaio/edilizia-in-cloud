@@ -19,7 +19,7 @@ export interface BotRoutineRegole {
   sotto_scorta?: boolean;
   preventivo_giorni?: number;
   anticipo_min?: number;
-  /** L'AqI scrive il testo (più curato). Assente = attivo. */
+  /** L'AI scrive il testo (più curato). Assente = attivo. */
   ai?: boolean;
   /** Rapportino della sera: l'elenco di chi manca ai destinatari. Assente = sì. */
   riepilogo_titolare?: boolean;

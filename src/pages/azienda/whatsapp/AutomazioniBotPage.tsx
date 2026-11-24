@@ -373,10 +373,10 @@ function EditorAutomazione({
           {mostraAI && (
             <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
               <div>
-                <p className="text-sm font-medium">{tr("Scrivi con l'AqI")}</p>
+                <p className="text-sm font-medium">{tr("Scrivi con l'AI")}</p>
                 <p className="text-[11px] text-muted-foreground">{tr("Testo più curato e ordinato per priorità. Se spento, usa il testo standard.")}</p>
               </div>
-              <Switch checked={ai} onCheckedChange={setAi} aria-label={tr("Scrivi con l'AqI")} />
+              <Switch checked={ai} onCheckedChange={setAi} aria-label={tr("Scrivi con l'AI")} />
             </div>
           )}
 
